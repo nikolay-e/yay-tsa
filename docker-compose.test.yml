@@ -1,0 +1,48 @@
+
+services:
+  # Local Jellyfin server for testing
+  jellyfin-server:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin-test-server
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://jellyfin-server:8096
+    volumes:
+      - jellyfin_config:/config
+      - jellyfin_cache:/cache
+      - ./test-media:/media:ro
+    ports:
+      - "8096:8096"
+    networks:
+      - jellyfin-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Integration test runner
+  integration-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - JELLYFIN_SERVER_URL=${JELLYFIN_SERVER_URL:-http://localhost:8096}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - JELLYFIN_CLIENT_NAME=${JELLYFIN_CLIENT_NAME:-Jellyfin Mini Client}
+      - JELLYFIN_DEVICE_NAME=${JELLYFIN_DEVICE_NAME:-Docker Test Runner}
+      - NODE_ENV=test
+    volumes:
+      - ./packages/core:/app/packages/core
+      - test_node_modules:/app/packages/core/node_modules
+    working_dir: /app/packages/core
+    command: npm run test:integration
+    network_mode: host
+
+networks:
+  jellyfin-test:
+    driver: bridge
+
+volumes:
+  test_node_modules:
+  jellyfin_config:
+  jellyfin_cache:

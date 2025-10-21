@@ -400,7 +400,9 @@ const config: CapacitorConfig = {
 - [ ] Jellyfin API client with auth
 - [ ] Items queries (albums, artists, tracks)
 - [ ] Queue state machine
-- [ ] Unit tests
+- [ ] Unit and integration tests with docker-compose
+- [ ] Ensure the tests and build are passing in ci.yml
+- [ ] Create pre-commit and add to ci
 
 **Week 2: Web UI**
 - [ ] Login with server validation

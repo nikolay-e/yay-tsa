@@ -1,0 +1,82 @@
+# Pre-commit hooks for code quality and consistency
+# See https://pre-commit.com for more information
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.md$
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags in docker-compose
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # TypeScript/JavaScript formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, json, yaml, markdown]
+        exclude: |
+          (?x)^(
+            package-lock\.json|
+            .*\.min\.js|
+            jellyfin-api-spec\.json
+          )$
+        args: [--write, --ignore-unknown]
+
+  # TypeScript linting
+  - repo: local
+    hooks:
+      - id: tsc
+        name: TypeScript type check
+        entry: bash -c 'cd packages/core && npx tsc --noEmit'
+        language: system
+        files: \.ts$
+        pass_filenames: false
+
+      - id: vitest-unit
+        name: Run unit tests
+        entry: bash -c 'cd packages/core && npm test'
+        language: system
+        files: \.(ts|js)$
+        pass_filenames: false
+        stages: [pre-push]
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.39.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+        exclude: |
+          (?x)^(
+            node_modules/|
+            jellyfin-api-spec\.json
+          )$
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        args: [-x]
+
+  # Environment file validation
+  - repo: local
+    hooks:
+      - id: check-env-example
+        name: Check .env.example is up to date
+        entry: bash -c 'if [ -f .env.example ]; then echo "✓ .env.example exists"; else echo "✗ .env.example missing" && exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
