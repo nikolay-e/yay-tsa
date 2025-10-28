@@ -1,0 +1,29 @@
+{
+  "name": "jellyfin-miniclient",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A portable music client for Jellyfin",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "prepare": "command -v pre-commit > /dev/null && pre-commit install || echo 'pre-commit not installed, skipping hook setup'",
+    "test": "cd packages/core && npm test",
+    "build": "cd packages/core && npm run build",
+    "test:integration": "./run-integration-tests.sh full",
+    "lint": "prettier --check .",
+    "format": "prettier --write .",
+    "type-check": "cd packages/core && npx tsc --noEmit",
+    "pre-commit": "pre-commit run --all-files"
+  },
+  "keywords": [
+    "jellyfin",
+    "music",
+    "client"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "^3.1.0"
+  }
+}

@@ -1,0 +1,21 @@
+services:
+  # Integration test runner against external Jellyfin server
+  integration-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - JELLYFIN_SERVER_URL=${JELLYFIN_SERVER_URL}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - JELLYFIN_CLIENT_NAME=${JELLYFIN_CLIENT_NAME:-Jellyfin Mini Client}
+      - JELLYFIN_DEVICE_NAME=${JELLYFIN_DEVICE_NAME:-Docker Test Runner}
+      - NODE_ENV=test
+    volumes:
+      - ./packages/core:/app/packages/core
+      - test_node_modules:/app/packages/core/node_modules
+    working_dir: /app/packages/core
+    command: npm run test:integration
+    network_mode: host
+
+volumes:
+  test_node_modules:

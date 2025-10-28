@@ -1,36 +1,23 @@
-FROM nginx:alpine
+FROM node:20-alpine
 
-# Copy the music player to nginx html directory
-COPY music-player.html /usr/share/nginx/html/index.html
+# Install dependencies for testing
+RUN apk add --no-cache \
+    bash \
+    git \
+    curl
 
-# Create music directory for mounted samples
-RUN mkdir -p /usr/share/nginx/html/music
+# Create app directory
+WORKDIR /app
 
-# Create nginx configuration to serve files properly
-RUN echo 'server {' > /etc/nginx/conf.d/default.conf && \
-    echo '    listen 80;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    server_name localhost;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    ' >> /etc/nginx/conf.d/default.conf && \
-    echo '    location / {' >> /etc/nginx/conf.d/default.conf && \
-    echo '        root /usr/share/nginx/html;' >> /etc/nginx/conf.d/default.conf && \
-    echo '        index index.html;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    }' >> /etc/nginx/conf.d/default.conf && \
-    echo '    ' >> /etc/nginx/conf.d/default.conf && \
-    echo '    # Serve music directory with JSON directory listing' >> /etc/nginx/conf.d/default.conf && \
-    echo '    location /music/ {' >> /etc/nginx/conf.d/default.conf && \
-    echo '        alias /usr/share/nginx/html/music/;' >> /etc/nginx/conf.d/default.conf && \
-    echo '        autoindex on;' >> /etc/nginx/conf.d/default.conf && \
-    echo '        autoindex_format json;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    }' >> /etc/nginx/conf.d/default.conf && \
-    echo '    ' >> /etc/nginx/conf.d/default.conf && \
-    echo '    # Enable CORS for audio files' >> /etc/nginx/conf.d/default.conf && \
-    echo '    location ~* \.(mp3|wav|ogg)$ {' >> /etc/nginx/conf.d/default.conf && \
-    echo '        add_header Access-Control-Allow-Origin *;' >> /etc/nginx/conf.d/default.conf && \
-    echo '        add_header Access-Control-Allow-Methods "GET, OPTIONS";' >> /etc/nginx/conf.d/default.conf && \
-    echo '        add_header Access-Control-Allow-Headers "Range";' >> /etc/nginx/conf.d/default.conf && \
-    echo '    }' >> /etc/nginx/conf.d/default.conf && \
-    echo '}' >> /etc/nginx/conf.d/default.conf
+# Copy package files
+COPY packages/core/package*.json ./packages/core/
 
-EXPOSE 80
+# Install dependencies
+WORKDIR /app/packages/core
+RUN npm install
 
-CMD ["nginx", "-g", "daemon off;"]
+# Copy source code
+COPY packages/core/ ./
+
+# Run tests by default
+CMD ["npm", "run", "test:integration"]

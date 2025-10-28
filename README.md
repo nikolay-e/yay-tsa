@@ -3,6 +3,7 @@
 ## API Reference
 
 The complete Jellyfin REST API specification (OpenAPI 3.0) is available in:
+
 - **[jellyfin-api-spec.json](./jellyfin-api-spec.json)** - Full OpenAPI specification (v10.10.7, 59,343 lines)
 
 This spec can be loaded into Swagger UI, Postman, or used to generate client SDKs.
@@ -19,25 +20,28 @@ A portable music client for Jellyfin must solve three specific problems: (1) Jel
 // Field name is "Pw" not "Password" - varies by version
 const authPayload = {
   Username: username,
-  Pw: password  // "Password" fails silently on some versions
+  Pw: password, // "Password" fails silently on some versions
 };
 
 const response = await fetch(`${serverUrl}/Users/AuthenticateByName`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-Emby-Authorization': buildAuthHeader(clientInfo)
+    'X-Emby-Authorization': buildAuthHeader(clientInfo),
   },
-  body: JSON.stringify(authPayload)
+  body: JSON.stringify(authPayload),
 });
 ```
 
 **Authorization Header (Emby Compatibility Required):**
+
 ```typescript
 function buildAuthHeader(info: ClientInfo): string {
-  return `MediaBrowser Client="${info.name}", Device="${info.device}", ` +
-         `DeviceId="${info.deviceId}", Version="${info.version}"` +
-         (info.token ? `, Token="${info.token}"` : '');
+  return (
+    `MediaBrowser Client="${info.name}", Device="${info.device}", ` +
+    `DeviceId="${info.deviceId}", Version="${info.version}"` +
+    (info.token ? `, Token="${info.token}"` : '')
+  );
 }
 ```
 
@@ -49,7 +53,7 @@ Jellyfin maintains Emby API compatibility. Using only `X-Emby-Token` works for a
 interface MusicItemsQuery {
   ParentId?: string;
   IncludeItemTypes: 'Audio' | 'MusicAlbum' | 'MusicArtist';
-  Recursive: boolean;  // Must be true or returns only direct children
+  Recursive: boolean; // Must be true or returns only direct children
   Fields?: string[];
   SortBy?: string;
   StartIndex?: number;
@@ -58,13 +62,14 @@ interface MusicItemsQuery {
 
 const albums = await client.get<ItemsResult>(`/Users/${userId}/Items`, {
   IncludeItemTypes: 'MusicAlbum',
-  Recursive: true,  // Required for deep traversal
+  Recursive: true, // Required for deep traversal
   Fields: 'PrimaryImageAspectRatio,Genres,DateCreated',
-  SortBy: 'SortName'  // Locale-aware; 'Name' is not
+  SortBy: 'SortName', // Locale-aware; 'Name' is not
 });
 ```
 
 **Critical Parameters:**
+
 - `Recursive: true` required; default returns immediate children only
 - `Fields` must be explicit; images and metadata require opt-in
 - `SortBy: 'SortName'` provides locale-aware sorting
@@ -75,12 +80,12 @@ const albums = await client.get<ItemsResult>(`/Users/${userId}/Items`, {
 ```typescript
 function getStreamUrl(itemId: string, config: StreamConfig): string {
   const params = new URLSearchParams({
-    api_key: config.token,  // Query param required for media
+    api_key: config.token, // Query param required for media
     audioCodec: 'aac,mp3,opus',
     maxStreamingBitrate: '320000',
-    container: 'opus,mp3,aac,m4a,flac'
+    container: 'opus,mp3,aac,m4a,flac',
   });
-  
+
   return `${config.serverUrl}/Audio/${itemId}/stream?${params}`;
 }
 ```
@@ -92,22 +97,18 @@ function getStreamUrl(itemId: string, config: StreamConfig): string {
 ```typescript
 const TICKS_PER_SECOND = 10_000_000;
 
-function reportPlaybackProgress(
-  itemId: string,
-  positionSeconds: number,
-  isPaused: boolean
-) {
+function reportPlaybackProgress(itemId: string, positionSeconds: number, isPaused: boolean) {
   return fetch(`${serverUrl}/Sessions/Playing/Progress`, {
     method: 'POST',
     headers: {
       'X-Emby-Token': token,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       ItemId: itemId,
       PositionTicks: Math.floor(positionSeconds * TICKS_PER_SECOND),
-      IsPaused: isPaused
-    })
+      IsPaused: isPaused,
+    }),
   });
 }
 ```
@@ -147,11 +148,11 @@ export interface AudioEngine {
   pause(): void;
   seek(seconds: number): void;
   setVolume(level: number): void;
-  
+
   onTimeUpdate(callback: (seconds: number) => void): () => void;
   onEnded(callback: () => void): () => void;
   onError(callback: (error: Error) => void): () => void;
-  
+
   getCurrentTime(): number;
   getDuration(): number;
 }
@@ -159,7 +160,7 @@ export interface AudioEngine {
 // packages/platform/web/html5-audio.ts
 export class HTML5AudioEngine implements AudioEngine {
   private audio = new Audio();
-  
+
   async load(url: string): Promise<void> {
     this.audio.src = url;
     return new Promise((resolve, reject) => {
@@ -167,7 +168,7 @@ export class HTML5AudioEngine implements AudioEngine {
       this.audio.addEventListener('error', () => reject(this.audio.error), { once: true });
     });
   }
-  
+
   onTimeUpdate(callback: (seconds: number) => void): () => void {
     const handler = () => callback(this.audio.currentTime);
     this.audio.addEventListener('timeupdate', handler);
@@ -177,6 +178,7 @@ export class HTML5AudioEngine implements AudioEngine {
 ```
 
 **Measured Code Reuse:**
+
 - Core package: 100% portable
 - UI components: 85-95% portable
 - Platform adapters: 0% portable (intentionally)
@@ -185,15 +187,16 @@ export class HTML5AudioEngine implements AudioEngine {
 
 ### Framework Comparison (Bundle Size)
 
-| Framework | Runtime Size | Hello World Build | Parse Time (3G) |
-|-----------|--------------|-------------------|-----------------|
-| Vanilla JS | 0 KB | 2 KB | ~5ms |
-| Preact | 4 KB | 15 KB | ~40ms |
-| Svelte | 0 KB (compiled) | 8 KB | ~20ms |
-| React | 42 KB | 70 KB | ~180ms |
-| Vue 3 | 34 KB | 50 KB | ~135ms |
+| Framework  | Runtime Size    | Hello World Build | Parse Time (3G) |
+| ---------- | --------------- | ----------------- | --------------- |
+| Vanilla JS | 0 KB            | 2 KB              | ~5ms            |
+| Preact     | 4 KB            | 15 KB             | ~40ms           |
+| Svelte     | 0 KB (compiled) | 8 KB              | ~20ms           |
+| React      | 42 KB           | 70 KB             | ~180ms          |
+| Vue 3      | 34 KB           | 50 KB             | ~135ms          |
 
 **Decision:** Svelte
+
 - Compiles away framework; zero runtime overhead
 - Achieves <150KB gzipped total bundle target
 - Source: [Web Framework Benchmark](https://krausest.github.io/js-framework-benchmark/)
@@ -209,15 +212,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'jellyfin-api': ['./src/core/api']
-        }
-      }
-    }
-  }
+          'jellyfin-api': ['./src/core/api'],
+        },
+      },
+    },
+  },
 });
 ```
 
 **Vite vs Webpack (Measured):**
+
 - Cold start: 200ms vs 2.4s
 - Hot reload: 30ms vs 350ms
 - Production build: 3.2s vs 18s
@@ -229,14 +233,14 @@ export default defineConfig({
 ```typescript
 function validateServerUrl(url: string): void {
   const parsed = new URL(url);
-  
+
   if (import.meta.env.PROD && parsed.protocol !== 'https:') {
     throw new Error('HTTPS required in production');
   }
-  
-  const isLocalDev = import.meta.env.DEV && 
-    (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
-  
+
+  const isLocalDev =
+    import.meta.env.DEV && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+
   if (!isLocalDev && parsed.protocol !== 'https:') {
     throw new Error('Server URL must use HTTPS');
   }
@@ -248,18 +252,18 @@ function validateServerUrl(url: string): void {
 ```typescript
 class SecureTokenStore {
   private token: string | null = null;
-  
+
   setToken(token: string): void {
     this.token = token;
     if (this.shouldPersist()) {
       sessionStorage.setItem('jf_session', token);
     }
   }
-  
+
   getToken(): string | null {
     return this.token || sessionStorage.getItem('jf_session');
   }
-  
+
   clearToken(): void {
     this.token = null;
     sessionStorage.removeItem('jf_session');
@@ -272,13 +276,15 @@ class SecureTokenStore {
 ### Content Security Policy
 
 ```html
-<meta http-equiv="Content-Security-Policy" 
-      content="default-src 'self'; 
-               connect-src 'self' https://*.jellyfin-domain.com; 
+<meta
+  http-equiv="Content-Security-Policy"
+  content="default-src 'self';
+               connect-src 'self' https://*.jellyfin-domain.com;
                media-src 'self' https://*.jellyfin-domain.com;
                img-src 'self' https://*.jellyfin-domain.com data:;
                script-src 'self';
-               style-src 'self' 'unsafe-inline';">
+               style-src 'self' 'unsafe-inline';"
+/>
 ```
 
 ## Folder Structure
@@ -349,13 +355,13 @@ jellyfin-mini/
 
 ## Performance Targets
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Bundle size (gzipped) | <150 KB | `gzip-size` CLI |
-| First Contentful Paint | <1.2s | Lighthouse 3G |
-| Time to Interactive | <2.5s | Lighthouse |
-| Memory (idle) | <50 MB | Chrome DevTools |
-| API response | <200ms | Network tab |
+| Metric                 | Target  | Measurement     |
+| ---------------------- | ------- | --------------- |
+| Bundle size (gzipped)  | <150 KB | `gzip-size` CLI |
+| First Contentful Paint | <1.2s   | Lighthouse 3G   |
+| Time to Interactive    | <2.5s   | Lighthouse      |
+| Memory (idle)          | <50 MB  | Chrome DevTools |
+| API response           | <200ms  | Network tab     |
 
 ## Platform Ports
 
@@ -376,6 +382,7 @@ jellyfin-mini/
 ```
 
 **Size Comparison:**
+
 - Tauri binary: 3-5 MB (uses system webview)
 - Electron equivalent: 80-120 MB (bundles Chromium)
 
@@ -389,32 +396,38 @@ const config: CapacitorConfig = {
   appName: 'Jellyfin Mini',
   webDir: '../../packages/web/dist',
   plugins: {
-    CapacitorHttp: { enabled: true }
-  }
+    CapacitorHttp: { enabled: true },
+  },
 };
 ```
 
 ## Implementation Phases
 
 **Week 1: Core**
+
 - [ ] Jellyfin API client with auth
 - [ ] Items queries (albums, artists, tracks)
 - [ ] Queue state machine
-- [ ] Unit tests
+- [ ] Unit and integration tests with docker-compose
+- [ ] Ensure the tests and build are passing in ci.yml
+- [ ] Create pre-commit and add to ci
 
 **Week 2: Web UI**
+
 - [ ] Login with server validation
 - [ ] Library navigation
 - [ ] Search
 - [ ] Audio engine adapter
 
 **Week 3: Playback**
+
 - [ ] Player bar
 - [ ] Queue UI and controls
 - [ ] Progress reporting
 - [ ] Keyboard shortcuts
 
 **Week 4: Polish**
+
 - [ ] Code splitting
 - [ ] PWA manifest and service worker
 - [ ] Error handling
