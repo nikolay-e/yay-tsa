@@ -270,4 +270,85 @@ describe('E2E: Playback Queue', () => {
       expect(queue.getItemAt(2)).toEqual(mockTracks[1]);
     });
   });
+
+  describe('Continuous Album Playback', () => {
+    beforeEach(() => {
+      queue.setQueue(mockTracks);
+    });
+
+    it('should start playback from specific index and continue through album', () => {
+      // Start from track 2 (index 1)
+      const track = queue.jumpTo(1);
+
+      expect(track).toEqual(mockTracks[1]);
+      expect(queue.getCurrentIndex()).toBe(1);
+      expect(queue.hasNext()).toBe(true);
+
+      // Verify next track is track 3
+      const nextTrack = queue.next();
+      expect(nextTrack).toEqual(mockTracks[2]);
+      expect(queue.getCurrentIndex()).toBe(2);
+
+      // Verify no more tracks after the last one
+      expect(queue.hasNext()).toBe(false);
+      const finalNext = queue.next();
+      expect(finalNext).toBeNull();
+    });
+
+    it('should set queue with starting index', () => {
+      // Create a new queue with more tracks for better testing
+      const albumTracks: AudioItem[] = [
+        ...mockTracks,
+        {
+          Id: 'track-4',
+          Name: 'Track 4',
+          Type: 'Audio',
+          RunTimeTicks: 2700000000,
+          AlbumId: 'album-1',
+          Album: 'Test Album',
+          Artists: ['Test Artist'],
+          IndexNumber: 4,
+        },
+        {
+          Id: 'track-5',
+          Name: 'Track 5',
+          Type: 'Audio',
+          RunTimeTicks: 2800000000,
+          AlbumId: 'album-1',
+          Album: 'Test Album',
+          Artists: ['Test Artist'],
+          IndexNumber: 5,
+        },
+      ];
+
+      // Set queue and jump to track 3 (index 2)
+      queue.setQueue(albumTracks);
+      queue.jumpTo(2);
+
+      expect(queue.getCurrentItem()).toEqual(albumTracks[2]);
+      expect(queue.getCurrentIndex()).toBe(2);
+      expect(queue.getAllItems()).toHaveLength(5);
+
+      // Verify we can navigate through remaining tracks
+      expect(queue.hasNext()).toBe(true);
+      queue.next();
+      expect(queue.getCurrentItem()).toEqual(albumTracks[3]);
+
+      queue.next();
+      expect(queue.getCurrentItem()).toEqual(albumTracks[4]);
+      expect(queue.hasNext()).toBe(false);
+    });
+
+    it('should handle continuous playback with repeat-all mode', () => {
+      queue.setRepeatMode('all');
+      queue.jumpTo(2); // Start from last track
+
+      expect(queue.getCurrentItem()).toEqual(mockTracks[2]);
+
+      // Should loop back to first track
+      const nextTrack = queue.next();
+      expect(nextTrack).toEqual(mockTracks[0]);
+      expect(queue.getCurrentIndex()).toBe(0);
+    });
+  });
 });

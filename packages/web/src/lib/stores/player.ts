@@ -262,6 +262,26 @@ async function playAlbum(tracks: AudioItem[]): Promise<void> {
 }
 
 /**
+ * Play tracks from a specific position in the album
+ * Sets the full album as queue but starts playing from the specified index
+ */
+async function playFromAlbum(tracks: AudioItem[], startIndex: number): Promise<void> {
+  if (tracks.length === 0 || startIndex < 0 || startIndex >= tracks.length) {
+    return;
+  }
+
+  const state = get(playerStore);
+  // Set the full album as queue
+  state.queue.setQueue(tracks);
+
+  // Jump to the specified track index
+  state.queue.jumpTo(startIndex);
+
+  // Play the track at the specified index
+  await play(tracks[startIndex]);
+}
+
+/**
  * Add track to queue
  */
 function addToQueue(track: AudioItem): void {
@@ -499,6 +519,7 @@ export const player = {
   subscribe: playerStore.subscribe,
   play,
   playAlbum,
+  playFromAlbum,
   addToQueue,
   addMultipleToQueue,
   pause,

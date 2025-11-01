@@ -6,8 +6,10 @@
   export let tracks: AudioItem[] = [];
   export let showAlbum: boolean = false;
 
-  function playTrack(track: AudioItem) {
-    player.play(track);
+  function playTrack(_track: AudioItem, index: number) {
+    // Play the entire album starting from the clicked track
+    // This allows continuous playback through the rest of the album
+    player.playFromAlbum(tracks, index);
   }
 
   function playAll() {
@@ -47,7 +49,7 @@
           type="button"
           class="track-list-row track"
           class:playing={isCurrentTrack(track)}
-          on:click={() => playTrack(track)}
+          on:click={() => playTrack(track, index)}
         >
           <div class="track-number">
             {#if isCurrentTrack(track)}
