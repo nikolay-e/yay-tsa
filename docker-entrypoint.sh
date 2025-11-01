@@ -67,9 +67,24 @@ INDEX_HTML="/usr/share/nginx/html/index.html"
 if [ -f "$INDEX_HTML" ]; then
   echo "Computing CSP hashes for inline scripts..."
 
-  # Extract inline scripts between <script> tags (excluding src= scripts)
+  # Extract inline scripts between <script> tags (multiline, excluding src= scripts)
   # Then compute SHA-256 hash for each script and format as 'sha256-hash'
-  CSP_HASHES=$(sed -n 's/.*<script>\(.*\)<\/script>.*/\1/p' "$INDEX_HTML" |
+  CSP_HASHES=$(awk '
+    /<script[^>]*>/ && !/<script[^>]*src=/ {
+      in_script = 1
+      script = ""
+      next
+    }
+    in_script {
+      if (/<\/script>/) {
+        in_script = 0
+        if (script != "") print script
+        script = ""
+      } else {
+        script = script $0 "\n"
+      }
+    }
+  ' "$INDEX_HTML" |
     while IFS= read -r script; do
       if [ -n "$script" ]; then
         printf '%s' "$script" | openssl dgst -sha256 -binary | openssl base64 |
