@@ -22,7 +22,7 @@
     "format": "prettier --write .",
     "lint": "prettier --check .",
     "pre-commit": "pre-commit run --all-files",
-    "prepare": "echo 'Skipping pre-commit setup'",
+    "prepare": "pre-commit install",
     "type-check": "cd packages/core && npx tsc --noEmit"
   },
   "devDependencies": {

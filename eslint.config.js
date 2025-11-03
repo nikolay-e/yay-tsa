@@ -16,7 +16,6 @@ export default [
       'packages/web/.svelte-kit/**',
       'packages/*/dist/**',
       'packages/*/build/**',
-      'packages/core/tests/**',
       '**/*.config.js',
       '**/*.config.ts',
     ],

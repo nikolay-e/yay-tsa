@@ -18,10 +18,9 @@ if [ -n "${JELLYFIN_SERVER_URL}" ]; then
   }
 fi
 
-# Use jq to safely generate JSON configuration (prevents injection)
-# This approach ensures proper JSON escaping of all values
-# Write to /var/cache/nginx (writable volume) since root filesystem is read-only
-jq -n \
+# Generate JavaScript configuration directly (synchronous, prevents race condition)
+# Use jq to safely escape JSON values and embed them in JavaScript
+CONFIG_JSON=$(jq -n \
   --arg serverUrl "${JELLYFIN_SERVER_URL:-}" \
   --arg clientName "${JELLYFIN_CLIENT_NAME:-Jellyfin Mini Client}" \
   --arg deviceName "${JELLYFIN_DEVICE_NAME:-Jellyfin Web}" \
@@ -31,78 +30,21 @@ jq -n \
     clientName: $clientName,
     deviceName: $deviceName,
     version: $version
-  }' >/var/cache/nginx/config.json
+  }')
 
-# Generate JavaScript that safely loads the JSON config
-cat >/var/cache/nginx/config.js <<'EOF'
-// Runtime configuration loaded securely from JSON
-// Initialize config object immediately (prevents errors if accessed before async load)
-window.__JELLYFIN_CONFIG__ = {
-  serverUrl: '',
-  clientName: 'Jellyfin Mini Client',
-  deviceName: 'Jellyfin Web',
-  version: '0.1.0'
-};
-
-// Load actual configuration from JSON (asynchronous)
-(async function() {
-  try {
-    const response = await fetch('/config.json');
-    if (response.ok) {
-      window.__JELLYFIN_CONFIG__ = await response.json();
-    }
-  } catch (error) {
-    console.error('Failed to load configuration:', error);
-    // Config already initialized with defaults above
-  }
-})();
+cat >/var/cache/nginx/config.js <<EOF
+// Runtime configuration injected by docker-entrypoint.sh (synchronous)
+window.__JELLYFIN_CONFIG__ = ${CONFIG_JSON};
 EOF
 
 echo "Generated runtime config (sanitized for security):"
-cat /var/cache/nginx/config.json
+echo "$CONFIG_JSON"
 
-# Generate nginx.conf with CSP hashes computed from index.html
-# Extract all inline scripts and compute their SHA-256 hashes
-INDEX_HTML="/usr/share/nginx/html/index.html"
-if [ -f "$INDEX_HTML" ]; then
-  echo "Computing CSP hashes for inline scripts..."
-
-  # Extract inline scripts between <script> tags (multiline, excluding src= scripts)
-  # Then compute SHA-256 hash for each script and format as 'sha256-hash'
-  CSP_HASHES=$(awk '
-    /<script[^>]*>/ && !/<script[^>]*src=/ {
-      in_script = 1
-      script = ""
-      next
-    }
-    in_script {
-      if (/<\/script>/) {
-        in_script = 0
-        if (script != "") print script
-        script = ""
-      } else {
-        script = script $0 "\n"
-      }
-    }
-  ' "$INDEX_HTML" |
-    while IFS= read -r script; do
-      if [ -n "$script" ]; then
-        printf '%s' "$script" | openssl dgst -sha256 -binary | openssl base64 |
-          awk '{printf "'\''sha256-%s'\'' ", $0}'
-      fi
-    done | sed 's/ $//') # Remove trailing space
-
-  if [ -z "$CSP_HASHES" ]; then
-    echo "WARNING: No inline scripts found in index.html, using 'self' only"
-    CSP_HASHES="'self'"
-  else
-    echo "Computed CSP hashes: $CSP_HASHES"
-    CSP_HASHES="'self' $CSP_HASHES"
-  fi
-else
-  echo "WARNING: index.html not found, using 'self' for CSP"
-  CSP_HASHES="'self'"
-fi
+# Generate nginx.conf with simplified CSP for script-src
+# SvelteKit (with adapter-static) compiles all JavaScript to external files
+# Inline scripts should not be present in production builds
+echo "Using 'self' for CSP script-src (SvelteKit production build)"
+CSP_HASHES="'self'"
 
 # Generate nginx.conf from template with CSP hash substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes

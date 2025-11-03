@@ -4,3 +4,12 @@ tests
 test
 .dockerignore
 .gitignore
+.hadolint.yaml
+.markdownlint.yaml
+.prettierignore
+.stylelintrc.json
+.prettierrc
+.treemapperignore
+LICENSE
+CLAUDE.md
+SECURITY.md
