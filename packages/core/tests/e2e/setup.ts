@@ -1,9 +1,11 @@
 /**
  * E2E Test Setup
- * Loads credentials from environment variables for testing against real Jellyfin server
+ * Loads credentials, provides BDD helpers and utilities for testing against real Jellyfin server
  */
 
 import { JellyfinError } from '../../src/models/types.js';
+import { TestDataFactory, TestFixtures } from './fixtures/data-factory.js';
+import { ScenarioContext } from './fixtures/scenarios.js';
 
 export interface TestConfig {
   serverUrl: string;
@@ -42,6 +44,36 @@ export function loadTestConfig(): TestConfig {
     username,
     password,
   };
+}
+
+/**
+ * Setup test fixtures using data factory
+ * Call this in beforeAll() of test suites
+ */
+export async function setupTestFixtures(config: TestConfig): Promise<TestFixtures> {
+  const factory = new TestDataFactory(config);
+  return factory.setup();
+}
+
+/**
+ * Cleanup test fixtures
+ * Call this in afterAll() of test suites
+ */
+export async function cleanupTestFixtures(fixtures: TestFixtures): Promise<void> {
+  const factory = new TestDataFactory(fixtures as any);
+  await factory.cleanup();
+}
+
+/**
+ * Create BDD scenario context for fluent test syntax
+ * Usage:
+ *   const scenario = createScenario(fixtures);
+ *   await scenario.given.user.isAuthenticated();
+ *   const results = await scenario.when.user.searches('Beatles');
+ *   scenario.then.library.searchReturnsResults(results, 'Beatles');
+ */
+export function createScenario(fixtures: TestFixtures): ScenarioContext {
+  return new ScenarioContext(fixtures);
 }
 
 /**

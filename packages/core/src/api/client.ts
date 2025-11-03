@@ -82,6 +82,17 @@ export class JellyfinClient {
   }
 
   /**
+   * Require authentication and return user ID
+   * Throws AuthenticationError if not authenticated
+   */
+  requireAuth(): string {
+    if (!this.userId) {
+      throw new AuthenticationError('Not authenticated');
+    }
+    return this.userId;
+  }
+
+  /**
    * Get server configuration
    */
   getConfig(): ServerConfig {
@@ -95,7 +106,7 @@ export class JellyfinClient {
   /**
    * Make HTTP request to Jellyfin API
    */
-  async request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.serverUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -193,7 +204,7 @@ export class JellyfinClient {
   /**
    * GET request
    */
-  async get<T = any>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
     let url = endpoint;
 
     if (params) {
@@ -220,7 +231,7 @@ export class JellyfinClient {
   /**
    * POST request
    */
-  async post<T = any>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -230,7 +241,7 @@ export class JellyfinClient {
   /**
    * DELETE request
    */
-  async delete<T = any>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
 

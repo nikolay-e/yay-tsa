@@ -14,6 +14,10 @@ import {
 import { HTML5AudioEngine, MediaSessionManager } from '@jellyfin-mini/platform';
 import { client } from './auth.js';
 
+// Playback constants
+const RESTART_THRESHOLD_SECONDS = 3; // Seconds before "previous" restarts current track
+const RETINA_IMAGE_SIZE = 1024; // High-resolution artwork for retina displays
+
 interface PlayerState {
   queue: PlaybackQueue;
   state: PlaybackState | null;
@@ -149,37 +153,19 @@ if (audioEngine) {
   });
 }
 
-// Set up media session action handlers (browser only)
-if (mediaSession) {
-  mediaSession.setActionHandlers({
-    onPlay: () => {
-      resume().catch((error) => {
-        if (dev) console.error('Media Session play error:', error);
-      });
-    },
-    onPause: () => {
-      pause();
-    },
-    onNext: () => {
-      next().catch((error) => {
-        if (dev) console.error('Media Session next error:', error);
-      });
-    },
-    onPrevious: () => {
-      previous().catch((error) => {
-        if (dev) console.error('Media Session previous error:', error);
-      });
-    },
-    onSeek: (seconds) => {
-      seek(seconds);
-    }
-  });
+/**
+ * Play a single track and set queue to just this track
+ */
+async function play(track: AudioItem): Promise<void> {
+  const state = get(playerStore);
+  state.queue.setQueue([track]);
+  await playTrackFromQueue(track);
 }
 
 /**
- * Play a single track
+ * Play a track from existing queue (does not modify queue)
  */
-async function play(track: AudioItem): Promise<void> {
+async function playTrackFromQueue(track: AudioItem): Promise<void> {
   const state = get(playerStore);
   const $client = get(client);
 
@@ -192,9 +178,6 @@ async function play(track: AudioItem): Promise<void> {
   }
 
   try {
-    // Set queue to this single track
-    state.queue.setQueue([track]);
-
     // Get stream URL
     const streamUrl = $client.getStreamUrl(track.Id);
 
@@ -221,9 +204,12 @@ async function play(track: AudioItem): Promise<void> {
     // Update media session metadata for background playback
     if (mediaSession) {
       // Request high-resolution artwork for iOS retina displays (1024x1024)
-      // This ensures sharp album art on iPhone/iPad lock screens
-      const albumArtUrl = track.ImageTags?.Primary
-        ? $client.getImageUrl(track.AlbumId || track.Id, 'Primary', { maxWidth: 1024 })
+      // Prefer album artwork if available, otherwise use track artwork
+      const imageItemId = track.AlbumPrimaryImageTag && track.AlbumId
+        ? track.AlbumId
+        : track.Id;
+      const albumArtUrl = (track.AlbumPrimaryImageTag || track.ImageTags?.Primary)
+        ? $client.getImageUrl(imageItemId, 'Primary', { maxWidth: RETINA_IMAGE_SIZE })
         : undefined;
 
       mediaSession.updateMetadata({
@@ -258,7 +244,8 @@ async function playAlbum(tracks: AudioItem[]): Promise<void> {
   const state = get(playerStore);
   state.queue.setQueue(tracks);
 
-  await play(tracks[0]);
+  // Play first track from queue (preserves queue)
+  await playTrackFromQueue(tracks[0]);
 }
 
 /**
@@ -275,10 +262,12 @@ async function playFromAlbum(tracks: AudioItem[], startIndex: number): Promise<v
   state.queue.setQueue(tracks);
 
   // Jump to the specified track index
-  state.queue.jumpTo(startIndex);
+  const track = state.queue.jumpTo(startIndex);
 
-  // Play the track at the specified index
-  await play(tracks[startIndex]);
+  // Play the track from queue (preserves queue)
+  if (track) {
+    await playTrackFromQueue(track);
+  }
 }
 
 /**
@@ -400,7 +389,7 @@ async function next(): Promise<void> {
   const nextTrack = state.queue.next();
 
   if (nextTrack) {
-    await play(nextTrack);
+    await playTrackFromQueue(nextTrack);
   } else {
     // No more tracks, stop playback
     stop();
@@ -413,8 +402,8 @@ async function next(): Promise<void> {
 async function previous(): Promise<void> {
   const state = get(playerStore);
 
-  // If we're more than 3 seconds in, restart current track
-  if (state.currentTime > 3) {
+  // If we're more than threshold seconds in, restart current track
+  if (state.currentTime > RESTART_THRESHOLD_SECONDS) {
     seek(0);
     return;
   }
@@ -422,7 +411,7 @@ async function previous(): Promise<void> {
   const prevTrack = state.queue.previous();
 
   if (prevTrack) {
-    await play(prevTrack);
+    await playTrackFromQueue(prevTrack);
   }
 }
 
@@ -537,3 +526,31 @@ export const player = {
   clearQueue,
   removeFromQueue
 };
+
+// Set up media session action handlers (browser only)
+// Placed after player object definition to avoid closure issues with HMR
+if (mediaSession) {
+  mediaSession.setActionHandlers({
+    onPlay: () => {
+      player.resume().catch((error) => {
+        if (dev) console.error('Media Session play error:', error);
+      });
+    },
+    onPause: () => {
+      player.pause();
+    },
+    onNext: () => {
+      player.next().catch((error) => {
+        if (dev) console.error('Media Session next error:', error);
+      });
+    },
+    onPrevious: () => {
+      player.previous().catch((error) => {
+        if (dev) console.error('Media Session previous error:', error);
+      });
+    },
+    onSeek: (seconds) => {
+      player.seek(seconds);
+    }
+  });
+}

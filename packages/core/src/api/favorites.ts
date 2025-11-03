@@ -10,7 +10,6 @@ import {
   MusicAlbum,
   AudioItem,
   ItemsResult,
-  AuthenticationError,
 } from '../models/types.js';
 
 export class FavoritesService {
@@ -24,10 +23,7 @@ export class FavoritesService {
    * Mark an item as favorite
    */
   async markFavorite(itemId: string): Promise<UserItemData> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     return this.client.post<UserItemData>(
       `/Users/${userId}/FavoriteItems/${itemId}`
@@ -38,10 +34,7 @@ export class FavoritesService {
    * Unmark an item as favorite
    */
   async unmarkFavorite(itemId: string): Promise<UserItemData> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     return this.client.delete<UserItemData>(
       `/Users/${userId}/FavoriteItems/${itemId}`

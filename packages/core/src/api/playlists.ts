@@ -9,7 +9,6 @@ import {
   AudioItem,
   ItemsResult,
   CreatePlaylistDto,
-  AuthenticationError,
 } from '../models/types.js';
 
 export class PlaylistsService {
@@ -19,10 +18,7 @@ export class PlaylistsService {
    * Create a new playlist
    */
   async createPlaylist(options: CreatePlaylistDto): Promise<Playlist> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     // Build request body matching Jellyfin API schema
     const body: {
@@ -57,10 +53,7 @@ export class PlaylistsService {
    * Get playlist details by ID
    */
   async getPlaylist(playlistId: string): Promise<Playlist> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     return this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
   }
@@ -72,10 +65,7 @@ export class PlaylistsService {
     startIndex?: number;
     limit?: number;
   }): Promise<ItemsResult<AudioItem>> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     const params: Record<string, any> = {
       UserId: userId,
@@ -102,10 +92,7 @@ export class PlaylistsService {
     playlistId: string,
     itemIds: string[]
   ): Promise<void> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     const idsParam = itemIds.join(',');
     const url = `/Playlists/${playlistId}/Items?Ids=${encodeURIComponent(idsParam)}&UserId=${userId}`;
@@ -156,10 +143,7 @@ export class PlaylistsService {
     startIndex?: number;
     limit?: number;
   }): Promise<ItemsResult<Playlist>> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     const params: Record<string, any> = {
       IncludeItemTypes: 'Playlist',

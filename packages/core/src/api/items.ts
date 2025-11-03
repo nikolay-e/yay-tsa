@@ -10,7 +10,6 @@ import {
   AudioItem,
   MusicAlbum,
   MusicArtist,
-  AuthenticationError,
 } from '../models/types.js';
 
 export class ItemsService {
@@ -21,10 +20,7 @@ export class ItemsService {
    * Generic method for all item types
    */
   async queryItems<T = any>(query: ItemsQuery): Promise<ItemsResult<T>> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     // Build query parameters
     const params: Record<string, any> = {};
@@ -166,10 +162,7 @@ export class ItemsService {
    * Get single item by ID
    */
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
+    const userId = this.client.requireAuth();
 
     return this.client.get(`/Users/${userId}/Items/${itemId}`);
   }

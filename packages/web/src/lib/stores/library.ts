@@ -56,13 +56,19 @@ async function waitForService(): Promise<ItemsService> {
 
   // Otherwise, wait for the service to be initialized via subscription
   return new Promise((resolve, reject) => {
+    let resolved = false;
+
     const timeout = setTimeout(() => {
-      unsubscribe();
-      reject(new Error('Items service not initialized after 5 seconds'));
+      if (!resolved) {
+        resolved = true;
+        unsubscribe();
+        reject(new Error('Items service not initialized after 5 seconds'));
+      }
     }, 5000);
 
     const unsubscribe = libraryStore.subscribe(($state) => {
-      if ($state.itemsService) {
+      if ($state.itemsService && !resolved) {
+        resolved = true;
         clearTimeout(timeout);
         unsubscribe();
         resolve($state.itemsService);

@@ -14,9 +14,7 @@ import {
   PlaybackStartInfo,
   PlaybackStopInfo,
 } from '../models/types.js';
-
-// Jellyfin uses ticks (100-nanosecond intervals)
-const TICKS_PER_SECOND = 10_000_000;
+import { TICKS_PER_SECOND } from '../config/constants.js';
 
 /**
  * Playback Reporter

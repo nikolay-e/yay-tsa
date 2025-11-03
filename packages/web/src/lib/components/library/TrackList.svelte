@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AudioItem } from '@jellyfin-mini/core';
+  import { ticksToSeconds, type AudioItem } from '@jellyfin-mini/core';
   import { player, currentTrack } from '../../stores/player.js';
   import { formatDuration } from '../../utils/time.js';
 
@@ -12,12 +12,6 @@
     player.playFromAlbum(tracks, index);
   }
 
-  function playAll() {
-    if (tracks.length > 0) {
-      player.playAlbum(tracks);
-    }
-  }
-
   function isCurrentTrack(track: AudioItem): boolean {
     return $currentTrack?.Id === track.Id;
   }
@@ -25,15 +19,6 @@
 
 <div class="track-list-container">
   {#if tracks.length > 0}
-    <div class="track-list-header">
-      <button type="button" class="play-all-btn" on:click={playAll}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-        Play All
-      </button>
-    </div>
-
     <div class="track-list">
       <div class="track-list-row header">
         <div class="track-number">#</div>
@@ -70,7 +55,7 @@
             <div class="track-album">{track.Album || '-'}</div>
           {/if}
           <div class="track-duration">
-            {formatDuration((track.RunTimeTicks || 0) / 10000000)}
+            {formatDuration(ticksToSeconds(track.RunTimeTicks || 0))}
           </div>
         </button>
       {/each}
@@ -83,33 +68,6 @@
 <style>
   .track-list-container {
     width: 100%;
-  }
-
-  .track-list-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-md) 0;
-    margin-bottom: var(--spacing-md);
-  }
-
-  .play-all-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-lg);
-    background-color: var(--color-accent);
-    color: white;
-    border: none;
-    border-radius: var(--radius-lg);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .play-all-btn:hover {
-    background-color: var(--color-accent-hover);
-    transform: scale(1.05);
   }
 
   .track-list {

@@ -80,6 +80,13 @@ http {
         # Tells browsers to always use HTTPS for this site for 1 year
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
+        # Health check endpoint for Docker/Kubernetes
+        location = /health {
+            access_log off;
+            return 200 "OK\n";
+            add_header Content-Type text/plain;
+        }
+
         # Cache static assets
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             expires 1y;

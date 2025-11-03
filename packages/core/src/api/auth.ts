@@ -131,6 +131,11 @@ export function validateServerUrl(url: string, isDevelopment: boolean = false): 
     throw new Error('Invalid server URL format');
   }
 
+  // Validate protocol (always, regardless of development mode)
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Invalid protocol: only HTTP and HTTPS are allowed');
+  }
+
   // In production, require HTTPS (unless localhost)
   const isLocalhost =
     parsed.hostname === 'localhost' ||
@@ -140,6 +145,4 @@ export function validateServerUrl(url: string, isDevelopment: boolean = false): 
   if (!isDevelopment && parsed.protocol === 'http:' && !isLocalhost) {
     throw new Error('HTTPS required in production (except for localhost)');
   }
-
-  // In development mode, allow any URL (HTTP or HTTPS)
 }
