@@ -52,13 +52,23 @@
     opacity: 0.5;
   }
 
-  @media (max-width: 768px) {
+  /* Small phones: 2 columns with tighter spacing */
+  @media (max-width: 375px) {
     .album-grid {
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-xs);
+    }
+  }
+
+  /* Medium phones: slightly larger minimum */
+  @media (min-width: 376px) and (max-width: 768px) {
+    .album-grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: var(--spacing-sm);
     }
   }
 
+  /* Large screens: bigger cards */
   @media (min-width: 1400px) {
     .album-grid {
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

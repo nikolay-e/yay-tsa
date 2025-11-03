@@ -6,7 +6,9 @@
 
   export let album: MusicAlbum;
 
-  const albumArtUrl = getAlbumArtUrl(album.Id, 'medium');
+  const albumArtSmall = getAlbumArtUrl(album.Id, 'small');
+  const albumArtMedium = getAlbumArtUrl(album.Id, 'medium');
+  const albumArtLarge = getAlbumArtUrl(album.Id, 'large');
 
   async function playAlbum(event: MouseEvent) {
     event.preventDefault();
@@ -24,7 +26,9 @@
 <a href="/albums/{album.Id}" class="album-card">
   <div class="album-art-container">
     <img
-      src={albumArtUrl}
+      src={albumArtMedium}
+      srcset="{albumArtSmall} 1x, {albumArtMedium} 2x, {albumArtLarge} 3x"
+      sizes="(max-width: 375px) 150px, (max-width: 768px) 160px, 180px"
       alt={album.Name}
       class="album-art"
       loading="lazy"

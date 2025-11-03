@@ -140,4 +140,29 @@
     color: var(--color-error);
     font-size: 0.875rem;
   }
+
+  /* Mobile optimization */
+  @media (max-width: 768px) {
+    .login-form {
+      padding: var(--spacing-md);
+    }
+
+    .form-header h1 {
+      font-size: 1.75rem;
+    }
+
+    .form-header p {
+      font-size: 0.9375rem;
+    }
+  }
+
+  @media (max-width: 375px) {
+    .login-form {
+      padding: var(--spacing-sm);
+    }
+
+    .form-header h1 {
+      font-size: 1.5rem;
+    }
+  }
 </style>

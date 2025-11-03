@@ -225,28 +225,63 @@
     margin-top: var(--spacing-xl);
   }
 
-  @media (max-width: 768px) {
+  /* Small phones: compact layout */
+  @media (max-width: 375px) {
+    .album-header {
+      grid-template-columns: 1fr;
+      gap: var(--spacing-md);
+    }
+
+    .album-art {
+      max-width: 200px;
+      margin: 0 auto;
+    }
+
+    .album-name {
+      font-size: 1.5rem;
+    }
+
+    .album-artist {
+      font-size: 1rem;
+    }
+
+    .album-actions {
+      flex-direction: row;
+      gap: var(--spacing-sm);
+    }
+
+    .btn-play,
+    .btn-shuffle {
+      flex: 1;
+      justify-content: center;
+      padding: var(--spacing-md);
+    }
+  }
+
+  /* Medium phones: moderate sizing */
+  @media (min-width: 376px) and (max-width: 768px) {
     .album-header {
       grid-template-columns: 1fr;
       gap: var(--spacing-lg);
     }
 
     .album-art {
-      max-width: 300px;
+      max-width: 240px;
       margin: 0 auto;
     }
 
     .album-name {
-      font-size: 2rem;
+      font-size: 1.75rem;
     }
 
     .album-actions {
-      flex-direction: column;
+      flex-direction: row;
+      gap: var(--spacing-sm);
     }
 
     .btn-play,
     .btn-shuffle {
-      width: 100%;
+      flex: 1;
       justify-content: center;
     }
   }
