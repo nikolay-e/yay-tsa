@@ -5,6 +5,7 @@
   import { auth, isAuthenticated } from '../lib/stores/auth.js';
   import { currentTrack } from '../lib/stores/player.js';
   import PlayerBar from '../lib/components/player/PlayerBar.svelte';
+  import BottomTabBar from '../lib/components/navigation/BottomTabBar.svelte';
   import '../app.css';
   import { dev } from '$app/environment';
 
@@ -126,9 +127,14 @@
       </main>
     {/if}
 
-    <!-- Player bar (fixed at bottom) -->
+    <!-- Player bar (fixed at bottom, above bottom tabs on mobile) -->
     {#if $isAuthenticated && showPlayerBar}
       <PlayerBar />
+    {/if}
+
+    <!-- Bottom tab bar (mobile only) -->
+    {#if $isAuthenticated && $page.url.pathname !== '/login'}
+      <BottomTabBar />
     {/if}
   </div>
 {/if}
@@ -263,12 +269,9 @@
   }
 
   @media (max-width: 768px) {
+    /* Hide sidebar on mobile - use bottom tab bar instead */
     .sidebar {
-      width: 100%;
-      height: auto;
-      position: static;
-      border-right: none;
-      border-bottom: 1px solid var(--color-border);
+      display: none;
     }
 
     .content {
@@ -277,15 +280,13 @@
       padding-left: calc(var(--spacing-md) + var(--safe-area-inset-left));
       padding-right: calc(var(--spacing-md) + var(--safe-area-inset-right));
       padding-top: calc(var(--spacing-md) + var(--safe-area-inset-top));
+      /* Bottom padding accounts for: bottom tabs (56px) + player bar (90px if playing) + safe area */
+      padding-bottom: calc(56px + var(--safe-area-inset-bottom));
     }
 
-    .nav-links {
-      flex-direction: row;
-      overflow-x: auto;
-    }
-
-    .logo span {
-      display: none;
+    /* When player is visible, add extra padding for player bar */
+    .content[style*="padding-bottom: 90px"] {
+      padding-bottom: calc(56px + 90px + var(--safe-area-inset-bottom)) !important;
     }
   }
 </style>

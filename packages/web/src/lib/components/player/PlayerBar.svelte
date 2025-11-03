@@ -152,6 +152,9 @@
     .player-bar {
       height: auto;
       min-height: 90px;
+      /* Position above bottom tab bar (56px) */
+      bottom: calc(56px + var(--safe-area-inset-bottom));
+      padding-bottom: 0; /* Reset padding-bottom, safe area handled in bottom position */
     }
 
     .player-content {
