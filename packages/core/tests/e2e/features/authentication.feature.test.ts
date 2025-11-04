@@ -113,7 +113,10 @@ describe('Feature: User Authentication', () => {
         'Logout scenario login'
       );
 
-      ThenAuth.userIsAuthenticated(client, { AccessToken: client.getToken() });
+      ThenAuth.userIsAuthenticated(client, {
+        AccessToken: client.getToken(),
+        User: { Id: client.getUserId() },
+      });
 
       // When: User clicks logout
       await authService.logout();

@@ -343,7 +343,7 @@ describe('Feature: Library Browsing', () => {
       const streamUrl = fixtures.itemsService.getStreamUrl(trackId);
 
       // Then: URL contains server, track ID, and authentication
-      expect(streamUrl).toContain(fixtures.client.getServerUrl());
+      expect(streamUrl).toContain(fixtures.client.getConfig().serverUrl);
       expect(streamUrl).toContain(trackId);
       expect(streamUrl).toContain('api_key=');
     });
