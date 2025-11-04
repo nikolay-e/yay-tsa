@@ -76,6 +76,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
       - name: Cache npm dependencies
         uses: actions/cache@v4
         with:
