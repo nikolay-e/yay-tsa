@@ -18,7 +18,7 @@ export function triggerHaptic(style: HapticStyle = 'medium'): void {
     light: 10,
     medium: 20,
     heavy: 30,
-    selection: [5, 10]
+    selection: [5, 10],
   };
 
   try {

@@ -192,7 +192,7 @@ describe('Feature: Library Browsing', () => {
 
       // And: Results contain matching album or are empty (for very specific queries)
       const foundMatch =
-        results.albums.some((album) =>
+        results.albums.some(album =>
           album.Name.toLowerCase().includes(searchQuery.toLowerCase())
         ) ||
         results.artists.length > 0 ||
@@ -282,9 +282,9 @@ describe('Feature: Library Browsing', () => {
       expect(secondPage.Items.length).toBeGreaterThan(0);
 
       // And: Albums are different from first page
-      const firstPageIds = firstPage.Items.map((a) => a.Id);
-      const secondPageIds = secondPage.Items.map((a) => a.Id);
-      const hasOverlap = firstPageIds.some((id) => secondPageIds.includes(id));
+      const firstPageIds = firstPage.Items.map(a => a.Id);
+      const secondPageIds = secondPage.Items.map(a => a.Id);
+      const hasOverlap = firstPageIds.some(id => secondPageIds.includes(id));
       expect(hasOverlap).toBe(false);
     });
 

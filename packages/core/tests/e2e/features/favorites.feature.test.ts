@@ -106,7 +106,7 @@ describe('Feature: Favorites Management', () => {
       const favoriteTracks = await fixtures.itemsService.getTracks({ isFavorite: true });
 
       // Then: Favorited track appears
-      const foundTrack = favoriteTracks.Items.some((t) => t.Id === testTrackId);
+      const foundTrack = favoriteTracks.Items.some(t => t.Id === testTrackId);
       expect(foundTrack).toBe(true);
     });
   });
@@ -164,9 +164,7 @@ describe('Feature: Favorites Management', () => {
       const results = await fixtures.itemsService.search(searchTerm);
 
       // Then: Favorited album appears in results with favorite flag
-      const favoriteAlbumsInResults = results.albums.filter(
-        (a) => a.UserData?.IsFavorite === true
-      );
+      const favoriteAlbumsInResults = results.albums.filter(a => a.UserData?.IsFavorite === true);
 
       expect(favoriteAlbumsInResults.length).toBeGreaterThanOrEqual(0);
     });

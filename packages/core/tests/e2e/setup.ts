@@ -23,9 +23,7 @@ export function loadTestConfig(): TestConfig {
   const password = process.env.JELLYFIN_TEST_PASSWORD;
 
   if (!serverUrl) {
-    throw new Error(
-      'JELLYFIN_SERVER_URL is required for E2E tests. Please set it in .env file.'
-    );
+    throw new Error('JELLYFIN_SERVER_URL is required for E2E tests. Please set it in .env file.');
   }
 
   if (!username || !password) {
@@ -37,7 +35,9 @@ export function loadTestConfig(): TestConfig {
   console.log(`\nE2E Test Configuration:`);
   console.log(`  Server: ${serverUrl}`);
   console.log(`  Credentials: Configured`);
-  console.log(`  Note: If tests fail with 500 errors, verify credentials work in Jellyfin web UI\n`);
+  console.log(
+    `  Note: If tests fail with 500 errors, verify credentials work in Jellyfin web UI\n`
+  );
 
   return {
     serverUrl,
@@ -80,8 +80,7 @@ export function createScenario(fixtures: TestFixtures): ScenarioContext {
  * Skip tests if credentials are not configured
  */
 export function skipIfNoCredentials(): void {
-  const hasCredentials =
-    process.env.JELLYFIN_TEST_USERNAME && process.env.JELLYFIN_TEST_PASSWORD;
+  const hasCredentials = process.env.JELLYFIN_TEST_USERNAME && process.env.JELLYFIN_TEST_PASSWORD;
 
   if (!hasCredentials) {
     console.warn(
@@ -97,18 +96,20 @@ export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, 
 
 /**
  * Standard delay between authentication attempts
- * Helps avoid Jellyfin SQLite concurrency issues
+ * Helps avoid Jellyfin SQLite concurrency issues (DbUpdateConcurrencyException)
+ * Increased for Jellyfin 10.11.1+ which has more aggressive database locking
  */
-export const AUTH_DELAY = 2000; // 2 seconds
+export const AUTH_DELAY = 3000; // 3 seconds
 
 /**
  * Retry configuration for handling transient Jellyfin errors
- * Conservative retry for occasional database locks
+ * Conservative retry for occasional database locks (DbUpdateConcurrencyException)
+ * Increased for Jellyfin 10.11.1+ SQLite concurrency issues
  */
 export const RETRY_CONFIG = {
-  maxAttempts: 3,
-  baseDelay: 1000,
-  maxDelay: 4000,
+  maxAttempts: 5,
+  baseDelay: 2000,
+  maxDelay: 8000,
 };
 
 /**

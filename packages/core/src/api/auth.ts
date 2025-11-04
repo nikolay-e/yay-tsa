@@ -26,6 +26,10 @@ export class AuthService {
     try {
       const response = await this.client.post<AuthResponse>('/Users/AuthenticateByName', payload);
 
+      if (!response) {
+        throw new AuthenticationError('Login failed: Empty response from server');
+      }
+
       // Store token and user ID in client
       this.client.setToken(response.AccessToken, response.User.Id);
 

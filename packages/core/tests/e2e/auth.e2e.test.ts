@@ -71,9 +71,7 @@ describe('E2E: Authentication', () => {
     const freshClient = new JellyfinClient(config.serverUrl, clientInfo);
     const freshAuthService = new AuthService(freshClient);
 
-    await expect(
-      freshAuthService.login('invalid-user', 'invalid-password')
-    ).rejects.toThrow();
+    await expect(freshAuthService.login('invalid-user', 'invalid-password')).rejects.toThrow();
   });
 
   it('should logout successfully', async () => {

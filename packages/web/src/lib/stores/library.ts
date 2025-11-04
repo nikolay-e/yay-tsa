@@ -4,7 +4,12 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
-import { ItemsService, type MusicAlbum, type MusicArtist, type AudioItem } from '@jellyfin-mini/core';
+import {
+  ItemsService,
+  type MusicAlbum,
+  type MusicArtist,
+  type AudioItem,
+} from '@jellyfin-mini/core';
 import { client } from './auth.js';
 import { createAsyncStoreHandler } from './utils.js';
 
@@ -27,18 +32,18 @@ const initialState: LibraryState = {
   currentAlbum: null,
   currentArtist: null,
   isLoading: false,
-  error: null
+  error: null,
 };
 
 const libraryStore = writable<LibraryState>(initialState);
 
 // Initialize items service when client is available
-client.subscribe(($client) => {
+client.subscribe($client => {
   if ($client) {
     const itemsService = new ItemsService($client);
-    libraryStore.update((state) => ({ ...state, itemsService }));
+    libraryStore.update(state => ({ ...state, itemsService }));
   } else {
-    libraryStore.update((state) => ({ ...state, itemsService: null }));
+    libraryStore.update(state => ({ ...state, itemsService: null }));
   }
 });
 
@@ -66,7 +71,7 @@ async function waitForService(): Promise<ItemsService> {
       }
     }, 5000);
 
-    const unsubscribe = libraryStore.subscribe(($state) => {
+    const unsubscribe = libraryStore.subscribe($state => {
       if ($state.itemsService && !resolved) {
         resolved = true;
         clearTimeout(timeout);
@@ -90,7 +95,7 @@ async function loadAlbums(options?: { limit?: number; startIndex?: number }): Pr
     const result = await itemsService.getAlbums({
       limit: options?.limit,
       startIndex: options?.startIndex,
-      sortBy: 'SortName'
+      sortBy: 'SortName',
     });
 
     handler.success({ albums: result.Items });
@@ -112,7 +117,7 @@ async function loadRecentAlbums(limit: number = 20): Promise<void> {
 
     const result = await itemsService.getAlbums({
       limit,
-      sortBy: 'DateCreated'
+      sortBy: 'DateCreated',
     });
 
     handler.success({ albums: result.Items });
@@ -134,7 +139,7 @@ async function loadArtists(options?: { limit?: number; startIndex?: number }): P
 
     const result = await itemsService.getArtists({
       limit: options?.limit,
-      startIndex: options?.startIndex
+      startIndex: options?.startIndex,
     });
 
     handler.success({ artists: result.Items });
@@ -188,7 +193,7 @@ async function loadArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
  */
 async function search(query: string): Promise<void> {
   if (!query.trim()) {
-    libraryStore.update((s) => ({ ...s, albums: [], artists: [], tracks: [] }));
+    libraryStore.update(s => ({ ...s, albums: [], artists: [], tracks: [] }));
     return;
   }
 
@@ -210,14 +215,14 @@ async function search(query: string): Promise<void> {
  * Set current album (for detail view)
  */
 function setCurrentAlbum(album: MusicAlbum | null): void {
-  libraryStore.update((s) => ({ ...s, currentAlbum: album }));
+  libraryStore.update(s => ({ ...s, currentAlbum: album }));
 }
 
 /**
  * Set current artist (for detail view)
  */
 function setCurrentArtist(artist: MusicArtist | null): void {
-  libraryStore.update((s) => ({ ...s, currentArtist: artist }));
+  libraryStore.update(s => ({ ...s, currentArtist: artist }));
 }
 
 /**
@@ -228,13 +233,13 @@ function clear(): void {
 }
 
 // Derived stores
-export const albums = derived(libraryStore, ($library) => $library.albums);
-export const artists = derived(libraryStore, ($library) => $library.artists);
-export const tracks = derived(libraryStore, ($library) => $library.tracks);
-export const currentAlbum = derived(libraryStore, ($library) => $library.currentAlbum);
-export const currentArtist = derived(libraryStore, ($library) => $library.currentArtist);
-export const isLoading = derived(libraryStore, ($library) => $library.isLoading);
-export const error = derived(libraryStore, ($library) => $library.error);
+export const albums = derived(libraryStore, $library => $library.albums);
+export const artists = derived(libraryStore, $library => $library.artists);
+export const tracks = derived(libraryStore, $library => $library.tracks);
+export const currentAlbum = derived(libraryStore, $library => $library.currentAlbum);
+export const currentArtist = derived(libraryStore, $library => $library.currentArtist);
+export const isLoading = derived(libraryStore, $library => $library.isLoading);
+export const error = derived(libraryStore, $library => $library.error);
 
 export const library = {
   subscribe: libraryStore.subscribe,
@@ -247,5 +252,5 @@ export const library = {
   setCurrentAlbum,
   setCurrentArtist,
   clear,
-  getService: () => get(libraryStore).itemsService
+  getService: () => get(libraryStore).itemsService,
 };

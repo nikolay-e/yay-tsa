@@ -5,12 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  loadTestConfig,
-  setupTestFixtures,
-  cleanupTestFixtures,
-  delay,
-} from '../setup.js';
+import { loadTestConfig, setupTestFixtures, cleanupTestFixtures, delay } from '../setup.js';
 import { TestFixtures } from '../fixtures/data-factory.js';
 import { PlaybackReporter } from '../../../src/player/state.js';
 import { PlaybackQueue } from '../../../src/player/queue.js';

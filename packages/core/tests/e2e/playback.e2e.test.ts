@@ -78,9 +78,7 @@ describe('E2E: Playback Reporting', () => {
         return;
       }
 
-      await expect(
-        reporter.reportStart(testTrackId)
-      ).resolves.not.toThrow();
+      await expect(reporter.reportStart(testTrackId)).resolves.not.toThrow();
     });
 
     it('should report playback progress', async () => {
@@ -93,9 +91,7 @@ describe('E2E: Playback Reporting', () => {
       await reporter.reportStart(testTrackId);
 
       // Report progress at 30 seconds
-      await expect(
-        reporter.reportProgress(testTrackId, 30, false)
-      ).resolves.not.toThrow();
+      await expect(reporter.reportProgress(testTrackId, 30, false)).resolves.not.toThrow();
     });
 
     it('should report playback pause', async () => {
@@ -106,9 +102,7 @@ describe('E2E: Playback Reporting', () => {
 
       await reporter.reportStart(testTrackId);
 
-      await expect(
-        reporter.reportProgress(testTrackId, 30, true)
-      ).resolves.not.toThrow();
+      await expect(reporter.reportProgress(testTrackId, 30, true)).resolves.not.toThrow();
     });
 
     it('should report playback stop', async () => {
@@ -119,9 +113,7 @@ describe('E2E: Playback Reporting', () => {
 
       await reporter.reportStart(testTrackId);
 
-      await expect(
-        reporter.reportStopped(testTrackId, 30)
-      ).resolves.not.toThrow();
+      await expect(reporter.reportStopped(testTrackId, 30)).resolves.not.toThrow();
     });
 
     it('should convert seconds to ticks correctly', async () => {
@@ -132,9 +124,7 @@ describe('E2E: Playback Reporting', () => {
 
       // 60 seconds = 600,000,000 ticks (60 * 10,000,000)
       await reporter.reportStart(testTrackId);
-      await expect(
-        reporter.reportProgress(testTrackId, 60, false)
-      ).resolves.not.toThrow();
+      await expect(reporter.reportProgress(testTrackId, 60, false)).resolves.not.toThrow();
     });
   });
 
@@ -179,9 +169,7 @@ describe('E2E: Playback Reporting', () => {
 
   describe('Error Handling', () => {
     it('should handle invalid track ID gracefully', async () => {
-      await expect(
-        reporter.reportStart('invalid-track-id-12345')
-      ).rejects.toThrow();
+      await expect(reporter.reportStart('invalid-track-id-12345')).rejects.toThrow();
     });
 
     it('should handle negative position values', async () => {
@@ -193,9 +181,7 @@ describe('E2E: Playback Reporting', () => {
       await reporter.reportStart(testTrackId);
 
       // Server should handle negative values gracefully
-      await expect(
-        reporter.reportProgress(testTrackId, -10, false)
-      ).resolves.not.toThrow();
+      await expect(reporter.reportProgress(testTrackId, -10, false)).resolves.not.toThrow();
 
       await reporter.reportStopped(testTrackId, 0);
     });

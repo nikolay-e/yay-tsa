@@ -7,13 +7,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JellyfinClient } from '../../../src/api/client.js';
 import { AuthService } from '../../../src/api/auth.js';
-import {
-  loadTestConfig,
-  delay,
-  retryableLogin,
-  AUTH_DELAY,
-  TestConfig,
-} from '../setup.js';
+import { loadTestConfig, delay, retryableLogin, AUTH_DELAY, TestConfig } from '../setup.js';
 import { ThenAuth } from '../fixtures/scenarios.js';
 import type { ClientInfo } from '../../../src/models/types.js';
 
@@ -98,10 +92,7 @@ describe('Feature: User Authentication', () => {
       const authService = new AuthService(client);
 
       // When: User enters nonexistent username
-      const loginAttempt = authService.login(
-        'nonexistent-user-12345',
-        'any-password'
-      );
+      const loginAttempt = authService.login('nonexistent-user-12345', 'any-password');
 
       // Then: Authentication fails
       await expect(loginAttempt).rejects.toThrow();

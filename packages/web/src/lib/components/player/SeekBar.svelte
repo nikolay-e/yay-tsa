@@ -50,6 +50,10 @@
       on:input={handleSeekChange}
       on:change={handleSeekEnd}
       disabled={!duration}
+      aria-label="Seek position"
+      aria-valuemin="0"
+      aria-valuemax={duration || 0}
+      aria-valuenow={displayTime}
     />
   </div>
 
@@ -173,15 +177,15 @@
 
     /* Always visible, larger thumb on mobile */
     .slider::-webkit-slider-thumb {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       opacity: 1; /* Always visible on touch devices */
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); /* Add shadow for visibility */
     }
 
     .slider::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       opacity: 1; /* Always visible on touch devices */
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     }

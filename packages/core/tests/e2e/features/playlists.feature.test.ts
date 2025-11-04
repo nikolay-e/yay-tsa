@@ -55,7 +55,7 @@ describe('Feature: Playlist Management', () => {
 
     it('Given: User selects tracks, When: Creates playlist with tracks, Then: Playlist contains tracks', async () => {
       // Given: User has selected 3 tracks
-      const trackIds = fixtures.tracks.slice(0, 3).map((t) => t.Id);
+      const trackIds = fixtures.tracks.slice(0, 3).map(t => t.Id);
 
       // When: User creates playlist with these tracks
       const playlistName = `Tracks Playlist ${Date.now()}`;
@@ -77,7 +77,7 @@ describe('Feature: Playlist Management', () => {
       createdPlaylistIds.push(playlist.Id);
 
       // When: User adds 2 tracks
-      const trackIds = fixtures.tracks.slice(0, 2).map((t) => t.Id);
+      const trackIds = fixtures.tracks.slice(0, 2).map(t => t.Id);
       await scenario.when.user.addsTracksToPlaylist(playlist.Id, trackIds);
 
       // Then: Playlist has 2 tracks
@@ -104,7 +104,7 @@ describe('Feature: Playlist Management', () => {
   describe('Scenario: User removes tracks from playlist', () => {
     it('Given: Playlist with 3 tracks, When: Removes middle track, Then: Playlist has 2 tracks', async () => {
       // Given: Playlist with 3 tracks
-      const trackIds = fixtures.tracks.slice(0, 3).map((t) => t.Id);
+      const trackIds = fixtures.tracks.slice(0, 3).map(t => t.Id);
       const playlistName = `Remove Test ${Date.now()}`;
       const playlist = await scenario.when.user.createsPlaylist(playlistName, trackIds);
       createdPlaylistIds.push(playlist.Id);
@@ -113,9 +113,7 @@ describe('Feature: Playlist Management', () => {
       const items = await fixtures.playlistsService.getPlaylistItems(playlist.Id);
       const entryIdToRemove = items.Items[1].PlaylistItemId!;
 
-      await scenario.when.user.removesTracksFromPlaylist(playlist.Id, [
-        entryIdToRemove,
-      ]);
+      await scenario.when.user.removesTracksFromPlaylist(playlist.Id, [entryIdToRemove]);
 
       // Then: Playlist has 2 tracks
       const updatedItems = await fixtures.playlistsService.getPlaylistItems(playlist.Id);
@@ -126,7 +124,7 @@ describe('Feature: Playlist Management', () => {
   describe('Scenario: User reorders playlist', () => {
     it('Given: Playlist with ordered tracks, When: Moves last track to first, Then: Order changes', async () => {
       // Given: Playlist with 3 tracks
-      const trackIds = fixtures.tracks.slice(0, 3).map((t) => t.Id);
+      const trackIds = fixtures.tracks.slice(0, 3).map(t => t.Id);
       const playlistName = `Reorder Test ${Date.now()}`;
       const playlist = await scenario.when.user.createsPlaylist(playlistName, trackIds);
       createdPlaylistIds.push(playlist.Id);
@@ -135,11 +133,7 @@ describe('Feature: Playlist Management', () => {
       const lastTrack = itemsBefore.Items[2];
 
       // When: User drags last track to first position
-      await fixtures.playlistsService.movePlaylistItem(
-        playlist.Id,
-        lastTrack.PlaylistItemId!,
-        0
-      );
+      await fixtures.playlistsService.movePlaylistItem(playlist.Id, lastTrack.PlaylistItemId!, 0);
 
       // Then: Track order changed
       const itemsAfter = await fixtures.playlistsService.getPlaylistItems(playlist.Id);
@@ -157,10 +151,7 @@ describe('Feature: Playlist Management', () => {
       await fixtures.playlistsService.deletePlaylist(playlist.Id);
 
       // Then: Playlist no longer exists
-      await ThenPlaylist.playlistIsDeleted(
-        fixtures.playlistsService,
-        playlist.Id
-      );
+      await ThenPlaylist.playlistIsDeleted(fixtures.playlistsService, playlist.Id);
     });
   });
 
@@ -176,8 +167,8 @@ describe('Feature: Playlist Management', () => {
       const allPlaylists = await fixtures.playlistsService.getPlaylists();
 
       // Then: Both playlists appear
-      const foundPlaylist1 = allPlaylists.Items.some((p) => p.Id === playlist1.Id);
-      const foundPlaylist2 = allPlaylists.Items.some((p) => p.Id === playlist2.Id);
+      const foundPlaylist1 = allPlaylists.Items.some(p => p.Id === playlist1.Id);
+      const foundPlaylist2 = allPlaylists.Items.some(p => p.Id === playlist2.Id);
 
       expect(foundPlaylist1).toBe(true);
       expect(foundPlaylist2).toBe(true);
@@ -187,7 +178,7 @@ describe('Feature: Playlist Management', () => {
   describe('Scenario: User plays playlist', () => {
     it('Given: Playlist with 5 tracks, When: User plays playlist, Then: Queue contains all tracks', async () => {
       // Given: Playlist with 5 tracks
-      const trackIds = fixtures.tracks.slice(0, 5).map((t) => t.Id);
+      const trackIds = fixtures.tracks.slice(0, 5).map(t => t.Id);
       const playlistName = `Play Test ${Date.now()}`;
       const playlist = await scenario.when.user.createsPlaylist(playlistName, trackIds);
       createdPlaylistIds.push(playlist.Id);

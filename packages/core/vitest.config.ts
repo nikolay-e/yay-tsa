@@ -10,6 +10,14 @@ export default defineConfig(({ mode }) => {
       // E2E tests against real server - run serially to avoid rate limiting
       sequence: {
         concurrent: false,
+        shuffle: false,
+      },
+      // Single thread to prevent Jellyfin SQLite concurrency issues
+      pool: 'forks',
+      poolOptions: {
+        forks: {
+          singleFork: true,
+        },
       },
       // Longer timeout for network requests
       testTimeout: 30000,

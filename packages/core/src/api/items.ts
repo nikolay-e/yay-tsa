@@ -4,13 +4,7 @@
  */
 
 import { JellyfinClient } from './client.js';
-import {
-  ItemsQuery,
-  ItemsResult,
-  AudioItem,
-  MusicAlbum,
-  MusicArtist,
-} from '../models/types.js';
+import { ItemsQuery, ItemsResult, AudioItem, MusicAlbum, MusicArtist } from '../models/types.js';
 
 export class ItemsService {
   constructor(private client: JellyfinClient) {}
@@ -43,7 +37,11 @@ export class ItemsService {
       params.Fields = query.Fields.join(',');
     }
 
-    return this.client.get<ItemsResult<T>>(`/Users/${userId}/Items`, params);
+    const result = await this.client.get<ItemsResult<T>>(`/Users/${userId}/Items`, params);
+    if (!result) {
+      throw new Error('Failed to query items: Empty response');
+    }
+    return result;
   }
 
   /**
@@ -164,7 +162,13 @@ export class ItemsService {
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {
     const userId = this.client.requireAuth();
 
-    return this.client.get(`/Users/${userId}/Items/${itemId}`);
+    const result = await this.client.get<AudioItem | MusicAlbum | MusicArtist>(
+      `/Users/${userId}/Items/${itemId}`
+    );
+    if (!result) {
+      throw new Error(`Failed to get item ${itemId}: Empty response`);
+    }
+    return result;
   }
 
   /**

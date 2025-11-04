@@ -6,6 +6,7 @@
   import { getAlbumArtUrl } from '../../../lib/utils/image.js';
   import TrackList from '../../../lib/components/library/TrackList.svelte';
   import type { MusicAlbum, AudioItem } from '@jellyfin-mini/core';
+  import { hapticPlayPause, hapticSelect } from '../../../lib/utils/haptics.js';
 
   let album: MusicAlbum | null = null;
   let tracks: AudioItem[] = [];
@@ -45,12 +46,14 @@
 
   function playAlbum() {
     if (tracks.length > 0) {
+      hapticPlayPause();
       player.playAlbum(tracks);
     }
   }
 
   function shuffleAlbum() {
     if (tracks.length > 0) {
+      hapticSelect();
       player.toggleShuffle();
       player.playAlbum(tracks);
     }
@@ -85,15 +88,15 @@
         </div>
 
         <div class="album-actions">
-          <button type="button" class="btn-play" on:click={playAlbum}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <button type="button" class="btn-play" on:click={playAlbum} aria-label="Play album">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M8 5v14l11-7z" />
             </svg>
             Play
           </button>
 
-          <button type="button" class="btn-shuffle" on:click={shuffleAlbum}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" class="btn-shuffle" on:click={shuffleAlbum} aria-label="Shuffle album">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
             </svg>
             Shuffle

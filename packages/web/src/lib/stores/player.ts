@@ -5,12 +5,7 @@
 
 import { writable, derived, get } from 'svelte/store';
 import { browser, dev } from '$app/environment';
-import {
-  PlaybackQueue,
-  PlaybackState,
-  type AudioItem,
-  type RepeatMode
-} from '@jellyfin-mini/core';
+import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@jellyfin-mini/core';
 import { HTML5AudioEngine, MediaSessionManager } from '@jellyfin-mini/platform';
 import { client } from './auth.js';
 
@@ -69,19 +64,19 @@ const initialState: PlayerState = {
   isLoading: false,
   isShuffle: false,
   repeatMode: 'off',
-  error: null
+  error: null,
 };
 
 const playerStore = writable<PlayerState>(initialState);
 
 // Subscribe to client changes AFTER playerStore is created
-client.subscribe(($client) => {
+client.subscribe($client => {
   if ($client) {
     playbackState = new PlaybackState($client);
-    playerStore.update((state) => ({ ...state, state: playbackState }));
+    playerStore.update(state => ({ ...state, state: playbackState }));
   } else {
     playbackState = null;
-    playerStore.update((state) => ({ ...state, state: null }));
+    playerStore.update(state => ({ ...state, state: null }));
   }
 });
 
@@ -90,13 +85,13 @@ if (audioEngine) {
   audioEngine.setVolume(0.7);
 
   // Time update handler
-  audioEngine.onTimeUpdate((time) => {
+  audioEngine.onTimeUpdate(time => {
     const duration = audioEngine ? audioEngine.getDuration() : 0;
 
     playerStore.update((state: PlayerState) => ({
       ...state,
       currentTime: time,
-      duration
+      duration,
     }));
 
     // Update PlaybackState time (it will auto-report every 10s)
@@ -123,32 +118,32 @@ if (audioEngine) {
     }
 
     // Auto-advance to next track
-    next().catch((error) => {
+    next().catch(error => {
       console.error('Auto-advance error:', error);
-      playerStore.update((s) => ({
+      playerStore.update(s => ({
         ...s,
         isPlaying: false,
-        error: (error as Error).message
+        error: (error as Error).message,
       }));
     });
   });
 
   // Error handler
-  audioEngine.onError((error) => {
+  audioEngine.onError(error => {
     console.error('Audio playback error:', error);
-    playerStore.update((state) => ({
+    playerStore.update(state => ({
       ...state,
       isPlaying: false,
       isLoading: false,
-      error: error.message
+      error: error.message,
     }));
   });
 
   // Loading state handler
-  audioEngine.onLoading((isLoading) => {
-    playerStore.update((state) => ({
+  audioEngine.onLoading(isLoading => {
+    playerStore.update(state => ({
       ...state,
-      isLoading
+      isLoading,
     }));
   });
 }
@@ -182,7 +177,7 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
     const streamUrl = $client.getStreamUrl(track.Id);
 
     // Load and play
-    playerStore.update((s) => ({ ...s, isLoading: true, error: null, currentTrack: track }));
+    playerStore.update(s => ({ ...s, isLoading: true, error: null, currentTrack: track }));
 
     await audioEngine.load(streamUrl);
     await audioEngine.play();
@@ -194,40 +189,39 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
       await state.state.reportPlaybackStart();
     }
 
-    playerStore.update((s) => ({
+    playerStore.update(s => ({
       ...s,
       isPlaying: true,
       isLoading: false,
-      currentTrack: track
+      currentTrack: track,
     }));
 
     // Update media session metadata for background playback
     if (mediaSession) {
       // Request high-resolution artwork for iOS retina displays (1024x1024)
       // Prefer album artwork if available, otherwise use track artwork
-      const imageItemId = track.AlbumPrimaryImageTag && track.AlbumId
-        ? track.AlbumId
-        : track.Id;
-      const albumArtUrl = (track.AlbumPrimaryImageTag || track.ImageTags?.Primary)
-        ? $client.getImageUrl(imageItemId, 'Primary', { maxWidth: RETINA_IMAGE_SIZE })
-        : undefined;
+      const imageItemId = track.AlbumPrimaryImageTag && track.AlbumId ? track.AlbumId : track.Id;
+      const albumArtUrl =
+        track.AlbumPrimaryImageTag || track.ImageTags?.Primary
+          ? $client.getImageUrl(imageItemId, 'Primary', { maxWidth: RETINA_IMAGE_SIZE })
+          : undefined;
 
       mediaSession.updateMetadata({
         title: track.Name,
         artist: track.Artists?.join(', ') || 'Unknown Artist',
         album: track.Album || 'Unknown Album',
-        artwork: albumArtUrl
+        artwork: albumArtUrl,
       });
 
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
     console.error('Play error:', error);
-    playerStore.update((s) => ({
+    playerStore.update(s => ({
       ...s,
       isPlaying: false,
       isLoading: false,
-      error: (error as Error).message
+      error: (error as Error).message,
     }));
     throw error;
   }
@@ -306,7 +300,7 @@ function pause(): void {
     mediaSession.setPlaybackState('paused');
   }
 
-  playerStore.update((s) => ({ ...s, isPlaying: false }));
+  playerStore.update(s => ({ ...s, isPlaying: false }));
 }
 
 /**
@@ -319,7 +313,7 @@ async function resume(): Promise<void> {
 
   try {
     await audioEngine.play();
-    playerStore.update((s) => ({ ...s, isPlaying: true }));
+    playerStore.update(s => ({ ...s, isPlaying: true }));
 
     // Immediately report the 'playing' status to the server
     const state = get(playerStore);
@@ -373,11 +367,11 @@ function stop(): void {
     mediaSession.setPlaybackState('none');
   }
 
-  playerStore.update((s) => ({
+  playerStore.update(s => ({
     ...s,
     isPlaying: false,
     currentTrack: null,
-    currentTime: 0
+    currentTime: 0,
   }));
 }
 
@@ -422,7 +416,7 @@ function seek(seconds: number): void {
   if (!audioEngine) return;
 
   audioEngine.seek(seconds);
-  playerStore.update((s) => ({ ...s, currentTime: seconds }));
+  playerStore.update(s => ({ ...s, currentTime: seconds }));
 }
 
 /**
@@ -432,7 +426,7 @@ function setVolume(level: number): void {
   if (!audioEngine) return;
 
   audioEngine.setVolume(level);
-  playerStore.update((s) => ({ ...s, volume: level }));
+  playerStore.update(s => ({ ...s, volume: level }));
 }
 
 /**
@@ -443,7 +437,7 @@ function toggleShuffle(): void {
   state.queue.toggleShuffleMode();
   const newShuffle = state.queue.getShuffleMode() === 'on';
 
-  playerStore.update((s) => ({ ...s, isShuffle: newShuffle }));
+  playerStore.update(s => ({ ...s, isShuffle: newShuffle }));
 }
 
 /**
@@ -453,7 +447,7 @@ function setRepeatMode(mode: RepeatMode): void {
   const state = get(playerStore);
   state.queue.setRepeatMode(mode);
 
-  playerStore.update((s) => ({ ...s, repeatMode: mode }));
+  playerStore.update(s => ({ ...s, repeatMode: mode }));
 }
 
 /**
@@ -464,7 +458,7 @@ function toggleRepeat(): void {
   state.queue.toggleRepeatMode();
   const newMode = state.queue.getRepeatMode();
 
-  playerStore.update((s) => ({ ...s, repeatMode: newMode }));
+  playerStore.update(s => ({ ...s, repeatMode: newMode }));
 }
 
 /**
@@ -493,16 +487,16 @@ function removeFromQueue(index: number): void {
 }
 
 // Derived stores
-export const currentTrack = derived(playerStore, ($player) => $player.currentTrack);
-export const currentTime = derived(playerStore, ($player) => $player.currentTime);
-export const duration = derived(playerStore, ($player) => $player.duration);
-export const volume = derived(playerStore, ($player) => $player.volume);
-export const isPlaying = derived(playerStore, ($player) => $player.isPlaying);
-export const isLoading = derived(playerStore, ($player) => $player.isLoading);
-export const isShuffle = derived(playerStore, ($player) => $player.isShuffle);
-export const repeatMode = derived(playerStore, ($player) => $player.repeatMode);
-export const error = derived(playerStore, ($player) => $player.error);
-export const queueItems = derived(playerStore, ($player) => $player.queue.getAllItems());
+export const currentTrack = derived(playerStore, $player => $player.currentTrack);
+export const currentTime = derived(playerStore, $player => $player.currentTime);
+export const duration = derived(playerStore, $player => $player.duration);
+export const volume = derived(playerStore, $player => $player.volume);
+export const isPlaying = derived(playerStore, $player => $player.isPlaying);
+export const isLoading = derived(playerStore, $player => $player.isLoading);
+export const isShuffle = derived(playerStore, $player => $player.isShuffle);
+export const repeatMode = derived(playerStore, $player => $player.repeatMode);
+export const error = derived(playerStore, $player => $player.error);
+export const queueItems = derived(playerStore, $player => $player.queue.getAllItems());
 
 export const player = {
   subscribe: playerStore.subscribe,
@@ -524,7 +518,7 @@ export const player = {
   toggleRepeat,
   getQueue,
   clearQueue,
-  removeFromQueue
+  removeFromQueue,
 };
 
 // Set up media session action handlers (browser only)
@@ -532,7 +526,7 @@ export const player = {
 if (mediaSession) {
   mediaSession.setActionHandlers({
     onPlay: () => {
-      player.resume().catch((error) => {
+      player.resume().catch(error => {
         if (dev) console.error('Media Session play error:', error);
       });
     },
@@ -540,17 +534,17 @@ if (mediaSession) {
       player.pause();
     },
     onNext: () => {
-      player.next().catch((error) => {
+      player.next().catch(error => {
         if (dev) console.error('Media Session next error:', error);
       });
     },
     onPrevious: () => {
-      player.previous().catch((error) => {
+      player.previous().catch(error => {
         if (dev) console.error('Media Session previous error:', error);
       });
     },
-    onSeek: (seconds) => {
+    onSeek: seconds => {
       player.seek(seconds);
-    }
+    },
   });
 }

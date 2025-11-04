@@ -10,31 +10,33 @@ const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);
 
 export default defineConfig({
   plugins: [sveltekit()],
-  server: httpsEnabled ? {
-    https: {
-      key: fs.readFileSync(keyPath),
-      cert: fs.readFileSync(certPath)
-    },
-    strictPort: true,
-    port: 5173,
-    hmr: {
-      protocol: 'wss'
-    }
-  } : {
-    strictPort: true,
-    port: 5173
-  },
+  server: httpsEnabled
+    ? {
+        https: {
+          key: fs.readFileSync(keyPath),
+          cert: fs.readFileSync(certPath),
+        },
+        strictPort: true,
+        port: 5173,
+        hmr: {
+          protocol: 'wss',
+        },
+      }
+    : {
+        strictPort: true,
+        port: 5173,
+      },
   build: {
     target: 'es2020',
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    }
+        drop_console: ['log', 'debug'],
+        drop_debugger: true,
+      },
+    },
   },
   optimizeDeps: {
-    include: ['@jellyfin-mini/core', '@jellyfin-mini/platform']
-  }
+    include: ['@jellyfin-mini/core', '@jellyfin-mini/platform'],
+  },
 });

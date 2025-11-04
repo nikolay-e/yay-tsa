@@ -14,7 +14,7 @@ import {
   APP_VERSION,
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
-  type ClientInfo
+  type ClientInfo,
 } from '@jellyfin-mini/core';
 import { config } from './config.js';
 
@@ -37,7 +37,7 @@ const initialState: AuthState = {
   serverUrl: null,
   isAuthenticated: false,
   isLoading: false,
-  error: null
+  error: null,
 };
 
 // Main auth store
@@ -58,7 +58,7 @@ function createClientInfoFromConfig(): ClientInfo {
     name: clientName,
     device: deviceName,
     deviceId: getOrCreateDeviceId(),
-    version: APP_VERSION
+    version: APP_VERSION,
   };
 }
 
@@ -66,7 +66,7 @@ function createClientInfoFromConfig(): ClientInfo {
  * Login with username and password
  */
 async function login(serverUrl: string, username: string, password: string): Promise<void> {
-  authStore.update((state) => ({ ...state, isLoading: true, error: null }));
+  authStore.update(state => ({ ...state, isLoading: true, error: null }));
 
   try {
     // Validate server URL (check if in development mode)
@@ -98,14 +98,14 @@ async function login(serverUrl: string, username: string, password: string): Pro
       serverUrl,
       isAuthenticated: true,
       isLoading: false,
-      error: null
+      error: null,
     });
   } catch (error) {
     console.error('Login error:', error);
-    authStore.update((state) => ({
+    authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: (error as Error).message
+      error: (error as Error).message,
     }));
     throw error;
   }
@@ -136,7 +136,7 @@ async function logout(): Promise<void> {
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     try {
       navigator.serviceWorker.controller.postMessage({
-        type: 'CLEAR_CACHE'
+        type: 'CLEAR_CACHE',
       });
     } catch (error) {
       if (dev) console.error('Failed to clear service worker cache:', error);
@@ -175,7 +175,7 @@ async function restoreSession(): Promise<boolean> {
     return false;
   }
 
-  authStore.update((state) => ({ ...state, isLoading: true }));
+  authStore.update(state => ({ ...state, isLoading: true }));
 
   try {
     // Create client info from config
@@ -197,7 +197,7 @@ async function restoreSession(): Promise<boolean> {
       serverUrl,
       isAuthenticated: true,
       isLoading: false,
-      error: null
+      error: null,
     });
 
     return true;
@@ -208,10 +208,10 @@ async function restoreSession(): Promise<boolean> {
     sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
     sessionStorage.removeItem(STORAGE_KEYS.SERVER_URL);
 
-    authStore.update((state) => ({
+    authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: 'Session expired or invalid'
+      error: 'Session expired or invalid',
     }));
 
     return false;
@@ -219,14 +219,14 @@ async function restoreSession(): Promise<boolean> {
 }
 
 // Derived stores
-export const isAuthenticated = derived(authStore, ($auth) => $auth.isAuthenticated);
-export const client = derived(authStore, ($auth) => $auth.client);
-export const isLoading = derived(authStore, ($auth) => $auth.isLoading);
-export const error = derived(authStore, ($auth) => $auth.error);
+export const isAuthenticated = derived(authStore, $auth => $auth.isAuthenticated);
+export const client = derived(authStore, $auth => $auth.client);
+export const isLoading = derived(authStore, $auth => $auth.isLoading);
+export const error = derived(authStore, $auth => $auth.error);
 
 export const auth = {
   subscribe: authStore.subscribe,
   login,
   logout,
-  restoreSession
+  restoreSession,
 };

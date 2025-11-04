@@ -97,27 +97,21 @@ export class TestDataFactory {
     const errors: string[] = [];
 
     if (artists.length < 3) {
-      errors.push(
-        `Insufficient artists: found ${artists.length}, need at least 3`
-      );
+      errors.push(`Insufficient artists: found ${artists.length}, need at least 3`);
     }
 
     if (albums.length < 5) {
-      errors.push(
-        `Insufficient albums: found ${albums.length}, need at least 5`
-      );
+      errors.push(`Insufficient albums: found ${albums.length}, need at least 5`);
     }
 
     if (tracks.length < 50) {
-      errors.push(
-        `Insufficient tracks: found ${tracks.length}, need at least 50`
-      );
+      errors.push(`Insufficient tracks: found ${tracks.length}, need at least 50`);
     }
 
     if (errors.length > 0) {
       throw new Error(
         `Library validation failed:\n${errors.join('\n')}\n\n` +
-        `Please add more music to your Jellyfin test library.`
+          `Please add more music to your Jellyfin test library.`
       );
     }
   }
@@ -168,11 +162,7 @@ export class TestDataFactory {
       try {
         await this.favoritesService.unmarkFavorite(itemId);
       } catch (error) {
-        errors.push(
-          new Error(
-            `Failed to remove favorite ${itemId}: ${(error as Error).message}`
-          )
-        );
+        errors.push(new Error(`Failed to remove favorite ${itemId}: ${(error as Error).message}`));
       }
     }
 
@@ -182,18 +172,14 @@ export class TestDataFactory {
         await this.playlistsService.deletePlaylist(playlistId);
       } catch (error) {
         errors.push(
-          new Error(
-            `Failed to delete playlist ${playlistId}: ${(error as Error).message}`
-          )
+          new Error(`Failed to delete playlist ${playlistId}: ${(error as Error).message}`)
         );
       }
     }
 
     // Report cleanup errors (but don't fail tests)
     if (errors.length > 0) {
-      console.warn(
-        `\n⚠️  Cleanup warnings (${errors.length} failures):`
-      );
+      console.warn(`\n⚠️  Cleanup warnings (${errors.length} failures):`);
       errors.forEach(err => console.warn(`  - ${err.message}`));
     }
 

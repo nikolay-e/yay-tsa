@@ -214,7 +214,7 @@ export class WhenQueue {
    */
   static addsTracks(queue: any, tracks: AudioItem | AudioItem[]): void {
     if (Array.isArray(tracks)) {
-      tracks.forEach((track) => queue.addToQueue(track));
+      tracks.forEach(track => queue.addToQueue(track));
     } else {
       queue.addToQueue(tracks);
     }
@@ -316,9 +316,7 @@ export class ThenLibrary {
    */
   static searchReturnsResults(results: any, searchTerm: string): void {
     expect(
-      results.albums.length > 0 ||
-        results.artists.length > 0 ||
-        results.tracks.length > 0
+      results.albums.length > 0 || results.artists.length > 0 || results.tracks.length > 0
     ).toBe(true);
   }
 
@@ -465,10 +463,7 @@ export class ThenPlaylist {
   /**
    * Then: Playlist is deleted
    */
-  static async playlistIsDeleted(
-    playlistsService: any,
-    playlistId: string
-  ): Promise<void> {
+  static async playlistIsDeleted(playlistsService: any, playlistId: string): Promise<void> {
     await expect(playlistsService.getPlaylist(playlistId)).rejects.toThrow();
   }
 }

@@ -105,52 +105,87 @@ export class JellyfinClient {
 
   /**
    * Make HTTP request to Jellyfin API
+   * Returns undefined for 204 No Content or empty responses
+   * Automatically retries GET requests with exponential backoff on network/server errors
    */
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(endpoint: string, options: RequestInit = {}, retries = 3): Promise<T | undefined> {
     const url = `${this.serverUrl}${endpoint}`;
+    const method = options.method || 'GET';
+    const isIdempotent = method === 'GET';
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Emby-Authorization': this.buildAuthHeader(),
-      ...this.headersFromInit(options.headers),
-    };
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Emby-Authorization': this.buildAuthHeader(),
+        ...this.headersFromInit(options.headers),
+      };
 
-    // Add token header if available
-    if (this.token) {
-      headers['X-Emby-Token'] = this.token;
+      // Add token header if available
+      if (this.token) {
+        headers['X-Emby-Token'] = this.token;
+      }
+
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers,
+        });
+
+        // Handle non-OK responses
+        if (!response.ok) {
+          // Retry 5xx server errors for idempotent requests
+          if (isIdempotent && response.status >= 500 && attempt < retries) {
+            const delay = Math.pow(2, attempt) * 1000;
+            await this.sleep(delay);
+            continue;
+          }
+
+          await this.handleErrorResponse(response);
+        }
+
+        // Check if response has content
+        const contentLength = response.headers.get('content-length');
+        const contentType = response.headers.get('content-type');
+
+        // If no content (204) or empty body, return undefined
+        if (response.status === 204 || contentLength === '0' || !contentType?.includes('json')) {
+          return undefined;
+        }
+
+        // Parse JSON response
+        const data: T = (await response.json()) as T;
+        return data;
+      } catch (error) {
+        // Retry network errors for idempotent requests
+        if (isIdempotent && attempt < retries && !(error instanceof JellyfinError)) {
+          const delay = Math.pow(2, attempt) * 1000;
+          await this.sleep(delay);
+          continue;
+        }
+
+        // Network errors or parsing errors
+        if (error instanceof JellyfinError) {
+          throw error;
+        }
+
+        throw new NetworkError(
+          `Network request failed: ${(error as Error).message}`,
+          error as Error
+        );
+      }
     }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+    // This should never be reached, but TypeScript needs it
+    throw new NetworkError('Request failed after all retries');
+  }
 
-      // Handle non-OK responses
-      if (!response.ok) {
-        await this.handleErrorResponse(response);
-      }
-
-      // Check if response has content
-      const contentLength = response.headers.get('content-length');
-      const contentType = response.headers.get('content-type');
-
-      // If no content (204) or empty body, return undefined
-      if (response.status === 204 || contentLength === '0' || !contentType?.includes('json')) {
-        return undefined as T;
-      }
-
-      // Parse JSON response
-      const data: T = await response.json() as T;
-      return data;
-    } catch (error) {
-      // Network errors or parsing errors
-      if (error instanceof JellyfinError) {
-        throw error;
-      }
-
-      throw new NetworkError(`Network request failed: ${(error as Error).message}`, error as Error);
-    }
+  /**
+   * Sleep for specified milliseconds
+   */
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   }
 
   /**
@@ -184,15 +219,20 @@ export class JellyfinClient {
   private async handleErrorResponse(response: Response): Promise<never> {
     let errorData: unknown;
     try {
-      errorData = await response.json() as unknown;
+      errorData = (await response.json()) as unknown;
     } catch {
       errorData = null;
     }
 
     const message =
-      (typeof errorData === 'object' && errorData !== null && 'message' in errorData && typeof errorData.message === 'string'
+      (typeof errorData === 'object' &&
+      errorData !== null &&
+      'message' in errorData &&
+      typeof errorData.message === 'string'
         ? errorData.message
-        : undefined) || response.statusText || 'Request failed';
+        : undefined) ||
+      response.statusText ||
+      'Request failed';
 
     if (response.status === 401 || response.status === 403) {
       throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
@@ -204,7 +244,7 @@ export class JellyfinClient {
   /**
    * GET request
    */
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T | undefined> {
     let url = endpoint;
 
     if (params) {
@@ -231,7 +271,7 @@ export class JellyfinClient {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: any): Promise<T | undefined> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -241,7 +281,7 @@ export class JellyfinClient {
   /**
    * DELETE request
    */
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string): Promise<T | undefined> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
 

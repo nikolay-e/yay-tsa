@@ -4,7 +4,7 @@ import {
   loadEnvironmentConfig,
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
-  type EnvironmentConfig
+  type EnvironmentConfig,
 } from '@jellyfin-mini/core';
 
 export interface AppConfig {

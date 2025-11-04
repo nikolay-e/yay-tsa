@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { hapticSelect } from '../../utils/haptics.js';
 
   interface Tab {
     href: string;
@@ -38,6 +39,10 @@
 
     return tab.paths.some(path => currentPath.startsWith(path));
   }
+
+  function handleTabClick() {
+    hapticSelect();
+  }
 </script>
 
 <nav class="bottom-tab-bar" role="navigation" aria-label="Main navigation">
@@ -47,6 +52,7 @@
       class="tab"
       class:active={isActive(tab)}
       aria-current={isActive(tab) ? 'page' : undefined}
+      on:click={handleTabClick}
     >
       {#if tab.icon === 'home'}
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

@@ -2,11 +2,13 @@
   import { ticksToSeconds, type AudioItem } from '@jellyfin-mini/core';
   import { player, currentTrack } from '../../stores/player.js';
   import { formatDuration } from '../../utils/time.js';
+  import { hapticSelect } from '../../utils/haptics.js';
 
   export let tracks: AudioItem[] = [];
   export let showAlbum: boolean = false;
 
   function playTrack(_track: AudioItem, index: number) {
+    hapticSelect();
     // Play the entire album starting from the clicked track
     // This allows continuous playback through the rest of the album
     player.playFromAlbum(tracks, index);
@@ -35,10 +37,11 @@
           class="track-list-row track"
           class:playing={isCurrentTrack(track)}
           on:click={() => playTrack(track, index)}
+          aria-label="Play {track.Name}{track.Artists && track.Artists.length > 0 ? ' by ' + track.Artists.join(', ') : ''}"
         >
           <div class="track-number">
             {#if isCurrentTrack(track)}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
               </svg>
             {:else}

@@ -47,7 +47,7 @@ export class MediaSessionManager {
           { src: metadata.artwork, sizes: '192x192', type: 'image/png' },
           { src: metadata.artwork, sizes: '256x256', type: 'image/png' },
           { src: metadata.artwork, sizes: '384x384', type: 'image/png' },
-          { src: metadata.artwork, sizes: '512x512', type: 'image/png' }
+          { src: metadata.artwork, sizes: '512x512', type: 'image/png' },
         ]
       : [];
 
@@ -55,7 +55,7 @@ export class MediaSessionManager {
       title: metadata.title,
       artist: metadata.artist,
       album: metadata.album,
-      artwork
+      artwork,
     });
   }
 
@@ -111,7 +111,7 @@ export class MediaSessionManager {
 
     // Seek action
     if (handlers.onSeek) {
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
+      navigator.mediaSession.setActionHandler('seekto', details => {
         if (details.seekTime !== undefined && handlers.onSeek) {
           handlers.onSeek(details.seekTime);
         }
@@ -139,7 +139,7 @@ export class MediaSessionManager {
         navigator.mediaSession.setPositionState({
           duration,
           playbackRate,
-          position
+          position,
         });
       } catch {
         // Ignore errors from invalid position state (intentionally silent)
@@ -162,10 +162,10 @@ export class MediaSessionManager {
       'previoustrack',
       'nexttrack',
       'seekto',
-      'stop'
+      'stop',
     ];
 
-    actions.forEach((action) => {
+    actions.forEach(action => {
       try {
         navigator.mediaSession.setActionHandler(action, null);
       } catch {

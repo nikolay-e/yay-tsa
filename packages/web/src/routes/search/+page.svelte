@@ -30,15 +30,16 @@
       on:input={handleSearch}
       placeholder="Search for albums, artists, or tracks..."
       class="search-input"
+      aria-label="Search for albums, artists, or tracks"
     />
   </div>
 
   {#if query.trim()}
-    <div class="tabs">
-      <button type="button" class:active={activeTab === 'albums'} on:click={() => (activeTab = 'albums')}>
+    <div class="tabs" role="tablist">
+      <button type="button" class:active={activeTab === 'albums'} on:click={() => (activeTab = 'albums')} role="tab" aria-selected={activeTab === 'albums'}>
         Albums ({$albums.length})
       </button>
-      <button type="button" class:active={activeTab === 'tracks'} on:click={() => (activeTab = 'tracks')}>
+      <button type="button" class:active={activeTab === 'tracks'} on:click={() => (activeTab = 'tracks')} role="tab" aria-selected={activeTab === 'tracks'}>
         Tracks ({$tracks.length})
       </button>
     </div>

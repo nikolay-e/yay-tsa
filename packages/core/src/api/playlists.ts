@@ -4,12 +4,7 @@
  */
 
 import { JellyfinClient } from './client.js';
-import {
-  Playlist,
-  AudioItem,
-  ItemsResult,
-  CreatePlaylistDto,
-} from '../models/types.js';
+import { Playlist, AudioItem, ItemsResult, CreatePlaylistDto } from '../models/types.js';
 
 export class PlaylistsService {
   constructor(private client: JellyfinClient) {}
@@ -45,6 +40,9 @@ export class PlaylistsService {
     }
 
     const result = await this.client.post<{ Id: string }>('/Playlists', body);
+    if (!result) {
+      throw new Error('Failed to create playlist: Empty response');
+    }
 
     return this.getPlaylist(result.Id);
   }
@@ -55,16 +53,23 @@ export class PlaylistsService {
   async getPlaylist(playlistId: string): Promise<Playlist> {
     const userId = this.client.requireAuth();
 
-    return this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
+    const result = await this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
+    if (!result) {
+      throw new Error(`Failed to get playlist ${playlistId}: Empty response`);
+    }
+    return result;
   }
 
   /**
    * Get items in a playlist
    */
-  async getPlaylistItems(playlistId: string, options?: {
-    startIndex?: number;
-    limit?: number;
-  }): Promise<ItemsResult<AudioItem>> {
+  async getPlaylistItems(
+    playlistId: string,
+    options?: {
+      startIndex?: number;
+      limit?: number;
+    }
+  ): Promise<ItemsResult<AudioItem>> {
     const userId = this.client.requireAuth();
 
     const params: Record<string, any> = {
@@ -79,19 +84,20 @@ export class PlaylistsService {
       params.Limit = options.limit;
     }
 
-    return this.client.get<ItemsResult<AudioItem>>(
+    const result = await this.client.get<ItemsResult<AudioItem>>(
       `/Playlists/${playlistId}/Items`,
       params
     );
+    if (!result) {
+      throw new Error(`Failed to get playlist items for ${playlistId}: Empty response`);
+    }
+    return result;
   }
 
   /**
    * Add items to a playlist
    */
-  async addItemsToPlaylist(
-    playlistId: string,
-    itemIds: string[]
-  ): Promise<void> {
+  async addItemsToPlaylist(playlistId: string, itemIds: string[]): Promise<void> {
     const userId = this.client.requireAuth();
 
     const idsParam = itemIds.join(',');
@@ -104,10 +110,7 @@ export class PlaylistsService {
    * Remove items from a playlist
    * @param entryIds The playlist entry IDs (not the original item IDs!)
    */
-  async removeItemsFromPlaylist(
-    playlistId: string,
-    entryIds: string[]
-  ): Promise<void> {
+  async removeItemsFromPlaylist(playlistId: string, entryIds: string[]): Promise<void> {
     const entryIdsParam = entryIds.join(',');
     const url = `/Playlists/${playlistId}/Items?EntryIds=${encodeURIComponent(entryIdsParam)}`;
 
@@ -119,14 +122,8 @@ export class PlaylistsService {
    * @param itemId The playlist entry ID (PlaylistItemId from getPlaylistItems)
    * @param newIndex The new position index
    */
-  async movePlaylistItem(
-    playlistId: string,
-    itemId: string,
-    newIndex: number
-  ): Promise<void> {
-    await this.client.post(
-      `/Playlists/${playlistId}/Items/${itemId}/Move/${newIndex}`
-    );
+  async movePlaylistItem(playlistId: string, itemId: string, newIndex: number): Promise<void> {
+    await this.client.post(`/Playlists/${playlistId}/Items/${itemId}/Move/${newIndex}`);
   }
 
   /**
@@ -161,9 +158,10 @@ export class PlaylistsService {
       params.Limit = options.limit;
     }
 
-    return this.client.get<ItemsResult<Playlist>>(
-      `/Users/${userId}/Items`,
-      params
-    );
+    const result = await this.client.get<ItemsResult<Playlist>>(`/Users/${userId}/Items`, params);
+    if (!result) {
+      throw new Error('Failed to get playlists: Empty response');
+    }
+    return result;
   }
 }

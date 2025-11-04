@@ -5,12 +5,7 @@
 
 import { JellyfinClient } from './client.js';
 import { ItemsService } from './items.js';
-import {
-  UserItemData,
-  MusicAlbum,
-  AudioItem,
-  ItemsResult,
-} from '../models/types.js';
+import { UserItemData, MusicAlbum, AudioItem, ItemsResult } from '../models/types.js';
 
 export class FavoritesService {
   private itemsService: ItemsService;
@@ -25,9 +20,11 @@ export class FavoritesService {
   async markFavorite(itemId: string): Promise<UserItemData> {
     const userId = this.client.requireAuth();
 
-    return this.client.post<UserItemData>(
-      `/Users/${userId}/FavoriteItems/${itemId}`
-    );
+    const result = await this.client.post<UserItemData>(`/Users/${userId}/FavoriteItems/${itemId}`);
+    if (!result) {
+      throw new Error('Failed to mark item as favorite: Empty response');
+    }
+    return result;
   }
 
   /**
@@ -36,9 +33,11 @@ export class FavoritesService {
   async unmarkFavorite(itemId: string): Promise<UserItemData> {
     const userId = this.client.requireAuth();
 
-    return this.client.delete<UserItemData>(
-      `/Users/${userId}/FavoriteItems/${itemId}`
-    );
+    const result = await this.client.delete<UserItemData>(`/Users/${userId}/FavoriteItems/${itemId}`);
+    if (!result) {
+      throw new Error('Failed to unmark item as favorite: Empty response');
+    }
+    return result;
   }
 
   /**

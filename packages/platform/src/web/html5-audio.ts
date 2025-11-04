@@ -32,13 +32,17 @@ export class HTML5AudioEngine implements AudioEngine {
 
     // Initialize Audio Context for iOS background playback support
     // This helps ensure iOS properly manages the audio session
-    if (typeof window !== 'undefined' && ('AudioContext' in window || 'webkitAudioContext' in window)) {
+    if (
+      typeof window !== 'undefined' &&
+      ('AudioContext' in window || 'webkitAudioContext' in window)
+    ) {
       try {
         const windowWithAudio = window as typeof window & {
           AudioContext?: typeof AudioContext;
           webkitAudioContext?: typeof AudioContext;
         };
-        const AudioContextClass = windowWithAudio.AudioContext || windowWithAudio.webkitAudioContext;
+        const AudioContextClass =
+          windowWithAudio.AudioContext || windowWithAudio.webkitAudioContext;
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
         }

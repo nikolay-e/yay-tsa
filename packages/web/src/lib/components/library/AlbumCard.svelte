@@ -3,6 +3,7 @@
   import { getAlbumArtUrl } from '../../utils/image.js';
   import { player } from '../../stores/player.js';
   import { library } from '../../stores/library.js';
+  import { hapticSelect } from '../../utils/haptics.js';
 
   export let album: MusicAlbum;
 
@@ -12,6 +13,7 @@
 
   async function playAlbum(event: MouseEvent) {
     event.preventDefault();
+    hapticSelect();
     try {
       const tracks = await library.loadAlbumTracks(album.Id);
       if (tracks.length > 0) {
@@ -34,8 +36,8 @@
       loading="lazy"
     />
     <div class="play-overlay">
-      <button type="button" class="play-button" on:click={playAlbum}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+      <button type="button" class="play-button" on:click={playAlbum} aria-label="Play {album.Name}">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M8 5v14l11-7z" />
         </svg>
       </button>

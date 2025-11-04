@@ -12,7 +12,7 @@
   --color-bg-tertiary: #252525;
   --color-bg-hover: #2a2a2a;
   --color-text-primary: #fff;
-  --color-text-secondary: #b3b3b3;
+  --color-text-secondary: #bababa; /* Improved from #b3b3b3 for WCAG AA (5:1 contrast) */
   --color-text-tertiary: #808080;
   --color-accent: #1db954;
   --color-accent-hover: #1ed760;
@@ -63,6 +63,8 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent pull-to-refresh on mobile (avoids conflicts with in-app refresh) */
+  overscroll-behavior-y: contain;
 }
 
 /* Typography */
@@ -130,6 +132,32 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--color-accent);
+}
+
+/* Focus Indicators for Keyboard Navigation (WCAG 2.4.7) */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Remove focus outline for inputs (they use border-color instead) */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* Buttons should have visible focus ring */
+button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Links should have focus ring when navigating via keyboard */
+a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /* Utility classes */
@@ -234,5 +262,17 @@ textarea:focus {
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg-primary: #000; /* True black instead of #0f0f0f */
+  }
+}
+
+/* Reduced Motion for Accessibility (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

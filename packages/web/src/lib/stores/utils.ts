@@ -42,20 +42,23 @@ export function createAsyncStoreHandler<T extends AsyncState>(
 ): AsyncStoreHandler<T> {
   return {
     start(): void {
-      store.update((s) => ({ ...s, isLoading: true, error: null }) as T);
+      store.update(s => ({ ...s, isLoading: true, error: null }) as T);
     },
 
     success(data: Partial<T>): void {
-      store.update((s) => ({ ...s, ...data, isLoading: false }) as T);
+      store.update(s => ({ ...s, ...data, isLoading: false }) as T);
     },
 
     error(error: Error): void {
       console.error('Store operation error:', error);
-      store.update((s) => ({
-        ...s,
-        isLoading: false,
-        error: error.message,
-      }) as T);
+      store.update(
+        s =>
+          ({
+            ...s,
+            isLoading: false,
+            error: error.message,
+          }) as T
+      );
     },
   };
 }

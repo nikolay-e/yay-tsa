@@ -215,15 +215,11 @@ describe('E2E: Favorites Management', () => {
 
   describe('Error Handling', () => {
     it('should handle marking invalid item ID as favorite', async () => {
-      await expect(
-        favoritesService.markFavorite('invalid-item-id-12345')
-      ).rejects.toThrow();
+      await expect(favoritesService.markFavorite('invalid-item-id-12345')).rejects.toThrow();
     });
 
     it('should handle unmarking invalid item ID as favorite', async () => {
-      await expect(
-        favoritesService.unmarkFavorite('invalid-item-id-12345')
-      ).rejects.toThrow();
+      await expect(favoritesService.unmarkFavorite('invalid-item-id-12345')).rejects.toThrow();
     });
 
     it('should handle duplicate favorite marking gracefully', async () => {
