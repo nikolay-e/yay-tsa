@@ -46,18 +46,18 @@ echo "$CONFIG_JSON"
 # Extract CSP hashes from index.html inline scripts
 # SvelteKit generates inline initialization scripts that need CSP hashes
 echo "Extracting CSP hashes from index.html inline scripts..."
-INLINE_SCRIPTS=$(grep -oP '<script>\s*\K.*?(?=</script>)' /usr/share/nginx/html/index.html | openssl dgst -sha256 -binary | openssl base64)
 
-# Build CSP script-src directive with extracted hashes
-CSP_SCRIPT_HASHES="'self'"
-for hash in $INLINE_SCRIPTS; do
-  CSP_SCRIPT_HASHES="$CSP_SCRIPT_HASHES 'sha256-$hash'"
-done
+# Extract script content between <script> tags and generate CSP hash
+# Use sed to extract content, then hash it
+SCRIPT_HASH=$(sed -n '/<script>/,/<\/script>/p' /usr/share/nginx/html/index.html |
+  sed '/<script>/d;/<\/script>/d' |
+  openssl dgst -sha256 -binary |
+  openssl base64)
 
-# Add Cloudflare Insights (if present)
-CSP_SCRIPT_HASHES="$CSP_SCRIPT_HASHES https://static.cloudflareinsights.com"
+# Build CSP script-src directive with extracted hash
+CSP_SCRIPT_HASHES="'self' 'sha256-$SCRIPT_HASH' https://static.cloudflareinsights.com"
 
-echo "Generated CSP script-src hashes: $CSP_SCRIPT_HASHES"
+echo "Generated CSP script-src with inline script hash: sha256-$SCRIPT_HASH"
 
 # Generate nginx.conf from template with CSP hash substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes
