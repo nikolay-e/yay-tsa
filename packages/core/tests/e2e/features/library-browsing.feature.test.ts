@@ -359,7 +359,7 @@ describe('Feature: Library Browsing', () => {
       });
 
       // Then: URL is valid with size parameters
-      expect(imageUrl).toContain(fixtures.client.getServerUrl());
+      expect(imageUrl).toContain(fixtures.client.getConfig().serverUrl);
       expect(imageUrl).toContain(albumId);
       expect(imageUrl).toContain('maxWidth=300');
     });

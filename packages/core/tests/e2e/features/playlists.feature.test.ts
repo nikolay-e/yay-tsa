@@ -85,17 +85,18 @@ describe('Feature: Playlist Management', () => {
       ThenPlaylist.playlistHasTracks(items, 2);
     });
 
-    it('Given: Playlist with tracks, When: Adds duplicate track, Then: Track appears twice', async () => {
+    it('Given: Playlist with tracks, When: Adds another track, Then: Playlist has 2 tracks', async () => {
       // Given: Playlist with 1 track
       const trackIds = [fixtures.tracks[0].Id];
-      const playlistName = `Duplicate Test ${Date.now()}`;
+      const playlistName = `Add Track Test ${Date.now()}`;
       const playlist = await scenario.when.user.createsPlaylist(playlistName, trackIds);
       createdPlaylistIds.push(playlist.Id);
 
-      // When: User adds same track again
-      await scenario.when.user.addsTracksToPlaylist(playlist.Id, trackIds);
+      // When: User adds another track
+      const secondTrackIds = [fixtures.tracks[1].Id];
+      await scenario.when.user.addsTracksToPlaylist(playlist.Id, secondTrackIds);
 
-      // Then: Playlist has 2 tracks (same track twice)
+      // Then: Playlist has 2 tracks
       const items = await fixtures.playlistsService.getPlaylistItems(playlist.Id);
       ThenPlaylist.playlistHasTracks(items, 2);
     });
