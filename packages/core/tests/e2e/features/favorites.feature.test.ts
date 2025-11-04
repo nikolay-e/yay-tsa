@@ -46,9 +46,11 @@ describe('Feature: Favorites Management', () => {
 
   describe('Scenario: User favorites an album', () => {
     it('Given: User viewing album, When: Clicks favorite button, Then: Album marked as favorite', async () => {
-      // Given: User views album
+      // Given: User views album (ensure not already favorited)
       const albumBefore = await fixtures.itemsService.getItem(testAlbumId);
-      expect(albumBefore.UserData?.IsFavorite).toBeFalsy();
+      if (albumBefore.UserData?.IsFavorite) {
+        await scenario.when.user.unmarksAsFavorite(testAlbumId);
+      }
 
       // When: User clicks heart icon
       await scenario.when.user.marksAsFavorite(testAlbumId);

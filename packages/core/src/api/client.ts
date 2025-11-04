@@ -109,12 +109,12 @@ export class JellyfinClient {
   /**
    * Make HTTP request to Jellyfin API
    * Returns undefined for 204 No Content or empty responses
-   * Automatically retries GET requests with exponential backoff on network/server errors
+   * Automatically retries requests with exponential backoff on network/gateway errors
    */
   async request<T>(endpoint: string, options: RequestInit = {}, retries = 3): Promise<T | undefined> {
     const url = `${this.serverUrl}${endpoint}`;
     const method = options.method || 'GET';
-    const isIdempotent = method === 'GET';
+    const isIdempotent = method === 'GET' || method === 'DELETE';
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       const headers: Record<string, string> = {
@@ -136,8 +136,12 @@ export class JellyfinClient {
 
         // Handle non-OK responses
         if (!response.ok) {
-          // Retry 5xx server errors for idempotent requests
-          if (isIdempotent && response.status >= 500 && attempt < retries) {
+          // Retry gateway errors (502, 503, 504) for all methods
+          const isGatewayError = response.status >= 502 && response.status <= 504;
+          // Retry 500 only for idempotent methods
+          const is500AndIdempotent = response.status === 500 && isIdempotent;
+
+          if ((isGatewayError || is500AndIdempotent) && attempt < retries) {
             const delay = Math.pow(2, attempt) * 1000;
             await this.sleep(delay);
             continue;
