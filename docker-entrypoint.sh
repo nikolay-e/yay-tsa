@@ -37,18 +37,31 @@ cat >/var/cache/nginx/config.js <<EOF
 window.__JELLYFIN_CONFIG__ = ${CONFIG_JSON};
 EOF
 
+# Also create config.json for async loading (fallback)
+echo "$CONFIG_JSON" >/var/cache/nginx/config.json
+
 echo "Generated runtime config (sanitized for security):"
 echo "$CONFIG_JSON"
 
-# Generate nginx.conf with simplified CSP for script-src
-# SvelteKit (with adapter-static) compiles all JavaScript to external files
-# Inline scripts should not be present in production builds
-echo "Using 'self' for CSP script-src (SvelteKit production build)"
-CSP_HASHES="'self'"
+# Extract CSP hashes from index.html inline scripts
+# SvelteKit generates inline initialization scripts that need CSP hashes
+echo "Extracting CSP hashes from index.html inline scripts..."
+INLINE_SCRIPTS=$(grep -oP '<script>\s*\K.*?(?=</script>)' /usr/share/nginx/html/index.html | openssl dgst -sha256 -binary | openssl base64)
+
+# Build CSP script-src directive with extracted hashes
+CSP_SCRIPT_HASHES="'self'"
+for hash in $INLINE_SCRIPTS; do
+  CSP_SCRIPT_HASHES="$CSP_SCRIPT_HASHES 'sha256-$hash'"
+done
+
+# Add Cloudflare Insights (if present)
+CSP_SCRIPT_HASHES="$CSP_SCRIPT_HASHES https://static.cloudflareinsights.com"
+
+echo "Generated CSP script-src hashes: $CSP_SCRIPT_HASHES"
 
 # Generate nginx.conf from template with CSP hash substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes
-sed "s#__CSP_SCRIPT_HASHES__#$CSP_HASHES#g" /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
+sed "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
 echo "Generated nginx.conf with runtime CSP hashes"
 
 # Execute the main command (nginx) with generated config

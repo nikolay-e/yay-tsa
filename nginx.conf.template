@@ -75,7 +75,7 @@ http {
         #   - Extract hashes from browser console CSP violation errors
         #   - Or disable Cloudflare Insights and remove all hashes + cloudflareinsights.com domains
         #   - Update all 7 location blocks in this file (search for Content-Security-Policy)
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
         # HSTS header (only add if served over HTTPS via reverse proxy/ingress)
         # Tells browsers to always use HTTPS for this site for 1 year
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
@@ -98,7 +98,7 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
@@ -113,7 +113,7 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
@@ -129,7 +129,7 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
@@ -143,7 +143,7 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
@@ -157,7 +157,7 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
@@ -171,7 +171,7 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__ 'sha256-9vb/ziMEd7sGVUIoWyBW8L1LcDg6RaEc5m/ygFFHS28=' 'sha256-jopp/OBEvifZEHZ32z2vcGmRGCzIWe2QUCu8o9M3E3g=' 'sha256-6XAYM9HRo/a/1lbkBKgyZqGQ7h6sQV6Th8HAwM6w3ww=' 'sha256-Q5DXIUg10169UmOIB2Dxn8yOqXm8eP+6x0EEpMUJjuI=' 'sha256-Euk4+An5lyzWXLZ14db693g8R0Xpg7SckeOdX6znj7A=' 'sha256-Nr8xs9pbehNKbTwyC3ZFBWL0X6yMTV7nQ8Yt6X/PtHo=' 'sha256-+oPMRHKsBz19q/5TeQRPw3ApyeYuKRxAph/wXoMkB9Q=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' * https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self';" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
