@@ -161,7 +161,7 @@ http {
         location / {
             try_files $uri $uri/ /index.html;
             expires -1;
-            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, no-transform";
             # Security headers (must repeat in each location with add_header)
             add_header X-Frame-Options "SAMEORIGIN" always;
             add_header X-Content-Type-Options "nosniff" always;

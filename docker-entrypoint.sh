@@ -43,21 +43,28 @@ echo "$CONFIG_JSON" >/var/cache/nginx/config.json
 echo "Generated runtime config (sanitized for security):"
 echo "$CONFIG_JSON"
 
-# Extract CSP hashes from index.html inline scripts
-# SvelteKit generates inline initialization scripts that need CSP hashes
-echo "Extracting CSP hashes from index.html inline scripts..."
+# Load CSP hashes from build-time generated JSON file
+# Vite plugin computes hashes during build and stores them in .csp-hashes.json
+CSP_HASHES_FILE="/usr/share/nginx/html/.csp-hashes.json"
 
-# Extract script content between <script> tags and generate CSP hash
-# Use sed to extract content, then hash it
-SCRIPT_HASH=$(sed -n '/<script>/,/<\/script>/p' /usr/share/nginx/html/index.html |
-  sed '/<script>/d;/<\/script>/d' |
-  openssl dgst -sha256 -binary |
-  openssl base64)
+if [ -f "$CSP_HASHES_FILE" ]; then
+  echo "Loading CSP hashes from build artifacts: $CSP_HASHES_FILE"
 
-# Build CSP script-src directive with extracted hash
-CSP_SCRIPT_HASHES="'self' 'sha256-$SCRIPT_HASH'"
+  # Extract hashes from JSON and format for CSP directive
+  SCRIPT_HASHES=$(jq -r '.scriptHashes | map("'"'"'" + . + "'"'"'") | join(" ")' "$CSP_HASHES_FILE")
 
-echo "Generated CSP script-src with inline script hash: sha256-$SCRIPT_HASH"
+  if [ -n "$SCRIPT_HASHES" ]; then
+    CSP_SCRIPT_HASHES="'self' $SCRIPT_HASHES"
+    echo "Loaded CSP script hashes: $CSP_SCRIPT_HASHES"
+  else
+    echo "WARNING: No script hashes found in $CSP_HASHES_FILE, using 'unsafe-inline'"
+    CSP_SCRIPT_HASHES="'self' 'unsafe-inline'"
+  fi
+else
+  echo "WARNING: $CSP_HASHES_FILE not found, falling back to 'unsafe-inline'"
+  echo "This reduces CSP security but allows the app to function"
+  CSP_SCRIPT_HASHES="'self' 'unsafe-inline'"
+fi
 
 # Extract Jellyfin server domain for CSP connect-src
 # CSP_MODE controls security policy strictness:
