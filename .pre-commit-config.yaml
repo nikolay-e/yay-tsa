@@ -177,7 +177,7 @@ repos:
         language: system
         files: ^(Dockerfile|docker-entrypoint\.sh|nginx\.conf\.template|packages/.*/.*\.(ts|svelte|js|json)|package\.json)$
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
       # [CHECK] Integration tests (core package)
       - id: integration-tests-core
@@ -186,4 +186,4 @@ repos:
         language: system
         files: ^packages/core/src/.*\.ts$
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
