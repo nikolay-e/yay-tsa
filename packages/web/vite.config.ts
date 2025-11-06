@@ -37,6 +37,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@jellyfin-mini/core', '@jellyfin-mini/platform'],
+    include: ['@yaytsa/core', '@yaytsa/platform'],
   },
 });

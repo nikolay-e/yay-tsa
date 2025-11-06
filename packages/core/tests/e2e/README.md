@@ -53,10 +53,10 @@ All tests follow the **Given-When-Then** pattern:
 
 ```bash
 # Run all E2E tests
-npm run test:e2e --workspace=@jellyfin-mini/core
+npm run test:e2e --workspace=@yaytsa/core
 
 # Run specific feature
-npm run test:e2e --workspace=@jellyfin-mini/core tests/e2e/features/queue-management
+npm run test:e2e --workspace=@yaytsa/core tests/e2e/features/queue-management
 ```
 
 ## Configuration

@@ -12,9 +12,9 @@ Jellyfin Mini Music Client - a portable, minimal music client for Jellyfin media
 
 ```
 packages/
-├── core/        # @jellyfin-mini/core - Framework-agnostic business logic
-├── platform/    # @jellyfin-mini/platform - Platform-specific audio/media adapters
-└── web/         # @jellyfin-mini/web - SvelteKit PWA (SPA mode)
+├── core/        # @yaytsa/core - Framework-agnostic business logic
+├── platform/    # @yaytsa/platform - Platform-specific audio/media adapters
+└── web/         # @yaytsa/web - SvelteKit PWA (SPA mode)
 ```
 
 **Key Files**:
@@ -48,15 +48,15 @@ docker-compose up --build      # Development with HMR
 docker-compose -f docker-compose.yml up -d    # Production with Nginx
 
 # Kubernetes (via GitOps)
-# See /Users/nikolay/code/gitops/helm-charts/jellyfin-miniclient/
-helm upgrade --install jellyfin-miniclient ./helm/jellyfin-miniclient
+# See /Users/nikolay/code/gitops/helm-charts/yaytsa/
+helm upgrade --install yaytsa ./helm/yaytsa
 ```
 
 ## High-Level Architecture
 
 ### Three-Layer Architecture
 
-**Layer 1: Core (`@jellyfin-mini/core`)** - 100% portable
+**Layer 1: Core (`@yaytsa/core`)** - 100% portable
 
 - **No UI framework dependencies** - pure TypeScript business logic
 - **API Client** (`api/client.ts:14-324`) - HTTP client with Emby-compatible auth headers
@@ -64,14 +64,14 @@ helm upgrade --install jellyfin-miniclient ./helm/jellyfin-miniclient
 - **State Machines** - PlaybackQueue (`player/queue.ts:8-426`) with shuffle/repeat logic
 - **Models** - TypeScript types for Jellyfin entities
 
-**Layer 2: Platform (`@jellyfin-mini/platform`)** - 0% portable (intentionally)
+**Layer 2: Platform (`@yaytsa/platform`)** - 0% portable (intentionally)
 
 - **AudioEngine Interface** (`audio.interface.ts:6-90`) - Contract for audio playback
 - **HTML5AudioEngine** (`web/html5-audio.ts`) - Browser implementation using Web Audio API
 - **MediaSessionManager** (`media-session.ts`) - Background playback control (lock screen, notifications)
 - Future: ExpoAudioEngine for React Native, TauriAudioEngine for desktop
 
-**Layer 3: Web (`@jellyfin-mini/web`)** - 85-95% portable UI
+**Layer 3: Web (`@yaytsa/web`)** - 85-95% portable UI
 
 - **SvelteKit 2** with `@sveltejs/adapter-static` (SPA mode, no SSR)
 - **Svelte Stores** (`lib/stores/`) - Reactive state management
@@ -244,7 +244,7 @@ reportPlaybackProgress({
 **Workspace References**:
 
 - Core: `tsconfig.json:2-23` - standalone, no dependencies, strict mode
-- Platform: Depends on `@jellyfin-mini/core` via workspace
+- Platform: Depends on `@yaytsa/core` via workspace
 - Web: Extends `.svelte-kit/tsconfig.json`, imports both core + platform
 
 **Transpilation**:
@@ -263,7 +263,7 @@ reportPlaybackProgress({
 **Production Optimizations**:
 
 - Terser minification with `drop: ['console', 'debugger']`
-- `optimizeDeps: { include: ['@jellyfin-mini/core', '@jellyfin-mini/platform'] }`
+- `optimizeDeps: { include: ['@yaytsa/core', '@yaytsa/platform'] }`
 - Manual chunks for code splitting
 
 ### SvelteKit Adapter (`packages/web/svelte.config.js:10-19`)
@@ -387,11 +387,11 @@ script-src 'self';
 
 ### Kubernetes (via GitOps)
 
-**GitOps Repository**: `/Users/nikolay/code/gitops/helm-charts/jellyfin-miniclient/`
+**GitOps Repository**: `/Users/nikolay/code/gitops/helm-charts/yaytsa/`
 
 **Deployment Workflow**:
 
-1. Build Docker image: `docker build -t jellyfin-miniclient:tag .`
+1. Build Docker image: `docker build -t yaytsa:tag .`
 2. Push to registry
 3. Update `values.yaml` in gitops repo
 4. ArgoCD auto-syncs to cluster
@@ -430,7 +430,7 @@ script-src 'self';
 
 - `Dockerfile:1-81` - Multi-stage Docker build
 - `docker-compose.yml` - Development and production configs
-- `/Users/nikolay/code/gitops/helm-charts/jellyfin-miniclient/` - Kubernetes manifests
+- `/Users/nikolay/code/gitops/helm-charts/yaytsa/` - Kubernetes manifests
 
 ## Additional Documentation
 

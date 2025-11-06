@@ -127,14 +127,14 @@ repos:
 
       - id: svelte-check
         name: 'Svelte type check (web)'
-        entry: bash -c 'npm run build:core && npm run build:platform && npm run check --workspace=@jellyfin-mini/web'
+        entry: bash -c 'npm run build:core && npm run build:platform && npm run check --workspace=@yaytsa/web'
         language: system
         pass_filenames: false
 
       # [CHECK] Helm chart validation
       - id: helm-lint
         name: 'Helm lint (chart validation)'
-        entry: helm lint helm/jellyfin-miniclient
+        entry: helm lint helm/yaytsa
         language: system
         files: ^helm/.*\.(yaml|yml|tpl)$
         pass_filenames: false
@@ -174,7 +174,7 @@ repos:
       # [CHECK] Docker build validation
       - id: docker-build
         name: 'Docker build validation'
-        entry: docker build -t jellyfin-miniclient:test .
+        entry: docker build -t yaytsa:test .
         language: system
         files: ^(Dockerfile|docker-entrypoint\.sh|nginx\.conf\.template|packages/.*/.*\.(ts|svelte|js|json)|package\.json)$
         pass_filenames: false

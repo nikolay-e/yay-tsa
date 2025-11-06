@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "jellyfin-miniclient.fullname" . }}
+  name: {{ include "yaytsa.fullname" . }}
   labels:
-    {{- include "jellyfin-miniclient.labels" . | nindent 4 }}
+    {{- include "yaytsa.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "jellyfin-miniclient.selectorLabels" . | nindent 4 }}
+    {{- include "yaytsa.selectorLabels" . | nindent 4 }}

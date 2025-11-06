@@ -7,7 +7,7 @@
 // Console logging is essential for service worker debugging
 
 const CACHE_VERSION = 'v1';
-const CACHE_NAME = `jellyfin-mini-${CACHE_VERSION}`;
+const CACHE_NAME = `yaytsa-${CACHE_VERSION}`;
 const API_CACHE_NAME = `jellyfin-api-${CACHE_VERSION}`;
 
 // Files to cache immediately on install

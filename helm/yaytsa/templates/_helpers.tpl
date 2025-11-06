@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "jellyfin-miniclient.name" -}}
+{{- define "yaytsa.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "jellyfin-miniclient.fullname" -}}
+{{- define "yaytsa.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "jellyfin-miniclient.chart" -}}
+{{- define "yaytsa.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "jellyfin-miniclient.labels" -}}
-helm.sh/chart: {{ include "jellyfin-miniclient.chart" . }}
-{{ include "jellyfin-miniclient.selectorLabels" . }}
+{{- define "yaytsa.labels" -}}
+helm.sh/chart: {{ include "yaytsa.chart" . }}
+{{ include "yaytsa.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,17 +43,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "jellyfin-miniclient.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "jellyfin-miniclient.name" . }}
+{{- define "yaytsa.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "yaytsa.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "jellyfin-miniclient.serviceAccountName" -}}
+{{- define "yaytsa.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "jellyfin-miniclient.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "yaytsa.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

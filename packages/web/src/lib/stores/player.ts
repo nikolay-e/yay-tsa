@@ -5,8 +5,8 @@
 
 import { writable, derived, get } from 'svelte/store';
 import { browser, dev } from '$app/environment';
-import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@jellyfin-mini/core';
-import { HTML5AudioEngine, MediaSessionManager } from '@jellyfin-mini/platform';
+import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@yaytsa/core';
+import { HTML5AudioEngine, MediaSessionManager } from '@yaytsa/platform';
 import { client } from './auth.js';
 
 // Playback constants

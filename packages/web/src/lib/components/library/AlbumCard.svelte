@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { MusicAlbum } from '@jellyfin-mini/core';
+  import type { MusicAlbum } from '@yaytsa/core';
   import { getAlbumArtUrl } from '../../utils/image.js';
   import { player } from '../../stores/player.js';
   import { library } from '../../stores/library.js';

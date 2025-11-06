@@ -5,7 +5,7 @@ import {
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   type EnvironmentConfig,
-} from '@jellyfin-mini/core';
+} from '@yaytsa/core';
 
 export interface AppConfig {
   serverUrl: string | undefined;

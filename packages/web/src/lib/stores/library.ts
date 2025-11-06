@@ -9,7 +9,7 @@ import {
   type MusicAlbum,
   type MusicArtist,
   type AudioItem,
-} from '@jellyfin-mini/core';
+} from '@yaytsa/core';
 import { client } from './auth.js';
 import { createAsyncStoreHandler } from './utils.js';
 

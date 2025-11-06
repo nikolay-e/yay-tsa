@@ -3,7 +3,7 @@
  * Centralized utility for managing session storage operations
  */
 
-import { STORAGE_KEYS } from '@jellyfin-mini/core';
+import { STORAGE_KEYS } from '@yaytsa/core';
 
 export interface SessionData {
   token: string;

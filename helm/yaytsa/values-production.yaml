@@ -1,9 +1,9 @@
 # Production environment values
-# Usage: helm install jellyfin-miniclient ./helm/jellyfin-miniclient -f helm/jellyfin-miniclient/values-production.yaml
+# Usage: helm install yaytsa ./helm/yaytsa -f helm/yaytsa/values-production.yaml
 # Note: This file only overrides values that differ from values.yaml
 
 image:
-  repository: ghcr.io/nikolay-e/jellyfin-miniclient
+  repository: ghcr.io/nikolay-e/yaytsa
   pullPolicy: Always
   # Tag will be set by CI/CD pipeline
   tag: 'latest'
@@ -28,7 +28,7 @@ ingress:
     traefik.ingress.kubernetes.io/redirect-entry-point: https
     traefik.ingress.kubernetes.io/redirect-permanent: 'true'
   hosts:
-    - host: jellyfin-mini.nikolay-eremeev.com
+    - host: yaytsa.nikolay-eremeev.com
       paths:
         - path: /
           pathType: Prefix

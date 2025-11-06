@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "jellyfin-miniclient.fullname" . }}
+  name: {{ include "yaytsa.fullname" . }}
   labels:
-    {{- include "jellyfin-miniclient.labels" . | nindent 4 }}
+    {{- include "yaytsa.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "jellyfin-miniclient.selectorLabels" . | nindent 6 }}
+      {{- include "yaytsa.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -19,7 +19,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "jellyfin-miniclient.selectorLabels" . | nindent 8 }}
+        {{- include "yaytsa.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -39,7 +39,7 @@ spec:
           protocol: TCP
         envFrom:
         - configMapRef:
-            name: {{ include "jellyfin-miniclient.fullname" . }}
+            name: {{ include "yaytsa.fullname" . }}
         livenessProbe:
           httpGet:
             path: /health

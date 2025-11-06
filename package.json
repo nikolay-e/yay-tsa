@@ -1,10 +1,11 @@
 {
-  "name": "jellyfin-miniclient",
+  "name": "yaytsa",
   "version": "0.1.0",
   "private": true,
   "description": "A portable music client for Jellyfin",
   "keywords": [
     "jellyfin",
+    "yaytsa",
     "music",
     "client"
   ],

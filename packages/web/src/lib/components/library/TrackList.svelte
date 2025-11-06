@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ticksToSeconds, type AudioItem } from '@jellyfin-mini/core';
+  import { ticksToSeconds, type AudioItem } from '@yaytsa/core';
   import { player, currentTrack } from '../../stores/player.js';
   import { formatDuration } from '../../utils/time.js';
   import { hapticSelect } from '../../utils/haptics.js';

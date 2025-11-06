@@ -1,5 +1,5 @@
 {
-  "name": "@jellyfin-mini/web",
+  "name": "@yaytsa/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,8 +18,8 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@jellyfin-mini/core": "*",
-    "@jellyfin-mini/platform": "*"
+    "@yaytsa/core": "*",
+    "@yaytsa/platform": "*"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

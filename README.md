@@ -300,7 +300,7 @@ class SecureTokenStore {
 ## Folder Structure
 
 ```
-jellyfin-mini/
+yaytsa/
 ├── package.json
 ├── tsconfig.base.json
 │

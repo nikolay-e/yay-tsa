@@ -5,7 +5,7 @@
   import { player } from '../../../lib/stores/player.js';
   import { getAlbumArtUrl } from '../../../lib/utils/image.js';
   import TrackList from '../../../lib/components/library/TrackList.svelte';
-  import type { MusicAlbum, AudioItem } from '@jellyfin-mini/core';
+  import type { MusicAlbum, AudioItem } from '@yaytsa/core';
   import { hapticPlayPause, hapticSelect } from '../../../lib/utils/haptics.js';
 
   let album: MusicAlbum | null = null;

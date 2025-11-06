@@ -14,7 +14,7 @@ import {
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   type ClientInfo,
-} from '@jellyfin-mini/core';
+} from '@yaytsa/core';
 import { config } from './config.js';
 import { saveSession, loadSession, clearSession } from '../utils/session-manager.js';
 

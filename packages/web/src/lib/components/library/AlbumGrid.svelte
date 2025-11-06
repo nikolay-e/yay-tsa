@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { MusicAlbum } from '@jellyfin-mini/core';
+  import type { MusicAlbum } from '@yaytsa/core';
   import AlbumCard from './AlbumCard.svelte';
 
   export let albums: MusicAlbum[] = [];
