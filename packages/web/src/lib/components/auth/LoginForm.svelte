@@ -1,41 +1,23 @@
 <script lang="ts">
-  import { dev } from '$app/environment';
   import { auth, isLoading, error as authError } from '../../stores/auth.js';
   import { config } from '../../stores/config.js';
   import Button from '../ui/Button.svelte';
   import Input from '../ui/Input.svelte';
 
-  // Use the config store for default values
-  const defaultServerUrl = $config.serverUrl || '';
-
-  let serverUrl = defaultServerUrl;
   let username = '';
   let password = '';
   let error = '';
 
+  // Get server URL from environment config
+  const serverUrl = $config.serverUrl;
+
   async function handleSubmit() {
     error = '';
 
+    // Check if server URL is configured
     if (!serverUrl) {
-      error = 'Server URL is required';
+      error = 'Server URL is not configured. Please set JELLYFIN_SERVER_URL environment variable.';
       return;
-    }
-
-    // SECURITY: Validate HTTPS in production for non-localhost servers
-    if (!dev && serverUrl.startsWith('http://')) {
-      try {
-        const url = new URL(serverUrl);
-        const isLocalhost = url.hostname === 'localhost' ||
-                           url.hostname === '127.0.0.1' ||
-                           url.hostname === '[::1]';
-        if (!isLocalhost) {
-          error = 'HTTPS is required for non-localhost servers to protect your credentials';
-          return;
-        }
-      } catch {
-        error = 'Invalid server URL format';
-        return;
-      }
     }
 
     if (!username || !password) {
@@ -54,20 +36,13 @@
 <div class="login-form">
   <div class="form-header">
     <h1>Jellyfin Mini Player</h1>
-    <p>Connect to your Jellyfin server to start listening</p>
+    <p>Sign in to start listening</p>
+    {#if serverUrl}
+      <p class="server-info">Connected to: <strong>{new URL(serverUrl).hostname}</strong></p>
+    {/if}
   </div>
 
   <form on:submit|preventDefault={handleSubmit}>
-    <Input
-      id="serverUrl"
-      type="url"
-      label="Server URL"
-      bind:value={serverUrl}
-      placeholder="https://jellyfin.example.com"
-      autocomplete="url"
-      required
-    />
-
     <Input
       id="username"
       type="text"
@@ -98,7 +73,7 @@
       {#if $isLoading}
         Connecting...
       {:else}
-        Connect
+        Sign In
       {/if}
     </Button>
   </form>
@@ -124,6 +99,16 @@
 
   .form-header p {
     color: var(--color-text-secondary);
+  }
+
+  .server-info {
+    font-size: 0.875rem;
+    margin-top: var(--spacing-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .server-info strong {
+    color: var(--color-accent);
   }
 
   form {

@@ -45,7 +45,7 @@
   }
 </script>
 
-<nav class="bottom-tab-bar" role="navigation" aria-label="Main navigation">
+<nav class="bottom-tab-bar" aria-label="Main navigation">
   {#each tabs as tab}
     <a
       href={tab.href}

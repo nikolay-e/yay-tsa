@@ -34,6 +34,10 @@ const queue = new PlaybackQueue();
 let audioEngine: HTML5AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
 
+// Race condition prevention
+let currentLoadOperation: symbol | null = null; // Unique ID for track loading operations
+let isAutoAdvancing = false; // Prevents duplicate onEnded events
+
 // Initialize audio engine and media session in browser only
 if (browser) {
   audioEngine = new HTML5AudioEngine();
@@ -108,6 +112,10 @@ if (audioEngine) {
 
   // Track ended handler - auto advance to next
   audioEngine.onEnded(() => {
+    // Prevent duplicate onEnded events (browser bug protection)
+    if (isAutoAdvancing) return;
+    isAutoAdvancing = true;
+
     const state = get(playerStore);
 
     // Report completion
@@ -118,14 +126,18 @@ if (audioEngine) {
     }
 
     // Auto-advance to next track
-    next().catch(error => {
-      console.error('Auto-advance error:', error);
-      playerStore.update(s => ({
-        ...s,
-        isPlaying: false,
-        error: (error as Error).message,
-      }));
-    });
+    next()
+      .catch(error => {
+        console.error('Auto-advance error:', error);
+        playerStore.update(s => ({
+          ...s,
+          isPlaying: false,
+          error: (error as Error).message,
+        }));
+      })
+      .finally(() => {
+        isAutoAdvancing = false;
+      });
   });
 
   // Error handler
@@ -161,6 +173,10 @@ async function play(track: AudioItem): Promise<void> {
  * Play a track from existing queue (does not modify queue)
  */
 async function playTrackFromQueue(track: AudioItem): Promise<void> {
+  // Create unique operation ID for cancellation
+  const operationId = Symbol('load-operation');
+  currentLoadOperation = operationId;
+
   const state = get(playerStore);
   const $client = get(client);
 
@@ -180,7 +196,19 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
     playerStore.update(s => ({ ...s, isLoading: true, error: null, currentTrack: track }));
 
     await audioEngine.load(streamUrl);
+
+    // Check if operation was cancelled during load
+    if (currentLoadOperation !== operationId) {
+      return; // Operation cancelled, exit silently
+    }
+
     await audioEngine.play();
+
+    // Check again after play (in case of very fast track switching)
+    if (currentLoadOperation !== operationId) {
+      audioEngine.pause();
+      return; // Operation cancelled, stop playback
+    }
 
     // Report playback start
     if (state.state) {
@@ -216,13 +244,16 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
-    console.error('Play error:', error);
-    playerStore.update(s => ({
-      ...s,
-      isPlaying: false,
-      isLoading: false,
-      error: (error as Error).message,
-    }));
+    // Only update error state if operation is still current
+    if (currentLoadOperation === operationId) {
+      console.error('Play error:', error);
+      playerStore.update(s => ({
+        ...s,
+        isPlaying: false,
+        isLoading: false,
+        error: (error as Error).message,
+      }));
+    }
     throw error;
   }
 }

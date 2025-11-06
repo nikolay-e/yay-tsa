@@ -6,17 +6,15 @@ import { get } from 'svelte/store';
 import { client } from '../stores/auth.js';
 
 /**
- * Shared image size configuration
+ * Image size presets
  */
-const IMAGE_SIZES = {
-  small: 150,
-  medium: 300,
-  large: 600,
-} as const;
+type ImageSize = 'small' | 'medium' | 'large';
 
-const DEFAULT_IMAGE_QUALITY = 90;
-
-export type ImageSize = keyof typeof IMAGE_SIZES;
+const IMAGE_SIZE_DIMENSIONS: Record<ImageSize, { maxWidth: number; maxHeight: number }> = {
+  small: { maxWidth: 150, maxHeight: 150 },
+  medium: { maxWidth: 300, maxHeight: 300 },
+  large: { maxWidth: 600, maxHeight: 600 },
+};
 
 /**
  * Get image URL for an item
@@ -41,23 +39,9 @@ export function getImageUrl(
 }
 
 /**
- * Get album art URL with default sizing
+ * Get album art URL with preset size
  */
-export function getAlbumArtUrl(albumId: string, size: ImageSize = 'medium'): string {
-  return getImageUrl(albumId, 'Primary', {
-    maxWidth: IMAGE_SIZES[size],
-    maxHeight: IMAGE_SIZES[size],
-    quality: DEFAULT_IMAGE_QUALITY,
-  });
-}
-
-/**
- * Get artist image URL
- */
-export function getArtistImageUrl(artistId: string, size: ImageSize = 'medium'): string {
-  return getImageUrl(artistId, 'Primary', {
-    maxWidth: IMAGE_SIZES[size],
-    maxHeight: IMAGE_SIZES[size],
-    quality: DEFAULT_IMAGE_QUALITY,
-  });
+export function getAlbumArtUrl(itemId: string, size: ImageSize = 'medium'): string {
+  const dimensions = IMAGE_SIZE_DIMENSIONS[size];
+  return getImageUrl(itemId, 'Primary', dimensions);
 }

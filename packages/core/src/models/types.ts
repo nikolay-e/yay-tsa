@@ -357,18 +357,11 @@ export interface CreatePlaylistDto {
 // Playback
 // ============================================================================
 
-export interface StreamConfig {
-  serverUrl: string;
-  token: string;
-  audioCodec?: string;
-  maxStreamingBitrate?: string;
-  container?: string;
-}
-
 export interface PlaybackProgressInfo {
   ItemId: string;
   PositionTicks: number;
   IsPaused: boolean;
+  CanSeek?: boolean; // Optional in progress, required in start (via extension)
   PlayMethod?: 'DirectPlay' | 'DirectStream' | 'Transcode';
   MediaSourceId?: string;
   AudioStreamIndex?: number;

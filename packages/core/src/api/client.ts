@@ -17,6 +17,14 @@ export class JellyfinClient {
   private token: string | null = null;
   private userId: string | null = null;
 
+  // Retry configuration constants
+  private readonly DEFAULT_RETRY_COUNT = 3;
+  private readonly RETRY_BASE_DELAY_MS = 1000;
+  private readonly MAX_BACKOFF_MS = 20000; // 20 seconds (AWS recommendation)
+  private readonly GATEWAY_ERROR_MIN = 502;
+  private readonly GATEWAY_ERROR_MAX = 504;
+  private readonly SERVER_ERROR_STATUS = 500;
+
   constructor(serverUrl: string, clientInfo: ClientInfo) {
     this.serverUrl = this.normalizeUrl(serverUrl);
     this.clientInfo = clientInfo;
@@ -107,42 +115,98 @@ export class JellyfinClient {
   }
 
   /**
+   * Build request headers with authentication
+   */
+  private buildRequestHeaders(additionalHeaders?: HeadersInit): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Emby-Authorization': this.buildAuthHeader(),
+      ...this.headersFromInit(additionalHeaders),
+    };
+
+    if (this.token) {
+      headers['X-Emby-Token'] = this.token;
+    }
+
+    return headers;
+  }
+
+  /**
+   * Determine if request should be retried based on error type and method
+   */
+  private shouldRetryRequest(
+    statusOrError: number | Error,
+    isIdempotent: boolean,
+    attempt: number,
+    maxRetries: number
+  ): boolean {
+    if (attempt >= maxRetries) {
+      return false;
+    }
+
+    // HTTP status code retry logic
+    if (typeof statusOrError === 'number') {
+      const isGatewayError =
+        statusOrError >= this.GATEWAY_ERROR_MIN && statusOrError <= this.GATEWAY_ERROR_MAX;
+      const is500AndIdempotent = statusOrError === this.SERVER_ERROR_STATUS && isIdempotent;
+      return isGatewayError || is500AndIdempotent;
+    }
+
+    // Network error retry logic (only for idempotent requests)
+    return isIdempotent && !(statusOrError instanceof JellyfinError);
+  }
+
+  /**
+   * Calculate exponential backoff delay with full jitter (AWS best practice)
+   * Full jitter prevents thundering herd problem when multiple clients retry simultaneously
+   */
+  private calculateRetryDelay(attempt: number): number {
+    const exponentialDelay = Math.pow(2, attempt) * this.RETRY_BASE_DELAY_MS;
+    const maxDelay = Math.min(exponentialDelay, this.MAX_BACKOFF_MS);
+
+    // Full jitter: random value between 0 and maxDelay
+    return Math.floor(Math.random() * maxDelay);
+  }
+
+  /**
+   * Parse response and handle empty responses
+   */
+  private async parseResponse<T>(response: Response): Promise<T | undefined> {
+    const contentLength = response.headers.get('content-length');
+    const contentType = response.headers.get('content-type');
+
+    // If no content (204) or empty body, return undefined
+    if (response.status === 204 || contentLength === '0' || !contentType?.includes('json')) {
+      return undefined;
+    }
+
+    const data: T = (await response.json()) as T;
+    return data;
+  }
+
+  /**
    * Make HTTP request to Jellyfin API
    * Returns undefined for 204 No Content or empty responses
    * Automatically retries requests with exponential backoff on network/gateway errors
    */
-  async request<T>(endpoint: string, options: RequestInit = {}, retries = 3): Promise<T | undefined> {
+  async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    retries = this.DEFAULT_RETRY_COUNT
+  ): Promise<T | undefined> {
     const url = `${this.serverUrl}${endpoint}`;
     const method = options.method || 'GET';
     const isIdempotent = method === 'GET' || method === 'DELETE';
 
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Emby-Authorization': this.buildAuthHeader(),
-        ...this.headersFromInit(options.headers),
-      };
-
-      // Add token header if available
-      if (this.token) {
-        headers['X-Emby-Token'] = this.token;
-      }
-
       try {
-        const response = await fetch(url, {
-          ...options,
-          headers,
-        });
+        const headers = this.buildRequestHeaders(options.headers);
+        const response = await fetch(url, { ...options, headers });
 
         // Handle non-OK responses
         if (!response.ok) {
-          // Retry gateway errors (502, 503, 504) for all methods
-          const isGatewayError = response.status >= 502 && response.status <= 504;
-          // Retry 500 only for idempotent methods
-          const is500AndIdempotent = response.status === 500 && isIdempotent;
-
-          if ((isGatewayError || is500AndIdempotent) && attempt < retries) {
-            const delay = Math.pow(2, attempt) * 1000;
+          if (this.shouldRetryRequest(response.status, isIdempotent, attempt, retries)) {
+            const delay = this.calculateRetryDelay(attempt);
             await this.sleep(delay);
             continue;
           }
@@ -150,22 +214,12 @@ export class JellyfinClient {
           await this.handleErrorResponse(response);
         }
 
-        // Check if response has content
-        const contentLength = response.headers.get('content-length');
-        const contentType = response.headers.get('content-type');
-
-        // If no content (204) or empty body, return undefined
-        if (response.status === 204 || contentLength === '0' || !contentType?.includes('json')) {
-          return undefined;
-        }
-
-        // Parse JSON response
-        const data: T = (await response.json()) as T;
-        return data;
+        // Parse and return response
+        return await this.parseResponse<T>(response);
       } catch (error) {
         // Retry network errors for idempotent requests
-        if (isIdempotent && attempt < retries && !(error instanceof JellyfinError)) {
-          const delay = Math.pow(2, attempt) * 1000;
+        if (this.shouldRetryRequest(error as Error, isIdempotent, attempt, retries)) {
+          const delay = this.calculateRetryDelay(attempt);
           await this.sleep(delay);
           continue;
         }
@@ -190,7 +244,7 @@ export class JellyfinClient {
    * Sleep for specified milliseconds
    */
   private async sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(resolve, ms);
     });
   }
@@ -290,6 +344,56 @@ export class JellyfinClient {
    */
   async delete<T>(endpoint: string): Promise<T | undefined> {
     return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
+  /**
+   * Require non-empty response or throw error
+   * Helper method to reduce duplication across *Required methods
+   */
+  private requireResponse<T>(
+    result: T | undefined,
+    method: string,
+    endpoint: string,
+    errorMessage?: string
+  ): T {
+    if (result === undefined) {
+      throw new JellyfinError(
+        errorMessage || `Empty response from ${method} ${endpoint}`,
+        500
+      );
+    }
+    return result;
+  }
+
+  /**
+   * GET request that requires a non-empty response
+   * Throws an error if the response is empty
+   */
+  async getRequired<T>(
+    endpoint: string,
+    params?: Record<string, any>,
+    errorMessage?: string
+  ): Promise<T> {
+    const result = await this.get<T>(endpoint, params);
+    return this.requireResponse(result, 'GET', endpoint, errorMessage);
+  }
+
+  /**
+   * POST request that requires a non-empty response
+   * Throws an error if the response is empty
+   */
+  async postRequired<T>(endpoint: string, data?: any, errorMessage?: string): Promise<T> {
+    const result = await this.post<T>(endpoint, data);
+    return this.requireResponse(result, 'POST', endpoint, errorMessage);
+  }
+
+  /**
+   * DELETE request that requires a non-empty response
+   * Throws an error if the response is empty
+   */
+  async deleteRequired<T>(endpoint: string, errorMessage?: string): Promise<T> {
+    const result = await this.delete<T>(endpoint);
+    return this.requireResponse(result, 'DELETE', endpoint, errorMessage);
   }
 
   /**

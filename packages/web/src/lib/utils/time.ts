@@ -28,25 +28,8 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
- * Format seconds to time string for playback display
+ * Format time (alias for formatDuration for backward compatibility)
  */
 export function formatTime(seconds: number): string {
   return formatDuration(seconds);
-}
-
-/**
- * Parse time string (MM:SS or HH:MM:SS) to seconds
- */
-export function parseTime(timeString: string): number {
-  const parts = timeString.split(':').map(Number);
-
-  if (parts.length === 2) {
-    const [minutes, seconds] = parts;
-    return minutes * 60 + seconds;
-  } else if (parts.length === 3) {
-    const [hours, minutes, seconds] = parts;
-    return hours * 3600 + minutes * 60 + seconds;
-  }
-
-  return 0;
 }

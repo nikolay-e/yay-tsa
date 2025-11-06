@@ -21,6 +21,9 @@ export class HTML5AudioEngine implements AudioEngine {
     this._isPlaying = false;
   };
 
+  // Track current load operation for cancellation (memory leak prevention)
+  private currentLoadReject: ((error: Error) => void) | null = null;
+
   constructor() {
     this.audio = new Audio();
     this.audio.preload = 'auto';
@@ -54,17 +57,28 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   async load(url: string): Promise<void> {
+    // Cancel previous load operation to prevent memory leak
+    if (this.currentLoadReject) {
+      this.currentLoadReject(new Error('Load cancelled - new track requested'));
+      this.currentLoadReject = null;
+    }
+
     return new Promise((resolve, reject) => {
+      // Store reject function for cancellation
+      this.currentLoadReject = reject;
+
       // Set up one-time listeners
       const handleCanPlay = () => {
         this.audio.removeEventListener('canplay', handleCanPlay);
         this.audio.removeEventListener('error', handleError);
+        this.currentLoadReject = null; // Clear on success
         resolve();
       };
 
       const handleError = () => {
         this.audio.removeEventListener('canplay', handleCanPlay);
         this.audio.removeEventListener('error', handleError);
+        this.currentLoadReject = null; // Clear on error
         const mediaError = this.audio.error;
         const error = mediaError
           ? new Error(`Failed to load audio: ${mediaError.message || 'Unknown error'}`)
@@ -99,7 +113,13 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   seek(seconds: number): void {
-    this.audio.currentTime = seconds;
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      console.warn('Invalid seek position:', seconds);
+      return;
+    }
+    const duration = this.getDuration();
+    const clampedSeconds = duration > 0 ? Math.min(seconds, duration) : seconds;
+    this.audio.currentTime = clampedSeconds;
   }
 
   setVolume(level: number): void {

@@ -3,21 +3,21 @@
  * Handles queries for music library items (albums, artists, tracks)
  */
 
-import { JellyfinClient } from './client.js';
+import { BaseService } from './base-service.js';
 import { ItemsQuery, ItemsResult, AudioItem, MusicAlbum, MusicArtist } from '../models/types.js';
 
-export class ItemsService {
-  constructor(private client: JellyfinClient) {}
-
+export class ItemsService extends BaseService {
   /**
    * Query items from library
    * Generic method for all item types
    */
   async queryItems<T = any>(query: ItemsQuery): Promise<ItemsResult<T>> {
-    const userId = this.client.requireAuth();
+    const userId = this.requireAuth();
 
-    // Build query parameters
-    const params: Record<string, any> = {};
+    // Build query parameters (userId is required for /Items endpoint)
+    const params: Record<string, any> = {
+      userId,
+    };
 
     if (query.ParentId) params.ParentId = query.ParentId;
     if (query.IncludeItemTypes) params.IncludeItemTypes = query.IncludeItemTypes;
@@ -37,7 +37,7 @@ export class ItemsService {
       params.Fields = query.Fields.join(',');
     }
 
-    const result = await this.client.get<ItemsResult<T>>(`/Users/${userId}/Items`, params);
+    const result = await this.client.get<ItemsResult<T>>('/Items', params);
     if (!result) {
       throw new Error('Failed to query items: Empty response');
     }
@@ -132,6 +132,8 @@ export class ItemsService {
         'AlbumPrimaryImageTag',
         'Genres',
         'DateCreated',
+        'RunTimeTicks', // Required for track duration display and playback state
+        'PrimaryImageAspectRatio',
       ],
       SortBy: options?.sortBy || 'ParentIndexNumber,IndexNumber,SortName',
       SortOrder: 'Ascending',
@@ -160,10 +162,8 @@ export class ItemsService {
    * Get single item by ID
    */
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {
-    const userId = this.client.requireAuth();
-
     const result = await this.client.get<AudioItem | MusicAlbum | MusicArtist>(
-      `/Users/${userId}/Items/${itemId}`
+      this.buildUserUrl(`/Items/${itemId}`)
     );
     if (!result) {
       throw new Error(`Failed to get item ${itemId}: Empty response`);

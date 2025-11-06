@@ -71,20 +71,6 @@ export class PlaybackQueue {
   }
 
   /**
-   * Insert item at specific position
-   */
-  insertAt(item: AudioItem, index: number): void {
-    const insertIndex = Math.max(0, Math.min(index, this.items.length));
-    this.items.splice(insertIndex, 0, item);
-    this.originalOrder.splice(insertIndex, 0, item);
-
-    // Adjust current index if needed
-    if (insertIndex <= this.currentIndex) {
-      this.currentIndex++;
-    }
-  }
-
-  /**
    * Remove item from queue by index
    */
   removeAt(index: number): AudioItem | null {
@@ -120,6 +106,23 @@ export class PlaybackQueue {
   }
 
   /**
+   * Insert item at specific position
+   */
+  insertAt(item: AudioItem, index: number): void {
+    if (index < 0 || index > this.items.length) {
+      return;
+    }
+
+    this.items.splice(index, 0, item);
+    this.originalOrder.splice(index, 0, item);
+
+    // Adjust current index if inserting before current position
+    if (index <= this.currentIndex) {
+      this.currentIndex++;
+    }
+  }
+
+  /**
    * Clear entire queue
    */
   clear(): void {
@@ -139,7 +142,7 @@ export class PlaybackQueue {
   }
 
   /**
-   * Get item at index
+   * Get item at specific index
    */
   getItemAt(index: number): AudioItem | null {
     if (index < 0 || index >= this.items.length) {

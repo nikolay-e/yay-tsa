@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://media.nikolay-eremeev.com"
+      "url": "https://your-jellyfin-server.com"
     }
   ],
   "paths": {

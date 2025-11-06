@@ -14,7 +14,7 @@ import {
   PlaybackStartInfo,
   PlaybackStopInfo,
 } from '../models/types.js';
-import { TICKS_PER_SECOND } from '../config/constants.js';
+import { secondsToTicks, ticksToSeconds } from '../config/constants.js';
 
 /**
  * Playback Reporter
@@ -55,7 +55,7 @@ export class PlaybackReporter {
 
     const info: PlaybackProgressInfo = {
       ItemId: itemId,
-      PositionTicks: Math.floor(positionSeconds * TICKS_PER_SECOND),
+      PositionTicks: secondsToTicks(positionSeconds),
       IsPaused: isPaused,
       PlayMethod: 'DirectPlay',
       VolumeLevel: 100,
@@ -75,24 +75,10 @@ export class PlaybackReporter {
 
     const info: PlaybackStopInfo = {
       ItemId: itemId,
-      PositionTicks: Math.floor(positionSeconds * TICKS_PER_SECOND),
+      PositionTicks: secondsToTicks(positionSeconds),
     };
 
     await this.client.post('/Sessions/Playing/Stopped', info);
-  }
-
-  /**
-   * Convert seconds to ticks
-   */
-  static secondsToTicks(seconds: number): number {
-    return Math.floor(seconds * TICKS_PER_SECOND);
-  }
-
-  /**
-   * Convert ticks to seconds
-   */
-  static ticksToSeconds(ticks: number): number {
-    return ticks / TICKS_PER_SECOND;
   }
 }
 
@@ -155,7 +141,7 @@ export class PlaybackState {
     this.state.currentTime = 0;
 
     if (item?.RunTimeTicks) {
-      this.state.duration = item.RunTimeTicks / TICKS_PER_SECOND;
+      this.state.duration = ticksToSeconds(item.RunTimeTicks);
     } else {
       this.state.duration = 0;
     }
@@ -179,6 +165,11 @@ export class PlaybackState {
    * Set volume (0-1)
    */
   setVolume(volume: number): void {
+    if (!Number.isFinite(volume)) {
+      console.warn('Invalid volume value (NaN/Infinity), defaulting to 0.7');
+      this.state.volume = 0.7;
+      return;
+    }
     this.state.volume = Math.max(0, Math.min(1, volume));
   }
 
@@ -228,21 +219,7 @@ export class PlaybackState {
    * Get current time in ticks (Jellyfin format)
    */
   getCurrentTimeTicks(): number {
-    return Math.floor(this.state.currentTime * TICKS_PER_SECOND);
-  }
-
-  /**
-   * Convert seconds to ticks
-   */
-  static secondsToTicks(seconds: number): number {
-    return Math.floor(seconds * TICKS_PER_SECOND);
-  }
-
-  /**
-   * Convert ticks to seconds
-   */
-  static ticksToSeconds(ticks: number): number {
-    return ticks / TICKS_PER_SECOND;
+    return secondsToTicks(this.state.currentTime);
   }
 
   /**
@@ -281,6 +258,7 @@ export class PlaybackState {
       ItemId: this.state.currentItem.Id,
       PositionTicks: this.getCurrentTimeTicks(),
       IsPaused: this.state.status === 'paused',
+      CanSeek: true, // Audio playback always supports seeking
       PlayMethod: 'DirectPlay',
       VolumeLevel: Math.round(this.state.volume * 100),
       IsMuted: this.state.muted,

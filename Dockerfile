@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # ============================================
 # Base Stage - Common dependencies
 # ============================================
@@ -10,13 +12,15 @@ RUN apk add --no-cache bash git curl
 WORKDIR /app
 
 # Copy package files for dependency caching
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/platform/package.json ./packages/platform/
 COPY packages/web/package.json ./packages/web/
 
-# Install all dependencies (skip prepare scripts like pre-commit)
-RUN npm install --ignore-scripts
+# Install all dependencies with npm ci (deterministic builds)
+# Use BuildKit cache mount for faster rebuilds
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --ignore-scripts
 
 # Copy source code
 COPY packages/ ./packages/

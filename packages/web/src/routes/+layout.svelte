@@ -284,9 +284,5 @@
       padding-bottom: calc(56px + var(--safe-area-inset-bottom));
     }
 
-    /* When player is visible, add extra padding for player bar */
-    .content[style*="padding-bottom: 90px"] {
-      padding-bottom: calc(56px + 90px + var(--safe-area-inset-bottom)) !important;
-    }
   }
 </style>

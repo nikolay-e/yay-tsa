@@ -48,17 +48,3 @@ export function hapticSkip(): void {
 export function hapticSelect(): void {
   triggerHaptic('selection');
 }
-
-/**
- * Trigger haptic feedback for error/warning actions
- */
-export function hapticError(): void {
-  triggerHaptic('heavy');
-}
-
-/**
- * Trigger haptic feedback for successful actions
- */
-export function hapticSuccess(): void {
-  triggerHaptic('light');
-}

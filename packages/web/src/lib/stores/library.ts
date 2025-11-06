@@ -37,6 +37,9 @@ const initialState: LibraryState = {
 
 const libraryStore = writable<LibraryState>(initialState);
 
+// Race condition prevention for search
+let currentSearchQuery: string | null = null;
+
 // Initialize items service when client is available
 client.subscribe($client => {
   if ($client) {
@@ -192,21 +195,36 @@ async function loadArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
  * Search for albums, artists, and tracks
  */
 async function search(query: string): Promise<void> {
-  if (!query.trim()) {
+  const searchQuery = query.trim();
+
+  if (!searchQuery) {
     libraryStore.update(s => ({ ...s, albums: [], artists: [], tracks: [] }));
+    currentSearchQuery = null;
     return;
   }
+
+  // Set current search query for race condition detection
+  currentSearchQuery = searchQuery;
 
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
 
   try {
     const itemsService = await waitForService();
-    const { albums, artists, tracks } = await itemsService.search(query, { limit: 50 });
+    const { albums, artists, tracks } = await itemsService.search(searchQuery, { limit: 50 });
 
-    handler.success({ albums, artists, tracks });
+    // Only update if this is still the current search query
+    if (currentSearchQuery === searchQuery) {
+      handler.success({ albums, artists, tracks });
+    } else {
+      // Search was superseded, discard results silently
+      return;
+    }
   } catch (error) {
-    handler.error(error as Error);
+    // Only report error if this is still the current search query
+    if (currentSearchQuery === searchQuery) {
+      handler.error(error as Error);
+    }
     throw error;
   }
 }

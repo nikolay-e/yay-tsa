@@ -3,17 +3,15 @@
  * Handles creating and managing playlists
  */
 
-import { JellyfinClient } from './client.js';
+import { BaseService } from './base-service.js';
 import { Playlist, AudioItem, ItemsResult, CreatePlaylistDto } from '../models/types.js';
 
-export class PlaylistsService {
-  constructor(private client: JellyfinClient) {}
-
+export class PlaylistsService extends BaseService {
   /**
    * Create a new playlist
    */
   async createPlaylist(options: CreatePlaylistDto): Promise<Playlist> {
-    const userId = this.client.requireAuth();
+    const userId = this.requireAuth();
 
     // Build request body matching Jellyfin API schema
     const body: {
@@ -51,7 +49,7 @@ export class PlaylistsService {
    * Get playlist details by ID
    */
   async getPlaylist(playlistId: string): Promise<Playlist> {
-    const userId = this.client.requireAuth();
+    const userId = this.requireAuth();
 
     const result = await this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
     if (!result) {
@@ -70,7 +68,7 @@ export class PlaylistsService {
       limit?: number;
     }
   ): Promise<ItemsResult<AudioItem>> {
-    const userId = this.client.requireAuth();
+    const userId = this.requireAuth();
 
     const params: Record<string, any> = {
       UserId: userId,
@@ -98,7 +96,7 @@ export class PlaylistsService {
    * Add items to a playlist
    */
   async addItemsToPlaylist(playlistId: string, itemIds: string[]): Promise<void> {
-    const userId = this.client.requireAuth();
+    const userId = this.requireAuth();
 
     const idsParam = itemIds.join(',');
     const url = `/Playlists/${playlistId}/Items?Ids=${encodeURIComponent(idsParam)}&UserId=${userId}`;
@@ -140,7 +138,7 @@ export class PlaylistsService {
     startIndex?: number;
     limit?: number;
   }): Promise<ItemsResult<Playlist>> {
-    const userId = this.client.requireAuth();
+    const userId = this.requireAuth();
 
     const params: Record<string, any> = {
       IncludeItemTypes: 'Playlist',

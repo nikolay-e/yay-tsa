@@ -55,14 +55,49 @@ SCRIPT_HASH=$(sed -n '/<script>/,/<\/script>/p' /usr/share/nginx/html/index.html
   openssl base64)
 
 # Build CSP script-src directive with extracted hash
-CSP_SCRIPT_HASHES="'self' 'sha256-$SCRIPT_HASH' https://static.cloudflareinsights.com"
+CSP_SCRIPT_HASHES="'self' 'sha256-$SCRIPT_HASH'"
 
 echo "Generated CSP script-src with inline script hash: sha256-$SCRIPT_HASH"
 
-# Generate nginx.conf from template with CSP hash substitution
-# Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes
-sed "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
-echo "Generated nginx.conf with runtime CSP hashes"
+# Extract Jellyfin server domain for CSP connect-src
+# CSP_MODE controls security policy strictness:
+#   - "strict": Only allow pre-configured JELLYFIN_SERVER_URL domain
+#   - "relaxed": Allow all domains (for private deployments with multiple servers)
+#   - "auto" (default): strict if JELLYFIN_SERVER_URL is set, otherwise relaxed
+CSP_MODE="${CSP_MODE:-auto}"
+
+if [ "$CSP_MODE" = "relaxed" ]; then
+  CSP_CONNECT_SRC_DOMAINS="*"
+  echo "CSP Mode: RELAXED - connect-src allows all domains (private deployment mode)"
+elif [ "$CSP_MODE" = "strict" ]; then
+  if [ -n "${JELLYFIN_SERVER_URL}" ]; then
+    JELLYFIN_DOMAIN=$(echo "${JELLYFIN_SERVER_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')
+    CSP_CONNECT_SRC_DOMAINS="$JELLYFIN_DOMAIN"
+    echo "CSP Mode: STRICT - connect-src restricted to: $JELLYFIN_DOMAIN"
+  else
+    echo "ERROR: CSP_MODE=strict requires JELLYFIN_SERVER_URL to be set"
+    exit 1
+  fi
+elif [ "$CSP_MODE" = "auto" ]; then
+  if [ -n "${JELLYFIN_SERVER_URL}" ]; then
+    JELLYFIN_DOMAIN=$(echo "${JELLYFIN_SERVER_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')
+    CSP_CONNECT_SRC_DOMAINS="$JELLYFIN_DOMAIN"
+    echo "CSP Mode: AUTO → STRICT - connect-src restricted to: $JELLYFIN_DOMAIN"
+  else
+    CSP_CONNECT_SRC_DOMAINS="*"
+    echo "CSP Mode: AUTO → RELAXED - connect-src allows all domains (JELLYFIN_SERVER_URL not set)"
+  fi
+else
+  echo "ERROR: Invalid CSP_MODE='$CSP_MODE'. Must be 'strict', 'relaxed', or 'auto'"
+  exit 1
+fi
+
+# Generate nginx.conf from template with CSP hash and domain substitution
+# Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs
+sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
+  -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
+  /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
+echo "Generated nginx.conf with runtime CSP hashes and domains"
 
 # Execute the main command (nginx) with generated config
 exec nginx -c /var/cache/nginx/nginx.conf -g "daemon off;"

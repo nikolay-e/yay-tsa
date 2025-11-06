@@ -90,36 +90,10 @@ export class AuthService {
   }
 
   /**
-   * Get current user information
-   */
-  async getCurrentUser(): Promise<any> {
-    const userId = this.client.getUserId();
-    if (!userId) {
-      throw new AuthenticationError('Not authenticated');
-    }
-
-    return this.client.get(`/Users/${userId}`);
-  }
-
-  /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
     return this.client.isAuthenticated();
-  }
-
-  /**
-   * Get auth token for external use (e.g., stream URLs)
-   */
-  getToken(): string | null {
-    return this.client.getToken();
-  }
-
-  /**
-   * Get current user ID
-   */
-  getUserId(): string | null {
-    return this.client.getUserId();
   }
 }
 

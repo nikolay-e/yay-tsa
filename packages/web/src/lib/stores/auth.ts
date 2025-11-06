@@ -10,13 +10,13 @@ import {
   AuthService,
   validateServerUrl,
   getOrCreateDeviceId,
-  STORAGE_KEYS,
   APP_VERSION,
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   type ClientInfo,
 } from '@jellyfin-mini/core';
 import { config } from './config.js';
+import { saveSession, loadSession, clearSession } from '../utils/session-manager.js';
 
 interface AuthState {
   client: JellyfinClient | null;
@@ -84,11 +84,11 @@ async function login(serverUrl: string, username: string, password: string): Pro
     const response = await authService.login(username, password);
 
     // Store in sessionStorage
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem(STORAGE_KEYS.SESSION, response.AccessToken);
-      sessionStorage.setItem(STORAGE_KEYS.USER_ID, response.User.Id);
-      sessionStorage.setItem(STORAGE_KEYS.SERVER_URL, serverUrl);
-    }
+    saveSession({
+      token: response.AccessToken,
+      userId: response.User.Id,
+      serverUrl,
+    });
 
     authStore.set({
       client,
@@ -126,11 +126,7 @@ async function logout(): Promise<void> {
   }
 
   // Clear sessionStorage
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.removeItem(STORAGE_KEYS.SESSION);
-    sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
-    sessionStorage.removeItem(STORAGE_KEYS.SERVER_URL);
-  }
+  clearSession();
 
   // SECURITY: Clear service worker cache on logout to prevent data leakage
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -150,18 +146,13 @@ async function logout(): Promise<void> {
  * Try to restore session from sessionStorage
  */
 async function restoreSession(): Promise<boolean> {
-  if (typeof sessionStorage === 'undefined') {
+  const session = loadSession();
+
+  if (!session) {
     return false;
   }
 
-  const token = sessionStorage.getItem(STORAGE_KEYS.SESSION);
-  const userId = sessionStorage.getItem(STORAGE_KEYS.USER_ID);
-  // Prioritize URL saved in session over any build-time default
-  const serverUrl = sessionStorage.getItem(STORAGE_KEYS.SERVER_URL);
-
-  if (!token || !userId || !serverUrl) {
-    return false;
-  }
+  const { token, userId, serverUrl } = session;
 
   // Validate server URL from session storage (prevent C-SSRF)
   const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
@@ -169,9 +160,7 @@ async function restoreSession(): Promise<boolean> {
     validateServerUrl(serverUrl, isDevelopment);
   } catch {
     // Invalid URL in session storage - clear session and return false
-    sessionStorage.removeItem(STORAGE_KEYS.SESSION);
-    sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
-    sessionStorage.removeItem(STORAGE_KEYS.SERVER_URL);
+    clearSession();
     return false;
   }
 
@@ -204,9 +193,7 @@ async function restoreSession(): Promise<boolean> {
   } catch (error) {
     console.error('Session restore error:', error);
     // Clear invalid session completely
-    sessionStorage.removeItem(STORAGE_KEYS.SESSION);
-    sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
-    sessionStorage.removeItem(STORAGE_KEYS.SERVER_URL);
+    clearSession();
 
     authStore.update(state => ({
       ...state,
