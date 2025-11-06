@@ -53,7 +53,10 @@
 
 html,
 body {
-  height: 100%;
+  /* Use dynamic viewport height for mobile Safari (iOS 15+)
+   * Fixes: Address bar show/hide causing content overflow on mobile
+   * Falls back to 100vh on older browsers that don't support 100dvh */
+  height: 100dvh;
 }
 
 body {

@@ -106,6 +106,8 @@
     cursor: pointer;
     transition: background-color 0.2s;
     width: 100%;
+    /* Eliminate 300ms click delay on mobile */
+    touch-action: manipulation;
   }
 
   .track-list-row.track:hover {

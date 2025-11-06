@@ -99,6 +99,8 @@
     text-decoration: none;
     transition: all 0.2s;
     -webkit-tap-highlight-color: transparent;
+    /* Eliminate 300ms click delay on mobile */
+    touch-action: manipulation;
   }
 
   .tab:active {

@@ -152,9 +152,10 @@
     .player-bar {
       height: auto;
       min-height: 90px;
-      /* Position above bottom tab bar (56px) */
+      /* Position above bottom tab bar (56px) + safe area */
       bottom: calc(56px + var(--safe-area-inset-bottom));
-      padding-bottom: 0; /* Reset padding-bottom, safe area handled in bottom position */
+      /* Keep internal padding for content spacing (was incorrectly set to 0) */
+      padding-bottom: var(--spacing-sm);
     }
 
     .player-content {

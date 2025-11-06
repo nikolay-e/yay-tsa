@@ -194,6 +194,8 @@
     color: var(--color-text-secondary);
     cursor: pointer;
     transition: all 0.2s;
+    /* Eliminate 300ms click delay and prevent double-tap zoom on mobile */
+    touch-action: manipulation;
   }
 
   .control-btn:hover {

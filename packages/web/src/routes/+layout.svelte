@@ -59,7 +59,11 @@
   }
 
   $: showPlayerBar = $currentTrack !== null;
-  $: contentPadding = showPlayerBar ? '90px' : '0';
+  // Content padding must account for bottom tabs + player bar + safe area
+  // Bottom tabs: 56px, Player bar: 90px (when active), Safe area: dynamic
+  $: contentPadding = showPlayerBar
+    ? 'calc(56px + 90px + var(--safe-area-inset-bottom))' // tabs + player + safe area
+    : 'calc(56px + var(--safe-area-inset-bottom))'; // tabs + safe area only
 </script>
 
 {#if loading}
@@ -280,8 +284,8 @@
       padding-left: calc(var(--spacing-md) + var(--safe-area-inset-left));
       padding-right: calc(var(--spacing-md) + var(--safe-area-inset-right));
       padding-top: calc(var(--spacing-md) + var(--safe-area-inset-top));
-      /* Bottom padding accounts for: bottom tabs (56px) + player bar (90px if playing) + safe area */
-      padding-bottom: calc(56px + var(--safe-area-inset-bottom));
+      /* Bottom padding set dynamically via style binding (contentPadding reactive var) */
+      /* This accounts for: bottom tabs (56px) + player bar (90px if playing) + safe area */
     }
 
   }

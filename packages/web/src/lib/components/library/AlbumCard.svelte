@@ -63,6 +63,8 @@
     transition: background-color 0.2s;
     text-decoration: none;
     color: inherit;
+    /* Eliminate 300ms click delay on mobile */
+    touch-action: manipulation;
   }
 
   .album-card:hover {
@@ -111,6 +113,8 @@
     cursor: pointer;
     transition: all 0.2s;
     transform: scale(0.9);
+    /* Eliminate 300ms click delay on mobile */
+    touch-action: manipulation;
   }
 
   .album-card:hover .play-button {

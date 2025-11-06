@@ -88,6 +88,8 @@
     background: transparent;
     outline: none;
     cursor: pointer;
+    /* Eliminate 300ms click delay on mobile */
+    touch-action: manipulation;
   }
 
   .slider:disabled {
