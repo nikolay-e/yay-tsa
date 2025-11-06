@@ -32,6 +32,7 @@ repos:
       - id: prettier
         types_or: [javascript, svelte, css, scss, markdown, yaml, json]
         args: [--write, --ignore-unknown]
+        exclude: ^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$
         # Exclusions are managed by your existing .prettierignore file.
 
   # ------------------------------------------------------------------------------
