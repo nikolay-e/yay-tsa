@@ -21,9 +21,11 @@ export class FavoritesService extends BaseService {
    */
   async markFavorite(itemId: string): Promise<UserItemData> {
     const userId = this.requireAuth();
-    const result = await this.client.post<UserItemData>(`/UserFavoriteItems/${itemId}`, null, {
-      userId,
-    });
+    const result = await this.client.post<UserItemData>(
+      `/UserItems/${itemId}/UserData`,
+      { IsFavorite: true },
+      { userId }
+    );
     if (!result) {
       throw new Error('Failed to mark item as favorite: Empty response');
     }
@@ -35,9 +37,11 @@ export class FavoritesService extends BaseService {
    */
   async unmarkFavorite(itemId: string): Promise<UserItemData> {
     const userId = this.requireAuth();
-    const result = await this.client.delete<UserItemData>(`/UserFavoriteItems/${itemId}`, {
-      userId,
-    });
+    const result = await this.client.post<UserItemData>(
+      `/UserItems/${itemId}/UserData`,
+      { IsFavorite: false },
+      { userId }
+    );
     if (!result) {
       throw new Error('Failed to unmark item as favorite: Empty response');
     }
