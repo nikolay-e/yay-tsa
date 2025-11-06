@@ -8,7 +8,6 @@ import { JellyfinClient } from '../../../src/api/client.js';
 import { AuthService } from '../../../src/api/auth.js';
 import { ItemsService } from '../../../src/api/items.js';
 import { PlaylistsService } from '../../../src/api/playlists.js';
-import { FavoritesService } from '../../../src/api/favorites.js';
 import { AudioItem, MusicAlbum, MusicArtist } from '../../../src/models/types.js';
 import { TestConfig } from '../setup.js';
 
@@ -26,7 +25,6 @@ export interface TestFixtures {
   authService: AuthService;
   itemsService: ItemsService;
   playlistsService: PlaylistsService;
-  favoritesService: FavoritesService;
 }
 
 export class TestDataFactory {
@@ -34,10 +32,8 @@ export class TestDataFactory {
   private authService: AuthService;
   private itemsService: ItemsService;
   private playlistsService: PlaylistsService;
-  private favoritesService: FavoritesService;
 
   private createdPlaylistIds: string[] = [];
-  private favoritedItemIds: string[] = [];
 
   constructor(private config: TestConfig) {
     this.client = new JellyfinClient(config.serverUrl, {
@@ -49,7 +45,6 @@ export class TestDataFactory {
     this.authService = new AuthService(this.client);
     this.itemsService = new ItemsService(this.client);
     this.playlistsService = new PlaylistsService(this.client);
-    this.favoritesService = new FavoritesService(this.client);
   }
 
   /**
@@ -82,7 +77,6 @@ export class TestDataFactory {
       authService: this.authService,
       itemsService: this.itemsService,
       playlistsService: this.playlistsService,
-      favoritesService: this.favoritesService,
     };
   }
 
@@ -141,30 +135,13 @@ export class TestDataFactory {
   }
 
   /**
-   * Mark item as favorite and track for cleanup
-   */
-  async markTestFavorite(itemId: string): Promise<void> {
-    await this.favoritesService.markFavorite(itemId);
-    this.favoritedItemIds.push(itemId);
-  }
-
-  /**
    * Cleanup all test data created during test run
-   * Given: Tests have created playlists and favorites
+   * Given: Tests have created playlists
    * When: Tests complete
    * Then: Remove all test-created data to restore original state
    */
   async cleanup(): Promise<void> {
     const errors: Error[] = [];
-
-    // Remove favorites
-    for (const itemId of this.favoritedItemIds) {
-      try {
-        await this.favoritesService.unmarkFavorite(itemId);
-      } catch (error) {
-        errors.push(new Error(`Failed to remove favorite ${itemId}: ${(error as Error).message}`));
-      }
-    }
 
     // Delete playlists
     for (const playlistId of this.createdPlaylistIds) {
@@ -185,7 +162,6 @@ export class TestDataFactory {
 
     // Reset tracking
     this.createdPlaylistIds = [];
-    this.favoritedItemIds = [];
   }
 
   /**
