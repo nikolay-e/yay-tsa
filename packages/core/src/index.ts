@@ -8,7 +8,6 @@ export { JellyfinClient } from './api/client.js';
 export { BaseService } from './api/base-service.js';
 export { AuthService, validateServerUrl } from './api/auth.js';
 export { ItemsService } from './api/items.js';
-export { FavoritesService } from './api/favorites.js';
 export { PlaylistsService } from './api/playlists.js';
 
 // Player modules
