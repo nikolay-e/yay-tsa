@@ -1,9 +1,9 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <!-- Background -->
-  <rect width="512" height="512" fill="#00a4dc" rx="64"/>
+  <rect width="512" height="512" fill="#0f0f0f" rx="64"/>
 
   <!-- Music note icon -->
-  <g fill="#ffffff">
+  <g fill="#1db954">
     <!-- Note stem -->
     <rect x="160" y="140" width="40" height="260" rx="8"/>
 
