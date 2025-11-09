@@ -33,9 +33,7 @@ test.describe('Library Browsing', () => {
   test('should display album cover images', async () => {
     await libraryPage.waitForAlbumsToLoad();
 
-    const firstAlbumImage = libraryPage.albumCards
-      .first()
-      .locator('[data-testid="album-cover"]');
+    const firstAlbumImage = libraryPage.albumCards.first().locator('[data-testid="album-cover"]');
     await expect(firstAlbumImage).toBeVisible();
   });
 

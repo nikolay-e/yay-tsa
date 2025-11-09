@@ -6,6 +6,7 @@
 
   let username = '';
   let password = '';
+  let rememberMe = false; // Remember Me checkbox state
   let error = '';
 
   // Get server URL from environment config
@@ -26,7 +27,7 @@
     }
 
     try {
-      await auth.login(serverUrl, username, password);
+      await auth.login(serverUrl, username, password, { rememberMe });
     } catch (err) {
       error = (err as Error).message;
     }
@@ -62,6 +63,11 @@
       autocomplete="current-password"
       required
     />
+
+    <label class="remember-me">
+      <input type="checkbox" bind:checked={rememberMe} />
+      <span>Remember me (keep me signed in)</span>
+    </label>
 
     {#if error || $authError}
       <div class="error-banner">
@@ -115,6 +121,31 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+  }
+
+  .remember-me {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.9375rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .remember-me input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+  }
+
+  .remember-me span {
+    line-height: 1.5;
+  }
+
+  .remember-me:hover span {
+    color: var(--color-text-primary);
   }
 
   .error-banner {

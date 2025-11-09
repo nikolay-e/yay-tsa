@@ -6,12 +6,23 @@
   import { currentTrack } from '../lib/stores/player.js';
   import PlayerBar from '../lib/components/player/PlayerBar.svelte';
   import BottomTabBar from '../lib/components/navigation/BottomTabBar.svelte';
+  import { cacheManager } from '../lib/cache/cache-manager.js';
   import '../app.css';
   import { dev } from '$app/environment';
 
   let loading = true;
 
   onMount(async () => {
+    // Initialize cache manager
+    try {
+      await cacheManager.init();
+      if (dev) {
+        console.info('[Cache] Cache manager initialized');
+      }
+    } catch (error) {
+      console.error('[Cache] Failed to initialize cache manager:', error);
+    }
+
     // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       try {
@@ -42,7 +53,7 @@
       }
     }
 
-    // Try to restore session from sessionStorage
+    // Try to restore session from sessionStorage or localStorage
     const restored = await auth.restoreSession();
 
     loading = false;

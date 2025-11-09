@@ -41,10 +41,7 @@ export async function performSearch(page: Page, query: string): Promise<void> {
   await page.waitForTimeout(500);
 }
 
-export async function assertPlayerState(
-  page: Page,
-  state: 'playing' | 'paused'
-): Promise<void> {
+export async function assertPlayerState(page: Page, state: 'playing' | 'paused'): Promise<void> {
   const label = state === 'playing' ? 'Pause' : 'Play';
   await expect(
     page.locator(`[data-testid="play-pause-button"][aria-label*="${label}"]`)

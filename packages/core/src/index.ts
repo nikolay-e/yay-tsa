@@ -32,5 +32,9 @@ export {
   ticksToSeconds,
 } from './config/constants.js';
 
+// Cache modules
+export { IndexedDBCache } from './cache/indexed-db-cache.js';
+export { ICache, CacheConfig, CacheEntry, TTL } from './cache/cache-interface.js';
+
 // Types and models
 export * from './models/types.js';

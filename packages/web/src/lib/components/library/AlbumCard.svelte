@@ -1,13 +1,27 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { MusicAlbum } from '@yaytsa/core';
-  import { getAlbumArtUrl } from '../../utils/image.js';
+  import { getCachedAlbumArtUrl, getAlbumArtUrl } from '../../utils/image.js';
   import { player } from '../../stores/player.js';
   import { library } from '../../stores/library.js';
   import { hapticSelect } from '../../utils/haptics.js';
 
   export let album: MusicAlbum;
 
-  const albumArtMedium = getAlbumArtUrl(album.Id, 'medium');
+  let albumArtUrl = getAlbumArtUrl(album.Id, 'medium'); // Fallback sync URL
+
+  // Load cached image on mount
+  onMount(async () => {
+    try {
+      const cachedUrl = await getCachedAlbumArtUrl(album.Id, 'medium');
+      if (cachedUrl) {
+        albumArtUrl = cachedUrl;
+      }
+    } catch {
+      // Fallback to direct URL already set (non-critical error)
+      // Skip logging in production
+    }
+  });
 
   async function playAlbum(event: MouseEvent) {
     event.preventDefault();
@@ -26,9 +40,10 @@
 <a href="/albums/{album.Id}" class="album-card">
   <div class="album-art-container">
     <img
-      src={albumArtMedium}
+      src={albumArtUrl}
       alt={album.Name}
       class="album-art"
+      loading="lazy"
     />
     <div class="play-overlay">
       <button type="button" class="play-button" on:click={playAlbum} aria-label="Play {album.Name}">

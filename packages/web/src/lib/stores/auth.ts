@@ -16,7 +16,12 @@ import {
   type ClientInfo,
 } from '@yaytsa/core';
 import { config } from './config.js';
-import { saveSession, loadSession, clearSession } from '../utils/session-manager.js';
+import {
+  saveSession,
+  saveSessionPersistent,
+  loadSessionAuto,
+  clearAllSessions,
+} from '../utils/session-manager.js';
 
 interface AuthState {
   client: JellyfinClient | null;
@@ -44,6 +49,13 @@ const initialState: AuthState = {
 const authStore = writable<AuthState>(initialState);
 
 /**
+ * Login options interface
+ */
+export interface LoginOptions {
+  rememberMe?: boolean; // If true, save to localStorage (persistent across browser restarts)
+}
+
+/**
  * Create ClientInfo from configuration store
  */
 function createClientInfoFromConfig(): ClientInfo {
@@ -64,8 +76,14 @@ function createClientInfoFromConfig(): ClientInfo {
 
 /**
  * Login with username and password
+ * @param options - Login options (e.g., rememberMe)
  */
-async function login(serverUrl: string, username: string, password: string): Promise<void> {
+async function login(
+  serverUrl: string,
+  username: string,
+  password: string,
+  options?: LoginOptions
+): Promise<void> {
   authStore.update(state => ({ ...state, isLoading: true, error: null }));
 
   try {
@@ -80,15 +98,28 @@ async function login(serverUrl: string, username: string, password: string): Pro
     const client = new JellyfinClient(serverUrl, clientInfo);
     const authService = new AuthService(client);
 
+    // Set up global 401 interceptor for auto-logout
+    client.setAuthErrorCallback(() => {
+      void logout(); // Auto-logout on 401/403
+    });
+
     // Authenticate
     const response = await authService.login(username, password);
 
-    // Store in sessionStorage
-    saveSession({
+    const sessionData = {
       token: response.AccessToken,
       userId: response.User.Id,
       serverUrl,
-    });
+    };
+
+    // Save session based on rememberMe option
+    if (options?.rememberMe) {
+      // Persistent storage (localStorage) - survives browser close
+      saveSessionPersistent(sessionData);
+    } else {
+      // Session storage (default) - cleared when tab closes
+      saveSession(sessionData);
+    }
 
     authStore.set({
       client,
@@ -113,6 +144,7 @@ async function login(serverUrl: string, username: string, password: string): Pro
 
 /**
  * Logout and clear session
+ * Clears both sessionStorage AND localStorage (persistent storage)
  */
 async function logout(): Promise<void> {
   const state = get(authStore);
@@ -125,8 +157,17 @@ async function logout(): Promise<void> {
     }
   }
 
-  // Clear sessionStorage
-  clearSession();
+  // Clear ALL session data (sessionStorage + localStorage)
+  clearAllSessions();
+
+  // SECURITY: Clear IndexedDB cache on logout to prevent data leakage
+  try {
+    const { cacheManager } = await import('../cache/cache-manager.js');
+    await cacheManager.clearAll();
+    if (dev) console.info('[Cache] Cleared all caches on logout');
+  } catch (error) {
+    if (dev) console.error('[Cache] Failed to clear cache on logout:', error);
+  }
 
   // SECURITY: Clear service worker cache on logout to prevent data leakage
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -143,10 +184,11 @@ async function logout(): Promise<void> {
 }
 
 /**
- * Try to restore session from sessionStorage
+ * Try to restore session from persistent storage (localStorage) or sessionStorage
+ * Checks localStorage first (if "Remember Me" was enabled), then falls back to sessionStorage
  */
 async function restoreSession(): Promise<boolean> {
-  const session = loadSession();
+  const session = loadSessionAuto();
 
   if (!session) {
     return false;
@@ -154,13 +196,13 @@ async function restoreSession(): Promise<boolean> {
 
   const { token, userId, serverUrl } = session;
 
-  // Validate server URL from session storage (prevent C-SSRF)
+  // Validate server URL from storage (prevent C-SSRF)
   const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
   try {
     validateServerUrl(serverUrl, isDevelopment);
   } catch {
-    // Invalid URL in session storage - clear session and return false
-    clearSession();
+    // Invalid URL in storage - clear ALL sessions and return false
+    clearAllSessions();
     return false;
   }
 
@@ -172,6 +214,11 @@ async function restoreSession(): Promise<boolean> {
 
     const client = new JellyfinClient(serverUrl, clientInfo);
     client.setToken(token, userId);
+
+    // Set up global 401 interceptor for auto-logout
+    client.setAuthErrorCallback(() => {
+      void logout(); // Auto-logout on 401/403
+    });
 
     // Validate session by making a test request
     await client.getServerInfo();
@@ -192,8 +239,8 @@ async function restoreSession(): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('Session restore error:', error);
-    // Clear invalid session completely
-    clearSession();
+    // Clear invalid session completely (both sessionStorage and localStorage)
+    clearAllSessions();
 
     authStore.update(state => ({
       ...state,

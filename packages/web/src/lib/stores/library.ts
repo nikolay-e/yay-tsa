@@ -4,14 +4,15 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
-import {
-  ItemsService,
-  type MusicAlbum,
-  type MusicArtist,
-  type AudioItem,
-} from '@yaytsa/core';
+import { ItemsService, type MusicAlbum, type MusicArtist, type AudioItem } from '@yaytsa/core';
 import { client } from './auth.js';
 import { createAsyncStoreHandler } from './utils.js';
+import {
+  getCachedAlbums,
+  getCachedRecentAlbums,
+  getCachedAlbumTracks,
+} from '../services/cached-items-service.js';
+import { preloadAlbumArts } from '../utils/image.js';
 
 interface LibraryState {
   itemsService: ItemsService | null;
@@ -86,7 +87,7 @@ async function waitForService(): Promise<ItemsService> {
 }
 
 /**
- * Load albums from server
+ * Load albums from server (with caching)
  */
 async function loadAlbums(options?: { limit?: number; startIndex?: number }): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
@@ -95,13 +96,20 @@ async function loadAlbums(options?: { limit?: number; startIndex?: number }): Pr
   try {
     const itemsService = await waitForService();
 
-    const result = await itemsService.getAlbums({
+    // Use cached version
+    const result = await getCachedAlbums(itemsService, {
       limit: options?.limit,
       startIndex: options?.startIndex,
       sortBy: 'SortName',
     });
 
     handler.success({ albums: result.Items });
+
+    // Preload album art in background (non-blocking)
+    if (result.Items.length > 0) {
+      const albumIds = result.Items.map(album => album.Id);
+      void preloadAlbumArts(albumIds, 'medium');
+    }
   } catch (error) {
     handler.error(error as Error);
     throw error;
@@ -109,7 +117,7 @@ async function loadAlbums(options?: { limit?: number; startIndex?: number }): Pr
 }
 
 /**
- * Load recent albums
+ * Load recent albums (with caching)
  */
 async function loadRecentAlbums(limit: number = 20): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
@@ -118,12 +126,16 @@ async function loadRecentAlbums(limit: number = 20): Promise<void> {
   try {
     const itemsService = await waitForService();
 
-    const result = await itemsService.getAlbums({
-      limit,
-      sortBy: 'DateCreated',
-    });
+    // Use cached version (with shorter TTL for recent albums)
+    const result = await getCachedRecentAlbums(itemsService, limit);
 
     handler.success({ albums: result.Items });
+
+    // Preload album art in background (non-blocking)
+    if (result.Items.length > 0) {
+      const albumIds = result.Items.map(album => album.Id);
+      void preloadAlbumArts(albumIds, 'medium');
+    }
   } catch (error) {
     handler.error(error as Error);
     throw error;
@@ -153,7 +165,7 @@ async function loadArtists(options?: { limit?: number; startIndex?: number }): P
 }
 
 /**
- * Load tracks for a specific album
+ * Load tracks for a specific album (with caching)
  */
 async function loadAlbumTracks(albumId: string): Promise<AudioItem[]> {
   const handler = createAsyncStoreHandler(libraryStore);
@@ -161,7 +173,9 @@ async function loadAlbumTracks(albumId: string): Promise<AudioItem[]> {
 
   try {
     const itemsService = await waitForService();
-    const items = await itemsService.getAlbumTracks(albumId);
+
+    // Use cached version (album tracks rarely change - long TTL)
+    const items = await getCachedAlbumTracks(itemsService, albumId);
 
     handler.success({ tracks: items });
     return items;

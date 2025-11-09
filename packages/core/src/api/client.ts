@@ -25,6 +25,9 @@ export class JellyfinClient {
   private readonly GATEWAY_ERROR_MAX = 504;
   private readonly SERVER_ERROR_STATUS = 500;
 
+  // Global 401 error handler callback
+  private authErrorCallback?: () => void;
+
   constructor(serverUrl: string, clientInfo: ClientInfo) {
     this.serverUrl = this.normalizeUrl(serverUrl);
     this.clientInfo = clientInfo;
@@ -90,6 +93,22 @@ export class JellyfinClient {
    */
   getUserId(): string | null {
     return this.userId;
+  }
+
+  /**
+   * Set callback for global 401/403 authentication errors
+   * This callback will be invoked before throwing AuthenticationError
+   * Use this for auto-logout or redirecting to login page
+   */
+  setAuthErrorCallback(callback: () => void): void {
+    this.authErrorCallback = callback;
+  }
+
+  /**
+   * Clear authentication error callback
+   */
+  clearAuthErrorCallback(): void {
+    this.authErrorCallback = undefined;
   }
 
   /**
@@ -296,6 +315,15 @@ export class JellyfinClient {
       'Request failed';
 
     if (response.status === 401 || response.status === 403) {
+      // Invoke global auth error callback (e.g., auto-logout) before throwing
+      if (this.authErrorCallback) {
+        try {
+          this.authErrorCallback();
+        } catch (callbackError) {
+          console.error('Auth error callback failed:', callbackError);
+        }
+      }
+
       throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
     }
 
@@ -332,7 +360,11 @@ export class JellyfinClient {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: any, params?: Record<string, any>): Promise<T | undefined> {
+  async post<T>(
+    endpoint: string,
+    data?: any,
+    params?: Record<string, any>
+  ): Promise<T | undefined> {
     let url = endpoint;
 
     if (params) {
@@ -389,10 +421,7 @@ export class JellyfinClient {
     errorMessage?: string
   ): T {
     if (result === undefined) {
-      throw new JellyfinError(
-        errorMessage || `Empty response from ${method} ${endpoint}`,
-        500
-      );
+      throw new JellyfinError(errorMessage || `Empty response from ${method} ${endpoint}`, 500);
     }
     return result;
   }

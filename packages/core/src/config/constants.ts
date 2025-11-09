@@ -17,6 +17,11 @@ export const STORAGE_KEYS = {
   SESSION: 'jf_session',
   USER_ID: 'jf_user_id',
   SERVER_URL: 'jf_server_url',
+  // Persistent storage keys (localStorage) - used when "Remember Me" is enabled
+  SESSION_PERSISTENT: 'jf_session_persistent',
+  USER_ID_PERSISTENT: 'jf_user_id_persistent',
+  SERVER_URL_PERSISTENT: 'jf_server_url_persistent',
+  REMEMBER_ME: 'jf_remember_me', // Flag to indicate if "Remember Me" was selected
 } as const;
 
 /**

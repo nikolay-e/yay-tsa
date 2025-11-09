@@ -38,6 +38,13 @@ let mediaSession: MediaSessionManager | null = null;
 let currentLoadOperation: symbol | null = null; // Unique ID for track loading operations
 let isAutoAdvancing = false; // Prevents duplicate onEnded events
 
+// Performance optimization: Cache duration and throttle updates
+let cachedDuration = 0; // Cache track duration to avoid repeated getDuration() calls
+let lastUIUpdate = 0; // Timestamp of last UI store update
+let lastMediaSessionUpdate = 0; // Timestamp of last MediaSession update
+const UI_UPDATE_INTERVAL_MS = 250; // 4 times/sec instead of 60+ (performance)
+const MEDIA_SESSION_UPDATE_INTERVAL_MS = 1000; // 1 time/sec for lock screen
+
 // Initialize audio engine and media session in browser only
 if (browser) {
   audioEngine = new HTML5AudioEngine();
@@ -88,25 +95,34 @@ client.subscribe($client => {
 if (audioEngine) {
   audioEngine.setVolume(0.7);
 
-  // Time update handler
+  // Time update handler (throttled for performance)
   audioEngine.onTimeUpdate(time => {
-    const duration = audioEngine ? audioEngine.getDuration() : 0;
-
-    playerStore.update((state: PlayerState) => ({
-      ...state,
-      currentTime: time,
-      duration,
-    }));
-
-    // Update PlaybackState time (it will auto-report every 10s)
-    const state = get(playerStore);
-    if (state.state && state.currentTrack && audioEngine) {
-      state.state.setCurrentTime(time);
+    // Always update PlaybackState time (needed for accurate server reporting every 10s)
+    if (playbackState) {
+      playbackState.setCurrentTime(time);
     }
 
-    // Update media session position state for lock screen seek bar
-    if (mediaSession && duration > 0) {
-      mediaSession.updatePositionState(duration, time);
+    // Throttle UI updates to reduce re-renders (4 times/sec instead of 60+)
+    const now = Date.now();
+    if (now - lastUIUpdate >= UI_UPDATE_INTERVAL_MS) {
+      lastUIUpdate = now;
+
+      // Update store with cached duration (avoid DOM reads in hot path)
+      playerStore.update((state: PlayerState) => ({
+        ...state,
+        currentTime: time,
+        duration: cachedDuration,
+      }));
+
+      // Debounce MediaSession updates for lock screen seek bar (1 time/sec)
+      if (
+        mediaSession &&
+        cachedDuration > 0 &&
+        now - lastMediaSessionUpdate >= MEDIA_SESSION_UPDATE_INTERVAL_MS
+      ) {
+        lastMediaSessionUpdate = now;
+        mediaSession.updatePositionState(cachedDuration, time);
+      }
     }
   });
 
@@ -197,6 +213,9 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
 
     await audioEngine.load(streamUrl);
 
+    // Cache duration after load to avoid repeated getDuration() calls in hot path
+    cachedDuration = audioEngine.getDuration();
+
     // Check if operation was cancelled during load
     if (currentLoadOperation !== operationId) {
       return; // Operation cancelled, exit silently
@@ -210,11 +229,11 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
       return; // Operation cancelled, stop playback
     }
 
-    // Report playback start
+    // Report playback start (non-blocking - don't wait for server response)
     if (state.state) {
       state.state.setCurrentItem(track);
       state.state.setStatus('playing');
-      await state.state.reportPlaybackStart();
+      void state.state.reportPlaybackStart(); // Fire-and-forget to avoid UI lag
     }
 
     playerStore.update(s => ({
@@ -527,7 +546,19 @@ export const isLoading = derived(playerStore, $player => $player.isLoading);
 export const isShuffle = derived(playerStore, $player => $player.isShuffle);
 export const repeatMode = derived(playerStore, $player => $player.repeatMode);
 export const error = derived(playerStore, $player => $player.error);
-export const queueItems = derived(playerStore, $player => $player.queue.getAllItems());
+
+// Memoized queue items to avoid O(n) array copying on every store update
+let cachedQueueItems: AudioItem[] = [];
+let cachedQueueLength = 0;
+export const queueItems = derived(playerStore, $player => {
+  const items = $player.queue.getAllItems();
+  // Only update cache if queue length changed (avoids copying on timeupdate)
+  if (items.length !== cachedQueueLength) {
+    cachedQueueItems = items;
+    cachedQueueLength = items.length;
+  }
+  return cachedQueueItems;
+});
 
 export const player = {
   subscribe: playerStore.subscribe,
