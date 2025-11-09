@@ -49,7 +49,7 @@ docker-compose -f docker-compose.yml up -d    # Production with Nginx
 
 # Kubernetes (via GitOps)
 # See /Users/nikolay/code/gitops/helm-charts/yaytsa/
-helm upgrade --install yaytsa ./helm/yaytsa
+# Deployment managed via Argo CD (gitops repository)
 ```
 
 ## High-Level Architecture
