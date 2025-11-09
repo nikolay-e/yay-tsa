@@ -8,6 +8,7 @@ import { browser, dev } from '$app/environment';
 import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@yaytsa/core';
 import { HTML5AudioEngine, MediaSessionManager } from '@yaytsa/platform';
 import { client } from './auth.js';
+import { logger } from '../utils/logger.js';
 
 // Playback constants
 const RESTART_THRESHOLD_SECONDS = 3; // Seconds before "previous" restarts current track
@@ -51,12 +52,10 @@ if (browser) {
   mediaSession = new MediaSessionManager();
 
   // Log media session support (development only)
-  if (dev) {
-    if (mediaSession.supported()) {
-      console.info('[Media Session] Supported - background playback enabled');
-    } else {
-      console.info('[Media Session] Not supported - background playback limited');
-    }
+  if (mediaSession.supported()) {
+    logger.info('[Media Session] Supported - background playback enabled');
+  } else {
+    logger.info('[Media Session] Not supported - background playback limited');
   }
 }
 
@@ -144,7 +143,7 @@ if (audioEngine) {
     // Auto-advance to next track
     next()
       .catch(error => {
-        console.error('Auto-advance error:', error);
+        logger.error('Auto-advance error:', error);
         playerStore.update(s => ({
           ...s,
           isPlaying: false,
@@ -158,7 +157,7 @@ if (audioEngine) {
 
   // Error handler
   audioEngine.onError(error => {
-    console.error('Audio playback error:', error);
+    logger.error('Audio playback error:', error);
     playerStore.update(state => ({
       ...state,
       isPlaying: false,
@@ -265,7 +264,7 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
   } catch (error) {
     // Only update error state if operation is still current
     if (currentLoadOperation === operationId) {
-      console.error('Play error:', error);
+      logger.error('Play error:', error);
       playerStore.update(s => ({
         ...s,
         isPlaying: false,
@@ -358,10 +357,15 @@ function pause(): void {
  */
 async function resume(): Promise<void> {
   if (!audioEngine) {
-    throw new Error('Audio engine not available');
+    const errorMsg = 'Audio engine not available';
+    playerStore.update(s => ({ ...s, error: errorMsg }));
+    throw new Error(errorMsg);
   }
 
   try {
+    // Clear previous errors
+    playerStore.update(s => ({ ...s, error: null }));
+
     await audioEngine.play();
     playerStore.update(s => ({ ...s, isPlaying: true }));
 
@@ -377,7 +381,9 @@ async function resume(): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
-    console.error('Resume error:', error);
+    const errorMsg = `Failed to resume playback: ${(error as Error).message}`;
+    logger.error('Resume error:', error);
+    playerStore.update(s => ({ ...s, error: errorMsg, isPlaying: false }));
     throw error;
   }
 }
@@ -465,8 +471,14 @@ async function previous(): Promise<void> {
 function seek(seconds: number): void {
   if (!audioEngine) return;
 
-  audioEngine.seek(seconds);
-  playerStore.update(s => ({ ...s, currentTime: seconds }));
+  try {
+    audioEngine.seek(seconds);
+    playerStore.update(s => ({ ...s, currentTime: seconds, error: null }));
+  } catch (error) {
+    const errorMsg = `Seek failed: ${(error as Error).message}`;
+    logger.error('Seek error:', error);
+    playerStore.update(s => ({ ...s, error: errorMsg }));
+  }
 }
 
 /**
@@ -560,6 +572,17 @@ export const queueItems = derived(playerStore, $player => {
   return cachedQueueItems;
 });
 
+/**
+ * Cleanup player resources (called on logout)
+ * Disposes PlaybackState timer to prevent memory leaks
+ */
+function cleanup(): void {
+  if (playbackState) {
+    playbackState.dispose();
+    playbackState = null;
+  }
+}
+
 export const player = {
   subscribe: playerStore.subscribe,
   play,
@@ -581,6 +604,7 @@ export const player = {
   getQueue,
   clearQueue,
   removeFromQueue,
+  cleanup,
 };
 
 // Set up media session action handlers (browser only)

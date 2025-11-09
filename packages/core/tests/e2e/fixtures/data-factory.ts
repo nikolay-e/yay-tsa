@@ -25,6 +25,9 @@ export interface TestFixtures {
   authService: AuthService;
   itemsService: ItemsService;
   playlistsService: PlaylistsService;
+
+  // Test configuration (needed for cleanup)
+  config: TestConfig;
 }
 
 export class TestDataFactory {
@@ -77,6 +80,7 @@ export class TestDataFactory {
       authService: this.authService,
       itemsService: this.itemsService,
       playlistsService: this.playlistsService,
+      config: this.config,
     };
   }
 

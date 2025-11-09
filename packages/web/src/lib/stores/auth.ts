@@ -4,7 +4,6 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
-import { dev } from '$app/environment';
 import {
   JellyfinClient,
   AuthService,
@@ -22,6 +21,7 @@ import {
   loadSessionAuto,
   clearAllSessions,
 } from '../utils/session-manager.js';
+import { logger } from '../utils/logger.js';
 
 interface AuthState {
   client: JellyfinClient | null;
@@ -132,7 +132,7 @@ async function login(
       error: null,
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
     authStore.update(state => ({
       ...state,
       isLoading: false,
@@ -153,20 +153,36 @@ async function logout(): Promise<void> {
     try {
       await state.authService.logout();
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Logout error:', error);
     }
   }
 
   // Clear ALL session data (sessionStorage + localStorage)
   clearAllSessions();
 
+  // Cleanup player resources (dispose timers)
+  try {
+    const { player } = await import('./player.js');
+    player.cleanup();
+  } catch (error) {
+    logger.error('[Player] Failed to cleanup player:', error);
+  }
+
   // SECURITY: Clear IndexedDB cache on logout to prevent data leakage
   try {
     const { cacheManager } = await import('../cache/cache-manager.js');
+
+    // Revoke all Object URLs to prevent memory leaks
+    const imageCache = cacheManager.getImageCache();
+    if (imageCache) {
+      imageCache.revokeAllObjectUrls();
+    }
+
+    // Clear all caches (API + Images)
     await cacheManager.clearAll();
-    if (dev) console.info('[Cache] Cleared all caches on logout');
+    logger.info('[Cache] Cleared all caches on logout');
   } catch (error) {
-    if (dev) console.error('[Cache] Failed to clear cache on logout:', error);
+    logger.error('[Cache] Failed to clear cache on logout:', error);
   }
 
   // SECURITY: Clear service worker cache on logout to prevent data leakage
@@ -176,7 +192,7 @@ async function logout(): Promise<void> {
         type: 'CLEAR_CACHE',
       });
     } catch (error) {
-      if (dev) console.error('Failed to clear service worker cache:', error);
+      logger.error('Failed to clear service worker cache:', error);
     }
   }
 
@@ -238,7 +254,7 @@ async function restoreSession(): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('Session restore error:', error);
+    logger.error('Session restore error:', error);
     // Clear invalid session completely (both sessionStorage and localStorage)
     clearAllSessions();
 

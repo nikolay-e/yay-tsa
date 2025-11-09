@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { auth, isAuthenticated } from '../lib/stores/auth.js';
@@ -7,49 +7,46 @@
   import PlayerBar from '../lib/components/player/PlayerBar.svelte';
   import BottomTabBar from '../lib/components/navigation/BottomTabBar.svelte';
   import { cacheManager } from '../lib/cache/cache-manager.js';
+  import { logger } from '../lib/utils/logger.js';
   import '../app.css';
-  import { dev } from '$app/environment';
 
   let loading = true;
+  let swRegistration: ServiceWorkerRegistration | null = null;
+  let swUpdateHandler: (() => void) | null = null;
 
   onMount(async () => {
     // Initialize cache manager
     try {
       await cacheManager.init();
-      if (dev) {
-        console.info('[Cache] Cache manager initialized');
-      }
+      logger.info('[Cache] Cache manager initialized');
     } catch (error) {
-      console.error('[Cache] Failed to initialize cache manager:', error);
+      logger.error('[Cache] Failed to initialize cache manager:', error);
     }
 
     // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js');
-        if (dev) {
-          console.info('[PWA] Service worker registered:', registration.scope);
-        }
+        swRegistration = await navigator.serviceWorker.register('/service-worker.js');
+        logger.info('[PWA] Service worker registered:', swRegistration.scope);
 
         // Check for updates on page load
-        registration.update();
+        swRegistration.update();
 
         // Listen for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
+        swUpdateHandler = () => {
+          const newWorker = swRegistration?.installing;
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 // New version available - could show update notification
-                if (dev) {
-                  console.info('[PWA] New version available');
-                }
+                logger.info('[PWA] New version available');
               }
             });
           }
-        });
+        };
+        swRegistration.addEventListener('updatefound', swUpdateHandler);
       } catch (error) {
-        console.error('[PWA] Service worker registration failed:', error);
+        logger.error('[PWA] Service worker registration failed:', error);
       }
     }
 
@@ -61,6 +58,13 @@
     // Redirect to login if not authenticated and not already on login page
     if (!restored && $page.url.pathname !== '/login') {
       goto('/login');
+    }
+  });
+
+  onDestroy(() => {
+    // Remove service worker update listener to prevent memory leaks during HMR
+    if (swRegistration && swUpdateHandler) {
+      swRegistration.removeEventListener('updatefound', swUpdateHandler);
     }
   });
 

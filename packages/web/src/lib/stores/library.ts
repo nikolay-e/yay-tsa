@@ -41,6 +41,9 @@ const libraryStore = writable<LibraryState>(initialState);
 // Race condition prevention for search
 let currentSearchQuery: string | null = null;
 
+// Service initialization timeout (5 seconds)
+const SERVICE_INIT_TIMEOUT_MS = 5000;
+
 // Initialize items service when client is available
 client.subscribe($client => {
   if ($client) {
@@ -71,15 +74,16 @@ async function waitForService(): Promise<ItemsService> {
       if (!resolved) {
         resolved = true;
         unsubscribe();
-        reject(new Error('Items service not initialized after 5 seconds'));
+        reject(new Error(`Items service not initialized after ${SERVICE_INIT_TIMEOUT_MS}ms`));
       }
-    }, 5000);
+    }, SERVICE_INIT_TIMEOUT_MS);
 
     const unsubscribe = libraryStore.subscribe($state => {
       if ($state.itemsService && !resolved) {
         resolved = true;
         clearTimeout(timeout);
-        unsubscribe();
+        // Defer unsubscribe to next microtask for safety
+        queueMicrotask(() => unsubscribe());
         resolve($state.itemsService);
       }
     });

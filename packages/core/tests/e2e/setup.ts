@@ -64,7 +64,7 @@ export async function cleanupTestFixtures(fixtures: TestFixtures): Promise<void>
     // Skip cleanup if fixtures were not initialized (e.g., missing env variables)
     return;
   }
-  const factory = new TestDataFactory(fixtures as any);
+  const factory = new TestDataFactory(fixtures.config);
   await factory.cleanup();
 }
 

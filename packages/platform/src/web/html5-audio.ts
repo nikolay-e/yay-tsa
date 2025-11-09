@@ -49,9 +49,9 @@ export class HTML5AudioEngine implements AudioEngine {
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
         }
-      } catch (error) {
+      } catch {
         // Audio context creation failed - not critical, fallback to basic audio
-        console.warn('Failed to create AudioContext:', error);
+        // Silently ignore - basic audio playback will still work
       }
     }
   }
@@ -113,9 +113,11 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   seek(seconds: number): void {
-    if (!Number.isFinite(seconds) || seconds < 0) {
-      console.warn('Invalid seek position:', seconds);
-      return;
+    if (!Number.isFinite(seconds)) {
+      throw new Error(`Invalid seek position: ${seconds} (must be a finite number)`);
+    }
+    if (seconds < 0) {
+      throw new Error(`Invalid seek position: ${seconds} (cannot be negative)`);
     }
     const duration = this.getDuration();
     const clampedSeconds = duration > 0 ? Math.min(seconds, duration) : seconds;
