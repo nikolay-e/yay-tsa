@@ -37,7 +37,7 @@
     event.preventDefault();
     hapticSelect();
     try {
-      const tracks = await library.loadAlbumTracks(album.Id);
+      const tracks = await library.getAlbumTracks(album.Id);
       if (tracks.length > 0) {
         player.playAlbum(tracks);
       }

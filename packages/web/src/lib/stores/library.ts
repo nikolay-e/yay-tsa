@@ -169,7 +169,18 @@ async function loadArtists(options?: { limit?: number; startIndex?: number }): P
 }
 
 /**
+ * Get album tracks without updating global store
+ * Use this for playback - doesn't pollute search results
+ */
+async function getAlbumTracks(albumId: string): Promise<AudioItem[]> {
+  const itemsService = await waitForService();
+  // Use cached version (album tracks rarely change - long TTL)
+  return getCachedAlbumTracks(itemsService, albumId);
+}
+
+/**
  * Load tracks for a specific album (with caching)
+ * Updates global store - use only when displaying tracks in UI
  */
 async function loadAlbumTracks(albumId: string): Promise<AudioItem[]> {
   const handler = createAsyncStoreHandler(libraryStore);
@@ -283,6 +294,7 @@ export const library = {
   loadRecentAlbums,
   loadArtists,
   loadAlbumTracks,
+  getAlbumTracks,
   loadArtistAlbums,
   search,
   setCurrentAlbum,
