@@ -4,7 +4,7 @@
   "description": "A minimal music player for Jellyfin",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a1a",
+  "background_color": "#0f0f0f",
   "theme_color": "#1db954",
   "orientation": "portrait",
   "icons": [

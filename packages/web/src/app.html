@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="A minimal music player for Jellyfin" />
 
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="img-src 'self' blob: data: https: http:; media-src 'self' blob: data: https: http:; default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: http: ws: wss:;" />
+
     <!-- PWA Configuration -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
 
     <!-- Theme colors -->
-    <meta name="theme-color" content="#00a4dc" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a1a" />
+    <meta name="theme-color" content="#1db954" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f0f0f" />
 
     <!-- Mobile PWA meta tags -->
     <meta name="mobile-web-app-capable" content="yes" />
@@ -69,7 +72,7 @@
     <meta name="apple-mobile-web-app-status-bar-height" content="44" />
 
     <!-- Microsoft-specific PWA meta tags -->
-    <meta name="msapplication-TileColor" content="#00a4dc" />
+    <meta name="msapplication-TileColor" content="#1db954" />
     <meta name="msapplication-TileImage" content="/icon-192.png" />
 
     <!-- Runtime configuration (loaded asynchronously by config.js) -->
