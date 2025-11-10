@@ -6,10 +6,10 @@
 import { DEFAULT_CLIENT_NAME, DEFAULT_DEVICE_NAME, STORAGE_KEYS } from './constants.js';
 
 export interface EnvironmentConfig {
-  jellyfinServerUrl?: string;
-  jellyfinClientName?: string;
-  jellyfinDeviceName?: string;
-  jellyfinDeviceId?: string;
+  yaytsaServerUrl?: string;
+  yaytsaClientName?: string;
+  yaytsaDeviceName?: string;
+  yaytsaDeviceId?: string;
 }
 
 /**
@@ -17,7 +17,7 @@ export interface EnvironmentConfig {
  */
 declare global {
   interface Window {
-    __JELLYFIN_CONFIG__?: {
+    __YAYTSA_CONFIG__?: {
       serverUrl?: string;
       clientName?: string;
       deviceName?: string;
@@ -29,7 +29,7 @@ declare global {
 /**
  * Load configuration from environment variables
  * Works in both Node.js and browser environments
- * Priority: Runtime config (window.__JELLYFIN_CONFIG__) > Vite env > Node env
+ * Priority: Runtime config (window.__YAYTSA_CONFIG__) > Vite env > Node env
  */
 export function loadEnvironmentConfig(): EnvironmentConfig {
   // Check if we're in Node.js environment
@@ -39,8 +39,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   const hasImportMetaEnv = typeof import.meta?.env !== 'undefined';
 
   // Check for runtime config (injected by Docker entrypoint)
-  const hasRuntimeConfig =
-    typeof window !== 'undefined' && window.__JELLYFIN_CONFIG__ !== undefined;
+  const hasRuntimeConfig = typeof window !== 'undefined' && window.__YAYTSA_CONFIG__ !== undefined;
 
   let env: Record<string, string | undefined>;
 
@@ -56,41 +55,41 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   }
 
   // Runtime config takes precedence over build-time config
-  const runtimeConfig = hasRuntimeConfig ? window.__JELLYFIN_CONFIG__ : undefined;
+  const runtimeConfig = hasRuntimeConfig ? window.__YAYTSA_CONFIG__ : undefined;
 
   return {
-    jellyfinServerUrl:
-      runtimeConfig?.serverUrl || env.VITE_JELLYFIN_SERVER_URL || env.JELLYFIN_SERVER_URL,
-    jellyfinClientName:
+    yaytsaServerUrl:
+      runtimeConfig?.serverUrl || env.VITE_YAYTSA_SERVER_URL || env.YAYTSA_SERVER_URL,
+    yaytsaClientName:
       runtimeConfig?.clientName ||
-      env.VITE_JELLYFIN_CLIENT_NAME ||
-      env.JELLYFIN_CLIENT_NAME ||
+      env.VITE_YAYTSA_CLIENT_NAME ||
+      env.YAYTSA_CLIENT_NAME ||
       DEFAULT_CLIENT_NAME,
-    jellyfinDeviceName:
+    yaytsaDeviceName:
       runtimeConfig?.deviceName ||
-      env.VITE_JELLYFIN_DEVICE_NAME ||
-      env.JELLYFIN_DEVICE_NAME ||
+      env.VITE_YAYTSA_DEVICE_NAME ||
+      env.YAYTSA_DEVICE_NAME ||
       DEFAULT_DEVICE_NAME,
-    jellyfinDeviceId: env.JELLYFIN_DEVICE_ID,
+    yaytsaDeviceId: env.YAYTSA_DEVICE_ID,
   };
 }
 
 /**
  * Get environment config with validation
  */
-export function getRequiredConfig(): Required<Omit<EnvironmentConfig, 'jellyfinDeviceId'>> {
+export function getRequiredConfig(): Required<Omit<EnvironmentConfig, 'yaytsaDeviceId'>> {
   const config = loadEnvironmentConfig();
 
-  if (!config.jellyfinServerUrl) {
+  if (!config.yaytsaServerUrl) {
     throw new Error(
-      'JELLYFIN_SERVER_URL is required. Please set it in .env file or environment variables.'
+      'YAYTSA_SERVER_URL is required. Please set it in .env file or environment variables.'
     );
   }
 
   return {
-    jellyfinServerUrl: config.jellyfinServerUrl,
-    jellyfinClientName: config.jellyfinClientName!,
-    jellyfinDeviceName: config.jellyfinDeviceName!,
+    yaytsaServerUrl: config.yaytsaServerUrl,
+    yaytsaClientName: config.yaytsaClientName!,
+    yaytsaDeviceName: config.yaytsaDeviceName!,
   };
 }
 
@@ -103,8 +102,8 @@ export function getOrCreateDeviceId(): string {
   const config = loadEnvironmentConfig();
 
   // If device ID is set in env, use it
-  if (config.jellyfinDeviceId) {
-    return config.jellyfinDeviceId;
+  if (config.yaytsaDeviceId) {
+    return config.yaytsaDeviceId;
   }
 
   // In browser: try localStorage

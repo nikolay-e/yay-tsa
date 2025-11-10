@@ -7,10 +7,10 @@ type AuthFixtures = {
 
 export const test = base.extend<AuthFixtures>({
   authenticatedPage: async ({ page }, use) => {
-    // Server URL is now configured via environment variables (JELLYFIN_SERVER_URL)
+    // Server URL is now configured via environment variables (YAYTSA_SERVER_URL)
     // and loaded from config.json at runtime, not entered by user
-    const username = process.env.JELLYFIN_TEST_USERNAME || 'test-user';
-    const password = process.env.JELLYFIN_TEST_PASSWORD || 'test-password';
+    const username = process.env.YAYTSA_TEST_USERNAME || 'test-user';
+    const password = process.env.YAYTSA_TEST_PASSWORD || 'test-password';
 
     await page.goto('/login');
 

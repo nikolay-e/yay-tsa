@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-  <title>Login - Jellyfin Mini Player</title>
+  <title>Login - Yaytsa</title>
 </svelte:head>
 
 <LoginForm />

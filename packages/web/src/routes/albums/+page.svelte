@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-  <title>Albums - Jellyfin Mini Player</title>
+  <title>Albums - Yaytsa</title>
 </svelte:head>
 
 <div class="albums-page">

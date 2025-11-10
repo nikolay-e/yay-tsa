@@ -19,7 +19,7 @@
 </script>
 
 <svelte:head>
-  <title>Search - Jellyfin Mini Player</title>
+  <title>Search - Yaytsa</title>
 </svelte:head>
 
 <div class="search-page">

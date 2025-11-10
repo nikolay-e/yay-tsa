@@ -61,7 +61,7 @@
 </script>
 
 <svelte:head>
-  <title>{album?.Name || 'Album'} - Jellyfin Mini Player</title>
+  <title>{album?.Name || 'Album'} - Yaytsa</title>
 </svelte:head>
 
 <div class="album-detail">

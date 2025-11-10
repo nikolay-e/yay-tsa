@@ -18,17 +18,17 @@ export interface TestConfig {
  * Fails fast if credentials are missing
  */
 export function loadTestConfig(): TestConfig {
-  const serverUrl = process.env.JELLYFIN_SERVER_URL;
-  const username = process.env.JELLYFIN_TEST_USERNAME;
-  const password = process.env.JELLYFIN_TEST_PASSWORD;
+  const serverUrl = process.env.YAYTSA_SERVER_URL;
+  const username = process.env.YAYTSA_TEST_USERNAME;
+  const password = process.env.YAYTSA_TEST_PASSWORD;
 
   if (!serverUrl) {
-    throw new Error('JELLYFIN_SERVER_URL is required for E2E tests. Please set it in .env file.');
+    throw new Error('YAYTSA_SERVER_URL is required for E2E tests. Please set it in .env file.');
   }
 
   if (!username || !password) {
     throw new Error(
-      'JELLYFIN_TEST_USERNAME and JELLYFIN_TEST_PASSWORD are required for E2E tests. Please set them in .env file.'
+      'YAYTSA_TEST_USERNAME and YAYTSA_TEST_PASSWORD are required for E2E tests. Please set them in .env file.'
     );
   }
 
@@ -84,12 +84,10 @@ export function createScenario(fixtures: TestFixtures): ScenarioContext {
  * Skip tests if credentials are not configured
  */
 export function skipIfNoCredentials(): void {
-  const hasCredentials = process.env.JELLYFIN_TEST_USERNAME && process.env.JELLYFIN_TEST_PASSWORD;
+  const hasCredentials = process.env.YAYTSA_TEST_USERNAME && process.env.YAYTSA_TEST_PASSWORD;
 
   if (!hasCredentials) {
-    console.warn(
-      '⚠️  Skipping E2E tests - JELLYFIN_TEST_USERNAME and JELLYFIN_TEST_PASSWORD not set'
-    );
+    console.warn('⚠️  Skipping E2E tests - YAYTSA_TEST_USERNAME and YAYTSA_TEST_PASSWORD not set');
   }
 }
 

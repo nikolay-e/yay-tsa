@@ -17,7 +17,7 @@
 
     // Check if server URL is configured
     if (!serverUrl) {
-      error = 'Server URL is not configured. Please set JELLYFIN_SERVER_URL environment variable.';
+      error = 'Server URL is not configured. Please set YAYTSA_SERVER_URL environment variable.';
       return;
     }
 
@@ -36,7 +36,7 @@
 
 <div class="login-form">
   <div class="form-header">
-    <h1>Jellyfin Mini Player</h1>
+    <h1>Yaytsa</h1>
     <p>Sign in to start listening</p>
   </div>
 

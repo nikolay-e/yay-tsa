@@ -19,9 +19,9 @@ const getAppConfig = (): AppConfig => {
   const coreConfig: EnvironmentConfig = loadEnvironmentConfig();
 
   return {
-    serverUrl: coreConfig.jellyfinServerUrl,
-    clientName: coreConfig.jellyfinClientName || DEFAULT_CLIENT_NAME,
-    deviceName: coreConfig.jellyfinDeviceName || DEFAULT_DEVICE_NAME,
+    serverUrl: coreConfig.yaytsaServerUrl,
+    clientName: coreConfig.yaytsaClientName || DEFAULT_CLIENT_NAME,
+    deviceName: coreConfig.yaytsaDeviceName || DEFAULT_DEVICE_NAME,
   };
 };
 

@@ -101,9 +101,9 @@ jobs:
       - name: Run E2E tests
         working-directory: packages/core
         env:
-          JELLYFIN_SERVER_URL: ${{ secrets.JELLYFIN_SERVER_URL }}
-          JELLYFIN_TEST_USERNAME: ${{ secrets.JELLYFIN_TEST_USERNAME }}
-          JELLYFIN_TEST_PASSWORD: ${{ secrets.JELLYFIN_TEST_PASSWORD }}
+          YAYTSA_SERVER_URL: ${{ secrets.YAYTSA_SERVER_URL }}
+          YAYTSA_TEST_USERNAME: ${{ secrets.YAYTSA_TEST_USERNAME }}
+          YAYTSA_TEST_PASSWORD: ${{ secrets.YAYTSA_TEST_PASSWORD }}
         run: npm run test:e2e -- --no-file-parallelism --pool=forks
 
   docker-build:

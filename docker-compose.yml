@@ -6,9 +6,9 @@ services:
       dockerfile: Dockerfile
       target: development
     environment:
-      - VITE_JELLYFIN_SERVER_URL=${JELLYFIN_SERVER_URL}
-      - VITE_JELLYFIN_CLIENT_NAME=${JELLYFIN_CLIENT_NAME:-Jellyfin Mini Client}
-      - VITE_JELLYFIN_DEVICE_NAME=${JELLYFIN_DEVICE_NAME:-Docker Dev}
+      - VITE_YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      - VITE_YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
+      - VITE_YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Dev}
     ports:
       - '5173:5173'
     volumes:
@@ -36,9 +36,9 @@ services:
       dockerfile: Dockerfile
       target: production
     environment:
-      - JELLYFIN_SERVER_URL=${JELLYFIN_SERVER_URL}
-      - JELLYFIN_CLIENT_NAME=${JELLYFIN_CLIENT_NAME:-Jellyfin Mini Client}
-      - JELLYFIN_DEVICE_NAME=${JELLYFIN_DEVICE_NAME:-Docker Web}
+      - YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      - YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
+      - YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Web}
     ports:
       - '8080:80'
     profiles:

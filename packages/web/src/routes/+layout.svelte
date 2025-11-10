@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { auth, isAuthenticated } from '../lib/stores/auth.js';
@@ -11,8 +11,6 @@
   import '../app.css';
 
   let loading = true;
-  let swRegistration: ServiceWorkerRegistration | null = null;
-  let swUpdateHandler: (() => void) | null = null;
 
   onMount(async () => {
     // Initialize cache manager
@@ -23,33 +21,6 @@
       logger.error('[Cache] Failed to initialize cache manager:', error);
     }
 
-    // Register service worker for PWA functionality
-    if ('serviceWorker' in navigator) {
-      try {
-        swRegistration = await navigator.serviceWorker.register('/service-worker.js');
-        logger.info('[PWA] Service worker registered:', swRegistration.scope);
-
-        // Check for updates on page load
-        swRegistration.update();
-
-        // Listen for updates
-        swUpdateHandler = () => {
-          const newWorker = swRegistration?.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New version available - could show update notification
-                logger.info('[PWA] New version available');
-              }
-            });
-          }
-        };
-        swRegistration.addEventListener('updatefound', swUpdateHandler);
-      } catch (error) {
-        logger.error('[PWA] Service worker registration failed:', error);
-      }
-    }
-
     // Try to restore session from sessionStorage or localStorage
     const restored = await auth.restoreSession();
 
@@ -58,13 +29,6 @@
     // Redirect to login if not authenticated and not already on login page
     if (!restored && $page.url.pathname !== '/login') {
       goto('/login');
-    }
-  });
-
-  onDestroy(() => {
-    // Remove service worker update listener to prevent memory leaks during HMR
-    if (swRegistration && swUpdateHandler) {
-      swRegistration.removeEventListener('updatefound', swUpdateHandler);
     }
   });
 
@@ -100,7 +64,7 @@
           <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
           </svg>
-          <span>Jellyfin Mini</span>
+          <span>Yaytsa</span>
         </div>
 
         <ul class="nav-links">

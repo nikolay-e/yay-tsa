@@ -1,6 +1,6 @@
 {
-  "name": "Jellyfin Mini Client",
-  "short_name": "Jellyfin",
+  "name": "Yaytsa",
+  "short_name": "Yaytsa",
   "description": "A minimal music player for Jellyfin",
   "start_url": "/",
   "display": "standalone",

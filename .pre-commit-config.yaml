@@ -166,7 +166,7 @@ repos:
       # [CHECK] Validate .env.example has server URL variable
       - id: env-example-check
         name: 'Validate .env.example completeness'
-        entry: bash -c 'grep -qE "^\s*JELLYFIN_SERVER_URL=" .env.example'
+        entry: bash -c 'grep -qE "^\s*YAYTSA_SERVER_URL=" .env.example'
         language: system
         files: ^\.env\.example$
         pass_filenames: false

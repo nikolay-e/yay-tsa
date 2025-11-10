@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-  <title>Home - Jellyfin Mini Player</title>
+  <title>Home - Yaytsa</title>
 </svelte:head>
 
 <div class="home">

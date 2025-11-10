@@ -177,16 +177,8 @@ async function logout(): Promise<void> {
     logger.error('[Cache] Failed to clear cache on logout:', error);
   }
 
-  // SECURITY: Clear service worker cache on logout to prevent data leakage
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    try {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CLEAR_CACHE',
-      });
-    } catch (error) {
-      logger.error('Failed to clear service worker cache:', error);
-    }
-  }
+  // Note: Service worker cache cleanup handled automatically by Workbox
+  // cleanupOutdatedCaches removes old caches on SW update
 
   authStore.set(initialState);
 }

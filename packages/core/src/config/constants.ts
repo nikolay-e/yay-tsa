@@ -6,22 +6,22 @@
  * Application metadata
  */
 export const APP_VERSION = '0.1.0';
-export const DEFAULT_CLIENT_NAME = 'Jellyfin Mini Client';
+export const DEFAULT_CLIENT_NAME = 'Yaytsa';
 export const DEFAULT_DEVICE_NAME = 'Web Browser';
 
 /**
  * Storage keys for browser storage
  */
 export const STORAGE_KEYS = {
-  DEVICE_ID: 'jellyfin_device_id',
-  SESSION: 'jf_session',
-  USER_ID: 'jf_user_id',
-  SERVER_URL: 'jf_server_url',
+  DEVICE_ID: 'yaytsa_device_id',
+  SESSION: 'yaytsa_session',
+  USER_ID: 'yaytsa_user_id',
+  SERVER_URL: 'yaytsa_server_url',
   // Persistent storage keys (localStorage) - used when "Remember Me" is enabled
-  SESSION_PERSISTENT: 'jf_session_persistent',
-  USER_ID_PERSISTENT: 'jf_user_id_persistent',
-  SERVER_URL_PERSISTENT: 'jf_server_url_persistent',
-  REMEMBER_ME: 'jf_remember_me', // Flag to indicate if "Remember Me" was selected
+  SESSION_PERSISTENT: 'yaytsa_session_persistent',
+  USER_ID_PERSISTENT: 'yaytsa_user_id_persistent',
+  SERVER_URL_PERSISTENT: 'yaytsa_server_url_persistent',
+  REMEMBER_ME: 'yaytsa_remember_me', // Flag to indicate if "Remember Me" was selected
 } as const;
 
 /**

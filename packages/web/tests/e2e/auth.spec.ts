@@ -4,9 +4,9 @@ import { LoginPage } from './pages/LoginPage';
 test.describe('Authentication Flow', () => {
   let loginPage: LoginPage;
 
-  const serverUrl = process.env.JELLYFIN_SERVER_URL || 'http://localhost:8096';
-  const username = process.env.JELLYFIN_TEST_USERNAME || 'test-user';
-  const password = process.env.JELLYFIN_TEST_PASSWORD || 'test-password';
+  const serverUrl = process.env.YAYTSA_SERVER_URL || 'http://localhost:8096';
+  const username = process.env.YAYTSA_TEST_USERNAME || 'test-user';
+  const password = process.env.YAYTSA_TEST_PASSWORD || 'test-password';
 
   test.beforeEach(async ({ page }) => {
     loginPage = new LoginPage(page);
