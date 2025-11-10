@@ -170,30 +170,9 @@ export class ImageCache {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
 
-    // Validate Content-Length if available
-    const contentLength = response.headers.get('Content-Length');
-    const expectedSize = contentLength ? parseInt(contentLength, 10) : null;
-
     const blob = await response.blob();
 
-    // CRITICAL: Validate blob before caching to prevent broken images
-    if (blob.size === 0) {
-      throw new Error('Received empty image blob');
-    }
-
-    // Verify blob size matches Content-Length (if header present)
-    if (expectedSize !== null && blob.size !== expectedSize) {
-      throw new Error(
-        `Image download incomplete: expected ${expectedSize} bytes, got ${blob.size} bytes`
-      );
-    }
-
-    // Verify blob is actually an image (MIME type check)
-    if (!blob.type.startsWith('image/')) {
-      throw new Error(`Invalid image MIME type: ${blob.type || 'unknown'}`);
-    }
-
-    // Store in cache (only if validation passed)
+    // Store in cache
     await this.set(itemId, imageType, size, blob);
 
     // Create and return object URL
