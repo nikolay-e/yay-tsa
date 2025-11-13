@@ -29,6 +29,12 @@ interface PlayerState {
   error: string | null;
 }
 
+interface PlayerTimingState {
+  currentTime: number;
+  duration: number;
+  buffered: number;
+}
+
 // Initialize core components
 const queue = new PlaybackQueue();
 // Audio engine and media session are only available in browser
@@ -45,6 +51,35 @@ let lastUIUpdate = 0; // Timestamp of last UI store update
 let lastMediaSessionUpdate = 0; // Timestamp of last MediaSession update
 const UI_UPDATE_INTERVAL_MS = 250; // 4 times/sec instead of 60+ (performance)
 const MEDIA_SESSION_UPDATE_INTERVAL_MS = 1000; // 1 time/sec for lock screen
+
+// Separate high-frequency timing store (RAF-throttled for performance)
+const playerTimingStore = writable<PlayerTimingState>({
+  currentTime: 0,
+  duration: 0,
+  buffered: 0,
+});
+
+// RAF throttle for smooth UI updates (max 60fps)
+let rafId: number | null = null;
+let pendingTimingUpdate: PlayerTimingState | null = null;
+
+function updateTiming(time: number, duration: number) {
+  pendingTimingUpdate = {
+    currentTime: time,
+    duration,
+    buffered: 0,
+  };
+
+  if (rafId === null) {
+    rafId = requestAnimationFrame(() => {
+      if (pendingTimingUpdate) {
+        playerTimingStore.set(pendingTimingUpdate);
+        pendingTimingUpdate = null;
+      }
+      rafId = null;
+    });
+  }
+}
 
 // Initialize audio engine and media session in browser only
 if (browser) {
@@ -96,19 +131,21 @@ client.subscribe($client => {
 if (audioEngine) {
   audioEngine.setVolume(0.7);
 
-  // Time update handler (throttled for performance)
+  // Time update handler (RAF-throttled for smooth performance)
   audioEngine.onTimeUpdate(time => {
     // Always update PlaybackState time (needed for accurate server reporting every 10s)
     if (playbackState) {
       playbackState.setCurrentTime(time);
     }
 
-    // Throttle UI updates to reduce re-renders (4 times/sec instead of 60+)
+    // RAF-throttled UI updates (max 60fps, but typically 10-30fps depending on browser)
+    updateTiming(time, cachedDuration);
+
+    // Also update main store (throttled) for backwards compatibility
     const now = Date.now();
     if (now - lastUIUpdate >= UI_UPDATE_INTERVAL_MS) {
       lastUIUpdate = now;
 
-      // Update store with cached duration (avoid DOM reads in hot path)
       playerStore.update((state: PlayerState) => ({
         ...state,
         currentTime: time,
@@ -264,6 +301,14 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
+    const errorMessage = (error as Error).message;
+
+    // Ignore "Load cancelled" errors - these are expected during rapid track switching
+    if (errorMessage.includes('Load cancelled')) {
+      logger.debug('Track load cancelled (user switched tracks)');
+      return; // Silent cancellation - do not throw or update error state
+    }
+
     // Only update error state if operation is still current
     if (currentLoadOperation === operationId) {
       logger.error('Play error:', error);
@@ -271,7 +316,7 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
         ...s,
         isPlaying: false,
         isLoading: false,
-        error: (error as Error).message,
+        error: errorMessage,
       }));
     }
     throw error;
@@ -552,8 +597,11 @@ function removeFromQueue(index: number): void {
 
 // Derived stores
 export const currentTrack = derived(playerStore, $player => $player.currentTrack);
-export const currentTime = derived(playerStore, $player => $player.currentTime);
-export const duration = derived(playerStore, $player => $player.duration);
+
+// High-frequency timing stores (RAF-throttled, independent from playerStore)
+export const currentTime = derived(playerTimingStore, $timing => $timing.currentTime);
+export const duration = derived(playerTimingStore, $timing => $timing.duration);
+
 export const volume = derived(playerStore, $player => $player.volume);
 export const isPlaying = derived(playerStore, $player => $player.isPlaying);
 export const isLoading = derived(playerStore, $player => $player.isLoading);

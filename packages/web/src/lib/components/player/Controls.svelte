@@ -2,9 +2,22 @@
   import { player, isPlaying, isShuffle, repeatMode } from '../../stores/player.js';
   import { hapticPlayPause, hapticSkip, hapticSelect } from '../../utils/haptics.js';
 
-  function handlePlayPause() {
+  // Debouncing flag to prevent double-clicks (INP optimization)
+  let isTogglingPlayPause = false;
+
+  async function handlePlayPause() {
+    if (isTogglingPlayPause) return;
+
     hapticPlayPause();
-    player.togglePlayPause();
+    isTogglingPlayPause = true;
+
+    try {
+      await player.togglePlayPause();
+    } catch (error) {
+      console.error('Toggle play/pause error:', error);
+    } finally {
+      isTogglingPlayPause = false;
+    }
   }
 
   function handlePrevious() {

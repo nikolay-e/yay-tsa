@@ -4,5 +4,5 @@ window.__YAYTSA_CONFIG__ = {
   serverUrl: '',
   clientName: 'Yaytsa',
   deviceName: 'Web Browser',
-  version: '0.1.0',
+  version: '0.2.0',
 };

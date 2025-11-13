@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
+import { visualizer } from 'rollup-plugin-visualizer';
 import fs from 'fs';
 import path from 'path';
 
@@ -12,6 +13,12 @@ const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);
 export default defineConfig({
   plugins: [
     sveltekit(),
+    visualizer({
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+      filename: 'dist/stats.html',
+    }),
     SvelteKitPWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
@@ -23,14 +30,39 @@ export default defineConfig({
               url.pathname.includes('/Items/') && url.pathname.includes('/Images/'),
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'yaytsa-images-v1',
+              cacheName: 'yaytsa-images-v2',
               expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 7 * 24 * 60 * 60,
+                maxEntries: 500,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
+            },
+          },
+          {
+            urlPattern: ({ url }) =>
+              url.pathname.includes('/Audio/') && url.pathname.includes('/stream'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'yaytsa-audio-v2',
+              plugins: [
+                {
+                  cacheKeyWillBeUsed: async ({ request }) => {
+                    const url = new URL(request.url);
+                    return url.origin + url.pathname;
+                  },
+                },
+              ],
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+                purgeOnQuotaError: true,
+              },
+              cacheableResponse: {
+                statuses: [200, 206],
+              },
+              rangeRequests: true,
             },
           },
         ],
@@ -68,6 +100,34 @@ export default defineConfig({
       compress: {
         drop_console: ['log', 'debug'],
         drop_debugger: true,
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            const modulePath = id.split('node_modules/')[1];
+            const packageName = modulePath.split('/')[0];
+
+            if (packageName === 'lucide-svelte') {
+              return 'vendor-icons';
+            }
+
+            if (['svelte', '@sveltejs'].some((pkg) => packageName.startsWith(pkg))) {
+              return 'vendor-svelte';
+            }
+
+            return 'vendor-utils';
+          }
+
+          if (id.includes('@yaytsa/core')) {
+            return 'vendor-core';
+          }
+
+          if (id.includes('@yaytsa/platform')) {
+            return 'vendor-platform';
+          }
+        },
       },
     },
   },

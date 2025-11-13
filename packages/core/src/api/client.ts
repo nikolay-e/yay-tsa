@@ -468,6 +468,7 @@ export class JellyfinClient {
       maxWidth?: number;
       maxHeight?: number;
       quality?: number;
+      format?: 'webp' | 'jpg' | 'png';
     }
   ): string {
     const params = new URLSearchParams();
@@ -478,7 +479,12 @@ export class JellyfinClient {
     if (options?.tag) params.append('tag', options.tag);
     if (options?.maxWidth) params.append('maxWidth', String(options.maxWidth));
     if (options?.maxHeight) params.append('maxHeight', String(options.maxHeight));
-    if (options?.quality) params.append('quality', String(options.quality));
+
+    // Default quality 85 for good balance (WebP quality ~7 points higher than JPEG)
+    params.append('quality', String(options?.quality ?? 85));
+
+    // Default to WebP format (30-40% smaller than JPEG with same quality)
+    params.append('format', options?.format ?? 'webp');
 
     const queryString = params.toString();
     const query = queryString ? `?${queryString}` : '';

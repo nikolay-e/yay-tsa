@@ -21,8 +21,12 @@ export class HTML5AudioEngine implements AudioEngine {
     this._isPlaying = false;
   };
 
+  // Promise chain for serializing operations (prevents race conditions)
+  private playPromiseChain: Promise<void> = Promise.resolve();
+
   // Track current load operation for cancellation (memory leak prevention)
   private currentLoadReject: ((error: Error) => void) | null = null;
+  private loadCancelled: boolean = false;
 
   constructor() {
     this.audio = new Audio();
@@ -57,28 +61,35 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   async load(url: string): Promise<void> {
-    // Cancel previous load operation to prevent memory leak
+    // Cancel previous load operation (silent cancellation)
     if (this.currentLoadReject) {
+      this.loadCancelled = true;
       this.currentLoadReject(new Error('Load cancelled - new track requested'));
       this.currentLoadReject = null;
     }
 
     return new Promise((resolve, reject) => {
-      // Store reject function for cancellation
+      // Reset cancellation flag for new load
+      this.loadCancelled = false;
       this.currentLoadReject = reject;
 
-      // Set up one-time listeners
       const handleCanPlay = () => {
+        // Skip if already cancelled
+        if (this.loadCancelled) return;
+
         this.audio.removeEventListener('canplay', handleCanPlay);
         this.audio.removeEventListener('error', handleError);
-        this.currentLoadReject = null; // Clear on success
+        this.currentLoadReject = null;
         resolve();
       };
 
       const handleError = () => {
+        // Skip if already cancelled
+        if (this.loadCancelled) return;
+
         this.audio.removeEventListener('canplay', handleCanPlay);
         this.audio.removeEventListener('error', handleError);
-        this.currentLoadReject = null; // Clear on error
+        this.currentLoadReject = null;
         const mediaError = this.audio.error;
         const error = mediaError
           ? new Error(`Failed to load audio: ${mediaError.message || 'Unknown error'}`)
@@ -89,27 +100,50 @@ export class HTML5AudioEngine implements AudioEngine {
       this.audio.addEventListener('canplay', handleCanPlay, { once: true });
       this.audio.addEventListener('error', handleError, { once: true });
 
-      // Load the URL
       this.audio.src = url;
       this.audio.load();
     });
   }
 
   async play(): Promise<void> {
-    try {
-      // Resume Audio Context if suspended (iOS requirement for background playback)
-      if (this.audioContext?.state === 'suspended') {
-        await this.audioContext.resume();
-      }
+    // Serialize play operations through Promise chain
+    this.playPromiseChain = this.playPromiseChain
+      .then(async () => {
+        try {
+          // Resume Audio Context if suspended (iOS requirement for background playback)
+          if (this.audioContext?.state === 'suspended') {
+            await this.audioContext.resume();
+          }
 
-      await this.audio.play();
-    } catch (error) {
-      throw new Error(`Failed to play audio: ${(error as Error).message}`);
-    }
+          await this.audio.play();
+        } catch (error) {
+          // Distinguish AbortError from real errors
+          const err = error as Error;
+          if (err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
+            throw new Error(`Failed to play audio: ${err.message}`);
+          }
+          // AbortError and NotAllowedError are expected - don't throw
+        }
+      })
+      .catch((error) => {
+        // Catch to prevent unhandled rejection, but don't rethrow
+        if ((error as Error).name !== 'AbortError') {
+          console.warn('Play failed:', error);
+        }
+      });
+
+    return this.playPromiseChain;
   }
 
   pause(): void {
-    this.audio.pause();
+    // Serialize pause operations too
+    this.playPromiseChain = this.playPromiseChain
+      .then(() => {
+        this.audio.pause();
+      })
+      .catch(() => {
+        // Silent catch
+      });
   }
 
   seek(seconds: number): void {
