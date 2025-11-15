@@ -10,6 +10,10 @@
   import { logger } from '../lib/utils/logger.js';
   import '../app.css';
 
+  // SvelteKit page props (suppress warnings)
+  export let data = {};
+  export let params = {};
+
   let loading = true;
 
   onMount(async () => {
@@ -43,11 +47,11 @@
   }
 
   $: showPlayerBar = $currentTrack !== null;
-  // Content padding must account for bottom tabs + gap + player bar + safe area
-  // Bottom tabs: 56px, Gap: 8px, Player bar: 90px (when active), Safe area: dynamic
+  // Content padding must account for bottom tabs + player bar + safe area
+  // Bottom tabs: 52px, Player bar: 64px (min-height, when active), Safe area: dynamic
   $: contentPadding = showPlayerBar
-    ? 'calc(56px + 8px + 90px + var(--safe-area-inset-bottom))' // tabs + gap + player + safe area
-    : 'calc(56px + var(--safe-area-inset-bottom))'; // tabs + safe area only
+    ? 'calc(52px + 64px + var(--safe-area-inset-bottom))' // tabs + player + safe area
+    : 'calc(52px + var(--safe-area-inset-bottom))'; // tabs + safe area only
 </script>
 
 {#if loading}

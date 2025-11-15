@@ -1,5 +1,6 @@
 import type { Page, Locator } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { LIBRARY_TEST_IDS, PLAYER_TEST_IDS } from '../../../src/lib/test-ids';
 
 export class AlbumPage {
   readonly page: Page;
@@ -12,12 +13,12 @@ export class AlbumPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.albumTitle = page.locator('[data-testid="album-title"]');
-    this.playButton = page.locator('[data-testid="play-button"]');
-    this.shuffleButton = page.locator('[data-testid="shuffle-button"]');
-    this.favoriteButton = page.locator('[data-testid="favorite-button"]');
-    this.trackRows = page.locator('[data-testid="track-row"]');
-    this.backButton = page.locator('[data-testid="back-button"]');
+    this.albumTitle = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_DETAIL_TITLE);
+    this.playButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_PLAY_BUTTON);
+    this.shuffleButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_SHUFFLE_BUTTON);
+    this.favoriteButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_FAVORITE_BUTTON);
+    this.trackRows = page.getByTestId(LIBRARY_TEST_IDS.TRACK_ROW);
+    this.backButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_BACK_BUTTON);
   }
 
   async waitForAlbumToLoad(): Promise<void> {
@@ -47,7 +48,7 @@ export class AlbumPage {
   async getTrackTitle(index: number): Promise<string> {
     const titleElement = await this.trackRows
       .nth(index)
-      .locator('[data-testid="track-title"]')
+      .getByTestId(LIBRARY_TEST_IDS.TRACK_TITLE)
       .textContent();
     return titleElement || '';
   }
@@ -71,6 +72,6 @@ export class AlbumPage {
   }
 
   private async waitForPlayerToAppear(): Promise<void> {
-    await expect(this.page.locator('[data-testid="player-bar"]')).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByTestId(PLAYER_TEST_IDS.PLAYER_BAR)).toBeVisible({ timeout: 10000 });
   }
 }

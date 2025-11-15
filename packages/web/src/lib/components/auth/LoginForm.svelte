@@ -61,8 +61,8 @@
       required
     />
 
-    <label class="remember-me">
-      <input type="checkbox" bind:checked={rememberMe} />
+    <label class="remember-me" for="remember-me">
+      <input id="remember-me" name="rememberMe" type="checkbox" bind:checked={rememberMe} />
       <span>Remember me (keep me signed in)</span>
     </label>
 

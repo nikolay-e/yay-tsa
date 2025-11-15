@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { currentTrack, currentTime, duration, player } from '../../stores/player.js';
+  import { currentTrack, player } from '../../stores/player.js';
+  import { currentTime, duration } from '../../stores/player.js';
   import { getAlbumArtUrl } from '../../utils/image.js';
   import SeekBar from './SeekBar.svelte';
   import Controls from './Controls.svelte';
+  import { PLAYER_TEST_IDS } from '$lib/test-ids';
 
   function handleSeek(event: CustomEvent<number> | Event) {
     // Handle both CustomEvent from Svelte dispatcher and regular Events
@@ -14,7 +16,7 @@
 </script>
 
 {#if $currentTrack}
-  <div class="player-bar">
+  <div class="player-bar" data-testid="player-bar">
     <div class="player-content">
       <!-- Now Playing Info -->
       <div class="now-playing">
@@ -33,8 +35,8 @@
         {/if}
 
         <div class="track-info">
-          <div class="track-name">{$currentTrack.Name}</div>
-          <div class="track-artist">
+          <div class="track-name" data-testid={PLAYER_TEST_IDS.CURRENT_TRACK_TITLE}>{$currentTrack.Name}</div>
+          <div class="track-artist" data-testid={PLAYER_TEST_IDS.CURRENT_TRACK_ARTIST}>
             {$currentTrack.Artists?.join(', ') || 'Unknown Artist'}
           </div>
         </div>
@@ -44,8 +46,8 @@
       <div class="controls-section">
         <Controls />
         <SeekBar
-          currentTime={$currentTime}
-          duration={$duration}
+          {currentTime}
+          {duration}
           on:seek={handleSeek}
         />
       </div>
@@ -64,7 +66,8 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 90px;
+    height: auto;
+    min-height: 72px;
     background-color: var(--color-bg-secondary);
     border-top: 1px solid var(--color-border);
     z-index: 100;
@@ -151,18 +154,23 @@
   @media (max-width: 768px) {
     .player-bar {
       height: auto;
-      min-height: 90px;
-      /* Position above bottom tab bar with gap (56px tabs + 8px gap + safe area) */
-      bottom: calc(56px + 8px + var(--safe-area-inset-bottom));
+      min-height: 64px;
+      /* Position flush above bottom tab bar (52px tabs + safe area) */
+      bottom: calc(52px + var(--safe-area-inset-bottom));
       /* Keep internal padding for content spacing */
       padding-bottom: var(--spacing-sm);
+    }
+
+    .album-art {
+      width: 48px;
+      height: 48px;
     }
 
     .player-content {
       grid-template-columns: 1fr;
       grid-template-rows: auto auto;
-      padding: var(--spacing-md);
-      gap: var(--spacing-md);
+      padding: var(--spacing-sm);
+      gap: var(--spacing-sm);
     }
 
     .extra-controls {

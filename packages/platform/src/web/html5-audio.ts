@@ -73,13 +73,27 @@ export class HTML5AudioEngine implements AudioEngine {
       this.loadCancelled = false;
       this.currentLoadReject = reject;
 
-      const handleCanPlay = () => {
+      // Firefox race condition: metadata might already be loaded
+      if (this.audio.readyState >= HTMLMediaElement.HAVE_METADATA && this.audio.src === url) {
+        resolve();
+        return;
+      }
+
+      const handleLoadedMetadata = () => {
         // Skip if already cancelled
         if (this.loadCancelled) return;
 
-        this.audio.removeEventListener('canplay', handleCanPlay);
+        this.audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         this.audio.removeEventListener('error', handleError);
         this.currentLoadReject = null;
+
+        // Validate duration is available
+        const duration = this.audio.duration;
+        if (!Number.isFinite(duration)) {
+          reject(new Error('Invalid duration - metadata not fully loaded'));
+          return;
+        }
+
         resolve();
       };
 
@@ -87,7 +101,7 @@ export class HTML5AudioEngine implements AudioEngine {
         // Skip if already cancelled
         if (this.loadCancelled) return;
 
-        this.audio.removeEventListener('canplay', handleCanPlay);
+        this.audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         this.audio.removeEventListener('error', handleError);
         this.currentLoadReject = null;
         const mediaError = this.audio.error;
@@ -97,7 +111,7 @@ export class HTML5AudioEngine implements AudioEngine {
         reject(error);
       };
 
-      this.audio.addEventListener('canplay', handleCanPlay, { once: true });
+      this.audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
       this.audio.addEventListener('error', handleError, { once: true });
 
       this.audio.src = url;
@@ -125,7 +139,7 @@ export class HTML5AudioEngine implements AudioEngine {
           // AbortError and NotAllowedError are expected - don't throw
         }
       })
-      .catch((error) => {
+      .catch(error => {
         // Catch to prevent unhandled rejection, but don't rethrow
         if ((error as Error).name !== 'AbortError') {
           console.warn('Play failed:', error);
@@ -168,7 +182,12 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   getDuration(): number {
-    return this.audio.duration || 0;
+    const duration = this.audio.duration;
+    // Validate duration is a finite positive number
+    if (!Number.isFinite(duration) || duration < 0) {
+      return 0;
+    }
+    return duration;
   }
 
   getVolume(): number {

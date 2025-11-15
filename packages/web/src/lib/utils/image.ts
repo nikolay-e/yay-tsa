@@ -40,15 +40,19 @@ export function getImageUrl(
     return '';
   }
 
+  if (!itemId || itemId.trim() === '') {
+    return '';
+  }
+
   return cachedClient.getImageUrl(itemId, imageType, options);
 }
 
 /**
  * Get album art URL with preset size
  */
-export function getAlbumArtUrl(itemId: string, size: ImageSize = 'medium'): string {
+export function getAlbumArtUrl(itemId: string, size: ImageSize = 'medium', tag?: string): string {
   const dimensions = IMAGE_SIZE_DIMENSIONS[size];
-  return getImageUrl(itemId, 'Primary', dimensions);
+  return getImageUrl(itemId, 'Primary', { ...dimensions, tag });
 }
 
 /**

@@ -4,7 +4,6 @@ import { LoginPage } from './pages/LoginPage';
 test.describe('Authentication Flow', () => {
   let loginPage: LoginPage;
 
-  const serverUrl = process.env.YAYTSA_SERVER_URL || 'http://localhost:8096';
   const username = process.env.YAYTSA_TEST_USERNAME || 'test-user';
   const password = process.env.YAYTSA_TEST_PASSWORD || 'test-password';
 
@@ -15,7 +14,6 @@ test.describe('Authentication Flow', () => {
   test('should display login form', async () => {
     await loginPage.goto();
 
-    await expect(loginPage.serverUrlInput).toBeVisible();
     await expect(loginPage.usernameInput).toBeVisible();
     await expect(loginPage.passwordInput).toBeVisible();
     await expect(loginPage.loginButton).toBeVisible();
@@ -23,16 +21,16 @@ test.describe('Authentication Flow', () => {
 
   test('should successfully login with valid credentials', async () => {
     await loginPage.goto();
-    await loginPage.login(serverUrl, username, password);
+    await loginPage.login(username, password);
     await loginPage.waitForRedirectToHome();
 
     await expect(loginPage.page).toHaveURL('/');
-    await expect(loginPage.page.locator('text=Albums')).toBeVisible();
+    await expect(loginPage.page.getByRole('heading', { name: 'Recent Albums' })).toBeVisible();
   });
 
   test('should show error with invalid credentials', async ({ page }) => {
     await loginPage.goto();
-    await loginPage.login(serverUrl, 'invalid-user', 'wrong-password');
+    await loginPage.login('invalid-user', 'wrong-password');
 
     await expect(page).toHaveURL('/login');
   });
@@ -47,58 +45,43 @@ test.describe('Authentication Flow', () => {
 
   test('should logout successfully', async ({ page }) => {
     await loginPage.goto();
-    await loginPage.login(serverUrl, username, password);
+    await loginPage.login(username, password);
     await loginPage.waitForRedirectToHome();
 
-    const logoutButton = page.locator('[data-testid="logout-button"]');
-    if (await logoutButton.isVisible()) {
-      await logoutButton.click();
-      await expect(page).toHaveURL('/login');
-      await expect(loginPage.serverUrlInput).toBeVisible();
-    }
+    const logoutButton = page.getByRole('button', { name: 'Logout' }).first();
+    await logoutButton.click();
+    await expect(page).toHaveURL('/login');
+    await expect(loginPage.usernameInput).toBeVisible();
   });
 
   test('should persist session after page reload', async ({ page }) => {
     await loginPage.goto();
-    await loginPage.login(serverUrl, username, password);
+    await loginPage.login(username, password);
     await loginPage.waitForRedirectToHome();
 
     await page.reload();
 
     await expect(page).toHaveURL('/');
-    await expect(page.locator('text=Albums')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recent Albums' })).toBeVisible();
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
     await page.goto('/');
 
     await expect(page).toHaveURL('/login');
-    await expect(loginPage.serverUrlInput).toBeVisible();
-  });
-
-  test('should validate server URL format', async ({ page }) => {
-    await loginPage.goto();
-
-    await loginPage.serverUrlInput.fill('not-a-valid-url');
-    await loginPage.usernameInput.fill(username);
-    await loginPage.passwordInput.fill(password);
-    await loginPage.loginButton.click();
-
-    await expect(page).toHaveURL('/login');
+    await expect(loginPage.usernameInput).toBeVisible();
   });
 
   test('should clear form on logout', async ({ page }) => {
     await loginPage.goto();
-    await loginPage.login(serverUrl, username, password);
+    await loginPage.login(username, password);
     await loginPage.waitForRedirectToHome();
 
-    const logoutButton = page.locator('[data-testid="logout-button"]');
-    if (await logoutButton.isVisible()) {
-      await logoutButton.click();
-      await expect(page).toHaveURL('/login');
+    const logoutButton = page.getByRole('button', { name: 'Logout' }).first();
+    await logoutButton.click();
+    await expect(page).toHaveURL('/login');
 
-      await expect(loginPage.usernameInput).toHaveValue('');
-      await expect(loginPage.passwordInput).toHaveValue('');
-    }
+    await expect(loginPage.usernameInput).toHaveValue('');
+    await expect(loginPage.passwordInput).toHaveValue('');
   });
 });

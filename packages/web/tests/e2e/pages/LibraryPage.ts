@@ -1,19 +1,22 @@
 import type { Page, Locator } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { LIBRARY_TEST_IDS, NAVIGATION_TEST_IDS } from '../../../src/lib/test-ids';
 
 export class LibraryPage {
   readonly page: Page;
   readonly albumCards: Locator;
   readonly searchInput: Locator;
+  readonly navHomeTab: Locator;
   readonly navAlbumsTab: Locator;
   readonly navSearchTab: Locator;
 
   constructor(page: Page) {
     this.page = page;
-    this.albumCards = page.locator('[data-testid="album-card"]');
-    this.searchInput = page.locator('input[type="search"]');
-    this.navAlbumsTab = page.locator('[data-testid="nav-albums"]');
-    this.navSearchTab = page.locator('[data-testid="nav-search"]');
+    this.albumCards = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD);
+    this.searchInput = page.getByTestId(NAVIGATION_TEST_IDS.SEARCH_INPUT);
+    this.navHomeTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME);
+    this.navAlbumsTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS);
+    this.navSearchTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_SEARCH);
   }
 
   async goto(): Promise<void> {
@@ -37,13 +40,23 @@ export class LibraryPage {
   async getAlbumTitle(index: number = 0): Promise<string> {
     const titleElement = await this.albumCards
       .nth(index)
-      .locator('[data-testid="album-title"]')
+      .getByTestId(LIBRARY_TEST_IDS.ALBUM_TITLE)
       .textContent();
     return titleElement || '';
   }
 
   async navigateToSearch(): Promise<void> {
-    await this.navSearchTab.click();
+    // Check if bottom tab bar is visible (mobile/tablet)
+    const isTabBarVisible = await this.navSearchTab.isVisible();
+
+    if (isTabBarVisible) {
+      // Mobile: click on tab
+      await this.navSearchTab.click();
+    } else {
+      // Desktop: bottom tab bar is hidden, navigate directly
+      await this.page.goto('/search');
+    }
+
     await expect(this.searchInput).toBeVisible();
   }
 

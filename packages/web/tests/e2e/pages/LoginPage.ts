@@ -3,7 +3,6 @@ import { expect } from '@playwright/test';
 
 export class LoginPage {
   readonly page: Page;
-  readonly serverUrlInput: Locator;
   readonly usernameInput: Locator;
   readonly passwordInput: Locator;
   readonly loginButton: Locator;
@@ -11,20 +10,18 @@ export class LoginPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.serverUrlInput = page.locator('input[name="serverUrl"]');
     this.usernameInput = page.locator('input[name="username"]');
     this.passwordInput = page.locator('input[name="password"]');
     this.loginButton = page.locator('button[type="submit"]');
-    this.errorMessage = page.locator('[data-testid="error-message"]');
+    this.errorMessage = page.locator('.error-banner');
   }
 
   async goto(): Promise<void> {
     await this.page.goto('/login');
-    await expect(this.serverUrlInput).toBeVisible({ timeout: 10000 });
+    await expect(this.usernameInput).toBeVisible({ timeout: 10000 });
   }
 
-  async login(serverUrl: string, username: string, password: string): Promise<void> {
-    await this.serverUrlInput.fill(serverUrl);
+  async login(username: string, password: string): Promise<void> {
     await this.usernameInput.fill(username);
     await this.passwordInput.fill(password);
     await this.loginButton.click();
@@ -42,6 +39,6 @@ export class LoginPage {
   }
 
   async isLoginFormVisible(): Promise<boolean> {
-    return await this.serverUrlInput.isVisible();
+    return await this.usernameInput.isVisible();
   }
 }

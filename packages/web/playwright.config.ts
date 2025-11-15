@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -21,11 +24,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        hasTouch: false, // Explicitly disable touch for desktop
+        isMobile: false,
+      },
     },
     {
       name: 'mobile',
-      use: { ...devices['iPhone 13 Pro'] },
+      use: {
+        ...devices['iPhone 13 Pro'],
+        hasTouch: true, // Explicitly enable touch for mobile tests
+        // isMobile: true is already set by iPhone 13 Pro preset
+      },
     },
   ],
 

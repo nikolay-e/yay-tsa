@@ -1,7 +1,11 @@
 <script lang="ts">
+  export let data = {};
+  export let params = {};
+
   import { library, albums, tracks, isLoading } from '../../lib/stores/library.js';
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';
   import TrackList from '../../lib/components/library/TrackList.svelte';
+  import { NAVIGATION_TEST_IDS } from '$lib/test-ids';
 
   let query = '';
   let activeTab: 'albums' | 'tracks' = 'albums';
@@ -25,12 +29,15 @@
 <div class="search-page">
   <div class="search-header">
     <input
-      type="text"
+      id="search-query"
+      name="q"
+      type="search"
       bind:value={query}
       on:input={handleSearch}
       placeholder="Search for albums, artists, or tracks..."
       class="search-input"
       aria-label="Search for albums, artists, or tracks"
+      data-testid={NAVIGATION_TEST_IDS.SEARCH_INPUT}
     />
   </div>
 

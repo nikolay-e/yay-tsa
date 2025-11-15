@@ -1,6 +1,8 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { derived } from 'svelte/store';
   import { hapticSelect } from '../../utils/haptics.js';
+  import { auth } from '../../stores/auth.js';
 
   interface Tab {
     href: string;
@@ -30,28 +32,29 @@
     }
   ];
 
-  function isActive(tab: Tab): boolean {
-    const currentPath = $page.url.pathname;
-
-    if (tab.href === '/') {
-      return currentPath === '/';
-    }
-
-    return tab.paths.some(path => currentPath.startsWith(path));
-  }
+  // Memoized derived stores for each tab - no function recreation on $page change
+  const homeActive = derived(page, $page => $page.url.pathname === '/');
+  const albumsActive = derived(page, $page => $page.url.pathname.startsWith('/albums'));
+  const searchActive = derived(page, $page => $page.url.pathname.startsWith('/search'));
 
   function handleTabClick() {
     hapticSelect();
   }
+
+  function handleLogout() {
+    hapticSelect();
+    auth.logout();
+  }
 </script>
 
 <nav class="bottom-tab-bar" aria-label="Main navigation">
-  {#each tabs as tab}
+  {#each tabs as tab, index}
     <a
       href={tab.href}
       class="tab"
-      class:active={isActive(tab)}
-      aria-current={isActive(tab) ? 'page' : undefined}
+      data-testid="nav-{tab.icon}"
+      class:active={index === 0 ? $homeActive : index === 1 ? $albumsActive : $searchActive}
+      aria-current={(index === 0 ? $homeActive : index === 1 ? $albumsActive : $searchActive) ? 'page' : undefined}
       on:click={handleTabClick}
     >
       {#if tab.icon === 'home'}
@@ -70,6 +73,13 @@
       <span class="tab-label">{tab.label}</span>
     </a>
   {/each}
+
+  <button type="button" class="tab logout-tab" on:click={handleLogout}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+    </svg>
+    <span class="tab-label">Logout</span>
+  </button>
 </nav>
 
 <style>
@@ -83,7 +93,7 @@
     border-top: 1px solid var(--color-border);
     z-index: 50;
     padding-bottom: var(--safe-area-inset-bottom);
-    height: calc(56px + var(--safe-area-inset-bottom));
+    height: calc(52px + var(--safe-area-inset-bottom));
   }
 
   .tab {
@@ -94,7 +104,7 @@
     justify-content: center;
     gap: 4px;
     min-height: 44px;
-    padding: 8px 0;
+    padding: 4px 0;
     color: var(--color-text-secondary);
     text-decoration: none;
     transition: all 0.2s;
@@ -125,6 +135,16 @@
 
   .tab.active .tab-label {
     font-weight: 700; /* Bolder font for active tab */
+  }
+
+  .logout-tab {
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+
+  .logout-tab:hover {
+    color: var(--color-error);
   }
 
   /* Desktop: hide bottom tab bar, use sidebar instead */

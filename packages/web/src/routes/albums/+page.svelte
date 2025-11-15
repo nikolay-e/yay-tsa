@@ -1,4 +1,7 @@
 <script lang="ts">
+  export let data = {};
+  export let params = {};
+
   import { onMount } from 'svelte';
   import { library, albums, isLoading } from '../../lib/stores/library.js';
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';

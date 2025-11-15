@@ -11,6 +11,7 @@ const keyPath = path.resolve(__dirname, '../../.certs/key.pem');
 const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);
 
 export default defineConfig({
+  envPrefix: ['VITE_', 'YAYTSA_'],
   plugins: [
     sveltekit(),
     visualizer({
@@ -104,7 +105,7 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
+        manualChunks: id => {
           if (id.includes('node_modules')) {
             const modulePath = id.split('node_modules/')[1];
             const packageName = modulePath.split('/')[0];
@@ -113,7 +114,7 @@ export default defineConfig({
               return 'vendor-icons';
             }
 
-            if (['svelte', '@sveltejs'].some((pkg) => packageName.startsWith(pkg))) {
+            if (['svelte', '@sveltejs'].some(pkg => packageName.startsWith(pkg))) {
               return 'vendor-svelte';
             }
 

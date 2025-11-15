@@ -23,7 +23,7 @@ export const test = base.extend<AuthFixtures>({
     await page.click('button[type="submit"]');
 
     await page.waitForURL('/', { timeout: 15000 });
-    await expect(page.locator('text=Albums')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Recent Albums' })).toBeVisible({ timeout: 10000 });
 
     await use(page);
   },

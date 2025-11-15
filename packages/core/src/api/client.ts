@@ -471,6 +471,10 @@ export class JellyfinClient {
       format?: 'webp' | 'jpg' | 'png';
     }
   ): string {
+    if (!itemId || itemId.trim() === '') {
+      return '';
+    }
+
     const params = new URLSearchParams();
 
     // Browsers don't send custom headers for <img> tags, so include api_key in URL

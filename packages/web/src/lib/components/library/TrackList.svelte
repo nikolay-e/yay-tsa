@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { derived } from 'svelte/store';
   import { ticksToSeconds, type AudioItem } from '@yaytsa/core';
   import { player, currentTrack } from '../../stores/player.js';
   import { formatDuration } from '../../utils/time.js';
@@ -7,15 +8,14 @@
   export let tracks: AudioItem[] = [];
   export let showAlbum: boolean = false;
 
+  // Memoized derived store - O(1) comparison instead of O(n) function calls
+  const currentTrackId = derived(currentTrack, $track => $track?.Id ?? null);
+
   function playTrack(_track: AudioItem, index: number) {
     hapticSelect();
     // Play the entire album starting from the clicked track
     // This allows continuous playback through the rest of the album
     player.playFromAlbum(tracks, index);
-  }
-
-  function isCurrentTrack(track: AudioItem): boolean {
-    return $currentTrack?.Id === track.Id;
   }
 </script>
 
@@ -35,12 +35,13 @@
         <button
           type="button"
           class="track-list-row track"
-          class:playing={isCurrentTrack(track)}
+          data-testid="track-row"
+          class:playing={$currentTrackId === track.Id}
           on:click={() => playTrack(track, index)}
           aria-label="Play {track.Name}{track.Artists && track.Artists.length > 0 ? ' by ' + track.Artists.join(', ') : ''}"
         >
           <div class="track-number">
-            {#if isCurrentTrack(track)}
+            {#if $currentTrackId === track.Id}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
               </svg>
@@ -49,7 +50,7 @@
             {/if}
           </div>
           <div class="track-title">
-            <div class="track-name">{track.Name}</div>
+            <div class="track-name" data-testid="track-title">{track.Name}</div>
             {#if track.Artists && track.Artists.length > 0}
               <div class="track-artist">{track.Artists?.join(', ')}</div>
             {/if}

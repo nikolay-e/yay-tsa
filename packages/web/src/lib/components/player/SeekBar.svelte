@@ -1,21 +1,23 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import type { Readable } from 'svelte/store';
   import { formatTime } from '../../utils/time.js';
+  import { PLAYER_TEST_IDS } from '$lib/test-ids';
 
   const dispatch = createEventDispatcher<{ seek: number }>();
 
-  export let currentTime: number = 0;
-  export let duration: number = 0;
+  export let currentTime: Readable<number>;
+  export let duration: Readable<number>;
 
   let seeking = false;
   let seekValue = 0;
 
-  $: progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  $: displayTime = seeking ? seekValue : currentTime;
+  $: progress = $duration > 0 ? ($currentTime / $duration) * 100 : 0;
+  $: displayTime = seeking ? seekValue : $currentTime;
 
   function handleSeekStart() {
     seeking = true;
-    seekValue = currentTime;
+    seekValue = $currentTime;
   }
 
   function handleSeekChange(event: Event) {
@@ -34,13 +36,13 @@
 </script>
 
 <div class="seek-bar">
-  <span class="time">{formatTime(displayTime)}</span>
+  <span class="time" data-testid={PLAYER_TEST_IDS.CURRENT_TIME}>{formatTime(displayTime)}</span>
 
   <div class="slider-container">
     <input
       type="range"
       min="0"
-      max={duration || 0}
+      max={$duration || 0}
       step="0.1"
       value={displayTime}
       class="slider"
@@ -49,15 +51,16 @@
       on:touchstart={handleSeekStart}
       on:input={handleSeekChange}
       on:change={handleSeekEnd}
-      disabled={!duration}
+      disabled={!$duration}
       aria-label="Seek position"
       aria-valuemin="0"
-      aria-valuemax={duration || 0}
+      aria-valuemax={$duration || 0}
       aria-valuenow={displayTime}
+      data-testid={PLAYER_TEST_IDS.SEEK_SLIDER}
     />
   </div>
 
-  <span class="time">{formatTime(duration)}</span>
+  <span class="time" data-testid={PLAYER_TEST_IDS.TOTAL_TIME}>{formatTime($duration)}</span>
 </div>
 
 <style>

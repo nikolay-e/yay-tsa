@@ -1,6 +1,7 @@
 <script lang="ts">
   import { player, isPlaying, isShuffle, repeatMode } from '../../stores/player.js';
   import { hapticPlayPause, hapticSkip, hapticSelect } from '../../utils/haptics.js';
+  import { PLAYER_TEST_IDS } from '$lib/test-ids';
 
   // Debouncing flag to prevent double-clicks (INP optimization)
   let isTogglingPlayPause = false;
@@ -48,7 +49,9 @@
     class="control-btn"
     class:active={$isShuffle}
     on:click={toggleShuffle}
-    title="Shuffle"
+    aria-label="Toggle shuffle"
+    aria-pressed={$isShuffle}
+    data-testid={PLAYER_TEST_IDS.SHUFFLE_BUTTON}
   >
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
@@ -60,7 +63,8 @@
     type="button"
     class="control-btn"
     on:click={handlePrevious}
-    title="Previous"
+    aria-label="Previous track"
+    data-testid={PLAYER_TEST_IDS.PREVIOUS_BUTTON}
   >
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
@@ -72,7 +76,8 @@
     type="button"
     class="control-btn play-btn"
     on:click={handlePlayPause}
-    title={$isPlaying ? 'Pause' : 'Play'}
+    aria-label={$isPlaying ? 'Pause' : 'Play'}
+    data-testid={PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON}
   >
     {#if $isPlaying}
       <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
@@ -90,7 +95,8 @@
     type="button"
     class="control-btn"
     on:click={handleNext}
-    title="Next"
+    aria-label="Next track"
+    data-testid={PLAYER_TEST_IDS.NEXT_BUTTON}
   >
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
@@ -103,7 +109,9 @@
     class="control-btn"
     class:active={$repeatMode !== 'off'}
     on:click={toggleRepeat}
-    title={`Repeat: ${$repeatMode}`}
+    aria-label={`Repeat: ${$repeatMode}`}
+    aria-pressed={$repeatMode !== 'off'}
+    data-testid={PLAYER_TEST_IDS.REPEAT_BUTTON}
   >
     {#if $repeatMode === 'one'}
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -178,8 +186,8 @@
     }
 
     .play-btn {
-      width: 56px;
-      height: 56px;
+      width: 48px;
+      height: 48px;
     }
 
     .controls {

@@ -5,6 +5,7 @@
   export let error: string = '';
   export let required: boolean = false;
   export let id: string = '';
+  export let name: string = '';
   export let label: string = '';
   export let autocomplete: string = '';
 
@@ -19,6 +20,7 @@
   {/if}
   <input
     {id}
+    name={name || id}
     {type}
     {placeholder}
     {required}

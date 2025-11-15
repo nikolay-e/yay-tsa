@@ -1,5 +1,6 @@
 import type { Page, Locator } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { PLAYER_TEST_IDS } from '../../../src/lib/test-ids';
 
 export class PlayerBar {
   readonly page: Page;
@@ -19,24 +20,29 @@ export class PlayerBar {
 
   constructor(page: Page) {
     this.page = page;
-    this.playerBar = page.locator('[data-testid="player-bar"]');
-    this.playPauseButton = page.locator('[data-testid="play-pause-button"]');
-    this.nextButton = page.locator('[data-testid="next-button"]');
-    this.previousButton = page.locator('[data-testid="previous-button"]');
-    this.shuffleButton = page.locator('[data-testid="shuffle-button"]');
-    this.repeatButton = page.locator('[data-testid="repeat-button"]');
-    this.volumeSlider = page.locator('[data-testid="volume-slider"]');
-    this.seekSlider = page.locator('[data-testid="seek-slider"]');
-    this.currentTrackTitle = page.locator('[data-testid="current-track-title"]');
-    this.currentTrackArtist = page.locator('[data-testid="current-track-artist"]');
-    this.currentTime = page.locator('[data-testid="current-time"]');
-    this.totalTime = page.locator('[data-testid="total-time"]');
-    this.queueButton = page.locator('[data-testid="queue-button"]');
+    this.playerBar = page.getByTestId(PLAYER_TEST_IDS.PLAYER_BAR);
+    this.playPauseButton = page.getByTestId(PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON);
+    this.nextButton = page.getByTestId(PLAYER_TEST_IDS.NEXT_BUTTON);
+    this.previousButton = page.getByTestId(PLAYER_TEST_IDS.PREVIOUS_BUTTON);
+    this.shuffleButton = page.getByTestId(PLAYER_TEST_IDS.SHUFFLE_BUTTON);
+    this.repeatButton = page.getByTestId(PLAYER_TEST_IDS.REPEAT_BUTTON);
+    this.volumeSlider = page.getByTestId(PLAYER_TEST_IDS.VOLUME_SLIDER);
+    this.seekSlider = page.getByTestId(PLAYER_TEST_IDS.SEEK_SLIDER);
+    this.currentTrackTitle = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TRACK_TITLE);
+    this.currentTrackArtist = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TRACK_ARTIST);
+    this.currentTime = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TIME);
+    this.totalTime = page.getByTestId(PLAYER_TEST_IDS.TOTAL_TIME);
+    this.queueButton = page.getByTestId(PLAYER_TEST_IDS.QUEUE_BUTTON);
   }
 
   async waitForPlayerToLoad(): Promise<void> {
+    // 1. Wait for UI to be visible
     await expect(this.playerBar).toBeVisible({ timeout: 10000 });
     await expect(this.currentTrackTitle).toBeVisible({ timeout: 5000 });
+
+    // 2. Wait for duration to be displayed (not "0:00")
+    // This indirectly confirms audio metadata is loaded
+    await expect(this.totalTime).not.toHaveText('0:00', { timeout: 10000 });
   }
 
   async isVisible(): Promise<boolean> {
@@ -118,10 +124,14 @@ export class PlayerBar {
   }
 
   async waitForPlayingState(): Promise<void> {
+    // Give Svelte one tick to update DOM after store update
+    await this.page.waitForTimeout(100);
     await expect(this.playPauseButton).toHaveAttribute('aria-label', /Pause/i, { timeout: 5000 });
   }
 
   async waitForPausedState(): Promise<void> {
+    // Give Svelte one tick to update DOM after store update
+    await this.page.waitForTimeout(100);
     await expect(this.playPauseButton).toHaveAttribute('aria-label', /Play/i, { timeout: 5000 });
   }
 
@@ -139,5 +149,91 @@ export class PlayerBar {
 
   async expectTrackTitle(title: string): Promise<void> {
     await expect(this.currentTrackTitle).toHaveText(title);
+  }
+
+  // Audio DOM API methods - check actual <audio> element state
+  async waitForAudioReady(): Promise<void> {
+    const audioLocator = this.page.locator('audio').first();
+
+    // Wait for audio element to exist
+    await expect(audioLocator).toBeAttached({ timeout: 5000 });
+
+    // Wait for metadata to load (duration available)
+    await audioLocator.evaluate((audio: HTMLAudioElement) =>
+      new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Audio metadata load timeout after 5s'));
+        }, 5000);
+
+        const checkReady = () => {
+          if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+
+        if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
+          clearTimeout(timeout);
+          resolve();
+        } else {
+          audio.addEventListener('loadedmetadata', checkReady, { once: true });
+        }
+      })
+    );
+  }
+
+  async getAudioReadyState(): Promise<number> {
+    const audioLocator = this.page.locator('audio').first();
+    return await audioLocator.evaluate((audio: HTMLAudioElement) => audio.readyState);
+  }
+
+  async isAudioPaused(): Promise<boolean> {
+    const audioLocator = this.page.locator('audio').first();
+    return await audioLocator.evaluate((audio: HTMLAudioElement) => audio.paused);
+  }
+
+  async getAudioDuration(): Promise<number> {
+    const audioLocator = this.page.locator('audio').first();
+    return await audioLocator.evaluate((audio: HTMLAudioElement) => audio.duration);
+  }
+
+  async waitForSeekComplete(): Promise<void> {
+    const audioLocator = this.page.locator('audio').first();
+
+    await audioLocator.evaluate((audio: HTMLAudioElement) =>
+      new Promise<void>((resolve) => {
+        if (!audio.seeking) {
+          resolve();
+        } else {
+          audio.addEventListener('seeked', () => resolve(), { once: true });
+        }
+      })
+    );
+  }
+
+  async waitForAudioPlaying(): Promise<void> {
+    const audioLocator = this.page.locator('audio').first();
+
+    await audioLocator.evaluate((audio: HTMLAudioElement) =>
+      new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Audio did not start playing within 3s'));
+        }, 3000);
+
+        const checkPlaying = () => {
+          if (!audio.paused && audio.readyState >= 3) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+
+        if (!audio.paused && audio.readyState >= 3) {
+          clearTimeout(timeout);
+          resolve();
+        } else {
+          audio.addEventListener('playing', checkPlaying, { once: true });
+        }
+      })
+    );
   }
 }

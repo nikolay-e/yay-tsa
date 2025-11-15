@@ -5,10 +5,24 @@
   import { library } from '../../stores/library.js';
   import { hapticSelect } from '../../utils/haptics.js';
   import { logger } from '../../utils/logger.js';
+  import { LIBRARY_TEST_IDS } from '$lib/test-ids';
 
   export let album: MusicAlbum;
 
-  const albumArtUrl = getAlbumArtUrl(album.Id, 'medium');
+  $: albumArtUrl = getAlbumArtUrl(album.Id, 'medium', album.ImageTags?.Primary);
+  let imageError = false;
+
+  // React to album ID change (primitive dependency) instead of object reference
+  $: albumId = album.Id;
+  $: {
+    albumId; // Trigger on albumId change
+    imageError = false;
+  }
+
+  function handleImageError() {
+    imageError = true;
+    logger.debug(`[AlbumCard] Failed to load image for album: ${album.Name} (${album.Id})`);
+  }
 
   async function playAlbum(event: MouseEvent) {
     event.preventDefault();
@@ -24,14 +38,25 @@
   }
 </script>
 
-<a href="/albums/{album.Id}" class="album-card">
+<a href="/albums/{album.Id}" class="album-card" data-testid="album-card">
   <div class="album-art-container">
-    <img
-      src={albumArtUrl}
-      alt={album.Name}
-      class="album-art"
-      loading="lazy"
-    />
+    {#if !imageError && albumArtUrl}
+      <img
+        src={albumArtUrl}
+        alt={album.Name}
+        class="album-art"
+        data-testid="album-cover"
+        loading="lazy"
+        decoding="async"
+        on:error={handleImageError}
+      />
+    {:else}
+      <div class="album-art-placeholder">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+        </svg>
+      </div>
+    {/if}
     <div class="play-overlay">
       <button type="button" class="play-button" on:click={playAlbum} aria-label="Play {album.Name}">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -42,7 +67,7 @@
   </div>
 
   <div class="album-info">
-    <h3 class="album-name">{album.Name}</h3>
+    <h3 class="album-name" data-testid={LIBRARY_TEST_IDS.ALBUM_TITLE}>{album.Name}</h3>
     <p class="album-artist">{album.Artists?.[0] || 'Various Artists'}</p>
     {#if album.ProductionYear}
       <p class="album-year">{album.ProductionYear}</p>
@@ -80,6 +105,16 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .album-art-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-tertiary);
+    background-color: var(--color-bg-tertiary);
   }
 
   .play-overlay {
