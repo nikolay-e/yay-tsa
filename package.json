@@ -29,7 +29,9 @@
     "lint": "prettier --check .",
     "pre-commit": "pre-commit run --all-files",
     "prepare": "pre-commit install && pre-commit install --hook-type commit-msg",
-    "type-check": "cd packages/core && npx tsc --noEmit"
+    "sync:version": "node scripts/sync-version.js",
+    "type-check": "cd packages/core && npx tsc --noEmit",
+    "postversion": "npm run sync:version && git add -A"
   },
   "dependencies": {
     "svelte-gestures": "^5.2.2"
