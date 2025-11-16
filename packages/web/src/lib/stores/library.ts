@@ -94,7 +94,11 @@ async function waitForService(): Promise<ItemsService> {
 /**
  * Load albums from server (with caching)
  */
-async function loadAlbums(options?: { limit?: number; startIndex?: number }): Promise<void> {
+async function loadAlbums(options?: {
+  limit?: number;
+  startIndex?: number;
+  sortBy?: string;
+}): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
 
@@ -105,7 +109,7 @@ async function loadAlbums(options?: { limit?: number; startIndex?: number }): Pr
     const result = await getCachedAlbums(itemsService, {
       limit: options?.limit,
       startIndex: options?.startIndex,
-      sortBy: 'SortName',
+      sortBy: options?.sortBy || 'SortName',
     });
 
     handler.success({ albums: result.Items });
