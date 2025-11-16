@@ -8,13 +8,12 @@
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';
   import { get } from 'svelte/store';
 
-  type SortOption = 'SortName' | 'ProductionYear' | 'AlbumArtist' | 'DateCreated';
+  type SortOption = 'SortName' | 'ProductionYear' | 'AlbumArtist';
 
   const sortOptions: { value: SortOption; label: string }[] = [
     { value: 'SortName', label: 'Name' },
     { value: 'AlbumArtist', label: 'Artist' },
-    { value: 'ProductionYear', label: 'Year' },
-    { value: 'DateCreated', label: 'Date Added' },
+    { value: 'ProductionYear', label: 'Year' },  // Falls back to name if year missing
   ];
 
   let currentSort: SortOption = 'SortName';
