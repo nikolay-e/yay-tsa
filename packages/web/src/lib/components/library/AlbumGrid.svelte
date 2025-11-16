@@ -32,7 +32,7 @@
 
   .album-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
     gap: var(--spacing-md);
   }
 
@@ -52,10 +52,10 @@
     opacity: 0.5;
   }
 
-  /* Small phones: 2 columns with tighter spacing */
+  /* Small phones: flexible minimum with tighter spacing */
   @media (max-width: 375px) {
     .album-grid {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
       gap: var(--spacing-xs);
     }
   }
@@ -63,7 +63,7 @@
   /* Medium phones: slightly larger minimum */
   @media (min-width: 376px) and (max-width: 768px) {
     .album-grid {
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
       gap: var(--spacing-sm);
     }
   }
@@ -71,7 +71,7 @@
   /* Large screens: bigger cards */
   @media (min-width: 1400px) {
     .album-grid {
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
     }
   }
 </style>
