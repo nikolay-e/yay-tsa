@@ -28,12 +28,15 @@
 <style>
   .album-grid-container {
     width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .album-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
     gap: var(--spacing-md);
+    max-width: 100%;
   }
 
   .loading,

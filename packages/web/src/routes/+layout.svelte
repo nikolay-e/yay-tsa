@@ -268,6 +268,9 @@
 
     .content {
       margin-left: 0;
+      width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
       padding: var(--spacing-md); /* Reduce padding on mobile */
       padding-left: calc(var(--spacing-md) + var(--safe-area-inset-left));
       padding-right: calc(var(--spacing-md) + var(--safe-area-inset-right));
