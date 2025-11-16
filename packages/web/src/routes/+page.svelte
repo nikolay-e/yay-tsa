@@ -8,12 +8,15 @@
   import AlbumGrid from '../lib/components/library/AlbumGrid.svelte';
   import { get } from 'svelte/store';
 
+  let isRandomFallback = false;
+
   onMount(async () => {
     if (!get(isAuthenticated)) {
       return;
     }
     try {
-      await library.loadRecentAlbums();
+      const result = await library.loadRecentlyPlayedAlbums(24);
+      isRandomFallback = result.isRandom;
     } catch (error) {
       console.error('Failed to load albums:', error);
     }
@@ -21,13 +24,19 @@
 </script>
 
 <svelte:head>
-  <title>Home - Yaytsa</title>
+  <title>Recent - Yaytsa</title>
 </svelte:head>
 
 <div class="home">
   <header class="page-header">
-    <h1>Recent Albums</h1>
-    <p>Recently added music from your library</p>
+    <h1>{isRandomFallback ? 'Discover' : 'Recently Played'}</h1>
+    <p>
+      {#if isRandomFallback}
+        Random albums from your library
+      {:else}
+        Albums you played recently
+      {/if}
+    </p>
   </header>
 
   <AlbumGrid albums={$albums} loading={$isLoading} />

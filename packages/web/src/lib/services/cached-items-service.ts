@@ -82,6 +82,46 @@ export async function getCachedRecentAlbums(
 }
 
 /**
+ * Get recently played albums with caching
+ * Falls back to random albums if no play history
+ */
+export async function getCachedRecentlyPlayedAlbums(
+  itemsService: ItemsService,
+  limit?: number
+): Promise<{ items: MusicAlbum[]; isRandom: boolean }> {
+  const cache = cacheManager.getApiCache();
+
+  const cacheKey = cacheManager.buildCacheKey('/recently-played-albums', { limit });
+
+  if (cache) {
+    const cached = await cache.get<{ items: MusicAlbum[]; isRandom: boolean }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  // Try to get recently played albums
+  const recentlyPlayed = await itemsService.getRecentlyPlayedAlbums(limit);
+
+  let result: { items: MusicAlbum[]; isRandom: boolean };
+
+  if (recentlyPlayed.TotalRecordCount > 0) {
+    result = { items: recentlyPlayed.Items, isRandom: false };
+  } else {
+    // Fallback to random albums if no play history
+    const randomAlbums = await itemsService.getRandomAlbums(limit);
+    result = { items: randomAlbums.Items, isRandom: true };
+  }
+
+  if (cache) {
+    // Short TTL - play history changes frequently
+    await cache.set(cacheKey, result, TTL.FIVE_MINUTES);
+  }
+
+  return result;
+}
+
+/**
  * Get album tracks with caching
  */
 export async function getCachedAlbumTracks(

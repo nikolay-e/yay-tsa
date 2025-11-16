@@ -11,6 +11,7 @@ import {
   getCachedAlbums,
   getCachedRecentAlbums,
   getCachedAlbumTracks,
+  getCachedRecentlyPlayedAlbums,
 } from '../services/cached-items-service.js';
 
 interface LibraryState {
@@ -140,6 +141,27 @@ async function loadRecentAlbums(limit?: number): Promise<void> {
 }
 
 /**
+ * Load recently played albums (with fallback to random)
+ * Returns info about whether random albums were used
+ */
+async function loadRecentlyPlayedAlbums(limit: number = 24): Promise<{ isRandom: boolean }> {
+  const handler = createAsyncStoreHandler(libraryStore);
+  handler.start();
+
+  try {
+    const itemsService = await waitForService();
+
+    const result = await getCachedRecentlyPlayedAlbums(itemsService, limit);
+
+    handler.success({ albums: result.items });
+    return { isRandom: result.isRandom };
+  } catch (error) {
+    handler.error(error as Error);
+    throw error;
+  }
+}
+
+/**
  * Load artists from server
  */
 async function loadArtists(options?: { limit?: number; startIndex?: number }): Promise<void> {
@@ -240,6 +262,7 @@ export const library = {
   subscribe: libraryStore.subscribe,
   loadAlbums,
   loadRecentAlbums,
+  loadRecentlyPlayedAlbums,
   loadArtists,
   loadAlbumTracks,
   getAlbumTracks,

@@ -226,6 +226,44 @@ export class ItemsService extends BaseService {
   }
 
   /**
+   * Get recently played albums (sorted by last play date)
+   */
+  async getRecentlyPlayedAlbums(limit?: number): Promise<ItemsResult<MusicAlbum>> {
+    const userId = this.requireAuth();
+
+    const params: Record<string, unknown> = {
+      userId,
+      IncludeItemTypes: 'MusicAlbum',
+      Recursive: true,
+      SortBy: 'DatePlayed',
+      SortOrder: 'Descending',
+      isPlayed: true,
+      enableUserData: true,
+      Fields: 'PrimaryImageAspectRatio,Genres,DateCreated,Artists',
+    };
+
+    if (limit !== undefined) {
+      params.Limit = limit;
+    }
+
+    const result = await this.client.get<ItemsResult<MusicAlbum>>('/Items', params);
+    if (!result) {
+      throw new Error('Failed to get recently played albums: Empty response');
+    }
+    return result;
+  }
+
+  /**
+   * Get random albums
+   */
+  async getRandomAlbums(limit?: number): Promise<ItemsResult<MusicAlbum>> {
+    return this.getAlbums({
+      sortBy: 'Random',
+      limit,
+    });
+  }
+
+  /**
    * Get stream URL for audio item
    */
   getStreamUrl(itemId: string): string {
