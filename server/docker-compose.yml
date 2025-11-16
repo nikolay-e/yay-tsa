@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: yaytsa-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-yaytsa}
+      POSTGRES_USER: ${DB_USER:-yaytsa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-yaytsa}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - yaytsa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-yaytsa} -d ${DB_NAME:-yaytsa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Yaytsa Media Server
+  media-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: yaytsa-media-server:latest
+    container_name: yaytsa-server
+    environment:
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-yaytsa}
+      DB_USER: ${DB_USER:-yaytsa}
+      DB_PASSWORD: ${DB_PASSWORD:-yaytsa}
+
+      # Server Configuration
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-DEBUG}
+
+      # Media Library Configuration
+      LIBRARY_ROOTS: ${LIBRARY_ROOTS:-/media}
+      SCAN_THREADS: ${SCAN_THREADS:-8}
+      WATCH_ENABLED: ${WATCH_ENABLED:-false}
+
+      # Transcoding Configuration
+      TRANSCODE_ENABLED: ${TRANSCODE_ENABLED:-true}
+      FFMPEG_PATH: ${FFMPEG_PATH:-ffmpeg}
+      MAX_CONCURRENT_TRANSCODES: ${MAX_CONCURRENT_TRANSCODES:-4}
+      TRANSCODE_TEMP_DIR: ${TRANSCODE_TEMP_DIR:-/app/temp/transcode}
+
+      # Image Processing Configuration
+      IMAGE_CACHE_DIR: ${IMAGE_CACHE_DIR:-/app/temp/images}
+
+      # Security Configuration
+      BCRYPT_STRENGTH: ${BCRYPT_STRENGTH:-12}
+      CORS_ENABLED: ${CORS_ENABLED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:*}
+      REQUIRE_SSL: ${REQUIRE_SSL:-false}
+
+      # Session Configuration
+      SESSION_TIMEOUT: ${SESSION_TIMEOUT:-30}
+
+      # Swagger/OpenAPI
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+
+      # JVM Options
+      JAVA_OPTS_EXTRA: ${JAVA_OPTS_EXTRA:-}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+      - "${DEBUG_PORT:-5005}:5005" # Java debug port (dev only)
+    volumes:
+      # Media library volumes
+      - ${MEDIA_PATH:-./media}:/media:ro
+      - ${ADDITIONAL_MEDIA_PATH:-./additional-media}:/additional-media:ro
+
+      # Application data volumes
+      - ./logs:/app/logs
+      - transcode_temp:/app/temp/transcode
+      - image_cache:/app/temp/images
+    networks:
+      - yaytsa-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/manage/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Optional: pgAdmin for database management (development only)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: yaytsa-pgadmin
+    profiles: ["dev", "debug"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@yaytsa.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - yaytsa-network
+    restart: unless-stopped
+
+  # Optional: Prometheus for metrics (production)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: yaytsa-prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - yaytsa-network
+    restart: unless-stopped
+
+  # Optional: Grafana for metrics visualization (production)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: yaytsa-grafana
+    profiles: ["monitoring"]
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: ${GRAFANA_PLUGINS:-}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - yaytsa-network
+    restart: unless-stopped
+
+networks:
+  yaytsa-network:
+    driver: bridge
+    name: yaytsa-network
+
+volumes:
+  postgres_data:
+    name: yaytsa-postgres-data
+  transcode_temp:
+    name: yaytsa-transcode-temp
+  image_cache:
+    name: yaytsa-image-cache
+  pgadmin_data:
+    name: yaytsa-pgadmin-data
+  prometheus_data:
+    name: yaytsa-prometheus-data
+  grafana_data:
+    name: yaytsa-grafana-data

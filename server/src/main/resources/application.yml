@@ -1,0 +1,258 @@
+spring:
+  application:
+    name: yaytsa-media-server
+
+  # Enable Java 21 Virtual Threads
+  threads:
+    virtual:
+      enabled: true
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:yaytsa}
+    username: ${DB_USER:yaytsa}
+    password: ${DB_PASSWORD:yaytsa}
+    hikari:
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:20}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        show_sql: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        jdbc.batch_versioned_data: true
+    open-in-view: false
+
+  # Flyway Database Migrations
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  # Security Configuration
+  security:
+    require-ssl: ${REQUIRE_SSL:false}
+
+  # Jackson JSON Configuration
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: false
+    serialization:
+      write-dates-as-timestamps: false
+
+  # Caching Configuration
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=10000,expireAfterWrite=5m
+    cache-names:
+      - tokens
+      - items
+      - images
+      - users
+
+  # File Upload Configuration
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  http2:
+    enabled: true
+  forward-headers-strategy: native
+
+# Management Endpoints (Actuator)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /manage
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+
+# Application-specific Configuration
+yaytsa:
+  media:
+    # Library scanning configuration
+    library:
+      roots: ${LIBRARY_ROOTS:./media}
+      scan-threads: ${SCAN_THREADS:8}
+      watch-enabled: ${WATCH_ENABLED:false}
+      supported-extensions: mp3,flac,m4a,aac,ogg,opus,wav,wma
+      ignored-folders: .git,.svn,node_modules,@eaDir
+
+    # Streaming configuration
+    streaming:
+      buffer-size: ${STREAM_BUFFER_SIZE:65536}
+      direct-stream-enabled: true
+      byte-range-support: true
+      etag-enabled: true
+
+    # Transcoding configuration
+    transcoding:
+      enabled: ${TRANSCODE_ENABLED:true}
+      ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
+      max-concurrent: ${MAX_CONCURRENT_TRANSCODES:4}
+      timeout-seconds: 3600
+      temp-directory: ${TRANSCODE_TEMP_DIR:./temp/transcode}
+      presets:
+        - name: mp3-128
+          codec: mp3
+          bitrate: 128k
+          container: mp3
+        - name: mp3-320
+          codec: mp3
+          bitrate: 320k
+          container: mp3
+        - name: opus-96
+          codec: opus
+          bitrate: 96k
+          container: ogg
+
+    # Image processing configuration
+    images:
+      cache-directory: ${IMAGE_CACHE_DIR:./temp/images}
+      max-width: 1920
+      max-height: 1080
+      quality: 85
+      cache-max-age: 604800 # 7 days in seconds
+
+    # Session configuration
+    sessions:
+      timeout-minutes: ${SESSION_TIMEOUT:30}
+      progress-report-interval-seconds: 10
+      scrobble-threshold-percent: 50
+      scrobble-minimum-seconds: 240
+
+  # Security configuration
+  security:
+    token-length: 64
+    bcrypt-strength: ${BCRYPT_STRENGTH:12}
+    cors:
+      enabled: ${CORS_ENABLED:true}
+      allowed-origins: ${CORS_ORIGINS:*}
+      allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+      allowed-headers: "*"
+      exposed-headers: Content-Range,Accept-Ranges,X-Total-Count
+      allow-credentials: true
+      max-age: 3600
+    https-required-in-production: true
+
+# Logging Configuration
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.example.mediaserver: ${APP_LOG_LEVEL:DEBUG}
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${SQL_LOG_LEVEL:WARN}
+    org.flywaydb: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg [%thread] %logger{36} %X{userId} %X{deviceId} %X{requestId}%n"
+  file:
+    name: ${LOG_FILE:./logs/yaytsa.log}
+    max-size: 10MB
+    max-history: 30
+
+# OpenAPI Documentation
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: ${SWAGGER_ENABLED:true}
+  show-actuator: false
+
+---
+# Development Profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+logging:
+  level:
+    com.example.mediaserver: TRACE
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+
+yaytsa:
+  security:
+    cors:
+      allowed-origins: http://localhost:*,https://localhost:*
+    https-required-in-production: false
+
+---
+# Test Profile
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/yaytsa_test
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+yaytsa:
+  media:
+    library:
+      roots: ./test-media
+    transcoding:
+      max-concurrent: 2
+    images:
+      cache-directory: ./test-temp/images
