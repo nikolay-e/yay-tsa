@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { MusicAlbum } from '@yaytsa/core';
-  import { getAlbumArtUrl } from '../../utils/image.js';
+  import { getAlbumArtUrl, getAlbumArtSrcSet } from '../../utils/image.js';
   import { player } from '../../stores/player.js';
   import { library } from '../../stores/library.js';
   import { hapticSelect } from '../../utils/haptics.js';
@@ -9,7 +9,8 @@
 
   export let album: MusicAlbum;
 
-  $: albumArtUrl = getAlbumArtUrl(album.Id, 'medium', album.ImageTags?.Primary);
+  $: albumArtUrl = getAlbumArtUrl(album.Id, 'small', album.ImageTags?.Primary);
+  $: albumArtSrcSet = getAlbumArtSrcSet(album.Id, album.ImageTags?.Primary, 'small');
   let imageError = false;
 
   // React to album ID change (primitive dependency) instead of object reference
@@ -43,6 +44,7 @@
     {#if !imageError && albumArtUrl}
       <img
         src={albumArtUrl}
+        srcset={albumArtSrcSet}
         alt={album.Name}
         class="album-art"
         data-testid="album-cover"

@@ -52,7 +52,7 @@ export function getImageUrl(
  */
 export function getAlbumArtUrl(itemId: string, size: ImageSize = 'medium', tag?: string): string {
   const dimensions = IMAGE_SIZE_DIMENSIONS[size];
-  return getImageUrl(itemId, 'Primary', { ...dimensions, tag });
+  return getImageUrl(itemId, 'Primary', { ...dimensions, tag, format: 'webp', quality: 85 });
 }
 
 /**
@@ -66,13 +66,14 @@ export function getAlbumArtSrcSet(
 ): string {
   const baseDimensions = IMAGE_SIZE_DIMENSIONS[size];
 
-  const srcset = [1, 2, 3].map(pixelRatio => {
+  const srcset = [1, 2].map(pixelRatio => {
     const url = getImageUrl(itemId, 'Primary', {
       ...baseDimensions,
       maxWidth: baseDimensions.maxWidth * pixelRatio,
       maxHeight: baseDimensions.maxHeight * pixelRatio,
       tag,
       format: 'webp',
+      quality: 85,
     });
     return `${url} ${pixelRatio}x`;
   });
