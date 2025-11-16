@@ -31,6 +31,8 @@
             src={getAlbumArtUrl($currentTrack.AlbumId, 'small')}
             alt={$currentTrack.Album || 'Album art'}
             class="album-art"
+            width="56"
+            height="56"
           />
         {:else}
           <div class="album-art placeholder">

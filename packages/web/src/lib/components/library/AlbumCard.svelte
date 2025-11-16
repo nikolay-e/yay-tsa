@@ -48,6 +48,8 @@
         alt={album.Name}
         class="album-art"
         data-testid="album-cover"
+        width="300"
+        height="300"
         loading="lazy"
         decoding="async"
         on:error={handleImageError}
