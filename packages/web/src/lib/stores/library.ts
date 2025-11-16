@@ -37,10 +37,6 @@ const initialState: LibraryState = {
 
 const libraryStore = writable<LibraryState>(initialState);
 
-// Race condition prevention for search
-let currentSearchQuery: string | null = null;
-
-// Service initialization timeout (5 seconds)
 const SERVICE_INIT_TIMEOUT_MS = 5000;
 
 // Initialize items service when client is available
@@ -188,10 +184,6 @@ async function loadAlbumTracks(albumId: string): Promise<AudioItem[]> {
   }
 }
 
-/**
- * Load albums for a specific artist
- * Returns albums directly without overwriting the global albums store
- */
 async function loadArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
@@ -208,47 +200,6 @@ async function loadArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
   }
 }
 
-/**
- * Search for albums, artists, and tracks
- */
-async function search(query: string): Promise<void> {
-  const searchQuery = query.trim();
-
-  if (!searchQuery) {
-    libraryStore.update(s => ({ ...s, albums: [], artists: [], tracks: [] }));
-    currentSearchQuery = null;
-    return;
-  }
-
-  // Set current search query for race condition detection
-  currentSearchQuery = searchQuery;
-
-  const handler = createAsyncStoreHandler(libraryStore);
-  handler.start();
-
-  try {
-    const itemsService = await waitForService();
-    const { albums, artists, tracks } = await itemsService.search(searchQuery, { limit: 50 });
-
-    // Only update if this is still the current search query
-    if (currentSearchQuery === searchQuery) {
-      handler.success({ albums, artists, tracks });
-    } else {
-      // Search was superseded, discard results silently
-      return;
-    }
-  } catch (error) {
-    // Only report error if this is still the current search query
-    if (currentSearchQuery === searchQuery) {
-      handler.error(error as Error);
-    }
-    throw error;
-  }
-}
-
-/**
- * Set current album (for detail view)
- */
 function setCurrentAlbum(album: MusicAlbum | null): void {
   libraryStore.update(s => ({ ...s, currentAlbum: album }));
 }
@@ -284,7 +235,6 @@ export const library = {
   loadAlbumTracks,
   getAlbumTracks,
   loadArtistAlbums,
-  search,
   setCurrentAlbum,
   setCurrentArtist,
   clear,

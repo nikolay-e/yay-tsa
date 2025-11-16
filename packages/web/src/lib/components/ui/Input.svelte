@@ -28,7 +28,6 @@
     autocomplete={autocomplete || undefined}
     class:error={!!error}
     on:input={handleInput}
-    on:input
     on:change
     on:blur
   />

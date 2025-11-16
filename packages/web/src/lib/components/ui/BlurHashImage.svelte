@@ -74,7 +74,7 @@
   .blur-hash-image {
     position: relative;
     overflow: hidden;
-    background-color: var(--bg-secondary, #f0f0f0);
+    background-color: var(--color-bg-secondary, #f0f0f0);
   }
 
   .blur-placeholder {
@@ -99,10 +99,6 @@
 
   .main-image.loaded {
     opacity: 1;
-  }
-
-  .main-image.loaded ~ .blur-placeholder {
-    opacity: 0;
   }
 
   .main-image.failed {

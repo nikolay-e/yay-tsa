@@ -4,8 +4,11 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { visualizer } from 'rollup-plugin-visualizer';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Check if SSL certificates exist
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const certPath = path.resolve(__dirname, '../../.certs/cert.pem');
 const keyPath = path.resolve(__dirname, '../../.certs/key.pem');
 const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);

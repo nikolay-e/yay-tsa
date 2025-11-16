@@ -22,6 +22,9 @@ import {
   clearAllSessions,
 } from '../utils/session-manager.js';
 import { logger } from '../utils/logger.js';
+import { cacheManager } from '../cache/cache-manager.js';
+
+const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 
 interface AuthState {
   client: JellyfinClient | null;
@@ -160,25 +163,63 @@ async function logout(): Promise<void> {
   // Clear ALL session data (sessionStorage + localStorage)
   clearAllSessions();
 
-  // Cleanup player resources (dispose timers)
+  // Clear user preferences that should not persist between users
   try {
-    const { player } = await import('./player.js');
-    player.cleanup();
+    localStorage.removeItem(VOLUME_STORAGE_KEY);
+    logger.info('[Auth] Cleared user preferences');
+  } catch (error) {
+    logger.error('[Auth] Failed to clear user preferences:', error);
+  }
+
+  // Cleanup player resources (dispose timers) - sync import to avoid race conditions
+  try {
+    const playerModule = await import('./player.js');
+    playerModule.player.cleanup();
   } catch (error) {
     logger.error('[Player] Failed to cleanup player:', error);
   }
 
-  // SECURITY: Clear IndexedDB cache on logout to prevent data leakage
+  // SECURITY: Clear IndexedDB cache with retry logic
+  const clearIndexedDB = async (retries = 1): Promise<void> => {
+    try {
+      await cacheManager.clearAll();
+      logger.info('[Cache] Cleared IndexedDB cache on logout');
+    } catch (error) {
+      if (retries > 0) {
+        logger.warn('[Cache] Retrying IndexedDB clear...');
+        await clearIndexedDB(retries - 1);
+      } else {
+        throw error;
+      }
+    }
+  };
+
   try {
-    const { cacheManager } = await import('../cache/cache-manager.js');
-    await cacheManager.clearAll();
-    logger.info('[Cache] Cleared all caches on logout');
+    await clearIndexedDB();
   } catch (error) {
-    logger.error('[Cache] Failed to clear cache on logout:', error);
+    logger.error('[Cache] Failed to clear IndexedDB cache on logout:', error);
   }
 
-  // Note: Service worker cache cleanup handled automatically by Workbox
-  // cleanupOutdatedCaches removes old caches on SW update
+  // SECURITY: Clear Service Worker caches on logout to prevent data leakage
+  // User-specific images and audio should not persist after logout
+  if ('caches' in window) {
+    try {
+      const cacheNames = ['yaytsa-images-v2', 'yaytsa-audio-v2'];
+      const results = await Promise.allSettled(cacheNames.map(async name => caches.delete(name)));
+
+      const cleared = results.filter(r => r.status === 'fulfilled' && r.value).length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      if (cleared > 0) {
+        logger.info(`[SW Cache] Cleared ${cleared} cache(s) on logout`);
+      }
+      if (failed > 0) {
+        logger.warn(`[SW Cache] Failed to clear ${failed} cache(s)`);
+      }
+    } catch (error) {
+      logger.error('[SW Cache] Failed to clear SW caches on logout:', error);
+    }
+  }
 
   authStore.set(initialState);
 }

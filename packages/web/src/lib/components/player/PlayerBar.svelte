@@ -1,17 +1,23 @@
 <script lang="ts">
-  import { currentTrack, player } from '../../stores/player.js';
+  import { currentTrack, player, queueItems } from '../../stores/player.js';
   import { currentTime, duration } from '../../stores/player.js';
   import { getAlbumArtUrl } from '../../utils/image.js';
   import SeekBar from './SeekBar.svelte';
   import Controls from './Controls.svelte';
+  import QueuePanel from './QueuePanel.svelte';
   import { PLAYER_TEST_IDS } from '$lib/test-ids';
 
+  let showQueue = false;
+
   function handleSeek(event: CustomEvent<number> | Event) {
-    // Handle both CustomEvent from Svelte dispatcher and regular Events
     const detail = (event as CustomEvent<number>).detail;
     if (detail !== undefined) {
       player.seek(detail);
     }
+  }
+
+  function toggleQueue() {
+    showQueue = !showQueue;
   }
 </script>
 
@@ -52,12 +58,27 @@
         />
       </div>
 
-      <!-- Extra Controls (placeholder for queue, etc.) -->
       <div class="extra-controls">
-        <!-- Future: Queue button, lyrics, etc. -->
+        <button
+          type="button"
+          class="queue-btn"
+          class:active={showQueue}
+          on:click={toggleQueue}
+          aria-label="Toggle queue"
+          title="Queue ({$queueItems.length})"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
+          </svg>
+          {#if $queueItems.length > 0}
+            <span class="queue-count">{$queueItems.length}</span>
+          {/if}
+        </button>
       </div>
     </div>
   </div>
+
+  <QueuePanel isOpen={showQueue} on:close={() => (showQueue = false)} />
 {/if}
 
 <style>
@@ -150,7 +171,43 @@
     gap: var(--spacing-sm);
   }
 
-  /* Responsive adjustments */
+  .queue-btn {
+    position: relative;
+    padding: var(--spacing-sm);
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+  }
+
+  .queue-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .queue-btn.active {
+    color: var(--color-accent);
+  }
+
+  .queue-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background-color: var(--color-accent);
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   @media (max-width: 768px) {
     .player-bar {
       height: auto;

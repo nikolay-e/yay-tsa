@@ -10,9 +10,10 @@ import { HTML5AudioEngine, MediaSessionManager } from '@yaytsa/platform';
 import { client } from './auth.js';
 import { logger } from '../utils/logger.js';
 
-// Playback constants
-const RESTART_THRESHOLD_SECONDS = 3; // Seconds before "previous" restarts current track
-const RETINA_IMAGE_SIZE = 1024; // High-resolution artwork for retina displays
+const RESTART_THRESHOLD_SECONDS = 3;
+const RETINA_IMAGE_SIZE = 1024;
+const VOLUME_STORAGE_KEY = 'yaytsa_volume';
+const DEFAULT_VOLUME = 0.7;
 
 interface PlayerState {
   queue: PlaybackQueue;
@@ -59,9 +60,33 @@ const playerTimingStore = writable<PlayerTimingState>({
   buffered: 0,
 });
 
-// RAF throttle for smooth UI updates (max 60fps)
 let rafId: number | null = null;
 let pendingTimingUpdate: PlayerTimingState | null = null;
+
+function loadPersistedVolume(): number {
+  if (!browser) return DEFAULT_VOLUME;
+  try {
+    const stored = localStorage.getItem(VOLUME_STORAGE_KEY);
+    if (stored) {
+      const volume = parseFloat(stored);
+      if (!isNaN(volume) && volume >= 0 && volume <= 1) {
+        return volume;
+      }
+    }
+  } catch {
+    // localStorage unavailable or corrupted
+  }
+  return DEFAULT_VOLUME;
+}
+
+function persistVolume(volume: number): void {
+  if (!browser) return;
+  try {
+    localStorage.setItem(VOLUME_STORAGE_KEY, volume.toString());
+  } catch {
+    // localStorage unavailable
+  }
+}
 
 function updateTiming(time: number, duration: number) {
   pendingTimingUpdate = {
@@ -97,6 +122,8 @@ if (browser) {
 // Initialize PlaybackState when client is available
 let playbackState: PlaybackState | null = null;
 
+const persistedVolume = loadPersistedVolume();
+
 const initialState: PlayerState = {
   queue,
   state: null,
@@ -104,7 +131,7 @@ const initialState: PlayerState = {
   currentTrack: null,
   currentTime: 0,
   duration: 0,
-  volume: 0.7,
+  volume: persistedVolume,
   isPlaying: false,
   isLoading: false,
   isShuffle: false,
@@ -127,9 +154,8 @@ client.subscribe($client => {
   }
 });
 
-// Set up audio engine event listeners (browser only)
 if (audioEngine) {
-  audioEngine.setVolume(0.7);
+  audioEngine.setVolume(persistedVolume);
 
   // Time update handler (RAF-throttled for smooth performance)
   audioEngine.onTimeUpdate(time => {
@@ -323,9 +349,6 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
   }
 }
 
-/**
- * Play an album (set queue and play first track)
- */
 async function playAlbum(tracks: AudioItem[]): Promise<void> {
   if (tracks.length === 0) {
     return;
@@ -334,8 +357,10 @@ async function playAlbum(tracks: AudioItem[]): Promise<void> {
   const state = get(playerStore);
   state.queue.setQueue(tracks);
 
-  // Play first track from queue (preserves queue)
-  await playTrackFromQueue(tracks[0]);
+  const firstTrack = state.queue.getCurrentItem();
+  if (firstTrack) {
+    await playTrackFromQueue(firstTrack);
+  }
 }
 
 /**
@@ -528,13 +553,11 @@ function seek(seconds: number): void {
   }
 }
 
-/**
- * Set volume (0.0 to 1.0)
- */
 function setVolume(level: number): void {
   if (!audioEngine) return;
 
   audioEngine.setVolume(level);
+  persistVolume(level);
   playerStore.update(s => ({ ...s, volume: level }));
 }
 

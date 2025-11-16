@@ -2,10 +2,11 @@
   export let data = {};
   export let params = {};
 
-  import { library, albums, tracks, isLoading } from '../../lib/stores/library.js';
+  import { searchService, searchAlbums, searchTracks, isSearching } from '../../lib/stores/search.js';
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';
   import TrackList from '../../lib/components/library/TrackList.svelte';
   import { NAVIGATION_TEST_IDS } from '$lib/test-ids';
+  import { onDestroy } from 'svelte';
 
   let query = '';
   let activeTab: 'albums' | 'tracks' = 'albums';
@@ -15,11 +16,14 @@
   function handleSearch() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
-      if (query.trim()) {
-        await library.search(query);
-      }
+      await searchService.search(query);
     }, 300);
   }
+
+  onDestroy(() => {
+    clearTimeout(debounceTimer);
+    searchService.clear();
+  });
 </script>
 
 <svelte:head>
@@ -44,18 +48,18 @@
   {#if query.trim()}
     <div class="tabs" role="tablist">
       <button type="button" class:active={activeTab === 'albums'} on:click={() => (activeTab = 'albums')} role="tab" aria-selected={activeTab === 'albums'}>
-        Albums ({$albums.length})
+        Albums ({$searchAlbums.length})
       </button>
       <button type="button" class:active={activeTab === 'tracks'} on:click={() => (activeTab = 'tracks')} role="tab" aria-selected={activeTab === 'tracks'}>
-        Tracks ({$tracks.length})
+        Tracks ({$searchTracks.length})
       </button>
     </div>
 
     <div class="search-results">
       {#if activeTab === 'albums'}
-        <AlbumGrid albums={$albums} loading={$isLoading} />
+        <AlbumGrid albums={$searchAlbums} loading={$isSearching} />
       {:else}
-        <TrackList tracks={$tracks} showAlbum={true} />
+        <TrackList tracks={$searchTracks} showAlbum={true} />
       {/if}
     </div>
   {/if}

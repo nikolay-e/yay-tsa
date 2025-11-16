@@ -166,6 +166,9 @@ export default [
       'svelte/shorthand-directive': 'warn',
       'svelte/spaced-html-comment': 'warn',
 
+      // Note: Accessibility (a11y) rules are built into Svelte compiler
+      // and are checked via svelte-check, not ESLint plugin
+
       // TypeScript rules for Svelte script blocks (non-type-aware only)
       // Note: Type checking for Svelte is handled by svelte-check
       '@typescript-eslint/no-unused-vars': [

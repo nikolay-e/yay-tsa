@@ -19,9 +19,13 @@ export function saveSession(data: SessionData): void {
     return;
   }
 
-  sessionStorage.setItem(STORAGE_KEYS.SESSION, data.token);
-  sessionStorage.setItem(STORAGE_KEYS.USER_ID, data.userId);
-  sessionStorage.setItem(STORAGE_KEYS.SERVER_URL, data.serverUrl);
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.SESSION, data.token);
+    sessionStorage.setItem(STORAGE_KEYS.USER_ID, data.userId);
+    sessionStorage.setItem(STORAGE_KEYS.SERVER_URL, data.serverUrl);
+  } catch {
+    // QuotaExceededError or SecurityError in private mode
+  }
 }
 
 /**
@@ -33,15 +37,19 @@ export function loadSession(): SessionData | null {
     return null;
   }
 
-  const token = sessionStorage.getItem(STORAGE_KEYS.SESSION);
-  const userId = sessionStorage.getItem(STORAGE_KEYS.USER_ID);
-  const serverUrl = sessionStorage.getItem(STORAGE_KEYS.SERVER_URL);
+  try {
+    const token = sessionStorage.getItem(STORAGE_KEYS.SESSION);
+    const userId = sessionStorage.getItem(STORAGE_KEYS.USER_ID);
+    const serverUrl = sessionStorage.getItem(STORAGE_KEYS.SERVER_URL);
 
-  if (!token || !userId || !serverUrl) {
+    if (!token || !userId || !serverUrl) {
+      return null;
+    }
+
+    return { token, userId, serverUrl };
+  } catch {
     return null;
   }
-
-  return { token, userId, serverUrl };
 }
 
 /**
@@ -52,9 +60,13 @@ export function clearSession(): void {
     return;
   }
 
-  sessionStorage.removeItem(STORAGE_KEYS.SESSION);
-  sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
-  sessionStorage.removeItem(STORAGE_KEYS.SERVER_URL);
+  try {
+    sessionStorage.removeItem(STORAGE_KEYS.SESSION);
+    sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
+    sessionStorage.removeItem(STORAGE_KEYS.SERVER_URL);
+  } catch {
+    // SecurityError in private mode
+  }
 }
 
 /**
@@ -66,10 +78,14 @@ export function saveSessionPersistent(data: SessionData): void {
     return;
   }
 
-  localStorage.setItem(STORAGE_KEYS.SESSION_PERSISTENT, data.token);
-  localStorage.setItem(STORAGE_KEYS.USER_ID_PERSISTENT, data.userId);
-  localStorage.setItem(STORAGE_KEYS.SERVER_URL_PERSISTENT, data.serverUrl);
-  localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
+  try {
+    localStorage.setItem(STORAGE_KEYS.SESSION_PERSISTENT, data.token);
+    localStorage.setItem(STORAGE_KEYS.USER_ID_PERSISTENT, data.userId);
+    localStorage.setItem(STORAGE_KEYS.SERVER_URL_PERSISTENT, data.serverUrl);
+    localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
+  } catch {
+    // QuotaExceededError or SecurityError
+  }
 }
 
 /**
@@ -81,20 +97,24 @@ export function loadSessionPersistent(): SessionData | null {
     return null;
   }
 
-  const rememberMe = localStorage.getItem(STORAGE_KEYS.REMEMBER_ME);
-  if (rememberMe !== 'true') {
-    return null; // "Remember Me" was not enabled
-  }
+  try {
+    const rememberMe = localStorage.getItem(STORAGE_KEYS.REMEMBER_ME);
+    if (rememberMe !== 'true') {
+      return null;
+    }
 
-  const token = localStorage.getItem(STORAGE_KEYS.SESSION_PERSISTENT);
-  const userId = localStorage.getItem(STORAGE_KEYS.USER_ID_PERSISTENT);
-  const serverUrl = localStorage.getItem(STORAGE_KEYS.SERVER_URL_PERSISTENT);
+    const token = localStorage.getItem(STORAGE_KEYS.SESSION_PERSISTENT);
+    const userId = localStorage.getItem(STORAGE_KEYS.USER_ID_PERSISTENT);
+    const serverUrl = localStorage.getItem(STORAGE_KEYS.SERVER_URL_PERSISTENT);
 
-  if (!token || !userId || !serverUrl) {
+    if (!token || !userId || !serverUrl) {
+      return null;
+    }
+
+    return { token, userId, serverUrl };
+  } catch {
     return null;
   }
-
-  return { token, userId, serverUrl };
 }
 
 /**
@@ -105,10 +125,14 @@ export function clearSessionPersistent(): void {
     return;
   }
 
-  localStorage.removeItem(STORAGE_KEYS.SESSION_PERSISTENT);
-  localStorage.removeItem(STORAGE_KEYS.USER_ID_PERSISTENT);
-  localStorage.removeItem(STORAGE_KEYS.SERVER_URL_PERSISTENT);
-  localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+  try {
+    localStorage.removeItem(STORAGE_KEYS.SESSION_PERSISTENT);
+    localStorage.removeItem(STORAGE_KEYS.USER_ID_PERSISTENT);
+    localStorage.removeItem(STORAGE_KEYS.SERVER_URL_PERSISTENT);
+    localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+  } catch {
+    // SecurityError
+  }
 }
 
 /**
