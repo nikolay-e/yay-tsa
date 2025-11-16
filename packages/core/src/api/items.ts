@@ -218,7 +218,7 @@ export class ItemsService extends BaseService {
   /**
    * Get recently added albums
    */
-  async getRecentAlbums(limit: number = 20): Promise<ItemsResult<MusicAlbum>> {
+  async getRecentAlbums(limit?: number): Promise<ItemsResult<MusicAlbum>> {
     return this.getAlbums({
       sortBy: 'DateCreated',
       limit,

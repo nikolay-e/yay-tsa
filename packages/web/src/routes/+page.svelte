@@ -13,7 +13,7 @@
       return;
     }
     try {
-      await library.loadRecentAlbums(24);
+      await library.loadRecentAlbums();
     } catch (error) {
       console.error('Failed to load albums:', error);
     }

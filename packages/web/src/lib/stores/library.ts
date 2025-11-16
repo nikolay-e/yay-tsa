@@ -122,7 +122,7 @@ async function loadAlbums(options?: {
 /**
  * Load recent albums (with caching)
  */
-async function loadRecentAlbums(limit: number = 20): Promise<void> {
+async function loadRecentAlbums(limit?: number): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
 

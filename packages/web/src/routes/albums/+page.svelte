@@ -23,7 +23,7 @@
       return;
     }
     try {
-      await library.loadAlbums({ limit: 100, sortBy });
+      await library.loadAlbums({ sortBy });
     } catch (error) {
       console.error('Failed to load albums:', error);
     }
@@ -49,7 +49,13 @@
     <div class="header-content">
       <div class="header-text">
         <h1>Albums</h1>
-        <p>Browse your music collection</p>
+        <p>
+          {#if $albums.length > 0}
+            {$albums.length} albums in your collection
+          {:else}
+            Browse your music collection
+          {/if}
+        </p>
       </div>
       <div class="sort-controls">
         <label for="sort-select">Sort by:</label>
