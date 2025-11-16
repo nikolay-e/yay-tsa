@@ -112,8 +112,14 @@ public class PlaylistsController {
     @GetMapping("/{playlistId}/Items")
     public ResponseEntity<Map<String, Object>> getPlaylistItems(
             @PathVariable String playlistId,
-            @RequestParam(defaultValue = "0") int startIndex,
-            @RequestParam(defaultValue = "100") int limit,
+            @Parameter(description = "User ID for user-specific data")
+                @RequestParam(value = "UserId", required = false) String userId,
+            @Parameter(description = "Starting index for pagination")
+                @RequestParam(value = "StartIndex", defaultValue = "0") int startIndex,
+            @Parameter(description = "Maximum number of results")
+                @RequestParam(value = "Limit", defaultValue = "100") int limit,
+            @Parameter(description = "Fields to include in response")
+                @RequestParam(value = "Fields", required = false) String fields,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
@@ -126,28 +132,36 @@ public class PlaylistsController {
     }
 
     @Operation(summary = "Add items to playlist",
-              description = "Add one or more items to a playlist")
+              description = "Add one or more items to a playlist. " +
+                           "Item IDs are passed as comma-separated values in the Ids parameter.")
     @PostMapping("/{playlistId}/Items")
     public ResponseEntity<Void> addItemsToPlaylist(
             @PathVariable String playlistId,
-            @RequestParam List<String> ids,
+            @Parameter(description = "Item IDs to add (comma-separated)")
+                @RequestParam(value = "Ids") String ids,
+            @Parameter(description = "User ID")
+                @RequestParam(value = "UserId", required = false) String userId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
         // TODO: Implement in Phase 7
+        // Parse comma-separated IDs: ids.split(",")
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Remove items from playlist",
-              description = "Remove specific items from a playlist")
+              description = "Remove specific items from a playlist by their playlist entry IDs. " +
+                           "Note: These are playlist entry IDs, not the original item IDs.")
     @DeleteMapping("/{playlistId}/Items")
     public ResponseEntity<Void> removeItemsFromPlaylist(
             @PathVariable String playlistId,
-            @RequestParam List<String> entryIds,
+            @Parameter(description = "Playlist entry IDs to remove (comma-separated)")
+                @RequestParam(value = "EntryIds") String entryIds,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
         // TODO: Implement in Phase 7
+        // Parse comma-separated IDs: entryIds.split(",")
         return ResponseEntity.noContent().build();
     }
 

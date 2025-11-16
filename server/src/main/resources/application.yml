@@ -72,7 +72,7 @@ spring:
 
 # Server Configuration
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8096}
   error:
     include-message: always
     include-binding-errors: always

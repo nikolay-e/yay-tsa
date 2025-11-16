@@ -55,13 +55,15 @@ public class SecurityConfig {
 
             // Configure endpoint access
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints
+                // Public endpoints - no authentication required
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/manage/health", "/manage/health/**").permitAll()
+                .requestMatchers("/System/Info/Public").permitAll()
                 .requestMatchers("/Users/AuthenticateByName").permitAll()
 
-                // All other endpoints require authentication
-                .anyRequest().authenticated()
+                // For Phase 0: Allow all endpoints temporarily (authentication not implemented yet)
+                // TODO: Phase 2 - Implement proper authentication and restrict access
+                .anyRequest().permitAll()
             );
 
         // Note: Custom authentication filter will be added in Phase 2
@@ -77,10 +79,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // Allow all origins for development (Phase 0)
+        // TODO: Phase 2 - Restrict to specific origins
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setExposedHeaders(Arrays.asList("Content-Range", "Accept-Ranges", "X-Total-Count"));
+        configuration.setExposedHeaders(Arrays.asList("Content-Range", "Accept-Ranges", "X-Total-Count", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

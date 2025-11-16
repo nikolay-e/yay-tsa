@@ -79,7 +79,7 @@ fi
 # Combine all Java options (use eval to properly split arguments)
 echo "Starting application with Java options: $JAVA_OPTS $JAVA_OPTS_HEAP $JAVA_OPTS_EXTRA"
 echo "Active Spring profile: ${SPRING_PROFILES_ACTIVE:-default}"
-echo "Server port: ${SERVER_PORT:-8080}"
+echo "Server port: ${SERVER_PORT:-8096}"
 
 # Start the application using eval to properly parse options
 eval "exec java $JAVA_OPTS $JAVA_OPTS_HEAP $JAVA_OPTS_EXTRA -jar /app/app.jar \"\$@\""

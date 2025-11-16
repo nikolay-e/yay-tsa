@@ -43,19 +43,19 @@ RUN mkdir -p /app/media /app/temp/transcode /app/temp/images /app/logs && \
 # Copy JAR from builder stage
 COPY --from=builder --chown=yaytsa:yaytsa /app/target/*.jar app.jar
 
-# Copy entrypoint script
+# Copy entrypoint script and fix line endings (Windows CRLF -> Unix LF)
 COPY --chown=yaytsa:yaytsa docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
 # Switch to non-root user
 USER yaytsa
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8096
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/manage/health || exit 1
+    CMD curl -f http://localhost:8096/manage/health || exit 1
 
 # Set JVM options for virtual threads and container awareness
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+ExitOnOutOfMemoryError --enable-preview -Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom"
