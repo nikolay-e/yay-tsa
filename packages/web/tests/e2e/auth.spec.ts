@@ -22,10 +22,10 @@ test.describe('Authentication Flow', () => {
   test('should successfully login with valid credentials', async () => {
     await loginPage.goto();
     await loginPage.login(username, password);
-    await loginPage.waitForRedirectToHome();
+    await loginPage.waitForRedirectToRecent();
 
     await expect(loginPage.page).toHaveURL('/');
-    await expect(loginPage.page.getByRole('heading', { name: 'Recent Albums' })).toBeVisible();
+    await expect(loginPage.page.getByRole('heading', { name: /Recently Played|Discover/ })).toBeVisible();
   });
 
   test('should show error with invalid credentials', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('Authentication Flow', () => {
   test('should logout successfully', async ({ page }) => {
     await loginPage.goto();
     await loginPage.login(username, password);
-    await loginPage.waitForRedirectToHome();
+    await loginPage.waitForRedirectToRecent();
 
     const logoutButton = page.getByRole('button', { name: 'Logout' }).first();
     await logoutButton.click();
@@ -57,12 +57,12 @@ test.describe('Authentication Flow', () => {
   test('should persist session after page reload', async ({ page }) => {
     await loginPage.goto();
     await loginPage.login(username, password);
-    await loginPage.waitForRedirectToHome();
+    await loginPage.waitForRedirectToRecent();
 
     await page.reload();
 
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: 'Recent Albums' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Recently Played|Discover/ })).toBeVisible();
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe('Authentication Flow', () => {
   test('should clear form on logout', async ({ page }) => {
     await loginPage.goto();
     await loginPage.login(username, password);
-    await loginPage.waitForRedirectToHome();
+    await loginPage.waitForRedirectToRecent();
 
     const logoutButton = page.getByRole('button', { name: 'Logout' }).first();
     await logoutButton.click();

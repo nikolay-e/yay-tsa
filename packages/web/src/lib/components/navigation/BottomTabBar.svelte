@@ -33,7 +33,7 @@
   ];
 
   // Memoized derived stores for each tab - no function recreation on $page change
-  const homeActive = derived(page, $page => $page.url.pathname === '/');
+  const recentActive = derived(page, $page => $page.url.pathname === '/');
   const albumsActive = derived(page, $page => $page.url.pathname.startsWith('/albums'));
   const searchActive = derived(page, $page => $page.url.pathname.startsWith('/search'));
 
@@ -53,8 +53,8 @@
       href={tab.href}
       class="tab"
       data-testid="nav-{tab.icon}"
-      class:active={index === 0 ? $homeActive : index === 1 ? $albumsActive : $searchActive}
-      aria-current={(index === 0 ? $homeActive : index === 1 ? $albumsActive : $searchActive) ? 'page' : undefined}
+      class:active={index === 0 ? $recentActive : index === 1 ? $albumsActive : $searchActive}
+      aria-current={(index === 0 ? $recentActive : index === 1 ? $albumsActive : $searchActive) ? 'page' : undefined}
       on:click={handleTabClick}
     >
       {#if tab.icon === 'recent'}

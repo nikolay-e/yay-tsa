@@ -4,7 +4,7 @@
  */
 export const NAVIGATION_TEST_IDS = {
   // BottomTabBar
-  NAV_HOME: 'nav-home',
+  NAV_RECENT: 'nav-recent',
   NAV_ALBUMS: 'nav-albums',
   NAV_SEARCH: 'nav-search',
 

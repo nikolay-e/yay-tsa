@@ -6,7 +6,7 @@ export class LibraryPage {
   readonly page: Page;
   readonly albumCards: Locator;
   readonly searchInput: Locator;
-  readonly navHomeTab: Locator;
+  readonly navRecentTab: Locator;
   readonly navAlbumsTab: Locator;
   readonly navSearchTab: Locator;
 
@@ -14,7 +14,7 @@ export class LibraryPage {
     this.page = page;
     this.albumCards = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD);
     this.searchInput = page.getByTestId(NAVIGATION_TEST_IDS.SEARCH_INPUT);
-    this.navHomeTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME);
+    this.navRecentTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_RECENT);
     this.navAlbumsTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS);
     this.navSearchTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_SEARCH);
   }

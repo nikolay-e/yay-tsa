@@ -237,7 +237,7 @@ export class ItemsService extends BaseService {
       Recursive: true,
       SortBy: 'DatePlayed',
       SortOrder: 'Descending',
-      isPlayed: true,
+      Filters: 'IsPlayed',
       enableUserData: true,
       Fields: 'PrimaryImageAspectRatio,Genres,DateCreated,Artists',
     };

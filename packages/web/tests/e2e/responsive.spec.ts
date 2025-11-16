@@ -39,13 +39,13 @@ test.describe('Responsive UI - Mobile', () => {
   });
 
   test('should navigate with bottom tab bar', async ({ authenticatedPage }) => {
-    await expect(libraryPage.navHomeTab).toBeVisible();
+    await expect(libraryPage.navRecentTab).toBeVisible();
     await expect(libraryPage.navSearchTab).toBeVisible();
 
     await libraryPage.navigateToSearch();
     await expect(authenticatedPage).toHaveURL('/search');
 
-    await libraryPage.navHomeTab.click();
+    await libraryPage.navRecentTab.click();
     await expect(authenticatedPage).toHaveURL('/');
   });
 
@@ -162,7 +162,7 @@ test.describe('Responsive UI - Tablet', () => {
     await libraryPage.navigateToSearch();
     await expect(authenticatedPage).toHaveURL('/search');
 
-    await libraryPage.navHomeTab.click();
+    await libraryPage.navRecentTab.click();
     await expect(authenticatedPage).toHaveURL('/');
   });
 });

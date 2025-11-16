@@ -27,7 +27,7 @@ export class LoginPage {
     await this.loginButton.click();
   }
 
-  async waitForRedirectToHome(): Promise<void> {
+  async waitForRedirectToRecent(): Promise<void> {
     await this.page.waitForURL('/', { timeout: 15000 });
   }
 

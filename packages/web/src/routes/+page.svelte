@@ -1,7 +1,4 @@
 <script lang="ts">
-  export let data = {};
-  export let params = {};
-
   import { onMount } from 'svelte';
   import { library, albums, isLoading } from '../lib/stores/library.js';
   import { isAuthenticated } from '../lib/stores/auth.js';
@@ -27,7 +24,7 @@
   <title>Recent - Yaytsa</title>
 </svelte:head>
 
-<div class="home">
+<div class="recent">
   <header class="page-header">
     <h1>{isRandomFallback ? 'Discover' : 'Recently Played'}</h1>
     <p>
@@ -43,7 +40,7 @@
 </div>
 
 <style>
-  .home {
+  .recent {
     max-width: 1600px;
     margin: 0 auto;
   }
