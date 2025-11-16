@@ -5,7 +5,7 @@
 
 import { writable, derived, get } from 'svelte/store';
 import { ItemsService, type MusicAlbum, type MusicArtist, type AudioItem } from '@yaytsa/core';
-import { client } from './auth.js';
+import { client, isAuthenticated } from './auth.js';
 import { createAsyncStoreHandler } from './utils.js';
 import {
   getCachedAlbums,
@@ -55,6 +55,11 @@ client.subscribe($client => {
  * Uses reactive subscription instead of polling for better performance
  */
 async function waitForService(): Promise<ItemsService> {
+  // Check if user is authenticated first
+  if (!get(isAuthenticated)) {
+    throw new Error('Not authenticated');
+  }
+
   const state = get(libraryStore);
 
   // If service is already available, return it immediately

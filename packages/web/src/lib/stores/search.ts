@@ -1,6 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import { ItemsService, type MusicAlbum, type MusicArtist, type AudioItem } from '@yaytsa/core';
-import { client } from './auth.js';
+import { client, isAuthenticated } from './auth.js';
 import { logger } from '../utils/logger.js';
 
 interface SearchState {
@@ -38,6 +38,10 @@ client.subscribe($client => {
 });
 
 async function waitForService(): Promise<ItemsService> {
+  if (!get(isAuthenticated)) {
+    throw new Error('Not authenticated');
+  }
+
   const state = get(searchStore);
 
   if (state.itemsService) {

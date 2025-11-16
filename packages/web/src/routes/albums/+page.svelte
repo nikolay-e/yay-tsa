@@ -4,9 +4,14 @@
 
   import { onMount } from 'svelte';
   import { library, albums, isLoading } from '../../lib/stores/library.js';
+  import { isAuthenticated } from '../../lib/stores/auth.js';
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';
+  import { get } from 'svelte/store';
 
   onMount(async () => {
+    if (!get(isAuthenticated)) {
+      return;
+    }
     try {
       await library.loadAlbums({ limit: 100 });
     } catch (error) {
