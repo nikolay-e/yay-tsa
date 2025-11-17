@@ -1,1 +1,1 @@
-# Jellyfin Mini Music Client
+# Yaytsa 🎵 Mini Music Client
