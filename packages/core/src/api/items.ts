@@ -97,7 +97,7 @@ export class ItemsService extends BaseService {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicArtist',
       Recursive: true,
-      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Overview'],
+      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Overview', 'ChildCount'],
       SortBy: options?.sortBy || 'SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
