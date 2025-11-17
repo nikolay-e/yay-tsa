@@ -6,6 +6,7 @@ export const NAVIGATION_TEST_IDS = {
   // BottomTabBar
   NAV_RECENT: 'nav-recent',
   NAV_ALBUMS: 'nav-albums',
+  NAV_ARTISTS: 'nav-artists',
   NAV_SEARCH: 'nav-search',
 
   // Search page

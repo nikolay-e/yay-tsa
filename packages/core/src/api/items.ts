@@ -92,12 +92,13 @@ export class ItemsService extends BaseService {
     limit?: number;
     searchTerm?: string;
     isFavorite?: boolean;
+    sortBy?: string;
   }): Promise<ItemsResult<MusicArtist>> {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicArtist',
       Recursive: true,
-      Fields: ['PrimaryImageAspectRatio', 'Genres'],
-      SortBy: 'SortName',
+      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Overview'],
+      SortBy: options?.sortBy || 'SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
@@ -184,6 +185,14 @@ export class ItemsService extends BaseService {
    */
   async getArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
     const result = await this.getAlbums({ artistId });
+    return result.Items;
+  }
+
+  /**
+   * Get tracks from an artist
+   */
+  async getArtistTracks(artistId: string): Promise<AudioItem[]> {
+    const result = await this.getTracks({ artistId });
     return result.Items;
   }
 

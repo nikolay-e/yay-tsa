@@ -25,6 +25,12 @@
       paths: ['/albums']
     },
     {
+      href: '/artists',
+      label: 'Artists',
+      icon: 'artists',
+      paths: ['/artists']
+    },
+    {
       href: '/search',
       label: 'Search',
       icon: 'search',
@@ -35,7 +41,15 @@
   // Memoized derived stores for each tab - no function recreation on $page change
   const recentActive = derived(page, $page => $page.url.pathname === '/');
   const albumsActive = derived(page, $page => $page.url.pathname.startsWith('/albums'));
+  const artistsActive = derived(page, $page => $page.url.pathname.startsWith('/artists'));
   const searchActive = derived(page, $page => $page.url.pathname.startsWith('/search'));
+
+  function getTabActive(index: number): boolean {
+    if (index === 0) return $recentActive;
+    if (index === 1) return $albumsActive;
+    if (index === 2) return $artistsActive;
+    return $searchActive;
+  }
 
   function handleTabClick() {
     hapticSelect();
@@ -53,8 +67,8 @@
       href={tab.href}
       class="tab"
       data-testid="nav-{tab.icon}"
-      class:active={index === 0 ? $recentActive : index === 1 ? $albumsActive : $searchActive}
-      aria-current={(index === 0 ? $recentActive : index === 1 ? $albumsActive : $searchActive) ? 'page' : undefined}
+      class:active={getTabActive(index)}
+      aria-current={getTabActive(index) ? 'page' : undefined}
       on:click={handleTabClick}
     >
       {#if tab.icon === 'recent'}
@@ -64,6 +78,10 @@
       {:else if tab.icon === 'albums'}
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z" />
+        </svg>
+      {:else if tab.icon === 'artists'}
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
         </svg>
       {:else if tab.icon === 'search'}
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

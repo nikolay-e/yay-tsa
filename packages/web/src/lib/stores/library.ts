@@ -12,6 +12,8 @@ import {
   getCachedRecentAlbums,
   getCachedAlbumTracks,
   getCachedRecentlyPlayedAlbums,
+  getCachedArtists,
+  getCachedArtistAlbums,
 } from '../services/cached-items-service.js';
 
 interface LibraryState {
@@ -164,16 +166,21 @@ async function loadRecentlyPlayedAlbums(limit: number = 24): Promise<{ isRandom:
 /**
  * Load artists from server
  */
-async function loadArtists(options?: { limit?: number; startIndex?: number }): Promise<void> {
+async function loadArtists(options?: {
+  limit?: number;
+  startIndex?: number;
+  sortBy?: string;
+}): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
 
   try {
     const itemsService = await waitForService();
 
-    const result = await itemsService.getArtists({
+    const result = await getCachedArtists(itemsService, {
       limit: options?.limit,
       startIndex: options?.startIndex,
+      sortBy: options?.sortBy || 'SortName',
     });
 
     handler.success({ artists: result.Items });
@@ -181,6 +188,11 @@ async function loadArtists(options?: { limit?: number; startIndex?: number }): P
     handler.error(error as Error);
     throw error;
   }
+}
+
+async function loadArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
+  const itemsService = await waitForService();
+  return getCachedArtistAlbums(itemsService, artistId);
 }
 
 /**
@@ -209,22 +221,6 @@ async function loadAlbumTracks(albumId: string): Promise<AudioItem[]> {
 
     handler.success({ tracks: items });
     return items;
-  } catch (error) {
-    handler.error(error as Error);
-    throw error;
-  }
-}
-
-async function loadArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
-  const handler = createAsyncStoreHandler(libraryStore);
-  handler.start();
-
-  try {
-    const itemsService = await waitForService();
-    const result = await itemsService.getArtistAlbums(artistId);
-
-    handler.success({});
-    return result;
   } catch (error) {
     handler.error(error as Error);
     throw error;

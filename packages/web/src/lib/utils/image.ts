@@ -99,3 +99,40 @@ export function getResponsiveImageSrcSet(itemId: string, tag?: string): string {
 
   return srcset.join(', ');
 }
+
+/**
+ * Get artist image URL with preset size
+ */
+export function getArtistImageUrl(
+  artistId: string,
+  size: ImageSize = 'medium',
+  tag?: string
+): string {
+  const dimensions = IMAGE_SIZE_DIMENSIONS[size];
+  return getImageUrl(artistId, 'Primary', { ...dimensions, tag, format: 'webp', quality: 85 });
+}
+
+/**
+ * Get responsive srcset for artist image (1x/2x pixel densities)
+ */
+export function getArtistImageSrcSet(
+  artistId: string,
+  tag?: string,
+  size: ImageSize = 'medium'
+): string {
+  const baseDimensions = IMAGE_SIZE_DIMENSIONS[size];
+
+  const srcset = [1, 2].map(pixelRatio => {
+    const url = getImageUrl(artistId, 'Primary', {
+      ...baseDimensions,
+      maxWidth: baseDimensions.maxWidth * pixelRatio,
+      maxHeight: baseDimensions.maxHeight * pixelRatio,
+      tag,
+      format: 'webp',
+      quality: 85,
+    });
+    return `${url} ${pixelRatio}x`;
+  });
+
+  return srcset.join(', ');
+}

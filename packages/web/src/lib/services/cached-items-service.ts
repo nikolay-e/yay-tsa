@@ -195,3 +195,63 @@ export async function invalidateAlbumCaches(): Promise<void> {
     await cache.delete(key);
   }
 }
+
+/**
+ * Get artists with caching
+ */
+export async function getCachedArtists(
+  itemsService: ItemsService,
+  options?: {
+    sortBy?: string;
+    startIndex?: number;
+    limit?: number;
+    searchTerm?: string;
+    isFavorite?: boolean;
+  }
+): Promise<ItemsResult<MusicArtist>> {
+  const cache = cacheManager.getApiCache();
+
+  const cacheKey = cacheManager.buildCacheKey('/artists', options);
+
+  if (cache) {
+    const cached = await cache.get<ItemsResult<MusicArtist>>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const result = await itemsService.getArtists(options);
+
+  if (cache) {
+    await cache.set(cacheKey, result, TTL.FOUR_HOURS);
+  }
+
+  return result;
+}
+
+/**
+ * Get albums from an artist with caching
+ */
+export async function getCachedArtistAlbums(
+  itemsService: ItemsService,
+  artistId: string
+): Promise<MusicAlbum[]> {
+  const cache = cacheManager.getApiCache();
+
+  const cacheKey = cacheManager.buildCacheKey(`/artist-albums/${artistId}`);
+
+  if (cache) {
+    const cached = await cache.get<MusicAlbum[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const result = await itemsService.getArtistAlbums(artistId);
+
+  if (cache) {
+    await cache.set(cacheKey, result, TTL.FOUR_HOURS);
+  }
+
+  return result;
+}
