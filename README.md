@@ -1,1 +1,3 @@
-# Yaytsa 🎵 Mini Music Client 💚💚💚
+# Yaytsa 🎵 Mini Music Client
+
+Based on Jellyfin OpenAPI
