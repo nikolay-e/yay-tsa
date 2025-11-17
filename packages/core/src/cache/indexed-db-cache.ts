@@ -11,6 +11,7 @@ export class IndexedDBCache implements ICache {
   private version: string;
   private db: IDBDatabase | null = null;
   private initPromise: Promise<void> | null = null;
+  private isClosing = false;
 
   constructor(config: CacheConfig) {
     this.dbName = `yaytsa-cache-${config.name}`;
@@ -18,15 +19,21 @@ export class IndexedDBCache implements ICache {
     this.version = config.version;
   }
 
-  /**
-   * Initialize IndexedDB connection
-   */
+  private resetConnection(): void {
+    this.db = null;
+    this.initPromise = null;
+    this.isClosing = false;
+  }
+
   private async init(): Promise<void> {
-    if (this.db) {
-      return; // Already initialized
+    if (this.db && !this.isClosing) {
+      return;
     }
 
-    // Prevent multiple concurrent initializations
+    if (this.isClosing) {
+      this.resetConnection();
+    }
+
     if (this.initPromise) {
       return this.initPromise;
     }
@@ -35,18 +42,31 @@ export class IndexedDBCache implements ICache {
       const request = indexedDB.open(this.dbName, 1);
 
       request.onerror = () => {
+        this.resetConnection();
         reject(new Error(`Failed to open IndexedDB: ${request.error?.message}`));
       };
 
       request.onsuccess = () => {
         this.db = request.result;
+
+        this.db.onversionchange = () => {
+          this.isClosing = true;
+          if (this.db) {
+            this.db.close();
+          }
+          this.resetConnection();
+        };
+
+        this.db.onclose = () => {
+          this.resetConnection();
+        };
+
         resolve();
       };
 
       request.onupgradeneeded = event => {
         const db = (event.target as IDBOpenDBRequest).result;
 
-        // Create object store if it doesn't exist
         if (!db.objectStoreNames.contains(this.storeName)) {
           const store = db.createObjectStore(this.storeName, { keyPath: 'key' });
           store.createIndex('timestamp', 'timestamp', { unique: false });
@@ -57,222 +77,225 @@ export class IndexedDBCache implements ICache {
     return this.initPromise;
   }
 
-  /**
-   * Get value from cache
-   */
+  private isConnectionClosingError(error: unknown): boolean {
+    if (error instanceof DOMException) {
+      return error.name === 'InvalidStateError' && error.message.includes('closing');
+    }
+    return false;
+  }
+
+  private async withRetry<T>(operation: () => Promise<T>, retries = 1): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retries > 0 && this.isConnectionClosingError(error)) {
+        this.resetConnection();
+        await this.init();
+        return this.withRetry(operation, retries - 1);
+      }
+      throw error;
+    }
+  }
+
   async get<T>(key: string): Promise<T | null> {
-    await this.init();
+    return this.withRetry(async () => {
+      await this.init();
 
-    if (!this.db) {
-      return null;
-    }
+      if (!this.db) {
+        return null;
+      }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.get(key);
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
 
-      request.onsuccess = () => {
-        const entry = request.result as CacheEntry<T> | undefined;
+        request.onsuccess = () => {
+          const entry = request.result as CacheEntry<T> | undefined;
 
-        if (!entry) {
-          resolve(null);
-          return;
-        }
+          if (!entry) {
+            resolve(null);
+            return;
+          }
 
-        // Check if expired
-        const now = Date.now();
-        const expiresAt = entry.timestamp + entry.ttl;
-        if (now > expiresAt) {
-          // Expired - delete and return null
-          void this.delete(key);
-          resolve(null);
-          return;
-        }
+          const now = Date.now();
+          const expiresAt = entry.timestamp + entry.ttl;
+          if (now > expiresAt) {
+            void this.delete(key);
+            resolve(null);
+            return;
+          }
 
-        // Check version mismatch
-        if (entry.version !== this.version) {
-          // Version mismatch - delete and return null
-          void this.delete(key);
-          resolve(null);
-          return;
-        }
+          if (entry.version !== this.version) {
+            void this.delete(key);
+            resolve(null);
+            return;
+          }
 
-        resolve(entry.data);
-      };
+          resolve(entry.data);
+        };
 
-      request.onerror = () => {
-        reject(new Error(`Failed to get cache entry: ${request.error?.message}`));
-      };
+        request.onerror = () => {
+          reject(new Error(`Failed to get cache entry: ${request.error?.message}`));
+        };
+      });
     });
   }
 
-  /**
-   * Set value in cache with TTL
-   */
   async set<T>(key: string, value: T, ttl: number): Promise<void> {
-    await this.init();
+    return this.withRetry(async () => {
+      await this.init();
 
-    if (!this.db) {
-      throw new Error('IndexedDB not initialized');
-    }
+      if (!this.db) {
+        throw new Error('IndexedDB not initialized');
+      }
 
-    const entry: CacheEntry<T> = {
-      key,
-      data: value,
-      timestamp: Date.now(),
-      ttl,
-      version: this.version,
-    };
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.put(entry);
-
-      request.onsuccess = () => {
-        resolve();
+      const entry: CacheEntry<T> = {
+        key,
+        data: value,
+        timestamp: Date.now(),
+        ttl,
+        version: this.version,
       };
 
-      request.onerror = () => {
-        reject(new Error(`Failed to set cache entry: ${request.error?.message}`));
-      };
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(entry);
+
+        request.onsuccess = () => {
+          resolve();
+        };
+
+        request.onerror = () => {
+          reject(new Error(`Failed to set cache entry: ${request.error?.message}`));
+        };
+      });
     });
   }
 
-  /**
-   * Delete specific key from cache
-   */
   async delete(key: string): Promise<void> {
-    await this.init();
+    return this.withRetry(async () => {
+      await this.init();
 
-    if (!this.db) {
-      return;
-    }
+      if (!this.db) {
+        return;
+      }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.delete(key);
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.delete(key);
 
-      request.onsuccess = () => {
-        resolve();
-      };
+        request.onsuccess = () => {
+          resolve();
+        };
 
-      request.onerror = () => {
-        reject(new Error(`Failed to delete cache entry: ${request.error?.message}`));
-      };
+        request.onerror = () => {
+          reject(new Error(`Failed to delete cache entry: ${request.error?.message}`));
+        };
+      });
     });
   }
 
-  /**
-   * Clear all cache entries
-   */
   async clear(): Promise<void> {
-    await this.init();
+    return this.withRetry(async () => {
+      await this.init();
 
-    if (!this.db) {
-      return;
-    }
+      if (!this.db) {
+        return;
+      }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.clear();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
 
-      request.onsuccess = () => {
-        resolve();
-      };
+        request.onsuccess = () => {
+          resolve();
+        };
 
-      request.onerror = () => {
-        reject(new Error(`Failed to clear cache: ${request.error?.message}`));
-      };
+        request.onerror = () => {
+          reject(new Error(`Failed to clear cache: ${request.error?.message}`));
+        };
+      });
     });
   }
 
-  /**
-   * Check if key exists and not expired
-   */
   async has(key: string): Promise<boolean> {
     const value = await this.get(key);
     return value !== null;
   }
 
-  /**
-   * Get all keys in cache
-   */
   async keys(): Promise<string[]> {
-    await this.init();
+    return this.withRetry(async () => {
+      await this.init();
 
-    if (!this.db) {
-      return [];
-    }
+      if (!this.db) {
+        return [];
+      }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.getAllKeys();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.getAllKeys();
 
-      request.onsuccess = () => {
-        resolve(request.result as string[]);
-      };
+        request.onsuccess = () => {
+          resolve(request.result as string[]);
+        };
 
-      request.onerror = () => {
-        reject(new Error(`Failed to get cache keys: ${request.error?.message}`));
-      };
+        request.onerror = () => {
+          reject(new Error(`Failed to get cache keys: ${request.error?.message}`));
+        };
+      });
     });
   }
 
-  /**
-   * Remove expired entries (cleanup)
-   */
   async cleanup(): Promise<void> {
-    await this.init();
+    return this.withRetry(async () => {
+      await this.init();
 
-    if (!this.db) {
-      return;
-    }
+      if (!this.db) {
+        return;
+      }
 
-    const now = Date.now();
+      const now = Date.now();
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const index = store.index('timestamp');
-      const request = index.openCursor();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const index = store.index('timestamp');
+        const request = index.openCursor();
 
-      request.onsuccess = event => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        request.onsuccess = event => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
 
-        if (cursor) {
-          const entry = cursor.value as CacheEntry<unknown>;
-          const expiresAt = entry.timestamp + entry.ttl;
+          if (cursor) {
+            const entry = cursor.value as CacheEntry<unknown>;
+            const expiresAt = entry.timestamp + entry.ttl;
 
-          // Delete if expired or version mismatch
-          if (now > expiresAt || entry.version !== this.version) {
-            cursor.delete();
+            if (now > expiresAt || entry.version !== this.version) {
+              cursor.delete();
+            }
+
+            cursor.continue();
+          } else {
+            resolve();
           }
+        };
 
-          cursor.continue();
-        } else {
-          resolve();
-        }
-      };
-
-      request.onerror = () => {
-        reject(new Error(`Failed to cleanup cache: ${request.error?.message}`));
-      };
+        request.onerror = () => {
+          reject(new Error(`Failed to cleanup cache: ${request.error?.message}`));
+        };
+      });
     });
   }
 
-  /**
-   * Close database connection
-   */
   close(): void {
     if (this.db) {
+      this.isClosing = true;
       this.db.close();
-      this.db = null;
-      this.initPromise = null;
+      this.resetConnection();
     }
   }
 }
