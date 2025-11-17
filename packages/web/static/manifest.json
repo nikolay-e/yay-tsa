@@ -1,9 +1,9 @@
 {
   "name": "Yaytsa",
   "short_name": "Yaytsa",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A minimal music player for Jellyfin",
-  "start_url": "/?v=0.3.2",
+  "start_url": "/?v=0.3.3",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#1db954",

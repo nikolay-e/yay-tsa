@@ -20,8 +20,6 @@ interface PlayerState {
   state: PlaybackState | null;
   audioEngine: HTML5AudioEngine | null;
   currentTrack: AudioItem | null;
-  currentTime: number;
-  duration: number;
   volume: number;
   isPlaying: boolean;
   isLoading: boolean;
@@ -48,9 +46,7 @@ let isAutoAdvancing = false; // Prevents duplicate onEnded events
 
 // Performance optimization: Cache duration and throttle updates
 let cachedDuration = 0; // Cache track duration to avoid repeated getDuration() calls
-let lastUIUpdate = 0; // Timestamp of last UI store update
 let lastMediaSessionUpdate = 0; // Timestamp of last MediaSession update
-const UI_UPDATE_INTERVAL_MS = 250; // 4 times/sec instead of 60+ (performance)
 const MEDIA_SESSION_UPDATE_INTERVAL_MS = 1000; // 1 time/sec for lock screen
 
 // Separate high-frequency timing store (RAF-throttled for performance)
@@ -129,8 +125,6 @@ const initialState: PlayerState = {
   state: null,
   audioEngine,
   currentTrack: null,
-  currentTime: 0,
-  duration: 0,
   volume: persistedVolume,
   isPlaying: false,
   isLoading: false,
@@ -167,26 +161,15 @@ if (audioEngine) {
     // RAF-throttled UI updates (max 60fps, but typically 10-30fps depending on browser)
     updateTiming(time, cachedDuration);
 
-    // Also update main store (throttled) for backwards compatibility
+    // Debounce MediaSession updates for lock screen seek bar (1 time/sec)
     const now = Date.now();
-    if (now - lastUIUpdate >= UI_UPDATE_INTERVAL_MS) {
-      lastUIUpdate = now;
-
-      playerStore.update((state: PlayerState) => ({
-        ...state,
-        currentTime: time,
-        duration: cachedDuration,
-      }));
-
-      // Debounce MediaSession updates for lock screen seek bar (1 time/sec)
-      if (
-        mediaSession &&
-        cachedDuration > 0 &&
-        now - lastMediaSessionUpdate >= MEDIA_SESSION_UPDATE_INTERVAL_MS
-      ) {
-        lastMediaSessionUpdate = now;
-        mediaSession.updatePositionState(cachedDuration, time);
-      }
+    if (
+      mediaSession &&
+      cachedDuration > 0 &&
+      now - lastMediaSessionUpdate >= MEDIA_SESSION_UPDATE_INTERVAL_MS
+    ) {
+      lastMediaSessionUpdate = now;
+      mediaSession.updatePositionState(cachedDuration, time);
     }
   });
 
@@ -197,11 +180,12 @@ if (audioEngine) {
     isAutoAdvancing = true;
 
     const state = get(playerStore);
+    const timing = get(playerTimingStore);
 
     // Report completion
     if (state.state && state.currentTrack) {
       state.state.setStatus('stopped');
-      state.state.setCurrentTime(state.currentTime);
+      state.state.setCurrentTime(timing.currentTime);
       void state.state.reportPlaybackStop();
     }
 
@@ -410,9 +394,10 @@ function pause(): void {
   audioEngine.pause();
 
   const state = get(playerStore);
+  const timing = get(playerTimingStore);
   if (state.state && state.currentTrack) {
     state.state.setStatus('paused');
-    state.state.setCurrentTime(state.currentTime);
+    state.state.setCurrentTime(timing.currentTime);
     void state.state.reportPlaybackProgress();
   }
 
@@ -482,9 +467,10 @@ function stop(): void {
   audioEngine.pause();
 
   const state = get(playerStore);
+  const timing = get(playerTimingStore);
   if (state.state && state.currentTrack) {
     state.state.setStatus('stopped');
-    state.state.setCurrentTime(state.currentTime);
+    state.state.setCurrentTime(timing.currentTime);
     void state.state.reportPlaybackStop();
     state.state.reset();
   }
@@ -523,9 +509,10 @@ async function next(): Promise<void> {
  */
 async function previous(): Promise<void> {
   const state = get(playerStore);
+  const timing = get(playerTimingStore);
 
   // If we're more than threshold seconds in, restart current track
-  if (state.currentTime > RESTART_THRESHOLD_SECONDS) {
+  if (timing.currentTime > RESTART_THRESHOLD_SECONDS) {
     seek(0);
     return;
   }
@@ -618,8 +605,18 @@ function removeFromQueue(index: number): void {
   state.queue.removeAt(index);
 }
 
-// Derived stores
-export const currentTrack = derived(playerStore, $player => $player.currentTrack);
+// Derived stores with manual set to avoid safe_not_equal false positives on objects
+let cachedCurrentTrack: AudioItem | null = null;
+export const currentTrack = derived(
+  playerStore,
+  ($player, set) => {
+    if ($player.currentTrack !== cachedCurrentTrack) {
+      cachedCurrentTrack = $player.currentTrack;
+      set(cachedCurrentTrack);
+    }
+  },
+  null as AudioItem | null
+);
 
 // High-frequency timing stores (RAF-throttled, independent from playerStore)
 export const currentTime = derived(playerTimingStore, $timing => $timing.currentTime);
@@ -632,18 +629,21 @@ export const isShuffle = derived(playerStore, $player => $player.isShuffle);
 export const repeatMode = derived(playerStore, $player => $player.repeatMode);
 export const error = derived(playerStore, $player => $player.error);
 
-// Memoized queue items to avoid O(n) array copying on every store update
+// Memoized queue items with manual set to avoid safe_not_equal false positives
 let cachedQueueItems: AudioItem[] = [];
 let cachedQueueLength = 0;
-export const queueItems = derived(playerStore, $player => {
-  const items = $player.queue.getAllItems();
-  // Only update cache if queue length changed (avoids copying on timeupdate)
-  if (items.length !== cachedQueueLength) {
-    cachedQueueItems = items;
-    cachedQueueLength = items.length;
-  }
-  return cachedQueueItems;
-});
+export const queueItems = derived(
+  playerStore,
+  ($player, set) => {
+    const items = $player.queue.getAllItems();
+    if (items.length !== cachedQueueLength) {
+      cachedQueueItems = items;
+      cachedQueueLength = items.length;
+      set(cachedQueueItems);
+    }
+  },
+  [] as AudioItem[]
+);
 
 /**
  * Cleanup player resources (called on logout)
