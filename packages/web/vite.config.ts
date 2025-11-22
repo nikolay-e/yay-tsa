@@ -34,7 +34,7 @@ export default defineConfig({
               url.pathname.includes('/Items/') && url.pathname.includes('/Images/'),
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'yaytsa-images-v0.3.4',
+              cacheName: 'yaytsa-images-v0.3.6',
               expiration: {
                 maxEntries: 500,
                 maxAgeSeconds: 30 * 24 * 60 * 60,
@@ -49,7 +49,7 @@ export default defineConfig({
               url.pathname.includes('/Audio/') && url.pathname.includes('/stream'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'yaytsa-audio-v0.3.4',
+              cacheName: 'yaytsa-audio-v0.3.6',
               plugins: [
                 {
                   cacheKeyWillBeUsed: async ({ request }) => {
