@@ -193,3 +193,11 @@ repos:
         language: node
         pass_filenames: false
         stages: [pre-push]
+
+      - id: bump-version
+        name: 'Bump version on push to main'
+        entry: bash scripts/bump-version.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        always_run: true
