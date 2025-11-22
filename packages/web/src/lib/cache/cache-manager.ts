@@ -25,19 +25,23 @@ class CacheManager {
         version: APP_VERSION,
       });
 
+      // Ensure the cache is usable before marking initialized
+      await apiCache.cleanup();
       this.caches.set('api', apiCache);
-
-      // Run cleanup on initialization
-      await this.cleanup();
 
       this.initialized = true;
     } catch (error) {
       console.error('Failed to initialize cache manager:', error);
       // Continue without caching if initialization fails
+      this.caches.clear();
+      this.initialized = false;
     }
   }
 
   getApiCache(): ICache | null {
+    if (!this.initialized) {
+      return null;
+    }
     return this.caches.get('api') || null;
   }
 
@@ -56,6 +60,7 @@ class CacheManager {
   }
 
   async clearAll(): Promise<void> {
+    if (!this.initialized) return;
     const promises: Promise<void>[] = [];
     for (const cache of this.caches.values()) {
       promises.push(cache.clear());
@@ -64,6 +69,7 @@ class CacheManager {
   }
 
   async cleanup(): Promise<void> {
+    if (!this.initialized) return;
     const promises: Promise<void>[] = [];
     for (const cache of this.caches.values()) {
       promises.push(cache.cleanup());

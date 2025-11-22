@@ -54,7 +54,7 @@
   function shuffleAlbum() {
     if (tracks.length > 0) {
       hapticSelect();
-      player.toggleShuffle();
+      player.setShuffle(true);
       player.playAlbum(tracks);
     }
   }

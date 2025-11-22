@@ -3,7 +3,13 @@
   export let params = {};
 
   import { onMount } from 'svelte';
-  import { library, albums, isLoading } from '../../lib/stores/library.js';
+  import {
+    library,
+    albums,
+    isLoading,
+    albumsTotal,
+    hasMoreAlbums,
+  } from '../../lib/stores/library.js';
   import { isAuthenticated } from '../../lib/stores/auth.js';
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';
   import { get } from 'svelte/store';
@@ -18,12 +24,12 @@
 
   let currentSort: SortOption = 'SortName';
 
-  async function loadWithSort(sortBy: SortOption) {
+  async function loadWithSort(sortBy: SortOption, append: boolean = false) {
     if (!get(isAuthenticated)) {
       return;
     }
     try {
-      await library.loadAlbums({ sortBy });
+      await library.loadAlbums({ sortBy, append });
     } catch (error) {
       console.error('Failed to load albums:', error);
     }
@@ -32,11 +38,20 @@
   function handleSortChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     currentSort = target.value as SortOption;
-    loadWithSort(currentSort);
+    loadWithSort(currentSort, false);
+  }
+
+  async function loadMore() {
+    if ($isLoading || !$hasMoreAlbums) return;
+    try {
+      await loadWithSort(currentSort, true);
+    } catch (error) {
+      console.error('Failed to load more albums:', error);
+    }
   }
 
   onMount(() => {
-    loadWithSort(currentSort);
+    loadWithSort(currentSort, false);
   });
 </script>
 
@@ -51,7 +66,7 @@
         <h1>Albums</h1>
         <p>
           {#if $albums.length > 0}
-            {$albums.length} albums in your collection
+            {$albumsTotal || $albums.length} albums in your collection
           {:else}
             Browse your music collection
           {/if}
@@ -69,6 +84,14 @@
   </header>
 
   <AlbumGrid albums={$albums} loading={$isLoading} />
+
+  {#if $hasMoreAlbums}
+    <div class="load-more">
+      <button type="button" on:click={loadMore} disabled={$isLoading} class="load-more-btn">
+        {$isLoading ? 'Loading…' : 'Load more'}
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -140,5 +163,24 @@
     .sort-controls {
       justify-content: flex-start;
     }
+  }
+
+  .load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--spacing-lg);
+  }
+
+  .load-more-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+
+  .load-more-btn:hover:not(:disabled) {
+    background: var(--color-bg-hover);
   }
 </style>

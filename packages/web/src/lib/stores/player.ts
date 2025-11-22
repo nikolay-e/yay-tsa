@@ -139,6 +139,9 @@ const playerStore = writable<PlayerState>(initialState);
 client.subscribe($client => {
   if ($client) {
     playbackState = new PlaybackState($client);
+    // Keep playback reporting in sync with current UI volume
+    const currentVolume = get(playerStore).volume;
+    playbackState.setVolume(currentVolume);
     playerStore.update(state => ({ ...state, state: playbackState }));
   } else {
     // Client disconnected (logout) - clear playback but preserve volume
@@ -544,6 +547,10 @@ function setVolume(level: number): void {
   if (!audioEngine) return;
 
   audioEngine.setVolume(level);
+  // Keep telemetry in sync with UI volume
+  if (playbackState) {
+    playbackState.setVolume(level);
+  }
   persistVolume(level);
   playerStore.update(s => ({ ...s, volume: level }));
 }
@@ -557,6 +564,13 @@ function toggleShuffle(): void {
   const newShuffle = state.queue.getShuffleMode() === 'on';
 
   playerStore.update(s => ({ ...s, isShuffle: newShuffle }));
+}
+
+function setShuffle(enabled: boolean): void {
+  const state = get(playerStore);
+  state.queue.setShuffleMode(enabled ? 'on' : 'off');
+
+  playerStore.update(s => ({ ...s, isShuffle: enabled }));
 }
 
 /**
@@ -683,6 +697,7 @@ export const player = {
   seek,
   setVolume,
   toggleShuffle,
+  setShuffle,
   setRepeatMode,
   toggleRepeat,
   getQueue,

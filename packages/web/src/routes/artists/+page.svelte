@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { library, artists, isLoading } from '../../lib/stores/library.js';
+  import {
+    library,
+    artists,
+    isLoading,
+    artistsTotal,
+    hasMoreArtists,
+  } from '../../lib/stores/library.js';
   import { isAuthenticated } from '../../lib/stores/auth.js';
   import ArtistGrid from '../../lib/components/library/ArtistGrid.svelte';
   import { get } from 'svelte/store';
@@ -14,19 +20,24 @@
 
   let currentSort: SortOption = 'SortName';
 
-  async function loadWithSort(sortBy: SortOption) {
+  async function loadWithSort(sortBy: SortOption, append: boolean = false) {
     if (!get(isAuthenticated)) return;
-    await library.loadArtists({ sortBy });
+    await library.loadArtists({ sortBy, append });
   }
 
   function handleSortChange(event: Event) {
     const select = event.target as HTMLSelectElement;
     currentSort = select.value as SortOption;
-    loadWithSort(currentSort);
+    loadWithSort(currentSort, false);
+  }
+
+  async function loadMore() {
+    if ($isLoading || !$hasMoreArtists) return;
+    await loadWithSort(currentSort, true);
   }
 
   onMount(() => {
-    loadWithSort(currentSort);
+    loadWithSort(currentSort, false);
   });
 </script>
 
@@ -34,7 +45,7 @@
   <header class="page-header">
     <div class="header-content">
       <h1>Artists</h1>
-      <p class="subtitle">{$artists.length} artists in your library</p>
+      <p class="subtitle">{$artistsTotal || $artists.length} artists in your library</p>
     </div>
 
     <div class="sort-controls">
@@ -48,6 +59,14 @@
   </header>
 
   <ArtistGrid artists={$artists} loading={$isLoading} />
+
+  {#if $hasMoreArtists}
+    <div class="load-more">
+      <button type="button" on:click={loadMore} disabled={$isLoading} class="load-more-btn">
+        {$isLoading ? 'Loading…' : 'Load more'}
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -127,5 +146,24 @@
     .sort-controls select {
       width: 100%;
     }
+  }
+
+  .load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--spacing-lg);
+  }
+
+  .load-more-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+
+  .load-more-btn:hover:not(:disabled) {
+    background: var(--color-bg-hover);
   }
 </style>

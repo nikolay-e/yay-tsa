@@ -54,11 +54,12 @@
     hapticSelect();
     if (albums.length === 0) return;
 
-    const allTracks = [];
-    for (const album of albums) {
-      const tracks = await library.getAlbumTracks(album.Id);
-      allTracks.push(...tracks);
-    }
+    const trackResults = await Promise.allSettled(
+      albums.map(album => library.getAlbumTracks(album.Id))
+    );
+    const allTracks = trackResults.flatMap(result =>
+      result.status === 'fulfilled' ? result.value : []
+    );
 
     if (allTracks.length > 0) {
       player.playAlbum(allTracks);
@@ -69,15 +70,16 @@
     hapticSelect();
     if (albums.length === 0) return;
 
-    const allTracks = [];
-    for (const album of albums) {
-      const tracks = await library.getAlbumTracks(album.Id);
-      allTracks.push(...tracks);
-    }
+    const trackResults = await Promise.allSettled(
+      albums.map(album => library.getAlbumTracks(album.Id))
+    );
+    const allTracks = trackResults.flatMap(result =>
+      result.status === 'fulfilled' ? result.value : []
+    );
 
     if (allTracks.length > 0) {
+      player.setShuffle(true);
       player.playAlbum(allTracks);
-      player.toggleShuffle();
     }
   }
 

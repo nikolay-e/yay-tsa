@@ -136,12 +136,19 @@ export class JellyfinClient {
   /**
    * Build request headers with authentication
    */
-  private buildRequestHeaders(additionalHeaders?: HeadersInit): Record<string, string> {
+  private buildRequestHeaders(
+    additionalHeaders?: HeadersInit,
+    includeContentType: boolean = false
+  ): Record<string, string> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       'X-Emby-Authorization': this.buildAuthHeader(),
       ...this.headersFromInit(additionalHeaders),
     };
+
+    // Only set Content-Type when we actually send a body to avoid CORS preflights on GETs
+    if (includeContentType && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (this.token) {
       headers['X-Emby-Token'] = this.token;
@@ -216,10 +223,11 @@ export class JellyfinClient {
     const url = `${this.serverUrl}${endpoint}`;
     const method = options.method || 'GET';
     const isIdempotent = method === 'GET' || method === 'DELETE';
+    const hasBody = options.body !== undefined;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const headers = this.buildRequestHeaders(options.headers);
+        const headers = this.buildRequestHeaders(options.headers, hasBody);
         const response = await fetch(url, { ...options, headers });
 
         // Handle non-OK responses

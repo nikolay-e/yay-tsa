@@ -25,6 +25,10 @@ interface LibraryState {
   currentArtist: MusicArtist | null;
   isLoading: boolean;
   error: string | null;
+  albumsTotal: number;
+  artistsTotal: number;
+  albumsSort: string;
+  artistsSort: string;
 }
 
 const initialState: LibraryState = {
@@ -36,11 +40,16 @@ const initialState: LibraryState = {
   currentArtist: null,
   isLoading: false,
   error: null,
+  albumsTotal: 0,
+  artistsTotal: 0,
+  albumsSort: 'SortName',
+  artistsSort: 'SortName',
 };
 
 const libraryStore = writable<LibraryState>(initialState);
 
 const SERVICE_INIT_TIMEOUT_MS = 5000;
+const PAGE_SIZE = 60;
 
 // Initialize items service when client is available
 client.subscribe($client => {
@@ -101,21 +110,39 @@ async function loadAlbums(options?: {
   limit?: number;
   startIndex?: number;
   sortBy?: string;
+  append?: boolean;
 }): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
 
   try {
     const itemsService = await waitForService();
+    const state = get(libraryStore);
+
+    const sortBy = options?.sortBy || state.albumsSort || 'SortName';
+    const limit = options?.limit ?? PAGE_SIZE;
+    const startIndex =
+      options?.append === true
+        ? state.albums.length
+        : options?.startIndex !== undefined
+          ? options.startIndex
+          : 0;
 
     // Use cached version
     const result = await getCachedAlbums(itemsService, {
-      limit: options?.limit,
-      startIndex: options?.startIndex,
-      sortBy: options?.sortBy || 'SortName',
+      limit,
+      startIndex,
+      sortBy,
     });
 
-    handler.success({ albums: result.Items });
+    const nextAlbums =
+      startIndex === 0 ? result.Items : [...state.albums, ...result.Items];
+
+    handler.success({
+      albums: nextAlbums,
+      albumsTotal: result.TotalRecordCount,
+      albumsSort: sortBy,
+    });
   } catch (error) {
     handler.error(error as Error);
     throw error;
@@ -170,20 +197,38 @@ async function loadArtists(options?: {
   limit?: number;
   startIndex?: number;
   sortBy?: string;
+  append?: boolean;
 }): Promise<void> {
   const handler = createAsyncStoreHandler(libraryStore);
   handler.start();
 
   try {
     const itemsService = await waitForService();
+    const state = get(libraryStore);
+
+    const sortBy = options?.sortBy || state.artistsSort || 'SortName';
+    const limit = options?.limit ?? PAGE_SIZE;
+    const startIndex =
+      options?.append === true
+        ? state.artists.length
+        : options?.startIndex !== undefined
+          ? options.startIndex
+          : 0;
 
     const result = await getCachedArtists(itemsService, {
-      limit: options?.limit,
-      startIndex: options?.startIndex,
-      sortBy: options?.sortBy || 'SortName',
+      limit,
+      startIndex,
+      sortBy,
     });
 
-    handler.success({ artists: result.Items });
+    const nextArtists =
+      startIndex === 0 ? result.Items : [...state.artists, ...result.Items];
+
+    handler.success({
+      artists: nextArtists,
+      artistsTotal: result.TotalRecordCount,
+      artistsSort: sortBy,
+    });
   } catch (error) {
     handler.error(error as Error);
     throw error;
@@ -247,7 +292,17 @@ function clear(): void {
 
 // Derived stores
 export const albums = derived(libraryStore, $library => $library.albums);
+export const albumsTotal = derived(libraryStore, $library => $library.albumsTotal);
+export const hasMoreAlbums = derived(
+  libraryStore,
+  $library => $library.albums.length < $library.albumsTotal
+);
 export const artists = derived(libraryStore, $library => $library.artists);
+export const artistsTotal = derived(libraryStore, $library => $library.artistsTotal);
+export const hasMoreArtists = derived(
+  libraryStore,
+  $library => $library.artists.length < $library.artistsTotal
+);
 export const tracks = derived(libraryStore, $library => $library.tracks);
 export const currentAlbum = derived(libraryStore, $library => $library.currentAlbum);
 export const currentArtist = derived(libraryStore, $library => $library.currentArtist);
