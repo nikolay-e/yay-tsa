@@ -25,3 +25,4 @@ yarn.lock
 
 # Helm templates (use Go templating, not pure YAML)
 helm/**/templates/**
+LICENSE.md
