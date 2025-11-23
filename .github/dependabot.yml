@@ -4,19 +4,42 @@ updates:
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
-      interval: 'weekly'
+      interval: 'daily'
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
     commit-message:
       prefix: 'deps'
       include: 'scope'
+    groups:
+      npm-dependencies:
+        patterns:
+          - '*'
 
-  # Monitor GitHub Actions if we add them later
+  # Docker base images
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+      - 'docker'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+
+  # GitHub Actions
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
-      interval: 'monthly'
+      interval: 'daily'
     labels:
       - 'dependencies'
       - 'github-actions'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    groups:
+      github-actions:
+        patterns:
+          - '*'
