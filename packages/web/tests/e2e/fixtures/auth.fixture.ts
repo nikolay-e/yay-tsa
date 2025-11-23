@@ -15,15 +15,16 @@ export const test = base.extend<AuthFixtures>({
     await page.goto('/login');
 
     // Wait for login form (no serverUrl field anymore)
-    await page.waitForSelector('input[name="username"]', { timeout: 10000 });
+    await page.waitForSelector('#username', { timeout: 10000 });
 
-    await page.fill('input[name="username"]', username);
-    await page.fill('input[name="password"]', password);
+    await page.fill('#username', username);
+    await page.fill('#password', password);
 
     await page.click('button[type="submit"]');
 
     await page.waitForURL('/', { timeout: 15000 });
-    await expect(page.getByRole('heading', { name: 'Recent Albums' })).toBeVisible({ timeout: 10000 });
+    // Home page shows either 'Recently Played' or 'Discover' depending on user history
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
 
     await use(page);
   },

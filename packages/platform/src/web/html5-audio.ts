@@ -73,27 +73,20 @@ export class HTML5AudioEngine implements AudioEngine {
       this.loadCancelled = false;
       this.currentLoadReject = reject;
 
-      // Firefox race condition: metadata might already be loaded
-      if (this.audio.readyState >= HTMLMediaElement.HAVE_METADATA && this.audio.src === url) {
+      // Firefox race condition: already loaded
+      if (this.audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && this.audio.src === url) {
         resolve();
         return;
       }
 
-      const handleLoadedMetadata = () => {
+      // Use 'canplay' for faster start - minimal buffering needed
+      const handleCanPlay = () => {
         // Skip if already cancelled
         if (this.loadCancelled) return;
 
-        this.audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        this.audio.removeEventListener('canplay', handleCanPlay);
         this.audio.removeEventListener('error', handleError);
         this.currentLoadReject = null;
-
-        // Validate duration is available
-        const duration = this.audio.duration;
-        if (!Number.isFinite(duration)) {
-          reject(new Error('Invalid duration - metadata not fully loaded'));
-          return;
-        }
-
         resolve();
       };
 
@@ -101,7 +94,7 @@ export class HTML5AudioEngine implements AudioEngine {
         // Skip if already cancelled
         if (this.loadCancelled) return;
 
-        this.audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        this.audio.removeEventListener('canplay', handleCanPlay);
         this.audio.removeEventListener('error', handleError);
         this.currentLoadReject = null;
         const mediaError = this.audio.error;
@@ -111,7 +104,7 @@ export class HTML5AudioEngine implements AudioEngine {
         reject(error);
       };
 
-      this.audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+      this.audio.addEventListener('canplay', handleCanPlay, { once: true });
       this.audio.addEventListener('error', handleError, { once: true });
 
       this.audio.src = url;

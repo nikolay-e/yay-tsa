@@ -6,21 +6,25 @@ export class LibraryPage {
   readonly page: Page;
   readonly albumCards: Locator;
   readonly searchInput: Locator;
-  readonly navRecentTab: Locator;
+  readonly navHomeTab: Locator;
   readonly navAlbumsTab: Locator;
-  readonly navSearchTab: Locator;
 
   constructor(page: Page) {
     this.page = page;
     this.albumCards = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD);
     this.searchInput = page.getByTestId(NAVIGATION_TEST_IDS.SEARCH_INPUT);
-    this.navRecentTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_RECENT);
+    this.navHomeTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME);
     this.navAlbumsTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS);
-    this.navSearchTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_SEARCH);
   }
 
   async goto(): Promise<void> {
     await this.page.goto('/');
+    await this.waitForAlbumsToLoad();
+  }
+
+  async navigateHome(): Promise<void> {
+    // SPA navigation - preserves app state (unlike page.goto which reloads)
+    await this.page.click('a[href="/"]');
     await this.waitForAlbumsToLoad();
   }
 
@@ -46,18 +50,12 @@ export class LibraryPage {
   }
 
   async navigateToSearch(): Promise<void> {
-    // Check if bottom tab bar is visible (mobile/tablet)
-    const isTabBarVisible = await this.navSearchTab.isVisible();
-
-    if (isTabBarVisible) {
-      // Mobile: click on tab
-      await this.navSearchTab.click();
-    } else {
-      // Desktop: bottom tab bar is hidden, navigate directly
-      await this.page.goto('/search');
+    // Search is now on the home page
+    const currentPath = new URL(this.page.url()).pathname;
+    if (currentPath !== '/') {
+      await this.page.goto('/');
     }
-
-    await expect(this.searchInput).toBeVisible();
+    await expect(this.searchInput).toBeVisible({ timeout: 10000 });
   }
 
   async search(query: string): Promise<void> {
@@ -70,7 +68,7 @@ export class LibraryPage {
   }
 
   async expectNoResults(): Promise<void> {
-    await expect(this.page.locator('text=No results found')).toBeVisible();
+    await expect(this.page.locator('text=No albums found')).toBeVisible();
   }
 
   async scrollToBottom(): Promise<void> {

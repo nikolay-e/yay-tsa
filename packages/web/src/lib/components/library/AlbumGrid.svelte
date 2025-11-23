@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MusicAlbum } from '@yaytsa/core';
   import AlbumCard from './AlbumCard.svelte';
+  import '$lib/styles/skeleton.css';
 
   export let albums: MusicAlbum[] = [];
   export let loading: boolean = false;
@@ -12,10 +13,10 @@
     <div class="album-grid">
       {#each Array(skeletonCount) as _, i (i)}
         <div class="skeleton-card">
-          <div class="skeleton-art"></div>
+          <div class="skeleton-art skeleton-animate"></div>
           <div class="skeleton-info">
-            <div class="skeleton-title"></div>
-            <div class="skeleton-artist"></div>
+            <div class="skeleton-title skeleton-animate"></div>
+            <div class="skeleton-artist skeleton-animate"></div>
           </div>
         </div>
       {/each}
@@ -75,14 +76,6 @@
   .skeleton-art {
     aspect-ratio: 1;
     border-radius: var(--radius-md);
-    background: linear-gradient(
-      90deg,
-      var(--color-bg-tertiary) 25%,
-      var(--color-bg-hover) 50%,
-      var(--color-bg-tertiary) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   .skeleton-info {
@@ -95,37 +88,12 @@
     height: 1rem;
     width: 80%;
     border-radius: var(--radius-sm);
-    background: linear-gradient(
-      90deg,
-      var(--color-bg-tertiary) 25%,
-      var(--color-bg-hover) 50%,
-      var(--color-bg-tertiary) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   .skeleton-artist {
     height: 0.875rem;
     width: 60%;
     border-radius: var(--radius-sm);
-    background: linear-gradient(
-      90deg,
-      var(--color-bg-tertiary) 25%,
-      var(--color-bg-hover) 50%,
-      var(--color-bg-tertiary) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
-  }
-
-  @keyframes skeleton-pulse {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
   }
 
   /* Small phones: flexible minimum with tighter spacing */

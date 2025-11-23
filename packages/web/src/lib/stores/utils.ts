@@ -1,12 +1,51 @@
-import type { Writable } from 'svelte/store';
+import { get, type Writable, type Readable } from 'svelte/store';
 
-/**
- * Utility for handling async operations in Svelte stores
- * Standardizes loading/error state management
- */
 export interface AsyncState {
   isLoading: boolean;
   error: string | null;
+}
+
+export interface ServiceState<T> {
+  service: T | null;
+}
+
+export function createServiceWaiter<T>(
+  store: Readable<ServiceState<T>>,
+  isAuthenticated: Readable<boolean>,
+  timeoutMs: number = 5000,
+  serviceName: string = 'Service'
+): () => Promise<T> {
+  return async () => {
+    if (!get(isAuthenticated)) {
+      throw new Error('Not authenticated');
+    }
+
+    const state = get(store);
+    if (state.service) {
+      return state.service;
+    }
+
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          unsubscribe();
+          reject(new Error(`${serviceName} not initialized after ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+
+      const unsubscribe = store.subscribe($state => {
+        if ($state.service && !resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          queueMicrotask(() => unsubscribe());
+          resolve($state.service);
+        }
+      });
+    });
+  };
 }
 
 export interface AsyncStoreHandler<T extends AsyncState> {

@@ -301,6 +301,20 @@ export class JellyfinClient {
     return headers;
   }
 
+  private buildQueryString(params: Record<string, any>, joinArrays: boolean = false): string {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (joinArrays && Array.isArray(value)) {
+          searchParams.append(key, value.join(','));
+        } else {
+          searchParams.append(key, String(value));
+        }
+      }
+    });
+    return searchParams.toString();
+  }
+
   /**
    * Handle error response from API
    */
@@ -343,25 +357,10 @@ export class JellyfinClient {
    */
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T | undefined> {
     let url = endpoint;
-
     if (params) {
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          if (Array.isArray(value)) {
-            searchParams.append(key, value.join(','));
-          } else {
-            searchParams.append(key, String(value));
-          }
-        }
-      });
-
-      const queryString = searchParams.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
+      const queryString = this.buildQueryString(params, true);
+      if (queryString) url += `?${queryString}`;
     }
-
     return this.request<T>(url, { method: 'GET' });
   }
 
@@ -374,21 +373,10 @@ export class JellyfinClient {
     params?: Record<string, any>
   ): Promise<T | undefined> {
     let url = endpoint;
-
     if (params) {
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, String(value));
-        }
-      });
-
-      const queryString = searchParams.toString();
-      if (queryString) {
-        url = `${endpoint}?${queryString}`;
-      }
+      const queryString = this.buildQueryString(params);
+      if (queryString) url += `?${queryString}`;
     }
-
     return this.request<T>(url, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -400,21 +388,10 @@ export class JellyfinClient {
    */
   async delete<T>(endpoint: string, params?: Record<string, any>): Promise<T | undefined> {
     let url = endpoint;
-
     if (params) {
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, String(value));
-        }
-      });
-
-      const queryString = searchParams.toString();
-      if (queryString) {
-        url = `${endpoint}?${queryString}`;
-      }
+      const queryString = this.buildQueryString(params);
+      if (queryString) url += `?${queryString}`;
     }
-
     return this.request<T>(url, { method: 'DELETE' });
   }
 

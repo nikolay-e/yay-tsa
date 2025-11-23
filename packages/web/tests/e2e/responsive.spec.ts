@@ -6,7 +6,7 @@ import { PlayerBar } from './pages/PlayerBar';
 const test = baseTest;
 
 test.describe('Responsive UI - Mobile', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
   let libraryPage: LibraryPage;
   let albumPage: AlbumPage;
@@ -39,13 +39,15 @@ test.describe('Responsive UI - Mobile', () => {
   });
 
   test('should navigate with bottom tab bar', async ({ authenticatedPage }) => {
-    await expect(libraryPage.navRecentTab).toBeVisible();
-    await expect(libraryPage.navSearchTab).toBeVisible();
+    await expect(libraryPage.navHomeTab).toBeVisible();
+    await expect(libraryPage.navAlbumsTab).toBeVisible();
 
-    await libraryPage.navigateToSearch();
-    await expect(authenticatedPage).toHaveURL('/search');
+    // Navigate to albums
+    await libraryPage.navAlbumsTab.click();
+    await expect(authenticatedPage).toHaveURL('/albums');
 
-    await libraryPage.navRecentTab.click();
+    // Navigate back to home
+    await libraryPage.navHomeTab.click();
     await expect(authenticatedPage).toHaveURL('/');
   });
 
@@ -159,10 +161,12 @@ test.describe('Responsive UI - Tablet', () => {
   });
 
   test('should navigate on tablet', async ({ authenticatedPage }) => {
-    await libraryPage.navigateToSearch();
-    await expect(authenticatedPage).toHaveURL('/search');
+    // Navigate to albums
+    await libraryPage.navAlbumsTab.click();
+    await expect(authenticatedPage).toHaveURL('/albums');
 
-    await libraryPage.navRecentTab.click();
+    // Navigate back to home
+    await libraryPage.navHomeTab.click();
     await expect(authenticatedPage).toHaveURL('/');
   });
 });

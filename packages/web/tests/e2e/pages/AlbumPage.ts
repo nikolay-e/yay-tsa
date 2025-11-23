@@ -68,7 +68,7 @@ export class AlbumPage {
   }
 
   async goBack(): Promise<void> {
-    await this.backButton.click();
+    await this.page.goBack();
   }
 
   private async waitForPlayerToAppear(): Promise<void> {

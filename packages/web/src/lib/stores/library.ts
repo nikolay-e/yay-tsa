@@ -6,7 +6,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { ItemsService, type MusicAlbum, type MusicArtist, type AudioItem } from '@yaytsa/core';
 import { client, isAuthenticated } from './auth.js';
-import { createAsyncStoreHandler } from './utils.js';
+import { createAsyncStoreHandler, createServiceWaiter } from './utils.js';
 import {
   getCachedAlbums,
   getCachedRecentAlbums,
@@ -62,46 +62,14 @@ client.subscribe($client => {
   }
 });
 
-/**
- * Wait for items service to be initialized
- * Uses reactive subscription instead of polling for better performance
- */
-async function waitForService(): Promise<ItemsService> {
-  // Check if user is authenticated first
-  if (!get(isAuthenticated)) {
-    throw new Error('Not authenticated');
-  }
-
-  const state = get(libraryStore);
-
-  // If service is already available, return it immediately
-  if (state.itemsService) {
-    return state.itemsService;
-  }
-
-  // Otherwise, wait for the service to be initialized via subscription
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        unsubscribe();
-        reject(new Error(`Items service not initialized after ${SERVICE_INIT_TIMEOUT_MS}ms`));
-      }
-    }, SERVICE_INIT_TIMEOUT_MS);
-
-    const unsubscribe = libraryStore.subscribe($state => {
-      if ($state.itemsService && !resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        // Defer unsubscribe to next microtask for safety
-        queueMicrotask(() => unsubscribe());
-        resolve($state.itemsService);
-      }
-    });
-  });
-}
+// Create service waiter using shared utility
+const serviceStore = derived(libraryStore, $s => ({ service: $s.itemsService }));
+const waitForService = createServiceWaiter(
+  serviceStore,
+  isAuthenticated,
+  SERVICE_INIT_TIMEOUT_MS,
+  'Items service'
+);
 
 /**
  * Load albums from server (with caching)

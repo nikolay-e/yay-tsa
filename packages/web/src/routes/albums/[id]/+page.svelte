@@ -7,6 +7,7 @@
   import TrackList from '../../../lib/components/library/TrackList.svelte';
   import type { MusicAlbum, AudioItem } from '@yaytsa/core';
   import { hapticPlayPause, hapticSelect } from '../../../lib/utils/haptics.js';
+  import { LIBRARY_TEST_IDS } from '../../../lib/test-ids/index.js';
 
   let album: MusicAlbum | null = null;
   let tracks: AudioItem[] = [];
@@ -77,7 +78,7 @@
 
       <div class="album-info">
         <p class="album-type">Album</p>
-        <h1 class="album-name">{album.Name}</h1>
+        <h1 class="album-name" data-testid={LIBRARY_TEST_IDS.ALBUM_DETAIL_TITLE}>{album.Name}</h1>
         <p class="album-artist">{album.Artists?.[0] || 'Unknown Artist'}</p>
 
         <div class="album-meta">
@@ -88,14 +89,14 @@
         </div>
 
         <div class="album-actions">
-          <button type="button" class="btn-play" on:click={playAlbum} aria-label="Play album">
+          <button type="button" class="btn-play" on:click={playAlbum} aria-label="Play album" data-testid={LIBRARY_TEST_IDS.ALBUM_PLAY_BUTTON}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M8 5v14l11-7z" />
             </svg>
             Play
           </button>
 
-          <button type="button" class="btn-shuffle" on:click={shuffleAlbum} aria-label="Shuffle album">
+          <button type="button" class="btn-shuffle" on:click={shuffleAlbum} aria-label="Shuffle album" data-testid={LIBRARY_TEST_IDS.ALBUM_SHUFFLE_BUTTON}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
             </svg>

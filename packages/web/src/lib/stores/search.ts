@@ -1,7 +1,8 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { ItemsService, type MusicAlbum, type MusicArtist, type AudioItem } from '@yaytsa/core';
 import { client, isAuthenticated } from './auth.js';
 import { logger } from '../utils/logger.js';
+import { createAsyncStoreHandler, createServiceWaiter } from './utils.js';
 
 interface SearchState {
   itemsService: ItemsService | null;
@@ -9,7 +10,7 @@ interface SearchState {
   albums: MusicAlbum[];
   artists: MusicArtist[];
   tracks: AudioItem[];
-  isSearching: boolean;
+  isLoading: boolean;
   error: string | null;
 }
 
@@ -19,7 +20,7 @@ const initialState: SearchState = {
   albums: [],
   artists: [],
   tracks: [],
-  isSearching: false,
+  isLoading: false,
   error: null,
 };
 
@@ -37,38 +38,13 @@ client.subscribe($client => {
   }
 });
 
-async function waitForService(): Promise<ItemsService> {
-  if (!get(isAuthenticated)) {
-    throw new Error('Not authenticated');
-  }
-
-  const state = get(searchStore);
-
-  if (state.itemsService) {
-    return state.itemsService;
-  }
-
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        unsubscribe();
-        reject(new Error(`Items service not initialized after ${SERVICE_INIT_TIMEOUT_MS}ms`));
-      }
-    }, SERVICE_INIT_TIMEOUT_MS);
-
-    const unsubscribe = searchStore.subscribe($state => {
-      if ($state.itemsService && !resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        queueMicrotask(() => unsubscribe());
-        resolve($state.itemsService);
-      }
-    });
-  });
-}
+const serviceStore = derived(searchStore, $s => ({ service: $s.itemsService }));
+const waitForService = createServiceWaiter(
+  serviceStore,
+  isAuthenticated,
+  SERVICE_INIT_TIMEOUT_MS,
+  'Items service'
+);
 
 async function search(query: string): Promise<void> {
   const searchQuery = query.trim();
@@ -80,7 +56,7 @@ async function search(query: string): Promise<void> {
       albums: [],
       artists: [],
       tracks: [],
-      isSearching: false,
+      isLoading: false,
       error: null,
     }));
     currentSearchQuery = null;
@@ -88,36 +64,26 @@ async function search(query: string): Promise<void> {
   }
 
   currentSearchQuery = searchQuery;
+  const handler = createAsyncStoreHandler(searchStore);
 
-  searchStore.update(s => ({
-    ...s,
-    query: searchQuery,
-    isSearching: true,
-    error: null,
-  }));
+  searchStore.update(s => ({ ...s, query: searchQuery }));
+  handler.start();
 
   try {
     const itemsService = await waitForService();
     const results = await itemsService.search(searchQuery, { limit: 50 });
 
     if (currentSearchQuery === searchQuery) {
-      searchStore.update(s => ({
-        ...s,
+      handler.success({
         albums: results.albums,
         artists: results.artists,
         tracks: results.tracks,
-        isSearching: false,
-        error: null,
-      }));
+      });
     }
   } catch (error) {
     if (currentSearchQuery === searchQuery) {
       logger.error('Search error:', error);
-      searchStore.update(s => ({
-        ...s,
-        isSearching: false,
-        error: (error as Error).message,
-      }));
+      handler.error(error as Error);
     }
     throw error;
   }
@@ -131,7 +97,7 @@ function clear(): void {
     albums: [],
     artists: [],
     tracks: [],
-    isSearching: false,
+    isLoading: false,
     error: null,
   }));
 }
@@ -140,7 +106,7 @@ export const searchQuery = derived(searchStore, $s => $s.query);
 export const searchAlbums = derived(searchStore, $s => $s.albums);
 export const searchArtists = derived(searchStore, $s => $s.artists);
 export const searchTracks = derived(searchStore, $s => $s.tracks);
-export const isSearching = derived(searchStore, $s => $s.isSearching);
+export const isSearching = derived(searchStore, $s => $s.isLoading);
 export const searchError = derived(searchStore, $s => $s.error);
 
 export const searchService = {

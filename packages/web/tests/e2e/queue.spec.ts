@@ -103,7 +103,7 @@ test.describe('Queue Management', () => {
 
     const trackBefore = await playerBar.getCurrentTrackTitle();
 
-    await libraryPage.goto();
+    await libraryPage.navigateHome();
     const trackAfterNavigation = await playerBar.getCurrentTrackTitle();
 
     expect(trackAfterNavigation).toBe(trackBefore);
@@ -191,6 +191,7 @@ test.describe('Queue Management', () => {
 
     const initialTrack = await playerBar.getCurrentTrackTitle();
 
+    // Toggle to repeat all, then to repeat one
     await playerBar.toggleRepeat();
     await authenticatedPage.waitForTimeout(300);
     await playerBar.toggleRepeat();
@@ -198,9 +199,11 @@ test.describe('Queue Management', () => {
 
     const repeatMode = await playerBar.getRepeatMode();
     if (repeatMode === 'one') {
-      await playerBar.next();
+      // Click next button directly - don't use next() which waits for track change
+      await playerBar.nextButton.click();
       await authenticatedPage.waitForTimeout(500);
 
+      // In repeat one mode, track should stay the same
       const trackAfterNext = await playerBar.getCurrentTrackTitle();
       expect(trackAfterNext).toBe(initialTrack);
     }

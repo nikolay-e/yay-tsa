@@ -10,7 +10,7 @@ services:
       - VITE_YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
       - VITE_YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Dev}
     ports:
-      - '5173:5173'
+      - '3847:5173'
     volumes:
       # Mount source directories for hot reload
       - ./packages/core/src:/app/packages/core/src
@@ -40,6 +40,6 @@ services:
       - YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
       - YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Web}
     ports:
-      - '8080:80'
+      - '3848:80'
     profiles:
       - production

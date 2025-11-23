@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MusicArtist } from '@yaytsa/core';
   import ArtistCard from './ArtistCard.svelte';
+  import '$lib/styles/skeleton.css';
 
   export let artists: MusicArtist[] = [];
   export let loading: boolean = false;
@@ -12,10 +13,10 @@
     <div class="artist-grid">
       {#each Array(skeletonCount) as _, i (i)}
         <div class="skeleton-card">
-          <div class="skeleton-image"></div>
+          <div class="skeleton-image skeleton-animate"></div>
           <div class="skeleton-info">
-            <div class="skeleton-name"></div>
-            <div class="skeleton-count"></div>
+            <div class="skeleton-name skeleton-animate"></div>
+            <div class="skeleton-count skeleton-animate"></div>
           </div>
         </div>
       {/each}
@@ -86,14 +87,6 @@
     width: 100%;
     aspect-ratio: 1;
     border-radius: 50%;
-    background: linear-gradient(
-      90deg,
-      var(--color-bg-tertiary) 25%,
-      var(--color-bg-hover) 50%,
-      var(--color-bg-tertiary) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   .skeleton-info {
@@ -108,37 +101,12 @@
     height: 1rem;
     width: 70%;
     border-radius: var(--radius-sm);
-    background: linear-gradient(
-      90deg,
-      var(--color-bg-tertiary) 25%,
-      var(--color-bg-hover) 50%,
-      var(--color-bg-tertiary) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   .skeleton-count {
     height: 0.875rem;
     width: 40%;
     border-radius: var(--radius-sm);
-    background: linear-gradient(
-      90deg,
-      var(--color-bg-tertiary) 25%,
-      var(--color-bg-hover) 50%,
-      var(--color-bg-tertiary) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
-  }
-
-  @keyframes skeleton-pulse {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
   }
 
   @media (max-width: 375px) {
