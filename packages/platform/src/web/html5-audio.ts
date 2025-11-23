@@ -79,23 +79,32 @@ export class HTML5AudioEngine implements AudioEngine {
         return;
       }
 
-      // Use 'canplay' for faster start - minimal buffering needed
-      const handleCanPlay = () => {
-        // Skip if already cancelled
+      // Use 'canplaythrough' for smoother playback - more buffering before start
+      // This prevents stuttering on slower/unstable connections
+      const handleCanPlayThrough = () => {
         if (this.loadCancelled) return;
-
-        this.audio.removeEventListener('canplay', handleCanPlay);
-        this.audio.removeEventListener('error', handleError);
+        cleanup();
         this.currentLoadReject = null;
         resolve();
       };
 
-      const handleError = () => {
-        // Skip if already cancelled
+      // Fallback: if canplaythrough takes too long, use canplay after timeout
+      const handleCanPlay = () => {
         if (this.loadCancelled) return;
+        // Start a timeout - if canplaythrough doesn't fire in 2s, proceed with canplay
+        setTimeout(() => {
+          if (this.loadCancelled) return;
+          if (this.currentLoadReject === reject) {
+            cleanup();
+            this.currentLoadReject = null;
+            resolve();
+          }
+        }, 2000);
+      };
 
-        this.audio.removeEventListener('canplay', handleCanPlay);
-        this.audio.removeEventListener('error', handleError);
+      const handleError = () => {
+        if (this.loadCancelled) return;
+        cleanup();
         this.currentLoadReject = null;
         const mediaError = this.audio.error;
         const error = mediaError
@@ -104,6 +113,13 @@ export class HTML5AudioEngine implements AudioEngine {
         reject(error);
       };
 
+      const cleanup = () => {
+        this.audio.removeEventListener('canplaythrough', handleCanPlayThrough);
+        this.audio.removeEventListener('canplay', handleCanPlay);
+        this.audio.removeEventListener('error', handleError);
+      };
+
+      this.audio.addEventListener('canplaythrough', handleCanPlayThrough, { once: true });
       this.audio.addEventListener('canplay', handleCanPlay, { once: true });
       this.audio.addEventListener('error', handleError, { once: true });
 
