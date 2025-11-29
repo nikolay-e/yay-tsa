@@ -51,7 +51,7 @@ RUN npm run build
 # ============================================
 # Production Stage - Nginx serving static files
 # ============================================
-FROM nginx:1.27-alpine AS production
+FROM nginx:1.29-alpine AS production
 
 # Copy nginx configuration template (will be populated at runtime)
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
