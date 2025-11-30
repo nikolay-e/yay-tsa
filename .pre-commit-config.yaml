@@ -179,6 +179,13 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
+      - id: jscpd
+        name: 'Copy-paste detection (jscpd)'
+        entry: npx jscpd --min-lines 6 --min-tokens 50 --threshold 0 packages/
+        language: node
+        files: \.(js|ts|svelte)$
+        pass_filenames: false
+
       # Disabled: madge gives false positives for Svelte stores
       # - id: madge-circular
       #   name: 'Madge (circular dependencies)'
