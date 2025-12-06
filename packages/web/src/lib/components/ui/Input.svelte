@@ -7,7 +7,6 @@
   export let id: string = '';
   export let name: string = '';
   export let label: string = '';
-  export let autocomplete: string = '';
 
   function handleInput(e: Event) {
     value = (e.target as HTMLInputElement).value;
@@ -25,7 +24,6 @@
     {placeholder}
     {required}
     {value}
-    {...(autocomplete ? { autocomplete } : {})}
     class:error={!!error}
     on:input={handleInput}
     on:change

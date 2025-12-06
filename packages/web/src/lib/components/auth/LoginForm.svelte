@@ -47,7 +47,6 @@
       label="Username"
       bind:value={username}
       placeholder="Enter your username"
-      autocomplete="username"
       required
     />
 
@@ -57,7 +56,6 @@
       label="Password"
       bind:value={password}
       placeholder="Enter your password"
-      autocomplete="current-password"
       required
     />
 
