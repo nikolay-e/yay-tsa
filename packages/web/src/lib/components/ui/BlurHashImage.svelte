@@ -51,7 +51,7 @@
       height="40"
       class="blur-placeholder"
       aria-hidden="true"
-    />
+    ></canvas>
   {/if}
 
   <img

@@ -25,7 +25,7 @@
     {placeholder}
     {required}
     {value}
-    autocomplete={autocomplete || undefined}
+    {...(autocomplete ? { autocomplete } : {})}
     class:error={!!error}
     on:input={handleInput}
     on:change

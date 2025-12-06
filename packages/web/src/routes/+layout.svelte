@@ -10,9 +10,9 @@
   import { logger } from '../lib/utils/logger.js';
   import '../app.css';
 
-  // SvelteKit page props (suppress warnings)
-  export let data = {};
-  export let params = {};
+  // SvelteKit page props (external reference only)
+  export const data = {};
+  export const params = {};
 
   let loading = true;
 

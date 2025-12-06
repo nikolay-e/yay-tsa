@@ -1,6 +1,6 @@
 <script lang="ts">
-  export let data = {};
-  export let params = {};
+  export const data = {};
+  export const params = {};
 
   import { onMount } from 'svelte';
   import {
