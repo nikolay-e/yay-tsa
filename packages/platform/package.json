@@ -1,11 +1,11 @@
 {
   "name": "@yaytsa/platform",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "main": "./dist/index.js",

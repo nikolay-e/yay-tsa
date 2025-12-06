@@ -5,7 +5,7 @@
 /**
  * Application metadata
  */
-export const APP_VERSION = '0.3.11';
+export const APP_VERSION = '0.3.12';
 export const DEFAULT_CLIENT_NAME = 'Yaytsa';
 export const DEFAULT_DEVICE_NAME = 'Web Browser';
 
