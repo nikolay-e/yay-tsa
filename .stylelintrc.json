@@ -1,5 +1,4 @@
 {
-  "extends": ["stylelint-config-standard", "stylelint-config-recommended"],
   "rules": {
     "selector-pseudo-class-no-unknown": [
       true,
@@ -36,22 +35,7 @@
     "font-weight-notation": "numeric",
     "color-hex-length": "short",
     "color-named": "never",
-    "declaration-block-single-line-max-declarations": 1,
-
-    "block-no-redundant-nested-style-rules": null,
-    "color-function-alias-notation": null,
-    "container-name-pattern": null,
-    "layer-name-pattern": null,
-    "at-rule-descriptor-no-unknown": null,
-    "at-rule-descriptor-value-no-unknown": null,
-    "at-rule-no-deprecated": null,
-    "at-rule-prelude-no-invalid": null,
-    "declaration-property-value-keyword-no-deprecated": null,
-    "media-type-no-deprecated": null,
-    "nesting-selector-no-missing-scoping-root": null,
-    "no-invalid-position-declaration": null,
-    "property-no-deprecated": null,
-    "syntax-string-no-invalid": null
+    "declaration-block-single-line-max-declarations": 1
   },
   "ignoreFiles": [
     "node_modules/**",

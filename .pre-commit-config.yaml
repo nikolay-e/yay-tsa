@@ -100,8 +100,8 @@ repos:
         args: [--fix, --config, .stylelintrc.json]
         additional_dependencies:
           - stylelint@16.12.0
-          - stylelint-config-standard@36.0.1
-          - stylelint-config-recommended@14.0.1
+          - stylelint-config-standard@29.0.0
+          - stylelint-config-recommended@13.0.0
 
   # ------------------------------------------------------------------------------
   # REPO 9: LOCAL HOOKS (Project-Specific Scripts)
