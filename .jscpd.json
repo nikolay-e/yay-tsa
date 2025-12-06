@@ -6,11 +6,12 @@
     "**/dist/**",
     "**/build/**",
     "**/.svelte-kit/**",
+    "**/tests/**",
     "**/*.md",
     "**/package-lock.json",
     "**/jellyfin-api-spec.json"
   ],
-  "minLines": 5,
+  "minLines": 6,
   "minTokens": 50,
   "format": ["typescript", "javascript", "svelte", "css"]
 }
