@@ -129,10 +129,9 @@ jobs:
         run: |
           BRANCH_NAME="${GITHUB_REF#refs/heads/}"
           SHORT_SHA="$(git rev-parse --short HEAD)"
-          TIMESTAMP="$(date +%s)"
 
-          # Primary tag: branch-sha-timestamp (for ArgoCD Image Updater)
-          PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}-${TIMESTAMP}"
+          # Primary tag: branch-sha (for ArgoCD Image Updater)
+          PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}"
 
           # Also tag with 'latest' on main branch for convenience
           TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${PRIMARY_TAG}"
