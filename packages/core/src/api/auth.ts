@@ -97,9 +97,18 @@ export class AuthService {
   }
 }
 
-/**
- * Validate server URL format and protocol
- */
+function isPrivateIP(hostname: string): boolean {
+  const parts = hostname.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) return false;
+
+  const [a, b] = parts;
+  return (
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
 export function validateServerUrl(url: string, isDevelopment: boolean = false): void {
   let parsed: URL;
 
@@ -114,13 +123,15 @@ export function validateServerUrl(url: string, isDevelopment: boolean = false): 
     throw new Error('Invalid protocol: only HTTP and HTTPS are allowed');
   }
 
-  // In production, require HTTPS (unless localhost)
+  // In production, require HTTPS (unless localhost or private network)
   const isLocalhost =
     parsed.hostname === 'localhost' ||
     parsed.hostname === '127.0.0.1' ||
     parsed.hostname === '[::1]';
 
-  if (!isDevelopment && parsed.protocol === 'http:' && !isLocalhost) {
-    throw new Error('HTTPS required in production (except for localhost)');
+  const isPrivateNetwork = isPrivateIP(parsed.hostname);
+
+  if (!isDevelopment && parsed.protocol === 'http:' && !isLocalhost && !isPrivateNetwork) {
+    throw new Error('HTTPS required in production (except for localhost and private networks)');
   }
 }
