@@ -31,11 +31,11 @@
     "@vite-pwa/sveltekit": "^1.1.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "sharp": "^0.34.5",
-    "svelte": "^5.45.5",
+    "svelte": "^5.45.6",
     "svelte-check": "^4.3.4",
     "terser": "^5.36.0",
     "tslib": "^2.4.1",
     "typescript": "^5.3.3",
-    "vite": "^7.2.6"
+    "vite": "^7.2.7"
   }
 }
