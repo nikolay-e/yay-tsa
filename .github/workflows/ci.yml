@@ -40,7 +40,7 @@ jobs:
           node-version: '20'
 
       - name: Cache npm dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
@@ -54,7 +54,7 @@ jobs:
         run: npm install
 
       - name: Cache pre-commit hooks
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -85,7 +85,7 @@ jobs:
   #       run: pip install pre-commit
 
   #     - name: Cache npm dependencies
-  #       uses: actions/cache@v4
+  #       uses: actions/cache@v5
   #       with:
   #         path: ~/.npm
   #         key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
