@@ -5,6 +5,7 @@ import { player, volume as volumeStore } from './player.js';
 import { logger } from '../utils/logger.js';
 
 const SLEEP_TIMER_SETTINGS_KEY = 'yaytsa_sleep_timer_settings';
+const PINK_NOISE_VOLUME_RATIO = 0.5; // Pink noise at 50% of music volume
 
 export type SleepTimerPhase =
   | 'idle'
@@ -142,9 +143,10 @@ async function startCrossfadeToNoise(): Promise<void> {
     const audioEngine = playerState.audioEngine;
 
     if (audioEngine?.fadeVolume) {
-      // Crossfade: music fades out, pink noise fades in
+      // Crossfade: music fades out, pink noise fades in (at half volume)
+      const targetNoiseVolume = savedMusicVolume * PINK_NOISE_VOLUME_RATIO;
       const musicFade = audioEngine.fadeVolume(savedMusicVolume, 0, crossfadeDurationMs);
-      const noiseFade = pinkNoiseGenerator.fadeVolume(0, savedMusicVolume, crossfadeDurationMs);
+      const noiseFade = pinkNoiseGenerator.fadeVolume(0, targetNoiseVolume, crossfadeDurationMs);
 
       currentFadeCancel = () => {
         musicFade.cancel();
@@ -163,7 +165,7 @@ async function startCrossfadeToNoise(): Promise<void> {
       // Fallback: instant switch if fadeVolume not available
       player.setVolume(0);
       player.pause();
-      pinkNoiseGenerator.setVolume(savedMusicVolume);
+      pinkNoiseGenerator.setVolume(savedMusicVolume * PINK_NOISE_VOLUME_RATIO);
       await transitionToPhase('noise');
     }
   } catch (error) {
