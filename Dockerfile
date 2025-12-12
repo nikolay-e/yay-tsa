@@ -19,8 +19,15 @@ COPY packages/web/package.json ./packages/web/
 
 # Install all dependencies with npm ci (deterministic builds)
 # Use BuildKit cache mount for faster rebuilds
+# Note: --ignore-scripts skips prepare hook (pre-commit), then we manually
+# run postinstall for esbuild to download platform-specific binaries
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm ci --ignore-scripts
+
+# Run esbuild postinstall to download platform-specific binaries
+WORKDIR /app/node_modules/esbuild
+RUN npm run postinstall
+WORKDIR /app
 
 # Copy source code
 COPY packages/ ./packages/
