@@ -28,6 +28,9 @@ export class HTML5AudioEngine implements AudioEngine {
   private currentLoadReject: ((error: Error) => void) | null = null;
   private loadCancelled: boolean = false;
 
+  // Track current fade operation for cancellation
+  private currentFadeCancel: (() => void) | null = null;
+
   constructor() {
     this.audio = new Audio();
     this.audio.preload = 'auto';
@@ -248,6 +251,12 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   dispose(): void {
+    // Cancel any ongoing fade
+    if (this.currentFadeCancel) {
+      this.currentFadeCancel();
+      this.currentFadeCancel = null;
+    }
+
     // Remove event listeners to prevent memory leaks
     this.audio.removeEventListener('play', this.handlePlay);
     this.audio.removeEventListener('pause', this.handlePause);
@@ -262,5 +271,75 @@ export class HTML5AudioEngine implements AudioEngine {
     if (this.audioContext && this.audioContext.state !== 'closed') {
       void this.audioContext.close();
     }
+  }
+
+  fadeVolume(
+    fromLevel: number,
+    toLevel: number,
+    durationMs: number
+  ): { promise: Promise<void>; cancel: () => void } {
+    // Cancel any existing fade operation
+    if (this.currentFadeCancel) {
+      this.currentFadeCancel();
+    }
+
+    const startTime = Date.now();
+    const startVolume = Math.max(0, Math.min(1, fromLevel));
+    const endVolume = Math.max(0, Math.min(1, toLevel));
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const cancel = () => {
+      cancelled = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      if (this.currentFadeCancel === cancel) {
+        this.currentFadeCancel = null;
+      }
+    };
+
+    this.currentFadeCancel = cancel;
+
+    const promise = new Promise<void>((resolve) => {
+      // Set initial volume
+      this.setVolume(startVolume);
+
+      // Use setInterval for smooth fade (~60fps equivalent)
+      const FADE_INTERVAL_MS = 16;
+      intervalId = setInterval(() => {
+        if (cancelled) {
+          resolve();
+          return;
+        }
+
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / durationMs, 1);
+
+        // Use ease-in-out curve for smoother fade (less jarring for sleep)
+        const easedProgress = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
+        this.setVolume(currentVolume);
+
+        if (progress >= 1) {
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          this.currentFadeCancel = null;
+          resolve();
+        }
+      }, FADE_INTERVAL_MS);
+    });
+
+    return { promise, cancel };
+  }
+
+  getAudioContext(): AudioContext | null {
+    return this.audioContext;
   }
 }

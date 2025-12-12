@@ -5,9 +5,12 @@
   import SeekBar from './SeekBar.svelte';
   import Controls from './Controls.svelte';
   import QueuePanel from './QueuePanel.svelte';
+  import SleepTimerButton from './SleepTimerButton.svelte';
+  import SleepTimerModal from './SleepTimerModal.svelte';
   import { PLAYER_TEST_IDS } from '$lib/test-ids';
 
   let showQueue = false;
+  let showSleepTimer = false;
 
   function handleSeek(event: CustomEvent<number> | Event) {
     const detail = (event as CustomEvent<number>).detail;
@@ -18,6 +21,10 @@
 
   function toggleQueue() {
     showQueue = !showQueue;
+  }
+
+  function toggleSleepTimer() {
+    showSleepTimer = !showSleepTimer;
   }
 </script>
 
@@ -61,6 +68,7 @@
       </div>
 
       <div class="extra-controls">
+        <SleepTimerButton on:click={toggleSleepTimer} />
         <button
           type="button"
           class="queue-btn"
@@ -81,6 +89,7 @@
   </div>
 
   <QueuePanel isOpen={showQueue} on:close={() => (showQueue = false)} />
+  <SleepTimerModal isOpen={showSleepTimer} on:close={() => (showSleepTimer = false)} />
 {/if}
 
 <style>
