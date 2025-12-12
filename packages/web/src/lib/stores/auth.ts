@@ -204,7 +204,7 @@ async function logout(): Promise<void> {
   // User-specific images and audio should not persist after logout
   if ('caches' in window) {
     try {
-      const cacheNames = ['yaytsa-images-v0.3.13', 'yaytsa-audio-v0.3.13'];
+      const cacheNames = ['yaytsa-images-v0.3.14', 'yaytsa-audio-v0.3.14'];
       const results = await Promise.allSettled(cacheNames.map(async name => caches.delete(name)));
 
       const cleared = results.filter(r => r.status === 'fulfilled' && r.value).length;
