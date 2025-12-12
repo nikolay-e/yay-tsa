@@ -9,6 +9,8 @@ export class HTML5AudioEngine implements AudioEngine {
   private audio: HTMLAudioElement;
   private _isPlaying: boolean = false;
   private audioContext: AudioContext | null = null;
+  private sourceNode: MediaElementAudioSourceNode | null = null;
+  private analyser: AnalyserNode | null = null;
 
   // Store event handler references for cleanup
   private handlePlay = () => {
@@ -69,6 +71,21 @@ export class HTML5AudioEngine implements AudioEngine {
       this.loadCancelled = true;
       this.currentLoadReject(new Error('Load cancelled - new track requested'));
       this.currentLoadReject = null;
+    }
+
+    if (!this.sourceNode && this.audioContext) {
+      try {
+        this.sourceNode = this.audioContext.createMediaElementSource(this.audio);
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 2048;
+        this.analyser.smoothingTimeConstant = 0.8;
+
+        this.sourceNode.connect(this.analyser);
+        this.analyser.connect(this.audioContext.destination);
+      } catch {
+        this.sourceNode = null;
+        this.analyser = null;
+      }
     }
 
     return new Promise((resolve, reject) => {
@@ -257,6 +274,16 @@ export class HTML5AudioEngine implements AudioEngine {
       this.currentFadeCancel = null;
     }
 
+    // Disconnect audio nodes to prevent memory leaks
+    if (this.sourceNode) {
+      this.sourceNode.disconnect();
+      this.sourceNode = null;
+    }
+    if (this.analyser) {
+      this.analyser.disconnect();
+      this.analyser = null;
+    }
+
     // Remove event listeners to prevent memory leaks
     this.audio.removeEventListener('play', this.handlePlay);
     this.audio.removeEventListener('pause', this.handlePause);
@@ -302,7 +329,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
     this.currentFadeCancel = cancel;
 
-    const promise = new Promise<void>((resolve) => {
+    const promise = new Promise<void>(resolve => {
       // Set initial volume
       this.setVolume(startVolume);
 
@@ -318,9 +345,8 @@ export class HTML5AudioEngine implements AudioEngine {
         const progress = Math.min(elapsed / durationMs, 1);
 
         // Use ease-in-out curve for smoother fade (less jarring for sleep)
-        const easedProgress = progress < 0.5
-          ? 2 * progress * progress
-          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        const easedProgress =
+          progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
         const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
         this.setVolume(currentVolume);
@@ -341,5 +367,19 @@ export class HTML5AudioEngine implements AudioEngine {
 
   getAudioContext(): AudioContext | null {
     return this.audioContext;
+  }
+
+  getRMS(): number {
+    if (!this.analyser) return 0;
+
+    const bufferLength = this.analyser.frequencyBinCount;
+    const dataArray = new Float32Array(bufferLength);
+    this.analyser.getFloatTimeDomainData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i] * dataArray[i];
+    }
+    return Math.sqrt(sum / dataArray.length);
   }
 }

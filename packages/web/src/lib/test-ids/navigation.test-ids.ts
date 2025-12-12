@@ -14,4 +14,4 @@ export const NAVIGATION_TEST_IDS = {
   SEARCH_TRACKS_TAB: 'search-tracks-tab',
 } as const;
 
-export type NavigationTestId = typeof NAVIGATION_TEST_IDS[keyof typeof NAVIGATION_TEST_IDS];
+export type NavigationTestId = (typeof NAVIGATION_TEST_IDS)[keyof typeof NAVIGATION_TEST_IDS];

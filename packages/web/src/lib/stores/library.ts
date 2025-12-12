@@ -103,8 +103,7 @@ async function loadAlbums(options?: {
       sortBy,
     });
 
-    const nextAlbums =
-      startIndex === 0 ? result.Items : [...state.albums, ...result.Items];
+    const nextAlbums = startIndex === 0 ? result.Items : [...state.albums, ...result.Items];
 
     handler.success({
       albums: nextAlbums,
@@ -189,8 +188,7 @@ async function loadArtists(options?: {
       sortBy,
     });
 
-    const nextArtists =
-      startIndex === 0 ? result.Items : [...state.artists, ...result.Items];
+    const nextArtists = startIndex === 0 ? result.Items : [...state.artists, ...result.Items];
 
     handler.success({
       artists: nextArtists,

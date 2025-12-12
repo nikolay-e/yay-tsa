@@ -159,26 +159,27 @@ export class PlayerBar {
     await expect(audioLocator).toBeAttached({ timeout: 5000 });
 
     // Wait for metadata to load (duration available)
-    await audioLocator.evaluate((audio: HTMLAudioElement) =>
-      new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Audio metadata load timeout after 5s'));
-        }, 5000);
+    await audioLocator.evaluate(
+      (audio: HTMLAudioElement) =>
+        new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Audio metadata load timeout after 5s'));
+          }, 5000);
 
-        const checkReady = () => {
+          const checkReady = () => {
+            if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
+              clearTimeout(timeout);
+              resolve();
+            }
+          };
+
           if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
             clearTimeout(timeout);
             resolve();
+          } else {
+            audio.addEventListener('loadedmetadata', checkReady, { once: true });
           }
-        };
-
-        if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
-          clearTimeout(timeout);
-          resolve();
-        } else {
-          audio.addEventListener('loadedmetadata', checkReady, { once: true });
-        }
-      })
+        })
     );
   }
 
@@ -200,40 +201,42 @@ export class PlayerBar {
   async waitForSeekComplete(): Promise<void> {
     const audioLocator = this.page.locator('audio').first();
 
-    await audioLocator.evaluate((audio: HTMLAudioElement) =>
-      new Promise<void>((resolve) => {
-        if (!audio.seeking) {
-          resolve();
-        } else {
-          audio.addEventListener('seeked', () => resolve(), { once: true });
-        }
-      })
+    await audioLocator.evaluate(
+      (audio: HTMLAudioElement) =>
+        new Promise<void>(resolve => {
+          if (!audio.seeking) {
+            resolve();
+          } else {
+            audio.addEventListener('seeked', () => resolve(), { once: true });
+          }
+        })
     );
   }
 
   async waitForAudioPlaying(): Promise<void> {
     const audioLocator = this.page.locator('audio').first();
 
-    await audioLocator.evaluate((audio: HTMLAudioElement) =>
-      new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Audio did not start playing within 3s'));
-        }, 3000);
+    await audioLocator.evaluate(
+      (audio: HTMLAudioElement) =>
+        new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Audio did not start playing within 3s'));
+          }, 3000);
 
-        const checkPlaying = () => {
+          const checkPlaying = () => {
+            if (!audio.paused && audio.readyState >= 3) {
+              clearTimeout(timeout);
+              resolve();
+            }
+          };
+
           if (!audio.paused && audio.readyState >= 3) {
             clearTimeout(timeout);
             resolve();
+          } else {
+            audio.addEventListener('playing', checkPlaying, { once: true });
           }
-        };
-
-        if (!audio.paused && audio.readyState >= 3) {
-          clearTimeout(timeout);
-          resolve();
-        } else {
-          audio.addEventListener('playing', checkPlaying, { once: true });
-        }
-      })
+        })
     );
   }
 }

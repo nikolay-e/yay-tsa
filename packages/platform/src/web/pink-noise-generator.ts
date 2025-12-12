@@ -139,7 +139,7 @@ export class PinkNoiseGenerator {
 
     this.currentFadeCancel = cancel;
 
-    const promise = new Promise<void>((resolve) => {
+    const promise = new Promise<void>(resolve => {
       this.setVolume(startVolume);
 
       const FADE_INTERVAL_MS = 16;
@@ -154,9 +154,7 @@ export class PinkNoiseGenerator {
 
         // Ease-in-out curve for smoother transitions
         const easedProgress =
-          progress < 0.5
-            ? 2 * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+          progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
         const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
         this.setVolume(currentVolume);

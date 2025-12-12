@@ -29,4 +29,4 @@ export const PLAYER_TEST_IDS = {
   QUEUE_BUTTON: 'queue-button',
 } as const;
 
-export type PlayerTestId = typeof PLAYER_TEST_IDS[keyof typeof PLAYER_TEST_IDS];
+export type PlayerTestId = (typeof PLAYER_TEST_IDS)[keyof typeof PLAYER_TEST_IDS];

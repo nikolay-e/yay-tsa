@@ -66,7 +66,7 @@
 
     {#if error || $authError}
       <div class="error-banner">
-        {error || $authError}
+        {error || $authError?.message}
       </div>
     {/if}
 

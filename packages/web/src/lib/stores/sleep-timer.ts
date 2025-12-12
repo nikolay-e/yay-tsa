@@ -5,14 +5,35 @@ import { player, volume as volumeStore } from './player.js';
 import { logger } from '../utils/logger.js';
 
 const SLEEP_TIMER_SETTINGS_KEY = 'yaytsa_sleep_timer_settings';
-const PINK_NOISE_VOLUME_RATIO = 0.5; // Pink noise at 50% of music volume
+const PINK_NOISE_VOLUME_RATIO = 0.5;
+const RMS_SAMPLE_INTERVAL_MS = 500;
+const RMS_EMA_ALPHA = 0.3;
+const MIN_RMS_THRESHOLD = 0.05;
 
-export type SleepTimerPhase =
-  | 'idle'
-  | 'music'
-  | 'crossfade-to-noise'
-  | 'noise'
-  | 'stopped';
+class ExponentialMovingAverage {
+  private value: number | null = null;
+
+  constructor(private alpha: number) {}
+
+  update(newValue: number): number {
+    if (this.value === null) {
+      this.value = newValue;
+    } else {
+      this.value = this.alpha * newValue + (1 - this.alpha) * this.value;
+    }
+    return this.value;
+  }
+
+  getValue(): number {
+    return this.value ?? 0;
+  }
+
+  reset(): void {
+    this.value = null;
+  }
+}
+
+export type SleepTimerPhase = 'idle' | 'music' | 'crossfade-to-noise' | 'noise' | 'stopped';
 
 export interface SleepTimerConfig {
   musicDurationMs: number;
@@ -80,8 +101,11 @@ const initialState: SleepTimerState = {
 const sleepTimerStore = writable<SleepTimerState>(initialState);
 
 let tickIntervalId: ReturnType<typeof setInterval> | null = null;
+let rmsIntervalId: ReturnType<typeof setInterval> | null = null;
 let pinkNoiseGenerator: PinkNoiseGenerator | null = null;
 let savedMusicVolume: number = 0.7;
+let measuredTrackRMS: number = 0;
+let rmsEMA: ExponentialMovingAverage | null = null;
 let currentFadeCancel: (() => void) | null = null;
 
 function clearTickInterval(): void {
@@ -89,6 +113,39 @@ function clearTickInterval(): void {
     clearInterval(tickIntervalId);
     tickIntervalId = null;
   }
+}
+
+function clearRMSInterval(): void {
+  if (rmsIntervalId) {
+    clearInterval(rmsIntervalId);
+    rmsIntervalId = null;
+  }
+}
+
+function startRMSTracking(): void {
+  clearRMSInterval();
+  rmsEMA = new ExponentialMovingAverage(RMS_EMA_ALPHA);
+  measuredTrackRMS = 0;
+
+  const playerState = get(player);
+  const audioEngine = playerState.audioEngine;
+
+  if (!audioEngine?.getRMS) {
+    logger.warn('[Sleep Timer] RMS measurement not available');
+    return;
+  }
+
+  const capturedEngine = audioEngine;
+
+  rmsIntervalId = setInterval(() => {
+    const rms = capturedEngine.getRMS?.() ?? 0;
+    if (rms > 0 && rmsEMA) {
+      const smoothedRMS = rmsEMA.update(rms);
+      measuredTrackRMS = smoothedRMS;
+    }
+  }, RMS_SAMPLE_INTERVAL_MS);
+
+  logger.info('[Sleep Timer] Started RMS tracking');
 }
 
 function cancelCurrentFade(): void {
@@ -125,23 +182,26 @@ async function startCrossfadeToNoise(): Promise<void> {
   const state = get(sleepTimerStore);
   const { crossfadeDurationMs } = state.config;
 
-  // Save current volume for restoration if cancelled
+  clearRMSInterval();
+
   savedMusicVolume = get(volumeStore);
 
-  // Initialize pink noise generator if not already
+  const hasValidRMS = measuredTrackRMS > MIN_RMS_THRESHOLD;
+  const adaptiveVolume = hasValidRMS ? measuredTrackRMS : savedMusicVolume;
+  logger.info(
+    `[Sleep Timer] Using ${hasValidRMS ? 'measured' : 'UI'} volume: ${adaptiveVolume.toFixed(3)} (RMS: ${measuredTrackRMS.toFixed(3)}, UI: ${savedMusicVolume.toFixed(3)})`
+  );
+
   pinkNoiseGenerator ??= new PinkNoiseGenerator();
 
   try {
-    // Start pink noise at volume 0
     await pinkNoiseGenerator.start({ initialVolume: 0 });
 
-    // Get the audio engine from player state
     const playerState = get(player);
     const audioEngine = playerState.audioEngine;
 
     if (audioEngine?.fadeVolume) {
-      // Crossfade: music fades out, pink noise fades in (at half volume)
-      const targetNoiseVolume = savedMusicVolume * PINK_NOISE_VOLUME_RATIO;
+      const targetNoiseVolume = adaptiveVolume * PINK_NOISE_VOLUME_RATIO;
       const musicFade = audioEngine.fadeVolume(savedMusicVolume, 0, crossfadeDurationMs);
       const noiseFade = pinkNoiseGenerator.fadeVolume(0, targetNoiseVolume, crossfadeDurationMs);
 
@@ -153,16 +213,13 @@ async function startCrossfadeToNoise(): Promise<void> {
       await Promise.all([musicFade.promise, noiseFade.promise]);
       currentFadeCancel = null;
 
-      // Stop music playback after crossfade completes
       player.pause();
 
-      // Transition to noise phase
       await transitionToPhase('noise');
     } else {
-      // Fallback: instant switch if fadeVolume not available
       player.setVolume(0);
       player.pause();
-      pinkNoiseGenerator.setVolume(savedMusicVolume * PINK_NOISE_VOLUME_RATIO);
+      pinkNoiseGenerator.setVolume(adaptiveVolume * PINK_NOISE_VOLUME_RATIO);
       await transitionToPhase('noise');
     }
   } catch (error) {
@@ -181,7 +238,9 @@ async function startGradualNoiseFade(): Promise<void> {
   }
 
   try {
-    const startVolume = savedMusicVolume * PINK_NOISE_VOLUME_RATIO;
+    const hasValidRMS = measuredTrackRMS > MIN_RMS_THRESHOLD;
+    const adaptiveVolume = hasValidRMS ? measuredTrackRMS : savedMusicVolume;
+    const startVolume = adaptiveVolume * PINK_NOISE_VOLUME_RATIO;
     const fade = pinkNoiseGenerator.fadeVolume(startVolume, 0, noiseDurationMs);
 
     currentFadeCancel = fade.cancel;
@@ -270,29 +329,32 @@ function start(config?: Partial<SleepTimerConfig>): void {
     phaseRemainingMs: newConfig.musicDurationMs,
   });
 
-  // Start tick interval (update every 100ms for responsive UI)
   clearTickInterval();
   tickIntervalId = setInterval(tick, 100);
+
+  startRMSTracking();
 
   logger.info('[Sleep Timer] Started with config:', newConfig);
 }
 
 function stopSleepTimer(): void {
   clearTickInterval();
+  clearRMSInterval();
   cancelCurrentFade();
 
-  // Stop and dispose pink noise
   if (pinkNoiseGenerator) {
     pinkNoiseGenerator.dispose();
     pinkNoiseGenerator = null;
   }
 
-  // Restore music volume
   player.setVolume(savedMusicVolume);
+
+  measuredTrackRMS = 0;
+  rmsEMA = null;
 
   sleepTimerStore.set({
     ...initialState,
-    config: get(sleepTimerStore).config, // Preserve saved config
+    config: get(sleepTimerStore).config,
   });
 
   logger.info('[Sleep Timer] Stopped');
@@ -302,18 +364,19 @@ async function cancel(): Promise<void> {
   const state = get(sleepTimerStore);
 
   clearTickInterval();
+  clearRMSInterval();
   cancelCurrentFade();
 
-  // If we're in noise phase, stop the noise and resume music
   if (pinkNoiseGenerator) {
     pinkNoiseGenerator.dispose();
     pinkNoiseGenerator = null;
   }
 
-  // Restore music volume
   player.setVolume(savedMusicVolume);
 
-  // If we paused the music, try to resume
+  measuredTrackRMS = 0;
+  rmsEMA = null;
+
   if (state.phase !== 'music' && state.phase !== 'idle') {
     try {
       await player.resume();
@@ -324,7 +387,7 @@ async function cancel(): Promise<void> {
 
   sleepTimerStore.set({
     ...initialState,
-    config: state.config, // Preserve saved config
+    config: state.config,
   });
 
   logger.info('[Sleep Timer] Cancelled');

@@ -34,7 +34,7 @@ interface AuthState {
   serverUrl: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: Error | null;
 }
 
 const initialState: AuthState = {
@@ -139,7 +139,7 @@ async function login(
     authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: (error as Error).message,
+      error: error instanceof Error ? error : new Error(String(error)),
     }));
     throw error;
   }
@@ -286,7 +286,7 @@ async function restoreSession(): Promise<boolean> {
     authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: 'Session expired or invalid',
+      error: new Error('Session expired or invalid'),
     }));
 
     return false;

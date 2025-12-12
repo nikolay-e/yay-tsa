@@ -15,17 +15,29 @@
   let imageLoaded = false;
   let imageFailed = false;
 
+  // Global cache for decoded BlurHash data (shared across all component instances)
+  const blurHashCache = new Map<string, ImageData>();
+
+  function getCachedBlurHash(hash: string, w: number, h: number): ImageData {
+    const key = `${hash}-${w}-${h}`;
+
+    if (blurHashCache.has(key)) {
+      return blurHashCache.get(key)!;
+    }
+
+    const pixels = decode(hash, w, h);
+    const imageData = new ImageData(new Uint8ClampedArray(pixels), w, h);
+    blurHashCache.set(key, imageData);
+
+    return imageData;
+  }
+
   onMount(() => {
     if (blurHash && canvas) {
       try {
-        const pixels = decode(blurHash, 40, 40);
+        const imageData = getCachedBlurHash(blurHash, 40, 40);
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          const imageData = new ImageData(
-            new Uint8ClampedArray(pixels),
-            40,
-            40
-          );
           ctx.putImageData(imageData, 0, 0);
         }
       } catch (error) {

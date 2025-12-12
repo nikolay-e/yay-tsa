@@ -105,4 +105,10 @@ export interface AudioEngine {
    * Get the underlying AudioContext if available (for advanced audio features)
    */
   getAudioContext?(): AudioContext | null;
+
+  /**
+   * Get current RMS (Root Mean Square) level for loudness measurement
+   * @returns RMS value (0.0 to 1.0 typical range, but can exceed 1.0 for clipping)
+   */
+  getRMS?(): number;
 }
