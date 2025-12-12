@@ -58,10 +58,7 @@
       "purpose": "maskable"
     }
   ],
-  "categories": [
-    "music",
-    "entertainment"
-  ],
+  "categories": ["music", "entertainment"],
   "scope": "/",
   "id": "yaytsa",
   "prefer_related_applications": false
