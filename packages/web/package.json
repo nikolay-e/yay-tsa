@@ -1,6 +1,6 @@
 {
   "name": "@yaytsa/web",
-  "version": "0.3.13",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,8 +20,7 @@
   },
   "dependencies": {
     "@yaytsa/core": "*",
-    "@yaytsa/platform": "*",
-    "blurhash": "^2.0.5"
+    "@yaytsa/platform": "*"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
@@ -31,7 +30,7 @@
     "@vite-pwa/sveltekit": "^1.1.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "sharp": "^0.34.5",
-    "svelte": "^5.45.8",
+    "svelte": "^5.45.10",
     "svelte-check": "^4.3.4",
     "terser": "^5.36.0",
     "tslib": "^2.4.1",

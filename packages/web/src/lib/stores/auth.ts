@@ -34,7 +34,7 @@ interface AuthState {
   serverUrl: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: Error | null;
 }
 
 const initialState: AuthState = {
@@ -139,7 +139,7 @@ async function login(
     authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: (error as Error).message,
+      error: error instanceof Error ? error : new Error(String(error)),
     }));
     throw error;
   }
@@ -204,7 +204,7 @@ async function logout(): Promise<void> {
   // User-specific images and audio should not persist after logout
   if ('caches' in window) {
     try {
-      const cacheNames = ['yaytsa-images-v0.3.13', 'yaytsa-audio-v0.3.13'];
+      const cacheNames = ['yaytsa-images-v0.4.3', 'yaytsa-audio-v0.4.3'];
       const results = await Promise.allSettled(cacheNames.map(async name => caches.delete(name)));
 
       const cleared = results.filter(r => r.status === 'fulfilled' && r.value).length;
@@ -286,7 +286,7 @@ async function restoreSession(): Promise<boolean> {
     authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: 'Session expired or invalid',
+      error: new Error('Session expired or invalid'),
     }));
 
     return false;

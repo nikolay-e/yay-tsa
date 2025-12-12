@@ -1,5 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { TEST_CREDENTIALS } from '../helpers/test-config';
 
 type AuthFixtures = {
   authenticatedPage: Page;
@@ -7,26 +8,35 @@ type AuthFixtures = {
 
 export const test = base.extend<AuthFixtures>({
   authenticatedPage: async ({ page }, use) => {
-    // Server URL is now configured via environment variables (YAYTSA_SERVER_URL)
-    // and loaded from config.json at runtime, not entered by user
-    const username = process.env.YAYTSA_TEST_USERNAME || 'test-user';
-    const password = process.env.YAYTSA_TEST_PASSWORD || 'test-password';
+    const { USERNAME: username, PASSWORD: password } = TEST_CREDENTIALS;
 
     await page.goto('/login');
 
-    // Wait for login form (no serverUrl field anymore)
-    await page.waitForSelector('#username', { timeout: 10000 });
+    const usernameInput = page.getByLabel('Username');
+    await expect(usernameInput).toBeVisible({ timeout: 10000 });
 
-    await page.fill('#username', username);
-    await page.fill('#password', password);
+    await usernameInput.fill(username);
+    await page.getByLabel('Password').fill(password);
 
-    await page.click('button[type="submit"]');
+    await page.getByRole('button', { name: 'Sign In' }).click();
 
     await page.waitForURL('/', { timeout: 15000 });
     // Home page shows either 'Recently Played' or 'Discover' depending on user history
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 10000 });
 
     await use(page);
+
+    // Cleanup: clear session storage and stop any playing audio
+    await page.evaluate(() => {
+      // Stop any playing audio
+      const audio = document.querySelector('audio') as HTMLAudioElement | null;
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+      }
+      // Clear session storage
+      sessionStorage.clear();
+    });
   },
 });
 

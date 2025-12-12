@@ -87,4 +87,28 @@ export interface AudioEngine {
    * Clean up resources
    */
   dispose(): void;
+
+  /**
+   * Gradually fade volume over time (optional - not all engines support this)
+   * @param fromLevel Starting volume (0.0 to 1.0)
+   * @param toLevel Target volume (0.0 to 1.0)
+   * @param durationMs Duration of fade in milliseconds
+   * @returns Promise that resolves when fade completes, cleanup function to cancel
+   */
+  fadeVolume?(
+    fromLevel: number,
+    toLevel: number,
+    durationMs: number
+  ): { promise: Promise<void>; cancel: () => void };
+
+  /**
+   * Get the underlying AudioContext if available (for advanced audio features)
+   */
+  getAudioContext?(): AudioContext | null;
+
+  /**
+   * Get current RMS (Root Mean Square) level for loudness measurement
+   * @returns RMS value (0.0 to 1.0 typical range, but can exceed 1.0 for clipping)
+   */
+  getRMS?(): number;
 }

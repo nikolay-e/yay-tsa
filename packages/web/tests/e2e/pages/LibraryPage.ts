@@ -23,8 +23,10 @@ export class LibraryPage {
   }
 
   async navigateHome(): Promise<void> {
-    // SPA navigation - preserves app state (unlike page.goto which reloads)
-    await this.page.click('a[href="/"]');
+    // Navigate to home using SPA-friendly navigation
+    // Works on both mobile and desktop by clicking any visible home link
+    const visibleHomeLink = this.page.locator('a[href="/"]:visible').first();
+    await visibleHomeLink.click();
     await this.waitForAlbumsToLoad();
   }
 
@@ -60,15 +62,24 @@ export class LibraryPage {
 
   async search(query: string): Promise<void> {
     await this.searchInput.fill(query);
-    await this.page.waitForTimeout(500);
+    await this.waitForSearchResults();
   }
 
   async clearSearch(): Promise<void> {
     await this.searchInput.clear();
+    await this.waitForSearchResults();
+  }
+
+  async waitForSearchResults(): Promise<void> {
+    // Wait for either albums to appear OR "No albums found" message
+    // This handles both successful search and empty results
+    const albumCard = this.page.getByTestId('album-card').first();
+    const noResults = this.page.getByText('No albums found');
+    await expect(albumCard.or(noResults)).toBeVisible({ timeout: 10000 });
   }
 
   async expectNoResults(): Promise<void> {
-    await expect(this.page.locator('text=No albums found')).toBeVisible();
+    await expect(this.page.getByText('No albums found')).toBeVisible();
   }
 
   async scrollToBottom(): Promise<void> {

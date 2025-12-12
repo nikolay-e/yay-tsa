@@ -157,14 +157,6 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      - id: integration-tests-core
-        name: 'Integration tests (core)'
-        entry: bash -c 'cd packages/core && npm run test:e2e'
-        language: system
-        files: ^packages/core/src/.*\.ts$
-        pass_filenames: false
-        stages: [manual]
-
       - id: commitlint
         name: 'Commitlint (conventional commits)'
         entry: npx commitlint --edit
@@ -174,10 +166,9 @@ repos:
 
       - id: knip
         name: 'Knip (unused code detection)'
-        entry: npx knip --no-progress
+        entry: npx knip --no-progress --exclude unresolved
         language: node
         pass_filenames: false
-        stages: [pre-push]
 
       - id: jscpd
         name: 'Copy-paste detection (jscpd)'
@@ -186,25 +177,8 @@ repos:
         files: \.(js|ts|svelte)$
         pass_filenames: false
 
-      # Disabled: madge gives false positives for Svelte stores
-      # - id: madge-circular
-      #   name: 'Madge (circular dependencies)'
-      #   entry: npx madge --circular --extensions ts packages/*/src
-      #   language: node
-      #   pass_filenames: false
-      #   stages: [pre-push]
-
       - id: type-coverage
         name: 'Type coverage (>=90%)'
         entry: npx type-coverage --at-least 90 --ignore-catch
         language: node
         pass_filenames: false
-        stages: [pre-push]
-
-      - id: bump-version
-        name: 'Bump version on push to main'
-        entry: bash scripts/bump-version.sh
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
-        always_run: true

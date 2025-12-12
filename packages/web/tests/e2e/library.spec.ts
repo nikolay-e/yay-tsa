@@ -51,9 +51,12 @@ test.describe('Library Browsing', () => {
   test('should load more albums on scroll (pagination)', async () => {
     const initialCount = await libraryPage.getAlbumCount();
 
-    await libraryPage.scrollToBottom();
-    await libraryPage.page.waitForTimeout(1000);
+    // Skip if all albums fit on one page (nothing to paginate)
+    test.skip(initialCount < 20, 'Not enough albums to test pagination');
 
+    await libraryPage.scrollToBottom();
+
+    // Wait for either more albums or verify we've loaded all available
     const newCount = await libraryPage.getAlbumCount();
     expect(newCount).toBeGreaterThanOrEqual(initialCount);
   });
@@ -80,7 +83,6 @@ test.describe('Library Browsing', () => {
     const searchQuery = firstAlbumTitle.substring(0, 5);
 
     await libraryPage.search(searchQuery);
-    await libraryPage.page.waitForTimeout(500);
 
     const resultsCount = await libraryPage.getAlbumCount();
     expect(resultsCount).toBeGreaterThan(0);
@@ -90,10 +92,7 @@ test.describe('Library Browsing', () => {
     await libraryPage.navigateToSearch();
 
     await libraryPage.search('test');
-    await libraryPage.page.waitForTimeout(500);
-
     await libraryPage.clearSearch();
-    await libraryPage.page.waitForTimeout(500);
 
     const albumCount = await libraryPage.getAlbumCount();
     expect(albumCount).toBeGreaterThan(0);

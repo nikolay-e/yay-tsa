@@ -55,7 +55,7 @@ test.describe('Responsive UI - Mobile', () => {
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
-    await albumPage.playButton.tap();
+    await albumPage.playButton.click();
     await playerBar.waitForPlayerToLoad();
 
     expect(await playerBar.isPlaying()).toBe(true);
@@ -64,9 +64,12 @@ test.describe('Responsive UI - Mobile', () => {
   test('should scroll album list on mobile', async () => {
     const initialCount = await libraryPage.getAlbumCount();
 
-    await libraryPage.scrollToBottom();
-    await libraryPage.page.waitForTimeout(1000);
+    // Skip if all albums fit on one page (nothing to paginate)
+    test.skip(initialCount < 20, 'Not enough albums to test pagination');
 
+    await libraryPage.scrollToBottom();
+
+    // After scroll, verify at least the same albums are visible
     const newCount = await libraryPage.getAlbumCount();
     expect(newCount).toBeGreaterThanOrEqual(initialCount);
   });
@@ -76,21 +79,19 @@ test.describe('Responsive UI - Mobile', () => {
 
     await expect(libraryPage.searchInput).toBeVisible();
     await libraryPage.search('test');
-    await libraryPage.page.waitForTimeout(500);
+    // search() already waits for results
   });
 
-  test('should handle player controls on mobile', async ({ authenticatedPage }) => {
+  test('should handle player controls on mobile', async () => {
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    await playerBar.playPauseButton.tap();
-    await authenticatedPage.waitForTimeout(300);
+    await playerBar.pause();
     expect(await playerBar.isPlaying()).toBe(false);
 
-    await playerBar.playPauseButton.tap();
-    await authenticatedPage.waitForTimeout(300);
+    await playerBar.play();
     expect(await playerBar.isPlaying()).toBe(true);
   });
 });

@@ -1,0 +1,7 @@
+export const TEST_DELAYS = {
+  QUICK_UI: 300,
+  STANDARD_UI: 500,
+  LOAD_DELAY: 1000,
+  AUDIO_DELAY: 2000,
+  SVELTE_TICK: 100,
+} as const;

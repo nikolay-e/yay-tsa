@@ -25,7 +25,9 @@ test.describe('Authentication Flow', () => {
     await loginPage.waitForRedirectToRecent();
 
     await expect(loginPage.page).toHaveURL('/');
-    await expect(loginPage.page.getByRole('heading', { name: /Recently Played|Discover/ })).toBeVisible();
+    await expect(
+      loginPage.page.getByRole('heading', { name: /Recently Played|Discover/ })
+    ).toBeVisible();
   });
 
   test('should show error with invalid credentials', async ({ page }) => {

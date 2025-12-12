@@ -21,4 +21,4 @@ export const LIBRARY_TEST_IDS = {
   ALBUM_BACK_BUTTON: 'back-button', // future
 } as const;
 
-export type LibraryTestId = typeof LIBRARY_TEST_IDS[keyof typeof LIBRARY_TEST_IDS];
+export type LibraryTestId = (typeof LIBRARY_TEST_IDS)[keyof typeof LIBRARY_TEST_IDS];

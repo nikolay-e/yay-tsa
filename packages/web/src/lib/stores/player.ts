@@ -6,7 +6,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { browser, dev } from '$app/environment';
 import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@yaytsa/core';
-import { HTML5AudioEngine, MediaSessionManager } from '@yaytsa/platform';
+import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { client } from './auth.js';
 import { logger } from '../utils/logger.js';
 
@@ -18,14 +18,14 @@ const DEFAULT_VOLUME = 0.7;
 interface PlayerState {
   queue: PlaybackQueue;
   state: PlaybackState | null;
-  audioEngine: HTML5AudioEngine | null;
+  audioEngine: AudioEngine | null;
   currentTrack: AudioItem | null;
   volume: number;
   isPlaying: boolean;
   isLoading: boolean;
   isShuffle: boolean;
   repeatMode: RepeatMode;
-  error: string | null;
+  error: Error | null;
 }
 
 interface PlayerTimingState {
@@ -199,7 +199,7 @@ if (audioEngine) {
         playerStore.update(s => ({
           ...s,
           isPlaying: false,
-          error: (error as Error).message,
+          error: error instanceof Error ? error : new Error(String(error)),
         }));
       })
       .finally(() => {
@@ -214,7 +214,7 @@ if (audioEngine) {
       ...state,
       isPlaying: false,
       isLoading: false,
-      error: error.message,
+      error,
     }));
   });
 
@@ -314,10 +314,10 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
-    const errorMessage = (error as Error).message;
+    const err = error instanceof Error ? error : new Error(String(error));
 
     // Ignore "Load cancelled" errors - these are expected during rapid track switching
-    if (errorMessage.includes('Load cancelled')) {
+    if (err.message.includes('Load cancelled')) {
       logger.debug('Track load cancelled (user switched tracks)');
       return; // Silent cancellation - do not throw or update error state
     }
@@ -329,7 +329,7 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
         ...s,
         isPlaying: false,
         isLoading: false,
-        error: errorMessage,
+        error: err,
       }));
     }
     throw error;
@@ -417,9 +417,9 @@ function pause(): void {
  */
 async function resume(): Promise<void> {
   if (!audioEngine) {
-    const errorMsg = 'Audio engine not available';
-    playerStore.update(s => ({ ...s, error: errorMsg }));
-    throw new Error(errorMsg);
+    const err = new Error('Audio engine not available');
+    playerStore.update(s => ({ ...s, error: err }));
+    throw err;
   }
 
   try {
@@ -441,9 +441,9 @@ async function resume(): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
-    const errorMsg = `Failed to resume playback: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error('Failed to resume playback');
     logger.error('Resume error:', error);
-    playerStore.update(s => ({ ...s, error: errorMsg, isPlaying: false }));
+    playerStore.update(s => ({ ...s, error: err, isPlaying: false }));
     throw error;
   }
 }
@@ -537,9 +537,9 @@ function seek(seconds: number): void {
     audioEngine.seek(seconds);
     playerStore.update(s => ({ ...s, currentTime: seconds, error: null }));
   } catch (error) {
-    const errorMsg = `Seek failed: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error('Seek failed');
     logger.error('Seek error:', error);
-    playerStore.update(s => ({ ...s, error: errorMsg }));
+    playerStore.update(s => ({ ...s, error: err }));
   }
 }
 
@@ -665,6 +665,12 @@ export const queueItems = derived(
  * Resets player state to initial values
  */
 function cleanup(): void {
+  // Cancel pending RAF to prevent memory leak
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
   // Stop playback
   if (audioEngine) {
     audioEngine.pause();
@@ -732,4 +738,29 @@ if (mediaSession) {
       player.seek(seconds);
     },
   });
+}
+
+// Expose player store for E2E tests
+declare global {
+  interface Window {
+    __playerStore__?: {
+      audioEngine: HTML5AudioEngine | null;
+      volume: number;
+      isPlaying: boolean;
+    };
+  }
+}
+
+if (browser) {
+  window.__playerStore__ = {
+    get audioEngine() {
+      return audioEngine;
+    },
+    get volume() {
+      return get(playerStore).volume;
+    },
+    get isPlaying() {
+      return get(playerStore).isPlaying;
+    },
+  };
 }

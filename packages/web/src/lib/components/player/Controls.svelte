@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { player, isPlaying, isShuffle, repeatMode } from '../../stores/player.js';
-  import { hapticPlayPause, hapticSkip, hapticSelect } from '../../utils/haptics.js';
+  import { createEventDispatcher } from 'svelte';
+  import { player, isPlaying, queueItems } from '../../stores/player.js';
+  import { hapticPlayPause, hapticSkip } from '../../utils/haptics.js';
   import { PLAYER_TEST_IDS } from '$lib/test-ids';
 
-  // Debouncing flag to prevent double-clicks (INP optimization)
+  export let showQueue = false;
+
+  const dispatch = createEventDispatcher();
+
   let isTogglingPlayPause = false;
 
   async function handlePlayPause() {
@@ -31,31 +35,31 @@
     player.next();
   }
 
-  function toggleShuffle() {
-    hapticSelect();
-    player.toggleShuffle();
+  function toggleSleepTimer() {
+    dispatch('toggleSleepTimer');
   }
 
-  function toggleRepeat() {
-    hapticSelect();
-    player.toggleRepeat();
+  function toggleQueue() {
+    dispatch('toggleQueue');
   }
 </script>
 
 <div class="controls">
-  <!-- Shuffle -->
+  <!-- Queue (left side) -->
   <button
     type="button"
     class="control-btn"
-    class:active={$isShuffle}
-    on:click={toggleShuffle}
-    aria-label="Toggle shuffle"
-    aria-pressed={$isShuffle}
-    data-testid={PLAYER_TEST_IDS.SHUFFLE_BUTTON}
+    class:active={showQueue}
+    on:click={toggleQueue}
+    aria-label="Toggle queue"
+    title="Queue ({$queueItems.length})"
   >
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
     </svg>
+    {#if $queueItems.length > 0}
+      <span class="queue-count">{$queueItems.length}</span>
+    {/if}
   </button>
 
   <!-- Previous -->
@@ -103,32 +107,18 @@
     </svg>
   </button>
 
-  <!-- Repeat -->
+  <!-- Sleep Timer -->
   <button
     type="button"
     class="control-btn"
-    class:active={$repeatMode !== 'off'}
-    on:click={toggleRepeat}
-    aria-label={`Repeat: ${$repeatMode}`}
-    aria-pressed={$repeatMode !== 'off'}
-    data-testid={PLAYER_TEST_IDS.REPEAT_BUTTON}
+    on:click={toggleSleepTimer}
+    data-testid={PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}
+    aria-label="Sleep timer"
+    title="Sleep timer"
   >
-    {#if $repeatMode === 'one'}
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 1l4 4-4 4" />
-        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <path d="M7 23l-4-4 4-4" />
-        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-        <text x="12" y="16" font-size="8" fill="currentColor" text-anchor="middle">1</text>
-      </svg>
-    {:else}
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 1l4 4-4 4" />
-        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <path d="M7 23l-4-4 4-4" />
-        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-      </svg>
-    {/if}
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M9 1h6v2H9zm8.03 6.39l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9a8.994 8.994 0 0 0 7.03-14.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7zm-1-11h1.5v3.82l2.44 1.46-.75 1.23L11 13.5z" />
+    </svg>
   </button>
 </div>
 
@@ -141,6 +131,7 @@
   }
 
   .control-btn {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -176,6 +167,23 @@
   .play-btn:hover {
     background-color: var(--color-accent-hover);
     transform: scale(1.05);
+  }
+
+  .queue-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background-color: var(--color-accent);
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Mobile touch targets - minimum 44x44px */

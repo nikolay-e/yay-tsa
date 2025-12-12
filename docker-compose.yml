@@ -41,5 +41,3 @@ services:
       - YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Web}
     ports:
       - '3848:80'
-    profiles:
-      - production

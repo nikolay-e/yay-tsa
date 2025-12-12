@@ -30,69 +30,22 @@ test.describe('Queue Management', () => {
     expect(trackCount).toBeGreaterThan(0);
   });
 
-  test('should advance through queue automatically', async ({ authenticatedPage }) => {
+  test('should advance through queue automatically', async () => {
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
+
+    const trackCount = await albumPage.getTrackCount();
+    test.skip(trackCount < 2, 'Album has fewer than 2 tracks');
+
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
     const firstTrack = await playerBar.getCurrentTrackTitle();
 
-    await playerBar.next();
-    await authenticatedPage.waitForTimeout(500);
+    await playerBar.clickNextAndWait();
 
     const secondTrack = await playerBar.getCurrentTrackTitle();
     expect(secondTrack).not.toBe(firstTrack);
-  });
-
-  test('should toggle shuffle mode', async ({ authenticatedPage }) => {
-    await libraryPage.clickAlbum(0);
-    await albumPage.waitForAlbumToLoad();
-    await albumPage.playAlbum();
-    await playerBar.waitForPlayerToLoad();
-
-    const shuffleOffInitially = await playerBar.isShuffleOn();
-
-    await playerBar.toggleShuffle();
-    await authenticatedPage.waitForTimeout(300);
-
-    const shuffleOnAfterToggle = await playerBar.isShuffleOn();
-    expect(shuffleOnAfterToggle).not.toBe(shuffleOffInitially);
-  });
-
-  test('should cycle through repeat modes', async ({ authenticatedPage }) => {
-    await libraryPage.clickAlbum(0);
-    await albumPage.waitForAlbumToLoad();
-    await albumPage.playAlbum();
-    await playerBar.waitForPlayerToLoad();
-
-    const initialMode = await playerBar.getRepeatMode();
-
-    await playerBar.toggleRepeat();
-    await authenticatedPage.waitForTimeout(300);
-    const secondMode = await playerBar.getRepeatMode();
-    expect(secondMode).not.toBe(initialMode);
-
-    await playerBar.toggleRepeat();
-    await authenticatedPage.waitForTimeout(300);
-    const thirdMode = await playerBar.getRepeatMode();
-    expect(thirdMode).not.toBe(secondMode);
-
-    await playerBar.toggleRepeat();
-    await authenticatedPage.waitForTimeout(300);
-    const fourthMode = await playerBar.getRepeatMode();
-    expect(fourthMode).toBe(initialMode);
-  });
-
-  test('should shuffle album on shuffle button click', async () => {
-    await libraryPage.clickAlbum(0);
-    await albumPage.waitForAlbumToLoad();
-
-    await albumPage.shuffleAlbum();
-    await playerBar.waitForPlayerToLoad();
-
-    const isShuffled = await playerBar.isShuffleOn();
-    expect(isShuffled).toBe(true);
   });
 
   test('should maintain queue when navigating between pages', async () => {
@@ -109,21 +62,24 @@ test.describe('Queue Management', () => {
     expect(trackAfterNavigation).toBe(trackBefore);
   });
 
-  test('should skip forward and backward through queue', async ({ authenticatedPage }) => {
+  test('should skip forward and backward through queue', async () => {
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
+
+    const trackCount = await albumPage.getTrackCount();
+    test.skip(trackCount < 2, 'Album has fewer than 2 tracks');
+
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    await playerBar.next();
-    await authenticatedPage.waitForTimeout(500);
+    await playerBar.clickNextAndWait();
+    await expect(playerBar.playerBar).toBeVisible();
     const secondTrack = await playerBar.getCurrentTrackTitle();
 
-    await playerBar.next();
-    await authenticatedPage.waitForTimeout(500);
+    await playerBar.clickNextAndWait();
 
-    await playerBar.previous();
-    await authenticatedPage.waitForTimeout(500);
+    await playerBar.clickPreviousAndWait();
+    await expect(playerBar.playerBar).toBeVisible();
     const backToSecond = await playerBar.getCurrentTrackTitle();
 
     expect(backToSecond).toBe(secondTrack);
@@ -147,7 +103,7 @@ test.describe('Queue Management', () => {
     expect(secondAlbumTrack).not.toBe(firstAlbumTrack);
   });
 
-  test('should handle queue end without repeat', async ({ authenticatedPage }) => {
+  test('should handle queue end', async () => {
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -156,56 +112,6 @@ test.describe('Queue Management', () => {
     await albumPage.playTrack(trackCount - 1);
     await playerBar.waitForPlayerToLoad();
 
-    await authenticatedPage.waitForTimeout(1000);
-  });
-
-  test('should loop queue with repeat all', async ({ authenticatedPage }) => {
-    await libraryPage.clickAlbum(0);
-    await albumPage.waitForAlbumToLoad();
-    await albumPage.playAlbum();
-    await playerBar.waitForPlayerToLoad();
-
-    await playerBar.toggleRepeat();
-    await authenticatedPage.waitForTimeout(300);
-
-    const repeatMode = await playerBar.getRepeatMode();
-    if (repeatMode === 'off') {
-      await playerBar.toggleRepeat();
-      await authenticatedPage.waitForTimeout(300);
-    }
-
-    const trackCount = await albumPage.getTrackCount();
-    for (let i = 0; i < trackCount; i++) {
-      await playerBar.next();
-      await authenticatedPage.waitForTimeout(500);
-    }
-
     expect(await playerBar.isVisible()).toBe(true);
-  });
-
-  test('should repeat one track with repeat one', async ({ authenticatedPage }) => {
-    await libraryPage.clickAlbum(0);
-    await albumPage.waitForAlbumToLoad();
-    await albumPage.playAlbum();
-    await playerBar.waitForPlayerToLoad();
-
-    const initialTrack = await playerBar.getCurrentTrackTitle();
-
-    // Toggle to repeat all, then to repeat one
-    await playerBar.toggleRepeat();
-    await authenticatedPage.waitForTimeout(300);
-    await playerBar.toggleRepeat();
-    await authenticatedPage.waitForTimeout(300);
-
-    const repeatMode = await playerBar.getRepeatMode();
-    if (repeatMode === 'one') {
-      // Click next button directly - don't use next() which waits for track change
-      await playerBar.nextButton.click();
-      await authenticatedPage.waitForTimeout(500);
-
-      // In repeat one mode, track should stay the same
-      const trackAfterNext = await playerBar.getCurrentTrackTitle();
-      expect(trackAfterNext).toBe(initialTrack);
-    }
   });
 });

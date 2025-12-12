@@ -8,8 +8,6 @@ export class PlayerBar {
   readonly playPauseButton: Locator;
   readonly nextButton: Locator;
   readonly previousButton: Locator;
-  readonly shuffleButton: Locator;
-  readonly repeatButton: Locator;
   readonly volumeSlider: Locator;
   readonly seekSlider: Locator;
   readonly currentTrackTitle: Locator;
@@ -24,8 +22,6 @@ export class PlayerBar {
     this.playPauseButton = page.getByTestId(PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON);
     this.nextButton = page.getByTestId(PLAYER_TEST_IDS.NEXT_BUTTON);
     this.previousButton = page.getByTestId(PLAYER_TEST_IDS.PREVIOUS_BUTTON);
-    this.shuffleButton = page.getByTestId(PLAYER_TEST_IDS.SHUFFLE_BUTTON);
-    this.repeatButton = page.getByTestId(PLAYER_TEST_IDS.REPEAT_BUTTON);
     this.volumeSlider = page.getByTestId(PLAYER_TEST_IDS.VOLUME_SLIDER);
     this.seekSlider = page.getByTestId(PLAYER_TEST_IDS.SEEK_SLIDER);
     this.currentTrackTitle = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TRACK_TITLE);
@@ -36,12 +32,8 @@ export class PlayerBar {
   }
 
   async waitForPlayerToLoad(): Promise<void> {
-    // 1. Wait for UI to be visible
     await expect(this.playerBar).toBeVisible({ timeout: 10000 });
     await expect(this.currentTrackTitle).toBeVisible({ timeout: 5000 });
-
-    // 2. Wait for duration to be displayed (not "0:00")
-    // This indirectly confirms audio metadata is loaded
     await expect(this.totalTime).not.toHaveText('0:00', { timeout: 10000 });
   }
 
@@ -69,26 +61,6 @@ export class PlayerBar {
     const previousTitle = await this.getCurrentTrackTitle();
     await this.previousButton.click();
     await this.waitForTrackChange(previousTitle);
-  }
-
-  async toggleShuffle(): Promise<void> {
-    await this.shuffleButton.click();
-  }
-
-  async toggleRepeat(): Promise<void> {
-    await this.repeatButton.click();
-  }
-
-  async getRepeatMode(): Promise<'off' | 'all' | 'one'> {
-    const ariaLabel = await this.repeatButton.getAttribute('aria-label');
-    if (ariaLabel?.includes('all')) return 'all';
-    if (ariaLabel?.includes('one')) return 'one';
-    return 'off';
-  }
-
-  async isShuffleOn(): Promise<boolean> {
-    const pressed = await this.shuffleButton.getAttribute('aria-pressed');
-    return pressed === 'true';
   }
 
   async getCurrentTrackTitle(): Promise<string> {
@@ -124,14 +96,10 @@ export class PlayerBar {
   }
 
   async waitForPlayingState(): Promise<void> {
-    // Give Svelte one tick to update DOM after store update
-    await this.page.waitForTimeout(100);
     await expect(this.playPauseButton).toHaveAttribute('aria-label', /Pause/i, { timeout: 5000 });
   }
 
   async waitForPausedState(): Promise<void> {
-    // Give Svelte one tick to update DOM after store update
-    await this.page.waitForTimeout(100);
     await expect(this.playPauseButton).toHaveAttribute('aria-label', /Play/i, { timeout: 5000 });
   }
 
@@ -147,93 +115,51 @@ export class PlayerBar {
     }).toPass({ timeout: 10000 });
   }
 
+  async clickNextAndWait(): Promise<void> {
+    const previousTitle = await this.getCurrentTrackTitle();
+    await this.nextButton.click();
+    await this.waitForTrackChange(previousTitle);
+  }
+
+  async clickPreviousAndWait(): Promise<void> {
+    const previousTitle = await this.getCurrentTrackTitle();
+    await this.previousButton.click();
+    await this.waitForTrackChange(previousTitle);
+  }
+
   async expectTrackTitle(title: string): Promise<void> {
     await expect(this.currentTrackTitle).toHaveText(title);
   }
 
-  // Audio DOM API methods - check actual <audio> element state
   async waitForAudioReady(): Promise<void> {
-    const audioLocator = this.page.locator('audio').first();
-
-    // Wait for audio element to exist
-    await expect(audioLocator).toBeAttached({ timeout: 5000 });
-
-    // Wait for metadata to load (duration available)
-    await audioLocator.evaluate((audio: HTMLAudioElement) =>
-      new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Audio metadata load timeout after 5s'));
-        }, 5000);
-
-        const checkReady = () => {
-          if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
-            clearTimeout(timeout);
-            resolve();
-          }
-        };
-
-        if (audio.readyState >= 1 && !isNaN(audio.duration) && audio.duration > 0) {
-          clearTimeout(timeout);
-          resolve();
-        } else {
-          audio.addEventListener('loadedmetadata', checkReady, { once: true });
-        }
-      })
-    );
-  }
-
-  async getAudioReadyState(): Promise<number> {
-    const audioLocator = this.page.locator('audio').first();
-    return await audioLocator.evaluate((audio: HTMLAudioElement) => audio.readyState);
-  }
-
-  async isAudioPaused(): Promise<boolean> {
-    const audioLocator = this.page.locator('audio').first();
-    return await audioLocator.evaluate((audio: HTMLAudioElement) => audio.paused);
-  }
-
-  async getAudioDuration(): Promise<number> {
-    const audioLocator = this.page.locator('audio').first();
-    return await audioLocator.evaluate((audio: HTMLAudioElement) => audio.duration);
+    await expect(async () => {
+      const duration = await this.page.evaluate(() => {
+        const player = (window as any).__playerStore__;
+        const audioEngine = player?.audioEngine;
+        return audioEngine?.getDuration?.() ?? 0;
+      });
+      expect(duration).toBeGreaterThan(0);
+    }).toPass({ timeout: 10000 });
   }
 
   async waitForSeekComplete(): Promise<void> {
-    const audioLocator = this.page.locator('audio').first();
-
-    await audioLocator.evaluate((audio: HTMLAudioElement) =>
-      new Promise<void>((resolve) => {
-        if (!audio.seeking) {
-          resolve();
-        } else {
-          audio.addEventListener('seeked', () => resolve(), { once: true });
-        }
-      })
-    );
+    await expect(this.currentTime).not.toHaveText('0:00', { timeout: 5000 });
   }
 
   async waitForAudioPlaying(): Promise<void> {
-    const audioLocator = this.page.locator('audio').first();
+    await expect(async () => {
+      const isPlaying = await this.page.evaluate(() => {
+        const player = (window as any).__playerStore__;
+        return player?.isPlaying === true;
+      });
+      expect(isPlaying).toBe(true);
+    }).toPass({ timeout: 10000 });
+  }
 
-    await audioLocator.evaluate((audio: HTMLAudioElement) =>
-      new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Audio did not start playing within 3s'));
-        }, 3000);
-
-        const checkPlaying = () => {
-          if (!audio.paused && audio.readyState >= 3) {
-            clearTimeout(timeout);
-            resolve();
-          }
-        };
-
-        if (!audio.paused && audio.readyState >= 3) {
-          clearTimeout(timeout);
-          resolve();
-        } else {
-          audio.addEventListener('playing', checkPlaying, { once: true });
-        }
-      })
-    );
+  async waitForTimeProgress(): Promise<void> {
+    await expect(async () => {
+      const currentTime = await this.getCurrentTime();
+      expect(currentTime).not.toBe('0:00');
+    }).toPass({ timeout: 10000 });
   }
 }

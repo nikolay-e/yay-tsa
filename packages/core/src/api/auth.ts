@@ -102,11 +102,7 @@ function isPrivateIP(hostname: string): boolean {
   if (parts.length !== 4 || parts.some(isNaN)) return false;
 
   const [a, b] = parts;
-  return (
-    a === 10 ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
-  );
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
 export function validateServerUrl(url: string, isDevelopment: boolean = false): void {
