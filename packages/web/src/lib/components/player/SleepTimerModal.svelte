@@ -90,9 +90,7 @@
       case 'crossfade-to-noise':
         return 'Fading to pink noise';
       case 'noise':
-        return 'Playing pink noise';
-      case 'fade-out':
-        return 'Fading out';
+        return 'Pink noise (fading)';
       default:
         return '';
     }

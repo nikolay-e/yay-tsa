@@ -12,7 +12,6 @@ export type SleepTimerPhase =
   | 'music'
   | 'crossfade-to-noise'
   | 'noise'
-  | 'fade-out'
   | 'stopped';
 
 export interface SleepTimerConfig {
@@ -113,10 +112,8 @@ async function transitionToPhase(newPhase: SleepTimerPhase): Promise<void> {
       await startCrossfadeToNoise();
       break;
     case 'noise':
-      // Pink noise is now at full volume, music stopped
-      break;
-    case 'fade-out':
-      await startFadeOut();
+      // Start gradual fade over entire noise duration
+      await startGradualNoiseFade();
       break;
     case 'stopped':
       stopSleepTimer();
@@ -174,9 +171,9 @@ async function startCrossfadeToNoise(): Promise<void> {
   }
 }
 
-async function startFadeOut(): Promise<void> {
+async function startGradualNoiseFade(): Promise<void> {
   const state = get(sleepTimerStore);
-  const { crossfadeDurationMs } = state.config;
+  const { noiseDurationMs } = state.config;
 
   if (!pinkNoiseGenerator) {
     stopSleepTimer();
@@ -184,20 +181,16 @@ async function startFadeOut(): Promise<void> {
   }
 
   try {
-    const fade = pinkNoiseGenerator.fadeVolume(
-      pinkNoiseGenerator.getVolume(),
-      0,
-      crossfadeDurationMs
-    );
+    const startVolume = savedMusicVolume * PINK_NOISE_VOLUME_RATIO;
+    const fade = pinkNoiseGenerator.fadeVolume(startVolume, 0, noiseDurationMs);
 
     currentFadeCancel = fade.cancel;
     await fade.promise;
     currentFadeCancel = null;
 
-    // Final stop
     stopSleepTimer();
   } catch (error) {
-    logger.error('[Sleep Timer] Fade out error:', error);
+    logger.error('[Sleep Timer] Gradual noise fade error:', error);
     stopSleepTimer();
   }
 }
@@ -210,7 +203,8 @@ function tick(): void {
   const { musicDurationMs, noiseDurationMs, crossfadeDurationMs } = state.config;
 
   // Calculate total and phase remaining time
-  const totalDuration = musicDurationMs + noiseDurationMs + crossfadeDurationMs * 2;
+  // Total = music + crossfade + noise (fade is built into noise phase)
+  const totalDuration = musicDurationMs + crossfadeDurationMs + noiseDurationMs;
   const totalElapsed = now - state.startedAt;
   const remainingMs = Math.max(0, totalDuration - totalElapsed);
 
@@ -221,19 +215,16 @@ function tick(): void {
   switch (state.phase) {
     case 'music':
       phaseDuration = musicDurationMs;
-      nextPhase = noiseDurationMs > 0 ? 'crossfade-to-noise' : 'fade-out';
+      nextPhase = noiseDurationMs > 0 ? 'crossfade-to-noise' : 'stopped';
       break;
     case 'crossfade-to-noise':
       phaseDuration = crossfadeDurationMs;
       nextPhase = 'noise';
       break;
     case 'noise':
+      // Noise phase includes gradual fade - transition handled by startGradualNoiseFade
       phaseDuration = noiseDurationMs;
-      nextPhase = 'fade-out';
-      break;
-    case 'fade-out':
-      phaseDuration = crossfadeDurationMs;
-      nextPhase = 'stopped';
+      nextPhase = null;
       break;
   }
 
@@ -245,7 +236,7 @@ function tick(): void {
     phaseRemainingMs,
   }));
 
-  // Check if phase should transition
+  // Check if phase should transition (noise phase transitions via fade completion)
   if (phaseElapsed >= phaseDuration && nextPhase) {
     void transitionToPhase(nextPhase);
   }
@@ -263,9 +254,9 @@ function start(config?: Partial<SleepTimerConfig>): void {
   // Persist config
   persistConfig(newConfig);
 
-  // Calculate total duration
+  // Calculate total duration (music + crossfade + noise with gradual fade)
   const totalDuration =
-    newConfig.musicDurationMs + newConfig.noiseDurationMs + newConfig.crossfadeDurationMs * 2;
+    newConfig.musicDurationMs + newConfig.crossfadeDurationMs + newConfig.noiseDurationMs;
 
   const now = Date.now();
 
