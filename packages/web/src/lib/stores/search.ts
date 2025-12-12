@@ -102,12 +102,9 @@ function clear(): void {
   }));
 }
 
-export const searchQuery = derived(searchStore, $s => $s.query);
 export const searchAlbums = derived(searchStore, $s => $s.albums);
-export const searchArtists = derived(searchStore, $s => $s.artists);
 export const searchTracks = derived(searchStore, $s => $s.tracks);
 export const isSearching = derived(searchStore, $s => $s.isLoading);
-export const searchError = derived(searchStore, $s => $s.error);
 
 export const searchService = {
   subscribe: searchStore.subscribe,

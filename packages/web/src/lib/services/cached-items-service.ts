@@ -150,53 +150,6 @@ export async function getCachedAlbumTracks(
 }
 
 /**
- * Get single item with caching
- */
-export async function getCachedItem(
-  itemsService: ItemsService,
-  itemId: string
-): Promise<AudioItem | MusicAlbum | MusicArtist> {
-  const cache = cacheManager.getApiCache();
-
-  const cacheKey = cacheManager.buildCacheKey(`/item/${itemId}`);
-
-  if (cache) {
-    const cached: AudioItem | MusicAlbum | MusicArtist | null = await cache.get<
-      AudioItem | MusicAlbum | MusicArtist
-    >(cacheKey);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  const result = await itemsService.getItem(itemId);
-
-  if (cache) {
-    // Item metadata rarely changes
-    await cache.set(cacheKey, result, TTL.EIGHT_HOURS);
-  }
-
-  return result;
-}
-
-/**
- * Invalidate album-related caches
- * Use after favoriting/unfavoriting albums
- */
-export async function invalidateAlbumCaches(): Promise<void> {
-  const cache = cacheManager.getApiCache();
-  if (!cache) return;
-
-  // Delete all album-related cache keys
-  const keys = await cache.keys();
-  const albumKeys = keys.filter(key => key.includes('/albums') || key.includes('/recent-albums'));
-
-  for (const key of albumKeys) {
-    await cache.delete(key);
-  }
-}
-
-/**
  * Get artists with caching
  */
 export async function getCachedArtists(

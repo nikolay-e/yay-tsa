@@ -269,9 +269,6 @@ export const hasMoreArtists = derived(
   libraryStore,
   $library => $library.artists.length < $library.artistsTotal
 );
-export const tracks = derived(libraryStore, $library => $library.tracks);
-export const currentAlbum = derived(libraryStore, $library => $library.currentAlbum);
-export const currentArtist = derived(libraryStore, $library => $library.currentArtist);
 export const isLoading = derived(libraryStore, $library => $library.isLoading);
 export const error = derived(libraryStore, $library => $library.error);
 

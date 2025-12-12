@@ -1,6 +1,6 @@
 {
   "name": "yaytsa",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "private": true,
   "description": "A portable music client for Jellyfin",
   "keywords": [
@@ -44,6 +44,7 @@
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.19.1",
     "bundlewatch": "^0.4.1",
+    "dotenv": "^17.2.3",
     "eslint": "^9.18.0",
     "eslint-plugin-svelte": "^3.13.1",
     "globals": "^16.5.0",

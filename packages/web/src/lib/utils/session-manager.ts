@@ -28,11 +28,7 @@ export function saveSession(data: SessionData): void {
   }
 }
 
-/**
- * Load session data from sessionStorage
- * Returns null if any required field is missing or sessionStorage is unavailable
- */
-export function loadSession(): SessionData | null {
+function loadSession(): SessionData | null {
   if (typeof sessionStorage === 'undefined') {
     return null;
   }
@@ -52,10 +48,7 @@ export function loadSession(): SessionData | null {
   }
 }
 
-/**
- * Clear all session data from sessionStorage
- */
-export function clearSession(): void {
+function clearSession(): void {
   if (typeof sessionStorage === 'undefined') {
     return;
   }
@@ -88,11 +81,7 @@ export function saveSessionPersistent(data: SessionData): void {
   }
 }
 
-/**
- * Load session data from localStorage (persistent)
- * Returns null if any required field is missing or localStorage is unavailable
- */
-export function loadSessionPersistent(): SessionData | null {
+function loadSessionPersistent(): SessionData | null {
   if (typeof localStorage === 'undefined') {
     return null;
   }
@@ -117,10 +106,7 @@ export function loadSessionPersistent(): SessionData | null {
   }
 }
 
-/**
- * Clear all persistent session data from localStorage
- */
-export function clearSessionPersistent(): void {
+function clearSessionPersistent(): void {
   if (typeof localStorage === 'undefined') {
     return;
   }

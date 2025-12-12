@@ -436,7 +436,6 @@ function updateConfig(config: Partial<SleepTimerConfig>): void {
 export const isActive = derived(sleepTimerStore, $s => $s.isActive);
 export const phase = derived(sleepTimerStore, $s => $s.phase);
 export const remainingMs = derived(sleepTimerStore, $s => $s.remainingMs);
-export const phaseRemainingMs = derived(sleepTimerStore, $s => $s.phaseRemainingMs);
 export const config = derived(sleepTimerStore, $s => $s.config);
 
 export function formatTimeRemaining(ms: number): string {
