@@ -103,8 +103,7 @@ async function loadAlbums(options?: {
       sortBy,
     });
 
-    const nextAlbums =
-      startIndex === 0 ? result.Items : [...state.albums, ...result.Items];
+    const nextAlbums = startIndex === 0 ? result.Items : [...state.albums, ...result.Items];
 
     handler.success({
       albums: nextAlbums,
@@ -189,8 +188,7 @@ async function loadArtists(options?: {
       sortBy,
     });
 
-    const nextArtists =
-      startIndex === 0 ? result.Items : [...state.artists, ...result.Items];
+    const nextArtists = startIndex === 0 ? result.Items : [...state.artists, ...result.Items];
 
     handler.success({
       artists: nextArtists,
@@ -271,9 +269,6 @@ export const hasMoreArtists = derived(
   libraryStore,
   $library => $library.artists.length < $library.artistsTotal
 );
-export const tracks = derived(libraryStore, $library => $library.tracks);
-export const currentAlbum = derived(libraryStore, $library => $library.currentAlbum);
-export const currentArtist = derived(libraryStore, $library => $library.currentArtist);
 export const isLoading = derived(libraryStore, $library => $library.isLoading);
 export const error = derived(libraryStore, $library => $library.error);
 

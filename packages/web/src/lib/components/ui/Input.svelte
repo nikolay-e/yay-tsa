@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { HTMLInputAttributes } from 'svelte/elements';
+
   export let type: string = 'text';
   export let value: string = '';
   export let placeholder: string = '';
@@ -7,6 +9,7 @@
   export let id: string = '';
   export let name: string = '';
   export let label: string = '';
+  export let autocomplete: HTMLInputAttributes['autocomplete'] = undefined;
 
   function handleInput(e: Event) {
     value = (e.target as HTMLInputElement).value;
@@ -24,6 +27,7 @@
     {placeholder}
     {required}
     {value}
+    {autocomplete}
     class:error={!!error}
     on:input={handleInput}
     on:change

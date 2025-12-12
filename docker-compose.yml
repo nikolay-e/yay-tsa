@@ -1,30 +1,19 @@
 # Unified Docker Compose for Yaytsa
-# Supports multiple backend configurations via profiles:
-#
-# USAGE:
-#   Remote Jellyfin Backend:
-#     docker compose --profile dev up              # Dev frontend -> remote Jellyfin
-#     docker compose --profile production up       # Prod frontend -> remote Jellyfin
-#
-#   Local Java Backend:
-#     docker compose --profile local-backend up    # Full stack with local backend
-#     docker compose --profile local-backend --profile dev up  # Dev frontend + local backend
-
+# Supports two backend modes (auto-detected):
 services:
   # ===========================================
   # FRONTEND SERVICES
   # ===========================================
 
   # Development service - Vite dev server with hot reload
-  dev:
+  vite-server:
     build:
       context: .
       dockerfile: Dockerfile
       target: development
     container_name: yaytsa-dev
     environment:
-      # Use local backend if profile active, otherwise use REMOTE_JELLYFIN_URL
-      - VITE_YAYTSA_SERVER_URL=${BACKEND_URL:-${REMOTE_JELLYFIN_URL}}
+      - VITE_YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
       - VITE_YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
       - VITE_YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Dev}
     ports:
@@ -44,10 +33,21 @@ services:
       - /app/packages/platform/dist
     working_dir: /app
     command: npm run dev
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:5173']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     networks:
-      - yaytsa-network
+      yaytsa-network:
+        aliases:
+          - vite-server
+          - app-dev
     profiles:
       - dev
+      - test-all
+      - test-web
 
   # Production service - Nginx with runtime config injection
   web:
@@ -57,16 +57,88 @@ services:
       target: production
     container_name: yaytsa-web
     environment:
-      # Use local backend if profile active, otherwise use REMOTE_JELLYFIN_URL
-      - YAYTSA_SERVER_URL=${BACKEND_URL:-${REMOTE_JELLYFIN_URL}}
+      - YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
       - YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
       - YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Web}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-yaytsa}
     ports:
       - '3848:80'
     networks:
       - yaytsa-network
     profiles:
       - production
+
+  # ===========================================
+  # TEST SERVICES
+  # ===========================================
+
+  # Run all tests (Core E2E + Web E2E)
+  test-all:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: yaytsa-test-all
+    profiles:
+      - test-all
+    environment:
+      - YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      - YAYTSA_TEST_USERNAME=${YAYTSA_TEST_USERNAME}
+      - YAYTSA_TEST_PASSWORD=${YAYTSA_TEST_PASSWORD}
+      - BASE_URL=http://vite-server:5173
+    volumes:
+      - ./packages/core/tests:/app/packages/core/tests
+      - ./packages/web/tests:/app/packages/web/tests
+      - ./test-results:/app/test-results
+    networks:
+      - yaytsa-network
+    depends_on:
+      vite-server:
+        condition: service_healthy
+
+  # Run only Core integration tests
+  test-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: yaytsa-test-core
+    profiles:
+      - test-core
+    environment:
+      - YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      - YAYTSA_TEST_USERNAME=${YAYTSA_TEST_USERNAME}
+      - YAYTSA_TEST_PASSWORD=${YAYTSA_TEST_PASSWORD}
+    volumes:
+      - ./packages/core/tests:/app/packages/core/tests
+      - ./test-results/core:/app/packages/core/test-results
+    networks:
+      - yaytsa-network
+    command: ['sh', '-c', 'cd packages/core && npm run test:e2e']
+
+  # Run only Web E2E tests
+  test-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: yaytsa-test-web
+    profiles:
+      - test-web
+    environment:
+      - YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      - YAYTSA_TEST_USERNAME=${YAYTSA_TEST_USERNAME}
+      - YAYTSA_TEST_PASSWORD=${YAYTSA_TEST_PASSWORD}
+      - BASE_URL=http://vite-server:5173
+    volumes:
+      - ./packages/web/tests:/app/packages/web/tests
+      - ./test-results/web:/app/packages/web/playwright-report
+    networks:
+      - yaytsa-network
+    depends_on:
+      vite-server:
+        condition: service_healthy
+    command: ['sh', '-c', 'cd packages/web && npm run test:e2e']
 
   # ===========================================
   # LOCAL BACKEND SERVICES (Java + PostgreSQL)

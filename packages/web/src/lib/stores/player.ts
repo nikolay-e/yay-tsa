@@ -6,7 +6,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { browser, dev } from '$app/environment';
 import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@yaytsa/core';
-import { HTML5AudioEngine, MediaSessionManager } from '@yaytsa/platform';
+import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { client } from './auth.js';
 import { logger } from '../utils/logger.js';
 
@@ -18,14 +18,14 @@ const DEFAULT_VOLUME = 0.7;
 interface PlayerState {
   queue: PlaybackQueue;
   state: PlaybackState | null;
-  audioEngine: HTML5AudioEngine | null;
+  audioEngine: AudioEngine | null;
   currentTrack: AudioItem | null;
   volume: number;
   isPlaying: boolean;
   isLoading: boolean;
   isShuffle: boolean;
   repeatMode: RepeatMode;
-  error: string | null;
+  error: Error | null;
 }
 
 interface PlayerTimingState {
@@ -199,7 +199,7 @@ if (audioEngine) {
         playerStore.update(s => ({
           ...s,
           isPlaying: false,
-          error: (error as Error).message,
+          error: error instanceof Error ? error : new Error(String(error)),
         }));
       })
       .finally(() => {
@@ -214,7 +214,7 @@ if (audioEngine) {
       ...state,
       isPlaying: false,
       isLoading: false,
-      error: error.message,
+      error,
     }));
   });
 
@@ -267,6 +267,10 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
     // Cache duration after load to avoid repeated getDuration() calls in hot path
     cachedDuration = audioEngine.getDuration();
 
+    // Synchronize volume with store (critical after sleep timer or other volume changes)
+    const currentVolume = get(playerStore).volume;
+    audioEngine.setVolume(currentVolume);
+
     // Check if operation was cancelled during load
     if (currentLoadOperation !== operationId) {
       return; // Operation cancelled, exit silently
@@ -314,10 +318,10 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
-    const errorMessage = (error as Error).message;
+    const err = error instanceof Error ? error : new Error(String(error));
 
     // Ignore "Load cancelled" errors - these are expected during rapid track switching
-    if (errorMessage.includes('Load cancelled')) {
+    if (err.message.includes('Load cancelled')) {
       logger.debug('Track load cancelled (user switched tracks)');
       return; // Silent cancellation - do not throw or update error state
     }
@@ -329,7 +333,7 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
         ...s,
         isPlaying: false,
         isLoading: false,
-        error: errorMessage,
+        error: err,
       }));
     }
     throw error;
@@ -417,20 +421,35 @@ function pause(): void {
  */
 async function resume(): Promise<void> {
   if (!audioEngine) {
-    const errorMsg = 'Audio engine not available';
-    playerStore.update(s => ({ ...s, error: errorMsg }));
-    throw new Error(errorMsg);
+    const err = new Error('Audio engine not available');
+    playerStore.update(s => ({ ...s, error: err }));
+    throw err;
+  }
+
+  const state = get(playerStore);
+
+  // Validate that a track is loaded before resuming
+  if (!state.currentTrack) {
+    throw new Error('No track loaded - cannot resume');
+  }
+
+  // Validate that the track is actually loaded in the audio engine
+  const duration = audioEngine.getDuration();
+  if (!duration || duration === 0) {
+    throw new Error('Track not loaded in audio engine');
   }
 
   try {
     // Clear previous errors
     playerStore.update(s => ({ ...s, error: null }));
 
+    // Synchronize volume with store before resuming playback
+    audioEngine.setVolume(state.volume);
+
     await audioEngine.play();
     playerStore.update(s => ({ ...s, isPlaying: true }));
 
     // Immediately report the 'playing' status to the server
-    const state = get(playerStore);
     if (state.state && state.currentTrack) {
       state.state.setStatus('playing');
       void state.state.reportPlaybackProgress();
@@ -441,9 +460,9 @@ async function resume(): Promise<void> {
       mediaSession.setPlaybackState('playing');
     }
   } catch (error) {
-    const errorMsg = `Failed to resume playback: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error('Failed to resume playback');
     logger.error('Resume error:', error);
-    playerStore.update(s => ({ ...s, error: errorMsg, isPlaying: false }));
+    playerStore.update(s => ({ ...s, error: err, isPlaying: false }));
     throw error;
   }
 }
@@ -537,9 +556,9 @@ function seek(seconds: number): void {
     audioEngine.seek(seconds);
     playerStore.update(s => ({ ...s, currentTime: seconds, error: null }));
   } catch (error) {
-    const errorMsg = `Seek failed: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error('Seek failed');
     logger.error('Seek error:', error);
-    playerStore.update(s => ({ ...s, error: errorMsg }));
+    playerStore.update(s => ({ ...s, error: err }));
   }
 }
 
@@ -660,12 +679,50 @@ export const queueItems = derived(
 );
 
 /**
- * Cleanup player resources (called on logout)
- * Disposes PlaybackState timer to prevent memory leaks
- * Resets player state to initial values
+ * Stop UI update loop (RAF-based timing updates)
+ * Safe to call on background/unmount - does NOT stop audio playback
  */
-function cleanup(): void {
-  // Stop playback
+function stopUiLoop(): void {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
+/**
+ * Resume AudioContext if suspended (mobile background playback fix)
+ * Call this when app returns to foreground (visibilitychange, focus events)
+ */
+async function resumeAudioContext(): Promise<void> {
+  if (audioEngine?.getAudioContext) {
+    const ctx = audioEngine.getAudioContext();
+    if (ctx?.state === 'suspended') {
+      try {
+        await ctx.resume();
+        logger.info('[Player] AudioContext resumed after foreground transition');
+      } catch (err) {
+        logger.error('[Player] Failed to resume AudioContext:', err);
+      }
+    }
+  }
+}
+
+type CleanupReason = 'ui' | 'background' | 'logout' | 'hard-stop';
+
+/**
+ * Cleanup player resources
+ * Reason determines cleanup scope:
+ * - 'ui' | 'background': Stop UI updates only (audio keeps playing)
+ * - 'logout' | 'hard-stop': Full cleanup including audio stop
+ */
+function cleanup(reason: CleanupReason = 'ui'): void {
+  // Always stop UI update loop
+  stopUiLoop();
+
+  // NEVER stop audio on background/unmount - only UI cleanup
+  if (reason === 'ui' || reason === 'background') return;
+
+  // Only explicit teardown cases stop audio playback
   if (audioEngine) {
     audioEngine.pause();
   }
@@ -704,6 +761,8 @@ export const player = {
   clearQueue,
   removeFromQueue,
   cleanup,
+  stopUiLoop,
+  resumeAudioContext,
 };
 
 // Set up media session action handlers (browser only)
@@ -732,4 +791,29 @@ if (mediaSession) {
       player.seek(seconds);
     },
   });
+}
+
+// Expose player store for E2E tests
+declare global {
+  interface Window {
+    __playerStore__?: {
+      audioEngine: HTML5AudioEngine | null;
+      volume: number;
+      isPlaying: boolean;
+    };
+  }
+}
+
+if (browser) {
+  window.__playerStore__ = {
+    get audioEngine() {
+      return audioEngine;
+    },
+    get volume() {
+      return get(playerStore).volume;
+    },
+    get isPlaying() {
+      return get(playerStore).isPlaying;
+    },
+  };
 }

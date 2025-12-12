@@ -2,12 +2,11 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
     "packages/core": {
-      "entry": ["src/index.ts", "tests/**/*.ts"],
+      "entry": ["tests/**/*.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
       "ignore": ["src/env.d.ts"]
     },
     "packages/platform": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/web": {
@@ -26,7 +25,6 @@
   },
   "ignoreDependencies": [
     "svelte-gestures",
-    "blurhash",
     "@commitlint/cli",
     "jsdom",
     "sharp",

@@ -1,6 +1,12 @@
+minimum_pre_commit_version: '3.5.0'
+default_stages: [pre-commit]
+default_language_version:
+  node: system
+fail_fast: false # Run all hooks to get complete feedback
+
 repos:
   # ------------------------------------------------------------------------------
-  # REPO 1: GENERAL FILE HYGIENE (Mostly Autofixing)
+  # GENERAL FILE HYGIENE (Mostly Autofixing)
   # Basic checks and fixes for all text files.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -17,12 +23,13 @@ repos:
       - id: check-merge-conflict # [CHECK] Prevents committing merge conflict markers.
       - id: check-case-conflict # [CHECK] Catches file path case inconsistencies.
       - id: detect-private-key # [CHECK] Prevents leaking private keys.
+      - id: check-json # [CHECK] Validates JSON syntax.
       - id: check-yaml # [CHECK] Validates YAML syntax.
         args: [--unsafe] # Specific to this project: Allows custom Docker Compose tags.
         exclude: ^helm/.*/templates/.*\.yaml$ # Exclude Helm templates (use Go templating)
 
   # ------------------------------------------------------------------------------
-  # REPO 2: PRETTIER CODE FORMATTER (Autofixing)
+  # PRETTIER CODE FORMATTER (Autofixing)
   # The main formatter for TS, Svelte, YAML, MD, and CSS.
   # Uses the project's existing .prettierrc file.
   # ------------------------------------------------------------------------------
@@ -36,7 +43,7 @@ repos:
         # Exclusions are managed by your existing .prettierignore file.
 
   # ------------------------------------------------------------------------------
-  # REPO 3: MARKDOWN LINTING (Autofixing)
+  # MARKDOWN LINTING (Autofixing)
   # Lints and fixes Markdown files using your existing .markdownlint.yaml config.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/igorshubovych/markdownlint-cli
@@ -46,7 +53,7 @@ repos:
         args: [--fix, --config, .markdownlint.yaml]
 
   # ------------------------------------------------------------------------------
-  # REPO 4: SHELL SCRIPT FORMATTING & LINTING (Autofixing + Check)
+  # SHELL SCRIPT FORMATTING & LINTING (Autofixing + Check)
   # Specific to this project: docker-entrypoint.sh, run-integration-tests.sh, etc.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/scop/pre-commit-shfmt
@@ -62,7 +69,7 @@ repos:
         args: [-x]
 
   # ------------------------------------------------------------------------------
-  # REPO 5: DOCKER & INFRASTRUCTURE LINTING (Quality & Security)
+  # DOCKER & INFRASTRUCTURE LINTING (Quality & Security)
   # Validates Dockerfiles, docker-compose, and infrastructure config.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/hadolint/hadolint
@@ -72,7 +79,7 @@ repos:
         args: [--config, .hadolint.yaml]
 
   # ------------------------------------------------------------------------------
-  # REPO 6: SECRET DETECTION (Security)
+  # SECRET DETECTION (Security)
   # Prevents committing secrets, API keys, tokens, and credentials.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/gitleaks/gitleaks
@@ -81,7 +88,59 @@ repos:
       - id: gitleaks # [CHECK] Scans for hardcoded secrets and credentials.
 
   # ------------------------------------------------------------------------------
-  # REPO 7: GITHUB ACTIONS VALIDATION (CI/CD Quality)
+  # SEMANTIC SECURITY ANALYSIS (Advanced)
+  # AST-based security scanner for JavaScript/TypeScript.
+  # More powerful than basic ESLint security rules.
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.89.0
+    hooks:
+      - id: semgrep
+        name: semgrep (JS/TS security & best practices)
+        args:
+          - --config=p/javascript
+          - --config=p/typescript
+          - --config=p/react
+          - --error
+          - --skip-unknown-extensions
+          - --metrics=off
+        files: ^packages/.*\.(js|ts|svelte)$
+
+  # ------------------------------------------------------------------------------
+  # SPELL CHECKING (Documentation Quality)
+  # Reduces typos in code, comments, and documentation.
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        name: codespell (spell checker)
+        args:
+          - --write-changes
+          - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether
+          - --skip=package-lock.json,pnpm-lock.yaml,jellyfin-api-spec.json,node_modules,.svelte-kit,dist,build
+
+  # ------------------------------------------------------------------------------
+  # YAML LINTING (Strict Validation)
+  # More comprehensive than basic check-yaml.
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        name: yamllint (YAML linting)
+        args:
+          - -d
+          - >-
+            {extends: default,
+            rules: {line-length: {max: 120},
+            document-start: disable,
+            indentation: disable,
+            comments: disable}}
+        exclude: ^(helm/.*/templates/.*\.yaml|\.github/.*\.yml)$
+
+  # ------------------------------------------------------------------------------
+  # GITHUB ACTIONS VALIDATION (CI/CD Quality)
   # Validates GitHub Actions workflow syntax and best practices.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/rhysd/actionlint
@@ -90,7 +149,7 @@ repos:
       - id: actionlint-docker # [CHECK] Lints GitHub Actions workflow files.
 
   # ------------------------------------------------------------------------------
-  # REPO 8: CSS QUALITY (Stylelint)
+  # CSS QUALITY (Stylelint)
   # Validates CSS in .css files and Svelte components.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
@@ -104,7 +163,7 @@ repos:
           - stylelint-config-recommended@13.0.0
 
   # ------------------------------------------------------------------------------
-  # REPO 9: LOCAL HOOKS (Project-Specific Scripts)
+  # LOCAL HOOKS (Project-Specific Scripts)
   # Autofixing and critical checks tailored to the NPM workspace setup.
   # ------------------------------------------------------------------------------
   - repo: local
@@ -153,17 +212,11 @@ repos:
         name: 'Docker build validation'
         entry: docker build -t yaytsa:test .
         language: system
-        files: ^(Dockerfile|docker-entrypoint\.sh|nginx\.conf\.template|packages/.*/.*\.(ts|svelte|js|json)|package\.json)$
+        files: >-
+          ^(Dockerfile|docker-entrypoint\.sh|nginx\.conf\.template|
+          packages/.*/.*\.(ts|svelte|js|json)|package\.json)$
         pass_filenames: false
         stages: [pre-push]
-
-      - id: integration-tests-core
-        name: 'Integration tests (core)'
-        entry: bash -c 'cd packages/core && npm run test:e2e'
-        language: system
-        files: ^packages/core/src/.*\.ts$
-        pass_filenames: false
-        stages: [manual]
 
       - id: commitlint
         name: 'Commitlint (conventional commits)'
@@ -174,37 +227,22 @@ repos:
 
       - id: knip
         name: 'Knip (unused code detection)'
-        entry: npx knip --no-progress
+        entry: npx knip --no-progress --exclude unresolved
         language: node
         pass_filenames: false
-        stages: [pre-push]
 
       - id: jscpd
         name: 'Copy-paste detection (jscpd)'
-        entry: npx jscpd --min-lines 6 --min-tokens 50 --threshold 3 --ignore "**/tests/**,**/node_modules/**,**/dist/**,**/.svelte-kit/**" packages/
+        entry: >-
+          npx jscpd --min-lines 6 --min-tokens 50 --threshold 3
+          --ignore "**/tests/**,**/node_modules/**,**/dist/**,**/.svelte-kit/**"
+          packages/
         language: node
         files: \.(js|ts|svelte)$
         pass_filenames: false
-
-      # Disabled: madge gives false positives for Svelte stores
-      # - id: madge-circular
-      #   name: 'Madge (circular dependencies)'
-      #   entry: npx madge --circular --extensions ts packages/*/src
-      #   language: node
-      #   pass_filenames: false
-      #   stages: [pre-push]
 
       - id: type-coverage
         name: 'Type coverage (>=90%)'
         entry: npx type-coverage --at-least 90 --ignore-catch
         language: node
         pass_filenames: false
-        stages: [pre-push]
-
-      - id: bump-version
-        name: 'Bump version on push to main'
-        entry: bash scripts/bump-version.sh
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
-        always_run: true

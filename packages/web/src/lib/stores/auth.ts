@@ -34,7 +34,7 @@ interface AuthState {
   serverUrl: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: Error | null;
 }
 
 const initialState: AuthState = {
@@ -91,7 +91,10 @@ async function login(
 
   try {
     // Validate server URL (check if in development mode)
-    const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    const isDevelopment =
+      import.meta.env.DEV ||
+      import.meta.env.MODE === 'development' ||
+      import.meta.env.VITE_TEST_MODE === 'true';
     validateServerUrl(serverUrl, isDevelopment);
 
     // Create client info from config
@@ -139,7 +142,7 @@ async function login(
     authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: (error as Error).message,
+      error: error instanceof Error ? error : new Error(String(error)),
     }));
     throw error;
   }
@@ -174,7 +177,7 @@ async function logout(): Promise<void> {
   // Cleanup player resources (dispose timers) - sync import to avoid race conditions
   try {
     const playerModule = await import('./player.js');
-    playerModule.player.cleanup();
+    playerModule.player.cleanup('logout');
   } catch (error) {
     logger.error('[Player] Failed to cleanup player:', error);
   }
@@ -204,7 +207,7 @@ async function logout(): Promise<void> {
   // User-specific images and audio should not persist after logout
   if ('caches' in window) {
     try {
-      const cacheNames = ['yaytsa-images-v0.3.13', 'yaytsa-audio-v0.3.13'];
+      const cacheNames = ['yaytsa-images-v0.4.19', 'yaytsa-audio-v0.4.19'];
       const results = await Promise.allSettled(cacheNames.map(async name => caches.delete(name)));
 
       const cleared = results.filter(r => r.status === 'fulfilled' && r.value).length;
@@ -286,7 +289,7 @@ async function restoreSession(): Promise<boolean> {
     authStore.update(state => ({
       ...state,
       isLoading: false,
-      error: 'Session expired or invalid',
+      error: new Error('Session expired or invalid'),
     }));
 
     return false;

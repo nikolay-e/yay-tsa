@@ -9,3 +9,4 @@ trustedRegistries:
   - docker.io
   - node
   - nginx
+  - mcr.microsoft.com

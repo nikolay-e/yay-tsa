@@ -10,13 +10,69 @@ validate_url() {
   }
 }
 
-# Validate server URL if provided
-if [ -n "${YAYTSA_SERVER_URL}" ]; then
-  validate_url "${YAYTSA_SERVER_URL}" || {
-    echo "SECURITY: YAYTSA_SERVER_URL must be a valid HTTP/HTTPS URL"
+# Detect runtime environment
+detect_environment() {
+  # Check for Kubernetes
+  if [ -f /run/secrets/kubernetes.io/serviceaccount/token ] || [ -n "$KUBERNETES_SERVICE_HOST" ]; then
+    echo "kubernetes"
+    return
+  fi
+
+  # Check for Docker Compose
+  if [ -n "$COMPOSE_PROJECT_NAME" ] || [ -f /.dockerenv ]; then
+    echo "docker-compose"
+    return
+  fi
+
+  echo "unknown"
+}
+
+# Determine server URL with smart fallback logic
+# If YAYTSA_SERVER_URL is set -> use it (Jellyfin or custom backend)
+# If NOT set -> auto-detect local backend based on environment
+ENVIRONMENT=$(detect_environment)
+echo "Detected environment: $ENVIRONMENT"
+
+if [ -n "$YAYTSA_SERVER_URL" ]; then
+  # Explicitly configured server URL (Jellyfin or custom backend)
+  echo "INFO: Using configured server: $YAYTSA_SERVER_URL"
+else
+  # Auto-detect local backend based on environment
+  echo "INFO: YAYTSA_SERVER_URL not set, auto-detecting local backend..."
+
+  case "$ENVIRONMENT" in
+  "kubernetes")
+    # Kubernetes service discovery
+    YAYTSA_SERVER_URL="http://jellyfin.default.svc.cluster.local:8096"
+    echo "INFO: Using Kubernetes service discovery: $YAYTSA_SERVER_URL"
+    ;;
+  "docker-compose")
+    # Check if media-server service is available (local backend)
+    if wget --spider --quiet --timeout=2 --tries=1 http://media-server:8096/health 2>/dev/null ||
+      wget --spider --quiet --timeout=2 --tries=1 http://media-server:8096 2>/dev/null; then
+      YAYTSA_SERVER_URL="http://media-server:8096"
+      echo "INFO: Using local media-server backend: $YAYTSA_SERVER_URL"
+    else
+      echo "ERROR: Local backend mode but media-server service not reachable"
+      echo "Either:"
+      echo "  1. Set YAYTSA_SERVER_URL to use external server"
+      echo "  2. Start local backend: docker compose --profile local-backend up"
+      exit 1
+    fi
+    ;;
+  *)
+    echo "ERROR: Cannot determine backend configuration"
+    echo "Please set YAYTSA_SERVER_URL for external server"
     exit 1
-  }
+    ;;
+  esac
 fi
+
+# Validate server URL
+validate_url "${YAYTSA_SERVER_URL}" || {
+  echo "SECURITY: Server URL must be a valid HTTP/HTTPS URL: $YAYTSA_SERVER_URL"
+  exit 1
+}
 
 # Generate JavaScript configuration directly (synchronous, prevents race condition)
 # Use jq to safely escape JSON values and embed them in JavaScript

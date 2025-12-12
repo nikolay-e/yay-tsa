@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { auth, isAuthenticated } from '../lib/stores/auth.js';
-  import { currentTrack } from '../lib/stores/player.js';
+  import { currentTrack, player } from '../lib/stores/player.js';
   import PlayerBar from '../lib/components/player/PlayerBar.svelte';
   import BottomTabBar from '../lib/components/navigation/BottomTabBar.svelte';
   import { cacheManager } from '../lib/cache/cache-manager.js';
@@ -34,6 +34,34 @@
     if (!restored && $page.url.pathname !== '/login') {
       goto('/login');
     }
+  });
+
+  // Handle app background/foreground transitions (mobile playback fix)
+  // When hidden: stop RAF updates to save CPU
+  // When visible: resume AudioContext if suspended (iOS/Android requirement)
+  onMount(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden') {
+        player.stopUiLoop();
+      } else {
+        // Resume AudioContext when returning from background (mobile fix)
+        await player.resumeAudioContext();
+      }
+    };
+
+    // Blur/focus handlers for additional reliability on mobile
+    const handleBlur = () => player.stopUiLoop();
+    const handleFocus = () => player.resumeAudioContext();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+    };
   });
 
   // Redirect authenticated users away from login page

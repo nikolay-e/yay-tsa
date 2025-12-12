@@ -10,10 +10,10 @@ export class LoginPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.usernameInput = page.locator('#username');
-    this.passwordInput = page.locator('#password');
-    this.loginButton = page.locator('button[type="submit"]');
-    this.errorMessage = page.locator('.error-banner');
+    this.usernameInput = page.getByLabel('Username');
+    this.passwordInput = page.getByLabel('Password');
+    this.loginButton = page.getByRole('button', { name: 'Sign In' });
+    this.errorMessage = page.getByRole('alert');
   }
 
   async goto(): Promise<void> {
@@ -40,5 +40,17 @@ export class LoginPage {
 
   async isLoginFormVisible(): Promise<boolean> {
     return await this.usernameInput.isVisible();
+  }
+
+  async expectStillOnLoginPage(): Promise<void> {
+    await expect(this.page).toHaveURL('/login');
+  }
+
+  async reload(): Promise<void> {
+    await this.page.reload();
+  }
+
+  async navigateTo(path: string): Promise<void> {
+    await this.page.goto(path);
   }
 }

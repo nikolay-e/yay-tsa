@@ -1,6 +1,7 @@
 <script lang="ts">
   import { auth, isLoading, error as authError } from '../../stores/auth.js';
   import { config } from '../../stores/config.js';
+  import { APP_VERSION } from '@yaytsa/core';
   import Button from '../ui/Button.svelte';
   import Input from '../ui/Input.svelte';
 
@@ -47,6 +48,7 @@
       label="Username"
       bind:value={username}
       placeholder="Enter your username"
+      autocomplete="username"
       required
     />
 
@@ -56,6 +58,7 @@
       label="Password"
       bind:value={password}
       placeholder="Enter your password"
+      autocomplete="current-password"
       required
     />
 
@@ -66,7 +69,7 @@
 
     {#if error || $authError}
       <div class="error-banner">
-        {error || $authError}
+        {error || $authError?.message}
       </div>
     {/if}
 
@@ -78,6 +81,10 @@
       {/if}
     </Button>
   </form>
+
+  <footer class="login-footer">
+    <small class="version-text">v{APP_VERSION}</small>
+  </footer>
 </div>
 
 <style>
@@ -142,6 +149,19 @@
     font-size: 0.875rem;
   }
 
+  .login-footer {
+    position: relative;
+    margin-top: var(--spacing-xl);
+    text-align: right;
+  }
+
+  .version-text {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+
   /* Mobile optimization */
   @media (max-width: 768px) {
     .login-form {
@@ -154,6 +174,10 @@
 
     .form-header p {
       font-size: 0.9375rem;
+    }
+
+    .version-text {
+      font-size: 0.875rem;
     }
   }
 

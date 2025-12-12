@@ -54,6 +54,7 @@
       on:input={handleSearch}
       placeholder="Search for albums, artists, or tracks..."
       class="search-input"
+      autocomplete="off"
       aria-label="Search for albums, artists, or tracks"
       data-testid={NAVIGATION_TEST_IDS.SEARCH_INPUT}
     />
@@ -69,7 +70,7 @@
       </button>
     </div>
 
-    <div class="search-results">
+    <div>
       {#if activeTab === 'albums'}
         <AlbumGrid albums={$searchAlbums} loading={$isSearching} />
       {:else}

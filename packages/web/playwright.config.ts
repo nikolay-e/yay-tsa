@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI || baseURL.includes('vite-server:') ? 1 : undefined,
   reporter: 'html',
   timeout: 30000,
   expect: {
@@ -30,6 +30,13 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         hasTouch: false, // Explicitly disable touch for desktop
         isMobile: false,
+        launchOptions: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+          ],
+        },
       },
     },
     {
@@ -38,14 +45,19 @@ export default defineConfig({
         ...devices['iPhone 13 Pro'],
         hasTouch: true, // Explicitly enable touch for mobile tests
         // isMobile: true is already set by iPhone 13 Pro preset
+        launchOptions: {
+          args: [],
+        },
       },
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  webServer: process.env.BASE_URL?.includes('vite-server:')
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000,
+      },
 });

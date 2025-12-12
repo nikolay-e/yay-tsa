@@ -102,10 +102,14 @@ function isPrivateIP(hostname: string): boolean {
   if (parts.length !== 4 || parts.some(isNaN)) return false;
 
   const [a, b] = parts;
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+function isDockerServiceName(hostname: string): boolean {
   return (
-    a === 10 ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
+    !hostname.includes('.') &&
+    !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) &&
+    /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i.test(hostname)
   );
 }
 
@@ -130,8 +134,15 @@ export function validateServerUrl(url: string, isDevelopment: boolean = false): 
     parsed.hostname === '[::1]';
 
   const isPrivateNetwork = isPrivateIP(parsed.hostname);
+  const isDockerService = isDockerServiceName(parsed.hostname);
 
-  if (!isDevelopment && parsed.protocol === 'http:' && !isLocalhost && !isPrivateNetwork) {
+  if (
+    !isDevelopment &&
+    parsed.protocol === 'http:' &&
+    !isLocalhost &&
+    !isPrivateNetwork &&
+    !isDockerService
+  ) {
     throw new Error('HTTPS required in production (except for localhost and private networks)');
   }
 }

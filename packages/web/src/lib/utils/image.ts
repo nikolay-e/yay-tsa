@@ -82,25 +82,6 @@ export function getAlbumArtSrcSet(
 }
 
 /**
- * Get responsive srcset with width descriptors (for viewport-based sizing)
- */
-export function getResponsiveImageSrcSet(itemId: string, tag?: string): string {
-  const widths = [480, 768, 1024, 1920];
-
-  const srcset = widths.map(width => {
-    const url = getImageUrl(itemId, 'Primary', {
-      maxWidth: width,
-      maxHeight: width,
-      tag,
-      format: 'webp',
-    });
-    return `${url} ${width}w`;
-  });
-
-  return srcset.join(', ');
-}
-
-/**
  * Get artist image URL with preset size
  */
 export function getArtistImageUrl(

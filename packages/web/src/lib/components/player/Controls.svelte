@@ -1,9 +1,14 @@
 <script lang="ts">
-  import { player, isPlaying, isShuffle, repeatMode } from '../../stores/player.js';
-  import { hapticPlayPause, hapticSkip, hapticSelect } from '../../utils/haptics.js';
+  import { createEventDispatcher } from 'svelte';
+  import { player, isPlaying, queueItems } from '../../stores/player.js';
+  import { hapticPlayPause, hapticSkip } from '../../utils/haptics.js';
   import { PLAYER_TEST_IDS } from '$lib/test-ids';
+  import SleepTimerButton from './SleepTimerButton.svelte';
 
-  // Debouncing flag to prevent double-clicks (INP optimization)
+  export let showQueue = false;
+
+  const dispatch = createEventDispatcher();
+
   let isTogglingPlayPause = false;
 
   async function handlePlayPause() {
@@ -31,31 +36,31 @@
     player.next();
   }
 
-  function toggleShuffle() {
-    hapticSelect();
-    player.toggleShuffle();
+  function toggleSleepTimer() {
+    dispatch('toggleSleepTimer');
   }
 
-  function toggleRepeat() {
-    hapticSelect();
-    player.toggleRepeat();
+  function toggleQueue() {
+    dispatch('toggleQueue');
   }
 </script>
 
 <div class="controls">
-  <!-- Shuffle -->
+  <!-- Queue (left side) -->
   <button
     type="button"
     class="control-btn"
-    class:active={$isShuffle}
-    on:click={toggleShuffle}
-    aria-label="Toggle shuffle"
-    aria-pressed={$isShuffle}
-    data-testid={PLAYER_TEST_IDS.SHUFFLE_BUTTON}
+    class:active={showQueue}
+    on:click={toggleQueue}
+    aria-label="Toggle queue"
+    title="Queue ({$queueItems.length})"
   >
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
     </svg>
+    {#if $queueItems.length > 0}
+      <span class="queue-count">{$queueItems.length}</span>
+    {/if}
   </button>
 
   <!-- Previous -->
@@ -103,33 +108,8 @@
     </svg>
   </button>
 
-  <!-- Repeat -->
-  <button
-    type="button"
-    class="control-btn"
-    class:active={$repeatMode !== 'off'}
-    on:click={toggleRepeat}
-    aria-label={`Repeat: ${$repeatMode}`}
-    aria-pressed={$repeatMode !== 'off'}
-    data-testid={PLAYER_TEST_IDS.REPEAT_BUTTON}
-  >
-    {#if $repeatMode === 'one'}
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 1l4 4-4 4" />
-        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <path d="M7 23l-4-4 4-4" />
-        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-        <text x="12" y="16" font-size="8" fill="currentColor" text-anchor="middle">1</text>
-      </svg>
-    {:else}
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 1l4 4-4 4" />
-        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <path d="M7 23l-4-4 4-4" />
-        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-      </svg>
-    {/if}
-  </button>
+  <!-- Sleep Timer -->
+  <SleepTimerButton on:click={toggleSleepTimer} />
 </div>
 
 <style>
@@ -141,6 +121,7 @@
   }
 
   .control-btn {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -176,6 +157,23 @@
   .play-btn:hover {
     background-color: var(--color-accent-hover);
     transform: scale(1.05);
+  }
+
+  .queue-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background-color: var(--color-accent);
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Mobile touch targets - minimum 44x44px */

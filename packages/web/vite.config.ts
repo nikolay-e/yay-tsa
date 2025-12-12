@@ -34,7 +34,7 @@ export default defineConfig({
               url.pathname.includes('/Items/') && url.pathname.includes('/Images/'),
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'yaytsa-images-v0.3.13',
+              cacheName: 'yaytsa-images-v0.4.19',
               expiration: {
                 maxEntries: 500,
                 maxAgeSeconds: 30 * 24 * 60 * 60,
@@ -49,7 +49,7 @@ export default defineConfig({
               url.pathname.includes('/Audio/') && url.pathname.includes('/stream'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'yaytsa-audio-v0.3.13',
+              cacheName: 'yaytsa-audio-v0.4.19',
               plugins: [
                 {
                   cacheKeyWillBeUsed: async ({ request }) => {
@@ -92,10 +92,12 @@ export default defineConfig({
         hmr: {
           protocol: 'wss',
         },
+        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal'],
       }
     : {
         strictPort: true,
         port: 5173,
+        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal'],
       },
   build: {
     target: 'es2020',

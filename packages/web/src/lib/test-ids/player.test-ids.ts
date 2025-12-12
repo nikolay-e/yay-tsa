@@ -14,8 +14,6 @@ export const PLAYER_TEST_IDS = {
   PLAY_PAUSE_BUTTON: 'play-pause-button',
   NEXT_BUTTON: 'next-button',
   PREVIOUS_BUTTON: 'previous-button',
-  SHUFFLE_BUTTON: 'player-shuffle-button', // prefixed to avoid collision with album page
-  REPEAT_BUTTON: 'repeat-button',
 
   // Seek controls (SeekBar.svelte)
   SEEK_SLIDER: 'seek-slider',
@@ -27,6 +25,9 @@ export const PLAYER_TEST_IDS = {
 
   // Queue controls (future)
   QUEUE_BUTTON: 'queue-button',
+
+  // Sleep timer
+  SLEEP_TIMER_BUTTON: 'sleep-timer-button',
 } as const;
 
-export type PlayerTestId = typeof PLAYER_TEST_IDS[keyof typeof PLAYER_TEST_IDS];
+export type PlayerTestId = (typeof PLAYER_TEST_IDS)[keyof typeof PLAYER_TEST_IDS];

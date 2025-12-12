@@ -1,4 +1,10 @@
-## CLAUDE.md
+# yaytsa-server
+
+> Extends [../../CLAUDE.md](../../CLAUDE.md) - inherits workspace conventions (integration tests only, no docstrings, Russian communication)
+
+Java-based Jellyfin-compatible media server implementation.
+
+## Design Overview
 
 A single Java 21 Spring Boot modular monolith with a ports/adapters design, PostgreSQL-backed metadata, filesystem scanning via jaudiotagger, and HTTP byte-range streaming that complies with RFC 9110 solves the two core hard problems: fast, flexible queries over large libraries and correct, efficient streaming with seek support. Use opaque, revocable device-bound tokens and Java 21 virtual threads to keep the code simple while scaling blocking I/O.
 

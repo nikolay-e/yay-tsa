@@ -12,11 +12,6 @@ packages/*/dist
 # Tests
 coverage
 .nyc_output
-packages/*/tests
-*.test.ts
-*.test.js
-*.spec.ts
-*.spec.js
 
 # Development
 .git
