@@ -1,0 +1,85 @@
+#!/bin/sh
+# Docker entrypoint script for Yaytsa Media Server
+
+set -e
+
+echo "Starting Yaytsa Media Server..."
+echo "Java version:"
+java -version
+
+# Wait for PostgreSQL to be ready
+if [ -n "$DB_HOST" ]; then
+  echo "Waiting for PostgreSQL at $DB_HOST:${DB_PORT:-5432}..."
+
+  MAX_RETRIES=30
+  RETRY_COUNT=0
+
+  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if nc -z "$DB_HOST" "${DB_PORT:-5432}" 2>/dev/null; then
+      echo "PostgreSQL is ready!"
+      break
+    fi
+
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "Waiting for PostgreSQL... ($RETRY_COUNT/$MAX_RETRIES)"
+    sleep 2
+  done
+
+  if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "ERROR: PostgreSQL is not available after $MAX_RETRIES attempts"
+    exit 1
+  fi
+fi
+
+# Validate required environment variables
+if [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+  echo "ERROR: Required database environment variables are not set"
+  echo "Please set: DB_HOST, DB_USER, DB_PASSWORD"
+  exit 1
+fi
+
+# Check if media library path exists
+if [ -n "$LIBRARY_ROOTS" ]; then
+  echo "Checking media library paths: $LIBRARY_ROOTS"
+  IFS=','
+  for path in $LIBRARY_ROOTS; do
+    if [ ! -d "$path" ]; then
+      echo "WARNING: Media library path does not exist: $path"
+      echo "Creating directory: $path"
+      mkdir -p "$path"
+    else
+      echo "Media library path found: $path"
+    fi
+  done
+fi
+
+# Check FFmpeg installation
+if command -v ffmpeg >/dev/null 2>&1; then
+  echo "FFmpeg version:"
+  ffmpeg -version | head -n1
+else
+  echo "WARNING: FFmpeg not found. Transcoding will not be available."
+fi
+
+# Create necessary directories if they don't exist
+mkdir -p /app/logs /app/temp/transcode /app/temp/images
+
+# Set JVM heap size based on container memory if not explicitly set
+if [ -z "$JAVA_OPTS_HEAP" ] && [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+  CONTAINER_MEM_LIMIT=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+  # If memory limit is set (not the max value)
+  if [ "$CONTAINER_MEM_LIMIT" -lt 9223372036854775807 ]; then
+    # Use 75% of container memory for heap
+    HEAP_SIZE=$((CONTAINER_MEM_LIMIT * 75 / 100 / 1024 / 1024))
+    export JAVA_OPTS_HEAP="-Xmx${HEAP_SIZE}m -Xms$((HEAP_SIZE / 2))m"
+    echo "Container memory limit detected. Setting heap size: $JAVA_OPTS_HEAP"
+  fi
+fi
+
+# Combine all Java options (use eval to properly split arguments)
+echo "Starting application with Java options: $JAVA_OPTS $JAVA_OPTS_HEAP $JAVA_OPTS_EXTRA"
+echo "Active Spring profile: ${SPRING_PROFILES_ACTIVE:-default}"
+echo "Server port: ${SERVER_PORT:-8096}"
+
+# Start the application using eval to properly parse options
+eval "exec java $JAVA_OPTS $JAVA_OPTS_HEAP $JAVA_OPTS_EXTRA -jar /app/app.jar \"\$@\""

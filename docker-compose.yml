@@ -1,12 +1,30 @@
+# Unified Docker Compose for Yaytsa
+# Supports multiple backend configurations via profiles:
+#
+# USAGE:
+#   Remote Jellyfin Backend:
+#     docker compose --profile dev up              # Dev frontend -> remote Jellyfin
+#     docker compose --profile production up       # Prod frontend -> remote Jellyfin
+#
+#   Local Java Backend:
+#     docker compose --profile local-backend up    # Full stack with local backend
+#     docker compose --profile local-backend --profile dev up  # Dev frontend + local backend
+
 services:
+  # ===========================================
+  # FRONTEND SERVICES
+  # ===========================================
+
   # Development service - Vite dev server with hot reload
   dev:
     build:
       context: .
       dockerfile: Dockerfile
       target: development
+    container_name: yaytsa-dev
     environment:
-      - VITE_YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      # Use local backend if profile active, otherwise use REMOTE_JELLYFIN_URL
+      - VITE_YAYTSA_SERVER_URL=${BACKEND_URL:-${REMOTE_JELLYFIN_URL}}
       - VITE_YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
       - VITE_YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Dev}
     ports:
@@ -26,6 +44,8 @@ services:
       - /app/packages/platform/dist
     working_dir: /app
     command: npm run dev
+    networks:
+      - yaytsa-network
     profiles:
       - dev
 
@@ -35,11 +55,134 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+    container_name: yaytsa-web
     environment:
-      - YAYTSA_SERVER_URL=${YAYTSA_SERVER_URL}
+      # Use local backend if profile active, otherwise use REMOTE_JELLYFIN_URL
+      - YAYTSA_SERVER_URL=${BACKEND_URL:-${REMOTE_JELLYFIN_URL}}
       - YAYTSA_CLIENT_NAME=${YAYTSA_CLIENT_NAME:-Yaytsa}
       - YAYTSA_DEVICE_NAME=${YAYTSA_DEVICE_NAME:-Docker Web}
     ports:
       - '3848:80'
+    networks:
+      - yaytsa-network
     profiles:
       - production
+
+  # ===========================================
+  # LOCAL BACKEND SERVICES (Java + PostgreSQL)
+  # ===========================================
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: yaytsa-postgres
+    profiles:
+      - local-backend
+    environment:
+      POSTGRES_DB: ${DB_NAME:-yaytsa}
+      POSTGRES_USER: ${DB_USER:-yaytsa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-yaytsa}
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --locale=en_US.UTF-8'
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/sql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - yaytsa-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-yaytsa} -d ${DB_NAME:-yaytsa}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Yaytsa Media Server (Java Backend)
+  media-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: yaytsa-media-server:latest
+    container_name: yaytsa-server
+    profiles:
+      - local-backend
+    environment:
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-yaytsa}
+      DB_USER: ${DB_USER:-yaytsa}
+      DB_PASSWORD: ${DB_PASSWORD:-yaytsa}
+
+      # Server Configuration
+      SERVER_PORT: ${SERVER_PORT:-8096}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-DEBUG}
+
+      # Media Library Configuration
+      LIBRARY_ROOTS: ${LIBRARY_ROOTS:-/media}
+      SCAN_THREADS: ${SCAN_THREADS:-8}
+      WATCH_ENABLED: ${WATCH_ENABLED:-false}
+
+      # Transcoding Configuration
+      TRANSCODE_ENABLED: ${TRANSCODE_ENABLED:-true}
+      FFMPEG_PATH: ${FFMPEG_PATH:-ffmpeg}
+      MAX_CONCURRENT_TRANSCODES: ${MAX_CONCURRENT_TRANSCODES:-4}
+      TRANSCODE_TEMP_DIR: ${TRANSCODE_TEMP_DIR:-/app/temp/transcode}
+
+      # Image Processing Configuration
+      IMAGE_CACHE_DIR: ${IMAGE_CACHE_DIR:-/app/temp/images}
+
+      # Security Configuration
+      BCRYPT_STRENGTH: ${BCRYPT_STRENGTH:-12}
+      CORS_ENABLED: ${CORS_ENABLED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:*}
+      REQUIRE_SSL: ${REQUIRE_SSL:-false}
+
+      # Session Configuration
+      SESSION_TIMEOUT: ${SESSION_TIMEOUT:-30}
+
+      # Swagger/OpenAPI
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+
+      # JVM Options
+      JAVA_OPTS_EXTRA: ${JAVA_OPTS_EXTRA:-}
+    ports:
+      - '${SERVER_PORT:-8096}:8096'
+    volumes:
+      # Media library volumes
+      - ${MEDIA_PATH:-./server/media}:/media:ro
+      - ${ADDITIONAL_MEDIA_PATH:-./server/additional-media}:/additional-media:ro
+
+      # Application data volumes
+      - ./server/logs:/app/logs
+      - transcode_temp:/app/temp/transcode
+      - image_cache:/app/temp/images
+    networks:
+      - yaytsa-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8096/manage/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+networks:
+  yaytsa-network:
+    driver: bridge
+    name: yaytsa-network
+
+volumes:
+  postgres_data:
+    name: yaytsa-postgres-data
+  transcode_temp:
+    name: yaytsa-transcode-temp
+  image_cache:
+    name: yaytsa-image-cache
