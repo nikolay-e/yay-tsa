@@ -82,16 +82,16 @@ services:
       POSTGRES_DB: ${DB_NAME:-yaytsa}
       POSTGRES_USER: ${DB_USER:-yaytsa}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-yaytsa}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --locale=en_US.UTF-8'
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - '${DB_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./server/sql/init:/docker-entrypoint-initdb.d:ro
     networks:
       - yaytsa-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-yaytsa} -d ${DB_NAME:-yaytsa}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-yaytsa} -d ${DB_NAME:-yaytsa}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -151,7 +151,7 @@ services:
       # JVM Options
       JAVA_OPTS_EXTRA: ${JAVA_OPTS_EXTRA:-}
     ports:
-      - "${SERVER_PORT:-8096}:8096"
+      - '${SERVER_PORT:-8096}:8096'
     volumes:
       # Media library volumes
       - ${MEDIA_PATH:-./server/media}:/media:ro
@@ -167,7 +167,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8096/manage/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8096/manage/health']
       interval: 30s
       timeout: 10s
       retries: 3

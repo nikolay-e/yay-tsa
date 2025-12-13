@@ -41,18 +41,21 @@ Yaytsa Media Server is a modular monolith following the ports/adapters (hexagona
 ### Using Docker Compose (Recommended)
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/yaytsa.git
 cd yaytsa/server
 ```
 
-2. Copy and configure environment variables:
+1. Copy and configure environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
-3. Start the services:
+1. Start the services:
+
 ```bash
 # Development mode with hot reload
 docker-compose up
@@ -64,28 +67,32 @@ docker-compose --profile prod up -d
 docker-compose --profile monitoring up -d
 ```
 
-4. Access the services:
-- Media Server: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- pgAdmin (dev): http://localhost:5050
-- Prometheus (monitoring): http://localhost:9090
-- Grafana (monitoring): http://localhost:3000
+1. Access the services:
+
+- Media Server: <http://localhost:8080>
+- Swagger UI: <http://localhost:8080/swagger-ui.html>
+- pgAdmin (dev): <http://localhost:5050>
+- Prometheus (monitoring): <http://localhost:9090>
+- Grafana (monitoring): <http://localhost:3000>
 
 ### Manual Setup
 
 1. Install PostgreSQL and create database:
+
 ```sql
 CREATE DATABASE yaytsa;
 CREATE USER yaytsa WITH PASSWORD 'your-password';
 GRANT ALL PRIVILEGES ON DATABASE yaytsa TO yaytsa;
 ```
 
-2. Build the application:
+1. Build the application:
+
 ```bash
 mvn clean package
 ```
 
-3. Run the application:
+1. Run the application:
+
 ```bash
 java -jar target/yaytsa-media-server-0.1.0-SNAPSHOT.jar
 ```
@@ -208,12 +215,14 @@ mvn flyway:clean
 ### OpenAPI/Swagger
 
 When running in dev mode, access the interactive API documentation at:
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- OpenAPI JSON: http://localhost:8080/api-docs
+
+- Swagger UI: <http://localhost:8080/swagger-ui.html>
+- OpenAPI JSON: <http://localhost:8080/api-docs>
 
 ### Key Endpoints
 
 #### Authentication
+
 ```http
 POST /Users/AuthenticateByName
 Content-Type: application/json
@@ -225,18 +234,21 @@ Content-Type: application/json
 ```
 
 #### Get Library Items
+
 ```http
 GET /Items?includeItemTypes=MusicAlbum&recursive=true&limit=50
 Authorization: Bearer <token>
 ```
 
 #### Stream Audio
+
 ```http
 GET /Audio/{itemId}/stream?api_key=<token>&static=true
 Range: bytes=0-1023
 ```
 
 #### Report Playback
+
 ```http
 POST /Sessions/Playing/Progress
 Authorization: Bearer <token>
@@ -265,11 +277,13 @@ curl http://localhost:8080/manage/health \
 ### Metrics
 
 Prometheus metrics available at:
+
 ```
 http://localhost:8080/manage/prometheus
 ```
 
 Key metrics:
+
 - `http_server_requests` - HTTP request latencies
 - `transcode_active_count` - Active transcodes
 - `library_scan_duration` - Scan performance
@@ -335,7 +349,8 @@ spring.datasource.hikari:
 
 ### Common Issues
 
-**Database Connection Failed**
+#### Database Connection Failed
+
 ```bash
 # Check PostgreSQL is running
 docker-compose ps postgres
@@ -344,20 +359,23 @@ docker-compose ps postgres
 psql -h localhost -U yaytsa -d yaytsa
 ```
 
-**FFmpeg Not Found**
+#### FFmpeg Not Found
+
 ```bash
 # Install FFmpeg
 apt-get install ffmpeg  # Debian/Ubuntu
 brew install ffmpeg      # macOS
 ```
 
-**Port Already in Use**
+#### Port Already in Use
+
 ```bash
 # Change port in .env
 SERVER_PORT=8081
 ```
 
-**Out of Memory**
+#### Out of Memory
+
 ```bash
 # Increase heap size
 JAVA_OPTS_EXTRA="-Xmx4g -Xms2g"
@@ -366,6 +384,7 @@ JAVA_OPTS_EXTRA="-Xmx4g -Xms2g"
 ### Debug Mode
 
 Enable debug logging:
+
 ```bash
 LOG_LEVEL=DEBUG
 APP_LOG_LEVEL=TRACE
@@ -373,6 +392,7 @@ SQL_LOG_LEVEL=DEBUG
 ```
 
 Remote debugging:
+
 ```bash
 # Add to JAVA_OPTS_EXTRA
 -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
@@ -394,49 +414,58 @@ MIT License - see LICENSE file for details
 ## Roadmap
 
 ### Phase 1: Core Infrastructure ✅
+
 - [x] Spring Boot skeleton with virtual threads
 - [x] PostgreSQL schema and Flyway migrations
 - [x] Stub controllers for all endpoints
 - [x] Docker configuration
 
 ### Phase 2: Authentication & Users (In Progress)
+
 - [ ] BCrypt password hashing
 - [ ] Opaque token generation
 - [ ] Device binding
 - [ ] User management
 
 ### Phase 3: Library Scanning
+
 - [ ] File system scanner
 - [ ] jaudiotagger integration
 - [ ] Incremental updates
 - [ ] Watch service
 
 ### Phase 4: Direct Streaming
+
 - [ ] Byte-range support
 - [ ] ETag generation
 - [ ] HEAD request handling
 
 ### Phase 5: Transcoding
+
 - [ ] FFmpeg integration
 - [ ] Process management
 - [ ] Codec detection
 
 ### Phase 6: Sessions & Playback
+
 - [ ] Session tracking
 - [ ] Progress reporting
 - [ ] Scrobbling
 
 ### Phase 7: Playlists
+
 - [ ] CRUD operations
 - [ ] Atomic reordering
 - [ ] Sharing
 
 ### Phase 8: Images
+
 - [ ] Artwork extraction
 - [ ] Resizing & caching
 - [ ] CDN support
 
 ### Phase 9: Production Hardening
+
 - [ ] Performance optimization
 - [ ] Security audit
 - [ ] Documentation
@@ -444,6 +473,6 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- GitHub Issues: https://github.com/yourusername/yaytsa/issues
-- Documentation: https://docs.yaytsa.io
-- Discord: https://discord.gg/yaytsa
+- GitHub Issues: <https://github.com/yourusername/yaytsa/issues>
+- Documentation: <https://docs.yaytsa.io>
+- Discord: <https://discord.gg/yaytsa>

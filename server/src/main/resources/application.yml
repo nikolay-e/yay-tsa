@@ -171,7 +171,7 @@ yaytsa:
       enabled: ${CORS_ENABLED:true}
       allowed-origins: ${CORS_ORIGINS:*}
       allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-      allowed-headers: "*"
+      allowed-headers: '*'
       exposed-headers: Content-Range,Accept-Ranges,X-Total-Count
       allow-credentials: true
       max-age: 3600
@@ -188,7 +188,7 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: ${SQL_LOG_LEVEL:WARN}
     org.flywaydb: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg [%thread] %logger{36} %X{userId} %X{deviceId} %X{requestId}%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss} - %msg [%thread] %logger{36} %X{userId} %X{deviceId} %X{requestId}%n'
   file:
     name: ${LOG_FILE:./logs/yaytsa.log}
     max-size: 10MB

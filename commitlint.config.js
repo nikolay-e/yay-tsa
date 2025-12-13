@@ -7,6 +7,6 @@ export default {
       ['core', 'platform', 'web', 'docker', 'ci', 'deps', 'config', 'helm'],
     ],
     'body-max-line-length': [2, 'always', 200],
-    'subject-case': [2, 'always', 'lower-case'],
+    'subject-case': [2, 'always', 'sentence-case'],
   },
 };
