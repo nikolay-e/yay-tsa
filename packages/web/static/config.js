@@ -4,5 +4,5 @@ window.__YAYTSA_CONFIG__ = {
   serverUrl: '',
   clientName: 'Yaytsa',
   deviceName: 'Web Browser',
-  version: '0.4.19',
+  version: '0.0.0-placeholder', // Injected at runtime by docker-entrypoint.sh
 };

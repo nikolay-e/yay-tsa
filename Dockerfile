@@ -43,6 +43,9 @@ CMD ["sh", "-c", "cd packages/core && npm run test:e2e && cd ../web && npm run t
 
 FROM nginx:1.29.4-alpine AS production
 
+# Version injected at build time - replaces placeholder in all built files
+ARG GIT_SHA=0.0.0-placeholder
+
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
 COPY --from=builder /app/packages/web/build /usr/share/nginx/html
 COPY docker-entrypoint.sh /docker-entrypoint.sh
@@ -50,6 +53,9 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN apk add --no-cache bash wget jq openssl && \
     rm -rf /etc/nginx/nginx.conf.default /usr/share/nginx/html/.gitkeep && \
     chmod +x /docker-entrypoint.sh && \
+    # Replace version placeholder with actual GIT_SHA in all built files
+    find /usr/share/nginx/html -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
+        sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + && \
     mkdir -p /var/cache/nginx /var/run && \
     chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /var/run

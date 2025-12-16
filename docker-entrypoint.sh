@@ -76,16 +76,15 @@ validate_url "${YAYTSA_SERVER_URL}" || {
 
 # Generate JavaScript configuration directly (synchronous, prevents race condition)
 # Use jq to safely escape JSON values and embed them in JavaScript
+# Note: version is baked into static files at Docker build time via sed
 CONFIG_JSON=$(jq -n \
   --arg serverUrl "${YAYTSA_SERVER_URL:-}" \
   --arg clientName "${YAYTSA_CLIENT_NAME:-Yaytsa}" \
   --arg deviceName "${YAYTSA_DEVICE_NAME:-Yaytsa Web}" \
-  --arg version "${APP_VERSION:-0.1.0}" \
   '{
     serverUrl: $serverUrl,
     clientName: $clientName,
-    deviceName: $deviceName,
-    version: $version
+    deviceName: $deviceName
   }')
 
 cat >/var/cache/nginx/config.js <<EOF
