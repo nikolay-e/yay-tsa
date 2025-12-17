@@ -4,7 +4,14 @@
  */
 
 import { BaseService } from './base-service.js';
-import { ItemsQuery, ItemsResult, AudioItem, MusicAlbum, MusicArtist } from '../models/types.js';
+import {
+  ItemsQuery,
+  ItemsResult,
+  AudioItem,
+  MusicAlbum,
+  MusicArtist,
+  JellyfinError,
+} from '../models/types.js';
 
 export class ItemsService extends BaseService {
   /**
@@ -39,7 +46,7 @@ export class ItemsService extends BaseService {
 
     const result = await this.client.get<ItemsResult<T>>('/Items', params);
     if (!result) {
-      throw new Error('Failed to query items: Empty response');
+      throw new JellyfinError('Failed to query items: Empty response');
     }
     return result;
   }
@@ -167,7 +174,7 @@ export class ItemsService extends BaseService {
       this.buildUserUrl(`/Items/${itemId}`)
     );
     if (!result) {
-      throw new Error(`Failed to get item ${itemId}: Empty response`);
+      throw new JellyfinError(`Failed to get item ${itemId}: Empty response`);
     }
     return result;
   }
@@ -257,7 +264,7 @@ export class ItemsService extends BaseService {
 
     const result = await this.client.get<ItemsResult<MusicAlbum>>('/Items', params);
     if (!result) {
-      throw new Error('Failed to get recently played albums: Empty response');
+      throw new JellyfinError('Failed to get recently played albums: Empty response');
     }
     return result;
   }

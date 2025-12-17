@@ -44,6 +44,10 @@ let mediaSession: MediaSessionManager | null = null;
 let currentLoadOperation: symbol | null = null; // Unique ID for track loading operations
 let isAutoAdvancing = false; // Prevents duplicate onEnded events
 
+// Cleanup functions for subscriptions (memory leak prevention)
+let clientUnsubscribe: (() => void) | null = null;
+let audioEventCleanups: Array<() => void> = [];
+
 // Performance optimization: Cache duration and throttle updates
 let cachedDuration = 0; // Cache track duration to avoid repeated getDuration() calls
 let lastMediaSessionUpdate = 0; // Timestamp of last MediaSession update
@@ -136,7 +140,8 @@ const initialState: PlayerState = {
 const playerStore = writable<PlayerState>(initialState);
 
 // Subscribe to client changes AFTER playerStore is created
-client.subscribe($client => {
+// Store unsubscribe function for cleanup (memory leak prevention)
+clientUnsubscribe = client.subscribe($client => {
   if ($client) {
     playbackState = new PlaybackState($client);
     // Keep playback reporting in sync with current UI volume
@@ -145,6 +150,9 @@ client.subscribe($client => {
     playerStore.update(state => ({ ...state, state: playbackState }));
   } else {
     // Client disconnected (logout) - clear playback but preserve volume
+    if (playbackState) {
+      playbackState.dispose();
+    }
     playbackState = null;
     const currentVolume = get(playerStore).volume;
     playerStore.set({ ...initialState, volume: currentVolume });
@@ -155,76 +163,88 @@ if (audioEngine) {
   audioEngine.setVolume(persistedVolume);
 
   // Time update handler (RAF-throttled for smooth performance)
-  audioEngine.onTimeUpdate(time => {
-    // Always update PlaybackState time (needed for accurate server reporting every 10s)
-    if (playbackState) {
-      playbackState.setCurrentTime(time);
-    }
+  // Store cleanup function for memory leak prevention
+  audioEventCleanups.push(
+    audioEngine.onTimeUpdate(time => {
+      // Always update PlaybackState time (needed for accurate server reporting every 10s)
+      if (playbackState) {
+        playbackState.setCurrentTime(time);
+      }
 
-    // RAF-throttled UI updates (max 60fps, but typically 10-30fps depending on browser)
-    updateTiming(time, cachedDuration);
+      // RAF-throttled UI updates (max 60fps, but typically 10-30fps depending on browser)
+      updateTiming(time, cachedDuration);
 
-    // Debounce MediaSession updates for lock screen seek bar (1 time/sec)
-    const now = Date.now();
-    if (
-      mediaSession &&
-      cachedDuration > 0 &&
-      now - lastMediaSessionUpdate >= MEDIA_SESSION_UPDATE_INTERVAL_MS
-    ) {
-      lastMediaSessionUpdate = now;
-      mediaSession.updatePositionState(cachedDuration, time);
-    }
-  });
+      // Debounce MediaSession updates for lock screen seek bar (1 time/sec)
+      const now = Date.now();
+      if (
+        mediaSession &&
+        cachedDuration > 0 &&
+        now - lastMediaSessionUpdate >= MEDIA_SESSION_UPDATE_INTERVAL_MS
+      ) {
+        lastMediaSessionUpdate = now;
+        mediaSession.updatePositionState(cachedDuration, time);
+      }
+    })
+  );
 
   // Track ended handler - auto advance to next
-  audioEngine.onEnded(() => {
-    // Prevent duplicate onEnded events (browser bug protection)
-    if (isAutoAdvancing) return;
-    isAutoAdvancing = true;
+  // Store cleanup function for memory leak prevention
+  audioEventCleanups.push(
+    audioEngine.onEnded(() => {
+      // Prevent duplicate onEnded events (browser bug protection)
+      if (isAutoAdvancing) return;
+      isAutoAdvancing = true;
 
-    const state = get(playerStore);
-    const timing = get(playerTimingStore);
+      const state = get(playerStore);
+      const timing = get(playerTimingStore);
 
-    // Report completion
-    if (state.state && state.currentTrack) {
-      state.state.setStatus('stopped');
-      state.state.setCurrentTime(timing.currentTime);
-      void state.state.reportPlaybackStop();
-    }
+      // Report completion
+      if (state.state && state.currentTrack) {
+        state.state.setStatus('stopped');
+        state.state.setCurrentTime(timing.currentTime);
+        void state.state.reportPlaybackStop();
+      }
 
-    // Auto-advance to next track
-    next()
-      .catch(error => {
-        logger.error('Auto-advance error:', error);
-        playerStore.update(s => ({
-          ...s,
-          isPlaying: false,
-          error: error instanceof Error ? error : new Error(String(error)),
-        }));
-      })
-      .finally(() => {
-        isAutoAdvancing = false;
-      });
-  });
+      // Auto-advance to next track
+      next()
+        .catch(error => {
+          logger.error('Auto-advance error:', error);
+          playerStore.update(s => ({
+            ...s,
+            isPlaying: false,
+            error: error instanceof Error ? error : new Error(String(error)),
+          }));
+        })
+        .finally(() => {
+          isAutoAdvancing = false;
+        });
+    })
+  );
 
   // Error handler
-  audioEngine.onError(error => {
-    logger.error('Audio playback error:', error);
-    playerStore.update(state => ({
-      ...state,
-      isPlaying: false,
-      isLoading: false,
-      error,
-    }));
-  });
+  // Store cleanup function for memory leak prevention
+  audioEventCleanups.push(
+    audioEngine.onError(error => {
+      logger.error('Audio playback error:', error);
+      playerStore.update(state => ({
+        ...state,
+        isPlaying: false,
+        isLoading: false,
+        error,
+      }));
+    })
+  );
 
   // Loading state handler
-  audioEngine.onLoading(isLoading => {
-    playerStore.update(state => ({
-      ...state,
-      isLoading,
-    }));
-  });
+  // Store cleanup function for memory leak prevention
+  audioEventCleanups.push(
+    audioEngine.onLoading(isLoading => {
+      playerStore.update(state => ({
+        ...state,
+        isLoading,
+      }));
+    })
+  );
 }
 
 /**
@@ -733,9 +753,50 @@ function cleanup(reason: CleanupReason = 'ui'): void {
     playbackState = null;
   }
 
+  // Clear MediaSession handlers on logout (prevents stale handlers)
+  if (mediaSession) {
+    mediaSession.reset();
+  }
+
   // Reset player state (preserve volume setting)
   const currentVolume = get(playerStore).volume;
   playerStore.set({ ...initialState, volume: currentVolume });
+}
+
+/**
+ * Full disposal of player resources (for app shutdown)
+ * Call this when the application is being destroyed
+ */
+function dispose(): void {
+  // Stop UI updates
+  stopUiLoop();
+
+  // Cleanup audio event listeners
+  audioEventCleanups.forEach(cleanup => cleanup());
+  audioEventCleanups = [];
+
+  // Unsubscribe from client store
+  if (clientUnsubscribe) {
+    clientUnsubscribe();
+    clientUnsubscribe = null;
+  }
+
+  // Dispose playback state
+  if (playbackState) {
+    playbackState.dispose();
+    playbackState = null;
+  }
+
+  // Reset and dispose MediaSession
+  if (mediaSession) {
+    mediaSession.reset();
+  }
+
+  // Dispose AudioEngine (releases all browser resources)
+  if (audioEngine) {
+    audioEngine.dispose();
+    audioEngine = null;
+  }
 }
 
 export const player = {
@@ -761,6 +822,7 @@ export const player = {
   clearQueue,
   removeFromQueue,
   cleanup,
+  dispose,
   stopUiLoop,
   resumeAudioContext,
 };

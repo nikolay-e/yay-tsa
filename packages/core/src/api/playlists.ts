@@ -4,7 +4,13 @@
  */
 
 import { BaseService } from './base-service.js';
-import { Playlist, AudioItem, ItemsResult, CreatePlaylistDto } from '../models/types.js';
+import {
+  Playlist,
+  AudioItem,
+  ItemsResult,
+  CreatePlaylistDto,
+  JellyfinError,
+} from '../models/types.js';
 
 export class PlaylistsService extends BaseService {
   /**
@@ -39,7 +45,7 @@ export class PlaylistsService extends BaseService {
 
     const result = await this.client.post<{ Id: string }>('/Playlists', body);
     if (!result) {
-      throw new Error('Failed to create playlist: Empty response');
+      throw new JellyfinError('Failed to create playlist: Empty response');
     }
 
     return this.getPlaylist(result.Id);
@@ -53,7 +59,7 @@ export class PlaylistsService extends BaseService {
 
     const result = await this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
     if (!result) {
-      throw new Error(`Failed to get playlist ${playlistId}: Empty response`);
+      throw new JellyfinError(`Failed to get playlist ${playlistId}: Empty response`);
     }
     return result;
   }
@@ -87,7 +93,7 @@ export class PlaylistsService extends BaseService {
       params
     );
     if (!result) {
-      throw new Error(`Failed to get playlist items for ${playlistId}: Empty response`);
+      throw new JellyfinError(`Failed to get playlist items for ${playlistId}: Empty response`);
     }
     return result;
   }
@@ -109,6 +115,8 @@ export class PlaylistsService extends BaseService {
    * @param entryIds The playlist entry IDs (not the original item IDs!)
    */
   async removeItemsFromPlaylist(playlistId: string, entryIds: string[]): Promise<void> {
+    this.requireAuth();
+
     const entryIdsParam = entryIds.join(',');
     const url = `/Playlists/${playlistId}/Items?EntryIds=${encodeURIComponent(entryIdsParam)}`;
 
@@ -158,7 +166,7 @@ export class PlaylistsService extends BaseService {
 
     const result = await this.client.get<ItemsResult<Playlist>>(`/Users/${userId}/Items`, params);
     if (!result) {
-      throw new Error('Failed to get playlists: Empty response');
+      throw new JellyfinError('Failed to get playlists: Empty response');
     }
     return result;
   }

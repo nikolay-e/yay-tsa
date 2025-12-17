@@ -113,11 +113,15 @@ export class PlaybackQueue {
       return;
     }
 
+    const wasEmpty = this.items.length === 0;
     this.items.splice(index, 0, item);
     this.originalOrder.splice(index, 0, item);
 
-    // Adjust current index if inserting before current position
-    if (index <= this.currentIndex) {
+    // If queue was empty, set current index to first item
+    if (wasEmpty) {
+      this.currentIndex = 0;
+    } else if (index <= this.currentIndex) {
+      // Adjust current index if inserting before current position
       this.currentIndex++;
     }
   }

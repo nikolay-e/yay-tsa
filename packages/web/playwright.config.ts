@@ -31,11 +31,7 @@ export default defineConfig({
         hasTouch: false, // Explicitly disable touch for desktop
         isMobile: false,
         launchOptions: {
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-          ],
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         },
       },
     },
