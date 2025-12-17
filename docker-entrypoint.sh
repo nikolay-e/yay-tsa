@@ -74,6 +74,17 @@ validate_url "${YAYTSA_SERVER_URL}" || {
   exit 1
 }
 
+# Validate log level
+YAYTSA_LOG_LEVEL="${YAYTSA_LOG_LEVEL:-error}"
+case "$YAYTSA_LOG_LEVEL" in
+debug | info | warn | error | silent) ;;
+*)
+  echo "WARNING: Invalid YAYTSA_LOG_LEVEL='$YAYTSA_LOG_LEVEL', using 'error'"
+  YAYTSA_LOG_LEVEL="error"
+  ;;
+esac
+echo "INFO: Log level set to: $YAYTSA_LOG_LEVEL"
+
 # Generate JavaScript configuration directly (synchronous, prevents race condition)
 # Use jq to safely escape JSON values and embed them in JavaScript
 # Note: version is baked into static files at Docker build time via sed
@@ -81,10 +92,12 @@ CONFIG_JSON=$(jq -n \
   --arg serverUrl "${YAYTSA_SERVER_URL:-}" \
   --arg clientName "${YAYTSA_CLIENT_NAME:-Yaytsa}" \
   --arg deviceName "${YAYTSA_DEVICE_NAME:-Yaytsa Web}" \
+  --arg logLevel "${YAYTSA_LOG_LEVEL}" \
   '{
     serverUrl: $serverUrl,
     clientName: $clientName,
-    deviceName: $deviceName
+    deviceName: $deviceName,
+    logLevel: $logLevel
   }')
 
 cat >/var/cache/nginx/config.js <<EOF

@@ -15,6 +15,9 @@ import {
   PlaybackStopInfo,
 } from '../models/types.js';
 import { secondsToTicks, ticksToSeconds } from '../config/constants.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('Player');
 
 /**
  * Playback Reporter
@@ -166,7 +169,7 @@ export class PlaybackState {
    */
   setVolume(volume: number): void {
     if (!Number.isFinite(volume)) {
-      console.warn('Invalid volume value (NaN/Infinity), defaulting to 0.7');
+      log.warn('Invalid volume value (NaN/Infinity), defaulting to 0.7', { volume });
       this.state.volume = 0.7;
       return;
     }
@@ -243,7 +246,7 @@ export class PlaybackState {
       await this.client.post('/Sessions/Playing', info);
       this.startProgressReporting();
     } catch (error) {
-      console.error('Failed to report playback start:', error);
+      log.error('Failed to report playback start', error);
     }
   }
 
@@ -267,7 +270,7 @@ export class PlaybackState {
     try {
       await this.client.post('/Sessions/Playing/Progress', info);
     } catch (error) {
-      console.error('Failed to report playback progress:', error);
+      log.error('Failed to report playback progress', error);
     }
   }
 
@@ -288,7 +291,7 @@ export class PlaybackState {
     try {
       await this.client.post('/Sessions/Playing/Stopped', info);
     } catch (error) {
-      console.error('Failed to report playback stop:', error);
+      log.error('Failed to report playback stop', error);
     }
   }
 

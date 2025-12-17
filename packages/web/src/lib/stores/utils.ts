@@ -1,4 +1,7 @@
 import { get, type Writable, type Readable } from 'svelte/store';
+import { createLogger } from '@yaytsa/core';
+
+const log = createLogger('Store');
 
 export interface AsyncState {
   isLoading: boolean;
@@ -89,7 +92,7 @@ export function createAsyncStoreHandler<T extends AsyncState>(
     },
 
     error(error: Error): void {
-      console.error('Store operation error:', error);
+      log.error('Store operation error', error);
       store.update(
         s =>
           ({

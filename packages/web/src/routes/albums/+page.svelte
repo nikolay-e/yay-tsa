@@ -13,6 +13,9 @@
   import { isAuthenticated } from '../../lib/stores/auth.js';
   import AlbumGrid from '../../lib/components/library/AlbumGrid.svelte';
   import { get } from 'svelte/store';
+  import { createLogger } from '@yaytsa/core';
+
+  const log = createLogger('Albums');
 
   type SortOption = 'SortName' | 'ProductionYear' | 'AlbumArtist';
 
@@ -31,7 +34,7 @@
     try {
       await library.loadAlbums({ sortBy, append });
     } catch (error) {
-      console.error('Failed to load albums:', error);
+      log.error('Failed to load albums', error);
     }
   }
 
@@ -46,7 +49,7 @@
     try {
       await loadWithSort(currentSort, true);
     } catch (error) {
-      console.error('Failed to load more albums:', error);
+      log.error('Failed to load more albums', error);
     }
   }
 

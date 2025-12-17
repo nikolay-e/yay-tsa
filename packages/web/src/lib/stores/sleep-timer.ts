@@ -2,7 +2,9 @@ import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { PinkNoiseGenerator } from '@yaytsa/platform';
 import { player, volume as volumeStore } from './player.js';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '@yaytsa/core';
+
+const log = createLogger('SleepTimer');
 
 const SLEEP_TIMER_SETTINGS_KEY = 'yaytsa_sleep_timer_settings';
 const PINK_NOISE_VOLUME_RATIO = 0.08;
@@ -129,7 +131,7 @@ function cancelCurrentFade(): void {
 }
 
 async function transitionToPhase(newPhase: SleepTimerPhase): Promise<void> {
-  logger.info(`[Sleep Timer] Transitioning to phase: ${newPhase}`);
+  log.info(`[Sleep Timer] Transitioning to phase: ${newPhase}`);
 
   sleepTimerStore.update(s => ({
     ...s,
@@ -164,7 +166,7 @@ async function startCrossfadeToNoise(): Promise<void> {
   try {
     if (enableNoise && noiseDurationMs > 0) {
       // Crossfade with pink noise
-      logger.info(
+      log.info(
         `[Sleep Timer] Starting crossfade with noise - Music volume: ${savedMusicVolume.toFixed(3)}, Pink noise target: ${targetNoiseVolume.toFixed(3)}`
       );
 
@@ -176,7 +178,7 @@ async function startCrossfadeToNoise(): Promise<void> {
 
       // Resume AudioContext if suspended (required for autoplay policies)
       if (sharedContext?.state === 'suspended') {
-        logger.info('[Sleep Timer] Resuming suspended AudioContext for pink noise');
+        log.info('[Sleep Timer] Resuming suspended AudioContext for pink noise');
         await sharedContext.resume();
       }
 
@@ -213,7 +215,7 @@ async function startCrossfadeToNoise(): Promise<void> {
       }
     } else {
       // Fade out music only (no pink noise)
-      logger.info(
+      log.info(
         `[Sleep Timer] Starting fade out - Music volume: ${savedMusicVolume.toFixed(3)} → 0`
       );
 
@@ -234,7 +236,7 @@ async function startCrossfadeToNoise(): Promise<void> {
       }
     }
   } catch (error) {
-    logger.error('[Sleep Timer] Crossfade error:', error);
+    log.error('[Sleep Timer] Crossfade error:', error);
     stopSleepTimer();
   }
 }
@@ -258,7 +260,7 @@ async function startGradualNoiseFade(): Promise<void> {
 
     stopSleepTimer();
   } catch (error) {
-    logger.error('[Sleep Timer] Gradual noise fade error:', error);
+    log.error('[Sleep Timer] Gradual noise fade error:', error);
     stopSleepTimer();
   }
 }
@@ -346,7 +348,7 @@ function start(config?: Partial<SleepTimerConfig>): void {
   clearTickInterval();
   tickIntervalId = setInterval(tick, 100);
 
-  logger.info('[Sleep Timer] Started with config:', newConfig);
+  log.info('Started', { musicDurationMs: newConfig.musicDurationMs, noiseDurationMs: newConfig.noiseDurationMs, crossfadeDurationMs: newConfig.crossfadeDurationMs, enableNoise: newConfig.enableNoise });
 }
 
 function stopSleepTimer(): void {
@@ -375,10 +377,7 @@ function stopSleepTimer(): void {
     config: get(sleepTimerStore).config,
   });
 
-  logger.info(
-    `[Sleep Timer] Stopped (phase: ${currentPhase}) | ` +
-      `Volume: saved=${savedMusicVolume.toFixed(3)}, before=${volumeBeforeRestore.toFixed(3)}, after=${volumeAfterRestore.toFixed(3)}`
-  );
+  log.info('Stopped', { phase: currentPhase, savedVolume: savedMusicVolume, volumeBefore: volumeBeforeRestore, volumeAfter: volumeAfterRestore });
 }
 
 async function cancel(): Promise<void> {
@@ -396,18 +395,15 @@ async function cancel(): Promise<void> {
   player.setVolume(savedMusicVolume);
   const volumeAfterRestore = get(volumeStore);
 
-  logger.info(
-    `[Sleep Timer] Cancelled (phase: ${state.phase}) | ` +
-      `Volume: saved=${savedMusicVolume.toFixed(3)}, before=${volumeBeforeRestore.toFixed(3)}, after=${volumeAfterRestore.toFixed(3)}`
-  );
+  log.info('Cancelled', { phase: state.phase, savedVolume: savedMusicVolume, volumeBefore: volumeBeforeRestore, volumeAfter: volumeAfterRestore });
 
   if (state.phase !== 'music' && state.phase !== 'idle') {
     try {
       await player.resume();
-      logger.info('[Sleep Timer] Resumed playback after cancellation');
+      log.info('Resumed playback after cancellation');
     } catch (error) {
       // Music might have ended, that's okay
-      logger.warn('[Sleep Timer] Failed to resume after cancellation:', error);
+      log.warn('Failed to resume after cancellation', { error: String(error) });
     }
   }
 

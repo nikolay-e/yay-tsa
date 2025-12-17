@@ -4,6 +4,9 @@
   import { hapticPlayPause, hapticSkip } from '../../utils/haptics.js';
   import { PLAYER_TEST_IDS } from '$lib/test-ids';
   import SleepTimerButton from './SleepTimerButton.svelte';
+  import { createLogger } from '@yaytsa/core';
+
+  const log = createLogger('Controls');
 
   export let showQueue = false;
 
@@ -20,7 +23,7 @@
     try {
       await player.togglePlayPause();
     } catch (error) {
-      console.error('Toggle play/pause error:', error);
+      log.error('Toggle play/pause error', error);
     } finally {
       isTogglingPlayPause = false;
     }
@@ -28,12 +31,16 @@
 
   function handlePrevious() {
     hapticSkip();
-    player.previous();
+    player.previous().catch(error => {
+      log.error('Previous track error', error);
+    });
   }
 
   function handleNext() {
     hapticSkip();
-    player.next();
+    player.next().catch(error => {
+      log.error('Next track error', error);
+    });
   }
 
   function toggleSleepTimer() {

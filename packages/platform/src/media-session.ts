@@ -3,6 +3,10 @@
  * Enables background playback and lock screen controls
  */
 
+import { createLogger } from '@yaytsa/core';
+
+const log = createLogger('MediaSession');
+
 export interface MediaMetadata {
   title: string;
   artist: string;
@@ -23,6 +27,7 @@ export class MediaSessionManager {
 
   constructor() {
     this.isSupported = typeof navigator !== 'undefined' && 'mediaSession' in navigator;
+    log.debug('Media Session API supported', { isSupported: this.isSupported });
   }
 
   /**
@@ -141,9 +146,9 @@ export class MediaSessionManager {
           playbackRate,
           position,
         });
-      } catch {
-        // Ignore errors from invalid position state (intentionally silent)
+      } catch (error) {
         // Position state errors can occur during rapid seeking and are non-critical
+        log.debug('Failed to set position state', { error: String(error), duration, position });
       }
     }
   }
@@ -168,8 +173,9 @@ export class MediaSessionManager {
     actions.forEach(action => {
       try {
         navigator.mediaSession.setActionHandler(action, null);
-      } catch {
-        // Some actions might not be supported
+      } catch (error) {
+        // Some actions might not be supported on all browsers
+        log.debug('Failed to clear action handler', { action, error: String(error) });
       }
     });
   }

@@ -5,9 +5,11 @@
   import { player } from '../../../lib/stores/player.js';
   import { getAlbumArtUrl } from '../../../lib/utils/image.js';
   import TrackList from '../../../lib/components/library/TrackList.svelte';
-  import type { MusicAlbum, AudioItem } from '@yaytsa/core';
+  import { createLogger, type MusicAlbum, type AudioItem } from '@yaytsa/core';
   import { hapticPlayPause, hapticSelect } from '../../../lib/utils/haptics.js';
   import { LIBRARY_TEST_IDS } from '../../../lib/test-ids/index.js';
+
+  const log = createLogger('AlbumDetail');
 
   let album: MusicAlbum | null = null;
   let tracks: AudioItem[] = [];
@@ -23,14 +25,13 @@
     loading = true;
     try {
       if (!albumId) {
-        console.error('No album ID provided');
+        log.error('No album ID provided');
         loading = false;
         return;
       }
 
       const itemsService = library.getService();
       if (itemsService) {
-        // Fetch album details and tracks concurrently for better performance
         const [albumData, albumTracks] = await Promise.all([
           itemsService.getItem(albumId) as Promise<MusicAlbum>,
           library.loadAlbumTracks(albumId)
@@ -39,7 +40,7 @@
         tracks = albumTracks;
       }
     } catch (error) {
-      console.error('Failed to load album:', error);
+      log.error('Failed to load album', error, { albumId });
     } finally {
       loading = false;
     }

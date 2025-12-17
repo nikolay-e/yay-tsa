@@ -36,5 +36,8 @@ export {
 export { IndexedDBCache } from './cache/indexed-db-cache.js';
 export { ICache, CacheConfig, CacheEntry, TTL } from './cache/cache-interface.js';
 
+// Logging
+export { createLogger, logger, type Logger, type LogContext, type LogLevel } from './utils/logger.js';
+
 // Types and models
 export * from './models/types.js';

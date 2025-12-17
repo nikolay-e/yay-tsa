@@ -4,6 +4,9 @@
  */
 
 import { AudioEngine } from '../audio.interface.js';
+import { createLogger } from '@yaytsa/core';
+
+const log = createLogger('Audio');
 
 export class HTML5AudioEngine implements AudioEngine {
   private audio: HTMLAudioElement;
@@ -61,9 +64,11 @@ export class HTML5AudioEngine implements AudioEngine {
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
         }
-      } catch {
+      } catch (error) {
         // Audio context creation failed - not critical, fallback to basic audio
-        // Silently ignore - basic audio playback will still work
+        log.warn('AudioContext creation failed, using basic audio', {
+          error: String(error),
+        });
       }
     }
   }
@@ -212,7 +217,7 @@ export class HTML5AudioEngine implements AudioEngine {
         // Catch to prevent unhandled rejection, but don't rethrow
         if ((error as Error).name !== 'AbortError') {
           const sanitized = this.sanitizeError(error);
-          console.warn('Play failed:', sanitized);
+          log.warn('Play failed', { error: sanitized });
         }
       });
 
@@ -227,8 +232,10 @@ export class HTML5AudioEngine implements AudioEngine {
       .then(() => {
         this.audio.pause();
       })
-      .catch(() => {
-        // Silent catch
+      .catch(error => {
+        // Pause errors are usually due to race conditions with play()
+        // Log at debug level as they're typically not actionable
+        log.debug('Pause operation failed', { error: String(error) });
       });
   }
 

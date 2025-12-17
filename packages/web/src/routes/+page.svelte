@@ -7,6 +7,9 @@
   import TrackList from '../lib/components/library/TrackList.svelte';
   import { NAVIGATION_TEST_IDS } from '$lib/test-ids';
   import { get } from 'svelte/store';
+  import { createLogger } from '@yaytsa/core';
+
+  const log = createLogger('Home');
 
   let isRandomFallback = false;
   let query = '';
@@ -21,14 +24,18 @@
       const result = await library.loadRecentlyPlayedAlbums(24);
       isRandomFallback = result.isRandom;
     } catch (error) {
-      console.error('Failed to load albums:', error);
+      log.error('Failed to load albums', error);
     }
   });
 
   function handleSearch() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
-      await searchService.search(query);
+      try {
+        await searchService.search(query);
+      } catch (error) {
+        log.error('Search failed', error, { query });
+      }
     }, 300);
   }
 

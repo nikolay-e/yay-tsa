@@ -7,8 +7,10 @@
   import PlayerBar from '../lib/components/player/PlayerBar.svelte';
   import BottomTabBar from '../lib/components/navigation/BottomTabBar.svelte';
   import { cacheManager } from '../lib/cache/cache-manager.js';
-  import { logger } from '../lib/utils/logger.js';
+  import { createLogger } from '../lib/utils/logger.js';
   import '../app.css';
+
+  const log = createLogger('App');
 
   // SvelteKit page props (external reference only)
   export const data = {};
@@ -16,13 +18,40 @@
 
   let loading = true;
 
+  // Global error handlers for catching unhandled errors
+  onMount(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      log.error('Unhandled promise rejection', event.reason, {
+        promise: String(event.promise),
+      });
+    };
+
+    const handleGlobalError = (event: ErrorEvent) => {
+      log.error('Uncaught error', event.error, {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+      });
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleGlobalError);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleGlobalError);
+    };
+  });
+
+  // Initialize cache and restore session
   onMount(async () => {
     // Initialize cache manager
     try {
       await cacheManager.init();
-      logger.info('[Cache] Cache manager initialized');
+      log.info('Cache manager initialized');
     } catch (error) {
-      logger.error('[Cache] Failed to initialize cache manager:', error);
+      log.error('Failed to initialize cache manager', error);
     }
 
     // Try to restore session from sessionStorage or localStorage
@@ -45,13 +74,21 @@
         player.stopUiLoop();
       } else {
         // Resume AudioContext when returning from background (mobile fix)
-        await player.resumeAudioContext();
+        try {
+          await player.resumeAudioContext();
+        } catch (error) {
+          log.warn('Failed to resume AudioContext', { error: String(error) });
+        }
       }
     };
 
     // Blur/focus handlers for additional reliability on mobile
     const handleBlur = () => player.stopUiLoop();
-    const handleFocus = () => player.resumeAudioContext();
+    const handleFocus = () => {
+      player.resumeAudioContext().catch(error => {
+        log.warn('Failed to resume AudioContext on focus', { error: String(error) });
+      });
+    };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);

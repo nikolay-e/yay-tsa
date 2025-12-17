@@ -3,8 +3,10 @@
  * Centralized management of all application caches
  */
 
-import { IndexedDBCache, APP_VERSION } from '@yaytsa/core';
+import { IndexedDBCache, APP_VERSION, createLogger } from '@yaytsa/core';
 import type { ICache } from '@yaytsa/core';
+
+const log = createLogger('Cache');
 
 class CacheManager {
   private caches: Map<string, ICache> = new Map();
@@ -31,7 +33,7 @@ class CacheManager {
 
       this.initialized = true;
     } catch (error) {
-      console.error('Failed to initialize cache manager:', error);
+      log.error('Failed to initialize cache manager', error);
       // Continue without caching if initialization fails
       this.caches.clear();
       this.initialized = false;

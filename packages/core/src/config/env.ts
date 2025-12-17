@@ -4,26 +4,15 @@
  */
 
 import { DEFAULT_CLIENT_NAME, DEFAULT_DEVICE_NAME, STORAGE_KEYS } from './constants.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('Config');
 
 export interface EnvironmentConfig {
   yaytsaServerUrl?: string;
   yaytsaClientName?: string;
   yaytsaDeviceName?: string;
   yaytsaDeviceId?: string;
-}
-
-/**
- * Runtime configuration interface (injected via config.js in production)
- */
-declare global {
-  interface Window {
-    __YAYTSA_CONFIG__?: {
-      serverUrl?: string;
-      clientName?: string;
-      deviceName?: string;
-      version?: string;
-    };
-  }
 }
 
 /**
@@ -145,6 +134,6 @@ function generateDeviceId(): string {
   }
 
   // Last resort fallback (should rarely be needed)
-  console.warn('crypto API not available, using less secure device ID generation');
+  log.warn('crypto API not available, using less secure device ID generation');
   return `device-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }

@@ -10,6 +10,9 @@ import {
   NetworkError,
   AuthenticationError,
 } from '../models/types.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('API');
 
 export class JellyfinClient {
   private serverUrl: string;
@@ -224,29 +227,56 @@ export class JellyfinClient {
     const method = options.method || 'GET';
     const isIdempotent = method === 'GET' || method === 'DELETE';
     const hasBody = options.body !== undefined;
+    const startTime = Date.now();
+
+    log.debug(`${method} ${endpoint}`, { attempt: 1, maxRetries: retries });
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const headers = this.buildRequestHeaders(options.headers, hasBody);
         const response = await fetch(url, { ...options, headers });
+        const duration = Date.now() - startTime;
 
         // Handle non-OK responses
         if (!response.ok) {
           if (this.shouldRetryRequest(response.status, isIdempotent, attempt, retries)) {
             const delay = this.calculateRetryDelay(attempt);
+            log.warn(`${method} ${endpoint} failed, retrying`, {
+              status: response.status,
+              attempt: attempt + 1,
+              maxRetries: retries,
+              retryDelayMs: delay,
+            });
             await this.sleep(delay);
             continue;
           }
 
+          log.error(`${method} ${endpoint} failed`, undefined, {
+            status: response.status,
+            durationMs: duration,
+          });
           await this.handleErrorResponse(response);
         }
+
+        log.debug(`${method} ${endpoint} completed`, {
+          status: response.status,
+          durationMs: duration,
+        });
 
         // Parse and return response
         return await this.parseResponse<T>(response);
       } catch (error) {
+        const duration = Date.now() - startTime;
+
         // Retry network errors for idempotent requests
         if (this.shouldRetryRequest(error as Error, isIdempotent, attempt, retries)) {
           const delay = this.calculateRetryDelay(attempt);
+          log.warn(`${method} ${endpoint} network error, retrying`, {
+            error: (error as Error).message,
+            attempt: attempt + 1,
+            maxRetries: retries,
+            retryDelayMs: delay,
+          });
           await this.sleep(delay);
           continue;
         }
@@ -256,6 +286,7 @@ export class JellyfinClient {
           throw error;
         }
 
+        log.error(`${method} ${endpoint} network error`, error, { durationMs: duration });
         throw new NetworkError(
           `Network request failed: ${(error as Error).message}`,
           error as Error
@@ -342,7 +373,7 @@ export class JellyfinClient {
         try {
           this.authErrorCallback();
         } catch (callbackError) {
-          console.error('Auth error callback failed:', callbackError);
+          log.error('Auth error callback failed', callbackError);
         }
       }
 

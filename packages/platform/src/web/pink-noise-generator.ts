@@ -1,3 +1,7 @@
+import { createLogger } from '@yaytsa/core';
+
+const log = createLogger('PinkNoise');
+
 export interface PinkNoiseConfig {
   initialVolume?: number;
   audioContext?: AudioContext;
@@ -91,8 +95,9 @@ export class PinkNoiseGenerator {
       try {
         this.noiseNode.stop();
         this.noiseNode.disconnect();
-      } catch {
-        // Already stopped
+      } catch (error) {
+        // Node might already be stopped - log for debugging
+        log.debug('Pink noise node stop/disconnect failed', { error: String(error) });
       }
       this.noiseNode = null;
     }

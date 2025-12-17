@@ -1,7 +1,6 @@
-/**
- * Haptic feedback utility for iOS Safari and supporting browsers
- * Provides tactile feedback for user interactions on mobile devices
- */
+import { createLogger } from '@yaytsa/core';
+
+const log = createLogger('Haptics');
 
 export type HapticStyle = 'light' | 'medium' | 'heavy' | 'selection';
 
@@ -24,7 +23,7 @@ export function triggerHaptic(style: HapticStyle = 'medium'): void {
   try {
     navigator.vibrate(patterns[style]);
   } catch (error) {
-    console.warn('Haptic feedback not supported:', error);
+    log.warn('Haptic feedback not supported', { error });
   }
 }
 

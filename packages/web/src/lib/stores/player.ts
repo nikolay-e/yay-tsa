@@ -4,11 +4,12 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
-import { browser, dev } from '$app/environment';
-import { PlaybackQueue, PlaybackState, type AudioItem, type RepeatMode } from '@yaytsa/core';
+import { browser } from '$app/environment';
+import { PlaybackQueue, PlaybackState, createLogger, type AudioItem, type RepeatMode } from '@yaytsa/core';
 import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { client } from './auth.js';
-import { logger } from '../utils/logger.js';
+
+const log = createLogger('Player');
 
 const RESTART_THRESHOLD_SECONDS = 3;
 const RETINA_IMAGE_SIZE = 1024;
@@ -113,9 +114,9 @@ if (browser) {
 
   // Log media session support (development only)
   if (mediaSession.supported()) {
-    logger.info('[Media Session] Supported - background playback enabled');
+    log.info('[Media Session] Supported - background playback enabled');
   } else {
-    logger.info('[Media Session] Not supported - background playback limited');
+    log.info('[Media Session] Not supported - background playback limited');
   }
 }
 
@@ -208,7 +209,7 @@ if (audioEngine) {
       // Auto-advance to next track
       next()
         .catch(error => {
-          logger.error('Auto-advance error:', error);
+          log.error('Auto-advance error:', error);
           playerStore.update(s => ({
             ...s,
             isPlaying: false,
@@ -225,7 +226,7 @@ if (audioEngine) {
   // Store cleanup function for memory leak prevention
   audioEventCleanups.push(
     audioEngine.onError(error => {
-      logger.error('Audio playback error:', error);
+      log.error('Audio playback error:', error);
       playerStore.update(state => ({
         ...state,
         isPlaying: false,
@@ -342,13 +343,13 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
 
     // Ignore "Load cancelled" errors - these are expected during rapid track switching
     if (err.message.includes('Load cancelled')) {
-      logger.debug('Track load cancelled (user switched tracks)');
+      log.debug('Track load cancelled (user switched tracks)');
       return; // Silent cancellation - do not throw or update error state
     }
 
     // Only update error state if operation is still current
     if (currentLoadOperation === operationId) {
-      logger.error('Play error:', error);
+      log.error('Play error:', error);
       playerStore.update(s => ({
         ...s,
         isPlaying: false,
@@ -481,7 +482,7 @@ async function resume(): Promise<void> {
     }
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Failed to resume playback');
-    logger.error('Resume error:', error);
+    log.error('Resume error:', error);
     playerStore.update(s => ({ ...s, error: err, isPlaying: false }));
     throw error;
   }
@@ -577,7 +578,7 @@ function seek(seconds: number): void {
     playerStore.update(s => ({ ...s, currentTime: seconds, error: null }));
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Seek failed');
-    logger.error('Seek error:', error);
+    log.error('Seek error:', error);
     playerStore.update(s => ({ ...s, error: err }));
   }
 }
@@ -719,9 +720,9 @@ async function resumeAudioContext(): Promise<void> {
     if (ctx?.state === 'suspended') {
       try {
         await ctx.resume();
-        logger.info('[Player] AudioContext resumed after foreground transition');
+        log.info('[Player] AudioContext resumed after foreground transition');
       } catch (err) {
-        logger.error('[Player] Failed to resume AudioContext:', err);
+        log.error('[Player] Failed to resume AudioContext:', err);
       }
     }
   }
@@ -833,7 +834,7 @@ if (mediaSession) {
   mediaSession.setActionHandlers({
     onPlay: () => {
       player.resume().catch(error => {
-        if (dev) console.error('Media Session play error:', error);
+        log.error('Media Session play error', error);
       });
     },
     onPause: () => {
@@ -841,12 +842,12 @@ if (mediaSession) {
     },
     onNext: () => {
       player.next().catch(error => {
-        if (dev) console.error('Media Session next error:', error);
+        log.error('Media Session next error', error);
       });
     },
     onPrevious: () => {
       player.previous().catch(error => {
-        if (dev) console.error('Media Session previous error:', error);
+        log.error('Media Session previous error', error);
       });
     },
     onSeek: seconds => {

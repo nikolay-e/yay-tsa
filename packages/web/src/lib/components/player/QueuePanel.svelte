@@ -3,6 +3,9 @@
   import { getAlbumArtUrl } from '../../utils/image.js';
   import { createEventDispatcher } from 'svelte';
   import type { AudioItem } from '@yaytsa/core';
+  import { createLogger } from '@yaytsa/core';
+
+  const log = createLogger('Queue');
 
   export let isOpen = false;
 
@@ -27,7 +30,11 @@
   async function playTrack(_track: AudioItem, index: number) {
     const tracks = $queueItems;
     if (tracks.length > 0) {
-      await player.playFromAlbum(tracks, index);
+      try {
+        await player.playFromAlbum(tracks, index);
+      } catch (error) {
+        log.error('Failed to play track from queue', error, { index });
+      }
     }
   }
 
