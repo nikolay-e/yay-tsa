@@ -1,7 +1,11 @@
 package com.example.mediaserver.config;
 
+import com.example.mediaserver.infra.security.EmbyAuthFilter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -9,22 +13,22 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.Map;
 
-/**
- * Security configuration for the media server.
- * Configures authentication, authorization, CORS, and password encoding.
- */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
+
+    private final EmbyAuthFilter embyAuthFilter;
+    private final ObjectMapper objectMapper;
 
     @Value("${yaytsa.security.bcrypt-strength:12}")
     private int bcryptStrength;
@@ -35,38 +39,56 @@ public class SecurityConfig {
     @Value("${yaytsa.security.cors.allowed-origins:*}")
     private String allowedOrigins;
 
+    public SecurityConfig(EmbyAuthFilter embyAuthFilter, ObjectMapper objectMapper) {
+        this.embyAuthFilter = embyAuthFilter;
+        this.objectMapper = objectMapper;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Disable CSRF for API usage
             .csrf(csrf -> csrf.disable())
+            .httpBasic(basic -> basic.disable())
+            .formLogin(form -> form.disable())
+            .logout(logout -> logout.disable())
 
-            // Configure CORS
             .cors(cors -> {
                 if (corsEnabled) {
                     cors.configurationSource(corsConfigurationSource());
                 }
             })
 
-            // Stateless session management
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
 
-            // Configure endpoint access
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    objectMapper.writeValue(response.getOutputStream(),
+                        Map.of("status", 401, "error", "Unauthorized", "path", request.getServletPath()));
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    objectMapper.writeValue(response.getOutputStream(),
+                        Map.of("status", 403, "error", "Forbidden", "path", request.getServletPath()));
+                })
+            )
+
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints - no authentication required
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/v3/api-docs/**").permitAll()
                 .requestMatchers("/manage/health", "/manage/health/**").permitAll()
                 .requestMatchers("/System/Info/Public").permitAll()
                 .requestMatchers("/Users/AuthenticateByName").permitAll()
 
-                // For Phase 0: Allow all endpoints temporarily (authentication not implemented yet)
-                // TODO: Phase 2 - Implement proper authentication and restrict access
-                .anyRequest().permitAll()
-            );
+                .anyRequest().authenticated()
+            )
 
-        // Note: Custom authentication filter will be added in Phase 2
+            .addFilterBefore(embyAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -76,18 +98,23 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder(bcryptStrength);
     }
 
+    @Value("${yaytsa.security.cors.allow-credentials:false}")
+    private boolean allowCredentials;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Allow all origins for development (Phase 0)
-        // TODO: Phase 2 - Restrict to specific origins
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        if ("*".equals(allowedOrigins)) {
+            configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        } else {
+            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        }
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setExposedHeaders(Arrays.asList("Content-Range", "Accept-Ranges", "X-Total-Count", "Content-Disposition"));
-        configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(Arrays.asList("Content-Range", "Accept-Ranges", "X-Total-Count", "Content-Disposition", "X-Emby-Authorization"));
+        configuration.setAllowCredentials(allowCredentials);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

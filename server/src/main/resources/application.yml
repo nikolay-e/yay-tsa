@@ -111,11 +111,22 @@ management:
 
 # Application-specific Configuration
 yaytsa:
+  # Server identification
+  server:
+    name: 'Yaytsa Media Server'
+    version: '0.1.0'
+    id: 'yaytsa-4f8a3e2c-9d1b-4a5e-8c7f-3e9d1b4a5e8c'
+
+  # Public URL for client connections (used in SystemInfo.LocalAddress)
+  # Override for Docker/K8s: PUBLIC_URL=http://your-domain.com:8096
+  public-url: ${PUBLIC_URL:}
+
   media:
     # Library scanning configuration
     library:
-      roots: ${LIBRARY_ROOTS:./media}
+      roots: ${LIBRARY_ROOTS:/media}
       scan-threads: ${SCAN_THREADS:8}
+      scan-on-startup: ${SCAN_ON_STARTUP:true}
       watch-enabled: ${WATCH_ENABLED:false}
       supported-extensions: mp3,flac,m4a,aac,ogg,opus,wav,wma
       ignored-folders: .git,.svn,node_modules,@eaDir
@@ -173,7 +184,9 @@ yaytsa:
       allowed-methods: GET,POST,PUT,DELETE,OPTIONS
       allowed-headers: '*'
       exposed-headers: Content-Range,Accept-Ranges,X-Total-Count
-      allow-credentials: true
+      # Set to false when using * origins (avoids browser CORS errors)
+      # Yaytsa uses token-in-header/query, not cookies, so credentials aren't needed
+      allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
       max-age: 3600
     https-required-in-production: true
 

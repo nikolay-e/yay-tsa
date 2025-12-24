@@ -1,24 +1,34 @@
 package com.example.mediaserver.controller;
 
+import com.example.mediaserver.domain.service.PlaylistService;
+import com.example.mediaserver.dto.request.CreatePlaylistRequest;
+import com.example.mediaserver.dto.response.BaseItemDto;
+import com.example.mediaserver.dto.response.QueryResultDto;
+import com.example.mediaserver.infra.persistence.entity.PlaylistEntity;
+import com.example.mediaserver.infra.persistence.entity.PlaylistEntryEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
-/**
- * Controller for playlist management.
- * Handles creating, updating, and managing user playlists.
- */
 @RestController
 @RequestMapping("/Playlists")
 @Tag(name = "Playlists", description = "Playlist management")
 public class PlaylistsController {
+
+    private final PlaylistService playlistService;
+
+    public PlaylistsController(PlaylistService playlistService) {
+        this.playlistService = playlistService;
+    }
 
     @Operation(summary = "Get user playlists",
               description = "Retrieve all playlists for the current user")
@@ -46,19 +56,22 @@ public class PlaylistsController {
         @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createPlaylist(
-            @RequestBody Map<String, Object> playlistData,
+    public ResponseEntity<Map<String, String>> createPlaylist(
+            @RequestBody CreatePlaylistRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        // Expected fields: Name, IsPublic, MediaType, UserId
-        Map<String, Object> playlist = new HashMap<>();
-        playlist.put("Id", UUID.randomUUID().toString());
-        playlist.put("Name", playlistData.get("Name"));
-        playlist.put("IsPublic", false);
+        UUID userId = UUID.fromString(request.userId());
+        List<UUID> itemIds = request.ids() != null
+            ? request.ids().stream().map(UUID::fromString).collect(Collectors.toList())
+            : null;
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(playlist);
+        PlaylistEntity playlist = playlistService.createPlaylist(userId, request.name(), itemIds);
+
+        Map<String, String> response = new HashMap<>();
+        response.put("Id", playlist.getId().toString());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Get playlist by ID",
@@ -123,10 +136,22 @@ public class PlaylistsController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
+        UUID playlistUuid = UUID.fromString(playlistId);
+        Page<PlaylistEntryEntity> page = playlistService.getPlaylistItems(playlistUuid, startIndex, limit);
+
+        List<Map<String, Object>> items = page.getContent().stream()
+            .map(entry -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("PlaylistItemId", entry.getId().toString());
+                item.put("Id", entry.getItemId().toString());
+                return item;
+            })
+            .collect(Collectors.toList());
+
         Map<String, Object> response = new HashMap<>();
-        response.put("Items", new ArrayList<>());
-        response.put("TotalRecordCount", 0);
+        response.put("Items", items);
+        response.put("TotalRecordCount", (int) page.getTotalElements());
+        response.put("StartIndex", startIndex);
 
         return ResponseEntity.ok(response);
     }
@@ -144,8 +169,14 @@ public class PlaylistsController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        // Parse comma-separated IDs: ids.split(",")
+        UUID playlistUuid = UUID.fromString(playlistId);
+        List<UUID> itemIds = Arrays.stream(ids.split(","))
+            .map(String::trim)
+            .map(UUID::fromString)
+            .collect(Collectors.toList());
+
+        playlistService.addItemsToPlaylist(playlistUuid, itemIds);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -160,8 +191,14 @@ public class PlaylistsController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        // Parse comma-separated IDs: entryIds.split(",")
+        UUID playlistUuid = UUID.fromString(playlistId);
+        List<UUID> entryIdsList = Arrays.stream(entryIds.split(","))
+            .map(String::trim)
+            .map(UUID::fromString)
+            .collect(Collectors.toList());
+
+        playlistService.removeItemsFromPlaylist(playlistUuid, entryIdsList);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -175,7 +212,11 @@ public class PlaylistsController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
+        UUID playlistUuid = UUID.fromString(playlistId);
+        UUID entryId = UUID.fromString(itemId);
+
+        playlistService.movePlaylistItem(playlistUuid, entryId, newIndex);
+
         return ResponseEntity.noContent().build();
     }
 }

@@ -1,0 +1,87 @@
+package com.example.mediaserver.domain.service;
+
+import com.example.mediaserver.infra.persistence.entity.ItemEntity;
+import com.example.mediaserver.infra.persistence.entity.SessionEntity;
+import com.example.mediaserver.infra.persistence.entity.UserEntity;
+import com.example.mediaserver.infra.persistence.repository.ItemRepository;
+import com.example.mediaserver.infra.persistence.repository.SessionRepository;
+import com.example.mediaserver.infra.persistence.repository.UserRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@Transactional
+public class SessionService {
+
+    private final SessionRepository sessionRepository;
+    private final UserRepository userRepository;
+    private final ItemRepository itemRepository;
+
+    public SessionService(
+            SessionRepository sessionRepository,
+            UserRepository userRepository,
+            ItemRepository itemRepository
+    ) {
+        this.sessionRepository = sessionRepository;
+        this.userRepository = userRepository;
+        this.itemRepository = itemRepository;
+    }
+
+    public void reportPlaybackStart(UUID userId, String deviceId, UUID itemId) {
+        SessionEntity session = findOrCreateSession(userId, deviceId);
+        ItemEntity item = itemRepository.findById(itemId).orElse(null);
+        session.setNowPlayingItem(item);
+        session.setPositionMs(0L);
+        session.setPaused(false);
+        session.setLastUpdate(OffsetDateTime.now());
+        sessionRepository.save(session);
+    }
+
+    public void reportPlaybackProgress(UUID userId, String deviceId, UUID itemId, long positionMs, boolean isPaused) {
+        SessionEntity session = findOrCreateSession(userId, deviceId);
+        ItemEntity item = itemRepository.findById(itemId).orElse(null);
+        session.setNowPlayingItem(item);
+        session.setPositionMs(positionMs);
+        session.setPaused(isPaused);
+        session.setLastUpdate(OffsetDateTime.now());
+        sessionRepository.save(session);
+    }
+
+    public void reportPlaybackStopped(UUID userId, String deviceId, UUID itemId, long positionMs) {
+        Optional<SessionEntity> sessionOpt = sessionRepository.findByUserIdAndDeviceId(userId, deviceId);
+
+        if (sessionOpt.isPresent()) {
+            SessionEntity session = sessionOpt.get();
+            session.setNowPlayingItem(null);
+            session.setPositionMs(positionMs);
+            session.setPaused(true);
+            session.setLastUpdate(OffsetDateTime.now());
+            sessionRepository.save(session);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<SessionEntity> getActiveSessions(UUID userId) {
+        return sessionRepository.findAllByUserId(userId);
+    }
+
+    private SessionEntity findOrCreateSession(UUID userId, String deviceId) {
+        return sessionRepository.findByUserIdAndDeviceId(userId, deviceId)
+            .orElseGet(() -> {
+                UserEntity user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+                SessionEntity newSession = new SessionEntity();
+                newSession.setUser(user);
+                newSession.setDeviceId(deviceId);
+                newSession.setDeviceName("Unknown Device");
+                newSession.setLastUpdate(OffsetDateTime.now());
+                return newSession;
+            });
+    }
+}

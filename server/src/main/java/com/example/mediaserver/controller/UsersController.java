@@ -1,16 +1,27 @@
 package com.example.mediaserver.controller;
 
-import com.example.mediaserver.dto.response.BaseItemDto;
-import com.example.mediaserver.dto.response.QueryResultDto;
+import com.example.mediaserver.domain.service.ItemService;
+import com.example.mediaserver.domain.service.PlayStateService;
+import com.example.mediaserver.domain.service.UserService;
+import com.example.mediaserver.dto.BaseItemDto;
+import com.example.mediaserver.dto.QueryResultDto;
+import com.example.mediaserver.dto.response.UserDto;
+import com.example.mediaserver.infra.persistence.entity.*;
+import com.example.mediaserver.infra.persistence.repository.AudioTrackRepository;
+import com.example.mediaserver.infra.persistence.repository.AlbumRepository;
+import com.example.mediaserver.mapper.ItemMapper;
+import com.example.mediaserver.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Controller for user-specific item queries.
@@ -24,6 +35,52 @@ import java.util.*;
 @RequestMapping("/Users")
 @Tag(name = "User Items", description = "User-specific item queries")
 public class UsersController {
+
+    private final UserService userService;
+    private final ItemService itemService;
+    private final PlayStateService playStateService;
+    private final UserMapper userMapper;
+    private final ItemMapper itemMapper;
+    private final AudioTrackRepository audioTrackRepository;
+    private final AlbumRepository albumRepository;
+
+    public UsersController(
+        UserService userService,
+        ItemService itemService,
+        PlayStateService playStateService,
+        UserMapper userMapper,
+        ItemMapper itemMapper,
+        AudioTrackRepository audioTrackRepository,
+        AlbumRepository albumRepository
+    ) {
+        this.userService = userService;
+        this.itemService = itemService;
+        this.playStateService = playStateService;
+        this.userMapper = userMapper;
+        this.itemMapper = itemMapper;
+        this.audioTrackRepository = audioTrackRepository;
+        this.albumRepository = albumRepository;
+    }
+
+    @Operation(summary = "Get user by ID", description = "Retrieve user information by user ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Successfully retrieved user"),
+        @ApiResponse(responseCode = "404", description = "User not found"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @GetMapping("/{userId}")
+    public ResponseEntity<UserDto> getUserById(
+            @Parameter(description = "User ID") @PathVariable String userId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam(value = "api_key", required = false) String apiKey) {
+
+        UUID userUuid = UUID.fromString(userId);
+        UserEntity user = userService.findById(userUuid)
+            .orElseThrow(() -> new UserService.UserNotFoundException("User not found: " + userId));
+
+        UserDto userDto = userMapper.toDto(user);
+        return ResponseEntity.ok(userDto);
+    }
 
     @Operation(summary = "Get user items",
               description = "Query items scoped to a specific user. " +
@@ -62,13 +119,58 @@ public class UsersController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Phase 1 & 7 - Implement database queries with user-specific filtering
-        // This endpoint is crucial for:
-        // 1. Listing user's playlists (IncludeItemTypes=Playlist)
-        // 2. Getting recently played (SortBy=DatePlayed, Filters=IsPlayed)
-        // 3. Getting favorites (IsFavorite=true)
+        UUID userUuid = UUID.fromString(userId);
+        UUID parentUuid = parentId != null ? UUID.fromString(parentId) : null;
 
-        QueryResultDto<BaseItemDto> result = QueryResultDto.empty();
+        List<String> itemTypesList = includeItemTypes != null
+            ? Arrays.asList(includeItemTypes.split(","))
+            : null;
+
+        ItemService.ItemsQueryParams params = new ItemService.ItemsQueryParams(
+            userUuid,
+            parentUuid,
+            itemTypesList,
+            recursive,
+            sortBy,
+            sortOrder,
+            startIndex,
+            limit,
+            searchTerm,
+            null,
+            null,
+            null,
+            isFavorite
+        );
+
+        Page<ItemEntity> itemsPage = itemService.queryItems(params);
+
+        List<BaseItemDto> itemDtos = itemsPage.getContent().stream()
+            .map(item -> {
+                PlayStateEntity playState = enableUserData
+                    ? playStateService.getPlayState(userUuid, item.getId()).orElse(null)
+                    : null;
+
+                AudioTrackEntity audioTrack = item.getType() == ItemType.AudioTrack
+                    ? audioTrackRepository.findById(item.getId()).orElse(null)
+                    : null;
+
+                AlbumEntity album = null;
+                if (audioTrack != null && audioTrack.getAlbum() != null) {
+                    album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
+                } else if (item.getType() == ItemType.MusicAlbum) {
+                    album = albumRepository.findById(item.getId()).orElse(null);
+                }
+
+                return itemMapper.toDto(item, playState, audioTrack, album);
+            })
+            .collect(Collectors.toList());
+
+        QueryResultDto<BaseItemDto> result = new QueryResultDto<>(
+            itemDtos,
+            itemsPage.getTotalElements(),
+            startIndex
+        );
+
         return ResponseEntity.ok(result);
     }
 
@@ -88,25 +190,29 @@ public class UsersController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Phase 1 - Fetch item from database with user-specific data
-        // This should return the item with UserData populated (play count, favorite status, etc.)
+        UUID userUuid = UUID.fromString(userId);
+        UUID itemUuid = UUID.fromString(itemId);
 
-        // For now, return a stub audio track
-        BaseItemDto item = BaseItemDto.audioTrack(
-            itemId,
-            "Sample Track",
-            "Sample Track",
-            UUID.randomUUID().toString(),
-            "Sample Album",
-            List.of(new BaseItemDto.NameGuidPair("Sample Artist", UUID.randomUUID().toString())),
-            1,
-            1,
-            180000L, // 3 minutes in ms
-            "mp3",
-            Map.of("Primary", "sample-tag")
-        );
+        ItemEntity item = itemService.findById(itemUuid)
+            .orElseThrow(() -> new RuntimeException("Item not found: " + itemId));
 
-        return ResponseEntity.ok(item);
+        PlayStateEntity playState = playStateService.getPlayState(userUuid, itemUuid)
+            .orElse(null);
+
+        AudioTrackEntity audioTrack = item.getType() == ItemType.AudioTrack
+            ? audioTrackRepository.findById(itemUuid).orElse(null)
+            : null;
+
+        AlbumEntity album = null;
+        if (audioTrack != null && audioTrack.getAlbum() != null) {
+            album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
+        } else if (item.getType() == ItemType.MusicAlbum) {
+            album = albumRepository.findById(itemUuid).orElse(null);
+        }
+
+        BaseItemDto itemDto = itemMapper.toDto(item, playState, audioTrack, album);
+
+        return ResponseEntity.ok(itemDto);
     }
 
     @Operation(summary = "Get user's favorite items",
@@ -121,8 +227,56 @@ public class UsersController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Phase 6 - Implement favorites query
-        QueryResultDto<BaseItemDto> result = QueryResultDto.empty();
+        UUID userUuid = UUID.fromString(userId);
+
+        List<String> itemTypesList = includeItemTypes != null
+            ? Arrays.asList(includeItemTypes.split(","))
+            : null;
+
+        ItemService.ItemsQueryParams params = new ItemService.ItemsQueryParams(
+            userUuid,
+            null,
+            itemTypesList,
+            false,
+            "SortName",
+            "Ascending",
+            startIndex,
+            limit,
+            null,
+            null,
+            null,
+            null,
+            true
+        );
+
+        Page<ItemEntity> itemsPage = itemService.queryItems(params);
+
+        List<BaseItemDto> itemDtos = itemsPage.getContent().stream()
+            .map(item -> {
+                PlayStateEntity playState = playStateService.getPlayState(userUuid, item.getId())
+                    .orElse(null);
+
+                AudioTrackEntity audioTrack = item.getType() == ItemType.AudioTrack
+                    ? audioTrackRepository.findById(item.getId()).orElse(null)
+                    : null;
+
+                AlbumEntity album = null;
+                if (audioTrack != null && audioTrack.getAlbum() != null) {
+                    album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
+                } else if (item.getType() == ItemType.MusicAlbum) {
+                    album = albumRepository.findById(item.getId()).orElse(null);
+                }
+
+                return itemMapper.toDto(item, playState, audioTrack, album);
+            })
+            .collect(Collectors.toList());
+
+        QueryResultDto<BaseItemDto> result = new QueryResultDto<>(
+            itemDtos,
+            itemsPage.getTotalElements(),
+            startIndex
+        );
+
         return ResponseEntity.ok(result);
     }
 
@@ -137,8 +291,56 @@ public class UsersController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Phase 6 - Implement resume items query
-        QueryResultDto<BaseItemDto> result = QueryResultDto.empty();
+        UUID userUuid = UUID.fromString(userId);
+
+        List<String> itemTypesList = includeItemTypes != null
+            ? Arrays.asList(includeItemTypes.split(","))
+            : null;
+
+        ItemService.ItemsQueryParams params = new ItemService.ItemsQueryParams(
+            userUuid,
+            null,
+            itemTypesList,
+            false,
+            "DatePlayed",
+            "Descending",
+            0,
+            limit,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        Page<ItemEntity> itemsPage = itemService.queryItems(params);
+
+        List<BaseItemDto> itemDtos = itemsPage.getContent().stream()
+            .map(item -> {
+                PlayStateEntity playState = playStateService.getPlayState(userUuid, item.getId())
+                    .orElse(null);
+
+                AudioTrackEntity audioTrack = item.getType() == ItemType.AudioTrack
+                    ? audioTrackRepository.findById(item.getId()).orElse(null)
+                    : null;
+
+                AlbumEntity album = null;
+                if (audioTrack != null && audioTrack.getAlbum() != null) {
+                    album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
+                } else if (item.getType() == ItemType.MusicAlbum) {
+                    album = albumRepository.findById(item.getId()).orElse(null);
+                }
+
+                return itemMapper.toDto(item, playState, audioTrack, album);
+            })
+            .collect(Collectors.toList());
+
+        QueryResultDto<BaseItemDto> result = new QueryResultDto<>(
+            itemDtos,
+            itemsPage.getTotalElements(),
+            0
+        );
+
         return ResponseEntity.ok(result);
     }
 }

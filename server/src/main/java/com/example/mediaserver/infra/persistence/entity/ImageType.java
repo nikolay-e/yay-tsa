@@ -1,0 +1,15 @@
+package com.example.mediaserver.infra.persistence.entity;
+
+public enum ImageType {
+    Primary,
+    Art,
+    Backdrop,
+    Banner,
+    Logo,
+    Thumb,
+    Disc,
+    Box,
+    Screenshot,
+    Menu,
+    Chapter
+}

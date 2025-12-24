@@ -1,10 +1,16 @@
 package com.example.mediaserver.controller;
 
+import com.example.mediaserver.domain.service.SessionService;
+import com.example.mediaserver.dto.request.PlaybackProgressInfo;
+import com.example.mediaserver.dto.request.PlaybackStartInfo;
+import com.example.mediaserver.dto.request.PlaybackStopInfo;
+import com.example.mediaserver.infra.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -18,6 +24,14 @@ import java.util.*;
 @Tag(name = "Sessions", description = "Playback session management")
 public class SessionsController {
 
+    private static final long TICKS_PER_SECOND = 10_000_000L;
+
+    private final SessionService sessionService;
+
+    public SessionsController(SessionService sessionService) {
+        this.sessionService = sessionService;
+    }
+
     @Operation(summary = "Report playback started",
               description = "Notify server that playback has started for an item")
     @ApiResponses(value = {
@@ -26,12 +40,15 @@ public class SessionsController {
     })
     @PostMapping("/Playing")
     public ResponseEntity<Void> reportPlaybackStart(
-            @RequestBody Map<String, Object> playbackInfo,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+            @RequestBody PlaybackStartInfo playbackInfo,
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-        // TODO: Implement in Phase 6
-        // Expected fields: ItemId, PositionTicks, IsPaused, PlayMethod, PlaySessionId
+        UUID userId = authenticatedUser.getUserEntity().getId();
+        String deviceId = authenticatedUser.getDeviceId();
+        UUID itemId = UUID.fromString(playbackInfo.getItemId());
+
+        sessionService.reportPlaybackStart(userId, deviceId, itemId);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -43,12 +60,17 @@ public class SessionsController {
     })
     @PostMapping("/Playing/Progress")
     public ResponseEntity<Void> reportPlaybackProgress(
-            @RequestBody Map<String, Object> progressInfo,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+            @RequestBody PlaybackProgressInfo progressInfo,
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-        // TODO: Implement in Phase 6
-        // Expected fields: ItemId, PositionTicks, IsPaused, PlayMethod, PlaySessionId
+        UUID userId = authenticatedUser.getUserEntity().getId();
+        String deviceId = authenticatedUser.getDeviceId();
+        UUID itemId = UUID.fromString(progressInfo.getItemId());
+        long positionMs = progressInfo.getPositionTicks() / (TICKS_PER_SECOND / 1000);
+        boolean isPaused = progressInfo.getIsPaused() != null && progressInfo.getIsPaused();
+
+        sessionService.reportPlaybackProgress(userId, deviceId, itemId, positionMs, isPaused);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -60,13 +82,16 @@ public class SessionsController {
     })
     @PostMapping("/Playing/Stopped")
     public ResponseEntity<Void> reportPlaybackStopped(
-            @RequestBody Map<String, Object> stopInfo,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+            @RequestBody PlaybackStopInfo stopInfo,
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-        // TODO: Implement in Phase 6
-        // Expected fields: ItemId, PositionTicks, PlaySessionId
-        // Should update play count if played > 50% or > 240 seconds
+        UUID userId = authenticatedUser.getUserEntity().getId();
+        String deviceId = authenticatedUser.getDeviceId();
+        UUID itemId = UUID.fromString(stopInfo.getItemId());
+        long positionMs = stopInfo.getPositionTicks() / (TICKS_PER_SECOND / 1000);
+
+        sessionService.reportPlaybackStopped(userId, deviceId, itemId, positionMs);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -98,6 +123,19 @@ public class SessionsController {
         session.put("NowPlayingItem", null);
 
         return ResponseEntity.ok(session);
+    }
+
+    @Operation(summary = "Keep session alive",
+              description = "Ping to keep playback session active")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "Successfully pinged"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @PostMapping("/Playing/Ping")
+    public ResponseEntity<Void> pingSession(
+            @RequestParam(value = "playSessionId", required = false) String playSessionId) {
+
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Send playback command",
