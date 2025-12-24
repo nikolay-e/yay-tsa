@@ -65,10 +65,25 @@ fi
 mkdir -p /app/logs /app/temp/transcode /app/temp/images
 
 # Set JVM heap size based on container memory if not explicitly set
-if [ -z "$JAVA_OPTS_HEAP" ] && [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
-  CONTAINER_MEM_LIMIT=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-  # If memory limit is set (not the max value)
-  if [ "$CONTAINER_MEM_LIMIT" -lt 9223372036854775807 ]; then
+if [ -z "$JAVA_OPTS_HEAP" ]; then
+  CONTAINER_MEM_LIMIT=""
+
+  # Try cgroup v2 first (modern Linux/K8s)
+  if [ -f /sys/fs/cgroup/memory.max ]; then
+    MEM_MAX=$(cat /sys/fs/cgroup/memory.max)
+    if [ "$MEM_MAX" != "max" ]; then
+      CONTAINER_MEM_LIMIT=$MEM_MAX
+    fi
+  # Fall back to cgroup v1
+  elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+    CONTAINER_MEM_LIMIT=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+    # Check if limit is the max value (no limit set)
+    if [ "$CONTAINER_MEM_LIMIT" -ge 9223372036854775807 ]; then
+      CONTAINER_MEM_LIMIT=""
+    fi
+  fi
+
+  if [ -n "$CONTAINER_MEM_LIMIT" ]; then
     # Use 75% of container memory for heap
     HEAP_SIZE=$((CONTAINER_MEM_LIMIT * 75 / 100 / 1024 / 1024))
     export JAVA_OPTS_HEAP="-Xmx${HEAP_SIZE}m -Xms$((HEAP_SIZE / 2))m"

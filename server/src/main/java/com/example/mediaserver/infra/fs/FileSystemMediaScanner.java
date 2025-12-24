@@ -363,11 +363,7 @@ public class FileSystemMediaScanner {
     }
 
     private int removeDeletedItems(String libraryRoot, Set<String> processedPaths) {
-        List<ItemEntity> existingTracks = itemRepository.findAll().stream()
-            .filter(item -> item.getType() == ItemType.AudioTrack)
-            .filter(item -> libraryRoot.equals(item.getLibraryRoot()))
-            .filter(item -> item.getPath() != null && !item.getPath().startsWith("artist:") && !item.getPath().startsWith("album:"))
-            .toList();
+        List<ItemEntity> existingTracks = itemRepository.findAudioTracksByLibraryRoot(libraryRoot);
 
         int removed = 0;
         for (ItemEntity track : existingTracks) {

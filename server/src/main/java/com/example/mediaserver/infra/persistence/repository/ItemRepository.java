@@ -28,6 +28,16 @@ public interface ItemRepository extends JpaRepository<ItemEntity, UUID>, JpaSpec
 
     @Query("""
         SELECT i FROM ItemEntity i
+        WHERE i.type = 'AudioTrack'
+        AND i.libraryRoot = :libraryRoot
+        AND i.path IS NOT NULL
+        AND i.path NOT LIKE 'artist:%'
+        AND i.path NOT LIKE 'album:%'
+        """)
+    List<ItemEntity> findAudioTracksByLibraryRoot(@Param("libraryRoot") String libraryRoot);
+
+    @Query("""
+        SELECT i FROM ItemEntity i
         JOIN PlayStateEntity ps ON ps.item = i
         WHERE ps.user.id = :userId
         AND ps.lastPlayedAt IS NOT NULL

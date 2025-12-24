@@ -17,7 +17,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import com.example.mediaserver.infra.security.AuthenticatedUser;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -106,15 +109,17 @@ public class AuthController {
     @Operation(summary = "Get current user",
               description = "Retrieve the currently authenticated user's profile")
     @GetMapping("/Users/Me")
-    public ResponseEntity<UserDto> getCurrentUser(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+    public ResponseEntity<UserDto> getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // TODO: Phase 2 - Extract user from token
-        String userId = UUID.randomUUID().toString();
-        UserDto user = UserDto.minimal(userId, "Current User", "yaytsa-server");
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
-        return ResponseEntity.ok(user);
+        AuthenticatedUser authenticatedUser = (AuthenticatedUser) authentication.getPrincipal();
+        UserDto userDto = userMapper.toDto(authenticatedUser.getUserEntity());
+
+        return ResponseEntity.ok(userDto);
     }
 
     @Operation(summary = "Logout user session",
@@ -165,7 +170,7 @@ public class AuthController {
             if (equalPos > 0) {
                 String key = trimmed.substring(0, equalPos).trim();
                 String value = trimmed.substring(equalPos + 1).trim();
-                if (value.startsWith("\"") && value.endsWith("\"")) {
+                if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
                     value = value.substring(1, value.length() - 1);
                 }
                 result.put(key, value);

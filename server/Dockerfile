@@ -21,10 +21,11 @@ RUN mvn clean package -DskipTests -B
 # Stage 2: Runtime stage
 FROM eclipse-temurin:21-jre-alpine
 
-# Install FFmpeg for transcoding support
+# Install FFmpeg for transcoding, libwebp for WebP image processing
 RUN apk update && \
     apk add --no-cache \
     ffmpeg \
+    libwebp-tools \
     tzdata \
     curl \
     && rm -rf /var/cache/apk/*

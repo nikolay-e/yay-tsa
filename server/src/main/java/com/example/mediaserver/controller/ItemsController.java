@@ -234,12 +234,12 @@ public class ItemsController {
     }
 
     @Operation(summary = "Delete item",
-              description = "Delete an item (e.g., playlist). Requires appropriate permissions.")
+              description = "Delete an item (only playlists can be deleted). Requires appropriate permissions.")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "204", description = "Item deleted successfully"),
         @ApiResponse(responseCode = "404", description = "Item not found"),
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
-        @ApiResponse(responseCode = "403", description = "Forbidden - insufficient permissions")
+        @ApiResponse(responseCode = "403", description = "Forbidden - only playlists can be deleted")
     })
     @DeleteMapping("/{itemId}")
     public ResponseEntity<Void> deleteItem(
@@ -248,8 +248,18 @@ public class ItemsController {
             @RequestParam(value = "api_key", required = false) String apiKey) {
 
         UUID itemUuid = UUID.fromString(itemId);
-        playlistService.deletePlaylist(itemUuid);
 
+        Optional<ItemEntity> itemOptional = itemService.findById(itemUuid);
+        if (itemOptional.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ItemEntity item = itemOptional.get();
+        if (item.getType() != ItemType.Playlist) {
+            return ResponseEntity.status(403).build();
+        }
+
+        playlistService.deletePlaylist(itemUuid);
         return ResponseEntity.noContent().build();
     }
 

@@ -37,20 +37,15 @@ public final class ItemSpecifications {
             if (parentId == null) {
                 return cb.conjunction();
             }
-            Subquery<UUID> subquery = query.subquery(UUID.class);
-            Root<ItemEntity> subRoot = subquery.from(ItemEntity.class);
 
-            subquery.select(subRoot.get("id"))
-                .where(
-                    cb.or(
-                        cb.equal(subRoot.get("parent").get("id"), parentId),
-                        cb.equal(subRoot.get("id"), parentId)
-                    )
-                );
+            Subquery<String> parentPathQuery = query.subquery(String.class);
+            Root<ItemEntity> parentRoot = parentPathQuery.from(ItemEntity.class);
+            parentPathQuery.select(parentRoot.get("path"))
+                .where(cb.equal(parentRoot.get("id"), parentId));
 
             return cb.or(
                 cb.equal(root.get("parent").get("id"), parentId),
-                root.get("parent").get("id").in(subquery)
+                cb.like(root.get("path"), cb.concat(parentPathQuery, "/%"))
             );
         };
     }

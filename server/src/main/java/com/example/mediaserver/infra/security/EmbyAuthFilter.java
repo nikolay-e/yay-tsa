@@ -124,7 +124,7 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
             if (equalPos > 0) {
                 String key = trimmed.substring(0, equalPos).trim();
                 String value = trimmed.substring(equalPos + 1).trim();
-                if (value.startsWith("\"") && value.endsWith("\"")) {
+                if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
                     value = value.substring(1, value.length() - 1);
                 }
                 parts.put(key, value);
