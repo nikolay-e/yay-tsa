@@ -3,6 +3,7 @@ package com.example.mediaserver.domain.service;
 import com.example.mediaserver.infra.persistence.entity.AlbumEntity;
 import com.example.mediaserver.infra.persistence.entity.AudioTrackEntity;
 import com.example.mediaserver.infra.persistence.entity.ItemEntity;
+import com.example.mediaserver.infra.persistence.entity.ItemType;
 import com.example.mediaserver.infra.persistence.query.ItemSpecifications;
 import com.example.mediaserver.infra.persistence.repository.AlbumRepository;
 import com.example.mediaserver.infra.persistence.repository.AudioTrackRepository;
@@ -42,6 +43,10 @@ public class ItemService {
     }
 
     public Page<ItemEntity> queryItems(ItemsQueryParams params) {
+        if ("DatePlayed".equals(params.sortBy()) && params.userId() != null) {
+            return queryRecentlyPlayed(params);
+        }
+
         Specification<ItemEntity> spec = Specification.where(null);
 
         if (params.includeItemTypes() != null && !params.includeItemTypes().isEmpty()) {
@@ -84,6 +89,22 @@ public class ItemService {
         );
 
         return itemRepository.findAll(spec, pageable);
+    }
+
+    private Page<ItemEntity> queryRecentlyPlayed(ItemsQueryParams params) {
+        List<ItemType> types = null;
+        if (params.includeItemTypes() != null && !params.includeItemTypes().isEmpty()) {
+            types = params.includeItemTypes().stream()
+                .map(ItemType::valueOf)
+                .toList();
+        }
+
+        Pageable pageable = PageRequest.of(
+            params.startIndex() / params.limit(),
+            params.limit()
+        );
+
+        return itemRepository.findRecentlyPlayedByUser(params.userId(), types, pageable);
     }
 
     public List<AudioTrackEntity> getAlbumTracks(UUID albumId) {
