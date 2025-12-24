@@ -16,6 +16,6 @@ public interface PlayStateRepository extends JpaRepository<PlayStateEntity, UUID
     Optional<PlayStateEntity> findByUserIdAndItemId(UUID userId, UUID itemId);
     List<PlayStateEntity> findAllByUserIdAndIsFavoriteTrue(UUID userId);
 
-    @Query("SELECT ps FROM PlayStateEntity ps WHERE ps.userId = :userId AND ps.itemId IN :itemIds")
+    @Query("SELECT ps FROM PlayStateEntity ps WHERE ps.user.id = :userId AND ps.item.id IN :itemIds")
     List<PlayStateEntity> findAllByUserIdAndItemIdIn(@Param("userId") UUID userId, @Param("itemIds") Collection<UUID> itemIds);
 }
