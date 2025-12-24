@@ -10,8 +10,6 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,9 +27,6 @@ public class SecurityConfig {
 
     private final EmbyAuthFilter embyAuthFilter;
     private final ObjectMapper objectMapper;
-
-    @Value("${yaytsa.security.bcrypt-strength:12}")
-    private int bcryptStrength;
 
     @Value("${yaytsa.security.cors.enabled:true}")
     private boolean corsEnabled;
@@ -91,11 +86,6 @@ public class SecurityConfig {
             .addFilterBefore(embyAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(bcryptStrength);
     }
 
     @Value("${yaytsa.security.cors.allow-credentials:false}")
