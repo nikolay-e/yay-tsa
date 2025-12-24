@@ -1,4 +1,4 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -109,7 +109,7 @@ async function registerPasskey(credentialName?: string): Promise<void> {
       attestation: 'none',
     };
 
-    logger.info('[Passkey] Starting registration with options:', creationOptions);
+    logger.info('[Passkey] Starting registration');
 
     const registrationResponse: RegistrationResponseJSON = await startRegistration({
       optionsJSON: creationOptions,

@@ -15,7 +15,7 @@ public class UserEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(unique = true, nullable = false, length = 50)
+    @Column(unique = true, nullable = false, length = 50, columnDefinition = "citext")
     private String username;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -24,7 +24,7 @@ public class UserEntity {
     @Column(name = "display_name", length = 255)
     private String displayName;
 
-    @Column(length = 255)
+    @Column(length = 255, columnDefinition = "citext")
     private String email;
 
     @Column(name = "is_admin", nullable = false)

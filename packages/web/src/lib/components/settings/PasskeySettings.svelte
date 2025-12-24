@@ -44,7 +44,7 @@
         },
       ];
 
-      logger.info('[Passkey] Loaded passkeys:', passkeys.length);
+      logger.info(`[Passkey] Loaded ${passkeys.length} passkeys`);
     } catch (err) {
       logger.error('[Passkey] Failed to load passkeys:', err);
       error = err instanceof Error ? err.message : 'Failed to load passkeys';
@@ -100,7 +100,7 @@
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      logger.info('[Passkey] Deleted passkey:', passkeyId);
+      logger.info(`[Passkey] Deleted passkey: ${passkeyId}`);
       await loadPasskeys();
       deleteConfirmId = null;
     } catch (err) {

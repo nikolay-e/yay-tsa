@@ -13,7 +13,7 @@ export interface PasskeyCredential {
   name: string;
 }
 
-function openDatabase(): Promise<IDBDatabase> {
+async function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 

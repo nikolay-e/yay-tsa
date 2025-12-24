@@ -3,7 +3,7 @@
   import Button from '../ui/Button.svelte';
   import { hapticSelect } from '../../utils/haptics.js';
   import { logger } from '../../utils/logger.js';
-  import { passkey, passkeyIsLoading, passkeyError } from '../../stores/passkey.js';
+  import { passkey } from '../../stores/passkey.js';
 
   export let isOpen = false;
 
