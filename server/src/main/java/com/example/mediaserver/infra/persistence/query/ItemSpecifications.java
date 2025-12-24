@@ -38,15 +38,24 @@ public final class ItemSpecifications {
                 return cb.conjunction();
             }
 
-            Subquery<String> parentPathQuery = query.subquery(String.class);
-            Root<ItemEntity> parentRoot = parentPathQuery.from(ItemEntity.class);
-            parentPathQuery.select(parentRoot.get("path"))
-                .where(cb.equal(parentRoot.get("id"), parentId));
+            // Level 1: direct children
+            Predicate level1 = cb.equal(root.get("parent").get("id"), parentId);
 
-            return cb.or(
-                cb.equal(root.get("parent").get("id"), parentId),
-                cb.like(root.get("path"), cb.concat(parentPathQuery, "/%"))
-            );
+            // Level 2: grandchildren (children of direct children)
+            Subquery<UUID> level1Ids = query.subquery(UUID.class);
+            Root<ItemEntity> l1Root = level1Ids.from(ItemEntity.class);
+            level1Ids.select(l1Root.get("id"))
+                .where(cb.equal(l1Root.get("parent").get("id"), parentId));
+            Predicate level2 = root.get("parent").get("id").in(level1Ids);
+
+            // Level 3: great-grandchildren (for Artist -> Album -> Track hierarchy)
+            Subquery<UUID> level2Ids = query.subquery(UUID.class);
+            Root<ItemEntity> l2Root = level2Ids.from(ItemEntity.class);
+            level2Ids.select(l2Root.get("id"))
+                .where(l2Root.get("parent").get("id").in(level1Ids));
+            Predicate level3 = root.get("parent").get("id").in(level2Ids);
+
+            return cb.or(level1, level2, level3);
         };
     }
 
