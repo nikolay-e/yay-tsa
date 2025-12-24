@@ -5,7 +5,13 @@
 
 import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
-import { PlaybackQueue, PlaybackState, createLogger, type AudioItem, type RepeatMode } from '@yaytsa/core';
+import {
+  PlaybackQueue,
+  PlaybackState,
+  createLogger,
+  type AudioItem,
+  type RepeatMode,
+} from '@yaytsa/core';
 import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { client } from './auth.js';
 

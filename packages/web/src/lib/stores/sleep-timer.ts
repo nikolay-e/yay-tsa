@@ -348,7 +348,12 @@ function start(config?: Partial<SleepTimerConfig>): void {
   clearTickInterval();
   tickIntervalId = setInterval(tick, 100);
 
-  log.info('Started', { musicDurationMs: newConfig.musicDurationMs, noiseDurationMs: newConfig.noiseDurationMs, crossfadeDurationMs: newConfig.crossfadeDurationMs, enableNoise: newConfig.enableNoise });
+  log.info('Started', {
+    musicDurationMs: newConfig.musicDurationMs,
+    noiseDurationMs: newConfig.noiseDurationMs,
+    crossfadeDurationMs: newConfig.crossfadeDurationMs,
+    enableNoise: newConfig.enableNoise,
+  });
 }
 
 function stopSleepTimer(): void {
@@ -377,7 +382,12 @@ function stopSleepTimer(): void {
     config: get(sleepTimerStore).config,
   });
 
-  log.info('Stopped', { phase: currentPhase, savedVolume: savedMusicVolume, volumeBefore: volumeBeforeRestore, volumeAfter: volumeAfterRestore });
+  log.info('Stopped', {
+    phase: currentPhase,
+    savedVolume: savedMusicVolume,
+    volumeBefore: volumeBeforeRestore,
+    volumeAfter: volumeAfterRestore,
+  });
 }
 
 async function cancel(): Promise<void> {
@@ -395,7 +405,12 @@ async function cancel(): Promise<void> {
   player.setVolume(savedMusicVolume);
   const volumeAfterRestore = get(volumeStore);
 
-  log.info('Cancelled', { phase: state.phase, savedVolume: savedMusicVolume, volumeBefore: volumeBeforeRestore, volumeAfter: volumeAfterRestore });
+  log.info('Cancelled', {
+    phase: state.phase,
+    savedVolume: savedMusicVolume,
+    volumeBefore: volumeBeforeRestore,
+    volumeAfter: volumeAfterRestore,
+  });
 
   if (state.phase !== 'music' && state.phase !== 'idle') {
     try {

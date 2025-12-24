@@ -6,6 +6,8 @@
   import { currentTrack, player } from '../lib/stores/player.js';
   import PlayerBar from '../lib/components/player/PlayerBar.svelte';
   import BottomTabBar from '../lib/components/navigation/BottomTabBar.svelte';
+  import PasskeyRegistrationModal from '../lib/components/auth/PasskeyRegistrationModal.svelte';
+  import PasskeyVerificationModal from '../lib/components/auth/PasskeyVerificationModal.svelte';
   import { cacheManager } from '../lib/cache/cache-manager.js';
   import { createLogger } from '../lib/utils/logger.js';
   import '../app.css';
@@ -17,6 +19,9 @@
   export const params = {};
 
   let loading = true;
+  let showPasskeyVerificationModal = false;
+  let showPasskeyRegistrationModal = false;
+  let sessionRestoredWithoutVerification = false;
 
   // Global error handlers for catching unhandled errors
   onMount(() => {
@@ -59,11 +64,70 @@
 
     loading = false;
 
-    // Redirect to login if not authenticated and not already on login page
-    if (!restored && $page.url.pathname !== '/login') {
+    if (restored) {
+      // Session was restored - check if passkey verification is needed
+      // TODO: Replace with actual check from auth service
+      const needsPasskeyVerification = await checkIfPasskeyVerificationNeeded();
+
+      if (needsPasskeyVerification) {
+        sessionRestoredWithoutVerification = true;
+        showPasskeyVerificationModal = true;
+      }
+    } else if ($page.url.pathname !== '/login') {
+      // Redirect to login if not authenticated and not already on login page
       goto('/login');
     }
   });
+
+  async function checkIfPasskeyVerificationNeeded(): Promise<boolean> {
+    // TODO: Implement actual logic to check if passkey verification is needed
+    // This would typically check if:
+    // 1. User has passkeys registered
+    // 2. Session was restored from storage (not fresh login)
+    // 3. Session hasn't been verified with passkey yet
+    // For now, returning false as placeholder
+    return false;
+  }
+
+  async function checkIfPasskeyRegistrationNeeded(): Promise<boolean> {
+    // TODO: Implement actual logic to check if user needs to register a passkey
+    // This would typically check if user has no passkeys registered
+    // For now, returning false as placeholder
+    return false;
+  }
+
+  function handlePasskeyVerified() {
+    log.info('[Passkey] Verification successful');
+    showPasskeyVerificationModal = false;
+    sessionRestoredWithoutVerification = false;
+  }
+
+  function handlePasskeyVerificationFallback() {
+    log.info('[Passkey] User chose password fallback');
+    showPasskeyVerificationModal = false;
+    sessionRestoredWithoutVerification = false;
+    // Auth.logout() is called in the modal, which will redirect to login
+  }
+
+  async function handlePasskeyRegistered() {
+    log.info('[Passkey] Registration successful');
+    showPasskeyRegistrationModal = false;
+  }
+
+  function handlePasskeyRegistrationClose() {
+    log.info('[Passkey] Registration modal closed');
+    showPasskeyRegistrationModal = false;
+  }
+
+  // Check if passkey registration is needed after successful authentication
+  $: if ($isAuthenticated && !loading && !showPasskeyVerificationModal && !sessionRestoredWithoutVerification) {
+    // Only check for registration if this is a fresh login (not session restore)
+    checkIfPasskeyRegistrationNeeded().then(needsRegistration => {
+      if (needsRegistration && !showPasskeyRegistrationModal) {
+        showPasskeyRegistrationModal = true;
+      }
+    });
+  }
 
   // Handle app background/foreground transitions (mobile playback fix)
   // When hidden: stop RAF updates to save CPU
@@ -192,6 +256,19 @@
     {#if $isAuthenticated && $page.url.pathname !== '/login'}
       <BottomTabBar />
     {/if}
+
+    <!-- Passkey modals -->
+    <PasskeyVerificationModal
+      isOpen={showPasskeyVerificationModal}
+      on:verified={handlePasskeyVerified}
+      on:fallback={handlePasskeyVerificationFallback}
+    />
+
+    <PasskeyRegistrationModal
+      isOpen={showPasskeyRegistrationModal}
+      on:registered={handlePasskeyRegistered}
+      on:close={handlePasskeyRegistrationClose}
+    />
   </div>
 {/if}
 
