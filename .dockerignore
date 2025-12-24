@@ -64,3 +64,35 @@ test-media
 # Integration tests
 run-integration-tests.sh
 vitest.integration.config.ts
+
+# Maven/Java build artifacts
+server/target/
+
+# Linter configs (not needed in production)
+.bundlewatchrc.json
+.jscpd.json
+.hadolint.yaml
+.markdownlint.yaml
+.markdownlintignore
+.stylelintrc.json
+.treemapperignore
+commitlint.config.js
+
+# Additional temporary files
+tree.tmp
+test-output.log
+directory_tree.yaml
+
+# SSH keys (prevent accidental exposure)
+*id_rsa*
+*id_ed25519*
+*.key
+
+# Secrets baseline
+.secrets.baseline
+
+# GitHub Actions
+.github/
+
+# Claude AI tools
+.claude/
