@@ -103,26 +103,6 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Get user by ID",
-              description = "Retrieve user profile information")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Successfully retrieved user",
-                    content = @Content(schema = @Schema(implementation = UserDto.class))),
-        @ApiResponse(responseCode = "404", description = "User not found"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
-    })
-    @GetMapping("/Users/{userId}")
-    public ResponseEntity<UserDto> getUser(
-            @PathVariable String userId,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
-
-        // TODO: Phase 2 - Fetch from database
-        UserDto user = UserDto.minimal(userId, "Test User", "yaytsa-server");
-
-        return ResponseEntity.ok(user);
-    }
-
     @Operation(summary = "Get current user",
               description = "Retrieve the currently authenticated user's profile")
     @GetMapping("/Users/Me")
