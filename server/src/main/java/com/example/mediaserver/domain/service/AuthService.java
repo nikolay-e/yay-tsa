@@ -61,6 +61,7 @@ public class AuthService {
         } else {
             if (existingToken.isPresent()) {
                 apiTokenRepository.delete(existingToken.get());
+                apiTokenRepository.flush();
             }
 
             tokenEntity = new ApiTokenEntity();
