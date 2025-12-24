@@ -25,6 +25,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        hbm2ddl:
+          auto: none
         format_sql: false
         show_sql: false
         jdbc:
