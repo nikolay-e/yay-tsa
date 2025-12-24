@@ -31,12 +31,10 @@ public interface ItemRepository extends JpaRepository<ItemEntity, UUID>, JpaSpec
         JOIN PlayStateEntity ps ON ps.item = i
         WHERE ps.user.id = :userId
         AND ps.lastPlayedAt IS NOT NULL
-        AND (:types IS NULL OR i.type IN :types)
         ORDER BY ps.lastPlayedAt DESC
         """)
     Page<ItemEntity> findRecentlyPlayedByUser(
         @Param("userId") UUID userId,
-        @Param("types") List<ItemType> types,
         Pageable pageable
     );
 }

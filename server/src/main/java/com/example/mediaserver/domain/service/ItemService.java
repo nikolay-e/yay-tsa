@@ -92,19 +92,12 @@ public class ItemService {
     }
 
     private Page<ItemEntity> queryRecentlyPlayed(ItemsQueryParams params) {
-        List<ItemType> types = null;
-        if (params.includeItemTypes() != null && !params.includeItemTypes().isEmpty()) {
-            types = params.includeItemTypes().stream()
-                .map(ItemType::valueOf)
-                .toList();
-        }
-
         Pageable pageable = PageRequest.of(
             params.startIndex() / params.limit(),
             params.limit()
         );
 
-        return itemRepository.findRecentlyPlayedByUser(params.userId(), types, pageable);
+        return itemRepository.findRecentlyPlayedByUser(params.userId(), pageable);
     }
 
     public List<AudioTrackEntity> getAlbumTracks(UUID albumId) {
