@@ -22,7 +22,14 @@ CMD ["npm", "run", "dev"]
 
 FROM base AS builder
 
-RUN npm run build
+# Version injected at build time - Vite replaces placeholder during bundling
+ARG GIT_SHA=0.0.0-dev
+ENV GIT_SHA=${GIT_SHA}
+
+RUN npm run build && \
+    # Also sed-replace any remaining placeholders (fallback for non-Vite processed files)
+    find /app/packages/web/build -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
+        sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + 2>/dev/null || true
 
 FROM mcr.microsoft.com/playwright:v1.57.0-noble AS test
 
@@ -45,9 +52,6 @@ CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../web && n
 
 FROM nginx:1.29.4-alpine AS production
 
-# Version injected at build time - replaces placeholder in all built files
-ARG GIT_SHA=0.0.0-placeholder
-
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
 COPY --from=builder /app/packages/web/build /usr/share/nginx/html
 COPY docker-entrypoint.sh /docker-entrypoint.sh
@@ -55,9 +59,6 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN apk add --no-cache bash wget jq openssl && \
     rm -rf /etc/nginx/nginx.conf.default /usr/share/nginx/html/.gitkeep && \
     chmod +x /docker-entrypoint.sh && \
-    # Replace version placeholder with actual GIT_SHA in all built files
-    find /usr/share/nginx/html -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
-        sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + && \
     mkdir -p /var/cache/nginx /var/run && \
     chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /var/run
