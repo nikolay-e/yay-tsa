@@ -38,7 +38,7 @@ RUN addgroup -g 1000 yaytsa && \
 WORKDIR /app
 
 # Create necessary directories
-RUN mkdir -p /app/media /app/temp/transcode /app/temp/images /app/logs && \
+RUN mkdir -p /app/media /app/temp/transcode /app/temp/images /app/logs /app/stems && \
     chown -R yaytsa:yaytsa /app
 
 # Copy JAR from builder stage

@@ -4,6 +4,7 @@
  */
 
 import { AudioEngine } from '../audio.interface.js';
+import { VocalRemovalProcessor } from './vocal-removal.js';
 import { createLogger } from '@yaytsa/core';
 
 const log = createLogger('Audio');
@@ -37,6 +38,10 @@ export class HTML5AudioEngine implements AudioEngine {
 
   // Track current fade operation for cancellation
   private currentFadeCancel: (() => void) | null = null;
+
+  // Vocal removal processor for karaoke mode
+  private vocalRemovalProcessor: VocalRemovalProcessor | null = null;
+  private karaokeEnabled: boolean = false;
 
   constructor() {
     this.audio = new Audio();
@@ -344,6 +349,12 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audio.src = '';
     this.audio.load();
 
+    // Dispose vocal removal processor
+    if (this.vocalRemovalProcessor) {
+      this.vocalRemovalProcessor.dispose();
+      this.vocalRemovalProcessor = null;
+    }
+
     // Close audio context
     if (this.audioContext && this.audioContext.state !== 'closed') {
       void this.audioContext.close();
@@ -419,5 +430,42 @@ export class HTML5AudioEngine implements AudioEngine {
 
   getAudioContext(): AudioContext | null {
     return this.audioContext;
+  }
+
+  getAudioElement(): HTMLAudioElement | null {
+    return this.audio;
+  }
+
+  setKaraokeMode(enabled: boolean): void {
+    this.ensureNotDisposed();
+
+    if (!this.audioContext) {
+      log.warn('AudioContext not available for karaoke mode');
+      this.karaokeEnabled = false;
+      return;
+    }
+
+    this.karaokeEnabled = enabled;
+
+    if (enabled && !this.vocalRemovalProcessor) {
+      try {
+        this.vocalRemovalProcessor = new VocalRemovalProcessor(this.audioContext, {
+          enabled: true,
+          bassPreservationCutoff: 120,
+        });
+        this.vocalRemovalProcessor.connectToAudioElement(this.audio);
+        log.info('Karaoke mode enabled');
+      } catch (error) {
+        log.error('Failed to enable karaoke mode', { error: String(error) });
+        this.karaokeEnabled = false;
+      }
+    } else if (this.vocalRemovalProcessor) {
+      this.vocalRemovalProcessor.setEnabled(enabled);
+      log.info(`Karaoke mode ${enabled ? 'enabled' : 'disabled'}`);
+    }
+  }
+
+  isKaraokeModeEnabled(): boolean {
+    return this.karaokeEnabled;
   }
 }

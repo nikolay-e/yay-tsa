@@ -4,7 +4,7 @@
  */
 
 // API modules
-export { MediaServerClient } from './api/client.js';
+export { MediaServerClient, type KaraokeStatus } from './api/client.js';
 export { BaseService } from './api/base-service.js';
 export { AuthService, validateServerUrl } from './api/auth.js';
 export { ItemsService } from './api/items.js';

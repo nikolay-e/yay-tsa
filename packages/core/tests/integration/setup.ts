@@ -23,7 +23,9 @@ export function loadTestConfig(): TestConfig {
   const password = process.env.YAYTSA_TEST_PASSWORD;
 
   if (!serverUrl) {
-    throw new Error('YAYTSA_SERVER_URL is required for integration tests. Please set it in .env file.');
+    throw new Error(
+      'YAYTSA_SERVER_URL is required for integration tests. Please set it in .env file.'
+    );
   }
 
   if (!username || !password) {
@@ -88,7 +90,9 @@ export function skipIfNoCredentials(): void {
   const hasCredentials = process.env.YAYTSA_TEST_USERNAME && process.env.YAYTSA_TEST_PASSWORD;
 
   if (!hasCredentials) {
-    console.warn('⚠️  Skipping integration tests - YAYTSA_TEST_USERNAME and YAYTSA_TEST_PASSWORD not set');
+    console.warn(
+      '⚠️  Skipping integration tests - YAYTSA_TEST_USERNAME and YAYTSA_TEST_PASSWORD not set'
+    );
   }
 }
 

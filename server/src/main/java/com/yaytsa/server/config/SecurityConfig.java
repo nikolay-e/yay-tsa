@@ -73,6 +73,13 @@ public class SecurityConfig {
                 })
             )
 
+            .headers(headers -> headers
+                // Prevent token leakage via Referrer header when streaming URLs contain api_key
+                .referrerPolicy(referrer -> referrer.policy(
+                    org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN
+                ))
+            )
+
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/error").permitAll()
@@ -97,10 +104,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        if ("*".equals(allowedOrigins)) {
-            configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // Split and trim origins to handle whitespace around commas
+        var origins = Arrays.stream(allowedOrigins.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
+
+        if (allowedOrigins.contains("*")) {
+            configuration.setAllowedOriginPatterns(origins);
         } else {
-            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+            configuration.setAllowedOrigins(origins);
         }
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));

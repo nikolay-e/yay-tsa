@@ -105,4 +105,19 @@ export interface AudioEngine {
    * Get the underlying AudioContext if available (for advanced audio features)
    */
   getAudioContext?(): AudioContext | null;
+
+  /**
+   * Get the underlying HTMLAudioElement if available (for Web Audio processing)
+   */
+  getAudioElement?(): HTMLAudioElement | null;
+
+  /**
+   * Enable or disable karaoke mode (vocal removal via phase cancellation)
+   */
+  setKaraokeMode?(enabled: boolean): void;
+
+  /**
+   * Check if karaoke mode is currently enabled
+   */
+  isKaraokeModeEnabled?(): boolean;
 }

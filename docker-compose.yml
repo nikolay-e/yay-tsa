@@ -1,7 +1,7 @@
 # Yaytsa - Local Media Server Stack
 #
 # USAGE:
-#   docker compose up                    # Start all services (dev mode)
+#   docker compose up                    # Start all services (dev mode with karaoke)
 #   docker compose up -d                 # Start all services in background
 #   docker compose --profile test up     # Run E2E tests
 #   docker compose down -v               # Stop and clean volumes
@@ -47,12 +47,15 @@ services:
       LIBRARY_ROOTS: /media
       SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
       CORS_ENABLED: true
-      CORS_ORIGINS: '*'
+      CORS_ORIGINS: 'http://localhost:5173,http://localhost:*'
+      KARAOKE_SEPARATOR_URL: http://audio-separator:8000
+      KARAOKE_STEMS_PATH: /app/stems
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:
       - ${MEDIA_PATH:-./server/media}:/media:ro
       - ./server/logs:/app/logs
+      - karaoke_stems:/app/stems
     networks:
       yaytsa-network:
         aliases:
@@ -107,6 +110,38 @@ services:
       retries: 10
       start_period: 30s
 
+  # Audio Separator (Karaoke - vocal removal)
+  # Build: KARAOKE_VARIANT=cpu (default, native ARM) or KARAOKE_VARIANT=gpu (x86_64 with CUDA)
+  # Runtime: KARAOKE_DEVICE=cpu (default) or KARAOKE_DEVICE=cuda (requires GPU)
+  audio-separator:
+    build:
+      context: ./docker/audio-separator
+      dockerfile: Dockerfile
+      args:
+        VARIANT: ${KARAOKE_VARIANT:-cpu}
+    container_name: yaytsa-audio-separator
+    environment:
+      MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
+      OUTPUT_FORMAT: wav
+      DEVICE: ${KARAOKE_DEVICE:-cpu}
+    volumes:
+      - ${MEDIA_PATH:-./server/media}:/media:ro
+      - karaoke_stems:/app/stems
+    networks:
+      - yaytsa-network
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
   # E2E Tests
   test:
     build:
@@ -141,3 +176,5 @@ networks:
 volumes:
   postgres_data:
     name: yaytsa-postgres-data
+  karaoke_stems:
+    name: yaytsa-karaoke-stems

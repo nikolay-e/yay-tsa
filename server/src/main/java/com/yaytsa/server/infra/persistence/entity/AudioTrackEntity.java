@@ -60,4 +60,13 @@ public class AudioTrackEntity {
 
     @Column(columnDefinition = "TEXT")
     private String lyrics;
+
+    @Column(name = "karaoke_ready")
+    private Boolean karaokeReady = false;
+
+    @Column(name = "instrumental_path", columnDefinition = "TEXT")
+    private String instrumentalPath;
+
+    @Column(name = "vocal_path", columnDefinition = "TEXT")
+    private String vocalPath;
 }

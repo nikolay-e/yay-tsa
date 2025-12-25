@@ -235,6 +235,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VARIANT=gpu
           cache-from: type=gha,scope=audio-separator
           cache-to: type=gha,mode=max,scope=audio-separator
           platforms: linux/amd64

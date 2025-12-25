@@ -98,6 +98,10 @@ export class MediaServerClient {
     return this.userId;
   }
 
+  getServerUrl(): string {
+    return this.serverUrl;
+  }
+
   /**
    * Set callback for global 401/403 authentication errors
    * This callback will be invoked before throwing AuthenticationError
@@ -559,4 +563,60 @@ export class MediaServerClient {
   isAuthenticated(): boolean {
     return this.token !== null && this.userId !== null;
   }
+
+  /**
+   * Check if karaoke feature is enabled on server
+   * Returns false for 404/network errors (feature not implemented)
+   * Throws for auth errors (401/403) so global handler can react
+   */
+  async getKaraokeEnabled(): Promise<boolean> {
+    try {
+      const result = await this.get<{ enabled: boolean }>('/Karaoke/enabled');
+      return result?.enabled ?? false;
+    } catch (error) {
+      // Let auth errors propagate so global 401/403 handler can react
+      if (error instanceof AuthenticationError) {
+        throw error;
+      }
+      // Swallow 404 (feature not implemented) and network errors
+      return false;
+    }
+  }
+
+  /**
+   * Get karaoke processing status for a track
+   */
+  async getKaraokeStatus(trackId: string): Promise<KaraokeStatus> {
+    const result = await this.get<KaraokeStatus>(`/Karaoke/${trackId}/status`);
+    return result ?? { state: 'NOT_STARTED', message: null, progressPercent: null };
+  }
+
+  /**
+   * Request karaoke processing for a track
+   */
+  async requestKaraokeProcessing(trackId: string): Promise<KaraokeStatus> {
+    const result = await this.post<KaraokeStatus>(`/Karaoke/${trackId}/process`);
+    return result ?? { state: 'PROCESSING', message: 'Starting...', progressPercent: 0 };
+  }
+
+  /**
+   * Build instrumental stream URL for karaoke playback
+   */
+  getInstrumentalStreamUrl(itemId: string): string {
+    if (!this.token) {
+      throw new AuthenticationError('Cannot build stream URL: not authenticated');
+    }
+
+    const params = new URLSearchParams({
+      api_key: this.token,
+    });
+
+    return `${this.serverUrl}/Karaoke/${itemId}/instrumental?${params}`;
+  }
+}
+
+export interface KaraokeStatus {
+  state: 'NOT_STARTED' | 'PROCESSING' | 'READY' | 'FAILED';
+  message: string | null;
+  progressPercent: number | null;
 }

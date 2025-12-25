@@ -71,15 +71,27 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Audio Separator Service", version="1.0.0", lifespan=lifespan)
 
 
-def create_separator(input_path: str, output_dir: str):
+_separator_instance = None
+_separator_lock = threading.Lock()
+
+
+def get_separator(output_dir: str):
+    global _separator_instance
     from audio_separator.separator import Separator
-    return Separator(
-        audio_file_path=input_path,
-        model_name=MODEL_NAME,
-        output_dir=output_dir,
-        output_format=OUTPUT_FORMAT,
-        use_cuda=USE_CUDA,
-    )
+
+    with _separator_lock:
+        if _separator_instance is None:
+            log.info(f"Initializing Separator with model {MODEL_NAME}")
+            _separator_instance = Separator(
+                output_dir=output_dir,
+                output_format=OUTPUT_FORMAT,
+            )
+            _separator_instance.load_model(model_filename=MODEL_NAME)
+            log.info("Model loaded successfully")
+        else:
+            _separator_instance.output_dir = output_dir
+
+    return _separator_instance
 
 
 def update_job_progress(track_id: str, data: dict):
@@ -143,10 +155,10 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
             "trackId": track_id,
             "state": "PROCESSING",
             "progress": 5,
-            "message": "Loading audio file",
+            "message": "Loading model",
         })
 
-        sep = create_separator(str(input_path), str(output_dir))
+        sep = get_separator(str(output_dir))
 
         update_job_progress(track_id, {
             **job_progress.get(track_id, {}),
@@ -154,7 +166,7 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
             "message": "Separating audio (AI processing)",
         })
 
-        output_files = sep.separate()
+        output_files = sep.separate(str(input_path))
 
         update_job_progress(track_id, {
             **job_progress.get(track_id, {}),

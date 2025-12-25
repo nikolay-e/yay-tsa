@@ -14,6 +14,7 @@ import {
 } from '@yaytsa/core';
 import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { client } from './auth.js';
+import { karaoke, shouldUseInstrumental } from './karaoke.js';
 
 const log = createLogger('Player');
 
@@ -118,6 +119,9 @@ if (browser) {
   audioEngine = new HTML5AudioEngine();
   mediaSession = new MediaSessionManager();
 
+  // Initialize karaoke store with audio engine reference
+  karaoke.setAudioEngine(audioEngine);
+
   // Log media session support (development only)
   if (mediaSession.supported()) {
     log.info('[Media Session] Supported - background playback enabled');
@@ -165,6 +169,88 @@ clientUnsubscribe = client.subscribe($client => {
     playerStore.set({ ...initialState, volume: currentVolume });
   }
 });
+
+// Subscribe to karaoke mode changes for live stream switching
+let previousUseInstrumental = false;
+let karaokeUnsubscribe: (() => void) | null = null;
+if (browser) {
+  karaokeUnsubscribe = shouldUseInstrumental.subscribe($shouldUse => {
+    // Only react to actual changes (skip initial subscription call)
+    if ($shouldUse !== previousUseInstrumental) {
+      previousUseInstrumental = $shouldUse;
+
+      // If track is playing, reload with new stream URL
+      const state = get(playerStore);
+      const $client = get(client);
+      if (state.currentTrack && $client && audioEngine) {
+        const wasPlaying = state.isPlaying;
+        const currentPosition = audioEngine.getCurrentTime();
+        // Capture track ID for race condition protection
+        const targetTrackId = state.currentTrack.Id;
+
+        // Compute URLs: old uses !$shouldUse (opposite of new state)
+        const oldStreamUrl = !$shouldUse
+          ? $client.getInstrumentalStreamUrl(targetTrackId)
+          : $client.getStreamUrl(targetTrackId);
+        const newStreamUrl = $shouldUse
+          ? $client.getInstrumentalStreamUrl(targetTrackId)
+          : $client.getStreamUrl(targetTrackId);
+
+        log.info('Karaoke mode changed, switching stream', {
+          trackId: targetTrackId,
+          useInstrumental: $shouldUse,
+        });
+
+        // Set loading state during stream swap
+        playerStore.update(s => ({ ...s, isLoading: true }));
+
+        // Reload track with new URL, restore position
+        audioEngine
+          .load(newStreamUrl)
+          .then(async () => {
+            // Verify track hasn't changed during async load
+            const currentState = get(playerStore);
+            if (currentState.currentTrack?.Id !== targetTrackId) {
+              log.debug('Track changed during karaoke stream swap, aborting');
+              return;
+            }
+
+            // Only seek after metadata is loaded (getDuration > 0 means seekable)
+            const duration = audioEngine!.getDuration();
+            if (duration > 0 && currentPosition < duration) {
+              audioEngine!.seek(currentPosition);
+            }
+            if (wasPlaying) {
+              return audioEngine!.play();
+            }
+          })
+          .then(() => {
+            // Verify track still matches before updating state
+            const currentState = get(playerStore);
+            if (currentState.currentTrack?.Id === targetTrackId) {
+              playerStore.update(s => ({ ...s, isLoading: false, error: null }));
+            }
+          })
+          .catch(err => {
+            log.error('Failed to switch karaoke stream', err);
+            // Only update error state if track still matches
+            const currentState = get(playerStore);
+            if (currentState.currentTrack?.Id === targetTrackId) {
+              playerStore.update(s => ({
+                ...s,
+                isLoading: false,
+                error: err instanceof Error ? err : new Error('Failed to switch stream'),
+              }));
+            }
+            // Try to restore previous stream
+            audioEngine!.load(oldStreamUrl).catch(() => {
+              log.error('Failed to restore previous stream');
+            });
+          });
+      }
+    }
+  });
+}
 
 if (audioEngine) {
   audioEngine.setVolume(persistedVolume);
@@ -283,8 +369,16 @@ async function playTrackFromQueue(track: AudioItem): Promise<void> {
   }
 
   try {
-    // Get stream URL
-    const streamUrl = $client.getStreamUrl(track.Id);
+    // Notify karaoke store about track change (triggers status check)
+    void karaoke.setCurrentTrack(track.Id);
+
+    // Get stream URL - use instrumental if server-side karaoke is active and ready
+    const useInstrumental = get(shouldUseInstrumental);
+    const streamUrl = useInstrumental
+      ? $client.getInstrumentalStreamUrl(track.Id)
+      : $client.getStreamUrl(track.Id);
+
+    log.info('Loading track', { trackId: track.Id, useInstrumental });
 
     // Load and play
     playerStore.update(s => ({ ...s, isLoading: true, error: null, currentTrack: track }));
@@ -786,6 +880,12 @@ function dispose(): void {
   if (clientUnsubscribe) {
     clientUnsubscribe();
     clientUnsubscribe = null;
+  }
+
+  // Unsubscribe from karaoke store
+  if (karaokeUnsubscribe) {
+    karaokeUnsubscribe();
+    karaokeUnsubscribe = null;
   }
 
   // Dispose playback state

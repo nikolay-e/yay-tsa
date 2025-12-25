@@ -4,6 +4,7 @@
   import { hapticPlayPause, hapticSkip } from '../../utils/haptics.js';
   import { PLAYER_TEST_IDS } from '$lib/test-ids';
   import SleepTimerButton from './SleepTimerButton.svelte';
+  import KaraokeModeButton from './KaraokeModeButton.svelte';
   import { createLogger } from '@yaytsa/core';
 
   const log = createLogger('Controls');
@@ -53,7 +54,10 @@
 </script>
 
 <div class="controls">
-  <!-- Queue (left side) -->
+  <!-- Karaoke Mode (left side) -->
+  <KaraokeModeButton />
+
+  <!-- Queue -->
   <button
     type="button"
     class="control-btn"

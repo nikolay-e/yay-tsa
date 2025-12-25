@@ -44,7 +44,7 @@ This document outlines the implementation plan for a karaoke mode that plays mus
    - VRAM requirement: 7GB recommended, min 3GB
    - Supports: Spleeter, Demucs, BS-RoFormer
 
-## Yaytsa Architecture Compatibility
+## Architecture
 
 ### Current Audio Stack
 
@@ -69,14 +69,23 @@ This document outlines the implementation plan for a karaoke mode that plays mus
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Extensibility Points
+### Karaoke Architecture
 
-1. **`getAudioContext()`** - Access underlying Web Audio API context
-2. **PinkNoiseGenerator pattern** - Shows how to add audio processing nodes
-3. **Backend transcoding config** - FFmpeg integration planned but not implemented
-4. **Sleep timer architecture** - Demonstrates advanced audio manipulation
+```
+Original Audio (FLAC/MP3)
+        ↓
+Java Backend (trigger)
+        ↓ HTTP POST
+Python audio-separator (Docker + GPU)
+        ↓ Demucs v4 / MDX-Net
+Stems: vocal.wav + instrumental.wav
+        ↓
+Storage (filesystem)
+        ↓
+Frontend toggle: Original ↔ Karaoke
+```
 
-## Recommended Implementation: Hybrid Multi-Tier
+## Implementation
 
 ### Tier 1: Instant Mode (Phase Cancellation)
 
@@ -92,26 +101,21 @@ Implementation using Web Audio API:
 - Apply `GainNode` with gain=-1 to one channel (phase inversion)
 - Add `BiquadFilterNode` highpass at 120Hz (preserve bass)
 - Merge with `ChannelMergerNode`
-- Output mono result
 
-**Pros**:
+**Pros:**
 
 - Instant, no loading time
 - Works offline
 - Zero server cost
-- Good enough for casual karaoke
 
-**Cons**:
+**Cons:**
 
 - Removes some instruments (centered ones)
 - Variable quality based on original mix
-- Mono output
 
 ### Tier 2: Quality Mode (Server-Side AI)
 
 **Quality**: High | **Speed**: 5-30 seconds (GPU) | **Cost**: Server resources
-
-Architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -120,7 +124,7 @@ Architecture:
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Check cache: GET /api/karaoke/{itemId}/instrumental     │
+│ Check cache: GET /Karaoke/{itemId}/status               │
 │   Cache hit → stream cached instrumental                │
 │   Cache miss → enqueue separation job                   │
 └─────────────────────────────────────────────────────────┘
@@ -131,122 +135,69 @@ Architecture:
 │   1. Download original audio file                       │
 │   2. Run Demucs separation (GPU accelerated)            │
 │   3. Store instrumental stem                            │
-│   4. Notify client via WebSocket/polling                │
+│   4. Notify client via SSE                              │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Server Components**:
+## API Endpoints
 
-- `/api/karaoke/{itemId}/status` - Check if instrumental exists
-- `/api/karaoke/{itemId}/request` - Request separation
-- `/api/karaoke/{itemId}/stream` - Stream instrumental file
-- Background worker with Demucs (Python sidecar or Java Process)
+| Method | Endpoint                         | Description              |
+| ------ | -------------------------------- | ------------------------ |
+| GET    | /Karaoke/enabled                 | Check if feature enabled |
+| GET    | /Karaoke/{trackId}/status        | Processing status        |
+| GET    | /Karaoke/{trackId}/status/stream | SSE stream for updates   |
+| POST   | /Karaoke/{trackId}/process       | Request processing       |
+| GET    | /Karaoke/{trackId}/instrumental  | Stream instrumental      |
+| GET    | /Karaoke/{trackId}/vocals        | Stream vocals only       |
 
-**Caching Strategy**:
+## Components
 
-- Store instrumental alongside original in library
-- Cache key: `{itemId}_instrumental.{format}`
-- Optional: Store all 4 stems for future features (drums, bass isolated practice)
+### Python Microservice (audio-separator)
 
-### Tier 3: Optional Cloud API Fallback
+Docker image: Custom build with CUDA support
 
-If self-hosting GPU is not feasible:
+Files:
 
-- [LALAL.AI API](https://www.lalal.ai/) - Commercial, high quality
-- [vocalremover.org API](https://vocalremover.org/) - Commercial
-- Pay-per-use model, good for low-volume usage
+- `docker/audio-separator/Dockerfile`
+- `docker/audio-separator/app.py` (FastAPI wrapper)
 
-## Implementation Plan
+### Java Backend
 
-### Phase 1: Client-Side Instant Mode
+Files:
 
-**Effort**: 1-2 days | **Priority**: High
+- `server/.../domain/service/KaraokeService.java`
+- `server/.../infra/client/AudioSeparatorClient.java`
+- `server/.../controller/KaraokeController.java`
 
-Files to create/modify:
+Database changes:
 
-```
-packages/platform/src/web/
-├── vocal-remover.ts          # Phase cancellation processor
-└── audio-effects-chain.ts    # Pluggable effects architecture
+- `audio_tracks.karaoke_ready` (BOOLEAN)
+- `audio_tracks.instrumental_path` (TEXT)
+- `audio_tracks.vocal_path` (TEXT)
 
-packages/web/src/lib/
-├── stores/karaoke.ts         # Karaoke mode state
-└── components/player/
-    └── KaraokeModeButton.svelte
-```
+### Frontend (SvelteKit)
 
-Implementation steps:
+Files:
 
-1. Create `VocalRemover` class using Web Audio API
-2. Extend `HTML5AudioEngine` with effects chain support
-3. Add karaoke toggle to player controls
-4. Persist karaoke preference per track (localStorage)
+- `packages/platform/src/web/vocal-removal.ts` - Phase cancellation
+- `packages/web/src/lib/stores/karaoke.ts` - State management
+- `packages/web/src/lib/components/player/KaraokeModeButton.svelte`
 
-### Phase 2: Server-Side AI Separation
+## Resource Requirements
 
-**Effort**: 1-2 weeks | **Priority**: Medium
+| Component  | CPU Mode                              | GPU Mode     |
+| ---------- | ------------------------------------- | ------------ |
+| RAM        | 8-16 GB                               | 4-8 GB       |
+| Time/track | ~60-90s (Spleeter) / ~3-4min (Demucs) | 5-30 seconds |
+| Storage    | ~50MB per track (stems)               | Same         |
 
-Backend additions:
+## UX Flow
 
-```
-server/src/main/java/com/yaytsa/server/
-├── domain/service/
-│   └── KaraokeService.java       # Separation job management
-├── infra/separation/
-│   ├── DemucsProcessor.java      # Python process wrapper
-│   └── SeparationJobEntity.java  # Job tracking
-└── presentation/api/
-    └── KaraokeController.java    # REST endpoints
-```
-
-Requirements:
-
-- Python environment with Demucs on server
-- GPU (NVIDIA) for reasonable performance
-- Storage for cached stems (~2x original file size for instrumental)
-
-### Phase 3: UI Enhancements
-
-**Effort**: 1 week | **Priority**: Low
-
-Features:
-
-- Vocals volume slider (0-100% vocal blend)
-- Real-time mixing of original + instrumental
-- Queue-level karaoke mode (apply to all tracks)
-- Visual indicator when in karaoke mode
-
-## Technical Decisions
-
-### Decision 1: Start with Phase Cancellation
-
-**Rationale**: Provides immediate value with zero infrastructure cost. Users can enjoy basic karaoke functionality while AI separation is developed.
-
-### Decision 2: Server-Side over Client-Side AI
-
-**Rationale**:
-
-- Client WASM requires 4-16GB RAM, 5-17 min processing
-- Server GPU processes in seconds
-- Caching eliminates repeated processing
-- Better UX (request once, play forever)
-
-### Decision 3: Cache Instrumental Stems
-
-**Rationale**:
-
-- Separation is expensive (even with GPU)
-- Same song played multiple times = same instrumental
-- Storage is cheap (~doubling library size worst case)
-
-### Decision 4: Demucs over Spleeter
-
-**Rationale**:
-
-- Higher quality (9.0 dB SDR vs ~6 dB)
-- MIT license (same as project)
-- Active development (forked to adefossez/demucs)
-- Better guitar/piano separation for future features
+1. User opens track → sees "Karaoke" button
+2. If stems not ready → shows "Prepare karaoke" option
+3. Click → starts processing → progress indicator (~1-2 min)
+4. After ready → toggle switches Original ↔ Instrumental
+5. Stems cached → instant switching next time
 
 ## Risk Assessment
 
@@ -257,21 +208,6 @@ Features:
 | Large storage for cached stems  | Medium      | Medium | Configurable cache limits, LRU eviction           |
 | Demucs Python dependency        | Low         | Medium | Docker containerization, process isolation        |
 
-## Open Questions
-
-1. **Should karaoke mode be per-track or global?**
-   - Recommendation: Per-track with "apply to queue" option
-
-2. **Store all 4 stems or just instrumental?**
-   - Recommendation: Start with instrumental only, expand later
-
-3. **Background processing notification method?**
-   - Options: WebSocket, SSE, polling
-   - Recommendation: Polling (simplest, already used for playback reporting)
-
-4. **Mobile browser compatibility for phase cancellation?**
-   - Need to test Web Audio API performance on iOS Safari
-
 ## References
 
 - [Demucs (Facebook Research)](https://github.com/facebookresearch/demucs)
@@ -279,14 +215,3 @@ Features:
 - [Spleeter Web (Self-hosted)](https://github.com/JeffreyCA/spleeter-web)
 - [Web Audio API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 - [Phase Cancellation Technique](https://www.soundonsound.com/sound-advice/q-can-remove-vocals-track-using-phase)
-- [LALAL.AI](https://www.lalal.ai/)
-- [Moises AI](https://moises.ai/features/vocal-remover/)
-
-## Next Steps
-
-1. Review and approve this plan
-2. Implement Phase 1 (client-side instant mode)
-3. Set up Demucs on backend server (Docker)
-4. Implement Phase 2 (server-side separation)
-5. E2E testing with real tracks
-6. UI polish (Phase 3)

@@ -169,6 +169,13 @@ yaytsa:
       quality: 85
       cache-max-age: 604800 # 7 days in seconds
 
+    # Karaoke (vocal removal) configuration
+    karaoke:
+      separator-url: ${KARAOKE_SEPARATOR_URL:http://audio-separator:8000}
+      # Default to /app/stems to match docker-compose volume mount
+      stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
+      model: ${KARAOKE_MODEL:htdemucs}
+
     # Session configuration
     sessions:
       timeout-minutes: ${SESSION_TIMEOUT:30}
