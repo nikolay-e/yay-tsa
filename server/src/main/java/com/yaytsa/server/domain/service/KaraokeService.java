@@ -5,9 +5,7 @@ import com.yaytsa.server.infra.persistence.entity.AudioTrackEntity;
 import com.yaytsa.server.infra.persistence.entity.ItemEntity;
 import com.yaytsa.server.infra.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infra.persistence.repository.ItemRepository;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,7 +14,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -32,7 +29,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Stream;
 
 @Service
 public class KaraokeService {
@@ -45,7 +41,6 @@ public class KaraokeService {
     private final ItemRepository itemRepository;
     private final AudioTrackRepository audioTrackRepository;
     private final AudioSeparatorClient separatorClient;
-    private final Path stemsStoragePath;
     private final Path mediaRootPath;
 
     private final Map<UUID, JobEntry> processingJobs = new ConcurrentHashMap<>();
@@ -87,59 +82,14 @@ public class KaraokeService {
             ItemRepository itemRepository,
             AudioTrackRepository audioTrackRepository,
             AudioSeparatorClient separatorClient,
-            @Value("${yaytsa.media.karaoke.stems-path:/media/stems}") String stemsPath,
             @Value("${yaytsa.media.library-roots:/media}") String mediaRoot) {
         this.itemRepository = itemRepository;
         this.audioTrackRepository = audioTrackRepository;
         this.separatorClient = separatorClient;
-        this.stemsStoragePath = Paths.get(stemsPath).toAbsolutePath().normalize();
         this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
 
         cleanupScheduler.scheduleAtFixedRate(
                 this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
-    }
-
-    @PostConstruct
-    public void onStartup() {
-        cleanupOrphanedStemsDirectories();
-    }
-
-    private void cleanupOrphanedStemsDirectories() {
-        if (!Files.exists(stemsStoragePath)) {
-            log.debug("Stems storage path does not exist, skipping orphan cleanup");
-            return;
-        }
-
-        log.info("Checking for orphaned stems directories in {}", stemsStoragePath);
-        int cleanedCount = 0;
-
-        try (Stream<Path> dirs = Files.list(stemsStoragePath)) {
-            for (Path dir : dirs.filter(Files::isDirectory).toList()) {
-                String dirName = dir.getFileName().toString();
-                try {
-                    UUID trackId = UUID.fromString(dirName);
-                    AudioTrackEntity track = audioTrackRepository.findById(trackId).orElse(null);
-
-                    if (track == null) {
-                        log.warn("Cleaning orphaned stems directory (track not found): {}", dirName);
-                        FileUtils.deleteDirectory(dir.toFile());
-                        cleanedCount++;
-                    } else if (!Boolean.TRUE.equals(track.getKaraokeReady())) {
-                        log.warn("Cleaning incomplete stems directory (processing interrupted): {}", dirName);
-                        FileUtils.deleteDirectory(dir.toFile());
-                        cleanedCount++;
-                    }
-                } catch (IllegalArgumentException e) {
-                    log.warn("Ignoring non-UUID directory in stems path: {}", dirName);
-                }
-            }
-        } catch (IOException e) {
-            log.error("Failed to list stems directories: {}", e.getMessage());
-        }
-
-        if (cleanedCount > 0) {
-            log.info("Cleaned {} orphaned stems directories", cleanedCount);
-        }
     }
 
     private void cleanupExpiredJobs() {
@@ -254,7 +204,6 @@ public class KaraokeService {
 
         updateJobStatus(trackId, ProcessingStatus.processing("Starting separation...", 0));
 
-        Path outputDir = stemsStoragePath.resolve(trackId.toString());
         String trackIdStr = trackId.toString();
 
         ScheduledFuture<?> progressPoller = cleanupScheduler.scheduleAtFixedRate(() -> {
@@ -273,7 +222,7 @@ public class KaraokeService {
 
         try {
             AudioSeparatorClient.SeparationResult result = CompletableFuture
-                    .supplyAsync(() -> separatorClient.separate(audioFilePath, outputDir, trackIdStr),
+                    .supplyAsync(() -> separatorClient.separate(audioFilePath, trackIdStr),
                             separationExecutor)
                     .get(SEPARATION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
 
@@ -292,24 +241,11 @@ public class KaraokeService {
         } catch (TimeoutException e) {
             progressPoller.cancel(true);
             log.error("Karaoke processing timed out for track {}", trackId);
-            cleanupFailedStemsDirectory(outputDir, trackId);
             updateJobStatus(trackId, ProcessingStatus.failed("Processing timed out"));
         } catch (Exception e) {
             progressPoller.cancel(true);
             log.error("Karaoke processing failed for track {}: {}", trackId, e.getMessage(), e);
-            cleanupFailedStemsDirectory(outputDir, trackId);
             updateJobStatus(trackId, ProcessingStatus.failed(e.getMessage()));
-        }
-    }
-
-    private void cleanupFailedStemsDirectory(Path outputDir, UUID trackId) {
-        if (Files.exists(outputDir)) {
-            try {
-                FileUtils.deleteDirectory(outputDir.toFile());
-                log.info("Cleaned up partial stems directory for failed track {}", trackId);
-            } catch (IOException e) {
-                log.warn("Failed to clean up stems directory for track {}: {}", trackId, e.getMessage());
-            }
         }
     }
 
@@ -328,7 +264,7 @@ public class KaraokeService {
         }
 
         Path instrumentalPath = Paths.get(track.getInstrumentalPath()).toAbsolutePath().normalize();
-        if (!instrumentalPath.startsWith(stemsStoragePath)) {
+        if (!instrumentalPath.startsWith(mediaRootPath)) {
             log.error("Path traversal attempt in instrumental path for track {}: {}", trackId, instrumentalPath);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
@@ -351,7 +287,7 @@ public class KaraokeService {
         }
 
         Path vocalPath = Paths.get(track.getVocalPath()).toAbsolutePath().normalize();
-        if (!vocalPath.startsWith(stemsStoragePath)) {
+        if (!vocalPath.startsWith(mediaRootPath)) {
             log.error("Path traversal attempt in vocal path for track {}: {}", trackId, vocalPath);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }

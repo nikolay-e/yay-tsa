@@ -1,40 +1,31 @@
 import os
 import re
-import shutil
+import tempfile
 import time
 import threading
 import logging
+import subprocess
+import shutil
 from pathlib import Path
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
-OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "WAV")
+OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cuda") == "cuda"
-ALLOWED_MEDIA_PREFIXES = ["/media", "/app/stems"]
+ALLOWED_MEDIA_PREFIX = "/media"
 JOB_TTL_SECONDS = 3600
 FFMPEG_TIMEOUT_SECONDS = 300
 
 job_progress: dict[str, dict] = {}
 job_timestamps: dict[str, float] = {}
-executor = ThreadPoolExecutor(max_workers=2)
 cleanup_lock = threading.Lock()
-
-
-def validate_path(path: Path, allowed_prefixes: list[str]) -> bool:
-    resolved = path.resolve()
-    return any(str(resolved).startswith(prefix) for prefix in allowed_prefixes)
-
-
-def sanitize_filename(filename: str) -> str:
-    return re.sub(r'[^\w\-_\.]', '_', filename)
 
 
 def cleanup_expired_jobs():
@@ -47,7 +38,6 @@ def cleanup_expired_jobs():
         for track_id in expired:
             job_progress.pop(track_id, None)
             job_timestamps.pop(track_id, None)
-            log.debug(f"Cleaned up expired job: {track_id}")
 
 
 def periodic_cleanup():
@@ -59,17 +49,12 @@ def periodic_cleanup():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info(f"Model {MODEL_NAME} will be loaded on first request")
-
     cleanup_thread = threading.Thread(target=periodic_cleanup, daemon=True)
     cleanup_thread.start()
-
     yield
 
-    executor.shutdown(wait=False)
 
-
-app = FastAPI(title="Audio Separator Service", version="1.0.0", lifespan=lifespan)
-
+app = FastAPI(title="Audio Separator Service", version="2.0.0", lifespan=lifespan)
 
 _separator_instance = None
 _separator_lock = threading.Lock()
@@ -101,7 +86,6 @@ def update_job_progress(track_id: str, data: dict):
 
 class SeparationRequest(BaseModel):
     inputPath: str
-    outputDir: str
     trackId: str
 
 
@@ -145,10 +129,9 @@ def get_progress(track_id: str):
     return ProgressResponse(**job_progress[track_id])
 
 
-def run_separation(track_id: str, input_path: Path, output_dir: Path):
-    import subprocess
-
+def run_separation(track_id: str, input_path: Path):
     start_time = time.time()
+    temp_dir = None
 
     try:
         update_job_progress(track_id, {
@@ -158,7 +141,8 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
             "message": "Loading model",
         })
 
-        sep = get_separator(str(output_dir))
+        temp_dir = Path(tempfile.mkdtemp(prefix="separator_"))
+        sep = get_separator(str(temp_dir))
 
         update_job_progress(track_id, {
             **job_progress.get(track_id, {}),
@@ -176,78 +160,76 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
 
         log.info(f"Separation output files: {output_files}")
 
-        abs_output_files = []
+        stem_files = []
         for f in output_files:
-            # audio-separator may return relative paths or paths in subdirectories
             file_path = Path(f)
             if not file_path.is_absolute():
-                # Try output_dir first, then search subdirectories
-                candidate = output_dir / f
-                if not candidate.exists():
-                    # Demucs creates subdirectories like htdemucs/track_name/stem.wav
-                    # Search for the file in output_dir tree
-                    filename = file_path.name
-                    found = list(output_dir.rglob(filename))
-                    if found:
-                        candidate = found[0]
-                        log.info(f"Found stem file at: {candidate}")
-                    else:
-                        log.error(f"Stem file not found: {f} (searched in {output_dir})")
-                        raise Exception(f"Stem file not found: {f}")
-                file_path = candidate
+                found = list(temp_dir.rglob(file_path.name))
+                if found:
+                    file_path = found[0]
+                else:
+                    file_path = temp_dir / f
+            if file_path.exists():
+                stem_files.append(file_path)
+            else:
+                log.warning(f"Stem file not found: {f}")
 
-            resolved = file_path.resolve()
-            if not validate_path(resolved, ALLOWED_MEDIA_PREFIXES):
-                log.error(f"Path validation failed for output file: {resolved}")
-                raise Exception(f"Invalid output path: {f}")
-            abs_output_files.append(str(resolved))
+        if not stem_files:
+            raise Exception(f"No output files found from separation")
 
-        vocal_path = None
+        vocal_stem = None
         instrumental_stems = []
 
-        for output_file in abs_output_files:
-            file_lower = output_file.lower()
-            if "vocals" in file_lower:
-                vocal_path = output_file
-            elif "instrumental" in file_lower or "no_vocals" in file_lower:
-                instrumental_stems = [output_file]
+        for stem in stem_files:
+            name_lower = stem.name.lower()
+            if "vocals" in name_lower:
+                vocal_stem = stem
+            elif "instrumental" in name_lower or "no_vocals" in name_lower:
+                instrumental_stems = [stem]
                 break
             else:
-                instrumental_stems.append(output_file)
+                instrumental_stems.append(stem)
 
         if not instrumental_stems:
-            raise Exception(f"No instrumental stems in outputs: {output_files}")
+            raise Exception(f"No instrumental stems found")
 
         update_job_progress(track_id, {
             **job_progress.get(track_id, {}),
             "progress": 90,
-            "message": "Mixing instrumental tracks",
+            "message": "Creating karaoke file",
         })
 
+        song_name = input_path.stem
+        karaoke_dir = input_path.parent / ".karaoke"
+        karaoke_dir.mkdir(exist_ok=True)
+
+        instrumental_filename = f"{song_name}_instrumental.{OUTPUT_FORMAT}"
+        karaoke_path = karaoke_dir / instrumental_filename
+
         if len(instrumental_stems) == 1:
-            instrumental_path = instrumental_stems[0]
+            shutil.copy2(instrumental_stems[0], karaoke_path)
         else:
-            instrumental_path = str(output_dir / f"instrumental.{OUTPUT_FORMAT}")
             cmd = ["ffmpeg", "-y"]
             for stem in instrumental_stems:
-                cmd.extend(["-i", stem])
+                cmd.extend(["-i", str(stem)])
             filter_complex = f"amix=inputs={len(instrumental_stems)}:normalize=0"
-            cmd.extend(["-filter_complex", filter_complex, instrumental_path])
-            log.info(f"Mixing stems with timeout {FFMPEG_TIMEOUT_SECONDS}s")
-            try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=FFMPEG_TIMEOUT_SECONDS
-                )
-                if result.returncode != 0:
-                    raise Exception(f"FFmpeg failed: {result.stderr}")
-            except subprocess.TimeoutExpired:
-                raise Exception(f"FFmpeg timed out after {FFMPEG_TIMEOUT_SECONDS}s")
+            cmd.extend(["-filter_complex", filter_complex, str(karaoke_path)])
+            log.info(f"Mixing {len(instrumental_stems)} stems to {karaoke_path}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=FFMPEG_TIMEOUT_SECONDS
+            )
+            if result.returncode != 0:
+                raise Exception(f"FFmpeg failed: {result.stderr}")
 
-            for stem in instrumental_stems:
-                Path(stem).unlink(missing_ok=True)
+        vocal_path = ""
+        if vocal_stem:
+            vocal_filename = f"{song_name}_vocals.{OUTPUT_FORMAT}"
+            vocal_dest = karaoke_dir / vocal_filename
+            shutil.copy2(vocal_stem, vocal_dest)
+            vocal_path = str(vocal_dest)
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 
@@ -257,11 +239,13 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
             "progress": 100,
             "message": "Complete",
             "result": {
-                "instrumental_path": instrumental_path,
-                "vocal_path": vocal_path or "",
+                "instrumental_path": str(karaoke_path),
+                "vocal_path": vocal_path,
                 "processing_time_ms": elapsed_ms,
             }
         })
+
+        log.info(f"Karaoke file created: {karaoke_path}")
 
     except Exception as e:
         log.exception(f"Separation failed for {track_id}: {e}")
@@ -271,26 +255,34 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
             "progress": 0,
             "message": str(e),
         })
+    finally:
+        if temp_dir and temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @app.post("/api/separate", response_model=SeparationResponse)
 def separate_audio(request: SeparationRequest):
     input_path = Path(request.inputPath).resolve()
-    output_dir = Path(request.outputDir).resolve()
     track_id = request.trackId
 
-    if not validate_path(input_path, ALLOWED_MEDIA_PREFIXES):
-        log.error(f"Path traversal attempt in input path: {input_path}")
+    if not str(input_path).startswith(ALLOWED_MEDIA_PREFIX):
+        log.error(f"Path traversal attempt: {input_path}")
         raise HTTPException(status_code=403, detail="Invalid input path")
-
-    if not validate_path(output_dir, ALLOWED_MEDIA_PREFIXES):
-        log.error(f"Path traversal attempt in output path: {output_dir}")
-        raise HTTPException(status_code=403, detail="Invalid output path")
 
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Input file not found: {input_path}")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    karaoke_dir = input_path.parent / ".karaoke"
+    karaoke_path = karaoke_dir / f"{input_path.stem}_instrumental.{OUTPUT_FORMAT}"
+    vocal_path = karaoke_dir / f"{input_path.stem}_vocals.{OUTPUT_FORMAT}"
+
+    if karaoke_path.exists():
+        log.info(f"Karaoke file already exists: {karaoke_path}")
+        return SeparationResponse(
+            instrumental_path=str(karaoke_path),
+            vocal_path=str(vocal_path) if vocal_path.exists() else "",
+            processing_time_ms=0,
+        )
 
     update_job_progress(track_id, {
         "trackId": track_id,
@@ -299,7 +291,7 @@ def separate_audio(request: SeparationRequest):
         "message": "Starting separation",
     })
 
-    run_separation(track_id, input_path, output_dir)
+    run_separation(track_id, input_path)
 
     final_status = job_progress.get(track_id, {})
     if final_status.get("state") == "FAILED":

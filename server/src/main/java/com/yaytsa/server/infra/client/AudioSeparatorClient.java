@@ -57,12 +57,11 @@ public class AudioSeparatorClient {
             long processingTimeMs
     ) {}
 
-    public SeparationResult separate(Path audioFilePath, Path outputDir, String trackId) {
+    public SeparationResult separate(Path audioFilePath, String trackId) {
         log.info("Requesting audio separation for track {} from {}", trackId, audioFilePath);
 
         var request = Map.of(
                 "inputPath", audioFilePath.toString(),
-                "outputDir", outputDir.toString(),
                 "trackId", trackId
         );
 

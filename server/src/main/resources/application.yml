@@ -131,7 +131,7 @@ yaytsa:
       scan-on-startup: ${SCAN_ON_STARTUP:true}
       watch-enabled: ${WATCH_ENABLED:false}
       supported-extensions: mp3,flac,m4a,aac,ogg,opus,wav,wma
-      ignored-folders: .git,.svn,node_modules,@eaDir
+      ignored-folders: .git,.svn,node_modules,@eaDir,.karaoke
 
     # Streaming configuration
     streaming:
@@ -172,8 +172,6 @@ yaytsa:
     # Karaoke (vocal removal) configuration
     karaoke:
       separator-url: ${KARAOKE_SEPARATOR_URL:http://audio-separator:8000}
-      # Default to /app/stems to match docker-compose volume mount
-      stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
       model: ${KARAOKE_MODEL:htdemucs}
 
     # Session configuration
