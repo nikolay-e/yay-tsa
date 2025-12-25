@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -116,7 +117,7 @@ public class ItemService {
         return switch (sortBy) {
             case "DateCreated" -> Sort.by(direction, "createdAt");
             case "DatePlayed" -> Sort.by(direction, "lastPlayedAt");
-            case "Random" -> Sort.by(direction, "id");
+            case "Random" -> JpaSort.unsafe("random()");
             case "SortName" -> Sort.by(direction, "sortName");
             default -> Sort.by(direction, "sortName");
         };
