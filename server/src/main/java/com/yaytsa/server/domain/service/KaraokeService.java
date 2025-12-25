@@ -5,7 +5,9 @@ import com.yaytsa.server.infra.persistence.entity.AudioTrackEntity;
 import com.yaytsa.server.infra.persistence.entity.ItemEntity;
 import com.yaytsa.server.infra.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infra.persistence.repository.ItemRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +16,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 @Service
 public class KaraokeService {
@@ -36,6 +40,7 @@ public class KaraokeService {
     private static final Logger log = LoggerFactory.getLogger(KaraokeService.class);
     private static final long JOB_TTL_MS = 3600_000; // 1 hour TTL for completed jobs
     private static final long SEPARATION_TIMEOUT_MINUTES = 10;
+    private static final long STALE_PROCESSING_TIMEOUT_MS = SEPARATION_TIMEOUT_MINUTES * 60 * 1000 + 60_000;
 
     private final ItemRepository itemRepository;
     private final AudioTrackRepository audioTrackRepository;
@@ -94,6 +99,49 @@ public class KaraokeService {
                 this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
     }
 
+    @PostConstruct
+    public void onStartup() {
+        cleanupOrphanedStemsDirectories();
+    }
+
+    private void cleanupOrphanedStemsDirectories() {
+        if (!Files.exists(stemsStoragePath)) {
+            log.debug("Stems storage path does not exist, skipping orphan cleanup");
+            return;
+        }
+
+        log.info("Checking for orphaned stems directories in {}", stemsStoragePath);
+        int cleanedCount = 0;
+
+        try (Stream<Path> dirs = Files.list(stemsStoragePath)) {
+            for (Path dir : dirs.filter(Files::isDirectory).toList()) {
+                String dirName = dir.getFileName().toString();
+                try {
+                    UUID trackId = UUID.fromString(dirName);
+                    AudioTrackEntity track = audioTrackRepository.findById(trackId).orElse(null);
+
+                    if (track == null) {
+                        log.warn("Cleaning orphaned stems directory (track not found): {}", dirName);
+                        FileUtils.deleteDirectory(dir.toFile());
+                        cleanedCount++;
+                    } else if (!Boolean.TRUE.equals(track.getKaraokeReady())) {
+                        log.warn("Cleaning incomplete stems directory (processing interrupted): {}", dirName);
+                        FileUtils.deleteDirectory(dir.toFile());
+                        cleanedCount++;
+                    }
+                } catch (IllegalArgumentException e) {
+                    log.warn("Ignoring non-UUID directory in stems path: {}", dirName);
+                }
+            }
+        } catch (IOException e) {
+            log.error("Failed to list stems directories: {}", e.getMessage());
+        }
+
+        if (cleanedCount > 0) {
+            log.info("Cleaned {} orphaned stems directories", cleanedCount);
+        }
+    }
+
     private void cleanupExpiredJobs() {
         long now = Instant.now().toEpochMilli();
         Iterator<Map.Entry<UUID, JobEntry>> it = processingJobs.entrySet().iterator();
@@ -101,10 +149,22 @@ public class KaraokeService {
             Map.Entry<UUID, JobEntry> entry = it.next();
             ProcessingState state = entry.getValue().status().state();
             long age = now - entry.getValue().createdAt().toEpochMilli();
+
+            boolean shouldRemove = false;
+            String reason = null;
+
             if ((state == ProcessingState.READY || state == ProcessingState.FAILED)
                     && age > JOB_TTL_MS) {
+                shouldRemove = true;
+                reason = "expired " + state;
+            } else if (state == ProcessingState.PROCESSING && age > STALE_PROCESSING_TIMEOUT_MS) {
+                shouldRemove = true;
+                reason = "stale PROCESSING";
+            }
+
+            if (shouldRemove) {
                 it.remove();
-                log.debug("Cleaned up expired job: {}", entry.getKey());
+                log.debug("Cleaned up {} job: {}", reason, entry.getKey());
             }
         }
     }
@@ -145,9 +205,21 @@ public class KaraokeService {
 
     @Async
     public void processTrack(UUID trackId) {
-        if (processingJobs.containsKey(trackId)) {
-            log.info("Track {} is already being processed", trackId);
-            return;
+        JobEntry existingJob = processingJobs.get(trackId);
+        if (existingJob != null) {
+            ProcessingState state = existingJob.status().state();
+            long ageMs = Instant.now().toEpochMilli() - existingJob.createdAt().toEpochMilli();
+
+            if (state == ProcessingState.PROCESSING && ageMs < STALE_PROCESSING_TIMEOUT_MS) {
+                log.info("Track {} is already being processed", trackId);
+                return;
+            }
+
+            if (state == ProcessingState.FAILED ||
+                (state == ProcessingState.PROCESSING && ageMs >= STALE_PROCESSING_TIMEOUT_MS)) {
+                log.info("Retrying track {} (previous state: {}, age: {}ms)", trackId, state, ageMs);
+                processingJobs.remove(trackId);
+            }
         }
 
         AudioTrackEntity track = audioTrackRepository.findById(trackId).orElse(null);
@@ -220,11 +292,24 @@ public class KaraokeService {
         } catch (TimeoutException e) {
             progressPoller.cancel(true);
             log.error("Karaoke processing timed out for track {}", trackId);
+            cleanupFailedStemsDirectory(outputDir, trackId);
             updateJobStatus(trackId, ProcessingStatus.failed("Processing timed out"));
         } catch (Exception e) {
             progressPoller.cancel(true);
             log.error("Karaoke processing failed for track {}: {}", trackId, e.getMessage(), e);
+            cleanupFailedStemsDirectory(outputDir, trackId);
             updateJobStatus(trackId, ProcessingStatus.failed(e.getMessage()));
+        }
+    }
+
+    private void cleanupFailedStemsDirectory(Path outputDir, UUID trackId) {
+        if (Files.exists(outputDir)) {
+            try {
+                FileUtils.deleteDirectory(outputDir.toFile());
+                log.info("Cleaned up partial stems directory for failed track {}", trackId);
+            } catch (IOException e) {
+                log.warn("Failed to clean up stems directory for track {}: {}", trackId, e.getMessage());
+            }
         }
     }
 

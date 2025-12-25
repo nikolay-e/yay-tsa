@@ -41,7 +41,7 @@ public class PlaylistService {
         ItemEntity itemEntity = new ItemEntity();
         itemEntity.setType(ItemType.Playlist);
         itemEntity.setName(name);
-        itemEntity.setSortName(name.toLowerCase());
+        itemEntity.setSortName(name.toLowerCase(java.util.Locale.ROOT));
         itemEntity.setPath("playlist:" + UUID.randomUUID());
         itemEntity = itemRepository.save(itemEntity);
 

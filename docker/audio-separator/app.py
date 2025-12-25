@@ -178,7 +178,24 @@ def run_separation(track_id: str, input_path: Path, output_dir: Path):
 
         abs_output_files = []
         for f in output_files:
-            file_path = Path(f) if Path(f).is_absolute() else output_dir / f
+            # audio-separator may return relative paths or paths in subdirectories
+            file_path = Path(f)
+            if not file_path.is_absolute():
+                # Try output_dir first, then search subdirectories
+                candidate = output_dir / f
+                if not candidate.exists():
+                    # Demucs creates subdirectories like htdemucs/track_name/stem.wav
+                    # Search for the file in output_dir tree
+                    filename = file_path.name
+                    found = list(output_dir.rglob(filename))
+                    if found:
+                        candidate = found[0]
+                        log.info(f"Found stem file at: {candidate}")
+                    else:
+                        log.error(f"Stem file not found: {f} (searched in {output_dir})")
+                        raise Exception(f"Stem file not found: {f}")
+                file_path = candidate
+
             resolved = file_path.resolve()
             if not validate_path(resolved, ALLOWED_MEDIA_PREFIXES):
                 log.error(f"Path validation failed for output file: {resolved}")

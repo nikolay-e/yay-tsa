@@ -182,7 +182,7 @@ public class StreamingService {
             }
         }
 
-        String fileName = filePath.getFileName().toString().toLowerCase();
+        String fileName = filePath.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
         if (fileName.endsWith(".mp3")) {
             return "audio/mpeg";
         } else if (fileName.endsWith(".m4a") || fileName.endsWith(".aac")) {
@@ -211,7 +211,7 @@ public class StreamingService {
     }
 
     private String mimeTypeFromContainer(String container) {
-        return switch (container.toLowerCase()) {
+        return switch (container.toLowerCase(java.util.Locale.ROOT)) {
             case "mp3" -> "audio/mpeg";
             case "m4a", "aac" -> "audio/mp4";
             case "flac" -> "audio/flac";

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Exclude JPA entities from internal representation exposure checks -->
+    <Match>
+        <Package name="~com\.yaytsa\.server\.infra\.persistence\.entity.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2,SE_NO_SERIALVERSIONID,SE_BAD_FIELD"/>
+    </Match>
+
+    <!-- Exclude DTOs from internal representation exposure checks -->
+    <Match>
+        <Package name="~com\.yaytsa\.server\.dto.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Exclude config classes -->
+    <Match>
+        <Package name="~com\.yaytsa\.server\.config.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Exclude domain services from EI_EXPOSE warnings (Spring beans) -->
+    <Match>
+        <Package name="~com\.yaytsa\.server\.domain\.service.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Exclude infra classes from EI_EXPOSE warnings -->
+    <Match>
+        <Package name="~com\.yaytsa\.server\.infra.*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Security-related classes need special handling -->
+    <Match>
+        <Class name="com.yaytsa.server.infra.security.AuthenticatedUser"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2,SE_NO_SERIALVERSIONID,SE_BAD_FIELD"/>
+    </Match>
+
+    <!-- MD5 used for cache tags/ETags, not security - acceptable -->
+    <Match>
+        <Bug pattern="WEAK_MESSAGE_DIGEST_MD5"/>
+    </Match>
+
+    <!-- CSRF disabled intentionally - API-only backend uses token auth -->
+    <Match>
+        <Class name="com.yaytsa.server.config.SecurityConfig"/>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+    </Match>
+</FindBugsFilter>

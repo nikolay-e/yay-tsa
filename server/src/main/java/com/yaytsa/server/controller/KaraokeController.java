@@ -93,10 +93,15 @@ public class KaraokeController {
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         ProcessingStatus[] lastStatus = {null};
+        boolean[] sawProcessing = {false};
 
         var future = scheduler.scheduleAtFixedRate(() -> {
             try {
                 ProcessingStatus status = karaokeService.getStatus(trackId);
+
+                if (status.state() == ProcessingState.PROCESSING) {
+                    sawProcessing[0] = true;
+                }
 
                 if (lastStatus[0] == null || !status.equals(lastStatus[0])) {
                     lastStatus[0] = status;
@@ -105,9 +110,11 @@ public class KaraokeController {
                             .name("status")
                             .data(json, MediaType.APPLICATION_JSON));
 
-                    if (status.state() == ProcessingState.READY ||
-                        status.state() == ProcessingState.FAILED ||
-                        status.state() == ProcessingState.NOT_STARTED) {
+                    // Only close on terminal states AFTER we've seen PROCESSING
+                    // This prevents race condition where async processing hasn't started yet
+                    if (sawProcessing[0] &&
+                        (status.state() == ProcessingState.READY ||
+                         status.state() == ProcessingState.FAILED)) {
                         emitter.complete();
                     }
                 }
@@ -186,7 +193,7 @@ public class KaraokeController {
     }
 
     private String detectMimeType(Path filePath) {
-        String fileName = filePath.getFileName().toString().toLowerCase();
+        String fileName = filePath.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
         if (fileName.endsWith(".wav")) {
             return "audio/wav";
         } else if (fileName.endsWith(".mp3")) {

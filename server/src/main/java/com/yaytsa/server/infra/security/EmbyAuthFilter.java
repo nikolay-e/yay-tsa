@@ -83,8 +83,8 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
 
     private boolean shouldSkipAuthentication(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.equals("/Users/AuthenticateByName") ||
-               path.equals("/System/Info/Public") ||
+        return "/Users/AuthenticateByName".equals(path) ||
+               "/System/Info/Public".equals(path) ||
                path.startsWith("/swagger-ui") ||
                path.startsWith("/api-docs") ||
                path.startsWith("/v3/api-docs") ||

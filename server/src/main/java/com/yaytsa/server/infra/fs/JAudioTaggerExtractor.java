@@ -127,7 +127,7 @@ public class JAudioTaggerExtractor {
 
     private int parseChannels(String channels) {
         if (channels == null) return 2;
-        String lower = channels.toLowerCase();
+        String lower = channels.toLowerCase(java.util.Locale.ROOT);
         if (lower.contains("mono")) return 1;
         if (lower.contains("stereo")) return 2;
         try {

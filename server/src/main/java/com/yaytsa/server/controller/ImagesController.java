@@ -140,7 +140,7 @@ public class ImagesController {
         if (format == null) {
             return MediaType.IMAGE_JPEG;
         }
-        return switch (format.toLowerCase()) {
+        return switch (format.toLowerCase(java.util.Locale.ROOT)) {
             case "webp" -> MediaType.parseMediaType("image/webp");
             case "png" -> MediaType.IMAGE_PNG;
             case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;

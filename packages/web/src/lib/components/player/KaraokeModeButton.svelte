@@ -7,6 +7,7 @@
     isProcessing,
     trackStatus,
     isTrackReady,
+    karaokeError,
     karaoke,
     type KaraokeMode,
   } from '../../stores/karaoke.js';
@@ -54,7 +55,12 @@
     ? `${$trackStatus.progressPercent ?? 0}%`
     : $trackStatus?.state === 'READY'
     ? 'OK'
+    : $trackStatus?.state === 'FAILED' || $karaokeError
+    ? '!'
     : '';
+
+  $: hasError = $trackStatus?.state === 'FAILED' || !!$karaokeError;
+  $: errorMessage = $trackStatus?.message || $karaokeError || 'Processing failed';
 
   $: buttonTitle = $isProcessing
     ? 'Processing...'
@@ -73,6 +79,7 @@
     class="karaoke-btn"
     class:active={$isKaraokeEnabled}
     class:processing={$isProcessing}
+    class:error={hasError}
     on:click|stopPropagation={handleClick}
     aria-pressed={$isKaraokeEnabled}
     aria-label={buttonTitle}
@@ -113,6 +120,13 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="karaoke-menu" on:click|stopPropagation>
       <div class="menu-header">Karaoke Mode</div>
+
+      {#if hasError}
+        <div class="error-message">
+          <span class="error-icon">⚠</span>
+          <span class="error-text">{errorMessage}</span>
+        </div>
+      {/if}
 
       <button
         type="button"
@@ -206,6 +220,14 @@
     color: var(--color-accent);
   }
 
+  .karaoke-btn.error {
+    color: var(--color-error, #ef4444);
+  }
+
+  .karaoke-btn.error .status-badge {
+    background: var(--color-error, #ef4444);
+  }
+
   .spinner {
     width: 18px;
     height: 18px;
@@ -254,6 +276,28 @@
     color: var(--color-text-secondary);
     padding: 4px 8px 8px;
     letter-spacing: 0.5px;
+  }
+
+  .error-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: var(--color-error, #ef4444);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .error-icon {
+    flex-shrink: 0;
+  }
+
+  .error-text {
+    word-break: break-word;
   }
 
   .menu-item {

@@ -33,7 +33,7 @@ public class ItemMapper {
             .isFolder(item.getType() == ItemType.MusicAlbum ||
                       item.getType() == ItemType.MusicArtist ||
                       item.getType() == ItemType.Folder)
-            .mediaType(type.equals("Audio") ? "Audio" : null)
+            .mediaType("Audio".equals(type) ? "Audio" : null)
             .parentId(item.getParent() != null ? item.getParent().getId().toString() : null)
             .userData(userData)
             .dateCreated(item.getCreatedAt())
@@ -118,7 +118,7 @@ public class ItemMapper {
 
     private List<String> extractGenres(ItemEntity item) {
         if (item.getItemGenres() == null || item.getItemGenres().isEmpty()) {
-            return null;
+            return List.of();
         }
         return item.getItemGenres().stream()
             .map(ig -> ig.getGenre().getName())
@@ -127,7 +127,7 @@ public class ItemMapper {
 
     private List<BaseItemResponse.NameGuidPair> extractGenreItems(ItemEntity item) {
         if (item.getItemGenres() == null || item.getItemGenres().isEmpty()) {
-            return null;
+            return List.of();
         }
         return item.getItemGenres().stream()
             .map(ig -> new BaseItemResponse.NameGuidPair(
@@ -139,7 +139,7 @@ public class ItemMapper {
 
     private Map<String, String> extractImageTags(ItemEntity item) {
         if (item.getImages() == null || item.getImages().isEmpty()) {
-            return null;
+            return Map.of();
         }
 
         Optional<ImageEntity> primaryImage = item.getImages().stream()
@@ -147,7 +147,7 @@ public class ItemMapper {
             .findFirst();
 
         if (primaryImage.isEmpty()) {
-            return null;
+            return Map.of();
         }
 
         String tag = primaryImage.get().getTag() != null

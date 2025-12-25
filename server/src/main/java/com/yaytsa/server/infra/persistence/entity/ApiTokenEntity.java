@@ -41,7 +41,7 @@ public class ApiTokenEntity {
     private OffsetDateTime expiresAt;
 
     @Column(nullable = false)
-    private boolean revoked = false;
+    private boolean revoked;
 
     public UUID getId() {
         return id;

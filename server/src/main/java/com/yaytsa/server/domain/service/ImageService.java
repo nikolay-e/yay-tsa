@@ -275,7 +275,7 @@ public class ImageService {
         if (format == null) {
             return "jpeg";
         }
-        return switch (format.toLowerCase()) {
+        return switch (format.toLowerCase(java.util.Locale.ROOT)) {
             case "jpg", "jpeg" -> "jpeg";
             case "webp" -> "webp";
             case "png" -> "png";
@@ -291,7 +291,7 @@ public class ImageService {
                          (image.getTag() != null ? image.getTag() : "");
 
             MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] hash = digest.digest(data.getBytes());
+            byte[] hash = digest.digest(data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             return "\"" + HexFormat.of().formatHex(hash) + "\"";
         } catch (NoSuchAlgorithmException e) {
             return "\"" + image.getId().toString() + "\"";

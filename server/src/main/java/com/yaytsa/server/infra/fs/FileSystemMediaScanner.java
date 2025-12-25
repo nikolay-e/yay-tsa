@@ -232,16 +232,16 @@ public class FileSystemMediaScanner {
             ? "Unknown Artist"
             : artistName;
 
-        String cacheKey = finalArtistName.toLowerCase();
+        String cacheKey = finalArtistName.toLowerCase(java.util.Locale.ROOT);
         UUID artistId = artistIdCache.computeIfAbsent(cacheKey, key -> {
-            Optional<ItemEntity> existing = itemRepository.findByPath("artist:" + finalArtistName.toLowerCase());
+            Optional<ItemEntity> existing = itemRepository.findByPath("artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT));
             if (existing.isPresent()) return existing.get().getId();
 
             ItemEntity item = new ItemEntity();
             item.setType(ItemType.MusicArtist);
             item.setName(finalArtistName);
             item.setSortName(createSortName(finalArtistName));
-            item.setPath("artist:" + finalArtistName.toLowerCase());
+            item.setPath("artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT));
             item.setLibraryRoot(libraryRoot);
             item = itemRepository.save(item);
 
@@ -261,10 +261,10 @@ public class FileSystemMediaScanner {
             : albumName;
 
         String artistName = artistItem.getName();
-        String cacheKey = (artistName + "::" + finalAlbumName).toLowerCase();
+        String cacheKey = (artistName + "::" + finalAlbumName).toLowerCase(java.util.Locale.ROOT);
 
         UUID albumId = albumIdCache.computeIfAbsent(cacheKey, key -> {
-            String albumPath = "album:" + artistName.toLowerCase() + "::" + finalAlbumName.toLowerCase();
+            String albumPath = "album:" + artistName.toLowerCase(java.util.Locale.ROOT) + "::" + finalAlbumName.toLowerCase(java.util.Locale.ROOT);
             Optional<ItemEntity> existing = itemRepository.findByPath(albumPath);
             if (existing.isPresent()) return existing.get().getId();
 
@@ -292,7 +292,7 @@ public class FileSystemMediaScanner {
         if (genres == null || genres.isEmpty()) return;
 
         for (String genreName : genres) {
-            UUID genreId = genreIdCache.computeIfAbsent(genreName.toLowerCase(), key -> {
+            UUID genreId = genreIdCache.computeIfAbsent(genreName.toLowerCase(java.util.Locale.ROOT), key -> {
                 Optional<GenreEntity> existing = genreRepository.findByName(genreName);
                 if (existing.isPresent()) return existing.get().getId();
 
@@ -344,7 +344,7 @@ public class FileSystemMediaScanner {
             if (Files.exists(artworkPath)) {
                 return Optional.of(artworkPath);
             }
-            Path upperCase = folder.resolve(name.substring(0, 1).toUpperCase() + name.substring(1));
+            Path upperCase = folder.resolve(name.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + name.substring(1));
             if (Files.exists(upperCase)) {
                 return Optional.of(upperCase);
             }
@@ -442,7 +442,7 @@ public class FileSystemMediaScanner {
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    String extension = getExtension(file).toLowerCase();
+                    String extension = getExtension(file).toLowerCase(java.util.Locale.ROOT);
                     if (extensions.contains(extension)) {
                         files.add(file);
                     }
@@ -462,7 +462,7 @@ public class FileSystemMediaScanner {
     }
 
     private Set<String> parseExtensions() {
-        return new HashSet<>(Arrays.asList(supportedExtensions.toLowerCase().split(",")));
+        return new HashSet<>(Arrays.asList(supportedExtensions.toLowerCase(java.util.Locale.ROOT).split(",")));
     }
 
     private Set<String> parseIgnoredFolders() {
@@ -477,7 +477,7 @@ public class FileSystemMediaScanner {
 
     private String createSortName(String name) {
         if (name == null) return "";
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
         if (lower.startsWith("the ")) return name.substring(4);
         if (lower.startsWith("a ")) return name.substring(2);
         if (lower.startsWith("an ")) return name.substring(3);
@@ -495,7 +495,7 @@ public class FileSystemMediaScanner {
 
     private String getArtworkExtension(String mimeType) {
         if (mimeType == null) return ".jpg";
-        return switch (mimeType.toLowerCase()) {
+        return switch (mimeType.toLowerCase(java.util.Locale.ROOT)) {
             case "image/png" -> ".png";
             case "image/gif" -> ".gif";
             case "image/webp" -> ".webp";

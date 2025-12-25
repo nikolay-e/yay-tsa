@@ -4,10 +4,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import java.net.SocketTimeoutException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Map;
 
 @Component
@@ -15,13 +19,35 @@ public class AudioSeparatorClient {
 
     private static final Logger log = LoggerFactory.getLogger(AudioSeparatorClient.class);
 
+    private static final int CONNECT_TIMEOUT_SECONDS = 10;
+    private static final int READ_TIMEOUT_MINUTES = 10;
+    private static final int HEALTH_CHECK_TIMEOUT_SECONDS = 5;
+    private static final int MAX_RETRIES = 3;
+    private static final long INITIAL_RETRY_DELAY_MS = 1000;
+
     private final RestClient restClient;
+    private final RestClient healthCheckClient;
 
     public AudioSeparatorClient(
             RestClient.Builder restClientBuilder,
             @Value("${yaytsa.media.karaoke.separator-url:http://audio-separator:8000}") String separatorUrl) {
+
+        var separationRequestFactory = new SimpleClientHttpRequestFactory();
+        separationRequestFactory.setConnectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS));
+        separationRequestFactory.setReadTimeout(Duration.ofMinutes(READ_TIMEOUT_MINUTES));
+
         this.restClient = restClientBuilder
                 .baseUrl(separatorUrl)
+                .requestFactory(separationRequestFactory)
+                .build();
+
+        var healthRequestFactory = new SimpleClientHttpRequestFactory();
+        healthRequestFactory.setConnectTimeout(Duration.ofSeconds(HEALTH_CHECK_TIMEOUT_SECONDS));
+        healthRequestFactory.setReadTimeout(Duration.ofSeconds(HEALTH_CHECK_TIMEOUT_SECONDS));
+
+        this.healthCheckClient = restClientBuilder
+                .baseUrl(separatorUrl)
+                .requestFactory(healthRequestFactory)
                 .build();
     }
 
@@ -41,38 +67,69 @@ public class AudioSeparatorClient {
         );
 
         long startTime = System.currentTimeMillis();
+        Exception lastException = null;
 
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, String> response = restClient.post()
-                    .uri("/api/separate")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(Map.class);
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, String> response = restClient.post()
+                        .uri("/api/separate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .body(Map.class);
 
-            long elapsed = System.currentTimeMillis() - startTime;
+                long elapsed = System.currentTimeMillis() - startTime;
 
-            if (response == null || !response.containsKey("instrumental_path")) {
-                throw new RuntimeException("Invalid response from audio separator");
+                if (response == null || !response.containsKey("instrumental_path")) {
+                    throw new RuntimeException("Invalid response from audio separator");
+                }
+
+                log.info("Audio separation completed for track {} in {}ms (attempt {})",
+                        trackId, elapsed, attempt);
+
+                return new SeparationResult(
+                        response.get("instrumental_path"),
+                        response.get("vocal_path"),
+                        elapsed
+                );
+            } catch (ResourceAccessException e) {
+                lastException = e;
+                if (isRetryableException(e) && attempt < MAX_RETRIES) {
+                    long delay = INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
+                    log.warn("Audio separation attempt {} failed for track {} (retrying in {}ms): {}",
+                            attempt, trackId, delay, e.getMessage());
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Audio separation interrupted", ie);
+                    }
+                } else {
+                    log.error("Audio separation failed for track {} after {} attempts: {}",
+                            trackId, attempt, e.getMessage());
+                    throw new RuntimeException("Audio separation failed: " + e.getMessage(), e);
+                }
+            } catch (Exception e) {
+                log.error("Audio separation failed for track {}: {}", trackId, e.getMessage());
+                throw new RuntimeException("Audio separation failed: " + e.getMessage(), e);
             }
-
-            log.info("Audio separation completed for track {} in {}ms", trackId, elapsed);
-
-            return new SeparationResult(
-                    response.get("instrumental_path"),
-                    response.get("vocal_path"),
-                    elapsed
-            );
-        } catch (Exception e) {
-            log.error("Audio separation failed for track {}: {}", trackId, e.getMessage());
-            throw new RuntimeException("Audio separation failed: " + e.getMessage(), e);
         }
+
+        throw new RuntimeException("Audio separation failed after " + MAX_RETRIES + " attempts",
+                lastException);
+    }
+
+    private boolean isRetryableException(ResourceAccessException e) {
+        Throwable cause = e.getCause();
+        return cause instanceof SocketTimeoutException ||
+               cause instanceof java.net.ConnectException ||
+               cause instanceof java.io.IOException;
     }
 
     public boolean isHealthy() {
         try {
-            restClient.get()
+            healthCheckClient.get()
                     .uri("/health")
                     .retrieve()
                     .body(String.class);

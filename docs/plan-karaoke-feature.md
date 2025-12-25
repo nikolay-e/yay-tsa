@@ -208,6 +208,101 @@ Files:
 | Large storage for cached stems  | Medium      | Medium | Configurable cache limits, LRU eviction           |
 | Demucs Python dependency        | Low         | Medium | Docker containerization, process isolation        |
 
+## Implementation Status: COMPLETED (Dec 2025)
+
+The karaoke feature has been fully implemented and deployed to production.
+
+### Deployed Components
+
+| Component                        | Location                                            | Status      |
+| -------------------------------- | --------------------------------------------------- | ----------- |
+| audio-separator (Python/FastAPI) | `docker/audio-separator/`                           | ✅ Deployed |
+| KaraokeService (Java)            | `server/.../domain/service/KaraokeService.java`     | ✅ Deployed |
+| KaraokeController (Java)         | `server/.../controller/KaraokeController.java`      | ✅ Deployed |
+| AudioSeparatorClient (Java)      | `server/.../infra/client/AudioSeparatorClient.java` | ✅ Deployed |
+| Frontend stores                  | `packages/web/src/lib/stores/karaoke.ts`            | ✅ Deployed |
+| KaraokeModeButton                | `packages/web/src/lib/components/player/`           | ✅ Deployed |
+| Phase cancellation               | `packages/platform/src/web/vocal-removal.ts`        | ✅ Deployed |
+| Helm chart                       | `gitops/helm-charts/yaytsa/`                        | ✅ Deployed |
+
+### Lessons Learned
+
+#### Infrastructure Issues
+
+1. **NVIDIA Device Plugin CrashLoopBackOff**
+   - **Cause**: Health probes configured for HTTP endpoints that the plugin doesn't expose
+   - **Solution**: Removed livenessProbe and readinessProbe from DaemonSet
+
+2. **NetworkPolicy Blocking Backend→Audio-Separator**
+   - **Cause**: Missing egress rule in backend policy for audio-separator port 8000
+   - **Solution**: Added egress rule to backend NetworkPolicy and ingress to audio-separator
+
+3. **Stems Not Shared Between Pods**
+   - **Cause**: Using emptyDir volume instead of PVC
+   - **Solution**: Enabled `audioSeparator.stems.persistence.enabled: true` in values.yaml
+
+4. **Wrong Model Name**
+   - **Cause**: Used "Demucs" instead of correct model filename "htdemucs.yaml"
+   - **Solution**: Set `MODEL_NAME=htdemucs.yaml` in audio-separator config
+
+5. **Missing kustomization.yaml for NVIDIA Device Plugin**
+   - **Cause**: ArgoCD requires kustomization.yaml to sync resources
+   - **Solution**: Created `infrastructure/base/nvidia-device-plugin/kustomization.yaml`
+
+#### Backend Issues
+
+1. **No Timeouts in AudioSeparatorClient**
+   - **Problem**: HTTP requests to audio-separator could hang indefinitely
+   - **Solution**: Added connect timeout (10s) and read timeout (10min)
+
+2. **No Retry Logic for Transient Failures**
+   - **Problem**: Network blips caused permanent failures
+   - **Solution**: Added 3-retry logic with exponential backoff (1s, 2s, 4s)
+
+3. **Stuck Jobs on Server Restart**
+   - **Problem**: In-memory job tracking lost on restart, orphaned stems directories
+   - **Solution**: Added `@PostConstruct` cleanup that removes orphaned stems directories
+
+4. **Partial Stems on Failure**
+   - **Problem**: Failed processing left partial files on disk
+   - **Solution**: Added cleanup in catch blocks to delete partial stems directories
+
+#### Frontend Issues
+
+1. **karaokeError Never Displayed**
+   - **Problem**: Error store exported but not used in UI
+   - **Solution**: Added error display in KaraokeModeButton menu and error state styling
+
+### Configuration Reference
+
+```yaml
+# gitops/helm-charts/yaytsa/values.yaml (production excerpt)
+audioSeparator:
+  enabled: true
+  config:
+    device: 'cuda'
+    modelName: 'htdemucs.yaml'
+    outputFormat: 'wav'
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+      memory: '8Gi'
+    requests:
+      nvidia.com/gpu: 1
+      memory: '4Gi'
+  stems:
+    persistence:
+      enabled: true
+      size: '50Gi'
+```
+
+### Performance Observations
+
+- **GPU Processing Time**: ~15-30 seconds per track (4-5 minute song)
+- **CPU Processing Time**: ~3-5 minutes per track (not recommended)
+- **Storage Per Track**: ~50-100MB (WAV stems)
+- **Model Download**: First run downloads ~200MB models (cached)
+
 ## References
 
 - [Demucs (Facebook Research)](https://github.com/facebookresearch/demucs)

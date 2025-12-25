@@ -140,7 +140,7 @@ public final class ItemSpecifications {
             if (searchTerm == null || searchTerm.isBlank()) {
                 return cb.conjunction();
             }
-            String pattern = "%" + searchTerm.toLowerCase() + "%";
+            String pattern = "%" + searchTerm.toLowerCase(java.util.Locale.ROOT) + "%";
             return cb.or(
                 cb.like(cb.lower(root.get("name")), pattern),
                 cb.like(cb.lower(root.get("sortName")), pattern)

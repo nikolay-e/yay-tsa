@@ -28,7 +28,7 @@ public class UserEntity {
     private String email;
 
     @Column(name = "is_admin", nullable = false)
-    private boolean isAdmin = false;
+    private boolean isAdmin;
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
