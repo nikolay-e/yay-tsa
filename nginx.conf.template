@@ -83,13 +83,34 @@ http {
             add_header Content-Type text/plain;
         }
 
-        # Cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        # SvelteKit immutable assets - content-hashed, safe to cache forever
+        location /_app/immutable/ {
             expires 1y;
             add_header Cache-Control "public, immutable";
-            # NGINX BEHAVIOR: add_header in location block overrides server-level headers
-            # Security headers must be repeated in EVERY location block that uses add_header
-            # Otherwise only Cache-Control would be sent, and security headers would be missing
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # SvelteKit mutable files - version.json, env.js - must not be cached
+        location /_app/ {
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0";
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' * data:; media-src 'self' * blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Static assets - images, fonts (not in _app/, so safe to cache)
+        location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
             add_header X-Frame-Options "SAMEORIGIN" always;
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
