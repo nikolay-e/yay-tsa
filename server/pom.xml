@@ -40,7 +40,7 @@
         <!-- Code Quality Plugin Versions -->
         <spotbugs.version>4.8.6.6</spotbugs.version>
         <spotbugs-annotations.version>4.8.6</spotbugs-annotations.version>
-        <pmd.version>7.9.0</pmd.version>
+        <pmd.version>7.10.0</pmd.version>
         <pmd-plugin.version>3.26.0</pmd-plugin.version>
         <jacoco.version>0.8.12</jacoco.version>
         <dependency-check.version>11.1.1</dependency-check.version>
