@@ -186,7 +186,8 @@ public class FileSystemMediaScanner {
         audioTrackRepository.save(audioTrack);
 
         processGenres(trackItem, metadata.genres());
-        processEmbeddedArtwork(albumItem, metadata, libraryRoot);
+        processAlbumArtwork(albumItem, filePath, metadata);
+        processArtistArtwork(artistItem, filePath);
     }
 
     private synchronized void updateExistingTrack(
@@ -317,13 +318,74 @@ public class FileSystemMediaScanner {
         itemRepository.save(item);
     }
 
-    private void processEmbeddedArtwork(ItemEntity albumItem, AudioMetadata metadata, String libraryRoot) {
-        if (metadata.embeddedArtwork() == null || metadata.embeddedArtwork().length == 0) return;
-
+    private void processAlbumArtwork(ItemEntity albumItem, Path trackPath, AudioMetadata metadata) {
         boolean hasArtwork = albumItem.getImages().stream()
             .anyMatch(img -> img.getType() == ImageType.Primary);
         if (hasArtwork) return;
 
+        Path albumFolder = trackPath.getParent();
+        Optional<Path> folderArtwork = findFolderArtwork(albumFolder);
+
+        if (folderArtwork.isPresent()) {
+            saveFolderArtwork(albumItem, folderArtwork.get());
+            return;
+        }
+
+        if (metadata.embeddedArtwork() != null && metadata.embeddedArtwork().length > 0) {
+            saveEmbeddedArtwork(albumItem, metadata);
+        }
+    }
+
+    private Optional<Path> findFolderArtwork(Path folder) {
+        String[] artworkNames = {"cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png"};
+
+        for (String name : artworkNames) {
+            Path artworkPath = folder.resolve(name);
+            if (Files.exists(artworkPath)) {
+                return Optional.of(artworkPath);
+            }
+            Path upperCase = folder.resolve(name.substring(0, 1).toUpperCase() + name.substring(1));
+            if (Files.exists(upperCase)) {
+                return Optional.of(upperCase);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private void saveFolderArtwork(ItemEntity albumItem, Path artworkPath) {
+        try {
+            byte[] artworkBytes = Files.readAllBytes(artworkPath);
+            String hash = computeHash(artworkBytes);
+
+            ImageEntity image = new ImageEntity();
+            image.setItem(albumItem);
+            image.setType(ImageType.Primary);
+            image.setPath(artworkPath.toAbsolutePath().toString());
+            image.setSizeBytes((long) artworkBytes.length);
+            image.setTag(hash);
+            image.setIsPrimary(true);
+            imageRepository.save(image);
+
+            log.debug("Found folder artwork for album: {} at {}", albumItem.getName(), artworkPath);
+        } catch (Exception e) {
+            log.warn("Failed to save folder artwork for album {}: {}", albumItem.getName(), e.getMessage());
+        }
+    }
+
+    private void processArtistArtwork(ItemEntity artistItem, Path trackPath) {
+        boolean hasArtwork = artistItem.getImages().stream()
+            .anyMatch(img -> img.getType() == ImageType.Primary);
+        if (hasArtwork) return;
+
+        Path artistFolder = trackPath.getParent().getParent();
+        Optional<Path> folderArtwork = findFolderArtwork(artistFolder);
+
+        if (folderArtwork.isPresent()) {
+            saveFolderArtwork(artistItem, folderArtwork.get());
+        }
+    }
+
+    private void saveEmbeddedArtwork(ItemEntity albumItem, AudioMetadata metadata) {
         try {
             Path cacheDir = Path.of(imageCacheDirectory);
             Files.createDirectories(cacheDir);
@@ -344,7 +406,7 @@ public class FileSystemMediaScanner {
             image.setIsPrimary(true);
             imageRepository.save(image);
 
-            log.debug("Extracted artwork for album: {}", albumItem.getName());
+            log.debug("Extracted embedded artwork for album: {}", albumItem.getName());
         } catch (Exception e) {
             log.warn("Failed to extract artwork for album {}: {}", albumItem.getName(), e.getMessage());
         }

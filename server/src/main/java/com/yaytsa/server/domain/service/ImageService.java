@@ -1,9 +1,8 @@
 package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.dto.ImageParams;
-import com.yaytsa.server.infra.persistence.entity.ImageEntity;
-import com.yaytsa.server.infra.persistence.entity.ImageType;
-import com.yaytsa.server.infra.persistence.entity.ItemEntity;
+import com.yaytsa.server.infra.persistence.entity.*;
+import com.yaytsa.server.infra.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infra.persistence.repository.ImageRepository;
 import com.yaytsa.server.infra.persistence.repository.ItemRepository;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -41,16 +40,26 @@ import java.util.UUID;
 public class ImageService {
     private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
 
+    private static final String[] ARTWORK_NAMES = {
+        "cover.jpg", "cover.jpeg", "cover.png",
+        "folder.jpg", "folder.jpeg", "folder.png",
+        "Cover.jpg", "Cover.jpeg", "Cover.png",
+        "Folder.jpg", "Folder.jpeg", "Folder.png"
+    };
+
     private final ImageRepository imageRepository;
     private final ItemRepository itemRepository;
+    private final AudioTrackRepository audioTrackRepository;
     private final Cache<String, byte[]> imageCache;
 
     public ImageService(
         ImageRepository imageRepository,
-        ItemRepository itemRepository
+        ItemRepository itemRepository,
+        AudioTrackRepository audioTrackRepository
     ) {
         this.imageRepository = imageRepository;
         this.itemRepository = itemRepository;
+        this.audioTrackRepository = audioTrackRepository;
         this.imageCache = Caffeine.newBuilder()
             .maximumSize(500)
             .expireAfterAccess(Duration.ofHours(1))
@@ -139,14 +148,62 @@ public class ImageService {
 
         if (imageType == ImageType.Primary) {
             Optional<ItemEntity> item = itemRepository.findById(itemId);
-            if (item.isPresent() && item.get().getPath() != null) {
-                Optional<byte[]> embeddedArt = extractAlbumArt(Paths.get(item.get().getPath()));
-                if (embeddedArt.isPresent()) {
-                    return embeddedArt;
+            if (item.isPresent()) {
+                ItemEntity itemEntity = item.get();
+
+                Optional<byte[]> folderArt = findFolderArtwork(itemEntity);
+                if (folderArt.isPresent()) {
+                    return folderArt;
+                }
+
+                if (itemEntity.getPath() != null && !itemEntity.getPath().startsWith("artist:") &&
+                    !itemEntity.getPath().startsWith("album:")) {
+                    Optional<byte[]> embeddedArt = extractAlbumArt(Paths.get(itemEntity.getPath()));
+                    if (embeddedArt.isPresent()) {
+                        return embeddedArt;
+                    }
                 }
             }
         }
 
+        return Optional.empty();
+    }
+
+    private Optional<byte[]> findFolderArtwork(ItemEntity item) {
+        try {
+            Path folder = null;
+
+            if (item.getType() == ItemType.MusicAlbum) {
+                var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(item.getId());
+                if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
+                    folder = Paths.get(tracks.get(0).getItem().getPath()).getParent();
+                }
+            } else if (item.getType() == ItemType.MusicArtist) {
+                var albums = itemRepository.findAllByParentId(item.getId());
+                for (ItemEntity album : albums) {
+                    var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(album.getId());
+                    if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
+                        folder = Paths.get(tracks.get(0).getItem().getPath()).getParent().getParent();
+                        break;
+                    }
+                }
+            } else if (item.getPath() != null && !item.getPath().startsWith("artist:") &&
+                       !item.getPath().startsWith("album:")) {
+                folder = Paths.get(item.getPath()).getParent();
+            }
+
+            if (folder != null) {
+                for (String artworkName : ARTWORK_NAMES) {
+                    Path artworkPath = folder.resolve(artworkName);
+                    if (Files.exists(artworkPath)) {
+                        logger.debug("Found folder artwork at: {}", artworkPath);
+                        return Optional.of(Files.readAllBytes(artworkPath));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Error finding folder artwork for item {}: {}", item.getId(), e.getMessage());
+        }
         return Optional.empty();
     }
 
