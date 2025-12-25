@@ -185,3 +185,63 @@ jobs:
           echo "Backend image pushed with tags: ${{ steps.tags.outputs.tags }}"
           echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
           echo "Digest: ${{ steps.build.outputs.digest }}"
+
+  docker-build-audio-separator:
+    name: Build Audio Separator Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}"
+
+          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${PRIMARY_TAG}"
+          if [[ "$BRANCH_NAME" == "main" ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:latest"
+          elif [[ "$BRANCH_NAME" == "develop" ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:staging-latest"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "primary_tag=${PRIMARY_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/audio-separator
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker/audio-separator
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=audio-separator
+          cache-to: type=gha,mode=max,scope=audio-separator
+          platforms: linux/amd64
+
+      - name: Image digest
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Audio Separator image pushed with tags: ${{ steps.tags.outputs.tags }}"
+          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
