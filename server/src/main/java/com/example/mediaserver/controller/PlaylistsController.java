@@ -1,11 +1,14 @@
 package com.example.mediaserver.controller;
 
+import com.example.mediaserver.domain.service.ItemService;
 import com.example.mediaserver.domain.service.PlaylistService;
+import com.example.mediaserver.dto.BaseItemDto;
 import com.example.mediaserver.dto.request.CreatePlaylistRequest;
-import com.example.mediaserver.dto.response.BaseItemDto;
 import com.example.mediaserver.dto.response.QueryResultDto;
+import com.example.mediaserver.infra.persistence.entity.ItemEntity;
 import com.example.mediaserver.infra.persistence.entity.PlaylistEntity;
 import com.example.mediaserver.infra.persistence.entity.PlaylistEntryEntity;
+import com.example.mediaserver.mapper.ItemMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -25,9 +28,17 @@ import java.util.stream.Collectors;
 public class PlaylistsController {
 
     private final PlaylistService playlistService;
+    private final ItemService itemService;
+    private final ItemMapper itemMapper;
 
-    public PlaylistsController(PlaylistService playlistService) {
+    public PlaylistsController(
+        PlaylistService playlistService,
+        ItemService itemService,
+        ItemMapper itemMapper
+    ) {
         this.playlistService = playlistService;
+        this.itemService = itemService;
+        this.itemMapper = itemMapper;
     }
 
     @Operation(summary = "Get user playlists",
@@ -143,7 +154,24 @@ public class PlaylistsController {
             .map(entry -> {
                 Map<String, Object> item = new HashMap<>();
                 item.put("PlaylistItemId", entry.getId().toString());
-                item.put("Id", entry.getItemId().toString());
+
+                Optional<ItemEntity> itemEntity = itemService.findById(entry.getItemId());
+                if (itemEntity.isPresent()) {
+                    BaseItemDto dto = itemMapper.toDto(itemEntity.get(), null);
+                    item.put("Id", dto.id().toString());
+                    item.put("Name", dto.name());
+                    item.put("Type", dto.type());
+                    item.put("RunTimeTicks", dto.runTimeTicks());
+                    item.put("IndexNumber", dto.indexNumber());
+                    item.put("ParentIndexNumber", dto.parentIndexNumber());
+                    item.put("AlbumId", dto.albumId() != null ? dto.albumId().toString() : null);
+                    item.put("AlbumArtist", dto.albumArtist());
+                    if (dto.imageTags() != null) {
+                        item.put("ImageTags", Map.of("Primary", dto.imageTags().primary()));
+                    }
+                } else {
+                    item.put("Id", entry.getItemId().toString());
+                }
                 return item;
             })
             .collect(Collectors.toList());

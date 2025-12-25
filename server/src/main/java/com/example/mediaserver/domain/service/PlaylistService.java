@@ -1,7 +1,10 @@
 package com.example.mediaserver.domain.service;
 
+import com.example.mediaserver.infra.persistence.entity.ItemEntity;
+import com.example.mediaserver.infra.persistence.entity.ItemType;
 import com.example.mediaserver.infra.persistence.entity.PlaylistEntity;
 import com.example.mediaserver.infra.persistence.entity.PlaylistEntryEntity;
+import com.example.mediaserver.infra.persistence.repository.ItemRepository;
 import com.example.mediaserver.infra.persistence.repository.PlaylistEntryRepository;
 import com.example.mediaserver.infra.persistence.repository.PlaylistRepository;
 import org.springframework.data.domain.Page;
@@ -22,17 +25,28 @@ public class PlaylistService {
 
     private final PlaylistRepository playlistRepository;
     private final PlaylistEntryRepository playlistEntryRepository;
+    private final ItemRepository itemRepository;
 
     public PlaylistService(
         PlaylistRepository playlistRepository,
-        PlaylistEntryRepository playlistEntryRepository
+        PlaylistEntryRepository playlistEntryRepository,
+        ItemRepository itemRepository
     ) {
         this.playlistRepository = playlistRepository;
         this.playlistEntryRepository = playlistEntryRepository;
+        this.itemRepository = itemRepository;
     }
 
     public PlaylistEntity createPlaylist(UUID userId, String name, List<UUID> itemIds) {
+        ItemEntity itemEntity = new ItemEntity();
+        itemEntity.setType(ItemType.Playlist);
+        itemEntity.setName(name);
+        itemEntity.setSortName(name.toLowerCase());
+        itemEntity.setPath("playlist:" + UUID.randomUUID());
+        itemEntity = itemRepository.save(itemEntity);
+
         PlaylistEntity playlist = new PlaylistEntity();
+        playlist.setId(itemEntity.getId());
         playlist.setUserId(userId);
         playlist.setName(name);
 
@@ -89,32 +103,39 @@ public class PlaylistService {
         }
 
         int oldPosition = entry.getPosition();
+        if (oldPosition == newIndex) {
+            return;
+        }
+
         List<PlaylistEntryEntity> allEntries = playlistEntryRepository
             .findByPlaylistIdOrderByPositionAsc(playlistId);
 
-        if (oldPosition < newIndex) {
-            for (PlaylistEntryEntity e : allEntries) {
-                if (e.getPosition() > oldPosition && e.getPosition() <= newIndex) {
-                    e.setPosition(e.getPosition() - 1);
-                    playlistEntryRepository.save(e);
-                }
-            }
-        } else if (oldPosition > newIndex) {
-            for (PlaylistEntryEntity e : allEntries) {
-                if (e.getPosition() >= newIndex && e.getPosition() < oldPosition) {
-                    e.setPosition(e.getPosition() + 1);
-                    playlistEntryRepository.save(e);
-                }
-            }
-        }
+        PlaylistEntryEntity movedEntry = allEntries.stream()
+            .filter(e -> e.getId().equals(entryId))
+            .findFirst()
+            .orElseThrow();
 
-        entry.setPosition(newIndex);
-        playlistEntryRepository.save(entry);
+        allEntries.remove(movedEntry);
+
+        int insertIndex = Math.min(newIndex, allEntries.size());
+        allEntries.add(insertIndex, movedEntry);
+
+        for (int i = 0; i < allEntries.size(); i++) {
+            allEntries.get(i).setPosition(-(i + 1));
+        }
+        playlistEntryRepository.saveAll(allEntries);
+        playlistEntryRepository.flush();
+
+        for (int i = 0; i < allEntries.size(); i++) {
+            allEntries.get(i).setPosition(i);
+        }
+        playlistEntryRepository.saveAll(allEntries);
     }
 
     public void deletePlaylist(UUID playlistId) {
         playlistEntryRepository.deleteByPlaylistId(playlistId);
         playlistRepository.deleteById(playlistId);
+        itemRepository.deleteById(playlistId);
     }
 
     @Transactional(readOnly = true)

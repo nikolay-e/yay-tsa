@@ -19,7 +19,15 @@ public final class ItemSpecifications {
             List<ItemType> itemTypes = types.stream()
                 .map(ItemSpecifications::mapJellyfinType)
                 .toList();
-            return root.get("type").in(itemTypes);
+
+            if (itemTypes.size() == 1) {
+                return cb.equal(root.get("type"), itemTypes.get(0));
+            }
+
+            Predicate[] predicates = itemTypes.stream()
+                .map(type -> cb.equal(root.get("type"), type))
+                .toArray(Predicate[]::new);
+            return cb.or(predicates);
         };
     }
 

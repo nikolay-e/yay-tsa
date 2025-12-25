@@ -156,9 +156,9 @@ public class UsersController {
 
                 AlbumEntity album = null;
                 if (audioTrack != null && audioTrack.getAlbum() != null) {
-                    album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
+                    album = albumRepository.findByIdWithArtist(audioTrack.getAlbum().getId());
                 } else if (item.getType() == ItemType.MusicAlbum) {
-                    album = albumRepository.findById(item.getId()).orElse(null);
+                    album = albumRepository.findByIdWithArtist(item.getId());
                 }
 
                 return itemMapper.toDto(item, playState, audioTrack, album);
@@ -205,9 +205,9 @@ public class UsersController {
 
         AlbumEntity album = null;
         if (audioTrack != null && audioTrack.getAlbum() != null) {
-            album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
+            album = albumRepository.findByIdWithArtist(audioTrack.getAlbum().getId());
         } else if (item.getType() == ItemType.MusicAlbum) {
-            album = albumRepository.findById(itemUuid).orElse(null);
+            album = albumRepository.findByIdWithArtist(itemUuid);
         }
 
         BaseItemDto itemDto = itemMapper.toDto(item, playState, audioTrack, album);

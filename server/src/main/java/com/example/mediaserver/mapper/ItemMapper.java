@@ -26,7 +26,7 @@ public class ItemMapper {
         AudioTrackEntity audioTrack,
         AlbumEntity album
     ) {
-        String type = item.getType().toString();
+        String type = mapItemType(item.getType());
         UserDataDto userData = playState != null ? mapUserData(playState) : null;
 
         Long runTimeTicks = null;
@@ -35,6 +35,20 @@ public class ItemMapper {
         UUID albumId = null;
         String albumArtist = null;
         List<BaseItemDto.NameIdPair> albumArtists = null;
+        List<String> artists = null;
+        List<BaseItemDto.NameIdPair> artistItems = null;
+
+        if (album != null && album.getArtist() != null) {
+            ItemEntity artistEntity = album.getArtist();
+            artists = List.of(artistEntity.getName());
+            artistItems = List.of(
+                new BaseItemDto.NameIdPair(artistEntity.getName(), artistEntity.getId())
+            );
+            albumArtist = artistEntity.getName();
+            albumArtists = List.of(
+                new BaseItemDto.NameIdPair(artistEntity.getName(), artistEntity.getId())
+            );
+        }
 
         if (audioTrack != null) {
             if (audioTrack.getDurationMs() != null) {
@@ -88,12 +102,12 @@ public class ItemMapper {
             null,
             albumArtist,
             albumArtists,
-            null,
-            null,
+            artists,
+            artistItems,
             genres,
             genreItems,
             userData,
-            type.equals("AudioTrack") ? "Audio" : null,
+            type.equals("Audio") ? "Audio" : null,
             imageTags,
             null,
             null,
@@ -154,5 +168,15 @@ public class ItemMapper {
             : primaryImage.get().getId().toString();
 
         return new BaseItemDto.ImageTags(tag);
+    }
+
+    private String mapItemType(ItemType itemType) {
+        return switch (itemType) {
+            case AudioTrack -> "Audio";
+            case MusicAlbum -> "MusicAlbum";
+            case MusicArtist -> "MusicArtist";
+            case Folder -> "Folder";
+            case Playlist -> "Playlist";
+        };
     }
 }

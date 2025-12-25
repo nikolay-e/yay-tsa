@@ -35,7 +35,7 @@ describe('E2E: Authentication', () => {
 
     expect(response).toBeDefined();
     expect(response.AccessToken).toBeDefined();
-    expect(response.AccessToken).toMatch(/^[a-f0-9]{32}$/);
+    expect(response.AccessToken).toMatch(/^[a-f0-9]{64}$/);
     expect(response.User).toBeDefined();
     expect(response.User.Id).toBeDefined();
     expect(response.User.Name).toBe(config.username);

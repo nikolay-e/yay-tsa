@@ -15,4 +15,7 @@ public interface AlbumRepository extends JpaRepository<AlbumEntity, UUID> {
 
     @Query("SELECT a FROM AlbumEntity a WHERE a.artist.id = :artistId ORDER BY a.item.sortName ASC")
     List<AlbumEntity> findByAlbumArtistIdOrderBySortNameAsc(@Param("artistId") UUID artistId);
+
+    @Query("SELECT a FROM AlbumEntity a LEFT JOIN FETCH a.artist WHERE a.itemId = :itemId")
+    AlbumEntity findByIdWithArtist(@Param("itemId") UUID itemId);
 }

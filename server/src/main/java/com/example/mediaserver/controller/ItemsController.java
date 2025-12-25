@@ -296,7 +296,7 @@ public class ItemsController {
         if (item.getType() == ItemType.AudioTrack) {
             audioTrack = audioTrackRepository.findById(item.getId()).orElse(null);
         } else if (item.getType() == ItemType.MusicAlbum) {
-            album = albumRepository.findById(item.getId()).orElse(null);
+            album = albumRepository.findByIdWithArtist(item.getId());
         }
 
         return itemMapper.toDto(item, playState, audioTrack, album);
