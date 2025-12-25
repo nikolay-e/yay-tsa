@@ -92,7 +92,7 @@ public class ImageService {
     public Optional<String> getImageTag(UUID itemId, String imageTypeStr) {
         try {
             ImageType imageType = ImageType.valueOf(imageTypeStr);
-            return imageRepository.findByItemIdAndType(itemId, imageType)
+            return imageRepository.findFirstByItemIdAndType(itemId, imageType)
                 .map(this::generateETag);
         } catch (IllegalArgumentException e) {
             logger.warn("Invalid image type: {}", imageTypeStr);
@@ -127,7 +127,7 @@ public class ImageService {
     }
 
     private Optional<byte[]> loadImageData(UUID itemId, ImageType imageType) throws IOException {
-        Optional<ImageEntity> imageEntity = imageRepository.findByItemIdAndType(itemId, imageType);
+        Optional<ImageEntity> imageEntity = imageRepository.findFirstByItemIdAndType(itemId, imageType);
 
         if (imageEntity.isPresent()) {
             Path imagePath = Paths.get(imageEntity.get().getPath());
