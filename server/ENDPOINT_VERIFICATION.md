@@ -111,7 +111,7 @@ await this.client.get(this.buildUserUrl(`/Items/${itemId}`));
 **Backend** (`UsersController.java:82-110`):
 
 - ✅ GET `/Users/{userId}/Items/{itemId}` exists
-- ✅ Returns `BaseItemDto` with proper fields
+- ✅ Returns `BaseItemResponse` with proper fields
 
 ### DELETE /Items/{itemId}
 
@@ -149,7 +149,7 @@ const params = {
 **Backend** (`UsersController.java:36-73`):
 
 - ✅ All parameters correct (PascalCase)
-- ✅ Returns `QueryResultDto<BaseItemDto>`
+- ✅ Returns `QueryResultResponse<BaseItemResponse>`
 
 ### GET /Users/{userId}/Items/{itemId}
 
@@ -162,7 +162,7 @@ await this.client.get(`/Users/${userId}/Items/${playlistId}`);
 **Backend** (`UsersController.java:82-110`):
 
 - ✅ Path variables match
-- ✅ Returns `BaseItemDto`
+- ✅ Returns `BaseItemResponse`
 
 ---
 
@@ -411,9 +411,9 @@ await this.get('/System/Info/Public');
 
 ## Response Format Verification
 
-### BaseItemDto Critical Fields
+### BaseItemResponse Critical Fields
 
-**Backend** (`BaseItemDto.java:39-44`):
+**Backend** (`BaseItemResponse.java:39-44`):
 
 ```java
 @JsonProperty("IndexNumber") Integer indexNumber      // Track number
@@ -421,7 +421,7 @@ await this.get('/System/Info/Public');
 @JsonProperty("RunTimeTicks") Long runTimeTicks       // TICKS not milliseconds!
 ```
 
-**Conversion** (`BaseItemDto.java:222`):
+**Conversion** (`BaseItemResponse.java:222`):
 
 ```java
 Long runTimeTicks = durationMs != null ? durationMs * 10000L : null;
@@ -434,7 +434,7 @@ Long runTimeTicks = durationMs != null ? durationMs * 10000L : null;
 - ✅ Contains User (UserDto), SessionInfo (SessionInfoDto), AccessToken, ServerId
 - ✅ All fields use PascalCase via @JsonProperty
 
-### QueryResultDto
+### QueryResultResponse
 
 - ✅ Contains Items, TotalRecordCount, StartIndex
 - ✅ Uses PascalCase for JSON serialization

@@ -196,7 +196,7 @@ yaytsa:
 logging:
   level:
     root: ${LOG_LEVEL:INFO}
-    com.example.mediaserver: ${APP_LOG_LEVEL:DEBUG}
+    com.yaytsa.server: ${APP_LOG_LEVEL:DEBUG}
     org.springframework.web: INFO
     org.springframework.security: INFO
     org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
@@ -238,7 +238,7 @@ spring:
 
 logging:
   level:
-    com.example.mediaserver: TRACE
+    com.yaytsa.server: TRACE
     org.springframework.web: DEBUG
     org.springframework.security: DEBUG
 
@@ -285,7 +285,7 @@ spring:
 logging:
   level:
     root: WARN
-    com.example.mediaserver: INFO
+    com.yaytsa.server: INFO
     org.springframework.web: WARN
     org.springframework.security: WARN
 

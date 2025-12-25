@@ -1,36 +1,11 @@
 import { defineConfig } from 'vitest/config';
-import { loadEnv } from 'vite';
 
-export default defineConfig(({ mode }) => {
-  // Load env file from project root (2 levels up from packages/core)
-  const env = loadEnv(mode, '../../', '');
-
-  return {
-    test: {
-      // E2E tests against real server - run serially to avoid rate limiting
-      fileParallelism: false,
-      sequence: {
-        concurrent: false,
-        shuffle: false,
-      },
-      // Single thread to prevent database concurrency issues
-      pool: 'forks',
-      poolOptions: {
-        forks: {
-          singleFork: true,
-        },
-      },
-      // Longer timeout for network requests
-      testTimeout: 30000,
-      hookTimeout: 30000,
-      // Environment variables - merge loaded .env with process.env (CI secrets)
-      env: {
-        ...env,
-        ...process.env, // CI environment variables take precedence
-        NODE_ENV: 'test',
-      },
-      // Show test output
-      reporters: ['verbose'],
-    },
-  };
+export default defineConfig({
+  test: {
+    include: ['tests/unit/**/*.test.ts'],
+    // Unit tests run in parallel for speed
+    fileParallelism: true,
+    testTimeout: 5000,
+    reporters: ['verbose'],
+  },
 });

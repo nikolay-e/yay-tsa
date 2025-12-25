@@ -20,7 +20,7 @@ server/
 - src/main/resources/
   - application.yml
   - db/migration/V1\_\_init.sql
-- src/main/java/com/example/mediaserver/
+- src/main/java/com/yaytsa/server/
   - MediaServerApplication.java
   - config/
     - SecurityConfig.java
@@ -72,9 +72,9 @@ server/
   - error/
     - GlobalExceptionHandler.java
     - ApiError.java
-- src/test/java/com/example/mediaserver/
-  - unit/…
-  - integration/…
+- src/test/java/com/yaytsa/server/ (planned)
+  - unit/… (planned)
+  - integration/… (planned)
 
 Tools and frameworks (with evidence-based rationale)
 

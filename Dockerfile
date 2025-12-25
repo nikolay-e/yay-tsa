@@ -41,7 +41,7 @@ RUN npm run build:core && npm run build:platform
 
 RUN npx playwright install chromium
 
-CMD ["sh", "-c", "cd packages/core && npm run test:e2e && cd ../web && npm run test:e2e"]
+CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../web && npm run test:e2e"]
 
 FROM nginx:1.29.4-alpine AS production
 

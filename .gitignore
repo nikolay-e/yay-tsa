@@ -36,6 +36,7 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+server/logs/
 
 # Testing
 coverage/
@@ -48,3 +49,7 @@ tree.tmp
 # SSL Certificates (auto-generated)
 *.pem
 server/media/
+
+# Prevent known monorepo directory pollution (specific paths only)
+# Add new paths here as they appear, don't use broad wildcards
+packages/core/packages/

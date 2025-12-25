@@ -42,8 +42,8 @@ npm run format                 # Prettier write
 npm run pre-commit             # Run all pre-commit hooks manually
 
 # Testing
-cd packages/core && npm run test:e2e    # E2E tests against local server
-cd packages/web && npm run test:e2e     # Playwright E2E tests
+cd packages/core && npm run test:integration    # Integration tests against local server
+cd packages/web && npm run test:e2e             # Playwright E2E tests
 
 # Docker Deployment (starts frontend, backend, database)
 docker compose up              # Development with HMR
@@ -287,7 +287,7 @@ export const prerender = false;
 
 ### Integration/E2E Tests ONLY (No Unit Tests)
 
-**Core E2E Tests** (`packages/core/tests/e2e/`):
+**Core Integration Tests** (`packages/core/tests/integration/`):
 
 - **Real media server** via docker-compose (not mocked)
 - **BDD-style** - Given-When-Then structure
@@ -321,14 +321,14 @@ describe('Feature: Queue Management', () => {
 ```bash
 # Core integration tests
 cd packages/core
-npm run test:e2e
+npm run test:integration
 
 # Web E2E tests
 cd packages/web
 npm run test:e2e
 ```
 
-**Environment Variables** (`.env` for E2E - defaults to local server):
+**Environment Variables** (`.env` for integration tests - defaults to local server):
 
 ```bash
 YAYTSA_TEST_USERNAME=admin
@@ -436,4 +436,4 @@ script-src 'self';
 
 - **DESIGN.md** - Detailed technical architecture and platform comparison
 - **server/CLAUDE.md** - Backend server architecture and implementation
-- **packages/core/tests/e2e/README.md** - E2E testing guide
+- **packages/core/tests/integration/README.md** - Integration testing guide
