@@ -10,7 +10,7 @@ import {
   AudioItem,
   MusicAlbum,
   MusicArtist,
-  JellyfinError,
+  MediaServerError,
 } from '../models/types.js';
 
 export class ItemsService extends BaseService {
@@ -46,7 +46,7 @@ export class ItemsService extends BaseService {
 
     const result = await this.client.get<ItemsResult<T>>('/Items', params);
     if (!result) {
-      throw new JellyfinError('Failed to query items: Empty response');
+      throw new MediaServerError('Failed to query items: Empty response');
     }
     return result;
   }
@@ -174,7 +174,7 @@ export class ItemsService extends BaseService {
       this.buildUserUrl(`/Items/${itemId}`)
     );
     if (!result) {
-      throw new JellyfinError(`Failed to get item ${itemId}: Empty response`);
+      throw new MediaServerError(`Failed to get item ${itemId}: Empty response`);
     }
     return result;
   }
@@ -264,7 +264,7 @@ export class ItemsService extends BaseService {
 
     const result = await this.client.get<ItemsResult<MusicAlbum>>('/Items', params);
     if (!result) {
-      throw new JellyfinError('Failed to get recently played albums: Empty response');
+      throw new MediaServerError('Failed to get recently played albums: Empty response');
     }
     return result;
   }

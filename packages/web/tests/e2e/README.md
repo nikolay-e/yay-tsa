@@ -1,6 +1,6 @@
-# E2E Tests - Jellyfin Mini Music Client
+# E2E Tests - Yaytsa Music Client
 
-Playwright E2E тесты для веб-приложения Jellyfin Mini Music Client.
+Playwright E2E тесты для веб-приложения Yaytsa.
 
 ## Setup
 
@@ -22,7 +22,7 @@ npx playwright install
 cp .env.example .env
 ```
 
-1. Update `.env` with your Jellyfin server credentials:
+1. Update `.env` with your server credentials:
 
 ```
 YAYTSA_SERVER_URL=https://your-server.com
@@ -182,7 +182,7 @@ npx playwright codegen http://localhost:5173
 
 ## Environment Variables
 
-- `YAYTSA_SERVER_URL` - Jellyfin server URL
+- `YAYTSA_SERVER_URL` - Media server URL
 - `YAYTSA_TEST_USERNAME` - Test user username
 - `YAYTSA_TEST_PASSWORD` - Test user password
 - `BASE_URL` - Application base URL (default: <http://localhost:5173>)

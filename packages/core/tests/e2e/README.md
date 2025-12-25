@@ -11,7 +11,7 @@ These tests follow **Behavior-Driven Development (BDD)** principles, focusing on
 ```
 tests/e2e/
   fixtures/          # Test data and utilities
-    data-factory.ts  # Discovers and prepares test data from Jellyfin library
+    data-factory.ts  # Discovers and prepares test data from media server library
     scenarios.ts     # Reusable Given-When-Then helpers
     mock-tracks.ts   # Mock data for queue tests (local logic)
   features/          # Feature-based test files

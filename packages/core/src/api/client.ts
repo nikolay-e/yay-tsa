@@ -1,12 +1,12 @@
 /**
- * HTTP Client for Jellyfin API
+ * HTTP Client for Media Server API
  * Handles authentication headers and token injection
  */
 
 import {
   ClientInfo,
   ServerConfig,
-  JellyfinError,
+  MediaServerError,
   NetworkError,
   AuthenticationError,
 } from '../models/types.js';
@@ -14,7 +14,7 @@ import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('API');
 
-export class JellyfinClient {
+export class MediaServerClient {
   private serverUrl: string;
   private clientInfo: ClientInfo;
   private token: string | null = null;
@@ -47,7 +47,7 @@ export class JellyfinClient {
   }
 
   /**
-   * Build Emby/Jellyfin authorization header
+   * Build Emby/Media Server authorization header
    * Required for authentication and authenticated requests
    */
   buildAuthHeader(token?: string): string {
@@ -182,7 +182,7 @@ export class JellyfinClient {
     }
 
     // Network error retry logic (only for idempotent requests)
-    return isIdempotent && !(statusOrError instanceof JellyfinError);
+    return isIdempotent && !(statusOrError instanceof MediaServerError);
   }
 
   /**
@@ -214,7 +214,7 @@ export class JellyfinClient {
   }
 
   /**
-   * Make HTTP request to Jellyfin API
+   * Make HTTP request to Media Server API
    * Returns undefined for 204 No Content or empty responses
    * Automatically retries requests with exponential backoff on network/gateway errors
    */
@@ -282,7 +282,7 @@ export class JellyfinClient {
         }
 
         // Network errors or parsing errors
-        if (error instanceof JellyfinError) {
+        if (error instanceof MediaServerError) {
           throw error;
         }
 
@@ -380,7 +380,7 @@ export class JellyfinClient {
       throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
     }
 
-    throw new JellyfinError(message, response.status, errorData as Record<string, unknown>);
+    throw new MediaServerError(message, response.status, errorData as Record<string, unknown>);
   }
 
   /**
@@ -437,7 +437,7 @@ export class JellyfinClient {
     errorMessage?: string
   ): T {
     if (result === undefined) {
-      throw new JellyfinError(errorMessage || `Empty response from ${method} ${endpoint}`, 500);
+      throw new MediaServerError(errorMessage || `Empty response from ${method} ${endpoint}`, 500);
     }
     return result;
   }

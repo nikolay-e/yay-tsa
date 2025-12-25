@@ -1,10 +1,10 @@
 /**
- * Jellyfin Mini Client - Core Package
+ * Media Server Client - Core Package
  * Framework-agnostic business logic
  */
 
 // API modules
-export { JellyfinClient } from './api/client.js';
+export { MediaServerClient } from './api/client.js';
 export { BaseService } from './api/base-service.js';
 export { AuthService, validateServerUrl } from './api/auth.js';
 export { ItemsService } from './api/items.js';

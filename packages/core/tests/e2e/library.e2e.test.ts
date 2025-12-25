@@ -1,10 +1,10 @@
 /**
  * E2E Library Tests
- * Tests library queries against real Jellyfin server
+ * Tests library queries against real Media Server
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { JellyfinClient } from '../../src/api/client.js';
+import { MediaServerClient } from '../../src/api/client.js';
 import { AuthService } from '../../src/api/auth.js';
 import { ItemsService } from '../../src/api/items.js';
 import { loadTestConfig, delay, retryableLogin, AUTH_DELAY } from './setup.js';
@@ -12,13 +12,13 @@ import type { ClientInfo } from '../../src/models/types.js';
 
 describe('E2E: Library Queries', () => {
   let config: ReturnType<typeof loadTestConfig>;
-  let client: JellyfinClient;
+  let client: MediaServerClient;
   let authService: AuthService;
   let itemsService: ItemsService;
   let userId: string;
 
   const clientInfo: ClientInfo = {
-    name: 'Jellyfin Mini Client E2E Tests',
+    name: 'Media Server Client E2E Tests',
     device: 'Test Runner',
     deviceId: 'e2e-test-library-id',
     version: '0.1.0-test',
@@ -28,7 +28,7 @@ describe('E2E: Library Queries', () => {
     await delay(AUTH_DELAY);
 
     config = loadTestConfig();
-    client = new JellyfinClient(config.serverUrl, clientInfo);
+    client = new MediaServerClient(config.serverUrl, clientInfo);
     authService = new AuthService(client);
 
     const authResponse = await retryableLogin(

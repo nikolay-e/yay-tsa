@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Jellyfin Mini Music Client - a portable, minimal music client for Jellyfin media servers. Built as an npm workspaces monorepo with strict separation between framework-agnostic business logic (core), platform adapters (platform), and UI implementations (web).
+Yaytsa - a minimal music player with a custom Java-based media server backend. Built as an npm workspaces monorepo with strict separation between framework-agnostic business logic (core), platform adapters (platform), and UI implementations (web). The backend is a Java 21 Spring Boot server with PostgreSQL.
 
 **Core Architecture Principle**: Layered architecture with 100% portable core logic, platform abstraction through interfaces, and reactive UI layer. Bundle size target: <150KB gzipped.
 
@@ -42,12 +42,12 @@ npm run format                 # Prettier write
 npm run pre-commit             # Run all pre-commit hooks manually
 
 # Testing
-cd packages/core && npm run test:e2e    # E2E tests against real Jellyfin server
+cd packages/core && npm run test:e2e    # E2E tests against local server
 cd packages/web && npm run test:e2e     # Playwright E2E tests
 
-# Docker Deployment
-docker-compose up --build      # Development with HMR
-docker-compose -f docker-compose.yml up -d    # Production with Nginx
+# Docker Deployment (starts frontend, backend, database)
+docker compose up              # Development with HMR
+docker compose --profile test up    # Run E2E tests
 
 # Kubernetes (via GitOps)
 # See /Users/nikolay/code/gitops/helm-charts/yaytsa/
@@ -64,7 +64,7 @@ docker-compose -f docker-compose.yml up -d    # Production with Nginx
 - **API Client** (`api/client.ts:14-324`) - HTTP client with Emby-compatible auth headers
 - **Services** - AuthService, ItemsService, FavoritesService, PlaylistsService
 - **State Machines** - PlaybackQueue (`player/queue.ts:8-426`) with shuffle/repeat logic
-- **Models** - TypeScript types for Jellyfin entities
+- **Models** - TypeScript types for media server entities
 
 **Layer 2: Platform (`@yaytsa/platform`)** - 0% portable (intentionally)
 
@@ -89,9 +89,9 @@ Svelte Store (player.ts, auth.ts)
   ↓
 Core Service (AuthService, ItemsService)
   ↓
-JellyfinClient (HTTP request with auth headers)
+MediaServerClient (HTTP request with auth headers)
   ↓
-Jellyfin Server
+Media Server (Java backend)
 ```
 
 ### Example: Play Album
@@ -111,7 +111,7 @@ Jellyfin Server
 
 ```typescript
 interface AuthState {
-  client: JellyfinClient | null;
+  client: MediaServerClient | null;
   authService: AuthService | null;
   token: string | null;
   userId: string | null;
@@ -151,7 +151,7 @@ interface PlayerState {
 - `audioEngine.onEnded()` → auto-advances to next track
 - `client.subscribe()` → recreates `PlaybackState` when auth changes
 
-## Critical Jellyfin API Details
+## Media Server API Details
 
 ### Authentication Flow
 
@@ -160,13 +160,12 @@ interface PlayerState {
 **Critical Implementation** (`packages/core/src/api/auth.ts:16-43`):
 
 ```typescript
-// Field name is "Pw" not "Password" (Jellyfin 10.8.x compatibility)
 const authPayload = {
   Username: username,
-  Pw: password,  // NOT "Password" - varies by server version
+  Pw: password,
 };
 
-// Emby-compatible header format required
+// Emby-compatible header format
 headers: {
   'X-Emby-Authorization': buildAuthHeader(clientInfo),
 }
@@ -175,7 +174,7 @@ headers: {
 **buildAuthHeader Format** (`client.ts:36-50`):
 
 ```
-MediaBrowser Client="Jellyfin Mini", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
+MediaBrowser Client="Yaytsa", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
 ```
 
 **Session Storage Strategy** (`lib/stores/auth.ts:86-91`):
@@ -225,7 +224,7 @@ function getStreamUrl(itemId: string): string {
 ```typescript
 const TICKS_PER_SECOND = 10_000_000;
 
-// Jellyfin uses 100-nanosecond "ticks" for time positions
+// Server uses 100-nanosecond "ticks" for time positions
 reportPlaybackProgress({
   ItemId: itemId,
   PositionTicks: Math.floor(seconds * TICKS_PER_SECOND),
@@ -290,7 +289,7 @@ export const prerender = false;
 
 **Core E2E Tests** (`packages/core/tests/e2e/`):
 
-- **Real Jellyfin server** via docker-compose (not mocked)
+- **Real media server** via docker-compose (not mocked)
 - **BDD-style** - Given-When-Then structure
 - **Data Factory** (`fixtures/data-factory.ts`) - discovers test data from actual server
 - **Scenarios** (`fixtures/scenarios.ts`) - reusable test helpers
@@ -315,7 +314,7 @@ describe('Feature: Queue Management', () => {
 **Web E2E Tests** (`packages/web/tests/e2e/`):
 
 - Playwright for browser automation
-- Tests against real dev server + Jellyfin instance
+- Tests against real dev server + local media server
 
 **Run Tests**:
 
@@ -329,12 +328,11 @@ cd packages/web
 npm run test:e2e
 ```
 
-**Environment Variables** (`.env` required for E2E):
+**Environment Variables** (`.env` for E2E - defaults to local server):
 
 ```bash
-YAYTSA_SERVER_URL=https://your-server.com
-YAYTSA_TEST_USERNAME=test-user
-YAYTSA_TEST_PASSWORD=test-password
+YAYTSA_TEST_USERNAME=admin
+YAYTSA_TEST_PASSWORD=admin123
 ```
 
 ## Security Implementation
@@ -363,12 +361,12 @@ if (!parsed.protocol.startsWith('http')) {
 
 ### Content Security Policy
 
-Configured in `index.html` (production):
+Configured via Nginx (production):
 
 ```
 default-src 'self';
-connect-src 'self' https://*.jellyfin-domain.com;
-media-src 'self' https://*.jellyfin-domain.com;
+connect-src 'self' http://backend:8096;
+media-src 'self' http://backend:8096 blob:;
 script-src 'self';
 ```
 
@@ -411,7 +409,7 @@ script-src 'self';
 
 **Core Package**:
 
-- `packages/core/src/api/client.ts:14-324` - JellyfinClient with auth injection
+- `packages/core/src/api/client.ts:14-324` - MediaServerClient with auth injection
 - `packages/core/src/player/queue.ts:8-426` - PlaybackQueue state machine
 - `packages/core/src/player/state.ts` - PlaybackState with progress reporting
 
@@ -436,6 +434,6 @@ script-src 'self';
 
 ## Additional Documentation
 
-- **DESIGN.md** - Detailed technical architecture, Jellyfin API spec reference, platform comparison
-- **jellyfin-api-spec.json** - Full OpenAPI 3.0 specification (v10.10.7)
+- **DESIGN.md** - Detailed technical architecture and platform comparison
+- **server/CLAUDE.md** - Backend server architecture and implementation
 - **packages/core/tests/e2e/README.md** - E2E testing guide

@@ -33,12 +33,10 @@ public class PlaylistService {
 
     public PlaylistEntity createPlaylist(UUID userId, String name, List<UUID> itemIds) {
         PlaylistEntity playlist = new PlaylistEntity();
-        playlist.setId(UUID.randomUUID());
         playlist.setUserId(userId);
         playlist.setName(name);
-        playlist.setCreatedAt(OffsetDateTime.now());
 
-        playlistRepository.save(playlist);
+        playlist = playlistRepository.save(playlist);
 
         if (itemIds != null && !itemIds.isEmpty()) {
             addItemsToPlaylist(playlist.getId(), itemIds);

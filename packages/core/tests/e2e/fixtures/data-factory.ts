@@ -1,10 +1,10 @@
 /**
  * Test Data Factory
- * Discovers and prepares predictable test fixtures from existing Jellyfin library
- * Since Jellyfin doesn't support creating artists/albums via API, we discover existing data
+ * Discovers and prepares predictable test fixtures from existing Media Server library
+ * Since Media Server doesn't support creating artists/albums via API, we discover existing data
  */
 
-import { JellyfinClient } from '../../../src/api/client.js';
+import { MediaServerClient } from '../../../src/api/client.js';
 import { AuthService } from '../../../src/api/auth.js';
 import { ItemsService } from '../../../src/api/items.js';
 import { PlaylistsService } from '../../../src/api/playlists.js';
@@ -21,7 +21,7 @@ export interface TestFixtures {
   playlists: { id: string; name: string }[];
 
   // Services
-  client: JellyfinClient;
+  client: MediaServerClient;
   authService: AuthService;
   itemsService: ItemsService;
   playlistsService: PlaylistsService;
@@ -31,7 +31,7 @@ export interface TestFixtures {
 }
 
 export class TestDataFactory {
-  private client: JellyfinClient;
+  private client: MediaServerClient;
   private authService: AuthService;
   private itemsService: ItemsService;
   private playlistsService: PlaylistsService;
@@ -39,8 +39,8 @@ export class TestDataFactory {
   private createdPlaylistIds: string[] = [];
 
   constructor(private config: TestConfig) {
-    this.client = new JellyfinClient(config.serverUrl, {
-      clientName: 'Jellyfin Mini Client E2E Tests',
+    this.client = new MediaServerClient(config.serverUrl, {
+      clientName: 'Media Server Client E2E Tests',
       deviceName: 'E2E Test Runner',
       version: '0.1.0',
     });
@@ -52,7 +52,7 @@ export class TestDataFactory {
 
   /**
    * Setup test fixtures by discovering existing library data
-   * Given: Jellyfin server with existing music library
+   * Given: Media Server with existing music library
    * When: Tests need predictable data
    * Then: Return first N artists/albums/tracks as fixtures
    */
@@ -109,7 +109,7 @@ export class TestDataFactory {
     if (errors.length > 0) {
       throw new Error(
         `Library validation failed:\n${errors.join('\n')}\n\n` +
-          `Please add more music to your Jellyfin test library.`
+          `Please add more music to your Media Server test library.`
       );
     }
   }

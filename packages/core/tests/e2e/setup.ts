@@ -1,9 +1,9 @@
 /**
  * E2E Test Setup
- * Loads credentials, provides BDD helpers and utilities for testing against real Jellyfin server
+ * Loads credentials, provides BDD helpers and utilities for testing against real Media Server
  */
 
-import { JellyfinError } from '../../src/models/types.js';
+import { MediaServerError } from '../../src/models/types.js';
 import { TestDataFactory, TestFixtures } from './fixtures/data-factory.js';
 import { ScenarioContext } from './fixtures/scenarios.js';
 
@@ -37,7 +37,7 @@ export function loadTestConfig(): TestConfig {
   console.log(`  Credentials: Configured`);
   console.log(`  Username length: ${username.length}, Password length: ${password.length}`);
   console.log(
-    `  Note: If tests fail with 500 errors, verify credentials work in Jellyfin web UI\n`
+    `  Note: If tests fail with 500 errors, verify credentials work in Media Server web UI\n`
   );
 
   return {
@@ -93,21 +93,21 @@ export function skipIfNoCredentials(): void {
 }
 
 /**
- * Delay helper for avoiding Jellyfin SQLite concurrency issues
+ * Delay helper for avoiding Media Server SQLite concurrency issues
  */
 export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Standard delay between authentication attempts
- * Helps avoid Jellyfin SQLite concurrency issues (DbUpdateConcurrencyException)
- * Increased for Jellyfin 10.11.1+ which has more aggressive database locking
+ * Helps avoid Media Server SQLite concurrency issues (DbUpdateConcurrencyException)
+ * Increased for newer Media Server versions which have more aggressive database locking
  */
 export const AUTH_DELAY = 3000; // 3 seconds
 
 /**
- * Retry configuration for handling transient Jellyfin errors
+ * Retry configuration for handling transient Media Server errors
  * Conservative retry for occasional database locks (DbUpdateConcurrencyException)
- * Increased for Jellyfin 10.11.1+ SQLite concurrency issues
+ * Increased for newer Media Server versions with more aggressive SQLite concurrency
  */
 export const RETRY_CONFIG = {
   maxAttempts: 5,
@@ -117,7 +117,7 @@ export const RETRY_CONFIG = {
 
 /**
  * Retry wrapper for authentication to handle transient HTTP 500 errors
- * caused by Jellyfin SQLite database locks
+ * caused by Media Server SQLite database locks
  */
 export async function retryableLogin<T>(
   operation: () => Promise<T>,
@@ -132,9 +132,9 @@ export async function retryableLogin<T>(
     } catch (error) {
       lastError = error as Error;
 
-      const isJellyfinError = error instanceof JellyfinError;
-      const statusCode = isJellyfinError ? error.statusCode : undefined;
-      const isRetryable = isJellyfinError && statusCode === 500;
+      const isMediaServerError = error instanceof MediaServerError;
+      const statusCode = isMediaServerError ? error.statusCode : undefined;
+      const isRetryable = isMediaServerError && statusCode === 500;
 
       if (!isRetryable || attempt === RETRY_CONFIG.maxAttempts) {
         throw error;

@@ -3,7 +3,7 @@
  */
 
 import { client } from '../stores/auth.js';
-import type { JellyfinClient } from '@yaytsa/core';
+import type { MediaServerClient } from '@yaytsa/core';
 
 /**
  * Image size presets
@@ -17,7 +17,7 @@ const IMAGE_SIZE_DIMENSIONS: Record<ImageSize, { maxWidth: number; maxHeight: nu
 };
 
 // Cache client instance to avoid repeated get() calls (performance optimization)
-let cachedClient: JellyfinClient | null = null;
+let cachedClient: MediaServerClient | null = null;
 client.subscribe($client => {
   cachedClient = $client;
 });

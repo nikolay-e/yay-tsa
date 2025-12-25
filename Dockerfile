@@ -37,6 +37,8 @@ RUN npm ci
 
 COPY packages/ ./packages/
 
+RUN npm run build:core && npm run build:platform
+
 RUN npx playwright install chromium
 
 CMD ["sh", "-c", "cd packages/core && npm run test:e2e && cd ../web && npm run test:e2e"]

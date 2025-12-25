@@ -1,5 +1,5 @@
 /**
- * Domain models and types for Jellyfin Mini Client
+ * Domain models and types for Media Server Client
  */
 
 // ============================================================================
@@ -26,17 +26,17 @@ export interface ServerConfig {
 
 export interface AuthPayload {
   Username: string;
-  Pw: string; // Note: "Pw" not "Password" per Jellyfin API
+  Pw: string; // Note: "Pw" not "Password" per Media Server API
 }
 
 export interface AuthResponse {
-  User: JellyfinUser;
+  User: MediaServerUser;
   SessionInfo: SessionInfo;
   AccessToken: string;
   ServerId: string;
 }
 
-export interface JellyfinUser {
+export interface MediaServerUser {
   Name: string;
   ServerId: string;
   Id: string;
@@ -412,25 +412,25 @@ export interface QueueState {
 // Errors
 // ============================================================================
 
-export class JellyfinError extends Error {
+export class MediaServerError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
     public response?: any
   ) {
     super(message);
-    this.name = 'JellyfinError';
+    this.name = 'MediaServerError';
   }
 }
 
-export class AuthenticationError extends JellyfinError {
+export class AuthenticationError extends MediaServerError {
   constructor(message: string, statusCode?: number, response?: any) {
     super(message, statusCode, response);
     this.name = 'AuthenticationError';
   }
 }
 
-export class NetworkError extends JellyfinError {
+export class NetworkError extends MediaServerError {
   constructor(
     message: string,
     public originalError?: Error

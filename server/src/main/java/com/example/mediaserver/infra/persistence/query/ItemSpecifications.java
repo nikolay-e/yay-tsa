@@ -17,9 +17,20 @@ public final class ItemSpecifications {
                 return cb.conjunction();
             }
             List<ItemType> itemTypes = types.stream()
-                .map(ItemType::valueOf)
+                .map(ItemSpecifications::mapJellyfinType)
                 .toList();
             return root.get("type").in(itemTypes);
+        };
+    }
+
+    private static ItemType mapJellyfinType(String jellyfinType) {
+        return switch (jellyfinType) {
+            case "Audio" -> ItemType.AudioTrack;
+            case "MusicAlbum" -> ItemType.MusicAlbum;
+            case "MusicArtist" -> ItemType.MusicArtist;
+            case "Folder" -> ItemType.Folder;
+            case "Playlist" -> ItemType.Playlist;
+            default -> ItemType.valueOf(jellyfinType);
         };
     }
 

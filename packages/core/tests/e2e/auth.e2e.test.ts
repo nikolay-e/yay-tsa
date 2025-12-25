@@ -1,21 +1,21 @@
 /**
  * E2E Authentication Tests
- * Tests authentication flows against real Jellyfin server
+ * Tests authentication flows against real Media Server
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { JellyfinClient } from '../../src/api/client.js';
+import { MediaServerClient } from '../../src/api/client.js';
 import { AuthService } from '../../src/api/auth.js';
 import { loadTestConfig, delay, retryableLogin, AUTH_DELAY } from './setup.js';
 import type { ClientInfo } from '../../src/models/types.js';
 
 describe('E2E: Authentication', () => {
   let config: ReturnType<typeof loadTestConfig>;
-  let client: JellyfinClient;
+  let client: MediaServerClient;
   let authService: AuthService;
 
   const clientInfo: ClientInfo = {
-    name: 'Jellyfin Mini Client E2E Tests',
+    name: 'Media Server Client E2E Tests',
     device: 'Test Runner',
     deviceId: 'e2e-test-device-id',
     version: '0.1.0-test',
@@ -23,7 +23,7 @@ describe('E2E: Authentication', () => {
 
   beforeAll(() => {
     config = loadTestConfig();
-    client = new JellyfinClient(config.serverUrl, clientInfo);
+    client = new MediaServerClient(config.serverUrl, clientInfo);
     authService = new AuthService(client);
   });
 
@@ -56,7 +56,7 @@ describe('E2E: Authentication', () => {
   });
 
   it('should get server info without authentication', async () => {
-    const freshClient = new JellyfinClient(config.serverUrl, clientInfo);
+    const freshClient = new MediaServerClient(config.serverUrl, clientInfo);
     const serverInfo = await freshClient.getServerInfo();
 
     expect(serverInfo).toBeDefined();
@@ -68,7 +68,7 @@ describe('E2E: Authentication', () => {
   it('should fail authentication with invalid credentials', async () => {
     await delay(AUTH_DELAY); // Delay even before failed auth to avoid server load
 
-    const freshClient = new JellyfinClient(config.serverUrl, clientInfo);
+    const freshClient = new MediaServerClient(config.serverUrl, clientInfo);
     const freshAuthService = new AuthService(freshClient);
 
     await expect(freshAuthService.login('invalid-user', 'invalid-password')).rejects.toThrow();
@@ -87,7 +87,7 @@ describe('E2E: Authentication', () => {
   });
 
   it('should validate HTTPS server URL in production mode', async () => {
-    const freshClient = new JellyfinClient(config.serverUrl, clientInfo);
+    const freshClient = new MediaServerClient(config.serverUrl, clientInfo);
     const freshAuthService = new AuthService(freshClient);
 
     const response = await retryableLogin(

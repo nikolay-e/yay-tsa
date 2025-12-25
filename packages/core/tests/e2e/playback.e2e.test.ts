@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { JellyfinClient } from '../../src/api/client.js';
+import { MediaServerClient } from '../../src/api/client.js';
 import { AuthService } from '../../src/api/auth.js';
 import { ItemsService } from '../../src/api/items.js';
 import { PlaybackReporter } from '../../src/player/state.js';
@@ -13,7 +13,7 @@ import type { ClientInfo } from '../../src/models/types.js';
 
 describe('E2E: Playback Reporting', () => {
   let config: ReturnType<typeof loadTestConfig>;
-  let client: JellyfinClient;
+  let client: MediaServerClient;
   let authService: AuthService;
   let itemsService: ItemsService;
   let reporter: PlaybackReporter;
@@ -21,7 +21,7 @@ describe('E2E: Playback Reporting', () => {
   let testTrackId: string | null = null;
 
   const clientInfo: ClientInfo = {
-    name: 'Jellyfin Mini Client E2E Tests',
+    name: 'Media Server Client E2E Tests',
     device: 'Test Runner',
     deviceId: 'e2e-test-playback-id',
     version: '0.1.0-test',
@@ -31,7 +31,7 @@ describe('E2E: Playback Reporting', () => {
     await delay(AUTH_DELAY);
 
     config = loadTestConfig();
-    client = new JellyfinClient(config.serverUrl, clientInfo);
+    client = new MediaServerClient(config.serverUrl, clientInfo);
     authService = new AuthService(client);
 
     const authResponse = await retryableLogin(

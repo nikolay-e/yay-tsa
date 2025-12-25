@@ -15,7 +15,7 @@ import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
@@ -43,9 +43,9 @@ public class FileSystemMediaScanner {
     @Value("${yaytsa.media.images.cache-directory:./temp/images}")
     private String imageCacheDirectory;
 
-    private final Map<String, ItemEntity> artistCache = new ConcurrentHashMap<>();
-    private final Map<String, ItemEntity> albumCache = new ConcurrentHashMap<>();
-    private final Map<String, GenreEntity> genreCache = new ConcurrentHashMap<>();
+    private final Map<String, UUID> artistIdCache = new ConcurrentHashMap<>();
+    private final Map<String, UUID> albumIdCache = new ConcurrentHashMap<>();
+    private final Map<String, UUID> genreIdCache = new ConcurrentHashMap<>();
 
     public FileSystemMediaScanner(
             JAudioTaggerExtractor metadataExtractor,
@@ -92,29 +92,11 @@ public class FileSystemMediaScanner {
         AtomicInteger added = new AtomicInteger(0);
         AtomicInteger updated = new AtomicInteger(0);
         AtomicInteger errors = new AtomicInteger(0);
-        Set<String> processedPaths = ConcurrentHashMap.newKeySet();
+        Set<String> processedPaths = new HashSet<>();
 
-        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        Semaphore semaphore = new Semaphore(scanThreads);
-
-        List<CompletableFuture<Void>> futures = audioFiles.stream()
-            .map(file -> CompletableFuture.runAsync(() -> {
-                try {
-                    semaphore.acquire();
-                    try {
-                        processAudioFile(file, libraryRoot, added, updated, errors, processedPaths);
-                    } finally {
-                        semaphore.release();
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    errors.incrementAndGet();
-                }
-            }, executor))
-            .toList();
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        executor.shutdown();
+        for (Path file : audioFiles) {
+            processAudioFile(file, libraryRoot, added, updated, errors, processedPaths);
+        }
 
         int removed = removeDeletedItems(libraryRoot, processedPaths);
 
@@ -250,9 +232,9 @@ public class FileSystemMediaScanner {
             : artistName;
 
         String cacheKey = finalArtistName.toLowerCase();
-        return artistCache.computeIfAbsent(cacheKey, key -> {
+        UUID artistId = artistIdCache.computeIfAbsent(cacheKey, key -> {
             Optional<ItemEntity> existing = itemRepository.findByPath("artist:" + finalArtistName.toLowerCase());
-            if (existing.isPresent()) return existing.get();
+            if (existing.isPresent()) return existing.get().getId();
 
             ItemEntity item = new ItemEntity();
             item.setType(ItemType.MusicArtist);
@@ -266,8 +248,10 @@ public class FileSystemMediaScanner {
             artist.setItem(item);
             artistRepository.save(artist);
 
-            return item;
+            return item.getId();
         });
+
+        return itemRepository.findById(artistId).orElseThrow();
     }
 
     private ItemEntity findOrCreateAlbum(String albumName, ItemEntity artistItem, String libraryRoot) {
@@ -278,10 +262,10 @@ public class FileSystemMediaScanner {
         String artistName = artistItem.getName();
         String cacheKey = (artistName + "::" + finalAlbumName).toLowerCase();
 
-        return albumCache.computeIfAbsent(cacheKey, key -> {
+        UUID albumId = albumIdCache.computeIfAbsent(cacheKey, key -> {
             String albumPath = "album:" + artistName.toLowerCase() + "::" + finalAlbumName.toLowerCase();
             Optional<ItemEntity> existing = itemRepository.findByPath(albumPath);
-            if (existing.isPresent()) return existing.get();
+            if (existing.isPresent()) return existing.get().getId();
 
             ItemEntity item = new ItemEntity();
             item.setType(ItemType.MusicAlbum);
@@ -297,22 +281,26 @@ public class FileSystemMediaScanner {
             album.setArtist(artistItem);
             albumRepository.save(album);
 
-            return item;
+            return item.getId();
         });
+
+        return itemRepository.findById(albumId).orElseThrow();
     }
 
     private void processGenres(ItemEntity item, List<String> genres) {
         if (genres == null || genres.isEmpty()) return;
 
         for (String genreName : genres) {
-            GenreEntity genre = genreCache.computeIfAbsent(genreName.toLowerCase(), key -> {
+            UUID genreId = genreIdCache.computeIfAbsent(genreName.toLowerCase(), key -> {
                 Optional<GenreEntity> existing = genreRepository.findByName(genreName);
-                if (existing.isPresent()) return existing.get();
+                if (existing.isPresent()) return existing.get().getId();
 
                 GenreEntity newGenre = new GenreEntity();
                 newGenre.setName(genreName);
-                return genreRepository.save(newGenre);
+                return genreRepository.save(newGenre).getId();
             });
+
+            GenreEntity genre = genreRepository.findById(genreId).orElseThrow();
 
             boolean exists = item.getItemGenres().stream()
                 .anyMatch(ig -> ig.getGenre().getId().equals(genre.getId()));

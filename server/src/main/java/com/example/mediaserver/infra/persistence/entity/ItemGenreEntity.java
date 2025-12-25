@@ -26,7 +26,7 @@ public class ItemGenreEntity {
     @JoinColumn(name = "item_id", foreignKey = @ForeignKey(name = "fk_item_genres_item"))
     private ItemEntity item;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @MapsId("genreId")
     @JoinColumn(name = "genre_id", foreignKey = @ForeignKey(name = "fk_item_genres_genre"))
     private GenreEntity genre;

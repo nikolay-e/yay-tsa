@@ -66,7 +66,7 @@ public class SessionsController {
         UUID userId = authenticatedUser.getUserEntity().getId();
         String deviceId = authenticatedUser.getDeviceId();
         UUID itemId = UUID.fromString(progressInfo.getItemId());
-        long positionMs = progressInfo.getPositionTicks() / (TICKS_PER_SECOND / 1000);
+        long positionMs = Math.max(0, progressInfo.getPositionTicks() / (TICKS_PER_SECOND / 1000));
         boolean isPaused = progressInfo.getIsPaused() != null && progressInfo.getIsPaused();
 
         sessionService.reportPlaybackProgress(userId, deviceId, itemId, positionMs, isPaused);
@@ -88,7 +88,7 @@ public class SessionsController {
         UUID userId = authenticatedUser.getUserEntity().getId();
         String deviceId = authenticatedUser.getDeviceId();
         UUID itemId = UUID.fromString(stopInfo.getItemId());
-        long positionMs = stopInfo.getPositionTicks() / (TICKS_PER_SECOND / 1000);
+        long positionMs = Math.max(0, stopInfo.getPositionTicks() / (TICKS_PER_SECOND / 1000));
 
         sessionService.reportPlaybackStopped(userId, deviceId, itemId, positionMs);
 

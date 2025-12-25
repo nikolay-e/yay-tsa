@@ -1,17 +1,17 @@
 /**
  * Authentication Module
- * Handles user authentication with Jellyfin server
+ * Handles user authentication with Media Server
  */
 
-import { JellyfinClient } from './client.js';
+import { MediaServerClient } from './client.js';
 import { AuthPayload, AuthResponse, AuthenticationError } from '../models/types.js';
 
 export class AuthService {
-  constructor(private client: JellyfinClient) {}
+  constructor(private client: MediaServerClient) {}
 
   /**
    * Authenticate user with username and password
-   * Note: Uses "Pw" field name for compatibility with Jellyfin 10.8.x+
+   * Note: Uses "Pw" field name for compatibility with Media Server API
    */
   async login(username: string, password: string): Promise<AuthResponse> {
     // Clear any existing token
@@ -20,7 +20,7 @@ export class AuthService {
     // Build auth payload with correct field names
     const payload: AuthPayload = {
       Username: username,
-      Pw: password, // "Pw" not "Password" per Jellyfin API
+      Pw: password, // "Pw" not "Password" per Media Server API
     };
 
     try {

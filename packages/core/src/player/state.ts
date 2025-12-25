@@ -1,9 +1,9 @@
 /**
  * Playback State Management
- * Manages player state and playback reporting to Jellyfin server
+ * Manages player state and playback reporting to Media Server
  */
 
-import { JellyfinClient } from '../api/client.js';
+import { MediaServerClient } from '../api/client.js';
 import {
   PlayerState,
   PlaybackStatus,
@@ -21,11 +21,11 @@ const log = createLogger('Player');
 
 /**
  * Playback Reporter
- * Simplified class for reporting playback events to Jellyfin server
+ * Simplified class for reporting playback events to Media Server
  * Useful for testing and standalone reporting scenarios
  */
 export class PlaybackReporter {
-  constructor(private client: JellyfinClient) {}
+  constructor(private client: MediaServerClient) {}
 
   /**
    * Report playback start
@@ -101,7 +101,7 @@ export class PlaybackState {
   private progressReportTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly PROGRESS_REPORT_INTERVAL = 10000; // 10 seconds
 
-  constructor(private client: JellyfinClient) {}
+  constructor(private client: MediaServerClient) {}
 
   /**
    * Get current state
@@ -219,14 +219,14 @@ export class PlaybackState {
   }
 
   /**
-   * Get current time in ticks (Jellyfin format)
+   * Get current time in ticks (Media Server format)
    */
   getCurrentTimeTicks(): number {
     return secondsToTicks(this.state.currentTime);
   }
 
   /**
-   * Report playback start to Jellyfin server
+   * Report playback start to Media Server
    */
   async reportPlaybackStart(): Promise<void> {
     if (!this.state.currentItem) return;
@@ -251,7 +251,7 @@ export class PlaybackState {
   }
 
   /**
-   * Report playback progress to Jellyfin server
+   * Report playback progress to Media Server
    */
   async reportPlaybackProgress(): Promise<void> {
     if (!this.state.currentItem) return;
@@ -275,7 +275,7 @@ export class PlaybackState {
   }
 
   /**
-   * Report playback stop to Jellyfin server
+   * Report playback stop to Media Server
    */
   async reportPlaybackStop(): Promise<void> {
     this.stopProgressReporting();

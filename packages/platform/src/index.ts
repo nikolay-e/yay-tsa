@@ -1,5 +1,5 @@
 /**
- * Jellyfin Mini Client - Platform Package
+ * Media Server Client - Platform Package
  * Platform-specific adapters and interfaces
  */
 

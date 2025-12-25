@@ -1,6 +1,6 @@
 /**
  * Mock Track Data
- * Realistic mock data structures that mimic Jellyfin API responses
+ * Realistic mock data structures that mimic Media Server API responses
  * Used for testing queue logic without server interaction
  */
 

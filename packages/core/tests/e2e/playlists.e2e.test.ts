@@ -1,10 +1,10 @@
 /**
  * E2E Playlists Tests
- * Tests playlist management against real Jellyfin server
+ * Tests playlist management against real Media Server
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { JellyfinClient } from '../../src/api/client.js';
+import { MediaServerClient } from '../../src/api/client.js';
 import { AuthService } from '../../src/api/auth.js';
 import { ItemsService } from '../../src/api/items.js';
 import { PlaylistsService } from '../../src/api/playlists.js';
@@ -13,7 +13,7 @@ import type { ClientInfo } from '../../src/models/types.js';
 
 describe('E2E: Playlists Management', () => {
   let config: ReturnType<typeof loadTestConfig>;
-  let client: JellyfinClient;
+  let client: MediaServerClient;
   let authService: AuthService;
   let itemsService: ItemsService;
   let playlistsService: PlaylistsService;
@@ -22,7 +22,7 @@ describe('E2E: Playlists Management', () => {
   let testPlaylistId: string | null = null;
 
   const clientInfo: ClientInfo = {
-    name: 'Jellyfin Mini Client E2E Tests',
+    name: 'Media Server Client E2E Tests',
     device: 'Test Runner',
     deviceId: 'e2e-test-playlists-id',
     version: '0.1.0-test',
@@ -32,7 +32,7 @@ describe('E2E: Playlists Management', () => {
     await delay(AUTH_DELAY);
 
     config = loadTestConfig();
-    client = new JellyfinClient(config.serverUrl, clientInfo);
+    client = new MediaServerClient(config.serverUrl, clientInfo);
     authService = new AuthService(client);
 
     const authResponse = await retryableLogin(
@@ -213,7 +213,7 @@ describe('E2E: Playlists Management', () => {
 
   it('should fail to create playlist without authentication', async () => {
     // Create unauthenticated client
-    const unauthClient = new JellyfinClient(config.serverUrl, clientInfo);
+    const unauthClient = new MediaServerClient(config.serverUrl, clientInfo);
     const unauthPlaylistsService = new PlaylistsService(unauthClient);
 
     await expect(async () => {

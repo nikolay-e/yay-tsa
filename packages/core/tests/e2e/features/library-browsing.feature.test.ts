@@ -1,6 +1,6 @@
 /**
  * Feature: Library Browsing
- * Tests library queries and navigation against real Jellyfin server
+ * Tests library queries and navigation against real Media Server
  * Focus on user browsing experience, not API implementation details
  */
 

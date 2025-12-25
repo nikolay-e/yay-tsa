@@ -47,3 +47,4 @@ temp/
 tree.tmp
 # SSL Certificates (auto-generated)
 *.pem
+server/media/

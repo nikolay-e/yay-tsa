@@ -9,7 +9,7 @@ import {
   AudioItem,
   ItemsResult,
   CreatePlaylistDto,
-  JellyfinError,
+  MediaServerError,
 } from '../models/types.js';
 
 export class PlaylistsService extends BaseService {
@@ -19,7 +19,7 @@ export class PlaylistsService extends BaseService {
   async createPlaylist(options: CreatePlaylistDto): Promise<Playlist> {
     const userId = this.requireAuth();
 
-    // Build request body matching Jellyfin API schema
+    // Build request body matching Media Server API schema
     const body: {
       Name: string;
       Ids?: string[];
@@ -45,7 +45,7 @@ export class PlaylistsService extends BaseService {
 
     const result = await this.client.post<{ Id: string }>('/Playlists', body);
     if (!result) {
-      throw new JellyfinError('Failed to create playlist: Empty response');
+      throw new MediaServerError('Failed to create playlist: Empty response');
     }
 
     return this.getPlaylist(result.Id);
@@ -59,7 +59,7 @@ export class PlaylistsService extends BaseService {
 
     const result = await this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
     if (!result) {
-      throw new JellyfinError(`Failed to get playlist ${playlistId}: Empty response`);
+      throw new MediaServerError(`Failed to get playlist ${playlistId}: Empty response`);
     }
     return result;
   }
@@ -93,7 +93,7 @@ export class PlaylistsService extends BaseService {
       params
     );
     if (!result) {
-      throw new JellyfinError(`Failed to get playlist items for ${playlistId}: Empty response`);
+      throw new MediaServerError(`Failed to get playlist items for ${playlistId}: Empty response`);
     }
     return result;
   }
@@ -166,7 +166,7 @@ export class PlaylistsService extends BaseService {
 
     const result = await this.client.get<ItemsResult<Playlist>>(`/Users/${userId}/Items`, params);
     if (!result) {
-      throw new JellyfinError('Failed to get playlists: Empty response');
+      throw new MediaServerError('Failed to get playlists: Empty response');
     }
     return result;
   }

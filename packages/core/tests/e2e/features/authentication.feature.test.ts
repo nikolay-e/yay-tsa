@@ -1,11 +1,11 @@
 /**
  * Feature: User Authentication
- * Tests authentication flows against real Jellyfin server
+ * Tests authentication flows against real Media Server
  * Focus on user login journeys, not token implementation details
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { JellyfinClient } from '../../../src/api/client.js';
+import { MediaServerClient } from '../../../src/api/client.js';
 import { AuthService } from '../../../src/api/auth.js';
 import { loadTestConfig, delay, retryableLogin, AUTH_DELAY, TestConfig } from '../setup.js';
 import { ThenAuth } from '../fixtures/scenarios.js';
@@ -15,7 +15,7 @@ describe('Feature: User Authentication', () => {
   let config: TestConfig;
 
   const clientInfo: ClientInfo = {
-    name: 'Jellyfin Mini Client E2E Tests',
+    name: 'Media Server Client E2E Tests',
     device: 'Test Runner',
     deviceId: 'e2e-test-auth-device',
     version: '0.1.0-test',
@@ -28,7 +28,7 @@ describe('Feature: User Authentication', () => {
   describe('Scenario: User logs in with valid credentials', () => {
     it('Given: User on login page, When: Enters valid credentials, Then: Successfully authenticated', async () => {
       // Given: Fresh client (not authenticated)
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
       ThenAuth.userIsNotAuthenticated(client);
 
@@ -47,7 +47,7 @@ describe('Feature: User Authentication', () => {
 
     it('Given: User authenticated, When: Views profile, Then: Sees user info', async () => {
       // Given: User logs in
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
 
       const response = await retryableLogin(
@@ -73,7 +73,7 @@ describe('Feature: User Authentication', () => {
       await delay(AUTH_DELAY);
 
       // Given: Fresh client
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
 
       // When: User enters wrong password
@@ -88,7 +88,7 @@ describe('Feature: User Authentication', () => {
       await delay(AUTH_DELAY);
 
       // Given: Fresh client
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
 
       // When: User enters nonexistent username
@@ -105,7 +105,7 @@ describe('Feature: User Authentication', () => {
       await delay(AUTH_DELAY);
 
       // Given: User is authenticated
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
 
       await retryableLogin(
@@ -132,7 +132,7 @@ describe('Feature: User Authentication', () => {
   describe('Scenario: Anonymous user checks server availability', () => {
     it('Given: User not logged in, When: App connects to server, Then: Server info available', async () => {
       // Given: Fresh client without authentication
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       ThenAuth.userIsNotAuthenticated(client);
 
       // When: App checks server availability
@@ -151,7 +151,7 @@ describe('Feature: User Authentication', () => {
       await delay(AUTH_DELAY);
 
       // Given: First login
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
 
       const firstLogin = await retryableLogin(
@@ -185,7 +185,7 @@ describe('Feature: User Authentication', () => {
   describe('Scenario: App validates server connection', () => {
     it('Given: User configures server URL, When: App validates connection, Then: Server is reachable', async () => {
       // Given: User enters server URL in settings
-      const client = new JellyfinClient(config.serverUrl, clientInfo);
+      const client = new MediaServerClient(config.serverUrl, clientInfo);
 
       // When: App validates server
       const serverInfo = await client.getServerInfo();
@@ -203,7 +203,7 @@ describe('Feature: User Authentication', () => {
       // In production, HTTP should be rejected
       if (isHttps) {
         // When: App connects to HTTPS server
-        const client = new JellyfinClient(config.serverUrl, clientInfo);
+        const client = new MediaServerClient(config.serverUrl, clientInfo);
         const serverInfo = await client.getServerInfo();
 
         // Then: Connection succeeds
@@ -219,13 +219,13 @@ describe('Feature: User Authentication', () => {
       await delay(AUTH_DELAY);
 
       // Given: Two different clients (simulating different devices)
-      const client1 = new JellyfinClient(config.serverUrl, {
+      const client1 = new MediaServerClient(config.serverUrl, {
         ...clientInfo,
         deviceId: 'device-1',
         device: 'Phone',
       });
 
-      const client2 = new JellyfinClient(config.serverUrl, {
+      const client2 = new MediaServerClient(config.serverUrl, {
         ...clientInfo,
         deviceId: 'device-2',
         device: 'Tablet',

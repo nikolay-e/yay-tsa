@@ -2,12 +2,12 @@
   "name": "yaytsa",
   "version": "0.0.0-placeholder",
   "private": true,
-  "description": "A portable music client for Jellyfin",
+  "description": "Yaytsa - A minimal music player",
   "keywords": [
-    "jellyfin",
     "yaytsa",
     "music",
-    "client"
+    "player",
+    "audio"
   ],
   "license": "MIT",
   "author": "",

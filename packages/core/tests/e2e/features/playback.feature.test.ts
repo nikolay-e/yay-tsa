@@ -1,6 +1,6 @@
 /**
  * Feature: Playback Reporting
- * Tests playback progress reporting to Jellyfin server
+ * Tests playback progress reporting to Media Server
  * Focus on user-visible playback states, not internal tick conversion
  */
 

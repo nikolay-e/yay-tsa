@@ -26,20 +26,20 @@ export const STORAGE_KEYS = {
 } as const;
 
 /**
- * Jellyfin ticks conversion
- * Jellyfin uses ticks (10,000,000 ticks per second) for time positions
+ * Media Server ticks conversion
+ * Media Server uses ticks (10,000,000 ticks per second) for time positions
  */
 export const TICKS_PER_SECOND = 10_000_000;
 
 /**
- * Convert seconds to Jellyfin ticks
+ * Convert seconds to Media Server ticks
  */
 export function secondsToTicks(seconds: number): number {
   return Math.floor(seconds * TICKS_PER_SECOND);
 }
 
 /**
- * Convert Jellyfin ticks to seconds
+ * Convert Media Server ticks to seconds
  */
 export function ticksToSeconds(ticks: number): number {
   return ticks / TICKS_PER_SECOND;

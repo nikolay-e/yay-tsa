@@ -1,12 +1,12 @@
 /**
- * Base service class for Jellyfin API services
+ * Base service class for Media Server API services
  * Provides common functionality for all API services
  */
 
-import { JellyfinClient } from './client.js';
+import { MediaServerClient } from './client.js';
 
 export abstract class BaseService {
-  constructor(protected client: JellyfinClient) {}
+  constructor(protected client: MediaServerClient) {}
 
   /**
    * Require authentication and return user ID

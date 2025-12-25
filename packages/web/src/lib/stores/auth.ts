@@ -5,7 +5,7 @@
 
 import { writable, derived, get } from 'svelte/store';
 import {
-  JellyfinClient,
+  MediaServerClient,
   AuthService,
   validateServerUrl,
   getOrCreateDeviceId,
@@ -27,7 +27,7 @@ import { cacheManager } from '../cache/cache-manager.js';
 const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 
 interface AuthState {
-  client: JellyfinClient | null;
+  client: MediaServerClient | null;
   authService: AuthService | null;
   token: string | null;
   userId: string | null;
@@ -101,7 +101,7 @@ async function login(
     const clientInfo: ClientInfo = createClientInfoFromConfig();
 
     // Create client and auth service
-    const client = new JellyfinClient(serverUrl, clientInfo);
+    const client = new MediaServerClient(serverUrl, clientInfo);
     const authService = new AuthService(client);
 
     // Set up global 401 interceptor for auto-logout
@@ -256,7 +256,7 @@ async function restoreSession(): Promise<boolean> {
     // Create client info from config
     const clientInfo: ClientInfo = createClientInfoFromConfig();
 
-    const client = new JellyfinClient(serverUrl, clientInfo);
+    const client = new MediaServerClient(serverUrl, clientInfo);
     client.setToken(token, userId);
 
     // Set up global 401 interceptor for auto-logout

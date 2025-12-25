@@ -10,7 +10,7 @@ import type { AudioItem } from '../../src/models/types.js';
 describe('E2E: Playback Queue', () => {
   let queue: PlaybackQueue;
 
-  // Mock track data that mimics real Jellyfin response
+  // Mock track data that mimics real Media Server response
   const mockTracks: AudioItem[] = [
     {
       Id: 'track-1',

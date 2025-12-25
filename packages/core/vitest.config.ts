@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
         concurrent: false,
         shuffle: false,
       },
-      // Single thread to prevent Jellyfin SQLite concurrency issues
+      // Single thread to prevent database concurrency issues
       pool: 'forks',
       poolOptions: {
         forks: {
