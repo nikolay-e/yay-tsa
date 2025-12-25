@@ -13,7 +13,7 @@ import java.util.UUID;
 public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UUID> {
     List<AudioTrackEntity> findByAlbumId(UUID albumId);
 
-    @Query("SELECT at FROM AudioTrackEntity at WHERE at.album.id = :albumId ORDER BY at.discNumber ASC, at.trackNumber ASC")
+    @Query("SELECT at FROM AudioTrackEntity at LEFT JOIN FETCH at.item WHERE at.album.id = :albumId ORDER BY at.discNumber ASC, at.trackNumber ASC")
     List<AudioTrackEntity> findByAlbumIdOrderByDiscNoAscTrackNoAsc(@Param("albumId") UUID albumId);
 
     List<AudioTrackEntity> findByAlbumArtistId(UUID artistId);

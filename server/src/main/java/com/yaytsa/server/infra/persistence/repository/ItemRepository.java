@@ -16,7 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ItemRepository extends JpaRepository<ItemEntity, UUID>, JpaSpecificationExecutor<ItemEntity> {
+public interface ItemRepository extends JpaRepository<ItemEntity, UUID>, JpaSpecificationExecutor<ItemEntity>, ItemRepositoryCustom {
     Optional<ItemEntity> findByPath(String path);
     List<ItemEntity> findAllByParentId(UUID parentId);
     long countByType(ItemType type);
