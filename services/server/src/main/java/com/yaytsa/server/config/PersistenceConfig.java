@@ -7,8 +7,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * JPA and database persistence configuration for the media server.
- * Configures entity scanning, repositories, and transaction management.
+ * JPA and database persistence configuration for the media server. Configures entity scanning,
+ * repositories, and transaction management.
  */
 @Configuration
 @EnableTransactionManagement
@@ -17,11 +17,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @EnableJpaAuditing
 public class PersistenceConfig {
 
-    /**
-     * Additional JPA configuration can be added here:
-     * - Custom naming strategies
-     * - Query timeout configurations
-     * - Connection pool tuning
-     * - Custom converters
-     */
+  /**
+   * Additional JPA configuration can be added here: - Custom naming strategies - Query timeout
+   * configurations - Connection pool tuning - Custom converters
+   */
 }

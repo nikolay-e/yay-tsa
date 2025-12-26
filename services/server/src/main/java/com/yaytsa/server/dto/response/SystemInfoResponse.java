@@ -17,57 +17,45 @@ public record SystemInfoResponse(
     @JsonProperty("CanSelfRestart") Boolean canSelfRestart,
     @JsonProperty("CanLaunchWebBrowser") Boolean canLaunchWebBrowser,
     @JsonProperty("PackageName") String packageName,
-    @JsonProperty("EncoderLocation") String encoderLocation
-) {
+    @JsonProperty("EncoderLocation") String encoderLocation) {
 
-    public static SystemInfoResponse publicInfo(
-        String serverName,
-        String version,
-        String serverId,
-        String localAddress
-    ) {
-        return new SystemInfoResponse(
-            serverName,
-            version,
-            "Yaytsa",
-            System.getProperty("os.name"),
-            serverId,
-            localAddress,
-            null,
-            false,
-            false,
-            true,
-            true,
-            false,
-            false,
-            "yaytsa-media-server",
-            "System"
-        );
-    }
+  public static SystemInfoResponse publicInfo(
+      String serverName, String version, String serverId, String localAddress) {
+    return new SystemInfoResponse(
+        serverName,
+        version,
+        "Yaytsa",
+        System.getProperty("os.name"),
+        serverId,
+        localAddress,
+        null,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        "yaytsa-media-server",
+        "System");
+  }
 
-    public static SystemInfoResponse fullInfo(
-        String serverName,
-        String version,
-        String serverId,
-        String localAddress,
-        String wanAddress
-    ) {
-        return new SystemInfoResponse(
-            serverName,
-            version,
-            "Yaytsa",
-            System.getProperty("os.name"),
-            serverId,
-            localAddress,
-            wanAddress,
-            false,
-            false,
-            true,
-            true,
-            false,
-            false,
-            "yaytsa-media-server",
-            "System"
-        );
-    }
+  public static SystemInfoResponse fullInfo(
+      String serverName, String version, String serverId, String localAddress, String wanAddress) {
+    return new SystemInfoResponse(
+        serverName,
+        version,
+        "Yaytsa",
+        System.getProperty("os.name"),
+        serverId,
+        localAddress,
+        wanAddress,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        "yaytsa-media-server",
+        "System");
+  }
 }

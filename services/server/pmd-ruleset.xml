@@ -7,7 +7,7 @@
     <description>PMD rules focused on bug detection for yaytsa-server</description>
 
     <!-- Error Prone Rules -->
-    <rule ref="category/java/error-prone.xml">
+    <rule ref="category/java/errorprone.xml">
         <exclude name="AvoidLiteralsInIfCondition"/>
         <exclude name="MissingSerialVersionUID"/>
         <exclude name="DataflowAnomalyAnalysis"/>
@@ -35,7 +35,6 @@
     <rule ref="category/java/bestpractices.xml">
         <exclude name="GuardLogStatement"/>
         <exclude name="JUnitTestContainsTooManyAsserts"/>
-        <exclude name="JUnitAssertionsShouldIncludeMessage"/>
         <exclude name="LooseCoupling"/>
         <exclude name="UseVarargs"/>
         <exclude name="AvoidReassigningLoopVariables"/>

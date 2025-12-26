@@ -19,5 +19,4 @@ public record AudioMetadata(
     String lyrics,
     List<String> genres,
     byte[] embeddedArtwork,
-    String artworkMimeType
-) {}
+    String artworkMimeType) {}

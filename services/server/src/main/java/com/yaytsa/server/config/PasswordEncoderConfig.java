@@ -9,11 +9,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 public class PasswordEncoderConfig {
 
-    @Value("${yaytsa.security.bcrypt-strength:12}")
-    private int bcryptStrength;
+  @Value("${yaytsa.security.bcrypt-strength:12}")
+  private int bcryptStrength;
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(bcryptStrength);
-    }
+  @Bean
+  public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder(bcryptStrength);
+  }
 }

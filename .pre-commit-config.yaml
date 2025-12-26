@@ -117,7 +117,7 @@ repos:
         name: codespell (spell checker)
         args:
           - --write-changes
-          - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether
+          - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether,errorprone
           - --skip=package-lock.json,pnpm-lock.yaml,jellyfin-api-spec.json,node_modules,.svelte-kit,dist,build
 
   # ------------------------------------------------------------------------------
@@ -161,6 +161,19 @@ repos:
           - stylelint@16.12.0
           - stylelint-config-standard@29.0.0
           - stylelint-config-recommended@13.0.0
+
+  # ------------------------------------------------------------------------------
+  # JAVA CODE FORMATTING (Google Java Format)
+  # Auto-formats Java code using Google's standard style.
+  # Requires Java 11+ installed.
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.14.0
+    hooks:
+      - id: pretty-format-java
+        name: 'Google Java Format (autofix)'
+        args: [--autofix]
+        files: ^services/server/src/.*\.java$
 
   # ------------------------------------------------------------------------------
   # LOCAL HOOKS (Project-Specific Scripts)
@@ -245,4 +258,29 @@ repos:
         name: 'Type coverage (>=90%)'
         entry: npx type-coverage --at-least 90 --ignore-catch
         language: node
+        pass_filenames: false
+
+      # --------------------------------------------------------------------------
+      # JAVA BACKEND HOOKS (services/server)
+      # Uses existing Maven plugins: SpotBugs, PMD, Enforcer from pom.xml
+      # --------------------------------------------------------------------------
+      - id: maven-compile
+        name: 'Maven compile (Java backend)'
+        entry: bash -c 'cd services/server && mvn compile -B -q'
+        language: system
+        files: ^services/server/(pom\.xml|src/.*)$
+        pass_filenames: false
+
+      - id: maven-spotbugs
+        name: 'SpotBugs (Java static analysis)'
+        entry: bash -c 'cd services/server && mvn spotbugs:check -B -q'
+        language: system
+        files: ^services/server/src/main/.*\.java$
+        pass_filenames: false
+
+      - id: maven-pmd
+        name: 'PMD (Java code quality)'
+        entry: bash -c 'cd services/server && mvn pmd:check -B -q'
+        language: system
+        files: ^services/server/src/main/.*\.java$
         pass_filenames: false

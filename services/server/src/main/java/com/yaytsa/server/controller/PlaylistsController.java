@@ -2,9 +2,8 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ItemService;
 import com.yaytsa.server.domain.service.PlaylistService;
-import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.dto.request.CreatePlaylistRequest;
-import com.yaytsa.server.dto.response.QueryResultResponse;
+import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntryEntity;
@@ -14,149 +13,150 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/Playlists")
 @Tag(name = "Playlists", description = "Playlist management")
 public class PlaylistsController {
 
-    private final PlaylistService playlistService;
-    private final ItemService itemService;
-    private final ItemMapper itemMapper;
+  private final PlaylistService playlistService;
+  private final ItemService itemService;
+  private final ItemMapper itemMapper;
 
-    public PlaylistsController(
-        PlaylistService playlistService,
-        ItemService itemService,
-        ItemMapper itemMapper
-    ) {
-        this.playlistService = playlistService;
-        this.itemService = itemService;
-        this.itemMapper = itemMapper;
-    }
+  public PlaylistsController(
+      PlaylistService playlistService, ItemService itemService, ItemMapper itemMapper) {
+    this.playlistService = playlistService;
+    this.itemService = itemService;
+    this.itemMapper = itemMapper;
+  }
 
-    @Operation(summary = "Get user playlists",
-              description = "Retrieve all playlists for the current user")
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getPlaylists(
-            @Parameter(description = "User ID") @RequestParam(required = false) String userId,
-            @Parameter(description = "Starting index") @RequestParam(defaultValue = "0") int startIndex,
-            @Parameter(description = "Limit results") @RequestParam(defaultValue = "100") int limit,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(
+      summary = "Get user playlists",
+      description = "Retrieve all playlists for the current user")
+  @GetMapping
+  public ResponseEntity<Map<String, Object>> getPlaylists(
+      @Parameter(description = "User ID") @RequestParam(required = false) String userId,
+      @Parameter(description = "Starting index") @RequestParam(defaultValue = "0") int startIndex,
+      @Parameter(description = "Limit results") @RequestParam(defaultValue = "100") int limit,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        Map<String, Object> response = new HashMap<>();
-        response.put("Items", new ArrayList<>());
-        response.put("TotalRecordCount", 0);
+    // TODO: Implement in Phase 7
+    Map<String, Object> response = new HashMap<>();
+    response.put("Items", new ArrayList<>());
+    response.put("TotalRecordCount", 0);
 
-        return ResponseEntity.ok(response);
-    }
+    return ResponseEntity.ok(response);
+  }
 
-    @Operation(summary = "Create new playlist",
-              description = "Create a new playlist for the user")
-    @ApiResponses(value = {
+  @Operation(summary = "Create new playlist", description = "Create a new playlist for the user")
+  @ApiResponses(
+      value = {
         @ApiResponse(responseCode = "201", description = "Playlist created successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid request"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
-    })
-    @PostMapping
-    public ResponseEntity<Map<String, String>> createPlaylist(
-            @RequestBody CreatePlaylistRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+      })
+  @PostMapping
+  public ResponseEntity<Map<String, String>> createPlaylist(
+      @RequestBody CreatePlaylistRequest request,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        UUID userId = UUID.fromString(request.userId());
-        List<UUID> itemIds = request.ids() != null
+    UUID userId = UUID.fromString(request.userId());
+    List<UUID> itemIds =
+        request.ids() != null
             ? request.ids().stream().map(UUID::fromString).collect(Collectors.toList())
             : null;
 
-        PlaylistEntity playlist = playlistService.createPlaylist(userId, request.name(), itemIds);
+    PlaylistEntity playlist = playlistService.createPlaylist(userId, request.name(), itemIds);
 
-        Map<String, String> response = new HashMap<>();
-        response.put("Id", playlist.getId().toString());
+    Map<String, String> response = new HashMap<>();
+    response.put("Id", playlist.getId().toString());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
 
-    @Operation(summary = "Get playlist by ID",
-              description = "Retrieve a specific playlist")
-    @GetMapping("/{playlistId}")
-    public ResponseEntity<Map<String, Object>> getPlaylist(
-            @PathVariable String playlistId,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(summary = "Get playlist by ID", description = "Retrieve a specific playlist")
+  @GetMapping("/{playlistId}")
+  public ResponseEntity<Map<String, Object>> getPlaylist(
+      @PathVariable String playlistId,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        Map<String, Object> playlist = new HashMap<>();
-        playlist.put("Id", playlistId);
-        playlist.put("Name", "Sample Playlist");
-        playlist.put("IsPublic", false);
+    // TODO: Implement in Phase 7
+    Map<String, Object> playlist = new HashMap<>();
+    playlist.put("Id", playlistId);
+    playlist.put("Name", "Sample Playlist");
+    playlist.put("IsPublic", false);
 
-        return ResponseEntity.ok(playlist);
-    }
+    return ResponseEntity.ok(playlist);
+  }
 
-    @Operation(summary = "Update playlist",
-              description = "Update playlist metadata")
-    @PutMapping("/{playlistId}")
-    public ResponseEntity<Map<String, Object>> updatePlaylist(
-            @PathVariable String playlistId,
-            @RequestBody Map<String, Object> playlistData,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(summary = "Update playlist", description = "Update playlist metadata")
+  @PutMapping("/{playlistId}")
+  public ResponseEntity<Map<String, Object>> updatePlaylist(
+      @PathVariable String playlistId,
+      @RequestBody Map<String, Object> playlistData,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        Map<String, Object> playlist = new HashMap<>();
-        playlist.put("Id", playlistId);
-        playlist.put("Name", playlistData.get("Name"));
+    // TODO: Implement in Phase 7
+    Map<String, Object> playlist = new HashMap<>();
+    playlist.put("Id", playlistId);
+    playlist.put("Name", playlistData.get("Name"));
 
-        return ResponseEntity.ok(playlist);
-    }
+    return ResponseEntity.ok(playlist);
+  }
 
-    @Operation(summary = "Delete playlist",
-              description = "Delete a playlist")
-    @DeleteMapping("/{playlistId}")
-    public ResponseEntity<Void> deletePlaylist(
-            @PathVariable String playlistId,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(summary = "Delete playlist", description = "Delete a playlist")
+  @DeleteMapping("/{playlistId}")
+  public ResponseEntity<Void> deletePlaylist(
+      @PathVariable String playlistId,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        // TODO: Implement in Phase 7
-        return ResponseEntity.noContent().build();
-    }
+    // TODO: Implement in Phase 7
+    return ResponseEntity.noContent().build();
+  }
 
-    @Operation(summary = "Get playlist items",
-              description = "Get all items in a playlist")
-    @GetMapping("/{playlistId}/Items")
-    public ResponseEntity<Map<String, Object>> getPlaylistItems(
-            @PathVariable String playlistId,
-            @Parameter(description = "User ID for user-specific data")
-                @RequestParam(value = "UserId", required = false) String userId,
-            @Parameter(description = "Starting index for pagination")
-                @RequestParam(value = "StartIndex", defaultValue = "0") int startIndex,
-            @Parameter(description = "Maximum number of results")
-                @RequestParam(value = "Limit", defaultValue = "100") int limit,
-            @Parameter(description = "Fields to include in response")
-                @RequestParam(value = "Fields", required = false) String fields,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(summary = "Get playlist items", description = "Get all items in a playlist")
+  @GetMapping("/{playlistId}/Items")
+  public ResponseEntity<Map<String, Object>> getPlaylistItems(
+      @PathVariable String playlistId,
+      @Parameter(description = "User ID for user-specific data")
+          @RequestParam(value = "UserId", required = false)
+          String userId,
+      @Parameter(description = "Starting index for pagination")
+          @RequestParam(value = "StartIndex", defaultValue = "0")
+          int startIndex,
+      @Parameter(description = "Maximum number of results")
+          @RequestParam(value = "Limit", defaultValue = "100")
+          int limit,
+      @Parameter(description = "Fields to include in response")
+          @RequestParam(value = "Fields", required = false)
+          String fields,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        UUID playlistUuid = UUID.fromString(playlistId);
-        Page<PlaylistEntryEntity> page = playlistService.getPlaylistItems(playlistUuid, startIndex, limit);
+    UUID playlistUuid = UUID.fromString(playlistId);
+    Page<PlaylistEntryEntity> page =
+        playlistService.getPlaylistItems(playlistUuid, startIndex, limit);
 
-        List<Map<String, Object>> items = page.getContent().stream()
-            .map(entry -> {
-                Map<String, Object> item = new HashMap<>();
-                item.put("PlaylistItemId", entry.getId().toString());
+    List<Map<String, Object>> items =
+        page.getContent().stream()
+            .map(
+                entry -> {
+                  Map<String, Object> item = new HashMap<>();
+                  item.put("PlaylistItemId", entry.getId().toString());
 
-                Optional<ItemEntity> itemEntity = itemService.findById(entry.getItemId());
-                if (itemEntity.isPresent()) {
+                  Optional<ItemEntity> itemEntity = itemService.findById(entry.getItemId());
+                  if (itemEntity.isPresent()) {
                     BaseItemResponse dto = itemMapper.toDto(itemEntity.get(), null);
                     item.put("Id", dto.id());
                     item.put("Name", dto.name());
@@ -167,84 +167,92 @@ public class PlaylistsController {
                     item.put("AlbumId", dto.albumId());
                     item.put("AlbumArtist", dto.albumArtist());
                     if (dto.imageTags() != null) {
-                        item.put("ImageTags", dto.imageTags());
+                      item.put("ImageTags", dto.imageTags());
                     }
-                } else {
+                  } else {
                     item.put("Id", entry.getItemId().toString());
-                }
-                return item;
-            })
+                  }
+                  return item;
+                })
             .collect(Collectors.toList());
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("Items", items);
-        response.put("TotalRecordCount", Math.toIntExact(page.getTotalElements()));
-        response.put("StartIndex", startIndex);
+    Map<String, Object> response = new HashMap<>();
+    response.put("Items", items);
+    response.put("TotalRecordCount", Math.toIntExact(page.getTotalElements()));
+    response.put("StartIndex", startIndex);
 
-        return ResponseEntity.ok(response);
-    }
+    return ResponseEntity.ok(response);
+  }
 
-    @Operation(summary = "Add items to playlist",
-              description = "Add one or more items to a playlist. " +
-                           "Item IDs are passed as comma-separated values in the Ids parameter.")
-    @PostMapping("/{playlistId}/Items")
-    public ResponseEntity<Void> addItemsToPlaylist(
-            @PathVariable String playlistId,
-            @Parameter(description = "Item IDs to add (comma-separated)")
-                @RequestParam(value = "Ids") String ids,
-            @Parameter(description = "User ID")
-                @RequestParam(value = "UserId", required = false) String userId,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(
+      summary = "Add items to playlist",
+      description =
+          "Add one or more items to a playlist. "
+              + "Item IDs are passed as comma-separated values in the Ids parameter.")
+  @PostMapping("/{playlistId}/Items")
+  public ResponseEntity<Void> addItemsToPlaylist(
+      @PathVariable String playlistId,
+      @Parameter(description = "Item IDs to add (comma-separated)") @RequestParam(value = "Ids")
+          String ids,
+      @Parameter(description = "User ID") @RequestParam(value = "UserId", required = false)
+          String userId,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        UUID playlistUuid = UUID.fromString(playlistId);
-        List<UUID> itemIds = Arrays.stream(ids.split(","))
+    UUID playlistUuid = UUID.fromString(playlistId);
+    List<UUID> itemIds =
+        Arrays.stream(ids.split(","))
             .map(String::trim)
             .map(UUID::fromString)
             .collect(Collectors.toList());
 
-        playlistService.addItemsToPlaylist(playlistUuid, itemIds);
+    playlistService.addItemsToPlaylist(playlistUuid, itemIds);
 
-        return ResponseEntity.noContent().build();
-    }
+    return ResponseEntity.noContent().build();
+  }
 
-    @Operation(summary = "Remove items from playlist",
-              description = "Remove specific items from a playlist by their playlist entry IDs. " +
-                           "Note: These are playlist entry IDs, not the original item IDs.")
-    @DeleteMapping("/{playlistId}/Items")
-    public ResponseEntity<Void> removeItemsFromPlaylist(
-            @PathVariable String playlistId,
-            @Parameter(description = "Playlist entry IDs to remove (comma-separated)")
-                @RequestParam(value = "EntryIds") String entryIds,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(
+      summary = "Remove items from playlist",
+      description =
+          "Remove specific items from a playlist by their playlist entry IDs. "
+              + "Note: These are playlist entry IDs, not the original item IDs.")
+  @DeleteMapping("/{playlistId}/Items")
+  public ResponseEntity<Void> removeItemsFromPlaylist(
+      @PathVariable String playlistId,
+      @Parameter(description = "Playlist entry IDs to remove (comma-separated)")
+          @RequestParam(value = "EntryIds")
+          String entryIds,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        UUID playlistUuid = UUID.fromString(playlistId);
-        List<UUID> entryIdsList = Arrays.stream(entryIds.split(","))
+    UUID playlistUuid = UUID.fromString(playlistId);
+    List<UUID> entryIdsList =
+        Arrays.stream(entryIds.split(","))
             .map(String::trim)
             .map(UUID::fromString)
             .collect(Collectors.toList());
 
-        playlistService.removeItemsFromPlaylist(playlistUuid, entryIdsList);
+    playlistService.removeItemsFromPlaylist(playlistUuid, entryIdsList);
 
-        return ResponseEntity.noContent().build();
-    }
+    return ResponseEntity.noContent().build();
+  }
 
-    @Operation(summary = "Move playlist item",
-              description = "Move an item to a new position in the playlist")
-    @PostMapping("/{playlistId}/Items/{itemId}/Move/{newIndex}")
-    public ResponseEntity<Void> movePlaylistItem(
-            @PathVariable String playlistId,
-            @PathVariable String itemId,
-            @PathVariable int newIndex,
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam(value = "api_key", required = false) String apiKey) {
+  @Operation(
+      summary = "Move playlist item",
+      description = "Move an item to a new position in the playlist")
+  @PostMapping("/{playlistId}/Items/{itemId}/Move/{newIndex}")
+  public ResponseEntity<Void> movePlaylistItem(
+      @PathVariable String playlistId,
+      @PathVariable String itemId,
+      @PathVariable int newIndex,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
 
-        UUID playlistUuid = UUID.fromString(playlistId);
-        UUID entryId = UUID.fromString(itemId);
+    UUID playlistUuid = UUID.fromString(playlistId);
+    UUID entryId = UUID.fromString(itemId);
 
-        playlistService.movePlaylistItem(playlistUuid, entryId, newIndex);
+    playlistService.movePlaylistItem(playlistUuid, entryId, newIndex);
 
-        return ResponseEntity.noContent().build();
-    }
+    return ResponseEntity.noContent().build();
+  }
 }

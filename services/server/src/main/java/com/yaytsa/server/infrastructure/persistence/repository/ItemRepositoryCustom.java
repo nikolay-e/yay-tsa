@@ -6,5 +6,5 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
 public interface ItemRepositoryCustom {
-    Page<ItemEntity> findAllRandomized(Specification<ItemEntity> spec, Pageable pageable);
+  Page<ItemEntity> findAllRandomized(Specification<ItemEntity> spec, Pageable pageable);
 }

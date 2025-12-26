@@ -4,9 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/**
- * Session information DTO matching Jellyfin API specification.
- */
+/** Session information DTO matching Jellyfin API specification. */
 public record SessionInfoResponse(
     @JsonProperty("PlayState") PlayerStateInfo playState,
     @JsonProperty("AdditionalUsers") List<SessionUserInfo> additionalUsers,
@@ -36,102 +34,96 @@ public record SessionInfoResponse(
     @JsonProperty("PlaylistItemId") String playlistItemId,
     @JsonProperty("ServerId") String serverId,
     @JsonProperty("UserPrimaryImageTag") String userPrimaryImageTag,
-    @JsonProperty("SupportedCommands") List<String> supportedCommands
-) {
+    @JsonProperty("SupportedCommands") List<String> supportedCommands) {
 
-    public record PlayerStateInfo(
-        @JsonProperty("PositionTicks") Long positionTicks,
-        @JsonProperty("CanSeek") boolean canSeek,
-        @JsonProperty("IsPaused") boolean isPaused,
-        @JsonProperty("IsMuted") boolean isMuted,
-        @JsonProperty("VolumeLevel") Integer volumeLevel,
-        @JsonProperty("AudioStreamIndex") Integer audioStreamIndex,
-        @JsonProperty("SubtitleStreamIndex") Integer subtitleStreamIndex,
-        @JsonProperty("MediaSourceId") String mediaSourceId,
-        @JsonProperty("PlayMethod") String playMethod,
-        @JsonProperty("RepeatMode") String repeatMode,
-        @JsonProperty("LiveStreamId") String liveStreamId
-    ) {}
+  public record PlayerStateInfo(
+      @JsonProperty("PositionTicks") Long positionTicks,
+      @JsonProperty("CanSeek") boolean canSeek,
+      @JsonProperty("IsPaused") boolean isPaused,
+      @JsonProperty("IsMuted") boolean isMuted,
+      @JsonProperty("VolumeLevel") Integer volumeLevel,
+      @JsonProperty("AudioStreamIndex") Integer audioStreamIndex,
+      @JsonProperty("SubtitleStreamIndex") Integer subtitleStreamIndex,
+      @JsonProperty("MediaSourceId") String mediaSourceId,
+      @JsonProperty("PlayMethod") String playMethod,
+      @JsonProperty("RepeatMode") String repeatMode,
+      @JsonProperty("LiveStreamId") String liveStreamId) {}
 
-    public record SessionUserInfo(
-        @JsonProperty("UserId") String userId,
-        @JsonProperty("UserName") String userName
-    ) {}
+  public record SessionUserInfo(
+      @JsonProperty("UserId") String userId, @JsonProperty("UserName") String userName) {}
 
-    public record ClientCapabilities(
-        @JsonProperty("PlayableMediaTypes") List<String> playableMediaTypes,
-        @JsonProperty("SupportedCommands") List<String> supportedCommands,
-        @JsonProperty("SupportsMediaControl") boolean supportsMediaControl,
-        @JsonProperty("SupportsPersistentIdentifier") boolean supportsPersistentIdentifier,
-        @JsonProperty("DeviceProfile") Object deviceProfile,
-        @JsonProperty("AppStoreUrl") String appStoreUrl,
-        @JsonProperty("IconUrl") String iconUrl
-    ) {}
+  public record ClientCapabilities(
+      @JsonProperty("PlayableMediaTypes") List<String> playableMediaTypes,
+      @JsonProperty("SupportedCommands") List<String> supportedCommands,
+      @JsonProperty("SupportsMediaControl") boolean supportsMediaControl,
+      @JsonProperty("SupportsPersistentIdentifier") boolean supportsPersistentIdentifier,
+      @JsonProperty("DeviceProfile") Object deviceProfile,
+      @JsonProperty("AppStoreUrl") String appStoreUrl,
+      @JsonProperty("IconUrl") String iconUrl) {}
 
-    public record TranscodingInfo(
-        @JsonProperty("AudioCodec") String audioCodec,
-        @JsonProperty("VideoCodec") String videoCodec,
-        @JsonProperty("Container") String container,
-        @JsonProperty("IsVideoDirect") boolean isVideoDirect,
-        @JsonProperty("IsAudioDirect") boolean isAudioDirect,
-        @JsonProperty("Bitrate") Integer bitrate,
-        @JsonProperty("Framerate") Float framerate,
-        @JsonProperty("CompletionPercentage") Double completionPercentage,
-        @JsonProperty("Width") Integer width,
-        @JsonProperty("Height") Integer height,
-        @JsonProperty("AudioChannels") Integer audioChannels,
-        @JsonProperty("HardwareAccelerationType") String hardwareAccelerationType,
-        @JsonProperty("TranscodeReasons") List<String> transcodeReasons
-    ) {}
+  public record TranscodingInfo(
+      @JsonProperty("AudioCodec") String audioCodec,
+      @JsonProperty("VideoCodec") String videoCodec,
+      @JsonProperty("Container") String container,
+      @JsonProperty("IsVideoDirect") boolean isVideoDirect,
+      @JsonProperty("IsAudioDirect") boolean isAudioDirect,
+      @JsonProperty("Bitrate") Integer bitrate,
+      @JsonProperty("Framerate") Float framerate,
+      @JsonProperty("CompletionPercentage") Double completionPercentage,
+      @JsonProperty("Width") Integer width,
+      @JsonProperty("Height") Integer height,
+      @JsonProperty("AudioChannels") Integer audioChannels,
+      @JsonProperty("HardwareAccelerationType") String hardwareAccelerationType,
+      @JsonProperty("TranscodeReasons") List<String> transcodeReasons) {}
 
-    public record QueueItem(
-        @JsonProperty("Id") String id,
-        @JsonProperty("PlaylistItemId") String playlistItemId
-    ) {}
+  public record QueueItem(
+      @JsonProperty("Id") String id, @JsonProperty("PlaylistItemId") String playlistItemId) {}
 
-    /**
-     * Create a minimal SessionInfoResponse for authentication response
-     */
-    public static SessionInfoResponse forAuth(String sessionId, String userId, String userName,
-                                          String deviceId, String deviceName, String client) {
-        return new SessionInfoResponse(
-            new PlayerStateInfo(0L, true, true, false, 100, null, null, null, "DirectPlay", "RepeatNone", null),
-            List.of(),
-            new ClientCapabilities(
-                List.of("Audio"),
-                List.of("PlayState", "DisplayMessage", "PlayNext"),
-                true,
-                true,
-                null,
-                null,
-                null
-            ),
-            null, // remoteEndPoint
+  /** Create a minimal SessionInfoResponse for authentication response */
+  public static SessionInfoResponse forAuth(
+      String sessionId,
+      String userId,
+      String userName,
+      String deviceId,
+      String deviceName,
+      String client) {
+    return new SessionInfoResponse(
+        new PlayerStateInfo(
+            0L, true, true, false, 100, null, null, null, "DirectPlay", "RepeatNone", null),
+        List.of(),
+        new ClientCapabilities(
             List.of("Audio"),
-            sessionId,
-            userId,
-            userName,
-            client,
-            OffsetDateTime.now(),
-            OffsetDateTime.now(),
-            null, // lastPausedDate
-            deviceName,
-            "Browser",
-            null, // nowPlayingItem
-            null, // nowViewingItem
-            deviceId,
-            "0.1.0",
-            null, // transcodingInfo
-            true, // isActive
-            true, // supportsMediaControl
-            true, // supportsRemoteControl
-            List.of(),
-            List.of(),
-            false, // hasCustomDeviceName
-            null, // playlistItemId
-            "yaytsa-server",
-            null, // userPrimaryImageTag
-            List.of("PlayState", "DisplayMessage", "PlayNext")
-        );
-    }
+            List.of("PlayState", "DisplayMessage", "PlayNext"),
+            true,
+            true,
+            null,
+            null,
+            null),
+        null, // remoteEndPoint
+        List.of("Audio"),
+        sessionId,
+        userId,
+        userName,
+        client,
+        OffsetDateTime.now(),
+        OffsetDateTime.now(),
+        null, // lastPausedDate
+        deviceName,
+        "Browser",
+        null, // nowPlayingItem
+        null, // nowViewingItem
+        deviceId,
+        "0.1.0",
+        null, // transcodingInfo
+        true, // isActive
+        true, // supportsMediaControl
+        true, // supportsRemoteControl
+        List.of(),
+        List.of(),
+        false, // hasCustomDeviceName
+        null, // playlistItemId
+        "yaytsa-server",
+        null, // userPrimaryImageTag
+        List.of("PlayState", "DisplayMessage", "PlayNext"));
+  }
 }

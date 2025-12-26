@@ -14,59 +14,58 @@ import lombok.Setter;
 @AllArgsConstructor
 public class AudioTrackEntity {
 
-    @Id
-    @Column(name = "item_id")
-    private java.util.UUID itemId;
+  @Id
+  @Column(name = "item_id")
+  private java.util.UUID itemId;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @MapsId
-    @JoinColumn(name = "item_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_item"))
-    private ItemEntity item;
+  @OneToOne(fetch = FetchType.LAZY)
+  @MapsId
+  @JoinColumn(name = "item_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_item"))
+  private ItemEntity item;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "album_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_album"))
-    private ItemEntity album;
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "album_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_album"))
+  private ItemEntity album;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "album_artist_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_album_artist"))
-    private ItemEntity albumArtist;
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(
+      name = "album_artist_id",
+      foreignKey = @ForeignKey(name = "fk_audio_tracks_album_artist"))
+  private ItemEntity albumArtist;
 
-    @Column(name = "track_number")
-    private Integer trackNumber;
+  @Column(name = "track_number")
+  private Integer trackNumber;
 
-    @Column(name = "disc_number")
-    private Integer discNumber = 1;
+  @Column(name = "disc_number")
+  private Integer discNumber = 1;
 
-    @Column(name = "duration_ms")
-    private Long durationMs;
+  @Column(name = "duration_ms")
+  private Long durationMs;
 
-    @Column
-    private Integer bitrate;
+  @Column private Integer bitrate;
 
-    @Column(name = "sample_rate")
-    private Integer sampleRate;
+  @Column(name = "sample_rate")
+  private Integer sampleRate;
 
-    @Column
-    private Integer channels;
+  @Column private Integer channels;
 
-    @Column
-    private Integer year;
+  @Column private Integer year;
 
-    @Column(length = 50)
-    private String codec;
+  @Column(length = 50)
+  private String codec;
 
-    @Column(columnDefinition = "TEXT")
-    private String comment;
+  @Column(columnDefinition = "TEXT")
+  private String comment;
 
-    @Column(columnDefinition = "TEXT")
-    private String lyrics;
+  @Column(columnDefinition = "TEXT")
+  private String lyrics;
 
-    @Column(name = "karaoke_ready")
-    private Boolean karaokeReady = false;
+  @Column(name = "karaoke_ready")
+  private Boolean karaokeReady = false;
 
-    @Column(name = "instrumental_path", columnDefinition = "TEXT")
-    private String instrumentalPath;
+  @Column(name = "instrumental_path", columnDefinition = "TEXT")
+  private String instrumentalPath;
 
-    @Column(name = "vocal_path", columnDefinition = "TEXT")
-    private String vocalPath;
+  @Column(name = "vocal_path", columnDefinition = "TEXT")
+  private String vocalPath;
 }
