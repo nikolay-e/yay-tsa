@@ -55,3 +55,4 @@ packages/core/packages/
 # Runtime data (not tracked)
 services/server/logs/
 services/server/media/
+__pycache__/
