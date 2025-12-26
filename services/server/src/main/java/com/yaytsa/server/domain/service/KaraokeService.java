@@ -145,7 +145,10 @@ public class KaraokeService {
         AudioTrackEntity track = audioTrackRepository.findById(trackId).orElse(null);
 
         if (track != null && Boolean.TRUE.equals(track.getKaraokeReady())) {
-            return ProcessingStatus.ready();
+            if (validateStemFilesExist(track)) {
+                return ProcessingStatus.ready();
+            }
+            resetKaraokeState(track, "Stem files missing, resetting karaoke state");
         }
 
         JobEntry job = processingJobs.get(trackId);
@@ -154,6 +157,25 @@ public class KaraokeService {
         }
 
         return ProcessingStatus.notStarted();
+    }
+
+    private boolean validateStemFilesExist(AudioTrackEntity track) {
+        if (track.getInstrumentalPath() == null || track.getVocalPath() == null) {
+            return false;
+        }
+        Path instrumentalPath = Paths.get(track.getInstrumentalPath()).toAbsolutePath().normalize();
+        Path vocalPath = Paths.get(track.getVocalPath()).toAbsolutePath().normalize();
+        return isStemPathSafe(instrumentalPath) && Files.exists(instrumentalPath)
+                && isStemPathSafe(vocalPath) && Files.exists(vocalPath);
+    }
+
+    private void resetKaraokeState(AudioTrackEntity track, String reason) {
+        log.warn("{} for track {}", reason, track.getItemId());
+        track.setKaraokeReady(false);
+        track.setInstrumentalPath(null);
+        track.setVocalPath(null);
+        audioTrackRepository.save(track);
+        processingJobs.remove(track.getItemId());
     }
 
     @Async
@@ -276,6 +298,7 @@ public class KaraokeService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
         if (!Files.exists(instrumentalPath)) {
+            resetKaraokeState(track, "Instrumental file not found");
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND, "Instrumental file not found: " + trackId);
         }
@@ -299,6 +322,7 @@ public class KaraokeService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
         if (!Files.exists(vocalPath)) {
+            resetKaraokeState(track, "Vocal file not found");
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND, "Vocal file not found: " + trackId);
         }

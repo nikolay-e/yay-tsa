@@ -288,6 +288,21 @@ function reset(): void {
   karaokeStore.set(initialState);
 }
 
+function clearTrackStatus(): void {
+  const state = get(karaokeStore);
+  if (state.currentTrackId) {
+    log.info('Clearing karaoke track status (stream failure recovery)', {
+      trackId: state.currentTrackId,
+    });
+    karaokeStore.update(s => ({
+      ...s,
+      trackStatus: null,
+      processing: false,
+      error: null,
+    }));
+  }
+}
+
 // Subscribe to client changes
 // Module-level subscription lives for app lifetime in SPA mode
 // HMR guard prevents duplicate subscriptions during development
@@ -345,4 +360,5 @@ export const karaoke = {
   toggle,
   setMode,
   reset,
+  clearTrackStatus,
 };

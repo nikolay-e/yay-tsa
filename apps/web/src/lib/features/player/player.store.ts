@@ -242,26 +242,46 @@ if (browser) {
               playerStore.update(s => ({ ...s, isLoading: false, error: null }));
             }
           })
-          .catch(err => {
+          .catch(async err => {
             // Only handle error if this operation is still current
             if (switchOpId !== karaokeStreamSwitchId) return;
 
             log.error('Failed to switch karaoke stream', err);
-            // Only update error state if track still matches
+
+            // Only attempt recovery if track still matches
             const currentState = get(playerStore);
-            if (currentState.currentTrack?.Id === targetTrackId) {
-              playerStore.update(s => ({
-                ...s,
-                isLoading: false,
-                error: err instanceof Error ? err : new Error('Failed to switch stream'),
-              }));
-            }
-            // Try to restore previous stream (only if operation still current and track matches)
-            const restoreState = get(playerStore);
-            if (restoreState.currentTrack?.Id === targetTrackId) {
-              audioEngine!.load(oldStreamUrl).catch(() => {
-                log.error('Failed to restore previous stream');
-              });
+            if (currentState.currentTrack?.Id !== targetTrackId) return;
+
+            // Try to restore previous stream
+            try {
+              await audioEngine!.load(oldStreamUrl);
+              log.info('Restored previous stream after karaoke failure');
+              playerStore.update(s => ({ ...s, isLoading: false, error: null }));
+            } catch (restoreErr) {
+              log.error('Failed to restore previous stream, disabling server karaoke', restoreErr);
+
+              // Both streams failed - reset track status and disable server karaoke mode
+              karaoke.clearTrackStatus();
+              karaoke.setMode('client');
+
+              // Reload track with original stream URL
+              const regularStreamUrl = $client.getStreamUrl(targetTrackId);
+              try {
+                await audioEngine!.load(regularStreamUrl);
+                if (wasPlaying) {
+                  await audioEngine!.play();
+                }
+                playerStore.update(s => ({ ...s, isLoading: false, error: null }));
+                log.info('Recovered by falling back to client karaoke mode');
+              } catch (finalErr) {
+                log.error('All recovery attempts failed', finalErr);
+                playerStore.update(s => ({
+                  ...s,
+                  isLoading: false,
+                  isPlaying: false,
+                  error: new Error('Audio stream unavailable. Please try another track.'),
+                }));
+              }
             }
           });
       }
