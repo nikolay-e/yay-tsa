@@ -32,6 +32,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.beans.factory.annotation.Value;
+
 @RestController
 @RequestMapping("/Karaoke")
 @Tag(name = "Karaoke", description = "Vocal removal and karaoke mode endpoints")
@@ -44,10 +46,18 @@ public class KaraokeController {
     private final KaraokeService karaokeService;
     private final ObjectMapper objectMapper;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private final boolean xAccelRedirectEnabled;
+    private final String xAccelInternalPath;
 
-    public KaraokeController(KaraokeService karaokeService, ObjectMapper objectMapper) {
+    public KaraokeController(
+            KaraokeService karaokeService,
+            ObjectMapper objectMapper,
+            @Value("${yaytsa.media.streaming.x-accel-redirect.enabled:false}") boolean xAccelRedirectEnabled,
+            @Value("${yaytsa.media.streaming.x-accel-redirect.internal-path:/_internal/media}") String xAccelInternalPath) {
         this.karaokeService = karaokeService;
         this.objectMapper = objectMapper;
+        this.xAccelRedirectEnabled = xAccelRedirectEnabled;
+        this.xAccelInternalPath = xAccelInternalPath;
     }
 
     @PreDestroy
@@ -178,14 +188,22 @@ public class KaraokeController {
         long fileSize = Files.size(filePath);
         String mimeType = detectMimeType(filePath);
 
-        response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(mimeType);
         response.setContentLengthLong(fileSize);
         response.setHeader("Accept-Ranges", "bytes");
 
-        try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
-             OutputStream outputStream = response.getOutputStream()) {
-            fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
+        if (xAccelRedirectEnabled) {
+            String redirectPath = xAccelInternalPath + filePath.toAbsolutePath().toString();
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setHeader("X-Accel-Redirect", redirectPath);
+            response.setHeader("X-Accel-Buffering", "no");
+            log.debug("X-Accel-Redirect karaoke file to: {}", redirectPath);
+        } else {
+            response.setStatus(HttpServletResponse.SC_OK);
+            try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
+                 OutputStream outputStream = response.getOutputStream()) {
+                fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
+            }
         }
     }
 

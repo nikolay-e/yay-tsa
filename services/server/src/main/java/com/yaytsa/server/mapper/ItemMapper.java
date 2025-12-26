@@ -1,5 +1,6 @@
 package com.yaytsa.server.mapper;
 
+import com.yaytsa.server.domain.service.LyricsService;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import org.springframework.stereotype.Component;
@@ -11,6 +12,11 @@ import java.util.stream.Collectors;
 public class ItemMapper {
 
     private static final long TICKS_PER_MILLISECOND = 10_000L;
+    private final LyricsService lyricsService;
+
+    public ItemMapper(LyricsService lyricsService) {
+        this.lyricsService = lyricsService;
+    }
 
     public BaseItemResponse toDto(ItemEntity item, PlayStateEntity playState) {
         return toDto(item, playState, null, null, null);
@@ -70,7 +76,8 @@ public class ItemMapper {
                 builder.runTimeTicks(audioTrack.getDurationMs() * TICKS_PER_MILLISECOND);
             }
             builder.indexNumber(audioTrack.getTrackNumber())
-                   .parentIndexNumber(audioTrack.getDiscNumber());
+                   .parentIndexNumber(audioTrack.getDiscNumber())
+                   .lyrics(lyricsService.getLyrics(audioTrack));
 
             if (audioTrack.getAlbum() != null) {
                 builder.albumId(audioTrack.getAlbum().getId().toString());

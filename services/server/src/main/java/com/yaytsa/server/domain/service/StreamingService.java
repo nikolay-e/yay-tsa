@@ -36,14 +36,23 @@ public class StreamingService {
     private final ItemRepository itemRepository;
     private final String baseUrl;
     private final Path mediaRootPath;
+    private final boolean xAccelRedirectEnabled;
+    private final String xAccelInternalPath;
 
     public StreamingService(
             ItemRepository itemRepository,
             @Value("${server.base-url:http://localhost:8080}") String baseUrl,
-            @Value("${yaytsa.media.library.roots:/media}") String mediaRoot) {
+            @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+            @Value("${yaytsa.media.streaming.x-accel-redirect.enabled:false}") boolean xAccelRedirectEnabled,
+            @Value("${yaytsa.media.streaming.x-accel-redirect.internal-path:/_internal/media}") String xAccelInternalPath) {
         this.itemRepository = itemRepository;
         this.baseUrl = baseUrl;
         this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+        this.xAccelRedirectEnabled = xAccelRedirectEnabled;
+        this.xAccelInternalPath = xAccelInternalPath;
+        if (xAccelRedirectEnabled) {
+            log.info("X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
+        }
     }
 
     public String getStreamUrl(UUID itemId) {
@@ -86,11 +95,30 @@ public class StreamingService {
         response.setHeader("Accept-Ranges", "bytes");
         response.setHeader("ETag", etag);
 
-        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+        if (xAccelRedirectEnabled) {
+            handleXAccelRedirect(filePath, fileSize, mimeType, response);
+        } else if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             handleRangeRequest(filePath, fileSize, mimeType, rangeHeader, response);
         } else {
             handleFullRequest(filePath, fileSize, mimeType, response);
         }
+    }
+
+    private void handleXAccelRedirect(
+            Path filePath,
+            long fileSize,
+            String mimeType,
+            HttpServletResponse response) {
+
+        String redirectPath = xAccelInternalPath + filePath.toAbsolutePath().toString();
+
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.setContentType(mimeType);
+        response.setContentLengthLong(fileSize);
+        response.setHeader("X-Accel-Redirect", redirectPath);
+        response.setHeader("X-Accel-Buffering", "no");
+
+        log.debug("X-Accel-Redirect to: {}", redirectPath);
     }
 
     public Resource getAudioResource(UUID itemId) {

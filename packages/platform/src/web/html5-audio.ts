@@ -33,7 +33,6 @@ export class HTML5AudioEngine implements AudioEngine {
   // Track current load operation for cancellation (memory leak prevention)
   private currentLoadReject: ((error: Error) => void) | null = null;
   private loadCancelled: boolean = false;
-  private loadTimeouts: Set<number> = new Set();
   private loadEventCleanup: (() => void) | null = null;
 
   // Track current fade operation for cancellation
@@ -98,10 +97,6 @@ export class HTML5AudioEngine implements AudioEngine {
       this.currentLoadReject = null;
     }
 
-    // Clear all pending timeouts
-    this.loadTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
-    this.loadTimeouts.clear();
-
     // Clean up event listeners
     if (this.loadEventCleanup) {
       this.loadEventCleanup();
@@ -134,29 +129,14 @@ export class HTML5AudioEngine implements AudioEngine {
             return;
           }
 
-          // Use 'canplaythrough' for smoother playback - more buffering before start
-          // This prevents stuttering on slower/unstable connections
-          const handleCanPlayThrough = () => {
+          // Use 'canplay' for instant playback start - minimal buffering delay
+          // Trade-off: may have brief stutter on very slow connections, but provides
+          // gapless switching experience for track changes and karaoke mode
+          const handleCanPlay = () => {
             if (this.loadCancelled) return;
             cleanup();
             this.currentLoadReject = null;
             resolve();
-          };
-
-          // Fallback: if canplaythrough takes too long, use canplay after timeout
-          const handleCanPlay = () => {
-            if (this.loadCancelled) return;
-            // Start a timeout - if canplaythrough doesn't fire in 2s, proceed with canplay
-            const timeoutId = window.setTimeout(() => {
-              this.loadTimeouts.delete(timeoutId);
-              if (this.loadCancelled) return;
-              if (this.currentLoadReject === reject) {
-                cleanup();
-                this.currentLoadReject = null;
-                resolve();
-              }
-            }, 2000);
-            this.loadTimeouts.add(timeoutId);
           };
 
           const handleError = () => {
@@ -170,7 +150,6 @@ export class HTML5AudioEngine implements AudioEngine {
           };
 
           const cleanup = () => {
-            this.audio.removeEventListener('canplaythrough', handleCanPlayThrough);
             this.audio.removeEventListener('canplay', handleCanPlay);
             this.audio.removeEventListener('error', handleError);
             this.loadEventCleanup = null;
@@ -179,7 +158,6 @@ export class HTML5AudioEngine implements AudioEngine {
           // Store cleanup function for cancellation
           this.loadEventCleanup = cleanup;
 
-          this.audio.addEventListener('canplaythrough', handleCanPlayThrough, { once: true });
           this.audio.addEventListener('canplay', handleCanPlay, { once: true });
           this.audio.addEventListener('error', handleError, { once: true });
 

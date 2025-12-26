@@ -92,6 +92,7 @@ public record BaseItemResponse(
 
     // Music-specific
     @JsonProperty("ProductionYear") Integer productionYear,
+    @JsonProperty("Lyrics") String lyrics,
     @JsonProperty("IsPlaceHolder") Boolean isPlaceHolder,
     @JsonProperty("RemoteTrailers") List<Object> remoteTrailers,
     @JsonProperty("ProviderIds") Map<String, String> providerIds,
@@ -269,6 +270,7 @@ public record BaseItemResponse(
         private Boolean canDelete = false;
         private Boolean hasSubtitles = false;
         private Integer productionYear;
+        private String lyrics;
         private Boolean isPlaceHolder = false;
         private List<Object> remoteTrailers;
         private Map<String, String> providerIds;
@@ -314,6 +316,7 @@ public record BaseItemResponse(
         public Builder premiereDate(OffsetDateTime premiereDate) { this.premiereDate = premiereDate; return this; }
         public Builder overview(String overview) { this.overview = overview; return this; }
         public Builder productionYear(Integer productionYear) { this.productionYear = productionYear; return this; }
+        public Builder lyrics(String lyrics) { this.lyrics = lyrics; return this; }
         public Builder path(String path) { this.path = path; return this; }
         public Builder container(String container) { this.container = container; return this; }
         public Builder collectionType(String collectionType) { this.collectionType = collectionType; return this; }
@@ -330,11 +333,11 @@ public record BaseItemResponse(
                 albumPrimaryImageTag, albumArtist, albumArtists, artists, artistItems,
                 album, genres, genreItems, imageTags, backdropImageTags,
                 primaryImageAspectRatio, mediaStreams, mediaSources, path, container,
-                size, canDownload, canDelete, hasSubtitles, productionYear, isPlaceHolder,
-                remoteTrailers, providerIds, tags, seriesName, seriesId, seasonId,
-                seasonName, locationType, isoType, video3DFormat, chapters, lockData,
-                lockedFields, channelId, channelName, channelNumber, channelPrimaryImageTag,
-                childCount
+                size, canDownload, canDelete, hasSubtitles, productionYear, lyrics,
+                isPlaceHolder, remoteTrailers, providerIds, tags, seriesName, seriesId,
+                seasonId, seasonName, locationType, isoType, video3DFormat, chapters,
+                lockData, lockedFields, channelId, channelName, channelNumber,
+                channelPrimaryImageTag, childCount
             );
         }
     }
@@ -404,6 +407,7 @@ public record BaseItemResponse(
             false, // canDelete
             false, // hasSubtitles
             null, // productionYear
+            null, // lyrics
             false, // isPlaceHolder
             List.of(), // remoteTrailers
             Map.of(), // providerIds
@@ -486,6 +490,7 @@ public record BaseItemResponse(
             false,
             false,
             year,
+            null, // lyrics
             false,
             List.of(),
             Map.of(),

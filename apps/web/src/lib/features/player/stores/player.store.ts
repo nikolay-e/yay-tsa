@@ -201,13 +201,13 @@ if (browser) {
           useInstrumental: $shouldUse,
         });
 
-        // Set loading state during stream swap
-        playerStore.update(s => ({ ...s, isLoading: true }));
+        // Preserve current timing during stream swap (avoids seek bar flicker)
+        const preservedDuration = cachedDuration;
 
         // Track this operation to prevent race conditions with rapid karaoke toggles
         const switchOpId = ++karaokeStreamSwitchId;
 
-        // Reload track with new URL, restore position
+        // Reload track with new URL, restore position (instant switch)
         audioEngine
           .load(newStreamUrl)
           .then(async () => {
@@ -222,9 +222,13 @@ if (browser) {
               return;
             }
 
-            // Only seek after metadata is loaded (getDuration > 0 means seekable)
-            const duration = audioEngine!.getDuration();
-            if (duration > 0 && currentPosition < duration) {
+            // Restore cached duration immediately to keep seek bar active
+            const newDuration = audioEngine!.getDuration();
+            cachedDuration = newDuration > 0 ? newDuration : preservedDuration;
+            updateTiming(currentPosition, cachedDuration);
+
+            // Seek to preserved position (instant jump)
+            if (cachedDuration > 0 && currentPosition < cachedDuration) {
               audioEngine!.seek(currentPosition);
             }
             if (wasPlaying) {
@@ -236,7 +240,7 @@ if (browser) {
             if (switchOpId !== karaokeStreamSwitchId) return;
             const currentState = get(playerStore);
             if (currentState.currentTrack?.Id === targetTrackId) {
-              playerStore.update(s => ({ ...s, isLoading: false, error: null }));
+              playerStore.update(s => ({ ...s, error: null }));
             }
           })
           .catch(async err => {

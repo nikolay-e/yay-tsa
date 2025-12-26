@@ -139,6 +139,10 @@ yaytsa:
       direct-stream-enabled: true
       byte-range-support: true
       etag-enabled: true
+      # X-Accel-Redirect for nginx (sidecar mode)
+      x-accel-redirect:
+        enabled: ${X_ACCEL_REDIRECT_ENABLED:false}
+        internal-path: ${X_ACCEL_INTERNAL_PATH:/_internal/media}
 
     # Transcoding configuration
     transcoding:
