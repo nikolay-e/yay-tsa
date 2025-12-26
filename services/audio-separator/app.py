@@ -1,6 +1,4 @@
 import os
-import re
-import tempfile
 import time
 import threading
 import logging
@@ -56,27 +54,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Audio Separator Service", version="2.0.0", lifespan=lifespan)
 
-_separator_instance = None
 _separator_lock = threading.Lock()
 
 
-def get_separator(output_dir: str):
-    global _separator_instance
+def create_separator(output_dir: str):
+    """Create a fresh Separator instance with the correct output_dir.
+
+    The audio-separator library caches output_dir internally when model is loaded,
+    so we must create a new instance for each output directory.
+    Model weights are cached by the library itself (in ~/.cache/torch/hub/).
+    """
     from audio_separator.separator import Separator
 
     with _separator_lock:
-        if _separator_instance is None:
-            log.info(f"Initializing Separator with model {MODEL_NAME}")
-            _separator_instance = Separator(
-                output_dir=output_dir,
-                output_format=OUTPUT_FORMAT,
-            )
-            _separator_instance.load_model(model_filename=MODEL_NAME)
-            log.info("Model loaded successfully")
-        else:
-            _separator_instance.output_dir = output_dir
-
-    return _separator_instance
+        log.info(f"Creating Separator with model {MODEL_NAME}, output_dir={output_dir}")
+        sep = Separator(
+            output_dir=output_dir,
+            output_format=OUTPUT_FORMAT,
+        )
+        sep.load_model(model_filename=MODEL_NAME)
+        log.info(f"Model loaded, output_dir confirmed: {sep.output_dir}")
+        return sep
 
 
 def update_job_progress(track_id: str, data: dict):
@@ -131,18 +129,19 @@ def get_progress(track_id: str):
 
 def run_separation(track_id: str, input_path: Path):
     start_time = time.time()
-    temp_dir = None
+    song_name = input_path.stem
+    karaoke_dir = input_path.parent / ".karaoke"
 
     try:
         update_job_progress(track_id, {
             "trackId": track_id,
             "state": "PROCESSING",
             "progress": 5,
-            "message": "Loading model",
+            "message": "Preparing output directory",
         })
 
-        temp_dir = Path(tempfile.mkdtemp(prefix="separator_"))
-        sep = get_separator(str(temp_dir))
+        karaoke_dir.mkdir(exist_ok=True)
+        sep = create_separator(str(karaoke_dir))
 
         update_job_progress(track_id, {
             **job_progress.get(track_id, {}),
@@ -158,24 +157,26 @@ def run_separation(track_id: str, input_path: Path):
             "message": "Processing output files",
         })
 
-        log.info(f"Separation output files: {output_files}")
+        log.info(f"Separation returned: {output_files}")
 
         stem_files = []
         for f in output_files:
             file_path = Path(f)
             if not file_path.is_absolute():
-                found = list(temp_dir.rglob(file_path.name))
-                if found:
-                    file_path = found[0]
-                else:
-                    file_path = temp_dir / f
+                file_path = karaoke_dir / file_path.name
             if file_path.exists():
                 stem_files.append(file_path)
+                log.info(f"Found stem: {file_path}")
             else:
-                log.warning(f"Stem file not found: {f}")
+                log.warning(f"Stem file not found: {f} -> {file_path}")
 
         if not stem_files:
-            raise Exception(f"No output files found from separation")
+            found_files = list(karaoke_dir.glob(f"*.{OUTPUT_FORMAT}"))
+            log.info(f"Fallback: scanning {karaoke_dir}, found: {found_files}")
+            stem_files = [f for f in found_files if f.stat().st_mtime >= start_time]
+
+        if not stem_files:
+            raise Exception(f"No output files found in {karaoke_dir}")
 
         vocal_stem = None
         instrumental_stems = []
@@ -191,45 +192,55 @@ def run_separation(track_id: str, input_path: Path):
                 instrumental_stems.append(stem)
 
         if not instrumental_stems:
-            raise Exception(f"No instrumental stems found")
+            raise Exception("No instrumental stems found in output")
 
         update_job_progress(track_id, {
             **job_progress.get(track_id, {}),
             "progress": 90,
-            "message": "Creating karaoke file",
+            "message": "Creating final karaoke file",
         })
-
-        song_name = input_path.stem
-        karaoke_dir = input_path.parent / ".karaoke"
-        karaoke_dir.mkdir(exist_ok=True)
 
         instrumental_filename = f"{song_name}_instrumental.{OUTPUT_FORMAT}"
         karaoke_path = karaoke_dir / instrumental_filename
 
         if len(instrumental_stems) == 1:
-            shutil.copy2(instrumental_stems[0], karaoke_path)
+            if instrumental_stems[0] != karaoke_path:
+                shutil.move(str(instrumental_stems[0]), str(karaoke_path))
         else:
-            cmd = ["ffmpeg", "-y"]
-            for stem in instrumental_stems:
-                cmd.extend(["-i", str(stem)])
-            filter_complex = f"amix=inputs={len(instrumental_stems)}:normalize=0"
-            cmd.extend(["-filter_complex", filter_complex, str(karaoke_path)])
-            log.info(f"Mixing {len(instrumental_stems)} stems to {karaoke_path}")
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=FFMPEG_TIMEOUT_SECONDS
-            )
-            if result.returncode != 0:
-                raise Exception(f"FFmpeg failed: {result.stderr}")
+            try:
+                cmd = ["ffmpeg", "-y"]
+                for stem in instrumental_stems:
+                    cmd.extend(["-i", str(stem)])
+                filter_complex = f"amix=inputs={len(instrumental_stems)}:normalize=0"
+                cmd.extend(["-filter_complex", filter_complex, str(karaoke_path)])
+                log.info(f"Mixing {len(instrumental_stems)} stems: {cmd}")
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=FFMPEG_TIMEOUT_SECONDS
+                )
+                if result.returncode != 0:
+                    raise Exception(f"FFmpeg failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                raise Exception(f"FFmpeg timeout after {FFMPEG_TIMEOUT_SECONDS}s")
+            finally:
+                for stem in instrumental_stems:
+                    if stem != karaoke_path and stem.exists():
+                        stem.unlink(missing_ok=True)
 
         vocal_path = ""
         if vocal_stem:
             vocal_filename = f"{song_name}_vocals.{OUTPUT_FORMAT}"
             vocal_dest = karaoke_dir / vocal_filename
-            shutil.copy2(vocal_stem, vocal_dest)
+            if vocal_stem != vocal_dest:
+                shutil.move(str(vocal_stem), str(vocal_dest))
             vocal_path = str(vocal_dest)
+
+        for leftover in karaoke_dir.glob(f"*_{MODEL_NAME}.{OUTPUT_FORMAT}"):
+            if leftover.name not in [instrumental_filename, f"{song_name}_vocals.{OUTPUT_FORMAT}"]:
+                leftover.unlink(missing_ok=True)
+                log.info(f"Cleaned up leftover stem: {leftover}")
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 
@@ -245,7 +256,7 @@ def run_separation(track_id: str, input_path: Path):
             }
         })
 
-        log.info(f"Karaoke file created: {karaoke_path}")
+        log.info(f"Karaoke complete: instrumental={karaoke_path}, vocals={vocal_path}")
 
     except Exception as e:
         log.exception(f"Separation failed for {track_id}: {e}")
@@ -255,9 +266,6 @@ def run_separation(track_id: str, input_path: Path):
             "progress": 0,
             "message": str(e),
         })
-    finally:
-        if temp_dir and temp_dir.exists():
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @app.post("/api/separate", response_model=SeparationResponse)

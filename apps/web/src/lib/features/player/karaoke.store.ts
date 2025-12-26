@@ -89,6 +89,7 @@ function stopStatusStream(): void {
     eventSource.close();
     eventSource = null;
   }
+  reconnectAttempts = 0;
 }
 
 function startStatusStream(trackId: string): void {
