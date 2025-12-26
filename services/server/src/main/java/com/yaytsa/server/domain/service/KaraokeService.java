@@ -42,6 +42,7 @@ public class KaraokeService {
     private final AudioTrackRepository audioTrackRepository;
     private final AudioSeparatorClient separatorClient;
     private final Path mediaRootPath;
+    private final Path stemsRootPath;
 
     private final Map<UUID, JobEntry> processingJobs = new ConcurrentHashMap<>();
     private final ExecutorService separationExecutor = Executors.newFixedThreadPool(2);
@@ -82,11 +83,13 @@ public class KaraokeService {
             ItemRepository itemRepository,
             AudioTrackRepository audioTrackRepository,
             AudioSeparatorClient separatorClient,
-            @Value("${yaytsa.media.library-roots:/media}") String mediaRoot) {
+            @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+            @Value("${yaytsa.media.karaoke.stems-path:/app/stems}") String stemsPath) {
         this.itemRepository = itemRepository;
         this.audioTrackRepository = audioTrackRepository;
         this.separatorClient = separatorClient;
         this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+        this.stemsRootPath = Paths.get(stemsPath).toAbsolutePath().normalize();
 
         cleanupScheduler.scheduleAtFixedRate(
                 this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
@@ -253,6 +256,10 @@ public class KaraokeService {
         processingJobs.put(trackId, new JobEntry(status, Instant.now()));
     }
 
+    private boolean isStemPathSafe(Path path) {
+        return path.startsWith(mediaRootPath) || path.startsWith(stemsRootPath);
+    }
+
     public Path getInstrumentalPath(UUID trackId) {
         AudioTrackEntity track = audioTrackRepository.findById(trackId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -264,7 +271,7 @@ public class KaraokeService {
         }
 
         Path instrumentalPath = Paths.get(track.getInstrumentalPath()).toAbsolutePath().normalize();
-        if (!instrumentalPath.startsWith(mediaRootPath)) {
+        if (!isStemPathSafe(instrumentalPath)) {
             log.error("Path traversal attempt in instrumental path for track {}: {}", trackId, instrumentalPath);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
@@ -287,7 +294,7 @@ public class KaraokeService {
         }
 
         Path vocalPath = Paths.get(track.getVocalPath()).toAbsolutePath().normalize();
-        if (!vocalPath.startsWith(mediaRootPath)) {
+        if (!isStemPathSafe(vocalPath)) {
             log.error("Path traversal attempt in vocal path for track {}: {}", trackId, vocalPath);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }

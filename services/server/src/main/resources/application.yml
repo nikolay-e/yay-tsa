@@ -173,6 +173,7 @@ yaytsa:
     karaoke:
       separator-url: ${KARAOKE_SEPARATOR_URL:http://audio-separator:8000}
       model: ${KARAOKE_MODEL:htdemucs}
+      stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
 
     # Session configuration
     sessions:

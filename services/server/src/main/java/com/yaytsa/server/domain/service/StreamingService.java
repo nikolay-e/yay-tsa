@@ -40,7 +40,7 @@ public class StreamingService {
     public StreamingService(
             ItemRepository itemRepository,
             @Value("${server.base-url:http://localhost:8080}") String baseUrl,
-            @Value("${yaytsa.media.library-roots:/media}") String mediaRoot) {
+            @Value("${yaytsa.media.library.roots:/media}") String mediaRoot) {
         this.itemRepository = itemRepository;
         this.baseUrl = baseUrl;
         this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();

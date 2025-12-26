@@ -55,17 +55,20 @@ public class ImageService {
     private final AudioTrackRepository audioTrackRepository;
     private final Cache<String, byte[]> imageCache;
     private final Path mediaRootPath;
+    private final Path imageCachePath;
 
     public ImageService(
         ImageRepository imageRepository,
         ItemRepository itemRepository,
         AudioTrackRepository audioTrackRepository,
-        @Value("${yaytsa.media.library-roots:/media}") String mediaRoot
+        @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+        @Value("${yaytsa.media.images.cache-directory:/app/temp/images}") String imageCacheDir
     ) {
         this.imageRepository = imageRepository;
         this.itemRepository = itemRepository;
         this.audioTrackRepository = audioTrackRepository;
         this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+        this.imageCachePath = Paths.get(imageCacheDir).toAbsolutePath().normalize();
         this.imageCache = Caffeine.newBuilder()
             .maximumSize(500)
             .expireAfterAccess(Duration.ofHours(1))
@@ -148,13 +151,17 @@ public class ImageService {
         }
     }
 
+    private boolean isPathSafe(Path path) {
+        return path.startsWith(mediaRootPath) || path.startsWith(imageCachePath);
+    }
+
     private Optional<byte[]> loadImageData(UUID itemId, ImageType imageType) throws IOException {
         Optional<ImageEntity> imageEntity = imageRepository.findFirstByItemIdAndType(itemId, imageType);
 
         if (imageEntity.isPresent()) {
             Path imagePath = Paths.get(imageEntity.get().getPath()).toAbsolutePath().normalize();
 
-            if (!imagePath.startsWith(mediaRootPath)) {
+            if (!isPathSafe(imagePath)) {
                 logger.error("Path traversal attempt detected for image {}: {}", itemId, imagePath);
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
             }
