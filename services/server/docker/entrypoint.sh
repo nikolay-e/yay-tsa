@@ -41,6 +41,7 @@ fi
 # Check if media library path exists
 if [ -n "$LIBRARY_ROOTS" ]; then
   echo "Checking media library paths: $LIBRARY_ROOTS"
+  OLD_IFS="$IFS"
   IFS=','
   for path in $LIBRARY_ROOTS; do
     # Security: Validate path to prevent directory traversal
@@ -73,6 +74,7 @@ if [ -n "$LIBRARY_ROOTS" ]; then
       echo "Media library path found: $path"
     fi
   done
+  IFS="$OLD_IFS"
 fi
 
 # Check FFmpeg installation
