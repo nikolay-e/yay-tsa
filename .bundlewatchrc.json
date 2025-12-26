@@ -1,11 +1,11 @@
 {
   "files": [
     {
-      "path": "packages/web/build/_app/immutable/entry/*.js",
+      "path": "apps/web/build/_app/immutable/entry/*.js",
       "maxSize": "50kB"
     },
     {
-      "path": "packages/web/build/_app/immutable/chunks/*.js",
+      "path": "apps/web/build/_app/immutable/chunks/*.js",
       "maxSize": "100kB"
     }
   ],

@@ -104,7 +104,7 @@ repos:
           - --error
           - --skip-unknown-extensions
           - --metrics=off
-        files: ^packages/.*\.(js|ts|svelte)$
+        files: ^(packages|apps)/.*\.(js|ts|svelte)$
 
   # ------------------------------------------------------------------------------
   # SPELL CHECKING (Documentation Quality)
@@ -170,10 +170,10 @@ repos:
     hooks:
       - id: sort-package-json
         name: 'Sort package.json files'
-        entry: npx sort-package-json "package.json" "packages/*/package.json"
+        entry: npx sort-package-json "package.json" "packages/*/package.json" "apps/*/package.json"
         language: node
         types: [json]
-        files: '^(package\.json|packages/.*/package\.json)$'
+        files: '^(package\.json|packages/.*/package\.json|apps/.*/package\.json)$'
 
       - id: tsc-core
         name: 'TypeScript type check (core)'
@@ -191,7 +191,7 @@ repos:
         name: 'ESLint (TypeScript/Svelte quality)'
         entry: npx eslint --fix
         language: node
-        files: ^packages/.*\.(js|ts|svelte)$
+        files: ^(packages|apps)/.*\.(js|ts|svelte)$
         pass_filenames: true
 
       - id: docker-compose-check
@@ -210,11 +210,11 @@ repos:
 
       - id: docker-build
         name: 'Docker build validation'
-        entry: docker build -t yaytsa:test .
+        entry: docker build -t yaytsa:test -f apps/web/Dockerfile .
         language: system
         files: >-
-          ^(Dockerfile|docker-entrypoint\.sh|nginx\.conf\.template|
-          packages/.*/.*\.(ts|svelte|js|json)|package\.json)$
+          ^(apps/web/Dockerfile|apps/web/docker/entrypoint\.sh|infra/nginx/nginx\.conf\.template|
+          packages/.*/.*\.(ts|svelte|js|json)|apps/web/.*\.(ts|svelte|js|json)|package\.json)$
         pass_filenames: false
         stages: [pre-push]
 
@@ -236,7 +236,7 @@ repos:
         entry: >-
           npx jscpd --min-lines 6 --min-tokens 50 --threshold 3
           --ignore "**/tests/**,**/node_modules/**,**/dist/**,**/.svelte-kit/**"
-          packages/
+          packages/ apps/
         language: node
         files: \.(js|ts|svelte)$
         pass_filenames: false

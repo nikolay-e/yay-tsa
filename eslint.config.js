@@ -13,7 +13,7 @@ export default [
       'dist/**',
       'build/**',
       '.svelte-kit/**',
-      'packages/web/.svelte-kit/**',
+      'apps/web/.svelte-kit/**',
       'packages/*/dist/**',
       'packages/*/build/**',
       '**/*.config.js',
@@ -46,7 +46,7 @@ export default [
 
   // TypeScript files - with type checking
   {
-    files: ['packages/*/src/**/*.ts'],
+    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'module',
@@ -55,7 +55,7 @@ export default [
         project: [
           './packages/core/tsconfig.json',
           './packages/platform/tsconfig.json',
-          './packages/web/tsconfig.json',
+          './apps/web/tsconfig.json',
         ],
         tsconfigRootDir: import.meta.dirname,
       },

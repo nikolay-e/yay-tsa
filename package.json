@@ -13,10 +13,11 @@
   "author": "",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "build": "npm run build:core && npm run build:platform && cd packages/web && npm run build",
+    "build": "npm run build:core && npm run build:platform && cd apps/web && npm run build",
     "build:core": "cd packages/core && npm run build",
     "build:platform": "cd packages/platform && npm run build",
     "check:bundle": "bundlewatch",
@@ -24,7 +25,7 @@
     "check:duplication": "jscpd .",
     "check:types": "type-coverage --at-least 90 --ignore-catch",
     "check:unused": "knip --no-progress",
-    "dev": "npm run build:core && npm run build:platform && cd packages/web && npm run dev",
+    "dev": "npm run build:core && npm run build:platform && cd apps/web && npm run dev",
     "format": "prettier --write .",
     "generate:splash": "node scripts/generate-splash-screens.js",
     "lint": "prettier --check .",

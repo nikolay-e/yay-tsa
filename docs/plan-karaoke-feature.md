@@ -158,16 +158,16 @@ Docker image: Custom build with CUDA support
 
 Files:
 
-- `docker/audio-separator/Dockerfile`
-- `docker/audio-separator/app.py` (FastAPI wrapper)
+- `services/audio-separator/Dockerfile`
+- `services/audio-separator/app.py` (FastAPI wrapper)
 
 ### Java Backend
 
 Files:
 
-- `server/.../domain/service/KaraokeService.java`
-- `server/.../infra/client/AudioSeparatorClient.java`
-- `server/.../controller/KaraokeController.java`
+- `services/server/.../domain/service/KaraokeService.java`
+- `services/server/.../infra/client/AudioSeparatorClient.java`
+- `services/server/.../controller/KaraokeController.java`
 
 Database changes:
 
@@ -180,8 +180,8 @@ Database changes:
 Files:
 
 - `packages/platform/src/web/vocal-removal.ts` - Phase cancellation
-- `packages/web/src/lib/stores/karaoke.ts` - State management
-- `packages/web/src/lib/components/player/KaraokeModeButton.svelte`
+- `apps/web/src/lib/features/player/karaoke.store.ts` - State management
+- `apps/web/src/lib/features/player/components/KaraokeModeButton.svelte`
 
 ## Resource Requirements
 
@@ -214,16 +214,16 @@ The karaoke feature has been fully implemented and deployed to production.
 
 ### Deployed Components
 
-| Component                        | Location                                            | Status      |
-| -------------------------------- | --------------------------------------------------- | ----------- |
-| audio-separator (Python/FastAPI) | `docker/audio-separator/`                           | ✅ Deployed |
-| KaraokeService (Java)            | `server/.../domain/service/KaraokeService.java`     | ✅ Deployed |
-| KaraokeController (Java)         | `server/.../controller/KaraokeController.java`      | ✅ Deployed |
-| AudioSeparatorClient (Java)      | `server/.../infra/client/AudioSeparatorClient.java` | ✅ Deployed |
-| Frontend stores                  | `packages/web/src/lib/stores/karaoke.ts`            | ✅ Deployed |
-| KaraokeModeButton                | `packages/web/src/lib/components/player/`           | ✅ Deployed |
-| Phase cancellation               | `packages/platform/src/web/vocal-removal.ts`        | ✅ Deployed |
-| Helm chart                       | `gitops/helm-charts/yaytsa/`                        | ✅ Deployed |
+| Component                        | Location                                                     | Status      |
+| -------------------------------- | ------------------------------------------------------------ | ----------- |
+| audio-separator (Python/FastAPI) | `services/audio-separator/`                                  | ✅ Deployed |
+| KaraokeService (Java)            | `services/server/.../domain/service/KaraokeService.java`     | ✅ Deployed |
+| KaraokeController (Java)         | `services/server/.../controller/KaraokeController.java`      | ✅ Deployed |
+| AudioSeparatorClient (Java)      | `services/server/.../infra/client/AudioSeparatorClient.java` | ✅ Deployed |
+| Frontend stores                  | `apps/web/src/lib/features/player/karaoke.store.ts`          | ✅ Deployed |
+| KaraokeModeButton                | `apps/web/src/lib/features/player/components/`               | ✅ Deployed |
+| Phase cancellation               | `packages/platform/src/web/vocal-removal.ts`                 | ✅ Deployed |
+| Helm chart                       | `gitops/helm-charts/yaytsa/`                                 | ✅ Deployed |
 
 ### Lessons Learned
 

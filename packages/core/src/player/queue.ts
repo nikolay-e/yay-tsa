@@ -3,7 +3,7 @@
  * Manages playback queue, shuffle, and repeat modes
  */
 
-import { AudioItem, QueueState, RepeatMode, ShuffleMode } from '../models/types.js';
+import { AudioItem, QueueState, RepeatMode, ShuffleMode } from '../internal/models/types.js';
 
 export class PlaybackQueue {
   private items: AudioItem[] = [];

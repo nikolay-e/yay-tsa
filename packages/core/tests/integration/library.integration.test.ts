@@ -4,11 +4,11 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { MediaServerClient } from '../../src/api/client.js';
-import { AuthService } from '../../src/api/auth.js';
-import { ItemsService } from '../../src/api/items.js';
+import { MediaServerClient } from '../../src/api/api.client.js';
+import { AuthService } from '../../src/api/auth.service.js';
+import { ItemsService } from '../../src/api/items.service.js';
 import { loadTestConfig, delay, retryableLogin, AUTH_DELAY } from './setup.js';
-import type { ClientInfo } from '../../src/models/types.js';
+import type { ClientInfo } from '../../src/index.js';
 
 describe('Integration: Library Queries', () => {
   let config: ReturnType<typeof loadTestConfig>;

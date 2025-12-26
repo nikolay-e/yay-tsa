@@ -5,7 +5,7 @@
 
 import { expect } from 'vitest';
 import { TestFixtures } from './data-factory.js';
-import { AudioItem, MusicAlbum, MusicArtist } from '../../../src/models/types.js';
+import type { AudioItem, MusicAlbum, MusicArtist } from '../../../src/index.js';
 
 /**
  * Given: User authentication scenarios

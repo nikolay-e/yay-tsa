@@ -1,0 +1,40 @@
+{
+  "name": "@yaytsa/web",
+  "version": "0.0.0-placeholder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "postbuild": "node scripts/generate-csp-hashes.js",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "dev": "vite dev --host 0.0.0.0",
+    "dev:checked": "npm run check && vite dev --host 0.0.0.0",
+    "generate:icons": "node scripts/generate-icons.js",
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "@yaytsa/core": "*",
+    "@yaytsa/platform": "*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@sveltejs/adapter-static": "^3.0.1",
+    "@sveltejs/kit": "^2.49.2",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@vite-pwa/sveltekit": "^1.1.0",
+    "rollup-plugin-visualizer": "^6.0.5",
+    "sharp": "^0.34.5",
+    "svelte": "^5.46.1",
+    "svelte-check": "^4.3.5",
+    "terser": "^5.36.0",
+    "tslib": "^2.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^7.3.0"
+  }
+}

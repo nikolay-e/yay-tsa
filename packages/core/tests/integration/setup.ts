@@ -3,7 +3,7 @@
  * Loads credentials, provides BDD helpers and utilities for testing against real Media Server
  */
 
-import { MediaServerError } from '../../src/models/types.js';
+import { MediaServerError } from '../../src/index.js';
 import { TestDataFactory, TestFixtures } from './fixtures/data-factory.js';
 import { ScenarioContext } from './fixtures/scenarios.js';
 

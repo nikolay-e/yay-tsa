@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PlaybackQueue } from '../../src/player/queue.js';
-import type { AudioItem } from '../../src/models/types.js';
+import type { AudioItem } from '../../src/index.js';
 
 describe('Unit: Playback Queue', () => {
   let queue: PlaybackQueue;

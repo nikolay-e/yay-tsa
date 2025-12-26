@@ -4,7 +4,7 @@
  * Used for testing queue logic without server interaction
  */
 
-import type { AudioItem } from '../../../src/models/types.js';
+import type { AudioItem } from '../../../src/index.js';
 
 /**
  * Basic 3-track album for simple queue scenarios

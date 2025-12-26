@@ -107,6 +107,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: apps/web/Dockerfile
           target: production
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
@@ -169,7 +170,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ./server
+          context: ./services/server
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -231,7 +232,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ./docker/audio-separator
+          context: ./services/audio-separator
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

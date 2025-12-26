@@ -13,18 +13,25 @@ Yaytsa - a minimal music player with a custom Java-based media server backend. B
 ## Workspace Structure
 
 ```
+apps/
+└── web/         # @yaytsa/web - SvelteKit PWA (SPA mode)
 packages/
 ├── core/        # @yaytsa/core - Framework-agnostic business logic
-├── platform/    # @yaytsa/platform - Platform-specific audio/media adapters
-└── web/         # @yaytsa/web - SvelteKit PWA (SPA mode)
+└── platform/    # @yaytsa/platform - Platform-specific audio/media adapters
+services/
+├── server/      # Java Spring Boot backend
+└── audio-separator/  # Python FastAPI for karaoke
+infra/
+├── nginx/       # nginx.conf.template
+└── docker/      # docker-entrypoint.sh
 ```
 
 **Key Files**:
 
-- `package.json:14-16` - npm workspaces configuration
+- `package.json` - npm workspaces configuration
 - `packages/core/src/index.ts` - Core package public API
 - `packages/platform/src/index.ts` - Platform package public API
-- `packages/web/src/lib/stores/` - Svelte stores for state management
+- `apps/web/src/lib/features/` - Feature-first UI modules (auth, player, library)
 
 ## Common Commands
 
@@ -43,7 +50,7 @@ npm run pre-commit             # Run all pre-commit hooks manually
 
 # Testing
 cd packages/core && npm run test:integration    # Integration tests against local server
-cd packages/web && npm run test:e2e             # Playwright E2E tests
+cd apps/web && npm run test:e2e                 # Playwright E2E tests
 
 # Docker Deployment (starts frontend, backend, database)
 docker compose up              # Development with HMR
@@ -97,7 +104,7 @@ Media Server (Java backend)
 ### Example: Play Album
 
 1. User clicks "Play" in `AlbumCard.svelte`
-2. Calls `player.playAlbum(albumId)` from `stores/player.ts:300-350`
+2. Calls `player.playAlbum(albumId)` from `features/player/player.store.ts`
 3. Player store fetches tracks via `ItemsService.getAlbumTracks()` from core
 4. Calls `PlaybackQueue.setQueue()` state machine (core)
 5. Calls `HTML5AudioEngine.load()` (platform) with stream URL from `client.getStreamUrl()`
@@ -107,7 +114,7 @@ Media Server (Java backend)
 
 **Svelte Writable + Derived Stores** (reactive, no global store)
 
-**Auth Store** (`lib/stores/auth.ts:44-232`):
+**Auth Store** (`lib/features/auth/auth.store.ts`):
 
 ```typescript
 interface AuthState {
@@ -124,11 +131,11 @@ interface AuthState {
 
 **Key Features**:
 
-- Session restoration from sessionStorage (`restoreSession:150-219`)
-- CSRF protection: validates stored URL before use (`auth.ts:166-176`)
+- Session restoration from sessionStorage
+- CSRF protection: validates stored URL before use
 - Derived stores: `isAuthenticated`, `client` (read-only)
 
-**Player Store** (`lib/stores/player.ts:21-557`):
+**Player Store** (`lib/features/player/player.store.ts`):
 
 ```typescript
 interface PlayerState {
@@ -177,7 +184,7 @@ headers: {
 MediaBrowser Client="Yaytsa", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
 ```
 
-**Session Storage Strategy** (`lib/stores/auth.ts:86-91`):
+**Session Storage Strategy** (`lib/features/auth/auth.store.ts`):
 
 - Uses `sessionStorage` (not `localStorage`) - cleared on tab close, reduces XSS risk
 - Stores: `jf_session`, `jf_user_id`, `jf_server_url`
@@ -253,7 +260,7 @@ reportPlaybackProgress({
 - Core/Platform: `tsc` → `dist/` (CommonJS/ESM dual output)
 - Web: Vite (no tsc for bundling, only type checking)
 
-### Vite Configuration (`packages/web/vite.config.ts:11-40`)
+### Vite Configuration (`apps/web/vite.config.ts:11-40`)
 
 **HTTPS Development** (optional):
 
@@ -267,7 +274,7 @@ reportPlaybackProgress({
 - `optimizeDeps: { include: ['@yaytsa/core', '@yaytsa/platform'] }`
 - Manual chunks for code splitting
 
-### SvelteKit Adapter (`packages/web/svelte.config.js:10-19`)
+### SvelteKit Adapter (`apps/web/svelte.config.js:10-19`)
 
 ```javascript
 adapter: adapter({
@@ -311,7 +318,7 @@ describe('Feature: Queue Management', () => {
 });
 ```
 
-**Web E2E Tests** (`packages/web/tests/e2e/`):
+**Web E2E Tests** (`apps/web/tests/e2e/`):
 
 - Playwright for browser automation
 - Tests against real dev server + local media server
@@ -324,7 +331,7 @@ cd packages/core
 npm run test:integration
 
 # Web E2E tests
-cd packages/web
+cd apps/web
 npm run test:e2e
 ```
 
@@ -347,7 +354,7 @@ if (import.meta.env.PROD && parsed.protocol !== 'https:') {
 
 Allows `http://localhost` in development, enforces HTTPS in production.
 
-### CSRF Protection (`lib/stores/auth.ts:166-176`)
+### CSRF Protection (`lib/features/auth/auth.store.ts`)
 
 ```typescript
 const storedUrl = sessionStorage.getItem(STORAGE_KEYS.SERVER_URL);
@@ -419,21 +426,25 @@ script-src 'self';
 - `packages/platform/src/web/html5-audio.ts` - Browser audio implementation
 - `packages/platform/src/media-session.ts` - Lock screen controls
 
-**Web Package**:
+**Web App**:
 
-- `packages/web/src/lib/stores/auth.ts:44-232` - Authentication store
-- `packages/web/src/lib/stores/player.ts:21-557` - Player store with engine integration
-- `packages/web/vite.config.ts:11-40` - Build configuration
-- `packages/web/svelte.config.js:10-19` - SvelteKit adapter
+- `apps/web/src/lib/features/auth/auth.store.ts` - Authentication store
+- `apps/web/src/lib/features/player/player.store.ts` - Player store with engine integration
+- `apps/web/src/lib/features/library/library.store.ts` - Library store
+- `apps/web/vite.config.ts` - Build configuration
+- `apps/web/svelte.config.js` - SvelteKit adapter
 
 **Build & Deployment**:
 
-- `Dockerfile:1-81` - Multi-stage Docker build
+- `apps/web/Dockerfile` - Multi-stage Docker build for frontend
+- `services/server/Dockerfile` - Multi-stage Docker build for backend
 - `docker-compose.yml` - Development and production configs
+- `infra/nginx/nginx.conf.template` - Nginx configuration
+- `apps/web/docker/entrypoint.sh` - Frontend container entrypoint
 - `/Users/nikolay/code/gitops/helm-charts/yaytsa/` - Kubernetes manifests
 
 ## Additional Documentation
 
 - **DESIGN.md** - Detailed technical architecture and platform comparison
-- **server/CLAUDE.md** - Backend server architecture and implementation
+- **services/server/CLAUDE.md** - Backend server architecture and implementation
 - **packages/core/tests/integration/README.md** - Integration testing guide

@@ -4,12 +4,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { MediaServerClient } from '../../src/api/client.js';
-import { AuthService } from '../../src/api/auth.js';
-import { ItemsService } from '../../src/api/items.js';
-import { PlaylistsService } from '../../src/api/playlists.js';
+import { MediaServerClient } from '../../src/api/api.client.js';
+import { AuthService } from '../../src/api/auth.service.js';
+import { ItemsService } from '../../src/api/items.service.js';
+import { PlaylistsService } from '../../src/api/playlists.service.js';
 import { loadTestConfig, delay, retryableLogin, AUTH_DELAY } from './setup.js';
-import type { ClientInfo } from '../../src/models/types.js';
+import type { ClientInfo } from '../../src/index.js';
 
 describe('Integration: Playlists Management', () => {
   let config: ReturnType<typeof loadTestConfig>;

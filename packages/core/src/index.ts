@@ -4,11 +4,11 @@
  */
 
 // API modules
-export { MediaServerClient, type KaraokeStatus } from './api/client.js';
-export { BaseService } from './api/base-service.js';
-export { AuthService, validateServerUrl } from './api/auth.js';
-export { ItemsService } from './api/items.js';
-export { PlaylistsService } from './api/playlists.js';
+export { MediaServerClient, type KaraokeStatus } from './api/api.client.js';
+export { BaseService } from './api/base-api.service.js';
+export { AuthService, validateServerUrl } from './api/auth.service.js';
+export { ItemsService } from './api/items.service.js';
+export { PlaylistsService } from './api/playlists.service.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
@@ -20,7 +20,7 @@ export {
   getRequiredConfig,
   getOrCreateDeviceId,
   type EnvironmentConfig,
-} from './config/env.js';
+} from './internal/config/env.js';
 
 export {
   APP_VERSION,
@@ -30,11 +30,11 @@ export {
   TICKS_PER_SECOND,
   secondsToTicks,
   ticksToSeconds,
-} from './config/constants.js';
+} from './internal/config/constants.js';
 
 // Cache modules
 export { IndexedDBCache } from './cache/indexed-db-cache.js';
-export { ICache, CacheConfig, CacheEntry, TTL } from './cache/cache-interface.js';
+export { ICache, CacheConfig, CacheEntry, TTL } from './cache/cache.interface.js';
 
 // Logging
 export {
@@ -43,7 +43,7 @@ export {
   type Logger,
   type LogContext,
   type LogLevel,
-} from './utils/logger.js';
+} from './internal/utils/logger.js';
 
 // Types and models
-export * from './models/types.js';
+export * from './internal/models/types.js';

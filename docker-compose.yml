@@ -31,7 +31,7 @@ services:
   # Yaytsa Media Server (Java Backend)
   backend:
     build:
-      context: ./server
+      context: ./services/server
       dockerfile: Dockerfile
     container_name: yaytsa-backend
     environment:
@@ -53,8 +53,8 @@ services:
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:
-      - ${MEDIA_PATH:-./server/media}:/media:ro
-      - ./server/logs:/app/logs
+      - ${MEDIA_PATH:-./services/server/media}:/media:ro
+      - ./services/server/logs:/app/logs
       - karaoke_stems:/app/stems
     networks:
       yaytsa-network:
@@ -75,7 +75,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: apps/web/Dockerfile
       target: development
     container_name: yaytsa-frontend
     environment:
@@ -88,12 +88,12 @@ services:
     volumes:
       - ./packages/core/src:/app/packages/core/src
       - ./packages/platform/src:/app/packages/platform/src
-      - ./packages/web/src:/app/packages/web/src
-      - ./packages/web/static:/app/packages/web/static
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/static:/app/apps/web/static
       - /app/node_modules
       - /app/packages/core/node_modules
       - /app/packages/platform/node_modules
-      - /app/packages/web/node_modules
+      - /app/apps/web/node_modules
       - /app/packages/core/dist
       - /app/packages/platform/dist
     working_dir: /app
@@ -115,7 +115,7 @@ services:
   # Runtime: KARAOKE_DEVICE=cpu (default) or KARAOKE_DEVICE=cuda (requires GPU)
   audio-separator:
     build:
-      context: ./docker/audio-separator
+      context: ./services/audio-separator
       dockerfile: Dockerfile
       args:
         VARIANT: ${KARAOKE_VARIANT:-cpu}
@@ -125,7 +125,7 @@ services:
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
     volumes:
-      - ${MEDIA_PATH:-./server/media}:/media:ro
+      - ${MEDIA_PATH:-./services/server/media}:/media:ro
       - karaoke_stems:/app/stems
     networks:
       - yaytsa-network
@@ -146,7 +146,7 @@ services:
   test:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: apps/web/Dockerfile
       target: test
     container_name: yaytsa-test
     profiles:
@@ -158,7 +158,7 @@ services:
       BASE_URL: http://frontend:5173
     volumes:
       - ./packages/core/tests:/app/packages/core/tests
-      - ./packages/web/tests:/app/packages/web/tests
+      - ./apps/web/tests:/app/apps/web/tests
       - ./test-results:/app/test-results
     networks:
       - yaytsa-network

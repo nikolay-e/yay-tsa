@@ -3,7 +3,7 @@
  * Browser-based persistent cache using IndexedDB
  */
 
-import { ICache, CacheConfig, CacheEntry } from './cache-interface.js';
+import { ICache, CacheConfig, CacheEntry } from './cache.interface.js';
 
 export class IndexedDBCache implements ICache {
   private dbName: string;

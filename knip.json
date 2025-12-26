@@ -9,7 +9,7 @@
     "packages/platform": {
       "project": ["src/**/*.ts"]
     },
-    "packages/web": {
+    "apps/web": {
       "entry": [
         "src/routes/**/*.svelte",
         "src/routes/**/*.ts",

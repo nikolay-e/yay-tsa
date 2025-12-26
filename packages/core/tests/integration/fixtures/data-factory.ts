@@ -4,11 +4,11 @@
  * Since Media Server doesn't support creating artists/albums via API, we discover existing data
  */
 
-import { MediaServerClient } from '../../../src/api/client.js';
-import { AuthService } from '../../../src/api/auth.js';
-import { ItemsService } from '../../../src/api/items.js';
-import { PlaylistsService } from '../../../src/api/playlists.js';
-import { AudioItem, MusicAlbum, MusicArtist } from '../../../src/models/types.js';
+import { MediaServerClient } from '../../../src/api/api.client.js';
+import { AuthService } from '../../../src/api/auth.service.js';
+import { ItemsService } from '../../../src/api/items.service.js';
+import { PlaylistsService } from '../../../src/api/playlists.service.js';
+import type { AudioItem, MusicAlbum, MusicArtist } from '../../../src/index.js';
 import { TestConfig } from '../setup.js';
 
 export interface TestFixtures {

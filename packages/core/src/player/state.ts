@@ -3,7 +3,7 @@
  * Manages player state and playback reporting to Media Server
  */
 
-import { MediaServerClient } from '../api/client.js';
+import { MediaServerClient } from '../api/api.client.js';
 import {
   PlayerState,
   PlaybackStatus,
@@ -13,9 +13,9 @@ import {
   PlaybackProgressInfo,
   PlaybackStartInfo,
   PlaybackStopInfo,
-} from '../models/types.js';
-import { secondsToTicks, ticksToSeconds } from '../config/constants.js';
-import { createLogger } from '../utils/logger.js';
+} from '../internal/models/types.js';
+import { secondsToTicks, ticksToSeconds } from '../internal/config/constants.js';
+import { createLogger } from '../internal/utils/logger.js';
 
 const log = createLogger('Player');
 
