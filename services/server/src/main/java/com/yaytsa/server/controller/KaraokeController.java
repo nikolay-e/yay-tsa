@@ -20,8 +20,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URLEncoder;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -193,7 +195,8 @@ public class KaraokeController {
         response.setHeader("Accept-Ranges", "bytes");
 
         if (xAccelRedirectEnabled) {
-            String redirectPath = xAccelInternalPath + filePath.toAbsolutePath().toString();
+            String encodedPath = encodePathForHeader(filePath.toAbsolutePath().toString());
+            String redirectPath = xAccelInternalPath + encodedPath;
             response.setStatus(HttpServletResponse.SC_OK);
             response.setHeader("X-Accel-Redirect", redirectPath);
             response.setHeader("X-Accel-Buffering", "no");
@@ -205,6 +208,16 @@ public class KaraokeController {
                 fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
             }
         }
+    }
+
+    private String encodePathForHeader(String path) {
+        StringBuilder encoded = new StringBuilder();
+        for (String segment : path.split("/")) {
+            if (!segment.isEmpty()) {
+                encoded.append("/").append(URLEncoder.encode(segment, StandardCharsets.UTF_8));
+            }
+        }
+        return encoded.toString();
     }
 
     private String detectMimeType(Path filePath) {

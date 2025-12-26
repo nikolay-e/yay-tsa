@@ -18,6 +18,8 @@ import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -110,7 +112,8 @@ public class StreamingService {
             String mimeType,
             HttpServletResponse response) {
 
-        String redirectPath = xAccelInternalPath + filePath.toAbsolutePath().toString();
+        String encodedPath = encodePathForHeader(filePath.toAbsolutePath().toString());
+        String redirectPath = xAccelInternalPath + encodedPath;
 
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(mimeType);
@@ -119,6 +122,16 @@ public class StreamingService {
         response.setHeader("X-Accel-Buffering", "no");
 
         log.debug("X-Accel-Redirect to: {}", redirectPath);
+    }
+
+    private String encodePathForHeader(String path) {
+        StringBuilder encoded = new StringBuilder();
+        for (String segment : path.split("/")) {
+            if (!segment.isEmpty()) {
+                encoded.append("/").append(URLEncoder.encode(segment, StandardCharsets.UTF_8));
+            }
+        }
+        return encoded.toString();
     }
 
     public Resource getAudioResource(UUID itemId) {
