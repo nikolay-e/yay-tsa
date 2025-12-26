@@ -156,7 +156,44 @@ public class KaraokeService {
             return job.status();
         }
 
+        if (track != null && tryRecoverFromOrphanedFiles(track)) {
+            return ProcessingStatus.ready();
+        }
+
         return ProcessingStatus.notStarted();
+    }
+
+    private boolean tryRecoverFromOrphanedFiles(AudioTrackEntity track) {
+        ItemEntity item = itemRepository.findById(track.getItemId()).orElse(null);
+        if (item == null || item.getPath() == null) {
+            return false;
+        }
+
+        Path audioFilePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
+        if (!audioFilePath.startsWith(mediaRootPath)) {
+            return false;
+        }
+
+        Path karaokeDir = audioFilePath.getParent().resolve(".karaoke");
+        String baseName = getFileNameWithoutExtension(audioFilePath.getFileName().toString());
+        Path instrumentalPath = karaokeDir.resolve(baseName + "_instrumental.wav");
+        Path vocalPath = karaokeDir.resolve(baseName + "_vocals.wav");
+
+        if (Files.exists(instrumentalPath)) {
+            log.info("Recovering orphaned karaoke files for track {}: {}", track.getItemId(), instrumentalPath);
+            track.setKaraokeReady(true);
+            track.setInstrumentalPath(instrumentalPath.toString());
+            track.setVocalPath(Files.exists(vocalPath) ? vocalPath.toString() : "");
+            audioTrackRepository.save(track);
+            return true;
+        }
+
+        return false;
+    }
+
+    private String getFileNameWithoutExtension(String fileName) {
+        int lastDot = fileName.lastIndexOf('.');
+        return lastDot > 0 ? fileName.substring(0, lastDot) : fileName;
     }
 
     private boolean validateStemFilesExist(AudioTrackEntity track) {
@@ -224,6 +261,12 @@ public class KaraokeService {
         if (!Files.exists(audioFilePath)) {
             log.error("Audio file not found: {}", audioFilePath);
             updateJobStatus(trackId, ProcessingStatus.failed("Audio file not found"));
+            return;
+        }
+
+        if (tryRecoverFromOrphanedFiles(track)) {
+            log.info("Recovered existing karaoke files for track {}, skipping processing", trackId);
+            updateJobStatus(trackId, ProcessingStatus.ready());
             return;
         }
 

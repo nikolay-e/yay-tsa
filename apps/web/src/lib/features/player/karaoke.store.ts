@@ -8,7 +8,7 @@ const log = createLogger('Karaoke');
 const KARAOKE_STORAGE_KEY = 'yaytsa_karaoke_enabled';
 const KARAOKE_MODE_KEY = 'yaytsa_karaoke_mode';
 
-export type KaraokeMode = 'off' | 'client' | 'server';
+export type KaraokeMode = 'off' | 'server';
 
 interface KaraokeState {
   enabled: boolean;
@@ -20,22 +20,17 @@ interface KaraokeState {
   error: string | null;
 }
 
-type AudioEngineWithKaraoke = {
-  setKaraokeMode?: (enabled: boolean) => void;
-  isKaraokeModeEnabled?: () => boolean;
-};
-
-let audioEngineRef: AudioEngineWithKaraoke | null = null;
 let eventSource: EventSource | null = null;
 
 function loadPersistedState(): { enabled: boolean; mode: KaraokeMode } {
-  if (!browser) return { enabled: false, mode: 'client' };
+  if (!browser) return { enabled: false, mode: 'server' };
   try {
     const enabled = localStorage.getItem(KARAOKE_STORAGE_KEY) === 'true';
-    const mode = (localStorage.getItem(KARAOKE_MODE_KEY) as KaraokeMode) || 'client';
+    const storedMode = localStorage.getItem(KARAOKE_MODE_KEY);
+    const mode: KaraokeMode = storedMode === 'server' ? 'server' : 'server';
     return { enabled, mode };
   } catch {
-    return { enabled: false, mode: 'client' };
+    return { enabled: false, mode: 'server' };
   }
 }
 
@@ -62,14 +57,6 @@ const initialState: KaraokeState = {
 
 const karaokeStore = writable<KaraokeState>(initialState);
 
-function setAudioEngine(engine: AudioEngineWithKaraoke | null): void {
-  audioEngineRef = engine;
-
-  const state = get(karaokeStore);
-  if (engine?.setKaraokeMode && state.enabled && state.mode === 'client') {
-    engine.setKaraokeMode(true);
-  }
-}
 
 function stopStatusStream(): void {
   if (eventSource) {
@@ -245,15 +232,6 @@ function toggle(): void {
   karaokeStore.update(state => {
     const newEnabled = !state.enabled;
 
-    if (state.mode === 'client' && audioEngineRef?.setKaraokeMode) {
-      try {
-        audioEngineRef.setKaraokeMode(newEnabled);
-      } catch (error) {
-        log.error('Failed to toggle karaoke mode', { error: String(error) });
-        return { ...state, error: 'Failed to toggle karaoke mode' };
-      }
-    }
-
     persistState(newEnabled, state.mode);
     log.info(`Karaoke ${newEnabled ? 'enabled' : 'disabled'}`, { mode: state.mode });
 
@@ -265,16 +243,6 @@ function setMode(mode: KaraokeMode): void {
   karaokeStore.update(state => {
     if (state.mode === mode) return state;
 
-    // Disable client-side karaoke when switching away
-    if (state.mode === 'client' && state.enabled && audioEngineRef?.setKaraokeMode) {
-      audioEngineRef.setKaraokeMode(false);
-    }
-
-    // Enable client-side karaoke when switching to it
-    if (mode === 'client' && state.enabled && audioEngineRef?.setKaraokeMode) {
-      audioEngineRef.setKaraokeMode(true);
-    }
-
     persistState(state.enabled, mode);
     log.info('Karaoke mode changed', { mode });
 
@@ -284,7 +252,6 @@ function setMode(mode: KaraokeMode): void {
 
 function reset(): void {
   stopStatusStream();
-  audioEngineRef = null;
   karaokeStore.set(initialState);
 }
 
@@ -353,7 +320,6 @@ export const shouldUseInstrumental = derived(
 
 export const karaoke = {
   subscribe: karaokeStore.subscribe,
-  setAudioEngine,
   setCurrentTrack,
   requestProcessing,
   checkServerAvailability,

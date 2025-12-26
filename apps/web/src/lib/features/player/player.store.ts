@@ -120,9 +120,6 @@ if (browser) {
   audioEngine = new HTML5AudioEngine();
   mediaSession = new MediaSessionManager();
 
-  // Initialize karaoke store with audio engine reference
-  karaoke.setAudioEngine(audioEngine);
-
   // Log media session support (development only)
   if (mediaSession.supported()) {
     log.info('[Media Session] Supported - background playback enabled');
@@ -260,9 +257,9 @@ if (browser) {
             } catch (restoreErr) {
               log.error('Failed to restore previous stream, disabling server karaoke', restoreErr);
 
-              // Both streams failed - reset track status and disable server karaoke mode
+              // Both streams failed - reset track status and disable karaoke mode
               karaoke.clearTrackStatus();
-              karaoke.setMode('client');
+              karaoke.setMode('off');
 
               // Reload track with original stream URL
               const regularStreamUrl = $client.getStreamUrl(targetTrackId);

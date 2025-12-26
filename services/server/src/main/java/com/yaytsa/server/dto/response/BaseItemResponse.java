@@ -119,7 +119,10 @@ public record BaseItemResponse(
     @JsonProperty("ChannelId") String channelId,
     @JsonProperty("ChannelName") String channelName,
     @JsonProperty("ChannelNumber") String channelNumber,
-    @JsonProperty("ChannelPrimaryImageTag") String channelPrimaryImageTag
+    @JsonProperty("ChannelPrimaryImageTag") String channelPrimaryImageTag,
+
+    // Child count (for albums: track count, for artists: album count)
+    @JsonProperty("ChildCount") Integer childCount
 ) {
 
     /**
@@ -284,6 +287,7 @@ public record BaseItemResponse(
         private String channelName;
         private String channelNumber;
         private String channelPrimaryImageTag;
+        private Integer childCount;
 
         public Builder name(String name) { this.name = name; return this; }
         public Builder id(String id) { this.id = id; return this; }
@@ -313,6 +317,7 @@ public record BaseItemResponse(
         public Builder path(String path) { this.path = path; return this; }
         public Builder container(String container) { this.container = container; return this; }
         public Builder collectionType(String collectionType) { this.collectionType = collectionType; return this; }
+        public Builder childCount(Integer childCount) { this.childCount = childCount; return this; }
 
         public BaseItemResponse build() {
             return new BaseItemResponse(
@@ -328,7 +333,8 @@ public record BaseItemResponse(
                 size, canDownload, canDelete, hasSubtitles, productionYear, isPlaceHolder,
                 remoteTrailers, providerIds, tags, seriesName, seriesId, seasonId,
                 seasonName, locationType, isoType, video3DFormat, chapters, lockData,
-                lockedFields, channelId, channelName, channelNumber, channelPrimaryImageTag
+                lockedFields, channelId, channelName, channelNumber, channelPrimaryImageTag,
+                childCount
             );
         }
     }
@@ -415,7 +421,8 @@ public record BaseItemResponse(
             null, // channelId
             null, // channelName
             null, // channelNumber
-            null // channelPrimaryImageTag
+            null, // channelPrimaryImageTag
+            null // childCount
         );
     }
 
@@ -496,7 +503,8 @@ public record BaseItemResponse(
             null,
             null,
             null,
-            null
+            null,
+            null // childCount
         );
     }
 }

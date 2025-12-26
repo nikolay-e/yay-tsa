@@ -56,7 +56,7 @@
         </div>
       </div>
 
-      <!-- Playback Controls -->
+      <!-- Playback Controls (centered) -->
       <div class="controls-section">
         <Controls
           {showQueue}
@@ -69,6 +69,9 @@
           on:seek={handleSeek}
         />
       </div>
+
+      <!-- Spacer for centering -->
+      <div class="spacer"></div>
     </div>
   </div>
 
@@ -94,7 +97,7 @@
 
   .player-content {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: var(--spacing-lg);
     height: 100%;
@@ -104,6 +107,10 @@
     padding-right: calc(var(--spacing-lg) + var(--safe-area-inset-right));
     max-width: 1600px;
     margin: 0 auto;
+  }
+
+  .spacer {
+    /* Empty spacer for grid centering */
   }
 
   .now-playing {
@@ -154,9 +161,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    width: 500px;
+    min-width: 300px;
     max-width: 600px;
-    margin: 0 auto;
-    width: 100%;
   }
 
   @media (max-width: 768px) {
@@ -187,6 +194,13 @@
 
     .controls-section {
       grid-column: 1;
+      width: 100%;
+      min-width: unset;
+      max-width: unset;
+    }
+
+    .spacer {
+      display: none;
     }
   }
 </style>

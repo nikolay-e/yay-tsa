@@ -18,4 +18,7 @@ public interface AlbumRepository extends JpaRepository<AlbumEntity, UUID> {
 
     @Query("SELECT a FROM AlbumEntity a LEFT JOIN FETCH a.artist LEFT JOIN FETCH a.item WHERE a.itemId = :itemId")
     AlbumEntity findByIdWithArtist(@Param("itemId") UUID itemId);
+
+    @Query("SELECT COUNT(a) FROM AlbumEntity a WHERE a.artist.id = :artistId")
+    long countByArtistId(@Param("artistId") UUID artistId);
 }

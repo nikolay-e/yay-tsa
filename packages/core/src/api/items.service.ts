@@ -181,10 +181,15 @@ export class ItemsService extends BaseService {
 
   /**
    * Get tracks from an album
+   * Uses dedicated /Items/{albumId}/Tracks endpoint for proper disc/track sorting
    */
   async getAlbumTracks(albumId: string): Promise<AudioItem[]> {
-    const result = await this.getTracks({ albumId });
-    return result.Items;
+    const userId = this.requireAuth();
+    const result = await this.client.get<ItemsResult<AudioItem>>(
+      `/Items/${albumId}/Tracks`,
+      { userId }
+    );
+    return result?.Items || [];
   }
 
   /**

@@ -13,7 +13,7 @@ public class ItemMapper {
     private static final long TICKS_PER_MILLISECOND = 10_000L;
 
     public BaseItemResponse toDto(ItemEntity item, PlayStateEntity playState) {
-        return toDto(item, playState, null, null);
+        return toDto(item, playState, null, null, null);
     }
 
     public BaseItemResponse toDto(
@@ -21,6 +21,16 @@ public class ItemMapper {
         PlayStateEntity playState,
         AudioTrackEntity audioTrack,
         AlbumEntity album
+    ) {
+        return toDto(item, playState, audioTrack, album, null);
+    }
+
+    public BaseItemResponse toDto(
+        ItemEntity item,
+        PlayStateEntity playState,
+        AudioTrackEntity audioTrack,
+        AlbumEntity album,
+        Integer childCount
     ) {
         String type = mapItemType(item.getType());
         BaseItemResponse.UserItemDataDto userData = playState != null ? mapUserData(playState) : null;
@@ -72,7 +82,9 @@ public class ItemMapper {
                     artistItem.getName(), artistItem.getId().toString()
                 );
                 builder.albumArtist(artistItem.getName())
-                       .albumArtists(List.of(artistPair));
+                       .albumArtists(List.of(artistPair))
+                       .artists(List.of(artistItem.getName()))
+                       .artistItems(List.of(artistPair));
             }
         }
 
@@ -91,6 +103,10 @@ public class ItemMapper {
         Map<String, String> imageTags = extractImageTags(item);
         if (imageTags != null && imageTags.containsKey("Primary")) {
             builder.albumPrimaryImageTag(imageTags.get("Primary"));
+        }
+
+        if (childCount != null) {
+            builder.childCount(childCount);
         }
 
         return builder.build();

@@ -292,13 +292,17 @@ public class ItemsController {
 
         AudioTrackEntity audioTrack = null;
         AlbumEntity album = null;
+        Integer childCount = null;
 
         if (item.getType() == ItemType.AudioTrack) {
             audioTrack = audioTrackRepository.findById(item.getId()).orElse(null);
         } else if (item.getType() == ItemType.MusicAlbum) {
             album = albumRepository.findByIdWithArtist(item.getId());
+            childCount = (int) audioTrackRepository.countByAlbumId(item.getId());
+        } else if (item.getType() == ItemType.MusicArtist) {
+            childCount = (int) albumRepository.countByArtistId(item.getId());
         }
 
-        return itemMapper.toDto(item, playState, audioTrack, album);
+        return itemMapper.toDto(item, playState, audioTrack, album, childCount);
     }
 }

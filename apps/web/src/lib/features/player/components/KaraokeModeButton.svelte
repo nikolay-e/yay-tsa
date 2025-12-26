@@ -2,7 +2,6 @@
   import { createEventDispatcher } from 'svelte';
   import {
     isKaraokeEnabled,
-    karaokeMode,
     isServerAvailable,
     isProcessing,
     trackStatus,
@@ -20,12 +19,9 @@
   function handleClick(_e: MouseEvent) {
     hapticSelect();
 
-    // If server available, show menu to choose mode
+    // Show menu to manage karaoke mode
     if ($isServerAvailable) {
       showMenu = !showMenu;
-    } else {
-      // Fallback to client-only toggle
-      karaoke.toggle();
     }
     dispatch('click');
   }
@@ -65,9 +61,7 @@
   $: buttonTitle = $isProcessing
     ? 'Processing...'
     : $isKaraokeEnabled
-    ? $karaokeMode === 'server'
-      ? 'AI Karaoke (vocals removed)'
-      : 'Quick Karaoke (phase cancel)'
+    ? 'AI Karaoke (vocals removed)'
     : 'Enable karaoke mode';
 </script>
 
@@ -138,24 +132,11 @@
         <span class="item-text">Off</span>
       </button>
 
-      <button
-        type="button"
-        class="menu-item"
-        class:selected={$isKaraokeEnabled && $karaokeMode === 'client'}
-        on:click={() => selectMode('client')}
-      >
-        <span class="item-icon">Q</span>
-        <span class="item-text">
-          Quick
-          <span class="item-desc">Instant, lower quality</span>
-        </span>
-      </button>
-
       {#if $isServerAvailable}
         <button
           type="button"
           class="menu-item"
-          class:selected={$isKaraokeEnabled && $karaokeMode === 'server'}
+          class:selected={$isKaraokeEnabled}
           disabled={!$isTrackReady && !$isProcessing}
           on:click={() => selectMode('server')}
         >

@@ -17,4 +17,7 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
     List<AudioTrackEntity> findByAlbumIdOrderByDiscNoAscTrackNoAsc(@Param("albumId") UUID albumId);
 
     List<AudioTrackEntity> findByAlbumArtistId(UUID artistId);
+
+    @Query("SELECT COUNT(at) FROM AudioTrackEntity at WHERE at.album.id = :albumId")
+    long countByAlbumId(@Param("albumId") UUID albumId);
 }
