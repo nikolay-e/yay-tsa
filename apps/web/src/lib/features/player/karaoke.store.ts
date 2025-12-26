@@ -7,6 +7,7 @@ const log = createLogger('Karaoke');
 
 const KARAOKE_STORAGE_KEY = 'yaytsa_karaoke_enabled';
 const KARAOKE_MODE_KEY = 'yaytsa_karaoke_mode';
+const PROCESSING_TRACK_KEY = 'yaytsa_karaoke_processing_track';
 
 export type KaraokeMode = 'off' | 'server';
 
@@ -21,6 +22,9 @@ interface KaraokeState {
 }
 
 let eventSource: EventSource | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 2000;
 
 function loadPersistedState(): { enabled: boolean; mode: KaraokeMode } {
   if (!browser) return { enabled: false, mode: 'server' };
@@ -41,6 +45,28 @@ function persistState(enabled: boolean, mode: KaraokeMode): void {
     localStorage.setItem(KARAOKE_MODE_KEY, mode);
   } catch {
     // localStorage unavailable
+  }
+}
+
+function persistProcessingTrack(trackId: string | null): void {
+  if (!browser) return;
+  try {
+    if (trackId) {
+      sessionStorage.setItem(PROCESSING_TRACK_KEY, trackId);
+    } else {
+      sessionStorage.removeItem(PROCESSING_TRACK_KEY);
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+function loadProcessingTrack(): string | null {
+  if (!browser) return null;
+  try {
+    return sessionStorage.getItem(PROCESSING_TRACK_KEY);
+  } catch {
+    return null;
   }
 }
 
@@ -75,16 +101,16 @@ function startStatusStream(trackId: string): void {
   const token = currentClient.getToken();
   const streamUrl = `${serverUrl}/Karaoke/${trackId}/status/stream?api_key=${token}`;
 
-  log.info('Starting SSE status stream', { trackId });
+  log.info('Starting SSE status stream', { trackId, attempt: reconnectAttempts + 1 });
 
   eventSource = new EventSource(streamUrl);
 
-  // Capture trackId at subscription time for race condition prevention
   const subscribedTrackId = trackId;
 
   eventSource.addEventListener('status', (event: MessageEvent<string>) => {
     try {
-      // Verify current track matches subscribed track (race condition protection)
+      reconnectAttempts = 0;
+
       const currentState = get(karaokeStore);
       if (currentState.currentTrackId !== subscribedTrackId) {
         log.debug('SSE status event for stale track, ignoring', {
@@ -92,6 +118,7 @@ function startStatusStream(trackId: string): void {
           currentTrackId: currentState.currentTrackId,
         });
         stopStatusStream();
+        persistProcessingTrack(null);
         return;
       }
 
@@ -104,6 +131,7 @@ function startStatusStream(trackId: string): void {
 
       if (status.state === 'READY' || status.state === 'FAILED') {
         stopStatusStream();
+        persistProcessingTrack(null);
         if (status.state === 'READY') {
           log.info('Karaoke processing completed', { trackId: subscribedTrackId });
         } else {
@@ -119,8 +147,76 @@ function startStatusStream(trackId: string): void {
   });
 
   eventSource.onerror = () => {
-    log.warn('SSE connection error, will retry');
+    stopStatusStream();
+
+    const currentState = get(karaokeStore);
+    if (currentState.currentTrackId !== subscribedTrackId) {
+      persistProcessingTrack(null);
+      return;
+    }
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      log.warn('SSE connection error, reconnecting', {
+        attempt: reconnectAttempts,
+        maxAttempts: MAX_RECONNECT_ATTEMPTS,
+        trackId: subscribedTrackId,
+      });
+      setTimeout(() => {
+        if (get(karaokeStore).currentTrackId === subscribedTrackId) {
+          startStatusStream(subscribedTrackId);
+        }
+      }, RECONNECT_DELAY_MS * reconnectAttempts);
+    } else {
+      log.error('SSE reconnection failed after max attempts, falling back to polling', {
+        trackId: subscribedTrackId,
+      });
+      reconnectAttempts = 0;
+      void pollStatusUntilComplete(subscribedTrackId);
+    }
   };
+}
+
+async function pollStatusUntilComplete(trackId: string): Promise<void> {
+  const currentClient = get(client);
+  if (!currentClient) return;
+
+  const pollInterval = 2000;
+  const maxPolls = 300;
+  let polls = 0;
+
+  while (polls < maxPolls) {
+    const currentState = get(karaokeStore);
+    if (currentState.currentTrackId !== trackId) {
+      persistProcessingTrack(null);
+      return;
+    }
+
+    try {
+      const status = await currentClient.getKaraokeStatus(trackId);
+      karaokeStore.update(s => ({
+        ...s,
+        trackStatus: status,
+        processing: status.state === 'PROCESSING',
+      }));
+
+      if (status.state === 'READY' || status.state === 'FAILED') {
+        persistProcessingTrack(null);
+        log.info('Polling completed', { trackId, state: status.state });
+        return;
+      }
+    } catch (error) {
+      log.warn('Poll failed', { trackId, error: String(error) });
+    }
+
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, pollInterval);
+    });
+    polls++;
+  }
+
+  log.error('Polling timed out', { trackId });
+  persistProcessingTrack(null);
 }
 
 async function checkServerAvailability(): Promise<void> {
@@ -189,15 +285,14 @@ async function requestProcessing(): Promise<void> {
     return;
   }
 
-  // Capture trackId at request time for race condition prevention
   const targetTrackId = state.currentTrackId;
 
   karaokeStore.update(s => ({ ...s, processing: true, error: null }));
+  persistProcessingTrack(targetTrackId);
 
   try {
     const status = await currentClient.requestKaraokeProcessing(targetTrackId);
 
-    // Verify track hasn't changed during async operation
     const currentState = get(karaokeStore);
     if (currentState.currentTrackId !== targetTrackId) {
       log.debug('Track changed during karaoke processing request, ignoring result', {
@@ -211,11 +306,12 @@ async function requestProcessing(): Promise<void> {
 
     if (status.state === 'PROCESSING') {
       startStatusStream(targetTrackId);
+    } else {
+      persistProcessingTrack(null);
     }
 
     log.info('Karaoke processing requested', { trackId: targetTrackId });
   } catch (error) {
-    // Only update error state if track still matches
     const currentState = get(karaokeStore);
     if (currentState.currentTrackId === targetTrackId) {
       log.error('Failed to request karaoke processing', { error: String(error) });
@@ -224,6 +320,7 @@ async function requestProcessing(): Promise<void> {
         processing: false,
         error: 'Failed to start processing',
       }));
+      persistProcessingTrack(null);
     }
   }
 }
@@ -270,16 +367,46 @@ function clearTrackStatus(): void {
   }
 }
 
-// Subscribe to client changes
-// Module-level subscription lives for app lifetime in SPA mode
-// HMR guard prevents duplicate subscriptions during development
+async function resumeProcessingFromStorage(): Promise<void> {
+  const processingTrackId = loadProcessingTrack();
+  if (!processingTrackId) return;
+
+  const currentClient = get(client);
+  if (!currentClient) return;
+
+  log.info('Resuming processing from storage', { trackId: processingTrackId });
+
+  try {
+    const status = await currentClient.getKaraokeStatus(processingTrackId);
+
+    if (status.state === 'PROCESSING') {
+      karaokeStore.update(s => ({
+        ...s,
+        currentTrackId: processingTrackId,
+        trackStatus: status,
+        processing: true,
+      }));
+      startStatusStream(processingTrackId);
+    } else if (status.state === 'READY' || status.state === 'FAILED') {
+      log.info('Persisted processing already completed', { trackId: processingTrackId, state: status.state });
+      persistProcessingTrack(null);
+    } else {
+      persistProcessingTrack(null);
+    }
+  } catch (error) {
+    log.warn('Failed to resume processing', { trackId: processingTrackId, error: String(error) });
+    persistProcessingTrack(null);
+  }
+}
+
 let clientUnsubscribe: (() => void) | null = null;
 
 if (browser) {
-  // HMR disposal is handled via import.meta.hot.dispose() below
   clientUnsubscribe = client.subscribe(c => {
     if (c) {
-      void checkServerAvailability();
+      void checkServerAvailability().then(() => {
+        void resumeProcessingFromStorage();
+      });
     } else {
       stopStatusStream();
       karaokeStore.update(s => ({
@@ -292,7 +419,6 @@ if (browser) {
     }
   });
 
-  // HMR cleanup - dispose subscription on module reload
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
       if (clientUnsubscribe) {

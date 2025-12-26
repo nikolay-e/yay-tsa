@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
 @RequestMapping("/Karaoke")
@@ -93,28 +94,24 @@ public class KaraokeController {
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         ProcessingStatus[] lastStatus = {null};
-        boolean[] sawProcessing = {false};
+        AtomicLong eventId = new AtomicLong(0);
 
         var future = scheduler.scheduleAtFixedRate(() -> {
             try {
                 ProcessingStatus status = karaokeService.getStatus(trackId);
 
-                if (status.state() == ProcessingState.PROCESSING) {
-                    sawProcessing[0] = true;
-                }
-
                 if (lastStatus[0] == null || !status.equals(lastStatus[0])) {
                     lastStatus[0] = status;
                     String json = objectMapper.writeValueAsString(status);
                     emitter.send(SseEmitter.event()
+                            .id(String.valueOf(eventId.incrementAndGet()))
                             .name("status")
                             .data(json, MediaType.APPLICATION_JSON));
 
-                    // Only close on terminal states AFTER we've seen PROCESSING
-                    // This prevents race condition where async processing hasn't started yet
-                    if (sawProcessing[0] &&
-                        (status.state() == ProcessingState.READY ||
-                         status.state() == ProcessingState.FAILED)) {
+                    // Complete SSE stream on terminal states (READY or FAILED)
+                    // Processing runs independently on backend - this just notifies the client
+                    if (status.state() == ProcessingState.READY ||
+                        status.state() == ProcessingState.FAILED) {
                         emitter.complete();
                     }
                 }
