@@ -6,8 +6,8 @@
     isLoading,
     artistsTotal,
     hasMoreArtists,
-  } from '../../lib/features/library/library.store.js';
-  import { isAuthenticated } from '../../lib/features/auth/auth.store.js';
+  } from '../../lib/features/library/stores/library.store.js';
+  import { isAuthenticated } from '../../lib/features/auth/stores/auth.store.js';
   import ArtistGrid from '../../lib/features/library/components/ArtistGrid.svelte';
   import { get } from 'svelte/store';
 

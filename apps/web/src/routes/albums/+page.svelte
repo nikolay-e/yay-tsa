@@ -9,8 +9,8 @@
     isLoading,
     albumsTotal,
     hasMoreAlbums,
-  } from '../../lib/features/library/library.store.js';
-  import { isAuthenticated } from '../../lib/features/auth/auth.store.js';
+  } from '../../lib/features/library/stores/library.store.js';
+  import { isAuthenticated } from '../../lib/features/auth/stores/auth.store.js';
   import AlbumGrid from '../../lib/features/library/components/AlbumGrid.svelte';
   import { get } from 'svelte/store';
   import { createLogger } from '@yaytsa/core';

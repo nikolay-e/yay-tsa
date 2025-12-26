@@ -45,7 +45,7 @@ server/
     - model/… (Item, ItemType, AudioTrack, MusicAlbum, MusicArtist, Genre, ImageAsset, Playlist, PlaylistEntry, User, ApiToken, Session, PlayState)
     - service/… (ItemService, StreamingService, TranscodeService, ImageService, UserService, AuthService, PlaylistService, SessionService, LibraryScanService, SearchService)
     - ports/… (ItemRepositoryPort, UserRepositoryPort, PlaylistRepositoryPort, SessionRepositoryPort, PlayStateRepositoryPort, MediaScanner, Transcoder, ImageScaler)
-  - infra/
+  - infrastructure/
     - persistence/
       - entity/… (ItemEntity, AudioTrackEntity, AlbumEntity, ArtistEntity, GenreEntity, ItemGenreEntity, ImageEntity, PlaylistEntity, PlaylistEntryEntity, UserEntity, ApiTokenEntity, SessionEntity, PlayStateEntity)
       - repository/… (JpaItemRepository, JpaPlaylistRepository, JpaUserRepository, JpaSessionRepository, JpaPlayStateRepository)

@@ -141,7 +141,7 @@ CORS_ORIGINS=http://localhost:*
 
 ```
 server/
-├── src/main/java/com/example/mediaserver/
+├── src/main/java/com/yaytsa/server/
 │   ├── config/          # Spring configuration
 │   ├── controller/      # REST API endpoints
 │   ├── dto/            # Data transfer objects
@@ -149,7 +149,7 @@ server/
 │   │   ├── model/      # Domain entities
 │   │   ├── service/    # Business services
 │   │   └── ports/      # Interface contracts
-│   ├── infra/          # Infrastructure implementations
+│   ├── infrastructure/  # Infrastructure implementations
 │   │   ├── persistence/# JPA repositories
 │   │   ├── fs/         # File system operations
 │   │   ├── transcoding/# FFmpeg integration

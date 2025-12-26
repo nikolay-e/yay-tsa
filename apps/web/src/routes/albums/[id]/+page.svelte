@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { library } from '../../../lib/features/library/library.store.js';
-  import { player } from '../../../lib/features/player/player.store.js';
+  import { library } from '../../../lib/features/library/stores/library.store.js';
+  import { player } from '../../../lib/features/player/stores/player.store.js';
   import { getAlbumArtUrl } from '../../../lib/shared/utils/image.js';
   import TrackList from '../../../lib/features/library/components/TrackList.svelte';
   import { createLogger, type MusicAlbum, type AudioItem } from '@yaytsa/core';

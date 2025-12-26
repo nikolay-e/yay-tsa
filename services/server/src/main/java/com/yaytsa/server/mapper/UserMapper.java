@@ -1,7 +1,7 @@
 package com.yaytsa.server.mapper;
 
 import com.yaytsa.server.dto.response.UserResponse;
-import com.yaytsa.server.infra.persistence.entity.UserEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import org.springframework.stereotype.Component;
 
 @Component

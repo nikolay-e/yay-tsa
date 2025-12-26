@@ -12,7 +12,7 @@ export { PlaylistsService } from './api/playlists.service.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
-export { PlaybackState, PlaybackReporter } from './player/state.js';
+export { PlaybackState, PlaybackReporter } from './player/playback-state.js';
 
 // Configuration
 export {

@@ -1,12 +1,12 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.infra.persistence.entity.ItemEntity;
-import com.yaytsa.server.infra.persistence.entity.ItemType;
-import com.yaytsa.server.infra.persistence.entity.PlaylistEntity;
-import com.yaytsa.server.infra.persistence.entity.PlaylistEntryEntity;
-import com.yaytsa.server.infra.persistence.repository.ItemRepository;
-import com.yaytsa.server.infra.persistence.repository.PlaylistEntryRepository;
-import com.yaytsa.server.infra.persistence.repository.PlaylistRepository;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
+import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntryEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.PlaylistEntryRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.PlaylistRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

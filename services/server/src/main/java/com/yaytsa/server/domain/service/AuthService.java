@@ -1,9 +1,9 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.infra.persistence.entity.ApiTokenEntity;
-import com.yaytsa.server.infra.persistence.entity.UserEntity;
-import com.yaytsa.server.infra.persistence.repository.ApiTokenRepository;
-import com.yaytsa.server.infra.persistence.repository.UserRepository;
+import com.yaytsa.server.infrastructure.persistence.entity.ApiTokenEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.ApiTokenRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

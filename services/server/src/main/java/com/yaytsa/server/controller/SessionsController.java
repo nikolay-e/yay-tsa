@@ -4,7 +4,7 @@ import com.yaytsa.server.domain.service.SessionService;
 import com.yaytsa.server.dto.request.PlaybackProgressInfo;
 import com.yaytsa.server.dto.request.PlaybackStartInfo;
 import com.yaytsa.server.dto.request.PlaybackStopInfo;
-import com.yaytsa.server.infra.security.AuthenticatedUser;
+import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;

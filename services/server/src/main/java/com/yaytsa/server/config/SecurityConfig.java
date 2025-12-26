@@ -1,6 +1,6 @@
 package com.yaytsa.server.config;
 
-import com.yaytsa.server.infra.security.EmbyAuthFilter;
+import com.yaytsa.server.infrastructure.security.EmbyAuthFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;

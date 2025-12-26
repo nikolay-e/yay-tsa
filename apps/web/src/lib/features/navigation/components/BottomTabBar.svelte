@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { derived } from 'svelte/store';
   import { hapticSelect } from '../../../shared/utils/haptics.js';
-  import { auth } from '../../auth/auth.store.js';
+  import { auth } from '../../auth/stores/auth.store.js';
 
   interface Tab {
     href: string;

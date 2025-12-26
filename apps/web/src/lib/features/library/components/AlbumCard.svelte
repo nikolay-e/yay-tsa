@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { MusicAlbum } from '@yaytsa/core';
   import { getAlbumArtUrl, getAlbumArtSrcSet } from '../../../shared/utils/image.js';
-  import { player } from '../../player/player.store.js';
-  import { library } from '../library.store.js';
+  import { player } from '../../player/stores/player.store.js';
+  import { library } from '../stores/library.store.js';
   import { hapticSelect } from '../../../shared/utils/haptics.js';
   import { logger } from '../../../shared/utils/logger.js';
   import { LIBRARY_TEST_IDS } from '$lib/shared/test-ids';

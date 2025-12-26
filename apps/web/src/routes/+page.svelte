@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { library, albums, isLoading } from '../lib/features/library/library.store.js';
-  import { searchService, searchAlbums, searchTracks, isSearching } from '../lib/features/library/search.store.js';
-  import { isAuthenticated } from '../lib/features/auth/auth.store.js';
+  import { library, albums, isLoading } from '../lib/features/library/stores/library.store.js';
+  import { searchService, searchAlbums, searchTracks, isSearching } from '../lib/features/library/stores/library-search.store.js';
+  import { isAuthenticated } from '../lib/features/auth/stores/auth.store.js';
   import AlbumGrid from '../lib/features/library/components/AlbumGrid.svelte';
   import TrackList from '../lib/features/library/components/TrackList.svelte';
   import { NAVIGATION_TEST_IDS } from '$lib/shared/test-ids';

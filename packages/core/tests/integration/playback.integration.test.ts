@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { MediaServerClient } from '../../src/api/api.client.js';
 import { AuthService } from '../../src/api/auth.service.js';
 import { ItemsService } from '../../src/api/items.service.js';
-import { PlaybackReporter } from '../../src/player/state.js';
+import { PlaybackReporter } from '../../src/player/playback-state.js';
 import { loadTestConfig, delay, retryableLogin, AUTH_DELAY } from './setup.js';
 import type { ClientInfo } from '../../src/index.js';
 

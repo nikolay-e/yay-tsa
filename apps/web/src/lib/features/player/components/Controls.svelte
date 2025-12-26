@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { player, isPlaying, queueItems } from '../player.store.js';
+  import { player, isPlaying, queueItems } from '../stores/player.store.js';
   import { hapticPlayPause, hapticSkip } from '../../../shared/utils/haptics.js';
   import { PLAYER_TEST_IDS } from '$lib/shared/test-ids';
   import SleepTimerButton from './SleepTimerButton.svelte';

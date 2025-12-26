@@ -281,7 +281,7 @@ await this.client.delete(`/Items/${itemId}/Favorite`);
 
 ### POST /Sessions/Playing
 
-**Frontend** (`packages/core/src/player/state.ts:45, 243`):
+**Frontend** (`packages/core/src/player/playback-state.ts:45, 243`):
 
 ```typescript
 const info = {
@@ -301,7 +301,7 @@ await this.client.post('/Sessions/Playing', info);
 
 ### POST /Sessions/Playing/Progress
 
-**Frontend** (`packages/core/src/player/state.ts:65, 268`):
+**Frontend** (`packages/core/src/player/playback-state.ts:65, 268`):
 
 ```typescript
 const info = {
@@ -321,7 +321,7 @@ await this.client.post('/Sessions/Playing/Progress', info);
 
 ### POST /Sessions/Playing/Stopped
 
-**Frontend** (`packages/core/src/player/state.ts:81, 289`):
+**Frontend** (`packages/core/src/player/playback-state.ts:81, 289`):
 
 ```typescript
 const info = {

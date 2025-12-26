@@ -20,7 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import com.yaytsa.server.infra.security.AuthenticatedUser;
+import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 
 import java.util.HashMap;
 import java.util.Map;

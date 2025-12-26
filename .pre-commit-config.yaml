@@ -213,7 +213,7 @@ repos:
         entry: docker build -t yaytsa:test -f apps/web/Dockerfile .
         language: system
         files: >-
-          ^(apps/web/Dockerfile|apps/web/docker/entrypoint\.sh|infra/nginx/nginx\.conf\.template|
+          ^(apps/web/Dockerfile|apps/web/docker/entrypoint\.sh|deploy/nginx/nginx\.conf\.template|
           packages/.*/.*\.(ts|svelte|js|json)|apps/web/.*\.(ts|svelte|js|json)|package\.json)$
         pass_filenames: false
         stages: [pre-push]

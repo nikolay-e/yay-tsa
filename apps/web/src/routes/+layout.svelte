@@ -2,8 +2,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { auth, isAuthenticated } from '../lib/features/auth/auth.store.js';
-  import { currentTrack, player } from '../lib/features/player/player.store.js';
+  import { auth, isAuthenticated } from '../lib/features/auth/stores/auth.store.js';
+  import { currentTrack, player } from '../lib/features/player/stores/player.store.js';
   import PlayerBar from '../lib/features/player/components/PlayerBar.svelte';
   import BottomTabBar from '../lib/features/navigation/components/BottomTabBar.svelte';
   import { cacheManager } from '../lib/cache/cache-manager.js';

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { auth, isLoading, error as authError } from '../auth.store.js';
-  import { config } from '../../settings/config.store.js';
+  import { auth, isLoading, error as authError } from '../stores/auth.store.js';
+  import { config } from '../../settings/stores/settings.store.js';
   import { APP_VERSION } from '@yaytsa/core';
   import Button from '../../../shared/ui/Button.svelte';
   import Input from '../../../shared/ui/Input.svelte';

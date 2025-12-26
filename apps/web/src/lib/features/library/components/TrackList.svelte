@@ -2,7 +2,7 @@
   import { derived } from 'svelte/store';
   import { tick } from 'svelte';
   import { ticksToSeconds, type AudioItem } from '@yaytsa/core';
-  import { player, currentTrack } from '../../player/player.store.js';
+  import { player, currentTrack } from '../../player/stores/player.store.js';
   import { formatDuration } from '../../../shared/utils/time.js';
   import { hapticSelect } from '../../../shared/utils/haptics.js';
 

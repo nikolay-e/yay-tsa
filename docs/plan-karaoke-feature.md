@@ -166,7 +166,7 @@ Files:
 Files:
 
 - `services/server/.../domain/service/KaraokeService.java`
-- `services/server/.../infra/client/AudioSeparatorClient.java`
+- `services/server/.../infrastructure/client/AudioSeparatorClient.java`
 - `services/server/.../controller/KaraokeController.java`
 
 Database changes:
@@ -180,7 +180,7 @@ Database changes:
 Files:
 
 - `packages/platform/src/web/vocal-removal.ts` - Phase cancellation
-- `apps/web/src/lib/features/player/karaoke.store.ts` - State management
+- `apps/web/src/lib/features/player/stores/karaoke.store.ts` - State management
 - `apps/web/src/lib/features/player/components/KaraokeModeButton.svelte`
 
 ## Resource Requirements

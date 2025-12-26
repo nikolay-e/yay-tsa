@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { currentTrack, player } from '../player.store.js';
-  import { currentTime, duration } from '../player.store.js';
+  import { currentTrack, player } from '../stores/player.store.js';
+  import { currentTime, duration } from '../stores/player.store.js';
   import { getAlbumArtUrl } from '../../../shared/utils/image.js';
   import SeekBar from './SeekBar.svelte';
   import Controls from './Controls.svelte';

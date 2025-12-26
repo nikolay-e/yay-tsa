@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { player, queueItems, currentTrack } from '../player.store.js';
+  import { player, queueItems, currentTrack } from '../stores/player.store.js';
   import { getAlbumArtUrl } from '../../../shared/utils/image.js';
   import { createEventDispatcher, tick } from 'svelte';
   import type { AudioItem } from '@yaytsa/core';

@@ -8,7 +8,7 @@
     isTrackReady,
     karaokeError,
     karaoke,
-  } from '../karaoke.store.js';
+  } from '../stores/karaoke.store.js';
   import { hapticSelect } from '../../../shared/utils/haptics.js';
 
   const dispatch = createEventDispatcher<{ click: void }>();

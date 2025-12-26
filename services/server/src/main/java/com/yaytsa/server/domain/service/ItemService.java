@@ -1,13 +1,13 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.infra.persistence.entity.AlbumEntity;
-import com.yaytsa.server.infra.persistence.entity.AudioTrackEntity;
-import com.yaytsa.server.infra.persistence.entity.ItemEntity;
-import com.yaytsa.server.infra.persistence.entity.ItemType;
-import com.yaytsa.server.infra.persistence.query.ItemSpecifications;
-import com.yaytsa.server.infra.persistence.repository.AlbumRepository;
-import com.yaytsa.server.infra.persistence.repository.AudioTrackRepository;
-import com.yaytsa.server.infra.persistence.repository.ItemRepository;
+import com.yaytsa.server.infrastructure.persistence.entity.AlbumEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
+import com.yaytsa.server.infrastructure.persistence.query.ItemSpecifications;
+import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

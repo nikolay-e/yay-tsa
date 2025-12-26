@@ -8,7 +8,7 @@
     config,
     formatTimeRemaining,
     type SleepTimerConfig,
-  } from '../sleep-timer.store.js';
+  } from '../stores/sleep-timer.store.js';
   import { hapticSelect } from '../../../shared/utils/haptics.js';
 
   export let isOpen = false;

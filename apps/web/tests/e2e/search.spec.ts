@@ -1,6 +1,6 @@
 import { test as baseTest, expect } from './fixtures/auth.fixture';
-import { LibraryPage } from './pages/LibraryPage';
-import { AlbumPage } from './pages/AlbumPage';
+import { LibraryPage } from './page-objects/LibraryPage';
+import { AlbumPage } from './page-objects/AlbumPage';
 
 const test = baseTest;
 

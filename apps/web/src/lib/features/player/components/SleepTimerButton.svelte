@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { isActive, remainingMs, phase, formatTimeRemaining } from '../sleep-timer.store.js';
+  import { isActive, remainingMs, phase, formatTimeRemaining } from '../stores/sleep-timer.store.js';
   import { hapticSelect } from '../../../shared/utils/haptics.js';
   import { PLAYER_TEST_IDS } from '../../../shared/test-ids/index.js';
 

@@ -54,7 +54,7 @@ CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/
 
 FROM nginx:1.29.4-alpine AS production
 
-COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY deploy/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY --from=builder /app/apps/web/build /usr/share/nginx/html
 COPY apps/web/docker/entrypoint.sh /docker-entrypoint.sh
 

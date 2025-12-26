@@ -1,6 +1,6 @@
 import { test as authTest } from './auth.fixture';
-import { LibraryPage } from '../pages/LibraryPage';
-import { AlbumPage } from '../pages/AlbumPage';
+import { LibraryPage } from '../page-objects/LibraryPage';
+import { AlbumPage } from '../page-objects/AlbumPage';
 
 type LibraryFixtures = {
   libraryPage: LibraryPage;

@@ -1,7 +1,7 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.infra.persistence.entity.ItemEntity;
-import com.yaytsa.server.infra.persistence.repository.ItemRepository;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Value;

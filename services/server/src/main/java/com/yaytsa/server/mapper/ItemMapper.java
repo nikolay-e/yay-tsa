@@ -1,7 +1,7 @@
 package com.yaytsa.server.mapper;
 
 import com.yaytsa.server.dto.response.BaseItemResponse;
-import com.yaytsa.server.infra.persistence.entity.*;
+import com.yaytsa.server.infrastructure.persistence.entity.*;
 import org.springframework.stereotype.Component;
 
 import java.util.*;

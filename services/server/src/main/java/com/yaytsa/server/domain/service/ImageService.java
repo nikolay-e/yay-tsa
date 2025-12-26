@@ -1,10 +1,10 @@
 package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.dto.ImageParams;
-import com.yaytsa.server.infra.persistence.entity.*;
-import com.yaytsa.server.infra.persistence.repository.AudioTrackRepository;
-import com.yaytsa.server.infra.persistence.repository.ImageRepository;
-import com.yaytsa.server.infra.persistence.repository.ItemRepository;
+import com.yaytsa.server.infrastructure.persistence.entity.*;
+import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.ImageRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import net.coobird.thumbnailator.Thumbnails;

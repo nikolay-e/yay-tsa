@@ -1,7 +1,7 @@
 import { test as baseTest, expect } from './fixtures/auth.fixture';
-import { LibraryPage } from './pages/LibraryPage';
-import { AlbumPage } from './pages/AlbumPage';
-import { PlayerBar } from './pages/PlayerBar';
+import { LibraryPage } from './page-objects/LibraryPage';
+import { AlbumPage } from './page-objects/AlbumPage';
+import { PlayerBar } from './page-objects/PlayerBar';
 
 const test = baseTest;
 

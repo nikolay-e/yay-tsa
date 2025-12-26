@@ -1,5 +1,5 @@
 import { test as base, expect } from '@playwright/test';
-import { LoginPage } from '../pages/LoginPage';
+import { LoginPage } from '../page-objects/LoginPage';
 
 type LoginFixtures = {
   loginPage: LoginPage;

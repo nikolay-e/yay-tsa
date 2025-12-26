@@ -21,9 +21,8 @@ packages/
 services/
 ├── server/      # Java Spring Boot backend
 └── audio-separator/  # Python FastAPI for karaoke
-infra/
-├── nginx/       # nginx.conf.template
-└── docker/      # docker-entrypoint.sh
+deploy/
+└── nginx/       # nginx.conf.template
 ```
 
 **Key Files**:
@@ -77,14 +76,14 @@ docker compose --profile test up    # Run E2E tests
 
 - **AudioEngine Interface** (`audio.interface.ts:6-90`) - Contract for audio playback
 - **HTML5AudioEngine** (`web/html5-audio.ts`) - Browser implementation using Web Audio API
-- **MediaSessionManager** (`media-session.ts`) - Background playback control (lock screen, notifications)
+- **MediaSessionManager** (`web/media-session.ts`) - Background playback control (lock screen, notifications)
 - Future: ExpoAudioEngine for React Native, TauriAudioEngine for desktop
 
 **Layer 3: Web (`@yaytsa/web`)** - 85-95% portable UI
 
 - **SvelteKit 2** with `@sveltejs/adapter-static` (SPA mode, no SSR)
-- **Svelte Stores** (`lib/stores/`) - Reactive state management
-- **Components** - `lib/components/{auth,library,player,navigation,ui}/`
+- **Svelte Stores** (`lib/features/*/stores/`) - Reactive state management per feature
+- **Components** - `lib/features/*/components/` - Feature-specific UI components
 - **Routes** - SvelteKit file-based routing (`routes/`)
 
 ### Critical Data Flow
@@ -104,7 +103,7 @@ Media Server (Java backend)
 ### Example: Play Album
 
 1. User clicks "Play" in `AlbumCard.svelte`
-2. Calls `player.playAlbum(albumId)` from `features/player/player.store.ts`
+2. Calls `player.playAlbum(albumId)` from `features/player/stores/player.store.ts`
 3. Player store fetches tracks via `ItemsService.getAlbumTracks()` from core
 4. Calls `PlaybackQueue.setQueue()` state machine (core)
 5. Calls `HTML5AudioEngine.load()` (platform) with stream URL from `client.getStreamUrl()`
@@ -114,7 +113,7 @@ Media Server (Java backend)
 
 **Svelte Writable + Derived Stores** (reactive, no global store)
 
-**Auth Store** (`lib/features/auth/auth.store.ts`):
+**Auth Store** (`lib/features/auth/stores/auth.store.ts`):
 
 ```typescript
 interface AuthState {
@@ -135,7 +134,7 @@ interface AuthState {
 - CSRF protection: validates stored URL before use
 - Derived stores: `isAuthenticated`, `client` (read-only)
 
-**Player Store** (`lib/features/player/player.store.ts`):
+**Player Store** (`lib/features/player/stores/player.store.ts`):
 
 ```typescript
 interface PlayerState {
@@ -184,7 +183,7 @@ headers: {
 MediaBrowser Client="Yaytsa", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
 ```
 
-**Session Storage Strategy** (`lib/features/auth/auth.store.ts`):
+**Session Storage Strategy** (`lib/features/auth/stores/auth.store.ts`):
 
 - Uses `sessionStorage` (not `localStorage`) - cleared on tab close, reduces XSS risk
 - Stores: `jf_session`, `jf_user_id`, `jf_server_url`
@@ -226,7 +225,7 @@ function getStreamUrl(itemId: string): string {
 
 ### Playback Reporting
 
-**Ticks Conversion** (`player/state.ts`):
+**Ticks Conversion** (`player/playback-state.ts`):
 
 ```typescript
 const TICKS_PER_SECOND = 10_000_000;
@@ -354,7 +353,7 @@ if (import.meta.env.PROD && parsed.protocol !== 'https:') {
 
 Allows `http://localhost` in development, enforces HTTPS in production.
 
-### CSRF Protection (`lib/features/auth/auth.store.ts`)
+### CSRF Protection (`lib/features/auth/stores/auth.store.ts`)
 
 ```typescript
 const storedUrl = sessionStorage.getItem(STORAGE_KEYS.SERVER_URL);
@@ -418,19 +417,19 @@ script-src 'self';
 
 - `packages/core/src/api/client.ts:14-324` - MediaServerClient with auth injection
 - `packages/core/src/player/queue.ts:8-426` - PlaybackQueue state machine
-- `packages/core/src/player/state.ts` - PlaybackState with progress reporting
+- `packages/core/src/player/playback-state.ts` - PlaybackState with progress reporting
 
 **Platform Package**:
 
 - `packages/platform/src/audio.interface.ts:6-90` - AudioEngine contract
 - `packages/platform/src/web/html5-audio.ts` - Browser audio implementation
-- `packages/platform/src/media-session.ts` - Lock screen controls
+- `packages/platform/src/web/media-session.ts` - Lock screen controls
 
 **Web App**:
 
-- `apps/web/src/lib/features/auth/auth.store.ts` - Authentication store
-- `apps/web/src/lib/features/player/player.store.ts` - Player store with engine integration
-- `apps/web/src/lib/features/library/library.store.ts` - Library store
+- `apps/web/src/lib/features/auth/stores/auth.store.ts` - Authentication store
+- `apps/web/src/lib/features/player/stores/player.store.ts` - Player store with engine integration
+- `apps/web/src/lib/features/library/stores/library.store.ts` - Library store
 - `apps/web/vite.config.ts` - Build configuration
 - `apps/web/svelte.config.js` - SvelteKit adapter
 
@@ -439,7 +438,7 @@ script-src 'self';
 - `apps/web/Dockerfile` - Multi-stage Docker build for frontend
 - `services/server/Dockerfile` - Multi-stage Docker build for backend
 - `docker-compose.yml` - Development and production configs
-- `infra/nginx/nginx.conf.template` - Nginx configuration
+- `deploy/nginx/nginx.conf.template` - Nginx configuration
 - `apps/web/docker/entrypoint.sh` - Frontend container entrypoint
 - `/Users/nikolay/code/gitops/helm-charts/yaytsa/` - Kubernetes manifests
 

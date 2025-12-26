@@ -1,11 +1,11 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.infra.persistence.entity.ItemEntity;
-import com.yaytsa.server.infra.persistence.entity.SessionEntity;
-import com.yaytsa.server.infra.persistence.entity.UserEntity;
-import com.yaytsa.server.infra.persistence.repository.ItemRepository;
-import com.yaytsa.server.infra.persistence.repository.SessionRepository;
-import com.yaytsa.server.infra.persistence.repository.UserRepository;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.SessionRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

@@ -1,9 +1,9 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.infra.fs.FileSystemMediaScanner;
-import com.yaytsa.server.infra.fs.FileSystemMediaScanner.ScanResult;
-import com.yaytsa.server.infra.persistence.entity.LibraryScanEntity;
-import com.yaytsa.server.infra.persistence.repository.LibraryScanRepository;
+import com.yaytsa.server.infrastructure.fs.FileSystemMediaScanner;
+import com.yaytsa.server.infrastructure.fs.FileSystemMediaScanner.ScanResult;
+import com.yaytsa.server.infrastructure.persistence.entity.LibraryScanEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.LibraryScanRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

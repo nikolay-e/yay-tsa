@@ -83,7 +83,7 @@ tests/e2e/
 │   └── auth.fixture.ts
 ├── helpers/            # Test utilities
 │   └── test-utils.ts
-├── pages/              # Page Object Models
+├── page-objects/       # Page Object Models
 │   ├── LoginPage.ts
 │   ├── LibraryPage.ts
 │   ├── AlbumPage.ts
@@ -201,7 +201,7 @@ Example:
 
 ```typescript
 import { test, expect } from './fixtures/auth.fixture';
-import { YourPage } from './pages/YourPage';
+import { YourPage } from './page-objects/YourPage';
 
 test.describe('Your Feature', () => {
   let yourPage: YourPage;
