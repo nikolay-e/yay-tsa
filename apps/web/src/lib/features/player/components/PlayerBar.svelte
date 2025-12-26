@@ -83,7 +83,7 @@
   .player-bar {
     position: fixed;
     bottom: 0;
-    left: 0;
+    left: 240px;
     right: 0;
     height: auto;
     min-height: 72px;
@@ -168,6 +168,7 @@
 
   @media (max-width: 768px) {
     .player-bar {
+      left: 0;
       height: auto;
       min-height: 64px;
       /* Position flush above bottom tab bar (52px tabs + safe area) */

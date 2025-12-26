@@ -1,5 +1,6 @@
 <script lang="ts">
   import { derived } from 'svelte/store';
+  import { tick } from 'svelte';
   import { ticksToSeconds, type AudioItem } from '@yaytsa/core';
   import { player, currentTrack } from '../../player/player.store.js';
   import { formatDuration } from '../../../shared/utils/time.js';
@@ -8,13 +9,40 @@
   export let tracks: AudioItem[] = [];
   export let showAlbum: boolean = false;
 
-  // Memoized derived store - O(1) comparison instead of O(n) function calls
   const currentTrackId = derived(currentTrack, $track => $track?.Id ?? null);
+
+  const trackElements: Map<string, HTMLButtonElement> = new Map();
+  let previousTrackId: string | null = null;
+
+  $: if ($currentTrackId && $currentTrackId !== previousTrackId) {
+    previousTrackId = $currentTrackId;
+    tick().then(() => scrollToCurrentTrack($currentTrackId));
+  }
+
+  function scrollToCurrentTrack(trackId: string | null): void {
+    if (!trackId) return;
+    const element = trackElements.get(trackId);
+    if (!element) return;
+    setTimeout(() => {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }, 50);
+  }
+
+  function setTrackRef(node: HTMLButtonElement, trackId: string) {
+    trackElements.set(trackId, node);
+    return {
+      destroy() {
+        trackElements.delete(trackId);
+      },
+    };
+  }
 
   function playTrack(_track: AudioItem, index: number) {
     hapticSelect();
-    // Play the entire album starting from the clicked track
-    // This allows continuous playback through the rest of the album
     player.playFromAlbum(tracks, index);
   }
 </script>
@@ -37,6 +65,7 @@
           class="track-list-row track"
           data-testid="track-row"
           class:playing={$currentTrackId === track.Id}
+          use:setTrackRef={track.Id}
           on:click={() => playTrack(track, index)}
           aria-label="Play {track.Name}{track.Artists && track.Artists.length > 0 ? ' by ' + track.Artists.join(', ') : ''}"
         >

@@ -15,6 +15,8 @@
   let closeButtonElement: HTMLButtonElement | null = null;
   let previousActiveElement: HTMLElement | null = null;
   let wasOpen = false;
+  const trackElements: Map<string, HTMLLIElement> = new Map();
+  let previousTrackId: string | null = null;
 
   function handleClose() {
     dispatch('close');
@@ -57,6 +59,7 @@
       previousActiveElement = document.activeElement as HTMLElement;
       tick().then(() => {
         closeButtonElement?.focus();
+        scrollToCurrentTrack($currentTrack?.Id ?? null);
       });
     } else if (!isOpen && wasOpen && previousActiveElement) {
       // Transition: open -> closed
@@ -64,6 +67,34 @@
       previousActiveElement = null;
     }
     wasOpen = isOpen;
+  }
+
+  // Scroll to current track when it changes while panel is open
+  $: if (isOpen && $currentTrack?.Id && $currentTrack.Id !== previousTrackId) {
+    previousTrackId = $currentTrack.Id;
+    tick().then(() => scrollToCurrentTrack($currentTrack?.Id ?? null));
+  }
+
+  function scrollToCurrentTrack(trackId: string | null): void {
+    if (!trackId) return;
+    const element = trackElements.get(trackId);
+    if (!element) return;
+    setTimeout(() => {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }, 50);
+  }
+
+  function setTrackRef(node: HTMLLIElement, trackId: string) {
+    trackElements.set(trackId, node);
+    return {
+      destroy() {
+        trackElements.delete(trackId);
+      },
+    };
   }
 
   async function playTrack(_track: AudioItem, index: number) {
@@ -139,7 +170,11 @@
           <ul class="queue-list">
             {#each $queueItems as track, index (track.Id + '-' + index)}
               {@const isCurrent = $currentTrack?.Id === track.Id}
-              <li class="queue-item" class:current={isCurrent}>
+              <li
+                class="queue-item"
+                class:current={isCurrent}
+                use:setTrackRef={track.Id}
+              >
                 <button type="button" class="track-button" on:click={() => playTrack(track, index)}>
                   <div class="track-number">
                     {#if isCurrent}

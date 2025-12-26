@@ -185,10 +185,9 @@ export class ItemsService extends BaseService {
    */
   async getAlbumTracks(albumId: string): Promise<AudioItem[]> {
     const userId = this.requireAuth();
-    const result = await this.client.get<ItemsResult<AudioItem>>(
-      `/Items/${albumId}/Tracks`,
-      { userId }
-    );
+    const result = await this.client.get<ItemsResult<AudioItem>>(`/Items/${albumId}/Tracks`, {
+      userId,
+    });
     return result?.Items || [];
   }
 

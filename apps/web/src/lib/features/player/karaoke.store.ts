@@ -83,7 +83,6 @@ const initialState: KaraokeState = {
 
 const karaokeStore = writable<KaraokeState>(initialState);
 
-
 function stopStatusStream(): void {
   if (eventSource) {
     eventSource.close();
@@ -389,7 +388,10 @@ async function resumeProcessingFromStorage(): Promise<void> {
       }));
       startStatusStream(processingTrackId);
     } else if (status.state === 'READY' || status.state === 'FAILED') {
-      log.info('Persisted processing already completed', { trackId: processingTrackId, state: status.state });
+      log.info('Persisted processing already completed', {
+        trackId: processingTrackId,
+        state: status.state,
+      });
       persistProcessingTrack(null);
     } else {
       persistProcessingTrack(null);
