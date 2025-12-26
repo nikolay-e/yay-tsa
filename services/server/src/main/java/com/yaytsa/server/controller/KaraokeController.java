@@ -214,7 +214,9 @@ public class KaraokeController {
         StringBuilder encoded = new StringBuilder();
         for (String segment : path.split("/")) {
             if (!segment.isEmpty()) {
-                encoded.append("/").append(URLEncoder.encode(segment, StandardCharsets.UTF_8));
+                String encodedSegment = URLEncoder.encode(segment, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                encoded.append("/").append(encodedSegment);
             }
         }
         return encoded.toString();
