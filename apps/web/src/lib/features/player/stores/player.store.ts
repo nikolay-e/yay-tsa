@@ -179,16 +179,14 @@ if (browser) {
     if ($shouldUse !== previousUseInstrumental) {
       previousUseInstrumental = $shouldUse;
 
-      // If track is playing, reload with new stream URL
+      // If track is playing, seamlessly switch stream (no UI blocking)
       const state = get(playerStore);
       const $client = get(client);
       if (state.currentTrack && $client && audioEngine) {
-        const wasPlaying = state.isPlaying;
         const currentPosition = audioEngine.getCurrentTime();
-        // Capture track ID for race condition protection
         const targetTrackId = state.currentTrack.Id;
+        const preservedDuration = cachedDuration;
 
-        // Compute URLs: old uses !$shouldUse (opposite of new state)
         const oldStreamUrl = !$shouldUse
           ? $client.getInstrumentalStreamUrl(targetTrackId)
           : $client.getStreamUrl(targetTrackId);
@@ -196,95 +194,95 @@ if (browser) {
           ? $client.getInstrumentalStreamUrl(targetTrackId)
           : $client.getStreamUrl(targetTrackId);
 
-        log.info('Karaoke mode changed, switching stream', {
+        log.info('Karaoke mode changed, seamless stream switch', {
           trackId: targetTrackId,
           useInstrumental: $shouldUse,
         });
 
-        // Preserve current timing during stream swap (avoids seek bar flicker)
-        const preservedDuration = cachedDuration;
-
-        // Track this operation to prevent race conditions with rapid karaoke toggles
         const switchOpId = ++karaokeStreamSwitchId;
 
-        // Reload track with new URL, restore position (instant switch)
-        audioEngine
-          .load(newStreamUrl)
-          .then(async () => {
-            // Verify operation is still current and track hasn't changed
-            if (switchOpId !== karaokeStreamSwitchId) {
-              log.debug('Karaoke stream switch superseded by newer operation');
-              return;
-            }
-            const currentState = get(playerStore);
-            if (currentState.currentTrack?.Id !== targetTrackId) {
-              log.debug('Track changed during karaoke stream swap, aborting');
-              return;
-            }
+        // Type assertion for seamless switch methods
+        const engine = audioEngine as typeof audioEngine & {
+          preload?: (url: string) => Promise<void>;
+          seamlessSwitch?: (pos: number, fade: number) => Promise<{ duration: number }>;
+        };
 
-            // Restore cached duration immediately to keep seek bar active
-            const newDuration = audioEngine!.getDuration();
-            cachedDuration = newDuration > 0 ? newDuration : preservedDuration;
-            updateTiming(currentPosition, cachedDuration);
+        // Use seamless switch if available (dual audio element)
+        if (engine.preload && engine.seamlessSwitch) {
+          // Preload new stream in background (current stream keeps playing)
+          engine
+            .preload(newStreamUrl)
+            .then(async () => {
+              if (switchOpId !== karaokeStreamSwitchId) return;
+              const currentState = get(playerStore);
+              if (currentState.currentTrack?.Id !== targetTrackId) return;
 
-            // Seek to preserved position (instant jump)
-            if (cachedDuration > 0 && currentPosition < cachedDuration) {
-              audioEngine!.seek(currentPosition);
-            }
-            if (wasPlaying) {
-              return audioEngine!.play();
-            }
-          })
-          .then(() => {
-            // Verify operation still current and track still matches before updating state
-            if (switchOpId !== karaokeStreamSwitchId) return;
-            const currentState = get(playerStore);
-            if (currentState.currentTrack?.Id === targetTrackId) {
+              // Get current position right before switch for accuracy
+              const switchPosition = audioEngine!.getCurrentTime();
+
+              // Seamless crossfade switch (150ms fade, no interruption)
+              const { duration } = await engine.seamlessSwitch(switchPosition, 150);
+
+              cachedDuration = duration > 0 ? duration : preservedDuration;
+              updateTiming(switchPosition, cachedDuration);
               playerStore.update(s => ({ ...s, error: null }));
-            }
-          })
-          .catch(async err => {
-            // Only handle error if this operation is still current
-            if (switchOpId !== karaokeStreamSwitchId) return;
+            })
+            .catch(async err => {
+              if (switchOpId !== karaokeStreamSwitchId) return;
+              log.error('Seamless switch failed, falling back to blocking switch', err);
 
-            log.error('Failed to switch karaoke stream', err);
-
-            // Only attempt recovery if track still matches
-            const currentState = get(playerStore);
-            if (currentState.currentTrack?.Id !== targetTrackId) return;
-
-            // Try to restore previous stream
-            try {
-              await audioEngine!.load(oldStreamUrl);
-              log.info('Restored previous stream after karaoke failure');
-              playerStore.update(s => ({ ...s, isLoading: false, error: null }));
-            } catch (restoreErr) {
-              log.error('Failed to restore previous stream, disabling server karaoke', restoreErr);
-
-              // Both streams failed - reset track status and disable karaoke mode
-              karaoke.clearTrackStatus();
-              karaoke.setMode('off');
-
-              // Reload track with original stream URL
-              const regularStreamUrl = $client.getStreamUrl(targetTrackId);
+              // Fallback to blocking switch
               try {
-                await audioEngine!.load(regularStreamUrl);
-                if (wasPlaying) {
-                  await audioEngine!.play();
+                await audioEngine!.load(newStreamUrl);
+                audioEngine!.seek(currentPosition);
+                if (state.isPlaying) await audioEngine!.play();
+                playerStore.update(s => ({ ...s, error: null }));
+              } catch (fallbackErr) {
+                log.error('Fallback switch failed, restoring previous stream', fallbackErr);
+                try {
+                  await audioEngine!.load(oldStreamUrl);
+                  playerStore.update(s => ({ ...s, error: null }));
+                } catch {
+                  karaoke.clearTrackStatus();
+                  karaoke.setMode('off');
+                  playerStore.update(s => ({
+                    ...s,
+                    error: new Error('Audio stream unavailable. Please try another track.'),
+                  }));
                 }
+              }
+            });
+        } else {
+          // Fallback for engines without seamless switch (blocking but rare)
+          playerStore.update(s => ({ ...s, isLoading: true }));
+          audioEngine
+            .load(newStreamUrl)
+            .then(async () => {
+              if (switchOpId !== karaokeStreamSwitchId) return;
+              const newDuration = audioEngine!.getDuration();
+              cachedDuration = newDuration > 0 ? newDuration : preservedDuration;
+              updateTiming(currentPosition, cachedDuration);
+              if (cachedDuration > 0) audioEngine!.seek(currentPosition);
+              if (state.isPlaying) await audioEngine!.play();
+              playerStore.update(s => ({ ...s, isLoading: false, error: null }));
+            })
+            .catch(async err => {
+              if (switchOpId !== karaokeStreamSwitchId) return;
+              log.error('Failed to switch karaoke stream', err);
+              try {
+                await audioEngine!.load(oldStreamUrl);
                 playerStore.update(s => ({ ...s, isLoading: false, error: null }));
-                log.info('Recovered by falling back to client karaoke mode');
-              } catch (finalErr) {
-                log.error('All recovery attempts failed', finalErr);
+              } catch {
+                karaoke.clearTrackStatus();
+                karaoke.setMode('off');
                 playerStore.update(s => ({
                   ...s,
                   isLoading: false,
-                  isPlaying: false,
-                  error: new Error('Audio stream unavailable. Please try another track.'),
+                  error: new Error('Audio stream unavailable.'),
                 }));
               }
-            }
-          });
+            });
+        }
       }
     }
   });

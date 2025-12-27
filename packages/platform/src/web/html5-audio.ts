@@ -11,9 +11,15 @@ const log = createLogger('Audio');
 
 export class HTML5AudioEngine implements AudioEngine {
   private audio: HTMLAudioElement;
+  private audioSecondary: HTMLAudioElement; // Second element for seamless switching
+  private activeElement: 'primary' | 'secondary' = 'primary';
   private _isPlaying: boolean = false;
   private audioContext: AudioContext | null = null;
   private disposed: boolean = false;
+
+  // Preload state for seamless switching
+  private preloadedUrl: string | null = null;
+  private preloadPromise: Promise<void> | null = null;
 
   // Store event handler references for cleanup
   private handlePlay = () => {
@@ -46,6 +52,12 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audio = new Audio();
     this.audio.crossOrigin = 'anonymous';
     this.audio.preload = 'auto';
+
+    // Secondary audio element for seamless switching (karaoke, gapless)
+    this.audioSecondary = new Audio();
+    this.audioSecondary.crossOrigin = 'anonymous';
+    this.audioSecondary.preload = 'auto';
+    this.audioSecondary.volume = 0; // Start silent
 
     // Track playing state
     this.audio.addEventListener('play', this.handlePlay);
@@ -317,15 +329,25 @@ export class HTML5AudioEngine implements AudioEngine {
     // Cancel pending load operations
     this.cancelCurrentLoad();
 
-    // Remove event listeners to prevent memory leaks
+    // Clear preload state
+    this.preloadedUrl = null;
+    this.preloadPromise = null;
+
+    // Remove event listeners to prevent memory leaks (both elements)
     this.audio.removeEventListener('play', this.handlePlay);
     this.audio.removeEventListener('pause', this.handlePause);
     this.audio.removeEventListener('ended', this.handleEnded);
+    this.audioSecondary.removeEventListener('play', this.handlePlay);
+    this.audioSecondary.removeEventListener('pause', this.handlePause);
+    this.audioSecondary.removeEventListener('ended', this.handleEnded);
 
-    // Clean up audio element
+    // Clean up both audio elements
     this.audio.pause();
     this.audio.src = '';
     this.audio.load();
+    this.audioSecondary.pause();
+    this.audioSecondary.src = '';
+    this.audioSecondary.load();
 
     // Dispose vocal removal processor
     if (this.vocalRemovalProcessor) {
@@ -445,5 +467,180 @@ export class HTML5AudioEngine implements AudioEngine {
 
   isKaraokeModeEnabled(): boolean {
     return this.karaokeEnabled;
+  }
+
+  /**
+   * Preload audio into secondary element for seamless switching.
+   * Returns immediately, loading happens in background.
+   * Use seamlessSwitch() when ready to switch.
+   */
+  async preload(url: string): Promise<void> {
+    this.ensureNotDisposed();
+
+    // Already preloaded this URL
+    if (this.preloadedUrl === url && this.preloadPromise) {
+      return this.preloadPromise;
+    }
+
+    const targetElement = this.activeElement === 'primary' ? this.audioSecondary : this.audio;
+
+    this.preloadedUrl = url;
+    this.preloadPromise = new Promise<void>((resolve, reject) => {
+      const handleCanPlay = () => {
+        cleanup();
+        resolve();
+      };
+
+      const handleError = () => {
+        cleanup();
+        this.preloadedUrl = null;
+        this.preloadPromise = null;
+        const mediaError = targetElement.error;
+        const errorMessage = mediaError?.message || 'Unknown error';
+        reject(new Error(`Failed to preload audio: ${this.sanitizeError(errorMessage)}`));
+      };
+
+      const cleanup = () => {
+        targetElement.removeEventListener('canplay', handleCanPlay);
+        targetElement.removeEventListener('error', handleError);
+      };
+
+      targetElement.addEventListener('canplay', handleCanPlay, { once: true });
+      targetElement.addEventListener('error', handleError, { once: true });
+
+      targetElement.src = url;
+      targetElement.load();
+    });
+
+    return this.preloadPromise;
+  }
+
+  /**
+   * Check if a URL is preloaded and ready for seamless switch
+   */
+  isPreloaded(url: string): boolean {
+    return this.preloadedUrl === url && this.preloadPromise !== null;
+  }
+
+  /**
+   * Seamlessly switch to preloaded audio with crossfade.
+   * No UI blocking - current audio keeps playing during transition.
+   * @param seekPosition - Position to seek to in the new stream (for karaoke switching)
+   * @param crossfadeDurationMs - Crossfade duration (default 150ms for quick switch)
+   */
+  async seamlessSwitch(
+    seekPosition: number = 0,
+    crossfadeDurationMs: number = 150
+  ): Promise<{ duration: number }> {
+    this.ensureNotDisposed();
+
+    if (!this.preloadPromise || !this.preloadedUrl) {
+      throw new Error('No audio preloaded. Call preload() first.');
+    }
+
+    // Wait for preload to complete (should be instant if already loaded)
+    await this.preloadPromise;
+
+    const currentElement = this.activeElement === 'primary' ? this.audio : this.audioSecondary;
+    const nextElement = this.activeElement === 'primary' ? this.audioSecondary : this.audio;
+
+    const wasPlaying = this._isPlaying;
+    const currentVolume = currentElement.volume;
+    const newDuration = nextElement.duration;
+
+    // Seek to position before starting
+    if (seekPosition > 0 && Number.isFinite(newDuration)) {
+      nextElement.currentTime = Math.min(seekPosition, newDuration);
+    }
+
+    // Set up next element
+    nextElement.volume = 0;
+
+    // Start next element if we were playing
+    if (wasPlaying) {
+      await nextElement.play();
+    }
+
+    // Crossfade: fade out current, fade in next
+    const fadeOutPromise = this.fadeElementVolume(
+      currentElement,
+      currentVolume,
+      0,
+      crossfadeDurationMs
+    );
+    const fadeInPromise = this.fadeElementVolume(
+      nextElement,
+      0,
+      currentVolume,
+      crossfadeDurationMs
+    );
+
+    await Promise.all([fadeOutPromise, fadeInPromise]);
+
+    // Stop old element
+    currentElement.pause();
+
+    // Swap active element
+    this.activeElement = this.activeElement === 'primary' ? 'secondary' : 'primary';
+
+    // Update event listeners to track new active element
+    currentElement.removeEventListener('play', this.handlePlay);
+    currentElement.removeEventListener('pause', this.handlePause);
+    currentElement.removeEventListener('ended', this.handleEnded);
+
+    nextElement.addEventListener('play', this.handlePlay);
+    nextElement.addEventListener('pause', this.handlePause);
+    nextElement.addEventListener('ended', this.handleEnded);
+
+    // Update internal audio reference
+    this.audio = nextElement;
+
+    // Clear preload state
+    this.preloadedUrl = null;
+    this.preloadPromise = null;
+
+    log.info('Seamless switch complete', { seekPosition, crossfadeDurationMs });
+
+    return { duration: Number.isFinite(newDuration) ? newDuration : 0 };
+  }
+
+  /**
+   * Fade volume on a specific audio element (for crossfade)
+   */
+  private async fadeElementVolume(
+    element: HTMLAudioElement,
+    fromLevel: number,
+    toLevel: number,
+    durationMs: number
+  ): Promise<void> {
+    return new Promise(resolve => {
+      const startTime = Date.now();
+      const startVolume = Math.max(0, Math.min(1, fromLevel));
+      const endVolume = Math.max(0, Math.min(1, toLevel));
+
+      element.volume = startVolume;
+
+      const FADE_INTERVAL_MS = 16;
+      const intervalId = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / durationMs, 1);
+
+        // Linear fade for quick crossfade (less noticeable)
+        const currentVolume = startVolume + (endVolume - startVolume) * progress;
+        element.volume = currentVolume;
+
+        if (progress >= 1) {
+          clearInterval(intervalId);
+          resolve();
+        }
+      }, FADE_INTERVAL_MS);
+    });
+  }
+
+  /**
+   * Get current active audio element (for event handlers)
+   */
+  getActiveAudioElement(): HTMLAudioElement {
+    return this.activeElement === 'primary' ? this.audio : this.audioSecondary;
   }
 }

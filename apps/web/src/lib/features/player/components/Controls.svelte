@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { player, isPlaying, queueItems } from '../stores/player.store.js';
+  import { player, isPlaying, isLoading, queueItems } from '../stores/player.store.js';
   import { hapticPlayPause, hapticSkip } from '../../../shared/utils/haptics.js';
   import { PLAYER_TEST_IDS } from '$lib/shared/test-ids';
   import SleepTimerButton from './SleepTimerButton.svelte';
@@ -16,7 +16,8 @@
   let isTogglingPlayPause = false;
 
   async function handlePlayPause() {
-    if (isTogglingPlayPause) return;
+    // Block toggle during loading (e.g., karaoke stream switch) or if already toggling
+    if (isTogglingPlayPause || $isLoading) return;
 
     hapticPlayPause();
     isTogglingPlayPause = true;
@@ -91,11 +92,18 @@
   <button
     type="button"
     class="control-btn play-btn"
+    class:loading={$isLoading}
     on:click={handlePlayPause}
-    aria-label={$isPlaying ? 'Pause' : 'Play'}
+    aria-label={$isLoading ? 'Loading' : $isPlaying ? 'Pause' : 'Play'}
+    aria-busy={$isLoading}
+    disabled={$isLoading}
     data-testid={PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON}
   >
-    {#if $isPlaying}
+    {#if $isLoading}
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" class="spinner">
+        <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z" />
+      </svg>
+    {:else if $isPlaying}
       <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
         <path d="M6 4h4v16H6zM14 4h4v16h-4z" />
       </svg>
@@ -165,9 +173,28 @@
     color: white;
   }
 
-  .play-btn:hover {
+  .play-btn:hover:not(:disabled) {
     background-color: var(--color-accent-hover);
     transform: scale(1.05);
+  }
+
+  .play-btn:disabled,
+  .play-btn.loading {
+    opacity: 0.7;
+    cursor: wait;
+  }
+
+  .spinner {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .queue-count {
