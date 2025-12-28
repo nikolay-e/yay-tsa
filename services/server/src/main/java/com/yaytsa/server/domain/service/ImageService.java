@@ -54,19 +54,16 @@ public class ImageService {
   private final AudioTrackRepository audioTrackRepository;
   private final Cache<String, byte[]> imageCache;
   private final Path mediaRootPath;
-  private final Path imageCachePath;
 
   public ImageService(
       ImageRepository imageRepository,
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
-      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
-      @Value("${yaytsa.media.images.cache-directory:/app/temp/images}") String imageCacheDir) {
+      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot) {
     this.imageRepository = imageRepository;
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
-    this.imageCachePath = Paths.get(imageCacheDir).toAbsolutePath().normalize();
     this.imageCache =
         Caffeine.newBuilder()
             .maximumSize(500)
@@ -151,7 +148,7 @@ public class ImageService {
   }
 
   private boolean isPathSafe(Path path) {
-    return path.startsWith(mediaRootPath) || path.startsWith(imageCachePath);
+    return path.startsWith(mediaRootPath);
   }
 
   private Optional<byte[]> loadImageData(UUID itemId, ImageType imageType) throws IOException {
@@ -181,13 +178,9 @@ public class ImageService {
           return folderArt;
         }
 
-        if (itemEntity.getPath() != null
-            && !itemEntity.getPath().startsWith("artist:")
-            && !itemEntity.getPath().startsWith("album:")) {
-          Optional<byte[]> embeddedArt = extractAlbumArt(Paths.get(itemEntity.getPath()));
-          if (embeddedArt.isPresent()) {
-            return embeddedArt;
-          }
+        Optional<byte[]> embeddedArt = extractEmbeddedArtwork(itemEntity);
+        if (embeddedArt.isPresent()) {
+          return embeddedArt;
         }
       }
     }
@@ -236,6 +229,39 @@ public class ImageService {
       }
     } catch (Exception e) {
       logger.debug("Error finding folder artwork for item {}: {}", item.getId(), e.getMessage());
+    }
+    return Optional.empty();
+  }
+
+  private Optional<byte[]> extractEmbeddedArtwork(ItemEntity item) {
+    try {
+      Path audioFilePath = null;
+
+      if (item.getType() == ItemType.MusicAlbum) {
+        var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(item.getId());
+        if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
+          audioFilePath = Paths.get(tracks.get(0).getItem().getPath());
+        }
+      } else if (item.getType() == ItemType.MusicArtist) {
+        var albums = itemRepository.findAllByParentId(item.getId());
+        for (ItemEntity album : albums) {
+          var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(album.getId());
+          if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
+            audioFilePath = Paths.get(tracks.get(0).getItem().getPath());
+            break;
+          }
+        }
+      } else if (item.getPath() != null
+          && !item.getPath().startsWith("artist:")
+          && !item.getPath().startsWith("album:")) {
+        audioFilePath = Paths.get(item.getPath());
+      }
+
+      if (audioFilePath != null) {
+        return extractAlbumArt(audioFilePath);
+      }
+    } catch (Exception e) {
+      logger.debug("Error extracting embedded artwork for item {}: {}", item.getId(), e.getMessage());
     }
     return Optional.empty();
   }

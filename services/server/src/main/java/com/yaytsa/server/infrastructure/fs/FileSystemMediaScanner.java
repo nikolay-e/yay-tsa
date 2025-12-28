@@ -39,9 +39,6 @@ public class FileSystemMediaScanner {
   @Value("${yaytsa.media.library.scan-threads:8}")
   private int scanThreads;
 
-  @Value("${yaytsa.media.images.cache-directory:./temp/images}")
-  private String imageCacheDirectory;
-
   private final Map<String, UUID> artistIdCache = new ConcurrentHashMap<>();
   private final Map<String, UUID> albumIdCache = new ConcurrentHashMap<>();
   private final Map<String, UUID> genreIdCache = new ConcurrentHashMap<>();
@@ -335,12 +332,9 @@ public class FileSystemMediaScanner {
 
     if (folderArtwork.isPresent()) {
       saveFolderArtwork(albumItem, folderArtwork.get());
-      return;
     }
-
-    if (metadata.embeddedArtwork() != null && metadata.embeddedArtwork().length > 0) {
-      saveEmbeddedArtwork(albumItem, metadata);
-    }
+    // Note: Embedded artwork is NOT cached to disk during scan.
+    // It will be extracted on-demand from audio files by ImageService.
   }
 
   private Optional<Path> findFolderArtwork(Path folder) {
@@ -394,33 +388,6 @@ public class FileSystemMediaScanner {
 
     if (folderArtwork.isPresent()) {
       saveFolderArtwork(artistItem, folderArtwork.get());
-    }
-  }
-
-  private void saveEmbeddedArtwork(ItemEntity albumItem, AudioMetadata metadata) {
-    try {
-      Path cacheDir = Path.of(imageCacheDirectory);
-      Files.createDirectories(cacheDir);
-
-      String extension = getArtworkExtension(metadata.artworkMimeType());
-      String hash = computeHash(metadata.embeddedArtwork());
-      String filename = albumItem.getId().toString() + "_primary" + extension;
-      Path artworkPath = cacheDir.resolve(filename);
-
-      Files.write(artworkPath, metadata.embeddedArtwork());
-
-      ImageEntity image = new ImageEntity();
-      image.setItem(albumItem);
-      image.setType(ImageType.Primary);
-      image.setPath(artworkPath.toAbsolutePath().toString());
-      image.setSizeBytes((long) metadata.embeddedArtwork().length);
-      image.setTag(hash);
-      image.setIsPrimary(true);
-      imageRepository.save(image);
-
-      log.debug("Extracted embedded artwork for album: {}", albumItem.getName());
-    } catch (Exception e) {
-      log.warn("Failed to extract artwork for album {}: {}", albumItem.getName(), e.getMessage());
     }
   }
 
@@ -505,16 +472,6 @@ public class FileSystemMediaScanner {
     return new AudioMetadata(
         filename, null, null, null, null, null, null, 0L, 0, 0, 2, "unknown", null, null, List.of(),
         null, null);
-  }
-
-  private String getArtworkExtension(String mimeType) {
-    if (mimeType == null) return ".jpg";
-    return switch (mimeType.toLowerCase(java.util.Locale.ROOT)) {
-      case "image/png" -> ".png";
-      case "image/gif" -> ".gif";
-      case "image/webp" -> ".webp";
-      default -> ".jpg";
-    };
   }
 
   private String computeHash(byte[] data) {
