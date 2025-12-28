@@ -29,15 +29,25 @@ repos:
         exclude: ^helm/.*/templates/.*\.yaml$ # Exclude Helm templates (use Go templating)
 
   # ------------------------------------------------------------------------------
+  # EMOJI REMOVAL (Autofixing)
+  # Removes emoji characters from source code files.
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/nikolay-e/pre-commit-hooks
+    rev: v2.0.1
+    hooks:
+      - id: no-emoji
+        files: ^(packages|apps|services)/.*\.(ts|tsx|js|jsx|py|java)$
+
+  # ------------------------------------------------------------------------------
   # PRETTIER CODE FORMATTER (Autofixing)
-  # The main formatter for TS, Svelte, YAML, MD, and CSS.
+  # The main formatter for TS, React, YAML, MD, and CSS.
   # Uses the project's existing .prettierrc file.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8 # Using a version that better supports Svelte
+    rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        types_or: [javascript, svelte, css, scss, markdown, yaml, json]
+        types_or: [javascript, tsx, css, scss, markdown, yaml, json]
         args: [--write, --ignore-unknown]
         exclude: ^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$
         # Exclusions are managed by your existing .prettierignore file.
@@ -104,7 +114,7 @@ repos:
           - --error
           - --skip-unknown-extensions
           - --metrics=off
-        files: ^(packages|apps)/.*\.(js|ts|svelte)$
+        files: ^(packages|apps)/.*\.(js|ts|tsx)$
 
   # ------------------------------------------------------------------------------
   # SPELL CHECKING (Documentation Quality)
@@ -118,7 +128,7 @@ repos:
         args:
           - --write-changes
           - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether,errorprone
-          - --skip=package-lock.json,pnpm-lock.yaml,jellyfin-api-spec.json,node_modules,.svelte-kit,dist,build
+          - --skip=package-lock.json,pnpm-lock.yaml,jellyfin-api-spec.json,node_modules,dist,build
 
   # ------------------------------------------------------------------------------
   # YAML LINTING (Strict Validation)
@@ -150,7 +160,7 @@ repos:
 
   # ------------------------------------------------------------------------------
   # CSS QUALITY (Stylelint)
-  # Validates CSS in .css files and Svelte components.
+  # Validates CSS in .css files.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
     rev: v16.25.0
@@ -194,17 +204,18 @@ repos:
         language: node
         pass_filenames: false
 
-      - id: svelte-check
-        name: 'Svelte type check (web)'
-        entry: bash -c 'npm run build:core && npm run build:platform && npm run check --workspace=@yaytsa/web'
+      - id: tsc-web
+        name: 'TypeScript type check (web)'
+        entry: bash -c 'npm run build:core && npm run build:platform && cd apps/web && npx tsc --noEmit'
         language: system
+        files: ^apps/web/src/.*\.(ts|tsx)$
         pass_filenames: false
 
       - id: eslint
-        name: 'ESLint (TypeScript/Svelte quality)'
+        name: 'ESLint (TypeScript/React quality)'
         entry: npx eslint --fix
         language: node
-        files: ^(packages|apps)/.*\.(js|ts|svelte)$
+        files: ^(packages|apps)/.*\.(js|ts|tsx)$
         pass_filenames: true
 
       - id: docker-compose-check
@@ -226,8 +237,8 @@ repos:
         entry: docker build -t yaytsa:test -f apps/web/Dockerfile .
         language: system
         files: >-
-          ^(apps/web/Dockerfile|apps/web/docker/entrypoint\.sh|deploy/nginx/nginx\.conf\.template|
-          packages/.*/.*\.(ts|svelte|js|json)|apps/web/.*\.(ts|svelte|js|json)|package\.json)$
+          ^(apps/web/Dockerfile|apps/web/docker/entrypoint\.sh|infra/nginx/nginx\.conf\.template|
+          packages/.*/.*\.(ts|tsx|js|json)|apps/web/.*\.(ts|tsx|js|json)|package\.json)$
         pass_filenames: false
         stages: [pre-push]
 
@@ -248,16 +259,45 @@ repos:
         name: 'Copy-paste detection (jscpd)'
         entry: >-
           npx jscpd --min-lines 6 --min-tokens 50 --threshold 3
-          --ignore "**/tests/**,**/node_modules/**,**/dist/**,**/.svelte-kit/**"
+          --ignore "**/tests/**,**/node_modules/**,**/dist/**,**/build/**"
           packages/ apps/
         language: node
-        files: \.(js|ts|svelte)$
+        files: \.(js|ts|tsx)$
         pass_filenames: false
 
       - id: type-coverage
         name: 'Type coverage (>=90%)'
         entry: npx type-coverage --at-least 90 --ignore-catch
         language: node
+        pass_filenames: false
+
+      # --------------------------------------------------------------------------
+      # REACT/TAILWIND HOOKS (apps/web)
+      # React-specific quality checks for the frontend.
+      # --------------------------------------------------------------------------
+      - id: no-console
+        name: 'No console.log in production'
+        entry: >-
+          bash -c 'grep -rn "console\.\(log\|debug\)" apps/web/src/{features,routes,components}
+          --include="*.ts" --include="*.tsx" 2>/dev/null && exit 1 || exit 0'
+        language: system
+        files: ^apps/web/src/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: tailwind-sort
+        name: 'Sort Tailwind classes'
+        entry: npx prettier --write --plugin=prettier-plugin-tailwindcss
+        language: node
+        files: ^apps/web/src/.*\.tsx$
+        pass_filenames: true
+
+      - id: component-naming
+        name: 'Component naming convention (PascalCase)'
+        entry: >-
+          bash -c 'find apps/web/src -name "*.tsx" -exec basename {} \; |
+          grep -vE "^[A-Z]|^(index|main|vite-env)" && exit 1 || exit 0'
+        language: system
+        files: ^apps/web/src/.*\.tsx$
         pass_filenames: false
 
       # --------------------------------------------------------------------------

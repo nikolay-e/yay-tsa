@@ -79,7 +79,7 @@ services:
       target: development
     container_name: yaytsa-frontend
     environment:
-      VITE_YAYTSA_SERVER_URL: http://localhost:${SERVER_PORT:-8096}
+      YAYTSA_BACKEND_URL: http://backend:8096
       VITE_YAYTSA_CLIENT_NAME: ${YAYTSA_CLIENT_NAME:-Yaytsa}
       VITE_YAYTSA_DEVICE_NAME: ${YAYTSA_DEVICE_NAME:-Docker}
       VITE_TEST_MODE: 'true'

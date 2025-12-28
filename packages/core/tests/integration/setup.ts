@@ -91,7 +91,7 @@ export function skipIfNoCredentials(): void {
 
   if (!hasCredentials) {
     console.warn(
-      '⚠️  Skipping integration tests - YAYTSA_TEST_USERNAME and YAYTSA_TEST_PASSWORD not set'
+      'Skipping integration tests - YAYTSA_TEST_USERNAME and YAYTSA_TEST_PASSWORD not set'
     );
   }
 }
@@ -147,7 +147,7 @@ export async function retryableLogin<T>(
       // Only log on retries, not final failure
       if (process.env.CI) {
         console.warn(
-          `⚠️  ${context} failed (attempt ${attempt}/${RETRY_CONFIG.maxAttempts}), retrying in ${delayMs}ms...`
+          `${context} failed (attempt ${attempt}/${RETRY_CONFIG.maxAttempts}), retrying in ${delayMs}ms...`
         );
       }
 

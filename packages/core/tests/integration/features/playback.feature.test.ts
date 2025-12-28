@@ -40,7 +40,7 @@ describe('Feature: Playback Reporting', () => {
   describe('Scenario: User plays a track', () => {
     it('Given: User selects track, When: Playback starts, Then: Server receives playback start event', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks available, skipping playback test');
+        console.warn('No tracks available, skipping playback test');
         return;
       }
 
@@ -95,7 +95,7 @@ describe('Feature: Playback Reporting', () => {
   describe('Scenario: User plays through album', () => {
     it('Given: Playing track 1, When: Track finishes and track 2 starts, Then: Server receives stop + start events', async () => {
       if (fixtures.tracks.length < 2) {
-        console.warn('⚠️  Need at least 2 tracks, skipping multi-track test');
+        console.warn('Need at least 2 tracks, skipping multi-track test');
         return;
       }
 
@@ -185,7 +185,7 @@ describe('Feature: Playback Reporting', () => {
   describe('Scenario: User plays album in queue', () => {
     it('Given: Queue with 3 tracks, When: User plays through all, Then: All playback events reported', async () => {
       if (fixtures.tracks.length < 3) {
-        console.warn('⚠️  Need at least 3 tracks for queue test');
+        console.warn('Need at least 3 tracks for queue test');
         return;
       }
 

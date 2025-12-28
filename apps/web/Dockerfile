@@ -28,8 +28,7 @@ ARG GIT_SHA=0.0.0-dev
 ENV GIT_SHA=${GIT_SHA}
 
 RUN npm run build && \
-    # Also sed-replace any remaining placeholders (fallback for non-Vite processed files)
-    find /app/apps/web/build -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
+    find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
         sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + 2>/dev/null || true
 
 FROM mcr.microsoft.com/playwright:v1.57.0-noble AS test
@@ -54,8 +53,8 @@ CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/
 
 FROM nginx:1.29.4-alpine AS production
 
-COPY deploy/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
-COPY --from=builder /app/apps/web/build /usr/share/nginx/html
+COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/docker/entrypoint.sh /docker-entrypoint.sh
 
 RUN apk add --no-cache bash wget jq openssl && \

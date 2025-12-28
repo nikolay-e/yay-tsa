@@ -35,9 +35,6 @@
     "type-check": "cd packages/core && npx tsc --noEmit",
     "postversion": "npm run sync:version && git add -A"
   },
-  "dependencies": {
-    "svelte-gestures": "^5.2.2"
-  },
   "devDependencies": {
     "@commitlint/cli": "^20.2.0",
     "@commitlint/config-conventional": "^20.2.0",
@@ -47,7 +44,9 @@
     "bundlewatch": "^0.4.1",
     "dotenv": "^17.2.3",
     "eslint": "^9.18.0",
-    "eslint-plugin-svelte": "^3.13.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^16.5.0",
     "jscpd": "^4.0.5",
     "jsdom": "^27.3.0",
@@ -55,7 +54,6 @@
     "madge": "^8.0.0",
     "prettier": "^3.7.4",
     "sharp": "^0.34.4",
-    "svelte-eslint-parser": "^1.4.1",
     "type-coverage": "^2.29.7",
     "vitest": "^4.0.16",
     "yaml": "2.8.2"

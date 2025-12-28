@@ -10,31 +10,26 @@
       "project": ["src/**/*.ts"]
     },
     "apps/web": {
-      "entry": [
-        "src/routes/**/*.svelte",
-        "src/routes/**/*.ts",
-        "src/lib/**/*.ts",
-        "src/lib/**/*.svelte"
-      ],
-      "project": ["src/**/*.{ts,svelte}"],
+      "entry": ["src/main.tsx", "src/App.tsx", "src/routes/**/*.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["**/test-ids/**"],
       "paths": {
-        "$lib/*": ["src/lib/*"]
+        "@/*": ["src/*"]
       }
     }
   },
   "ignoreDependencies": [
-    "svelte-gestures",
     "@commitlint/cli",
     "jsdom",
     "sharp",
     "vitest",
     "yaml",
     "@vitest/coverage-v8",
-    "tslib",
     "vite",
-    "dotenv"
+    "dotenv",
+    "prettier-plugin-tailwindcss"
   ],
   "ignoreBinaries": ["pre-commit", "tsc"],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "ignore": ["apps/web/src/features/**/stores/*.ts", "apps/web/src/features/**/hooks/*.ts"]
 }

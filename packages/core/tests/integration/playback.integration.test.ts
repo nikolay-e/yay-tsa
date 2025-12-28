@@ -74,7 +74,7 @@ describe('Integration: Playback Reporting', () => {
   describe('Playback Progress Reporting', () => {
     it('should report playback start', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping playback test');
+        console.warn('No tracks found in library, skipping playback test');
         return;
       }
 
@@ -83,7 +83,7 @@ describe('Integration: Playback Reporting', () => {
 
     it('should report playback progress', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping progress test');
+        console.warn('No tracks found in library, skipping progress test');
         return;
       }
 
@@ -96,7 +96,7 @@ describe('Integration: Playback Reporting', () => {
 
     it('should report playback pause', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping pause test');
+        console.warn('No tracks found in library, skipping pause test');
         return;
       }
 
@@ -107,7 +107,7 @@ describe('Integration: Playback Reporting', () => {
 
     it('should report playback stop', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping stop test');
+        console.warn('No tracks found in library, skipping stop test');
         return;
       }
 
@@ -118,7 +118,7 @@ describe('Integration: Playback Reporting', () => {
 
     it('should convert seconds to ticks correctly', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping ticks test');
+        console.warn('No tracks found in library, skipping ticks test');
         return;
       }
 
@@ -131,7 +131,7 @@ describe('Integration: Playback Reporting', () => {
   describe('Session Management', () => {
     it('should handle multiple playback sessions', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping session test');
+        console.warn('No tracks found in library, skipping session test');
         return;
       }
 
@@ -151,7 +151,7 @@ describe('Integration: Playback Reporting', () => {
 
     it('should handle rapid progress updates', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping rapid updates test');
+        console.warn('No tracks found in library, skipping rapid updates test');
         return;
       }
 
@@ -174,7 +174,7 @@ describe('Integration: Playback Reporting', () => {
 
     it('should handle negative position values', async () => {
       if (!testTrackId) {
-        console.warn('⚠️  No tracks found in library, skipping negative position test');
+        console.warn('No tracks found in library, skipping negative position test');
         return;
       }
 

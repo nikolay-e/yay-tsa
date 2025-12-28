@@ -209,7 +209,7 @@ describe('Feature: User Authentication', () => {
         // Then: Connection succeeds
         expect(serverInfo).toBeDefined();
       } else {
-        console.warn('⚠️  Test server is using HTTP - production should use HTTPS');
+        console.warn('Test server is using HTTP - production should use HTTPS');
       }
     });
   });

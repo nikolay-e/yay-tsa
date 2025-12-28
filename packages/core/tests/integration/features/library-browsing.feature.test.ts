@@ -117,7 +117,7 @@ describe('Feature: Library Browsing', () => {
       const albumTracks = await fixtures.itemsService.getAlbumTracks(albumId);
 
       if (albumTracks.length < 3) {
-        console.warn('⚠️  Album has fewer than 3 tracks, skipping test');
+        console.warn('Album has fewer than 3 tracks, skipping test');
         return;
       }
 
@@ -175,7 +175,7 @@ describe('Feature: Library Browsing', () => {
       // Given: User has albums
       const albums = scenario.given.library.hasAlbums();
       if (albums.length === 0) {
-        console.warn('⚠️  No albums in library, skipping search test');
+        console.warn('No albums in library, skipping search test');
         return;
       }
 
@@ -217,7 +217,7 @@ describe('Feature: Library Browsing', () => {
       // Given: User has artists
       const artists = scenario.given.library.hasArtists();
       if (artists.length === 0) {
-        console.warn('⚠️  No artists in library, skipping artist search test');
+        console.warn('No artists in library, skipping artist search test');
         return;
       }
 
@@ -268,7 +268,7 @@ describe('Feature: Library Browsing', () => {
       const totalCount = firstPage.TotalRecordCount;
 
       if (totalCount <= 20) {
-        console.warn('⚠️  Library has ≤20 albums, skipping pagination test');
+        console.warn('Library has ≤20 albums, skipping pagination test');
         return;
       }
 
@@ -324,7 +324,7 @@ describe('Feature: Library Browsing', () => {
         expect(page5.Items.length).toBeGreaterThan(0);
         expect(page5.Items.length).toBeLessThanOrEqual(pageSize);
       } else {
-        console.warn(`⚠️  Library has fewer than ${startIndex} albums, skipping`);
+        console.warn(`Library has fewer than ${startIndex} albums, skipping`);
       }
     });
   });
@@ -334,7 +334,7 @@ describe('Feature: Library Browsing', () => {
       // Given: User has tracks
       const tracks = scenario.given.library.hasTracks();
       if (tracks.length === 0) {
-        console.warn('⚠️  No tracks in library, skipping stream URL test');
+        console.warn('No tracks in library, skipping stream URL test');
         return;
       }
 

@@ -81,7 +81,7 @@ describe('Integration: Library Queries', () => {
       const albumsResponse = await itemsService.getAlbums();
 
       if (albumsResponse.Items.length === 0) {
-        console.warn('⚠️  No albums found in library, skipping album detail test');
+        console.warn('No albums found in library, skipping album detail test');
         return;
       }
 
@@ -116,7 +116,7 @@ describe('Integration: Library Queries', () => {
       const albumsResponse = await itemsService.getAlbums();
 
       if (albumsResponse.Items.length === 0) {
-        console.warn('⚠️  No albums found in library, skipping tracks test');
+        console.warn('No albums found in library, skipping tracks test');
         return;
       }
 
@@ -139,7 +139,7 @@ describe('Integration: Library Queries', () => {
       const artistsResponse = await itemsService.getArtists();
 
       if (artistsResponse.Items.length === 0) {
-        console.warn('⚠️  No artists found in library, skipping artist tracks test');
+        console.warn('No artists found in library, skipping artist tracks test');
         return;
       }
 
@@ -163,7 +163,7 @@ describe('Integration: Library Queries', () => {
       const albumsResponse = await itemsService.getAlbums();
 
       if (albumsResponse.Items.length === 0) {
-        console.warn('⚠️  No albums found in library, skipping search test');
+        console.warn('No albums found in library, skipping search test');
         return;
       }
 
@@ -208,7 +208,7 @@ describe('Integration: Library Queries', () => {
       const albumsResponse = await itemsService.getAlbums();
 
       if (albumsResponse.Items.length === 0) {
-        console.warn('⚠️  No albums found in library, skipping stream URL test');
+        console.warn('No albums found in library, skipping stream URL test');
         return;
       }
 
@@ -216,7 +216,7 @@ describe('Integration: Library Queries', () => {
       const tracks = await itemsService.getAlbumTracks(albumId);
 
       if (tracks.length === 0) {
-        console.warn('⚠️  No tracks found in album, skipping stream URL test');
+        console.warn('No tracks found in album, skipping stream URL test');
         return;
       }
 

@@ -21,7 +21,7 @@ packages/
 services/
 ├── server/      # Java Spring Boot backend
 └── audio-separator/  # Python FastAPI for karaoke
-deploy/
+infra/
 └── nginx/       # nginx.conf.template
 ```
 
@@ -30,7 +30,7 @@ deploy/
 - `package.json` - npm workspaces configuration
 - `packages/core/src/index.ts` - Core package public API
 - `packages/platform/src/index.ts` - Platform package public API
-- `apps/web/src/lib/features/` - Feature-first UI modules (auth, player, library)
+- `apps/web/src/features/` - Feature-first UI modules (auth, player, library)
 
 ## Common Commands
 
@@ -438,7 +438,7 @@ script-src 'self';
 - `apps/web/Dockerfile` - Multi-stage Docker build for frontend
 - `services/server/Dockerfile` - Multi-stage Docker build for backend
 - `docker-compose.yml` - Development and production configs
-- `deploy/nginx/nginx.conf.template` - Nginx configuration
+- `infra/nginx/nginx.conf.template` - Nginx configuration
 - `apps/web/docker/entrypoint.sh` - Frontend container entrypoint
 - `/Users/nikolay/code/gitops/helm-charts/yaytsa/` - Kubernetes manifests
 

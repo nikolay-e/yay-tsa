@@ -160,7 +160,7 @@ export class TestDataFactory {
 
     // Report cleanup errors (but don't fail tests)
     if (errors.length > 0) {
-      console.warn(`\n⚠️  Cleanup warnings (${errors.length} failures):`);
+      console.warn(`\nCleanup warnings (${errors.length} failures):`);
       errors.forEach(err => console.warn(`  - ${err.message}`));
     }
 

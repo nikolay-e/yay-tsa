@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG VARIANT=gpu
-COPY requirements-${VARIANT}.txt requirements.txt
+COPY requirements/${VARIANT}.txt requirements.txt
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY app.py .

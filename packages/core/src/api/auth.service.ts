@@ -114,6 +114,11 @@ function isDockerServiceName(hostname: string): boolean {
 }
 
 export function validateServerUrl(url: string, isDevelopment: boolean = false): void {
+  // Allow relative paths for reverse proxy mode (e.g., "/api")
+  if (url.startsWith('/')) {
+    return;
+  }
+
   let parsed: URL;
 
   try {

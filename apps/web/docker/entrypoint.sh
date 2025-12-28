@@ -168,12 +168,13 @@ else
   exit 1
 fi
 
-# Generate nginx.conf from template with CSP hash and domain substitution
+# Generate nginx.conf from template with CSP hash, domain, and backend URL substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs
 sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
   -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
+  -e "s#__BACKEND_URL__#$YAYTSA_SERVER_URL#g" \
   /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
-echo "Generated nginx.conf with runtime CSP hashes and domains"
+echo "Generated nginx.conf with runtime CSP hashes, domains, and backend URL"
 
 # Execute the main command (nginx) with generated config
 exec nginx -c /var/cache/nginx/nginx.conf -g "daemon off;"

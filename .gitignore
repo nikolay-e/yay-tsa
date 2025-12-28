@@ -52,6 +52,13 @@ tree.tmp
 # Add new paths here as they appear, don't use broad wildcards
 packages/core/packages/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ESLint cache
+.eslintcache
+
 # Runtime data (not tracked)
 services/server/logs/
 services/server/media/

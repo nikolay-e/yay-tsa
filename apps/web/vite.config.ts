@@ -1,7 +1,6 @@
-import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { SvelteKitPWA } from '@vite-pwa/sveltekit';
-import { visualizer } from 'rollup-plugin-visualizer';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,14 +15,8 @@ const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);
 export default defineConfig({
   envPrefix: ['VITE_', 'YAYTSA_'],
   plugins: [
-    sveltekit(),
-    visualizer({
-      open: false,
-      gzipSize: true,
-      brotliSize: true,
-      filename: 'dist/stats.html',
-    }),
-    SvelteKitPWA({
+    react(),
+    VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       workbox: {
@@ -52,7 +45,7 @@ export default defineConfig({
               cacheName: 'yaytsa-audio-0.0.0-placeholder',
               plugins: [
                 {
-                  cacheKeyWillBeUsed: async ({ request }) => {
+                  cacheKeyWillBeUsed: async ({ request }: { request: Request }) => {
                     const url = new URL(request.url);
                     return url.origin + url.pathname;
                   },
@@ -81,6 +74,11 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: httpsEnabled
     ? {
         https: {
@@ -93,11 +91,25 @@ export default defineConfig({
           protocol: 'wss',
         },
         allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal'],
+        proxy: {
+          '/api': {
+            target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
+            changeOrigin: true,
+            rewrite: path => path.replace(/^\/api/, ''),
+          },
+        },
       }
     : {
         strictPort: true,
         port: 5173,
         allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal'],
+        proxy: {
+          '/api': {
+            target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
+            changeOrigin: true,
+            rewrite: path => path.replace(/^\/api/, ''),
+          },
+        },
       },
   build: {
     target: 'es2020',
@@ -115,12 +127,16 @@ export default defineConfig({
             const modulePath = id.split('node_modules/')[1];
             const packageName = modulePath.split('/')[0];
 
-            if (packageName === 'lucide-svelte') {
+            if (packageName === 'lucide-react') {
               return 'vendor-icons';
             }
 
-            if (['svelte', '@sveltejs'].some(pkg => packageName.startsWith(pkg))) {
-              return 'vendor-svelte';
+            if (['react', 'react-dom', 'react-router'].some(pkg => packageName.startsWith(pkg))) {
+              return 'vendor-react';
+            }
+
+            if (packageName === 'zustand' || packageName.startsWith('@tanstack')) {
+              return 'vendor-state';
             }
 
             return 'vendor-utils';

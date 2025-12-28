@@ -1,8 +1,9 @@
 import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
-import svelte from 'eslint-plugin-svelte';
-import svelteParser from 'svelte-eslint-parser';
+import react from 'eslint-plugin-react';
+import reactHooks from 'eslint-plugin-react-hooks';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import globals from 'globals';
 
 export default [
@@ -12,8 +13,6 @@ export default [
       'node_modules/**',
       'dist/**',
       'build/**',
-      '.svelte-kit/**',
-      'apps/web/.svelte-kit/**',
       'packages/*/dist/**',
       'packages/*/build/**',
       '**/*.config.js',
@@ -93,13 +92,13 @@ export default [
       '@typescript-eslint/no-misused-promises': [
         'error',
         {
-          checksVoidReturn: { attributes: false }, // Allow promises in Svelte event handlers
+          checksVoidReturn: { attributes: false },
         },
       ],
       '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/promise-function-async': 'warn',
       '@typescript-eslint/require-await': 'error',
-      'no-return-await': 'off', // Superseded by @typescript-eslint/return-await
+      'no-return-await': 'off',
       '@typescript-eslint/return-await': ['error', 'in-try-catch'],
 
       // Type safety improvements
@@ -131,57 +130,71 @@ export default [
     },
   },
 
-  // Svelte files - with TypeScript support and accessibility
+  // React/TSX files - with accessibility and hooks rules
   {
-    files: ['**/*.svelte'],
+    files: ['apps/web/src/**/*.tsx'],
     languageOptions: {
-      parser: svelteParser,
+      ecmaVersion: 2020,
+      sourceType: 'module',
+      parser: typescriptParser,
       parserOptions: {
-        parser: typescriptParser,
-        extraFileExtensions: ['.svelte'],
+        project: ['./apps/web/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+        ecmaFeatures: {
+          jsx: true,
+        },
       },
       globals: {
         ...globals.browser,
       },
     },
     plugins: {
-      svelte,
+      react,
+      'react-hooks': reactHooks,
+      'jsx-a11y': jsxA11y,
       '@typescript-eslint': typescript,
     },
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
     rules: {
-      ...svelte.configs.recommended.rules,
-      ...svelte.configs.prettier.rules,
+      ...js.configs.recommended.rules,
+      ...typescript.configs.recommended.rules,
+      ...react.configs.recommended.rules,
+      ...react.configs['jsx-runtime'].rules,
+      ...jsxA11y.configs.recommended.rules,
 
-      // Security rules for Svelte - CRITICAL for XSS prevention
-      'svelte/no-at-html-tags': 'error', // Prevent XSS via @html
-      'svelte/no-target-blank': 'error', // Security: require rel="noreferrer"
+      // React Hooks rules - CRITICAL
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
 
-      // Component quality and best practices
-      'svelte/button-has-type': 'warn',
-      'svelte/no-unused-svelte-ignore': 'error',
-      'svelte/no-unused-class-name': 'warn',
-      'svelte/prefer-class-directive': 'warn',
-      'svelte/prefer-style-directive': 'warn',
-      'svelte/shorthand-attribute': 'warn',
-      'svelte/shorthand-directive': 'warn',
-      'svelte/spaced-html-comment': 'warn',
+      // React best practices
+      'react/prop-types': 'off',
+      'react/jsx-no-target-blank': 'error',
+      'react/jsx-key': 'error',
+      'react/no-unescaped-entities': 'warn',
+      'react/self-closing-comp': 'warn',
+      'react/jsx-curly-brace-presence': ['warn', { props: 'never', children: 'never' }],
 
-      // Note: Accessibility (a11y) rules are built into Svelte compiler
-      // and are checked via svelte-check, not ESLint plugin
+      // Accessibility
+      'jsx-a11y/alt-text': 'error',
+      'jsx-a11y/anchor-is-valid': 'error',
+      'jsx-a11y/click-events-have-key-events': 'warn',
+      'jsx-a11y/no-static-element-interactions': 'warn',
 
-      // TypeScript rules for Svelte script blocks (non-type-aware only)
-      // Note: Type checking for Svelte is handled by svelte-check
+      // TypeScript in React
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
+
+      // Code quality
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       'prefer-const': 'error',
       'no-var': 'error',
-
-      // Disable compiler warnings (handled by svelte-check)
-      'svelte/valid-compile': 'off',
     },
   },
 ];
