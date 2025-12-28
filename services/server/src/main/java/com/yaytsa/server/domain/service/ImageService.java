@@ -261,7 +261,8 @@ public class ImageService {
         return extractAlbumArt(audioFilePath);
       }
     } catch (Exception e) {
-      logger.debug("Error extracting embedded artwork for item {}: {}", item.getId(), e.getMessage());
+      logger.debug(
+          "Error extracting embedded artwork for item {}: {}", item.getId(), e.getMessage());
     }
     return Optional.empty();
   }
