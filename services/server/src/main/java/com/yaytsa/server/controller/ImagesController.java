@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -20,6 +22,8 @@ import org.springframework.web.context.request.WebRequest;
 @RestController
 @Tag(name = "Images", description = "Image serving and processing")
 public class ImagesController {
+
+  private static final Logger log = LoggerFactory.getLogger(ImagesController.class);
 
   private final ImageService imageService;
 
@@ -66,6 +70,7 @@ public class ImagesController {
       Optional<byte[]> imageData = imageService.getItemImage(itemUuid, imageType, params);
 
       if (imageData.isEmpty()) {
+        log.debug("Image not found: itemId={}, type={}", itemId, imageType);
         return ResponseEntity.notFound().build();
       }
 
@@ -77,6 +82,8 @@ public class ImagesController {
       return ResponseEntity.ok().headers(headers).body(imageData.get());
 
     } catch (IllegalArgumentException e) {
+      log.warn(
+          "Invalid image request: itemId={}, type={}, error={}", itemId, imageType, e.getMessage());
       return ResponseEntity.badRequest().build();
     }
   }

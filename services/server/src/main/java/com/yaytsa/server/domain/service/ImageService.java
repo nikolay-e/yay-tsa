@@ -95,10 +95,15 @@ public class ImageService {
       return Optional.of(processedImage);
 
     } catch (IllegalArgumentException e) {
-      logger.warn("Invalid image type: {}", imageTypeStr);
+      logger.warn("Invalid image type: itemId={}, type={}", itemId, imageTypeStr);
       return Optional.empty();
     } catch (Exception e) {
-      logger.error("Error processing image for itemId={}, type={}", itemId, imageTypeStr, e);
+      logger.error(
+          "Error processing image: itemId={}, type={}, error={}",
+          itemId,
+          imageTypeStr,
+          e.getMessage(),
+          e);
       return Optional.empty();
     }
   }
@@ -228,7 +233,11 @@ public class ImageService {
         }
       }
     } catch (Exception e) {
-      logger.debug("Error finding folder artwork for item {}: {}", item.getId(), e.getMessage());
+      logger.warn(
+          "Failed to find folder artwork: itemId={}, itemType={}, error={}",
+          item.getId(),
+          item.getType(),
+          e.getMessage());
     }
     return Optional.empty();
   }
@@ -261,8 +270,11 @@ public class ImageService {
         return extractAlbumArt(audioFilePath);
       }
     } catch (Exception e) {
-      logger.debug(
-          "Error extracting embedded artwork for item {}: {}", item.getId(), e.getMessage());
+      logger.warn(
+          "Failed to extract embedded artwork: itemId={}, itemType={}, error={}",
+          item.getId(),
+          item.getType(),
+          e.getMessage());
     }
     return Optional.empty();
   }
