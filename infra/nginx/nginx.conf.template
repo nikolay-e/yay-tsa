@@ -95,8 +95,8 @@ http {
             add_header Content-Type text/plain;
         }
 
-        # SvelteKit immutable assets - content-hashed, safe to cache forever
-        location /_app/immutable/ {
+        # Vite assets - content-hashed JS/CSS, safe to cache forever
+        location /assets/ {
             expires 1y;
             add_header Cache-Control "public, immutable";
             add_header X-Frame-Options "SAMEORIGIN" always;
@@ -107,10 +107,10 @@ http {
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
-        # SvelteKit mutable files - version.json, env.js - must not be cached
-        location /_app/ {
-            expires -1;
-            add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0";
+        # Workbox runtime - content-hashed, safe to cache forever
+        location ~ ^/workbox-[a-f0-9]+\.js$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
             add_header X-Frame-Options "SAMEORIGIN" always;
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
@@ -163,7 +163,7 @@ http {
         }
 
         # PWA manifest - no cache (may change with config)
-        location = /manifest.json {
+        location ~ ^/manifest\.(json|webmanifest)$ {
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Content-Type application/manifest+json;
@@ -176,8 +176,8 @@ http {
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         }
 
-        # Service worker - no cache (needs to update immediately)
-        location = /service-worker.js {
+        # Service worker files - no cache (needs to update immediately)
+        location ~ ^/(sw|service-worker|registerSW)\.js$ {
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Service-Worker-Allowed "/";
