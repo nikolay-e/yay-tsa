@@ -168,13 +168,18 @@ else
   exit 1
 fi
 
-# Generate nginx.conf from template with CSP hash, domain, and backend URL substitution
+# Media path for X-Accel-Redirect (must match volume mount in deployment)
+YAYTSA_MEDIA_PATH="${YAYTSA_MEDIA_PATH:-/media}"
+echo "INFO: Media path for X-Accel-Redirect: $YAYTSA_MEDIA_PATH"
+
+# Generate nginx.conf from template with CSP hash, domain, backend URL, and media path substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs
 sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
   -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
   -e "s#__BACKEND_URL__#$YAYTSA_SERVER_URL#g" \
+  -e "s#__MEDIA_PATH__#$YAYTSA_MEDIA_PATH#g" \
   /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
-echo "Generated nginx.conf with runtime CSP hashes, domains, and backend URL"
+echo "Generated nginx.conf with runtime CSP hashes, domains, backend URL, and media path"
 
 # Execute the main command (nginx) with generated config
 exec nginx -c /var/cache/nginx/nginx.conf -g "daemon off;"

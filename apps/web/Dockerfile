@@ -23,13 +23,15 @@ CMD ["npm", "run", "dev"]
 
 FROM base AS builder
 
-# Version injected at build time - Vite replaces placeholder during bundling
 ARG GIT_SHA=0.0.0-dev
 ENV GIT_SHA=${GIT_SHA}
 
-RUN npm run build && \
+RUN apk add --no-cache brotli gzip && \
+    npm run build && \
     find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
-        sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + 2>/dev/null || true
+        sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + 2>/dev/null || true && \
+    find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
+        -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
 
 FROM mcr.microsoft.com/playwright:v1.57.0-noble AS test
 
@@ -57,12 +59,17 @@ COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/docker/entrypoint.sh /docker-entrypoint.sh
 
-RUN apk add --no-cache bash wget jq openssl && \
+RUN apk add --no-cache \
+        bash \
+        wget \
+        jq \
+        openssl && \
     rm -rf /etc/nginx/nginx.conf.default /usr/share/nginx/html/.gitkeep && \
     chmod +x /docker-entrypoint.sh && \
-    mkdir -p /var/cache/nginx /var/run && \
-    chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html && \
-    chmod -R 755 /var/cache/nginx /var/run
+    mkdir -p /var/cache/nginx /var/run /media && \
+    chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html /media && \
+    chmod -R 755 /var/cache/nginx /var/run && \
+    rm -rf /var/cache/apk/*
 
 USER nginx
 
