@@ -7,8 +7,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const htmlPath = join(__dirname, '../build/index.html');
-const outputPath = join(__dirname, '../build/.csp-hashes.json');
+const htmlPath = join(__dirname, '../dist/index.html');
+const outputPath = join(__dirname, '../dist/.csp-hashes.json');
 
 try {
   const html = readFileSync(htmlPath, 'utf-8');

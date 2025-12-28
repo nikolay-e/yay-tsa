@@ -125,9 +125,9 @@ if [ -f "$CSP_HASHES_FILE" ]; then
     CSP_SCRIPT_HASHES="'self' $SCRIPT_HASHES"
     echo "Loaded CSP script hashes: $CSP_SCRIPT_HASHES"
   else
-    echo "ERROR: No script hashes found in $CSP_HASHES_FILE"
-    echo "This indicates a build error - CSP hashes should be generated during build"
-    exit 1
+    # No inline scripts is valid for React apps - all scripts are external
+    CSP_SCRIPT_HASHES="'self'"
+    echo "No inline scripts found - using 'self' only for script-src"
   fi
 else
   echo "ERROR: $CSP_HASHES_FILE not found"
