@@ -15,6 +15,7 @@ import {
   loadSessionAuto,
   clearAllSessions,
 } from '@/shared/utils/session-manager';
+import { log } from '@/shared/utils/logger';
 
 const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const API_BASE_PATH = '/api';
@@ -65,9 +66,7 @@ async function clearCaches(): Promise<void> {
     try {
       const cacheNames = await caches.keys();
       await Promise.all(
-        cacheNames
-          .filter(name => name.startsWith('yaytsa-'))
-          .map(async name => caches.delete(name))
+        cacheNames.filter(name => name.startsWith('yaytsa-')).map(async name => caches.delete(name))
       );
     } catch {
       // Ignore cache errors
@@ -114,6 +113,7 @@ export const useAuthStore = create<AuthStore>()(
           error: null,
         });
       } catch (error) {
+        log.auth.error('Login failed', error, { username });
         set({
           isLoading: false,
           error: error instanceof Error ? error : new Error(String(error)),
@@ -128,8 +128,10 @@ export const useAuthStore = create<AuthStore>()(
       if (authService) {
         try {
           await authService.logout();
-        } catch {
-          // Ignore logout errors
+        } catch (error) {
+          log.auth.warn('Logout request failed, continuing with local cleanup', {
+            error: String(error),
+          });
         }
       }
 
@@ -171,7 +173,8 @@ export const useAuthStore = create<AuthStore>()(
         });
 
         return true;
-      } catch {
+      } catch (error) {
+        log.auth.warn('Session restore failed', { error: String(error) });
         clearAllSessions();
         set({
           ...initialState,
@@ -184,8 +187,7 @@ export const useAuthStore = create<AuthStore>()(
   }))
 );
 
-export const useIsAuthenticated = () =>
-  useAuthStore(state => state.isAuthenticated);
+export const useIsAuthenticated = () => useAuthStore(state => state.isAuthenticated);
 export const useClient = () => useAuthStore(state => state.client);
 export const useIsLoading = () => useAuthStore(state => state.isLoading);
 export const useAuthError = () => useAuthStore(state => state.error);

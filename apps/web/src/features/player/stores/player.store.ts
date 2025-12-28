@@ -10,6 +10,7 @@ import {
 import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useTimingStore } from './timing.store';
+import { log } from '@/shared/utils/logger';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -106,7 +107,9 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(seconds, duration);
 
       if (playbackReporter && currentItemId) {
-        playbackReporter.reportProgress(currentItemId, seconds, false).catch(() => {});
+        playbackReporter.reportProgress(currentItemId, seconds, false).catch((err) => {
+          log.player.warn('Failed to report playback progress', { error: String(err) });
+        });
       }
     });
 
@@ -128,6 +131,7 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     engine.onError((error) => {
+      log.player.error('Audio engine error', error);
       set({ error, isPlaying: false, isLoading: false });
     });
 
@@ -198,6 +202,7 @@ export const usePlayerStore = create<PlayerStore>()(
         if (currentLoadId !== loadId) {
           return;
         }
+        log.player.error('Failed to load and play track', error, { trackId: track.Id, trackName: track.Name });
         set({
           error: error instanceof Error ? error : new Error(String(error)),
           isPlaying: false,
@@ -250,7 +255,9 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ isPlaying: false });
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, engine.getCurrentTime(), true).catch(() => {});
+          playbackReporter.reportProgress(currentItemId, engine.getCurrentTime(), true).catch((err) => {
+            log.player.warn('Failed to report pause', { error: String(err) });
+          });
         }
       },
 
@@ -259,7 +266,9 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ isPlaying: true });
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, engine.getCurrentTime(), false).catch(() => {});
+          playbackReporter.reportProgress(currentItemId, engine.getCurrentTime(), false).catch((err) => {
+            log.player.warn('Failed to report resume', { error: String(err) });
+          });
         }
       },
 
@@ -307,7 +316,9 @@ export const usePlayerStore = create<PlayerStore>()(
         useTimingStore.getState().updateTiming(seconds, engine.getDuration());
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch(() => {});
+          playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch((err) => {
+            log.player.warn('Failed to report seek', { error: String(err) });
+          });
         }
       },
 
@@ -338,7 +349,9 @@ export const usePlayerStore = create<PlayerStore>()(
         useTimingStore.getState().reset();
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportStopped(currentItemId, 0).catch(() => {});
+          playbackReporter.reportStopped(currentItemId, 0).catch((err) => {
+            log.player.warn('Failed to report stop', { error: String(err) });
+          });
           playbackReporter = null;
           currentItemId = null;
         }

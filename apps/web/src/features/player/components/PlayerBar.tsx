@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -17,11 +17,13 @@ import {
   useVolume,
   useIsShuffle,
   useRepeatMode,
+  usePlayerError,
 } from '../stores/player.store';
 import { useTimingStore } from '../stores/timing.store';
 import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
 import { formatDuration } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
+import { toast } from '@/components/Toast';
 
 export function PlayerBar() {
   const currentTrack = useCurrentTrack();
@@ -29,12 +31,19 @@ export function PlayerBar() {
   const volume = useVolume();
   const isShuffle = useIsShuffle();
   const repeatMode = useRepeatMode();
+  const playerError = usePlayerError();
   const currentTime = useTimingStore(s => s.currentTime);
   const duration = useTimingStore(s => s.duration);
 
   const { pause, resume, next, previous, seek, setVolume, toggleShuffle, toggleRepeat } =
     usePlayerStore();
   const { getImageUrl } = useImageUrl();
+
+  useEffect(() => {
+    if (playerError) {
+      toast.add('error', `Playback error: ${playerError.message}`);
+    }
+  }, [playerError]);
 
   if (!currentTrack) {
     return null;
