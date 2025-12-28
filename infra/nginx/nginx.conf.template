@@ -247,8 +247,10 @@ http {
             limit_conn stream_conn 10;
             limit_req zone=stream_limit burst=20 nodelay;
 
-            proxy_pass __BACKEND_URL__;
+            # Use variable to allow proxy_pass in regex location
+            set $backend __BACKEND_URL__;
             rewrite ^/api(/.*)$ $1 break;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

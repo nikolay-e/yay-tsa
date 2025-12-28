@@ -172,11 +172,16 @@ fi
 YAYTSA_MEDIA_PATH="${YAYTSA_MEDIA_PATH:-/media}"
 echo "INFO: Media path for X-Accel-Redirect: $YAYTSA_MEDIA_PATH"
 
+# Backend URL for nginx proxying (internal service, no /api prefix)
+# Falls back to YAYTSA_SERVER_URL if not set (e.g., docker-compose)
+BACKEND_URL="${YAYTSA_BACKEND_URL:-$YAYTSA_SERVER_URL}"
+echo "INFO: Backend URL for nginx: $BACKEND_URL"
+
 # Generate nginx.conf from template with CSP hash, domain, backend URL, and media path substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs
 sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
   -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
-  -e "s#__BACKEND_URL__#$YAYTSA_SERVER_URL#g" \
+  -e "s#__BACKEND_URL__#$BACKEND_URL#g" \
   -e "s#__MEDIA_PATH__#$YAYTSA_MEDIA_PATH#g" \
   /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
 echo "Generated nginx.conf with runtime CSP hashes, domains, backend URL, and media path"
