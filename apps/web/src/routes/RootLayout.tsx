@@ -87,6 +87,9 @@ function Sidebar() {
           <a
             key={item.href}
             href={item.href}
+            data-testid={
+              item.href === '/' ? 'nav-home' : item.href === '/albums' ? 'nav-albums' : undefined
+            }
             className={cn(
               'flex items-center gap-md rounded-md px-md py-sm transition-colors',
               'hover:bg-bg-hover',
@@ -127,6 +130,9 @@ function BottomTabBar() {
         <a
           key={tab.href}
           href={tab.href}
+          data-testid={
+            tab.href === '/' ? 'nav-home' : tab.href === '/albums' ? 'nav-albums' : undefined
+          }
           className={cn(
             'flex min-h-touch flex-1 flex-col items-center justify-center gap-1 py-2',
             'touch-manipulation text-text-secondary transition-colors',

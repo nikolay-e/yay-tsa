@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI || baseURL.includes('vite-server:') ? 1 : undefined,
+  workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   timeout: 30000,
   expect: {
@@ -48,12 +48,14 @@ export default defineConfig({
     },
   ],
 
-  webServer: process.env.BASE_URL?.includes('vite-server:')
-    ? undefined
-    : {
-        command: 'npm run dev',
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120000,
-      },
+  // Skip webServer when using an external server (docker compose, remote)
+  webServer:
+    process.env.BASE_URL && !process.env.BASE_URL.includes('localhost')
+      ? undefined
+      : {
+          command: 'npm run dev',
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120000,
+        },
 });

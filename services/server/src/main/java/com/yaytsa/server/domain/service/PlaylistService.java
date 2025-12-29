@@ -114,8 +114,9 @@ public class PlaylistService {
     int insertIndex = Math.min(newIndex, allEntries.size());
     allEntries.add(insertIndex, movedEntry);
 
+    int offset = allEntries.size() + 1000;
     for (int i = 0; i < allEntries.size(); i++) {
-      allEntries.get(i).setPosition(-(i + 1));
+      allEntries.get(i).setPosition(offset + i);
     }
     playlistEntryRepository.saveAll(allEntries);
     playlistEntryRepository.flush();
@@ -141,10 +142,21 @@ public class PlaylistService {
     List<PlaylistEntryEntity> entries =
         playlistEntryRepository.findByPlaylistIdOrderByPositionAsc(playlistId);
 
+    if (entries.isEmpty()) {
+      return;
+    }
+
+    int offset = entries.size() + 1000;
+    for (int i = 0; i < entries.size(); i++) {
+      entries.get(i).setPosition(offset + i);
+    }
+    playlistEntryRepository.saveAll(entries);
+    playlistEntryRepository.flush();
+
     for (int i = 0; i < entries.size(); i++) {
       entries.get(i).setPosition(i);
-      playlistEntryRepository.save(entries.get(i));
     }
+    playlistEntryRepository.saveAll(entries);
   }
 
   public static class PlaylistEntryNotFoundException extends RuntimeException {

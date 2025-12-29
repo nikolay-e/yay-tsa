@@ -76,8 +76,12 @@ export function PlayerBar() {
   };
 
   return (
-    <div className="safe-area-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-bg-secondary">
+    <div
+      data-testid="player-bar"
+      className="safe-area-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-bg-secondary"
+    >
       <div
+        data-testid="seek-slider"
         role="slider"
         tabIndex={0}
         aria-label="Seek"
@@ -106,8 +110,12 @@ export function PlayerBar() {
             className="h-12 w-12 flex-shrink-0 rounded-sm object-cover"
           />
           <div className="min-w-0">
-            <p className="truncate font-medium text-text-primary">{currentTrack.Name}</p>
-            <p className="truncate text-sm text-text-secondary">{artistName}</p>
+            <p data-testid="current-track-title" className="truncate font-medium text-text-primary">
+              {currentTrack.Name}
+            </p>
+            <p data-testid="current-track-artist" className="truncate text-sm text-text-secondary">
+              {artistName}
+            </p>
           </div>
         </div>
 
@@ -124,6 +132,7 @@ export function PlayerBar() {
           </button>
 
           <button
+            data-testid="previous-button"
             onClick={() => previous()}
             className="p-2 text-text-secondary transition-colors hover:text-text-primary"
             aria-label="Previous"
@@ -132,6 +141,7 @@ export function PlayerBar() {
           </button>
 
           <button
+            data-testid="play-pause-button"
             onClick={() => (isPlaying ? pause() : resume())}
             className={cn(
               'rounded-full bg-accent p-3 text-white',
@@ -147,6 +157,7 @@ export function PlayerBar() {
           </button>
 
           <button
+            data-testid="next-button"
             onClick={() => next()}
             className="p-2 text-text-secondary transition-colors hover:text-text-primary"
             aria-label="Next"
@@ -172,7 +183,8 @@ export function PlayerBar() {
 
         <div className="hidden flex-1 items-center justify-end gap-sm md:flex">
           <span className="text-xs tabular-nums text-text-tertiary">
-            {formatDuration(currentTime)} / {formatDuration(duration)}
+            <span data-testid="current-time">{formatDuration(currentTime)}</span> /{' '}
+            <span data-testid="total-time">{formatDuration(duration)}</span>
           </span>
 
           <button
@@ -184,6 +196,7 @@ export function PlayerBar() {
           </button>
 
           <input
+            data-testid="volume-slider"
             type="range"
             min="0"
             max="1"

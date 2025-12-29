@@ -70,11 +70,11 @@ export class TestDataFactory {
     // Validate library has enough data for testing
     this.validateLibraryData(artistsResult.Items, albumsResult.Items, tracksResult.Items);
 
-    // Return fixtures
+    // Return fixtures (use all available items from small test library)
     return {
-      artists: artistsResult.Items.slice(0, 3),
-      albums: albumsResult.Items.slice(0, 5),
-      tracks: tracksResult.Items.slice(0, 50),
+      artists: artistsResult.Items,
+      albums: albumsResult.Items,
+      tracks: tracksResult.Items,
       playlists: [],
       client: this.client,
       authService: this.authService,
@@ -94,16 +94,16 @@ export class TestDataFactory {
   ): void {
     const errors: string[] = [];
 
-    if (artists.length < 3) {
-      errors.push(`Insufficient artists: found ${artists.length}, need at least 3`);
+    if (artists.length < 1) {
+      errors.push(`Insufficient artists: found ${artists.length}, need at least 1`);
     }
 
-    if (albums.length < 5) {
-      errors.push(`Insufficient albums: found ${albums.length}, need at least 5`);
+    if (albums.length < 1) {
+      errors.push(`Insufficient albums: found ${albums.length}, need at least 1`);
     }
 
-    if (tracks.length < 50) {
-      errors.push(`Insufficient tracks: found ${tracks.length}, need at least 50`);
+    if (tracks.length < 3) {
+      errors.push(`Insufficient tracks: found ${tracks.length}, need at least 3`);
     }
 
     if (errors.length > 0) {

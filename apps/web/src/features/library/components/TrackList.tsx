@@ -37,6 +37,7 @@ export function TrackList({
 
         return (
           <button
+            data-testid="track-row"
             key={track.Id}
             onClick={() => onPlayTrack?.(track, index)}
             className={cn(
@@ -67,6 +68,7 @@ export function TrackList({
 
             <div className="min-w-0 flex-1">
               <p
+                data-testid="track-title"
                 className={cn(
                   'truncate font-medium',
                   isCurrentTrack ? 'text-accent' : 'text-text-primary'

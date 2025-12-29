@@ -58,6 +58,7 @@ export function AlbumDetailPage() {
   return (
     <div className="space-y-lg p-lg">
       <Link
+        data-testid="album-back-button"
         to="/albums"
         className="inline-flex items-center gap-sm text-text-secondary transition-colors hover:text-text-primary"
       >
@@ -76,7 +77,9 @@ export function AlbumDetailPage() {
 
         <div className="flex flex-col justify-end space-y-md">
           <div>
-            <h1 className="text-3xl font-bold text-text-primary">{album.Name}</h1>
+            <h1 data-testid="album-detail-title" className="text-3xl font-bold text-text-primary">
+              {album.Name}
+            </h1>
             <p className="text-lg text-text-secondary">{artistName}</p>
             <p className="text-sm text-text-tertiary">
               {year && `${year} • `}
@@ -86,6 +89,7 @@ export function AlbumDetailPage() {
 
           <div className="flex gap-sm">
             <button
+              data-testid="album-play-button"
               className={cn(
                 'flex items-center gap-sm px-lg py-sm',
                 'rounded-full bg-accent text-white',
@@ -96,6 +100,7 @@ export function AlbumDetailPage() {
               Play
             </button>
             <button
+              data-testid="album-shuffle-button"
               className={cn(
                 'flex items-center gap-sm px-lg py-sm',
                 'rounded-full bg-bg-secondary text-text-primary',

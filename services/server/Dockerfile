@@ -18,7 +18,20 @@ COPY src ./src
 # Build the application
 RUN mvn clean package -DskipTests -B
 
-# Stage 2: Runtime stage
+# Stage 2: Test stage
+FROM maven:3.9-eclipse-temurin-21 AS test
+
+WORKDIR /app
+
+COPY pom.xml .
+COPY src ./src
+COPY --from=builder /root/.m2 /root/.m2
+
+ENV TESTCONTAINERS_RYUK_DISABLED=true
+
+CMD ["mvn", "test", "-B", "--fail-at-end"]
+
+# Stage 3: Runtime stage
 FROM eclipse-temurin:21-jre-alpine
 
 # Accept GIT_SHA from build args for version tracking

@@ -30,6 +30,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
 
   return (
     <Link
+      data-testid="album-card"
       to={`/albums/${album.Id}`}
       className={cn(
         'group block rounded-md p-sm',
@@ -58,7 +59,9 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
           <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
         </button>
       </div>
-      <h3 className="truncate font-medium text-text-primary">{album.Name}</h3>
+      <h3 data-testid="album-title" className="truncate font-medium text-text-primary">
+        {album.Name}
+      </h3>
       <p className="truncate text-sm text-text-secondary">{artistName}</p>
     </Link>
   );

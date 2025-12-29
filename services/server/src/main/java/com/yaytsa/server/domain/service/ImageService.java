@@ -97,7 +97,7 @@ public class ImageService {
     } catch (IllegalArgumentException e) {
       logger.warn("Invalid image type: itemId={}, type={}", itemId, imageTypeStr);
       return Optional.empty();
-    } catch (Exception e) {
+    } catch (Exception | NoClassDefFoundError | UnsatisfiedLinkError e) {
       logger.error(
           "Error processing image: itemId={}, type={}, error={}",
           itemId,
@@ -330,8 +330,13 @@ public class ImageService {
         writer.dispose();
       }
     } else if ("webp".equals(outputFormat)) {
-      if (!ImageIO.write(image, "webp", outputStream)) {
-        logger.warn("WebP encoding failed, falling back to JPEG");
+      try {
+        if (!ImageIO.write(image, "webp", outputStream)) {
+          logger.warn("WebP encoding failed, falling back to JPEG");
+          return encodeImage(image, "jpeg", quality);
+        }
+      } catch (Exception | NoClassDefFoundError | UnsatisfiedLinkError e) {
+        logger.warn("WebP encoder not available ({}), falling back to JPEG", e.getMessage());
         return encodeImage(image, "jpeg", quality);
       }
     } else if ("png".equals(outputFormat)) {

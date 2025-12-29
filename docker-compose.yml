@@ -47,7 +47,7 @@ services:
       LIBRARY_ROOTS: /media
       SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
       CORS_ENABLED: true
-      CORS_ORIGINS: 'http://localhost:5173,http://localhost:*'
+      CORS_ORIGINS: 'http://localhost:5173,http://localhost:*,http://frontend:5173'
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
     ports:
@@ -142,7 +142,28 @@ services:
       retries: 3
       start_period: 120s
 
-  # E2E Tests
+  # Backend Integration Tests
+  backend-test:
+    build:
+      context: ./services/server
+      dockerfile: Dockerfile
+      target: test
+    container_name: yaytsa-backend-test
+    profiles:
+      - test
+    environment:
+      YAYTSA_SERVER_URL: http://backend:8096
+      YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
+      YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
+    volumes:
+      - ./test-results/backend:/app/target/surefire-reports
+    networks:
+      - yaytsa-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Frontend E2E Tests
   test:
     build:
       context: .
@@ -159,7 +180,7 @@ services:
     volumes:
       - ./packages/core/tests:/app/packages/core/tests
       - ./apps/web/tests:/app/apps/web/tests
-      - ./test-results:/app/test-results
+      - ./test-results/frontend:/app/test-results
     networks:
       - yaytsa-network
     depends_on:

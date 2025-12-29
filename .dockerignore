@@ -61,9 +61,9 @@ tmp
 # Test media
 test-media
 
-# Integration tests
+# Integration tests (keep config for test image)
 run-integration-tests.sh
-vitest.integration.config.ts
+# Note: vitest.integration.config.ts is needed for test image, not ignored
 
 # Maven/Java build artifacts
 server/target/

@@ -90,7 +90,7 @@ export default defineConfig({
         hmr: {
           protocol: 'wss',
         },
-        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal'],
+        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal', 'frontend'],
         proxy: {
           '/api': {
             target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
@@ -102,7 +102,7 @@ export default defineConfig({
     : {
         strictPort: true,
         port: 5173,
-        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal'],
+        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal', 'frontend'],
         proxy: {
           '/api': {
             target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
