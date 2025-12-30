@@ -4,12 +4,14 @@ import com.yaytsa.server.domain.service.SessionService;
 import com.yaytsa.server.dto.request.PlaybackProgressInfo;
 import com.yaytsa.server.dto.request.PlaybackStartInfo;
 import com.yaytsa.server.dto.request.PlaybackStopInfo;
+import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -103,8 +105,11 @@ public class SessionsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement in Phase 6
-    List<Map<String, Object>> sessions = new ArrayList<>();
+    List<SessionEntity> activeSessions = sessionService.getAllActiveSessions();
+
+    List<Map<String, Object>> sessions =
+        activeSessions.stream().map(this::mapSessionToResponse).collect(Collectors.toList());
+
     return ResponseEntity.ok(sessions);
   }
 
@@ -115,14 +120,40 @@ public class SessionsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement in Phase 6
-    Map<String, Object> session = new HashMap<>();
-    session.put("Id", sessionId);
-    session.put("UserId", "user-id");
-    session.put("DeviceId", "device-id");
-    session.put("NowPlayingItem", null);
+    Optional<SessionEntity> sessionOpt = sessionService.getSession(UUID.fromString(sessionId));
 
-    return ResponseEntity.ok(session);
+    if (sessionOpt.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    return ResponseEntity.ok(mapSessionToResponse(sessionOpt.get()));
+  }
+
+  private Map<String, Object> mapSessionToResponse(SessionEntity session) {
+    Map<String, Object> response = new HashMap<>();
+    response.put("Id", session.getId().toString());
+    response.put("UserId", session.getUser().getId().toString());
+    response.put("UserName", session.getUser().getUsername());
+    response.put("DeviceId", session.getDeviceId());
+    response.put("DeviceName", session.getDeviceName());
+    response.put("LastActivityDate", session.getLastUpdate().toString());
+
+    if (session.getNowPlayingItem() != null) {
+      Map<String, Object> nowPlaying = new HashMap<>();
+      nowPlaying.put("Id", session.getNowPlayingItem().getId().toString());
+      nowPlaying.put("Name", session.getNowPlayingItem().getName());
+      nowPlaying.put("Type", session.getNowPlayingItem().getType().name());
+      response.put("NowPlayingItem", nowPlaying);
+      response.put(
+          "PlayState",
+          Map.of(
+              "PositionTicks",
+              session.getPositionMs() * TICKS_PER_SECOND / 1000,
+              "IsPaused",
+              session.getPaused() != null && session.getPaused()));
+    }
+
+    return response;
   }
 
   @Operation(summary = "Keep session alive", description = "Ping to keep playback session active")

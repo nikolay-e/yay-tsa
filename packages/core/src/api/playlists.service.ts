@@ -28,7 +28,7 @@ export class PlaylistsService extends BaseService {
       IsPublic?: boolean;
     } = {
       Name: options.name,
-      UserId: options.userId || userId,
+      UserId: options.userId ?? userId,
     };
 
     if (options.itemIds && options.itemIds.length > 0) {
@@ -76,7 +76,7 @@ export class PlaylistsService extends BaseService {
   ): Promise<ItemsResult<AudioItem>> {
     const userId = this.requireAuth();
 
-    const params: Record<string, any> = {
+    const params: Record<string, string | number | boolean> = {
       UserId: userId,
     };
 
@@ -148,7 +148,7 @@ export class PlaylistsService extends BaseService {
   }): Promise<ItemsResult<Playlist>> {
     const userId = this.requireAuth();
 
-    const params: Record<string, any> = {
+    const params: Record<string, string | number | boolean> = {
       IncludeItemTypes: 'Playlist',
       Recursive: true,
       Fields: 'PrimaryImageAspectRatio,ChildCount',

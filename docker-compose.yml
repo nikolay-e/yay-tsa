@@ -11,6 +11,7 @@ services:
   database:
     image: postgres:16-alpine
     container_name: yaytsa-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-yaytsa}
       POSTGRES_USER: ${DB_USER:-yaytsa}
@@ -27,6 +28,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   # Yaytsa Media Server (Java Backend)
   backend:
@@ -34,6 +41,7 @@ services:
       context: ./services/server
       dockerfile: Dockerfile
     container_name: yaytsa-backend
+    restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       DB_HOST: database
@@ -65,11 +73,17 @@ services:
       database:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8096/manage/health']
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8096/api/manage/health']
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
   # Frontend (Vite dev server)
   frontend:
@@ -78,6 +92,7 @@ services:
       dockerfile: apps/web/Dockerfile
       target: development
     container_name: yaytsa-frontend
+    restart: unless-stopped
     environment:
       YAYTSA_BACKEND_URL: http://backend:8096
       VITE_YAYTSA_CLIENT_NAME: ${YAYTSA_CLIENT_NAME:-Yaytsa}
@@ -109,6 +124,12 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   # Audio Separator (Karaoke - vocal removal)
   # Build: KARAOKE_VARIANT=cpu (default, native ARM) or KARAOKE_VARIANT=gpu (x86_64 with CUDA)
@@ -120,12 +141,13 @@ services:
       args:
         VARIANT: ${KARAOKE_VARIANT:-cpu}
     container_name: yaytsa-audio-separator
+    restart: unless-stopped
     environment:
       MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
     volumes:
-      - ${MEDIA_PATH:-./services/server/media}:/media:ro
+      - ${MEDIA_PATH:-./services/server/media}:/media:rw
       - karaoke_stems:/app/stems
     networks:
       - yaytsa-network
@@ -141,6 +163,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
 
   # Backend Integration Tests
   backend-test:

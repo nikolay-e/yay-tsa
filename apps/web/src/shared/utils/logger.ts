@@ -22,7 +22,7 @@ function formatContext(context?: LogContext): string {
   if (!context || Object.keys(context).length === 0) {
     return '';
   }
-  return ` ${  JSON.stringify(context)}`;
+  return ` ${JSON.stringify(context)}`;
 }
 
 function shouldLog(level: LogLevel): boolean {

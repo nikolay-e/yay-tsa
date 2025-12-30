@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Play,
   Pause,
@@ -9,6 +9,10 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
+  Mic,
+  MicOff,
+  Timer,
+  X,
 } from 'lucide-react';
 import {
   usePlayerStore,
@@ -18,6 +22,9 @@ import {
   useIsShuffle,
   useRepeatMode,
   usePlayerError,
+  useIsKaraokeMode,
+  useKaraokeStatus,
+  useSleepTimer,
 } from '../stores/player.store';
 import { useTimingStore } from '../stores/timing.store';
 import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
@@ -26,17 +33,34 @@ import { cn } from '@/shared/utils/cn';
 import { toast } from '@/components/Toast';
 
 export function PlayerBar() {
+  const [hasImageError, setHasImageError] = useState(false);
+  const [showSleepModal, setShowSleepModal] = useState(false);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const volume = useVolume();
   const isShuffle = useIsShuffle();
   const repeatMode = useRepeatMode();
   const playerError = usePlayerError();
+  const isKaraokeMode = useIsKaraokeMode();
+  const karaokeStatus = useKaraokeStatus();
+  const sleepTimer = useSleepTimer();
   const currentTime = useTimingStore(s => s.currentTime);
   const duration = useTimingStore(s => s.duration);
 
-  const { pause, resume, next, previous, seek, setVolume, toggleShuffle, toggleRepeat } =
-    usePlayerStore();
+  const {
+    pause,
+    resume,
+    next,
+    previous,
+    seek,
+    setVolume,
+    toggleShuffle,
+    toggleRepeat,
+    toggleKaraoke,
+    refreshKaraokeStatus,
+    setSleepTimer,
+    clearSleepTimer,
+  } = usePlayerStore();
   const { getImageUrl } = useImageUrl();
 
   useEffect(() => {
@@ -44,6 +68,20 @@ export function PlayerBar() {
       toast.add('error', `Playback error: ${playerError.message}`);
     }
   }, [playerError]);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [currentTrack?.Id]);
+
+  useEffect(() => {
+    if (karaokeStatus?.state !== 'PROCESSING') return;
+
+    const interval = setInterval(() => {
+      void refreshKaraokeStatus();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [karaokeStatus?.state, refreshKaraokeStatus]);
 
   if (!currentTrack) {
     return null;
@@ -78,7 +116,7 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="safe-area-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-bg-secondary"
+      className="safe-area-bottom z-player border-border bg-bg-secondary fixed right-0 bottom-0 left-0 border-t"
     >
       <div
         data-testid="seek-slider"
@@ -88,7 +126,7 @@ export function PlayerBar() {
         aria-valuenow={Math.round(currentTime)}
         aria-valuemin={0}
         aria-valuemax={Math.round(duration)}
-        className="h-1 cursor-pointer bg-bg-tertiary"
+        className="bg-bg-tertiary h-1 cursor-pointer"
         onClick={handleSeek}
         onKeyDown={e => {
           if (duration === 0) return;
@@ -97,29 +135,30 @@ export function PlayerBar() {
         }}
       >
         <div
-          className="h-full bg-accent transition-[width] duration-100"
+          className="bg-accent h-full transition-[width] duration-100"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      <div className="flex items-center gap-md p-sm px-md">
-        <div className="flex min-w-0 flex-1 items-center gap-sm">
+      <div className="flex items-center gap-4 p-2 px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <img
-            src={imageUrl}
+            src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={currentTrack.Name}
-            className="h-12 w-12 flex-shrink-0 rounded-sm object-cover"
+            className="h-12 w-12 shrink-0 rounded-sm object-cover"
+            onError={() => setHasImageError(true)}
           />
           <div className="min-w-0">
-            <p data-testid="current-track-title" className="truncate font-medium text-text-primary">
+            <p data-testid="current-track-title" className="text-text-primary truncate font-medium">
               {currentTrack.Name}
             </p>
-            <p data-testid="current-track-artist" className="truncate text-sm text-text-secondary">
+            <p data-testid="current-track-artist" className="text-text-secondary truncate text-sm">
               {artistName}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-sm">
+        <div className="flex items-center gap-2">
           <button
             onClick={toggleShuffle}
             className={cn(
@@ -134,7 +173,7 @@ export function PlayerBar() {
           <button
             data-testid="previous-button"
             onClick={() => previous()}
-            className="p-2 text-text-secondary transition-colors hover:text-text-primary"
+            className="text-text-secondary hover:text-text-primary p-2 transition-colors"
             aria-label="Previous"
           >
             <SkipBack className="h-5 w-5" fill="currentColor" />
@@ -144,8 +183,8 @@ export function PlayerBar() {
             data-testid="play-pause-button"
             onClick={() => (isPlaying ? pause() : resume())}
             className={cn(
-              'rounded-full bg-accent p-3 text-white',
-              'transition-colors hover:bg-accent-hover'
+              'bg-accent rounded-full p-3 text-white',
+              'hover:bg-accent-hover transition-colors'
             )}
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >
@@ -159,7 +198,7 @@ export function PlayerBar() {
           <button
             data-testid="next-button"
             onClick={() => next()}
-            className="p-2 text-text-secondary transition-colors hover:text-text-primary"
+            className="text-text-secondary hover:text-text-primary p-2 transition-colors"
             aria-label="Next"
           >
             <SkipForward className="h-5 w-5" fill="currentColor" />
@@ -181,15 +220,49 @@ export function PlayerBar() {
           </button>
         </div>
 
-        <div className="hidden flex-1 items-center justify-end gap-sm md:flex">
-          <span className="text-xs tabular-nums text-text-tertiary">
+        <div className="hidden flex-1 items-center justify-end gap-2 md:flex">
+          <span className="text-text-tertiary text-xs tabular-nums">
             <span data-testid="current-time">{formatDuration(currentTime)}</span> /{' '}
             <span data-testid="total-time">{formatDuration(duration)}</span>
           </span>
 
+          {karaokeStatus?.state === 'PROCESSING' ? (
+            <div className="text-accent p-2">
+              <Mic className="h-4 w-4 animate-pulse" />
+            </div>
+          ) : (
+            <button
+              onClick={() => void toggleKaraoke()}
+              className={cn(
+                'rounded-full p-2 transition-colors',
+                isKaraokeMode ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+              )}
+              aria-label={isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode'}
+              title={isKaraokeMode ? 'Karaoke mode on' : 'Karaoke mode'}
+            >
+              {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowSleepModal(true)}
+            className={cn(
+              'relative rounded-full p-2 transition-colors',
+              sleepTimer.endTime ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+            )}
+            aria-label="Sleep timer"
+          >
+            <Timer className="h-4 w-4" />
+            {sleepTimer.endTime && (
+              <span className="bg-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white">
+                {Math.ceil((sleepTimer.endTime - Date.now()) / 60000)}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={toggleMute}
-            className="p-2 text-text-secondary transition-colors hover:text-text-primary"
+            className="text-text-secondary hover:text-text-primary p-2 transition-colors"
             aria-label={volume > 0 ? 'Mute' : 'Unmute'}
           >
             {volume > 0 ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
@@ -203,11 +276,67 @@ export function PlayerBar() {
             step="0.01"
             value={volume}
             onChange={handleVolumeChange}
-            className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-bg-tertiary accent-accent"
+            className="bg-bg-tertiary accent-accent h-1 w-24 cursor-pointer appearance-none rounded-full"
             aria-label="Volume"
           />
         </div>
       </div>
+
+      {showSleepModal && (
+        <div
+          className="z-modal-backdrop fixed inset-0 flex items-center justify-center bg-black/50"
+          onClick={() => setShowSleepModal(false)}
+        >
+          <div
+            className="bg-bg-secondary w-80 rounded-lg p-6 shadow-lg"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-text-primary text-lg font-semibold">Sleep Timer</h3>
+              <button
+                onClick={() => setShowSleepModal(false)}
+                className="text-text-secondary hover:text-text-primary p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {[5, 10, 15, 30, 45, 60].map(mins => (
+                <button
+                  key={mins}
+                  onClick={() => {
+                    setSleepTimer(mins);
+                    setShowSleepModal(false);
+                    toast.add('info', `Sleep timer set for ${mins} minutes`);
+                  }}
+                  className={cn(
+                    'w-full rounded-md p-3 text-left transition-colors',
+                    sleepTimer.minutes === mins
+                      ? 'bg-accent text-white'
+                      : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'
+                  )}
+                >
+                  {mins} minutes
+                </button>
+              ))}
+
+              {sleepTimer.endTime && (
+                <button
+                  onClick={() => {
+                    clearSleepTimer();
+                    setShowSleepModal(false);
+                    toast.add('info', 'Sleep timer cancelled');
+                  }}
+                  className="bg-error/10 text-error hover:bg-error/20 w-full rounded-md p-3 text-left transition-colors"
+                >
+                  Cancel timer
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

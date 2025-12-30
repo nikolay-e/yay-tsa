@@ -79,17 +79,17 @@ function ToastItem({ item }: { item: ToastMessage }) {
   return (
     <div
       className={cn(
-        'flex items-start gap-sm rounded-md border p-sm shadow-lg',
+        'flex items-start gap-2 rounded-md border p-2 shadow-lg',
         'animate-in slide-in-from-top-2 fade-in duration-200',
         styles[item.type]
       )}
       role="alert"
     >
-      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <p className="flex-1 text-sm">{item.message}</p>
       <button
         onClick={() => toast.remove(item.id)}
-        className="flex-shrink-0 rounded p-1 opacity-70 transition-opacity hover:opacity-100"
+        className="shrink-0 rounded p-1 opacity-70 transition-opacity hover:opacity-100"
         aria-label="Dismiss"
       >
         <X className="h-3 w-3" />
@@ -106,7 +106,7 @@ export function ToastContainer() {
   }
 
   return (
-    <div className="fixed right-md top-md z-50 flex max-w-sm flex-col gap-sm">
+    <div className="z-toast fixed top-4 right-4 flex max-w-sm flex-col gap-2">
       {items.map(item => (
         <ToastItem key={item.id} item={item} />
       ))}

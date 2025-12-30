@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import { type MusicAlbum } from '@yaytsa/core';
@@ -11,6 +11,11 @@ interface AlbumCardProps {
 }
 
 export function AlbumCard({ album, onPlay }: AlbumCardProps) {
+  const [hasImageError, setHasImageError] = useState(false);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [album.Id]);
   const { getImageUrl } = useImageUrl();
   const imageUrl = album.ImageTags?.Primary
     ? getImageUrl(album.Id, 'Primary', {
@@ -22,7 +27,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
 
   const artistName = album.Artists?.[0] || 'Unknown Artist';
 
-  const handlePlayClick = (e: React.MouseEvent) => {
+  const handlePlayClick = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onPlay?.();
@@ -33,36 +38,37 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
       data-testid="album-card"
       to={`/albums/${album.Id}`}
       className={cn(
-        'group block rounded-md p-sm',
-        'bg-bg-secondary transition-colors hover:bg-bg-tertiary'
+        'group block rounded-md p-2',
+        'bg-bg-secondary hover:bg-bg-tertiary transition-colors'
       )}
     >
-      <div className="relative mb-sm aspect-square overflow-hidden rounded-sm bg-bg-tertiary">
+      <div className="bg-bg-tertiary relative mb-2 aspect-square overflow-hidden rounded-sm">
         <img
-          src={imageUrl}
+          src={hasImageError ? getImagePlaceholder() : imageUrl}
           alt={album.Name}
           className="h-full w-full object-cover"
           loading="lazy"
+          onError={() => setHasImageError(true)}
         />
         <button
           onClick={handlePlayClick}
           className={cn(
-            'absolute bottom-2 right-2 h-10 w-10',
+            'absolute right-2 bottom-2 h-10 w-10',
             'flex items-center justify-center',
-            'rounded-full bg-accent text-white shadow-lg',
+            'bg-accent rounded-full text-white shadow-lg',
             'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100',
             'transition-all duration-200',
-            'hover:scale-105 hover:bg-accent-hover'
+            'hover:bg-accent-hover hover:scale-105'
           )}
           aria-label={`Play ${album.Name}`}
         >
           <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
         </button>
       </div>
-      <h3 data-testid="album-title" className="truncate font-medium text-text-primary">
+      <h3 data-testid="album-title" className="text-text-primary truncate font-medium">
         {album.Name}
       </h3>
-      <p className="truncate text-sm text-text-secondary">{artistName}</p>
+      <p className="text-text-secondary truncate text-sm">{artistName}</p>
     </Link>
   );
 }

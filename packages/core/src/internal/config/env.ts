@@ -77,8 +77,8 @@ export function getRequiredConfig(): Required<Omit<EnvironmentConfig, 'yaytsaDev
 
   return {
     yaytsaServerUrl: config.yaytsaServerUrl,
-    yaytsaClientName: config.yaytsaClientName!,
-    yaytsaDeviceName: config.yaytsaDeviceName!,
+    yaytsaClientName: config.yaytsaClientName || DEFAULT_CLIENT_NAME,
+    yaytsaDeviceName: config.yaytsaDeviceName || DEFAULT_DEVICE_NAME,
   };
 }
 

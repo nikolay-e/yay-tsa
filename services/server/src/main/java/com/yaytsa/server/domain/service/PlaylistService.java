@@ -127,6 +127,26 @@ public class PlaylistService {
     playlistEntryRepository.saveAll(allEntries);
   }
 
+  public Optional<PlaylistEntity> updatePlaylist(UUID playlistId, String name) {
+    return playlistRepository
+        .findById(playlistId)
+        .map(
+            playlist -> {
+              if (name != null && !name.isBlank()) {
+                playlist.setName(name);
+                itemRepository
+                    .findById(playlistId)
+                    .ifPresent(
+                        item -> {
+                          item.setName(name);
+                          item.setSortName(name.toLowerCase(java.util.Locale.ROOT));
+                          itemRepository.save(item);
+                        });
+              }
+              return playlistRepository.save(playlist);
+            });
+  }
+
   public void deletePlaylist(UUID playlistId) {
     playlistEntryRepository.deleteByPlaylistId(playlistId);
     playlistRepository.deleteById(playlistId);
@@ -136,6 +156,11 @@ public class PlaylistService {
   @Transactional(readOnly = true)
   public List<PlaylistEntity> getUserPlaylists(UUID userId) {
     return playlistRepository.findByUserIdOrderByCreatedAtDesc(userId);
+  }
+
+  @Transactional(readOnly = true)
+  public long getPlaylistItemCount(UUID playlistId) {
+    return playlistEntryRepository.countByPlaylistId(playlistId);
   }
 
   private void reorderPlaylistEntries(UUID playlistId) {

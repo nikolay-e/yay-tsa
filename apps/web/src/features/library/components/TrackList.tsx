@@ -36,30 +36,38 @@ export function TrackList({
         const artistName = track.Artists?.[0] || 'Unknown Artist';
 
         return (
-          <button
+          <div
             data-testid="track-row"
             key={track.Id}
+            role="button"
+            tabIndex={0}
             onClick={() => onPlayTrack?.(track, index)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onPlayTrack?.(track, index);
+              }
+            }}
             className={cn(
-              'flex w-full items-center gap-md rounded-sm p-sm text-left',
-              'group transition-colors hover:bg-bg-secondary',
+              'flex w-full cursor-pointer items-center gap-4 rounded-sm p-2 text-left',
+              'group hover:bg-bg-secondary transition-colors',
               isCurrentTrack && 'bg-bg-secondary'
             )}
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
               {isCurrentTrack ? (
                 isPlaying ? (
-                  <Pause className="h-4 w-4 text-accent" fill="currentColor" />
+                  <Pause className="text-accent h-4 w-4" fill="currentColor" />
                 ) : (
-                  <Play className="h-4 w-4 text-accent" fill="currentColor" />
+                  <Play className="text-accent h-4 w-4" fill="currentColor" />
                 )
               ) : (
                 <>
-                  <span className="text-sm text-text-tertiary group-hover:hidden">
+                  <span className="text-text-tertiary text-sm group-hover:hidden">
                     {track.IndexNumber || index + 1}
                   </span>
                   <Play
-                    className="hidden h-4 w-4 text-text-primary group-hover:block"
+                    className="text-text-primary hidden h-4 w-4 group-hover:block"
                     fill="currentColor"
                   />
                 </>
@@ -77,7 +85,7 @@ export function TrackList({
                 {track.Name}
               </p>
               {(showArtist || showAlbum) && (
-                <p className="truncate text-sm text-text-secondary">
+                <p className="text-text-secondary truncate text-sm">
                   {showArtist && artistName}
                   {showArtist && showAlbum && ' • '}
                   {showAlbum && track.Album}
@@ -85,7 +93,7 @@ export function TrackList({
               )}
             </div>
 
-            <span className="flex-shrink-0 text-sm text-text-tertiary">{duration}</span>
+            <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>
 
             <button
               onClick={e => {
@@ -94,9 +102,9 @@ export function TrackList({
               className="p-1 opacity-0 transition-opacity group-hover:opacity-100"
               aria-label="More options"
             >
-              <MoreHorizontal className="h-4 w-4 text-text-secondary" />
+              <MoreHorizontal className="text-text-secondary h-4 w-4" />
             </button>
-          </button>
+          </div>
         );
       })}
     </div>

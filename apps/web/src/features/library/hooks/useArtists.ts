@@ -12,7 +12,7 @@ interface UseArtistsOptions {
 }
 
 export function useArtists(options: UseArtistsOptions = {}) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
   const { enabled = true, ...queryOptions } = options;
 
   return useQuery({
@@ -28,7 +28,7 @@ export function useArtists(options: UseArtistsOptions = {}) {
 }
 
 export function useArtist(artistId: string | undefined) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return useQuery({
     queryKey: ['artist', artistId],
@@ -44,7 +44,7 @@ export function useArtist(artistId: string | undefined) {
 }
 
 export function useArtistAlbums(artistId: string | undefined) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return useQuery({
     queryKey: ['artist', artistId, 'albums'],
@@ -60,7 +60,7 @@ export function useArtistAlbums(artistId: string | undefined) {
 }
 
 export function useArtistTracks(artistId: string | undefined) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return useQuery({
     queryKey: ['artist', artistId, 'tracks'],

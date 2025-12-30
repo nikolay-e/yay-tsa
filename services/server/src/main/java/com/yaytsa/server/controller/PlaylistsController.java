@@ -47,10 +47,30 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement in Phase 7
+    List<Map<String, Object>> items = new ArrayList<>();
+
+    if (userId != null) {
+      List<PlaylistEntity> playlists = playlistService.getUserPlaylists(UUID.fromString(userId));
+
+      int endIndex = Math.min(startIndex + limit, playlists.size());
+      List<PlaylistEntity> paginatedPlaylists =
+          playlists.subList(Math.min(startIndex, playlists.size()), endIndex);
+
+      for (PlaylistEntity playlist : paginatedPlaylists) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("Id", playlist.getId().toString());
+        item.put("Name", playlist.getName());
+        item.put("Type", "Playlist");
+        item.put("IsFolder", true);
+        item.put("ChildCount", playlistService.getPlaylistItemCount(playlist.getId()));
+        items.add(item);
+      }
+    }
+
     Map<String, Object> response = new HashMap<>();
-    response.put("Items", new ArrayList<>());
-    response.put("TotalRecordCount", 0);
+    response.put("Items", items);
+    response.put("TotalRecordCount", items.size());
+    response.put("StartIndex", startIndex);
 
     return ResponseEntity.ok(response);
   }
@@ -89,11 +109,21 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement in Phase 7
+    Optional<PlaylistEntity> optionalPlaylist =
+        playlistService.getPlaylist(UUID.fromString(playlistId));
+
+    if (optionalPlaylist.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    PlaylistEntity playlistEntity = optionalPlaylist.get();
     Map<String, Object> playlist = new HashMap<>();
-    playlist.put("Id", playlistId);
-    playlist.put("Name", "Sample Playlist");
-    playlist.put("IsPublic", false);
+    playlist.put("Id", playlistEntity.getId().toString());
+    playlist.put("Name", playlistEntity.getName());
+    playlist.put("Type", "Playlist");
+    playlist.put("IsFolder", true);
+    playlist.put("ChildCount", playlistService.getPlaylistItemCount(playlistEntity.getId()));
+    playlist.put("UserId", playlistEntity.getUserId().toString());
 
     return ResponseEntity.ok(playlist);
   }
@@ -106,10 +136,19 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement in Phase 7
+    String name = playlistData.get("Name") != null ? playlistData.get("Name").toString() : null;
+    Optional<PlaylistEntity> updated =
+        playlistService.updatePlaylist(UUID.fromString(playlistId), name);
+
+    if (updated.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    PlaylistEntity playlistEntity = updated.get();
     Map<String, Object> playlist = new HashMap<>();
-    playlist.put("Id", playlistId);
-    playlist.put("Name", playlistData.get("Name"));
+    playlist.put("Id", playlistEntity.getId().toString());
+    playlist.put("Name", playlistEntity.getName());
+    playlist.put("Type", "Playlist");
 
     return ResponseEntity.ok(playlist);
   }
@@ -121,7 +160,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement in Phase 7
+    playlistService.deletePlaylist(UUID.fromString(playlistId));
     return ResponseEntity.noContent().build();
   }
 

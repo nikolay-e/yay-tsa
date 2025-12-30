@@ -28,4 +28,6 @@ public interface PlaylistEntryRepository extends JpaRepository<PlaylistEntryEnti
   void deleteByPlaylistId(@Param("playlistId") UUID playlistId);
 
   void deleteByPlaylistIdAndId(UUID playlistId, UUID entryId);
+
+  long countByPlaylistId(UUID playlistId);
 }

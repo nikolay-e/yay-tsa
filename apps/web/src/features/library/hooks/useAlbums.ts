@@ -13,7 +13,7 @@ interface UseAlbumsOptions {
 }
 
 export function useAlbums(options: UseAlbumsOptions = {}) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
   const { enabled = true, ...queryOptions } = options;
 
   return useQuery({
@@ -29,7 +29,7 @@ export function useAlbums(options: UseAlbumsOptions = {}) {
 }
 
 export function useRecentAlbums(limit = 20) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return useQuery({
     queryKey: ['albums', 'recent', limit],
@@ -44,7 +44,7 @@ export function useRecentAlbums(limit = 20) {
 }
 
 export function useRecentlyPlayedAlbums(limit = 20) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return useQuery({
     queryKey: ['albums', 'recentlyPlayed', limit],
@@ -59,7 +59,7 @@ export function useRecentlyPlayedAlbums(limit = 20) {
 }
 
 export function useAlbumTracks(albumId: string | undefined) {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return useQuery({
     queryKey: ['album', albumId, 'tracks'],

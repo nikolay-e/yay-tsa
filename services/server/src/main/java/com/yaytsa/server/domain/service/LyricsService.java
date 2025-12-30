@@ -20,12 +20,37 @@ public class LyricsService {
 
   private final ItemRepository itemRepository;
   private final Path mediaRootPath;
+  private volatile Path realMediaRoot;
 
   public LyricsService(
       ItemRepository itemRepository,
       @Value("${yaytsa.media.library.roots:/media}") String mediaRoot) {
     this.itemRepository = itemRepository;
     this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+    initRealMediaRoot();
+  }
+
+  private void initRealMediaRoot() {
+    try {
+      this.realMediaRoot = mediaRootPath.toRealPath();
+      log.info("Initialized media root path: {}", realMediaRoot);
+    } catch (IOException e) {
+      log.warn("Media root path not accessible at startup: {}", mediaRootPath);
+      this.realMediaRoot = null;
+    }
+  }
+
+  private synchronized Path getRealMediaRoot() {
+    if (realMediaRoot != null) {
+      return realMediaRoot;
+    }
+    try {
+      realMediaRoot = mediaRootPath.toRealPath();
+      return realMediaRoot;
+    } catch (IOException e) {
+      log.warn("Failed to resolve media root path: {}", e.getMessage());
+      return null;
+    }
   }
 
   public String getLyrics(AudioTrackEntity track) {
@@ -42,8 +67,9 @@ public class LyricsService {
       return null;
     }
 
-    Path audioFilePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
-    if (!audioFilePath.startsWith(mediaRootPath)) {
+    Path audioFilePath = Paths.get(item.getPath());
+    if (!isPathSafe(audioFilePath)) {
+      log.warn("Path traversal attempt detected for track {}: {}", trackId, audioFilePath);
       return null;
     }
 
@@ -51,12 +77,12 @@ public class LyricsService {
     String baseName = getFileNameWithoutExtension(audioFilePath.getFileName().toString());
 
     Path lrcPath = lyricsDir.resolve(baseName + ".lrc");
-    if (Files.exists(lrcPath)) {
+    if (Files.exists(lrcPath) && isPathSafe(lrcPath)) {
       return readFileContent(lrcPath);
     }
 
     Path txtPath = lyricsDir.resolve(baseName + ".txt");
-    if (Files.exists(txtPath)) {
+    if (Files.exists(txtPath) && isPathSafe(txtPath)) {
       return readFileContent(txtPath);
     }
 
@@ -77,5 +103,22 @@ public class LyricsService {
   private String getFileNameWithoutExtension(String fileName) {
     int lastDot = fileName.lastIndexOf('.');
     return lastDot > 0 ? fileName.substring(0, lastDot) : fileName;
+  }
+
+  private boolean isPathSafe(Path filePath) {
+    try {
+      Path root = getRealMediaRoot();
+      if (root == null) {
+        return false;
+      }
+      Path realPath = filePath.toRealPath();
+      return realPath.startsWith(root);
+    } catch (java.nio.file.NoSuchFileException e) {
+      log.debug("Path does not exist: {}", filePath);
+      return false;
+    } catch (IOException e) {
+      log.warn("Path validation failed for {}: {}", filePath, e.getMessage());
+      return false;
+    }
   }
 }

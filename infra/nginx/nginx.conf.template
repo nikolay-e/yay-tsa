@@ -231,7 +231,7 @@ http {
             limit_req zone=auth_limit burst=3 nodelay;
             limit_req_status 429;
 
-            proxy_pass __BACKEND_URL__/Users/AuthenticateByName;
+            proxy_pass __BACKEND_URL__/api/Users/AuthenticateByName;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -249,7 +249,6 @@ http {
 
             # Use variable to allow proxy_pass in regex location
             set $backend __BACKEND_URL__;
-            rewrite ^/api(/.*)$ $1 break;
             proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -271,7 +270,7 @@ http {
         location /api/ {
             limit_req zone=api_limit burst=50 nodelay;
 
-            proxy_pass __BACKEND_URL__/;
+            proxy_pass __BACKEND_URL__;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

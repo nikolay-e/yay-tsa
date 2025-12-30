@@ -16,7 +16,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -39,6 +38,7 @@ public class StreamingService {
   private final Path mediaRootPath;
   private final boolean xAccelRedirectEnabled;
   private final String xAccelInternalPath;
+  private volatile Path realMediaRoot;
 
   public StreamingService(
       ItemRepository itemRepository,
@@ -55,6 +55,30 @@ public class StreamingService {
     this.xAccelInternalPath = xAccelInternalPath;
     if (xAccelRedirectEnabled) {
       log.info("X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
+    }
+    initRealMediaRoot();
+  }
+
+  private void initRealMediaRoot() {
+    try {
+      this.realMediaRoot = mediaRootPath.toRealPath();
+      log.info("Initialized media root path: {}", realMediaRoot);
+    } catch (IOException e) {
+      log.warn("Media root path not accessible at startup: {}", mediaRootPath);
+      this.realMediaRoot = null;
+    }
+  }
+
+  private synchronized Path getRealMediaRoot() {
+    if (realMediaRoot != null) {
+      return realMediaRoot;
+    }
+    try {
+      realMediaRoot = mediaRootPath.toRealPath();
+      return realMediaRoot;
+    } catch (IOException e) {
+      log.warn("Failed to resolve media root path: {}", e.getMessage());
+      return null;
     }
   }
 
@@ -79,7 +103,7 @@ public class StreamingService {
 
     Path filePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
 
-    if (!filePath.startsWith(mediaRootPath)) {
+    if (!isPathSafe(filePath)) {
       log.error("Path traversal attempt detected for item {}: {}", itemId, filePath);
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
@@ -146,7 +170,7 @@ public class StreamingService {
 
     Path filePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
 
-    if (!filePath.startsWith(mediaRootPath)) {
+    if (!isPathSafe(filePath)) {
       log.error("Path traversal attempt detected for item {}: {}", itemId, filePath);
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
@@ -172,7 +196,7 @@ public class StreamingService {
 
     Path filePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
 
-    if (!filePath.startsWith(mediaRootPath)) {
+    if (!isPathSafe(filePath)) {
       log.error("Path traversal attempt detected for item {}: {}", itemId, filePath);
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
@@ -271,7 +295,20 @@ public class StreamingService {
   }
 
   private String mimeTypeFromContainer(String container) {
-    return switch (container.toLowerCase(java.util.Locale.ROOT)) {
+    if (container == null) {
+      return null;
+    }
+    for (String format : container.split(",")) {
+      String mime = getSingleContainerMimeType(format.trim().toLowerCase(java.util.Locale.ROOT));
+      if (mime != null) {
+        return mime;
+      }
+    }
+    return null;
+  }
+
+  private String getSingleContainerMimeType(String container) {
+    return switch (container) {
       case "mp3" -> "audio/mpeg";
       case "m4a", "aac" -> "audio/mp4";
       case "flac" -> "audio/flac";
@@ -283,17 +320,32 @@ public class StreamingService {
     };
   }
 
+  private boolean isPathSafe(Path filePath) {
+    try {
+      Path root = getRealMediaRoot();
+      if (root == null) {
+        return false;
+      }
+      Path realPath = filePath.toRealPath();
+      return realPath.startsWith(root);
+    } catch (java.nio.file.NoSuchFileException e) {
+      log.debug("Path does not exist: {}", filePath);
+      return false;
+    } catch (IOException e) {
+      log.warn("Path validation failed for {}: {}", filePath, e.getMessage());
+      return false;
+    }
+  }
+
   private String generateETag(Path filePath, long fileSize) {
     try {
-      String etag =
-          String.format(
-              "%d-%d-%d",
-              Files.getLastModifiedTime(filePath).toMillis(),
-              fileSize,
-              filePath.toAbsolutePath().hashCode());
-      return "\"" + DigestUtils.md5Hex(etag) + "\"";
+      long lastModified = Files.getLastModifiedTime(filePath).toMillis();
+      int pathHash = filePath.toAbsolutePath().toString().hashCode() & 0x7FFFFFFF;
+      String etag = String.format("%x-%x-%x", lastModified, fileSize, pathHash);
+      return "\"" + etag + "\"";
     } catch (IOException e) {
-      return "\"" + DigestUtils.md5Hex(filePath.toString() + fileSize) + "\"";
+      int pathHash = filePath.toAbsolutePath().toString().hashCode() & 0x7FFFFFFF;
+      return "\"" + String.format("%x-%x-%x", 0L, fileSize, pathHash) + "\"";
     }
   }
 }

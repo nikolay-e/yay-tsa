@@ -6,6 +6,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import jakarta.annotation.PreDestroy;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,7 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
@@ -43,6 +43,8 @@ public class KaraokeService {
   private final AudioSeparatorClient separatorClient;
   private final Path mediaRootPath;
   private final Path stemsRootPath;
+  private volatile Path realMediaRoot;
+  private volatile Path realStemsRoot;
 
   private final Map<UUID, JobEntry> processingJobs = new ConcurrentHashMap<>();
   private final ExecutorService separationExecutor = Executors.newFixedThreadPool(2);
@@ -58,21 +60,21 @@ public class KaraokeService {
     FAILED
   }
 
-  public record ProcessingStatus(ProcessingState state, String message, Integer progressPercent) {
+  public record ProcessingStatus(ProcessingState state, String message) {
     public static ProcessingStatus notStarted() {
-      return new ProcessingStatus(ProcessingState.NOT_STARTED, null, null);
+      return new ProcessingStatus(ProcessingState.NOT_STARTED, null);
     }
 
-    public static ProcessingStatus processing(String message, int progress) {
-      return new ProcessingStatus(ProcessingState.PROCESSING, message, progress);
+    public static ProcessingStatus processing(String message) {
+      return new ProcessingStatus(ProcessingState.PROCESSING, message);
     }
 
     public static ProcessingStatus ready() {
-      return new ProcessingStatus(ProcessingState.READY, null, 100);
+      return new ProcessingStatus(ProcessingState.READY, null);
     }
 
     public static ProcessingStatus failed(String message) {
-      return new ProcessingStatus(ProcessingState.FAILED, message, null);
+      return new ProcessingStatus(ProcessingState.FAILED, message);
     }
   }
 
@@ -87,8 +89,52 @@ public class KaraokeService {
     this.separatorClient = separatorClient;
     this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
     this.stemsRootPath = Paths.get(stemsPath).toAbsolutePath().normalize();
+    initRealPaths();
 
     cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
+  }
+
+  private void initRealPaths() {
+    try {
+      this.realMediaRoot = mediaRootPath.toRealPath();
+      log.info("Initialized media root path: {}", realMediaRoot);
+    } catch (IOException e) {
+      log.warn("Media root path not accessible at startup: {}", mediaRootPath);
+      this.realMediaRoot = null;
+    }
+    try {
+      this.realStemsRoot = stemsRootPath.toRealPath();
+      log.info("Initialized stems root path: {}", realStemsRoot);
+    } catch (IOException e) {
+      log.warn("Stems root path not accessible at startup: {}", stemsRootPath);
+      this.realStemsRoot = null;
+    }
+  }
+
+  private synchronized Path getRealMediaRoot() {
+    if (realMediaRoot != null) {
+      return realMediaRoot;
+    }
+    try {
+      realMediaRoot = mediaRootPath.toRealPath();
+      return realMediaRoot;
+    } catch (IOException e) {
+      log.warn("Failed to resolve media root path: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  private synchronized Path getRealStemsRoot() {
+    if (realStemsRoot != null) {
+      return realStemsRoot;
+    }
+    try {
+      realStemsRoot = stemsRootPath.toRealPath();
+      return realStemsRoot;
+    } catch (IOException e) {
+      log.warn("Failed to resolve stems root path: {}", e.getMessage());
+      return null;
+    }
   }
 
   private void cleanupExpiredJobs() {
@@ -164,8 +210,8 @@ public class KaraokeService {
       return false;
     }
 
-    Path audioFilePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
-    if (!audioFilePath.startsWith(mediaRootPath)) {
+    Path audioFilePath = Paths.get(item.getPath());
+    if (!isMediaPathSafe(audioFilePath)) {
       return false;
     }
 
@@ -252,8 +298,8 @@ public class KaraokeService {
       return;
     }
 
-    Path audioFilePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
-    if (!audioFilePath.startsWith(mediaRootPath)) {
+    Path audioFilePath = Paths.get(item.getPath());
+    if (!isMediaPathSafe(audioFilePath)) {
       log.error("Path traversal attempt detected for track {}: {}", trackId, audioFilePath);
       updateJobStatus(trackId, ProcessingStatus.failed("Invalid file path"));
       return;
@@ -270,39 +316,15 @@ public class KaraokeService {
       return;
     }
 
-    updateJobStatus(trackId, ProcessingStatus.processing("Starting separation...", 0));
+    updateJobStatus(trackId, ProcessingStatus.processing("Processing..."));
 
     String trackIdStr = trackId.toString();
-
-    ScheduledFuture<?> progressPoller =
-        cleanupScheduler.scheduleAtFixedRate(
-            () -> {
-              try {
-                AudioSeparatorClient.ProgressStatus progress =
-                    separatorClient.getProgress(trackIdStr);
-                if ("PROCESSING".equals(progress.state())) {
-                  updateJobStatus(
-                      trackId,
-                      ProcessingStatus.processing(
-                          progress.message() != null ? progress.message() : "Processing...",
-                          progress.progress()));
-                }
-              } catch (Exception e) {
-                log.debug("Progress poll failed for {}: {}", trackId, e.getMessage());
-              }
-            },
-            500,
-            500,
-            TimeUnit.MILLISECONDS);
 
     try {
       AudioSeparatorClient.SeparationResult result =
           CompletableFuture.supplyAsync(
                   () -> separatorClient.separate(audioFilePath, trackIdStr), separationExecutor)
               .get(SEPARATION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
-
-      progressPoller.cancel(false);
-      updateJobStatus(trackId, ProcessingStatus.processing("Saving to database...", 95));
 
       track.setKaraokeReady(true);
       track.setInstrumentalPath(result.instrumentalPath());
@@ -314,11 +336,9 @@ public class KaraokeService {
           "Karaoke processing completed for track {} in {}ms", trackId, result.processingTimeMs());
 
     } catch (TimeoutException e) {
-      progressPoller.cancel(true);
       log.error("Karaoke processing timed out for track {}", trackId);
       updateJobStatus(trackId, ProcessingStatus.failed("Processing timed out"));
     } catch (Exception e) {
-      progressPoller.cancel(true);
       log.error("Karaoke processing failed for track {}: {}", trackId, e.getMessage(), e);
       updateJobStatus(trackId, ProcessingStatus.failed(e.getMessage()));
     }
@@ -329,7 +349,62 @@ public class KaraokeService {
   }
 
   private boolean isStemPathSafe(Path path) {
-    return path.startsWith(mediaRootPath) || path.startsWith(stemsRootPath);
+    try {
+      Path mediaRoot = getRealMediaRoot();
+      Path stemsRoot = getRealStemsRoot();
+      if (mediaRoot == null && stemsRoot == null) {
+        return false;
+      }
+
+      Path absolutePath = path.toAbsolutePath().normalize();
+
+      if (Files.exists(absolutePath)) {
+        Path realPath = absolutePath.toRealPath();
+        return (mediaRoot != null && realPath.startsWith(mediaRoot))
+            || (stemsRoot != null && realPath.startsWith(stemsRoot));
+      }
+
+      Path parent = absolutePath.getParent();
+      if (parent == null || !Files.exists(parent)) {
+        log.debug("Parent directory does not exist for stem path: {}", path);
+        return false;
+      }
+      Path realParent = parent.toRealPath();
+      return (mediaRoot != null && realParent.startsWith(mediaRoot))
+          || (stemsRoot != null && realParent.startsWith(stemsRoot));
+
+    } catch (IOException e) {
+      log.warn("Stem path validation failed for {}: {}", path, e.getMessage());
+      return false;
+    }
+  }
+
+  private boolean isMediaPathSafe(Path path) {
+    try {
+      Path root = getRealMediaRoot();
+      if (root == null) {
+        return false;
+      }
+
+      Path absolutePath = path.toAbsolutePath().normalize();
+
+      if (Files.exists(absolutePath)) {
+        Path realPath = absolutePath.toRealPath();
+        return realPath.startsWith(root);
+      }
+
+      Path parent = absolutePath.getParent();
+      if (parent == null || !Files.exists(parent)) {
+        log.debug("Parent directory does not exist for media path: {}", path);
+        return false;
+      }
+      Path realParent = parent.toRealPath();
+      return realParent.startsWith(root);
+
+    } catch (IOException e) {
+      log.warn("Media path validation failed for {}: {}", path, e.getMessage());
+      return false;
+    }
   }
 
   public Path getInstrumentalPath(UUID trackId) {

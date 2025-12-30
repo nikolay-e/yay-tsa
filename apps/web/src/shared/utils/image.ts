@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 
 export function useImageUrl() {
-  const client = useAuthStore((state) => state.client);
+  const client = useAuthStore(state => state.client);
 
   return {
     getImageUrl: (

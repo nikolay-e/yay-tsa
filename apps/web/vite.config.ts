@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'fs';
 import path from 'path';
@@ -15,6 +16,7 @@ const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);
 export default defineConfig({
   envPrefix: ['VITE_', 'YAYTSA_'],
   plugins: [
+    tailwindcss(),
     react(),
     VitePWA({
       strategies: 'generateSW',
@@ -90,24 +92,36 @@ export default defineConfig({
         hmr: {
           protocol: 'wss',
         },
-        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal', 'frontend'],
+        allowedHosts: [
+          'localhost',
+          '127.0.0.1',
+          'vite-server',
+          'app-dev',
+          'host.docker.internal',
+          'frontend',
+        ],
         proxy: {
           '/api': {
             target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
             changeOrigin: true,
-            rewrite: path => path.replace(/^\/api/, ''),
           },
         },
       }
     : {
         strictPort: true,
         port: 5173,
-        allowedHosts: ['localhost', '127.0.0.1', 'vite-server', 'app-dev', 'host.docker.internal', 'frontend'],
+        allowedHosts: [
+          'localhost',
+          '127.0.0.1',
+          'vite-server',
+          'app-dev',
+          'host.docker.internal',
+          'frontend',
+        ],
         proxy: {
           '/api': {
             target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
             changeOrigin: true,
-            rewrite: path => path.replace(/^\/api/, ''),
           },
         },
       },

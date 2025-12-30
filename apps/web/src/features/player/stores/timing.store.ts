@@ -15,7 +15,7 @@ type TimingStore = TimingState & TimingActions;
 let rafId: number | null = null;
 let pendingUpdate: TimingState | null = null;
 
-export const useTimingStore = create<TimingStore>((set) => ({
+export const useTimingStore = create<TimingStore>(set => ({
   currentTime: 0,
   duration: 0,
 
@@ -41,5 +41,5 @@ export const useTimingStore = create<TimingStore>((set) => ({
   },
 }));
 
-export const useCurrentTime = () => useTimingStore((state) => state.currentTime);
-export const useDuration = () => useTimingStore((state) => state.duration);
+export const useCurrentTime = () => useTimingStore(state => state.currentTime);
+export const useDuration = () => useTimingStore(state => state.duration);

@@ -54,6 +54,7 @@ public class ImageService {
   private final AudioTrackRepository audioTrackRepository;
   private final Cache<String, byte[]> imageCache;
   private final Path mediaRootPath;
+  private volatile Path realMediaRoot;
 
   public ImageService(
       ImageRepository imageRepository,
@@ -70,6 +71,17 @@ public class ImageService {
             .expireAfterAccess(Duration.ofHours(1))
             .recordStats()
             .build();
+    initRealMediaRoot();
+  }
+
+  private void initRealMediaRoot() {
+    try {
+      this.realMediaRoot = mediaRootPath.toRealPath();
+      logger.info("Initialized media root path: {}", realMediaRoot);
+    } catch (IOException e) {
+      logger.warn("Media root path not accessible at startup: {}", mediaRootPath);
+      this.realMediaRoot = null;
+    }
   }
 
   public Optional<byte[]> getItemImage(UUID itemId, String imageTypeStr, ImageParams params) {
@@ -119,41 +131,60 @@ public class ImageService {
   }
 
   public Optional<byte[]> extractAlbumArt(Path audioFilePath) {
-    Path normalizedPath = audioFilePath.toAbsolutePath().normalize();
-
-    if (!normalizedPath.startsWith(mediaRootPath)) {
-      logger.error("Path traversal attempt detected in extractAlbumArt: {}", normalizedPath);
-      return Optional.empty();
-    }
-
-    if (!Files.exists(normalizedPath)) {
-      logger.warn("Audio file not found: {}", normalizedPath);
+    if (!isPathSafe(audioFilePath)) {
+      logger.warn("Audio file not accessible: {}", audioFilePath);
       return Optional.empty();
     }
 
     try {
-      AudioFile audioFile = AudioFileIO.read(normalizedPath.toFile());
+      AudioFile audioFile = AudioFileIO.read(audioFilePath.toFile());
       Tag tag = audioFile.getTag();
 
       if (tag != null && tag.getFirstArtwork() != null) {
         Artwork artwork = tag.getFirstArtwork();
         byte[] imageData = artwork.getBinaryData();
         logger.debug(
-            "Extracted album art from: {}, size: {} bytes", normalizedPath, imageData.length);
+            "Extracted album art from: {}, size: {} bytes", audioFilePath, imageData.length);
         return Optional.of(imageData);
       }
 
-      logger.debug("No embedded artwork found in: {}", normalizedPath);
+      logger.debug("No embedded artwork found in: {}", audioFilePath);
       return Optional.empty();
 
     } catch (Exception e) {
-      logger.error("Failed to extract album art from: {}", normalizedPath, e);
+      logger.error("Failed to extract album art from: {}", audioFilePath, e);
       return Optional.empty();
     }
   }
 
+  private synchronized Path getRealMediaRoot() {
+    if (realMediaRoot != null) {
+      return realMediaRoot;
+    }
+    try {
+      realMediaRoot = mediaRootPath.toRealPath();
+      return realMediaRoot;
+    } catch (IOException e) {
+      logger.warn("Failed to resolve media root path: {}", e.getMessage());
+      return null;
+    }
+  }
+
   private boolean isPathSafe(Path path) {
-    return path.startsWith(mediaRootPath);
+    try {
+      Path root = getRealMediaRoot();
+      if (root == null) {
+        return false;
+      }
+      Path realPath = path.toRealPath();
+      return realPath.startsWith(root);
+    } catch (java.nio.file.NoSuchFileException e) {
+      logger.debug("Path does not exist: {}", path);
+      return false;
+    } catch (IOException e) {
+      logger.warn("Path validation failed for {}: {}", path, e.getMessage());
+      return false;
+    }
   }
 
   private Optional<byte[]> loadImageData(UUID itemId, ImageType imageType) throws IOException {
@@ -218,15 +249,9 @@ public class ImageService {
       }
 
       if (folder != null) {
-        Path normalizedFolder = folder.toAbsolutePath().normalize();
-        if (!normalizedFolder.startsWith(mediaRootPath)) {
-          logger.error("Path traversal attempt detected in folder artwork: {}", normalizedFolder);
-          return Optional.empty();
-        }
-
         for (String artworkName : ARTWORK_NAMES) {
-          Path artworkPath = normalizedFolder.resolve(artworkName).toAbsolutePath().normalize();
-          if (artworkPath.startsWith(mediaRootPath) && Files.exists(artworkPath)) {
+          Path artworkPath = folder.resolve(artworkName);
+          if (isPathSafe(artworkPath) && Files.exists(artworkPath)) {
             logger.debug("Found folder artwork at: {}", artworkPath);
             return Optional.of(Files.readAllBytes(artworkPath));
           }

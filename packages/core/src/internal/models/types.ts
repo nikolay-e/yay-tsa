@@ -94,10 +94,16 @@ export interface UserPolicy {
   SyncPlayAccess: string;
 }
 
+export interface SessionUserInfo {
+  Id: string;
+  UserId: string;
+  UserName: string;
+}
+
 export interface SessionInfo {
   PlayState: PlayState;
-  AdditionalUsers: any[];
-  Capabilities: any;
+  AdditionalUsers: SessionUserInfo[];
+  Capabilities: Record<string, unknown>;
   RemoteEndPoint: string;
   PlayableMediaTypes: string[];
   Id: string;
@@ -272,7 +278,7 @@ export interface MediaSourceInfo {
   SupportsProbing: boolean;
   VideoType?: string;
   MediaStreams?: MediaStream[];
-  MediaAttachments?: any[];
+  MediaAttachments?: Record<string, unknown>[];
   Formats?: string[];
   Bitrate?: number;
   RequiredHttpHeaders?: Record<string, string>;
@@ -416,7 +422,7 @@ export class MediaServerError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
-    public response?: any
+    public response?: unknown
   ) {
     super(message);
     this.name = 'MediaServerError';
@@ -424,7 +430,7 @@ export class MediaServerError extends Error {
 }
 
 export class AuthenticationError extends MediaServerError {
-  constructor(message: string, statusCode?: number, response?: any) {
+  constructor(message: string, statusCode?: number, response?: unknown) {
     super(message, statusCode, response);
     this.name = 'AuthenticationError';
   }

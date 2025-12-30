@@ -18,11 +18,11 @@ export class ItemsService extends BaseService {
    * Query items from library
    * Generic method for all item types
    */
-  async queryItems<T = any>(query: ItemsQuery): Promise<ItemsResult<T>> {
+  async queryItems<T = unknown>(query: ItemsQuery): Promise<ItemsResult<T>> {
     const userId = this.requireAuth();
 
     // Build query parameters (userId is required for /Items endpoint)
-    const params: Record<string, any> = {
+    const params: Record<string, string | number | boolean | string[]> = {
       userId,
     };
 
@@ -68,7 +68,7 @@ export class ItemsService extends BaseService {
       IncludeItemTypes: 'MusicAlbum',
       Recursive: true,
       Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Artists'],
-      SortBy: options?.sortBy || 'SortName',
+      SortBy: options?.sortBy ?? 'SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
@@ -105,7 +105,7 @@ export class ItemsService extends BaseService {
       IncludeItemTypes: 'MusicArtist',
       Recursive: true,
       Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Overview', 'ChildCount'],
-      SortBy: options?.sortBy || 'SortName',
+      SortBy: options?.sortBy ?? 'SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
@@ -143,7 +143,7 @@ export class ItemsService extends BaseService {
         'RunTimeTicks', // Required for track duration display and playback state
         'PrimaryImageAspectRatio',
       ],
-      SortBy: options?.sortBy || 'ParentIndexNumber,IndexNumber,SortName',
+      SortBy: options?.sortBy ?? 'ParentIndexNumber,IndexNumber,SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
@@ -188,7 +188,7 @@ export class ItemsService extends BaseService {
     const result = await this.client.get<ItemsResult<AudioItem>>(`/Items/${albumId}/Tracks`, {
       userId,
     });
-    return result?.Items || [];
+    return result?.Items ?? [];
   }
 
   /**
@@ -220,7 +220,7 @@ export class ItemsService extends BaseService {
     artists: MusicArtist[];
     tracks: AudioItem[];
   }> {
-    const limit = options?.limit || 20;
+    const limit = options?.limit ?? 20;
 
     const [albums, artists, tracks] = await Promise.all([
       this.getAlbums({ searchTerm, limit }),
@@ -251,7 +251,7 @@ export class ItemsService extends BaseService {
   async getRecentlyPlayedAlbums(limit?: number): Promise<ItemsResult<MusicAlbum>> {
     const userId = this.requireAuth();
 
-    const params: Record<string, unknown> = {
+    const params: Record<string, string | number | boolean> = {
       userId,
       IncludeItemTypes: 'MusicAlbum',
       Recursive: true,

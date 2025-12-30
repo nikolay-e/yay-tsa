@@ -70,6 +70,16 @@ public class SessionService {
     return sessionRepository.findAllByUserId(userId);
   }
 
+  @Transactional(readOnly = true)
+  public List<SessionEntity> getAllActiveSessions() {
+    return sessionRepository.findAll();
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<SessionEntity> getSession(UUID sessionId) {
+    return sessionRepository.findById(sessionId);
+  }
+
   private SessionEntity findOrCreateSession(UUID userId, String deviceId) {
     return sessionRepository
         .findByUserIdAndDeviceId(userId, deviceId)

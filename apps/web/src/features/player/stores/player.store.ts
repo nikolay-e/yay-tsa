@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import {
   PlaybackQueue,
   PlaybackReporter,
   ItemsService,
   type AudioItem,
   type MediaServerClient,
+  type KaraokeStatus,
 } from '@yaytsa/core';
 import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -23,6 +25,11 @@ interface PlayerState {
   repeatMode: RepeatMode;
   volume: number;
   error: Error | null;
+  isKaraokeMode: boolean;
+  karaokeStatus: KaraokeStatus | null;
+  karaokeEnabled: boolean;
+  sleepTimerMinutes: number | null;
+  sleepTimerEndTime: number | null;
 }
 
 interface PlayerActions {
@@ -38,6 +45,10 @@ interface PlayerActions {
   toggleShuffle: () => void;
   toggleRepeat: () => void;
   stop: () => void;
+  toggleKaraoke: () => Promise<void>;
+  refreshKaraokeStatus: () => Promise<void>;
+  setSleepTimer: (minutes: number | null) => void;
+  clearSleepTimer: () => void;
 }
 
 type PlayerStore = PlayerState & PlayerActions;
@@ -84,6 +95,8 @@ function saveVolume(volume: number): void {
   }
 }
 
+let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
+
 const initialState: PlayerState = {
   queue: new PlaybackQueue(),
   currentTrack: null,
@@ -93,6 +106,11 @@ const initialState: PlayerState = {
   repeatMode: 'off',
   volume: getSavedVolume(),
   error: null,
+  isKaraokeMode: false,
+  karaokeStatus: null,
+  karaokeEnabled: false,
+  sleepTimerMinutes: null,
+  sleepTimerEndTime: null,
 };
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -102,12 +120,12 @@ export const usePlayerStore = create<PlayerStore>()(
 
     engine.setVolume(initialState.volume);
 
-    engine.onTimeUpdate((seconds) => {
+    engine.onTimeUpdate(seconds => {
       const duration = engine.getDuration();
       useTimingStore.getState().updateTiming(seconds, duration);
 
       if (playbackReporter && currentItemId) {
-        playbackReporter.reportProgress(currentItemId, seconds, false).catch((err) => {
+        playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
           log.player.warn('Failed to report playback progress', { error: String(err) });
         });
       }
@@ -126,11 +144,11 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     });
 
-    engine.onLoading((isLoading) => {
+    engine.onLoading(isLoading => {
       set({ isLoading });
     });
 
-    engine.onError((error) => {
+    engine.onError(error => {
       log.player.error('Audio engine error', error);
       set({ error, isPlaying: false, isLoading: false });
     });
@@ -138,7 +156,7 @@ export const usePlayerStore = create<PlayerStore>()(
     session.setActionHandlers({
       onPlay: () => void get().resume(),
       onPause: () => get().pause(),
-      onSeek: (seconds) => get().seek(seconds),
+      onSeek: seconds => get().seek(seconds),
       onNext: () => void get().next(),
       onPrevious: () => void get().previous(),
     });
@@ -202,7 +220,10 @@ export const usePlayerStore = create<PlayerStore>()(
         if (currentLoadId !== loadId) {
           return;
         }
-        log.player.error('Failed to load and play track', error, { trackId: track.Id, trackName: track.Name });
+        log.player.error('Failed to load and play track', error, {
+          trackId: track.Id,
+          trackName: track.Name,
+        });
         set({
           error: error instanceof Error ? error : new Error(String(error)),
           isPlaying: false,
@@ -215,7 +236,7 @@ export const usePlayerStore = create<PlayerStore>()(
     return {
       ...initialState,
 
-      playTrack: async (track) => {
+      playTrack: async track => {
         const { queue } = get();
         queue.setQueue([track], 0);
         await loadAndPlay(track);
@@ -255,9 +276,11 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ isPlaying: false });
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, engine.getCurrentTime(), true).catch((err) => {
-            log.player.warn('Failed to report pause', { error: String(err) });
-          });
+          playbackReporter
+            .reportProgress(currentItemId, engine.getCurrentTime(), true)
+            .catch(err => {
+              log.player.warn('Failed to report pause', { error: String(err) });
+            });
         }
       },
 
@@ -266,9 +289,11 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ isPlaying: true });
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, engine.getCurrentTime(), false).catch((err) => {
-            log.player.warn('Failed to report resume', { error: String(err) });
-          });
+          playbackReporter
+            .reportProgress(currentItemId, engine.getCurrentTime(), false)
+            .catch(err => {
+              log.player.warn('Failed to report resume', { error: String(err) });
+            });
         }
       },
 
@@ -311,18 +336,18 @@ export const usePlayerStore = create<PlayerStore>()(
         }
       },
 
-      seek: (seconds) => {
+      seek: seconds => {
         engine.seek(seconds);
         useTimingStore.getState().updateTiming(seconds, engine.getDuration());
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch((err) => {
+          playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch(err => {
             log.player.warn('Failed to report seek', { error: String(err) });
           });
         }
       },
 
-      setVolume: (level) => {
+      setVolume: level => {
         engine.setVolume(level);
         saveVolume(level);
         set({ volume: level });
@@ -349,11 +374,16 @@ export const usePlayerStore = create<PlayerStore>()(
         useTimingStore.getState().reset();
 
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportStopped(currentItemId, 0).catch((err) => {
+          playbackReporter.reportStopped(currentItemId, 0).catch(err => {
             log.player.warn('Failed to report stop', { error: String(err) });
           });
           playbackReporter = null;
           currentItemId = null;
+        }
+
+        if (sleepTimerId) {
+          clearTimeout(sleepTimerId);
+          sleepTimerId = null;
         }
 
         set({
@@ -361,15 +391,117 @@ export const usePlayerStore = create<PlayerStore>()(
           isPlaying: false,
           isLoading: false,
           error: null,
+          sleepTimerMinutes: null,
+          sleepTimerEndTime: null,
         });
+      },
+
+      toggleKaraoke: async () => {
+        const { currentTrack, isKaraokeMode, isPlaying } = get();
+        if (!currentTrack || !currentClient) return;
+
+        const newKaraokeMode = !isKaraokeMode;
+        const currentTime = engine.getCurrentTime();
+
+        set({ isLoading: true });
+
+        try {
+          if (newKaraokeMode) {
+            const status = await currentClient.getKaraokeStatus(currentTrack.Id);
+            set({ karaokeStatus: status });
+
+            if (status.state === 'NOT_STARTED') {
+              await currentClient.requestKaraokeProcessing(currentTrack.Id);
+              set({ karaokeStatus: { state: 'PROCESSING', message: null } });
+              set({ isLoading: false });
+              return;
+            }
+
+            if (status.state === 'PROCESSING') {
+              set({ isLoading: false });
+              return;
+            }
+
+            if (status.state === 'READY') {
+              const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
+              await engine.load(instrumentalUrl);
+              engine.seek(currentTime);
+              if (isPlaying) await engine.play();
+            }
+          } else {
+            const itemsService = new ItemsService(currentClient);
+            const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
+            await engine.load(streamUrl);
+            engine.seek(currentTime);
+            if (isPlaying) await engine.play();
+          }
+
+          set({ isKaraokeMode: newKaraokeMode, isLoading: false });
+        } catch (error) {
+          log.player.error('Failed to toggle karaoke mode', error);
+          set({ isLoading: false, error: error instanceof Error ? error : new Error(String(error)) });
+        }
+      },
+
+      refreshKaraokeStatus: async () => {
+        const { currentTrack, karaokeStatus } = get();
+        if (!currentTrack || !currentClient) return;
+        if (karaokeStatus?.state !== 'PROCESSING') return;
+
+        try {
+          const status = await currentClient.getKaraokeStatus(currentTrack.Id);
+          set({ karaokeStatus: status });
+
+          if (status.state === 'READY') {
+            const { isPlaying } = get();
+            const currentTime = getAudioEngine().getCurrentTime();
+            const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
+            await getAudioEngine().load(instrumentalUrl);
+            getAudioEngine().seek(currentTime);
+            if (isPlaying) await getAudioEngine().play();
+            set({ isKaraokeMode: true });
+          }
+        } catch (error) {
+          log.player.warn('Failed to refresh karaoke status', { error: String(error) });
+        }
+      },
+
+      setSleepTimer: (minutes: number | null) => {
+        if (sleepTimerId) {
+          clearTimeout(sleepTimerId);
+          sleepTimerId = null;
+        }
+
+        if (minutes === null) {
+          set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+          return;
+        }
+
+        const endTime = Date.now() + minutes * 60 * 1000;
+        set({ sleepTimerMinutes: minutes, sleepTimerEndTime: endTime });
+
+        sleepTimerId = setTimeout(() => {
+          get().pause();
+          set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+          sleepTimerId = null;
+          log.player.info('Sleep timer triggered, playback paused');
+        }, minutes * 60 * 1000);
+      },
+
+      clearSleepTimer: () => {
+        if (sleepTimerId) {
+          clearTimeout(sleepTimerId);
+          sleepTimerId = null;
+        }
+        set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
       },
     };
   })
 );
 
 useAuthStore.subscribe(
-  (state) => state.client,
-  (client) => {
+  state => state.client,
+  client => {
     currentClient = client;
 
     if (!client) {
@@ -378,10 +510,19 @@ useAuthStore.subscribe(
   }
 );
 
-export const useCurrentTrack = () => usePlayerStore((state) => state.currentTrack);
-export const useIsPlaying = () => usePlayerStore((state) => state.isPlaying);
-export const useIsLoading = () => usePlayerStore((state) => state.isLoading);
-export const useVolume = () => usePlayerStore((state) => state.volume);
-export const useIsShuffle = () => usePlayerStore((state) => state.isShuffle);
-export const useRepeatMode = () => usePlayerStore((state) => state.repeatMode);
-export const usePlayerError = () => usePlayerStore((state) => state.error);
+export const useCurrentTrack = () => usePlayerStore(state => state.currentTrack);
+export const useIsPlaying = () => usePlayerStore(state => state.isPlaying);
+export const useIsLoading = () => usePlayerStore(state => state.isLoading);
+export const useVolume = () => usePlayerStore(state => state.volume);
+export const useIsShuffle = () => usePlayerStore(state => state.isShuffle);
+export const useRepeatMode = () => usePlayerStore(state => state.repeatMode);
+export const usePlayerError = () => usePlayerStore(state => state.error);
+export const useIsKaraokeMode = () => usePlayerStore(state => state.isKaraokeMode);
+export const useKaraokeStatus = () => usePlayerStore(state => state.karaokeStatus);
+export const useSleepTimer = () =>
+  usePlayerStore(
+    useShallow(state => ({
+      minutes: state.sleepTimerMinutes,
+      endTime: state.sleepTimerEndTime,
+    }))
+  );

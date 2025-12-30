@@ -16,7 +16,7 @@ export function AlbumGrid({ albums, onPlayAlbum }: AlbumGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-md sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {albums.map(album => (
         <AlbumCard key={album.Id} album={album} onPlay={() => onPlayAlbum?.(album)} />
       ))}

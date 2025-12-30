@@ -134,42 +134,4 @@ public class AudioSeparatorClient {
       return false;
     }
   }
-
-  public record ProgressStatus(
-      String trackId, String state, int progress, String message, SeparationResult result) {}
-
-  public ProgressStatus getProgress(String trackId) {
-    try {
-      @SuppressWarnings("unchecked")
-      Map<String, Object> response =
-          restClient.get().uri("/api/progress/{trackId}", trackId).retrieve().body(Map.class);
-
-      if (response == null) {
-        return new ProgressStatus(trackId, "NOT_STARTED", 0, null, null);
-      }
-
-      String state = (String) response.get("state");
-      int progress =
-          response.get("progress") != null ? ((Number) response.get("progress")).intValue() : 0;
-      String message = (String) response.get("message");
-
-      SeparationResult result = null;
-      @SuppressWarnings("unchecked")
-      Map<String, Object> resultMap = (Map<String, Object>) response.get("result");
-      if (resultMap != null) {
-        result =
-            new SeparationResult(
-                (String) resultMap.get("instrumental_path"),
-                (String) resultMap.get("vocal_path"),
-                resultMap.get("processing_time_ms") != null
-                    ? ((Number) resultMap.get("processing_time_ms")).longValue()
-                    : 0);
-      }
-
-      return new ProgressStatus(trackId, state, progress, message, result);
-    } catch (Exception e) {
-      log.warn("Failed to get progress for track {}: {}", trackId, e.getMessage());
-      return new ProgressStatus(trackId, "NOT_STARTED", 0, null, null);
-    }
-  }
 }

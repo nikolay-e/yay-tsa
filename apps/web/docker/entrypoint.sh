@@ -1,13 +1,44 @@
 #!/bin/sh
 set -e
 
-# Validate environment variables to prevent injection attacks
-validate_url() {
-  # Basic URL validation - must start with http:// or https://
-  echo "$1" | grep -qE '^https?://' || {
-    echo "ERROR: Invalid URL format: $1" >&2
+# Reject unsafe characters that could enable nginx config injection
+# Returns 0 if safe, 1 if unsafe characters detected
+is_safe_for_config() {
+  # Reject newlines, control characters, quotes, semicolons, and other dangerous chars
+  # Also reject # and & which break sed substitution (# is delimiter, & expands to matched text)
+  if printf '%s\n' "$1" | grep -qE '[[:cntrl:]]|[[:space:]]|[";'\''`\\$#&]'; then
+    printf 'ERROR: Unsafe characters detected in value: %s\n' "$1" >&2
     return 1
-  }
+  fi
+  return 0
+}
+
+# Validate URL for browser use (allows relative paths like /api)
+validate_browser_url() {
+  is_safe_for_config "$1" || return 1
+
+  # Allow absolute URLs (http/https) OR relative paths (/path)
+  if echo "$1" | grep -qE '^https?://[A-Za-z0-9._:-]+'; then
+    return 0
+  elif echo "$1" | grep -qE '^/[A-Za-z0-9._~/%+-]*$'; then
+    echo "INFO: Using relative path for browser: $1"
+    return 0
+  else
+    echo "ERROR: Invalid browser URL format: $1 (must be http(s):// or /path)" >&2
+    return 1
+  fi
+}
+
+# Validate URL for nginx proxy_pass (MUST be absolute http/https URL)
+validate_backend_url() {
+  is_safe_for_config "$1" || return 1
+
+  if echo "$1" | grep -qE '^https?://[A-Za-z0-9._:-]+'; then
+    return 0
+  else
+    echo "ERROR: Backend URL must be absolute http(s):// URL, got: $1" >&2
+    return 1
+  fi
 }
 
 # Detect runtime environment
@@ -28,13 +59,13 @@ detect_environment() {
 }
 
 # Determine server URL with smart fallback logic
-# If YAYTSA_SERVER_URL is set -> use it (Jellyfin or custom backend)
+# If YAYTSA_SERVER_URL is set -> use it (configured backend)
 # If NOT set -> auto-detect local backend based on environment
 ENVIRONMENT=$(detect_environment)
 echo "Detected environment: $ENVIRONMENT"
 
 if [ -n "$YAYTSA_SERVER_URL" ]; then
-  # Explicitly configured server URL (Jellyfin or custom backend)
+  # Explicitly configured server URL
   echo "INFO: Using configured server: $YAYTSA_SERVER_URL"
 else
   # Auto-detect local backend based on environment
@@ -42,23 +73,18 @@ else
 
   case "$ENVIRONMENT" in
   "kubernetes")
-    # Kubernetes service discovery
-    YAYTSA_SERVER_URL="http://jellyfin.default.svc.cluster.local:8096"
-    echo "INFO: Using Kubernetes service discovery: $YAYTSA_SERVER_URL"
+    # Kubernetes: use relative /api path (same as docker-compose)
+    # Browser can't resolve internal cluster DNS, nginx proxies to backend
+    YAYTSA_SERVER_URL="/api"
+    echo "INFO: Using relative path for browser API requests: $YAYTSA_SERVER_URL"
     ;;
   "docker-compose")
-    # Check if media-server service is available (local backend)
-    if wget --spider --quiet --timeout=2 --tries=1 http://media-server:8096/health 2>/dev/null ||
-      wget --spider --quiet --timeout=2 --tries=1 http://media-server:8096 2>/dev/null; then
-      YAYTSA_SERVER_URL="http://media-server:8096"
-      echo "INFO: Using local media-server backend: $YAYTSA_SERVER_URL"
-    else
-      echo "ERROR: Local backend mode but media-server service not reachable"
-      echo "Either:"
-      echo "  1. Set YAYTSA_SERVER_URL to use external server"
-      echo "  2. Start local backend: docker compose --profile local-backend up"
-      exit 1
-    fi
+    # For Docker Compose: use relative path /api for browser requests
+    # Nginx will proxy /api/* to backend (configured separately via YAYTSA_BACKEND_URL)
+    # This allows browser to work without knowing internal Docker hostnames
+    YAYTSA_SERVER_URL="/api"
+    echo "INFO: Using relative path for browser API requests: $YAYTSA_SERVER_URL"
+    echo "INFO: Nginx will proxy to backend (configure YAYTSA_BACKEND_URL for nginx)"
     ;;
   *)
     echo "ERROR: Cannot determine backend configuration"
@@ -68,9 +94,9 @@ else
   esac
 fi
 
-# Validate server URL
-validate_url "${YAYTSA_SERVER_URL}" || {
-  echo "SECURITY: Server URL must be a valid HTTP/HTTPS URL: $YAYTSA_SERVER_URL"
+# Validate server URL (browser-facing, allows relative paths)
+validate_browser_url "${YAYTSA_SERVER_URL}" || {
+  echo "SECURITY: Server URL must be a valid HTTP/HTTPS URL or relative path: $YAYTSA_SERVER_URL"
   exit 1
 }
 
@@ -106,10 +132,10 @@ window.__YAYTSA_CONFIG__ = ${CONFIG_JSON};
 EOF
 
 # Also create config.json for async loading (fallback)
-echo "$CONFIG_JSON" >/var/cache/nginx/config.json
+printf '%s\n' "$CONFIG_JSON" >/var/cache/nginx/config.json
 
-echo "Generated runtime config (sanitized for security):"
-echo "$CONFIG_JSON"
+printf 'Generated runtime config (sanitized for security):\n'
+printf '%s\n' "$CONFIG_JSON"
 
 # Load CSP hashes from build-time generated JSON file
 # Vite plugin computes hashes during build and stores them in .csp-hashes.json
@@ -135,7 +161,7 @@ else
   exit 1
 fi
 
-# Extract Jellyfin server domain for CSP connect-src
+# Extract server domain for CSP connect-src
 # CSP_MODE controls security policy strictness:
 #   - "strict": Only allow pre-configured YAYTSA_SERVER_URL domain
 #   - "relaxed": Allow all domains (for private deployments with multiple servers)
@@ -156,9 +182,16 @@ elif [ "$CSP_MODE" = "strict" ]; then
   fi
 elif [ "$CSP_MODE" = "auto" ]; then
   if [ -n "${YAYTSA_SERVER_URL}" ]; then
-    SERVER_DOMAIN=$(echo "${YAYTSA_SERVER_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')
-    CSP_CONNECT_SRC_DOMAINS="$SERVER_DOMAIN"
-    echo "CSP Mode: AUTO → STRICT - connect-src restricted to: $SERVER_DOMAIN"
+    # Check if it's a relative path or absolute URL
+    if echo "${YAYTSA_SERVER_URL}" | grep -qE '^https?://'; then
+      SERVER_DOMAIN=$(echo "${YAYTSA_SERVER_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')
+      CSP_CONNECT_SRC_DOMAINS="$SERVER_DOMAIN"
+      echo "CSP Mode: AUTO → STRICT - connect-src restricted to: $SERVER_DOMAIN"
+    else
+      # Relative path - allow same origin only
+      CSP_CONNECT_SRC_DOMAINS="'self'"
+      echo "CSP Mode: AUTO → SAME-ORIGIN - connect-src restricted to 'self' (relative path)"
+    fi
   else
     CSP_CONNECT_SRC_DOMAINS="*"
     echo "CSP Mode: AUTO → RELAXED - connect-src allows all domains (YAYTSA_SERVER_URL not set)"
@@ -172,10 +205,36 @@ fi
 YAYTSA_MEDIA_PATH="${YAYTSA_MEDIA_PATH:-/media}"
 echo "INFO: Media path for X-Accel-Redirect: $YAYTSA_MEDIA_PATH"
 
-# Backend URL for nginx proxying (internal service, no /api prefix)
-# Falls back to YAYTSA_SERVER_URL if not set (e.g., docker-compose)
-BACKEND_URL="${YAYTSA_BACKEND_URL:-$YAYTSA_SERVER_URL}"
+# Backend URL for nginx proxying (MUST be absolute http/https URL)
+# In docker-compose: defaults to http://backend:8096 (yaytsa-backend service)
+# In Kubernetes: use internal service discovery URL
+# NEVER falls back to YAYTSA_SERVER_URL (which can be relative /api)
+if [ -z "$YAYTSA_BACKEND_URL" ]; then
+  case "$ENVIRONMENT" in
+  "docker-compose")
+    YAYTSA_BACKEND_URL="http://backend:8096"
+    echo "INFO: Using default docker-compose backend URL: $YAYTSA_BACKEND_URL"
+    ;;
+  "kubernetes")
+    K8S_NAMESPACE="${KUBERNETES_NAMESPACE:-yaytsa-production}"
+    YAYTSA_BACKEND_URL="http://yaytsa-server.${K8S_NAMESPACE}.svc.cluster.local:8080"
+    echo "INFO: Using default Kubernetes backend URL: $YAYTSA_BACKEND_URL"
+    ;;
+  *)
+    echo "ERROR: YAYTSA_BACKEND_URL is required for nginx proxy configuration"
+    exit 1
+    ;;
+  esac
+fi
+
+BACKEND_URL="$YAYTSA_BACKEND_URL"
 echo "INFO: Backend URL for nginx: $BACKEND_URL"
+
+# Validate backend URL (MUST be absolute http/https for nginx proxy_pass)
+validate_backend_url "${BACKEND_URL}" || {
+  echo "SECURITY: Backend URL must be an absolute http(s):// URL for nginx proxy_pass"
+  exit 1
+}
 
 # Generate nginx.conf from template with CSP hash, domain, backend URL, and media path substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs

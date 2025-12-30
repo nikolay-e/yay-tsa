@@ -127,20 +127,20 @@ Key principle: Audio engine is a singleton class in pure TypeScript. React compo
 - Waveform visualization (Web Audio API + Canvas)
 - Offline support (IndexedDB + Service Worker)
 
-## Current Stack Comparison
+## Stack
 
-| Aspect        | Current                | Future (AI-Optimized)              |
-| ------------- | ---------------------- | ---------------------------------- |
-| Frontend      | SvelteKit + TypeScript | React + TypeScript + Tailwind CSS  |
-| UI Kit        | —                      | shadcn/ui + Radix                  |
-| State         | Svelte stores          | Zustand                            |
-| Build         | SvelteKit              | Vite                               |
-| API Layer     | fetch                  | TanStack Query + openapi-generator |
-| Backend       | Java Spring Boot       | Java Spring Boot (enhanced)        |
-| Database      | PostgreSQL             | PostgreSQL + jOOQ                  |
-| Search        | Basic                  | PostgreSQL FTS → Elasticsearch     |
-| Media Serving | Direct                 | Nginx X-Accel-Redirect             |
-| Streaming     | Direct files           | HLS adaptive                       |
+| Aspect        | Stack (AI-Optimized)               |
+| ------------- | ---------------------------------- |
+| Frontend      | React + TypeScript + Tailwind CSS  |
+| UI Kit        | shadcn/ui + Radix                  |
+| State         | Zustand                            |
+| Build         | Vite                               |
+| API Layer     | TanStack Query + openapi-generator |
+| Backend       | Java Spring Boot (enhanced)        |
+| Database      | PostgreSQL + jOOQ                  |
+| Search        | PostgreSQL FTS → Elasticsearch     |
+| Media Serving | Nginx X-Accel-Redirect             |
+| Streaming     | HLS adaptive                       |
 
 ## Project Initialization
 

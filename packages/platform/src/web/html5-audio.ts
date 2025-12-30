@@ -64,8 +64,15 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audio.addEventListener('pause', this.handlePause);
     this.audio.addEventListener('ended', this.handleEnded);
 
-    // Initialize Audio Context for iOS background playback support
-    // This helps ensure iOS properly manages the audio session
+    // AudioContext will be lazily initialized on first user gesture
+    // to comply with browser autoplay policies (especially iOS Safari)
+  }
+
+  private ensureAudioContext(): AudioContext | null {
+    if (this.audioContext) {
+      return this.audioContext;
+    }
+
     if (
       typeof window !== 'undefined' &&
       ('AudioContext' in window || 'webkitAudioContext' in window)
@@ -79,14 +86,16 @@ export class HTML5AudioEngine implements AudioEngine {
           windowWithAudio.AudioContext || windowWithAudio.webkitAudioContext;
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
+          log.info('AudioContext initialized lazily');
         }
       } catch (error) {
-        // Audio context creation failed - not critical, fallback to basic audio
         log.warn('AudioContext creation failed, using basic audio', {
           error: String(error),
         });
       }
     }
+
+    return this.audioContext;
   }
 
   private sanitizeError(error: unknown): string {
@@ -132,9 +141,18 @@ export class HTML5AudioEngine implements AudioEngine {
           this.currentLoadReject = reject;
 
           // Firefox race condition: already loaded
+          // Note: this.audio.src is always absolute, url may be relative
+          let absoluteUrl: string;
+          try {
+            absoluteUrl = new URL(url, window.location.href).href;
+          } catch {
+            this.currentLoadReject = null;
+            reject(new Error(`Invalid audio URL: ${this.sanitizeError(url)}`));
+            return;
+          }
           if (
             this.audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-            this.audio.src === url
+            this.audio.src === absoluteUrl
           ) {
             this.currentLoadReject = null;
             resolve();
@@ -144,6 +162,9 @@ export class HTML5AudioEngine implements AudioEngine {
           // Use 'canplay' for instant playback start - minimal buffering delay
           // Trade-off: may have brief stutter on very slow connections, but provides
           // gapless switching experience for track changes and karaoke mode
+          const LOAD_TIMEOUT_MS = 30000;
+          let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
           const handleCanPlay = () => {
             if (this.loadCancelled) return;
             cleanup();
@@ -156,16 +177,29 @@ export class HTML5AudioEngine implements AudioEngine {
             cleanup();
             this.currentLoadReject = null;
             const mediaError = this.audio.error;
-            const errorMessage = mediaError?.message || 'Unknown error';
+            const errorMessage = mediaError?.message ?? 'Unknown error';
             const sanitized = this.sanitizeError(errorMessage);
             reject(new Error(`Failed to load audio: ${sanitized}`));
           };
 
+          const handleTimeout = () => {
+            if (this.loadCancelled) return;
+            cleanup();
+            this.currentLoadReject = null;
+            reject(new Error('Audio load timeout after 30 seconds'));
+          };
+
           const cleanup = () => {
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
             this.audio.removeEventListener('canplay', handleCanPlay);
             this.audio.removeEventListener('error', handleError);
             this.loadEventCleanup = null;
           };
+
+          timeoutId = setTimeout(handleTimeout, LOAD_TIMEOUT_MS);
 
           // Store cleanup function for cancellation
           this.loadEventCleanup = cleanup;
@@ -192,9 +226,13 @@ export class HTML5AudioEngine implements AudioEngine {
     this.playPromiseChain = this.playPromiseChain
       .then(async () => {
         try {
-          // Resume Audio Context if suspended (iOS requirement for background playback)
-          if (this.audioContext?.state === 'suspended') {
-            await this.audioContext.resume();
+          // Lazily initialize and resume AudioContext (iOS/Safari autoplay policy)
+          const ctx = this.ensureAudioContext();
+          if (ctx) {
+            const state = ctx.state as string;
+            if (state === 'suspended' || state === 'interrupted') {
+              await ctx.resume();
+            }
           }
 
           await this.audio.play();
@@ -291,7 +329,7 @@ export class HTML5AudioEngine implements AudioEngine {
   onError(callback: (error: Error) => void): () => void {
     const handler = () => {
       const mediaError = this.audio.error;
-      const errorMessage = mediaError?.message || 'Unknown error';
+      const errorMessage = mediaError?.message ?? 'Unknown error';
       const sanitized = this.sanitizeError(errorMessage);
       const error = new Error(`Audio error: ${sanitized}`);
       callback(error);
@@ -429,7 +467,7 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   getAudioContext(): AudioContext | null {
-    return this.audioContext;
+    return this.ensureAudioContext();
   }
 
   getAudioElement(): HTMLAudioElement | null {
@@ -439,7 +477,8 @@ export class HTML5AudioEngine implements AudioEngine {
   setKaraokeMode(enabled: boolean): void {
     this.ensureNotDisposed();
 
-    if (!this.audioContext) {
+    const ctx = this.ensureAudioContext();
+    if (!ctx) {
       log.warn('AudioContext not available for karaoke mode');
       this.karaokeEnabled = false;
       return;
@@ -449,7 +488,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
     if (enabled && !this.vocalRemovalProcessor) {
       try {
-        this.vocalRemovalProcessor = new VocalRemovalProcessor(this.audioContext, {
+        this.vocalRemovalProcessor = new VocalRemovalProcessor(ctx, {
           enabled: true,
           bassPreservationCutoff: 120,
         });
@@ -496,7 +535,7 @@ export class HTML5AudioEngine implements AudioEngine {
         this.preloadedUrl = null;
         this.preloadPromise = null;
         const mediaError = targetElement.error;
-        const errorMessage = mediaError?.message || 'Unknown error';
+        const errorMessage = mediaError?.message ?? 'Unknown error';
         reject(new Error(`Failed to preload audio: ${this.sanitizeError(errorMessage)}`));
       };
 
@@ -577,8 +616,10 @@ export class HTML5AudioEngine implements AudioEngine {
 
     await Promise.all([fadeOutPromise, fadeInPromise]);
 
-    // Stop old element
+    // Stop old element and free memory
     currentElement.pause();
+    currentElement.src = '';
+    currentElement.load();
 
     // Swap active element
     this.activeElement = this.activeElement === 'primary' ? 'secondary' : 'primary';

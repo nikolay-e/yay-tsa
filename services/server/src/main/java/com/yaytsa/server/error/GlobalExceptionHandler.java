@@ -13,6 +13,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -120,6 +121,12 @@ public class GlobalExceptionHandler {
     log.warn("Access denied: path={}, user={}", request.getRequestURI(), MDC.get("userId"));
 
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+  }
+
+  @ExceptionHandler(AsyncRequestNotUsableException.class)
+  public void handleAsyncRequestNotUsable(
+      AsyncRequestNotUsableException ex, HttpServletRequest request) {
+    log.debug("Client disconnected during streaming: path={}", request.getRequestURI());
   }
 
   @ExceptionHandler(Exception.class)

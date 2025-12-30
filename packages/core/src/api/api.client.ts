@@ -537,7 +537,7 @@ export class MediaServerClient {
       api_key: this.token,
       deviceId: this.clientInfo.deviceId,
       audioCodec: options?.audioCodec || 'aac,mp3,opus',
-      container: options?.container || 'opus,mp3,aac,m4a,flac',
+      container: options?.container || 'mp3,aac,m4a,flac,opus',
     });
 
     // Add audioBitRate if specified, otherwise use static=true for direct streaming
@@ -588,7 +588,7 @@ export class MediaServerClient {
    */
   async getKaraokeStatus(trackId: string): Promise<KaraokeStatus> {
     const result = await this.get<KaraokeStatus>(`/Karaoke/${trackId}/status`);
-    return result ?? { state: 'NOT_STARTED', message: null, progressPercent: null };
+    return result ?? { state: 'NOT_STARTED', message: null };
   }
 
   /**
@@ -596,7 +596,7 @@ export class MediaServerClient {
    */
   async requestKaraokeProcessing(trackId: string): Promise<KaraokeStatus> {
     const result = await this.post<KaraokeStatus>(`/Karaoke/${trackId}/process`);
-    return result ?? { state: 'PROCESSING', message: 'Starting...', progressPercent: 0 };
+    return result ?? { state: 'PROCESSING', message: null };
   }
 
   /**
@@ -618,5 +618,4 @@ export class MediaServerClient {
 export interface KaraokeStatus {
   state: 'NOT_STARTED' | 'PROCESSING' | 'READY' | 'FAILED';
   message: string | null;
-  progressPercent: number | null;
 }
