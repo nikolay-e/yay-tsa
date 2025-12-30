@@ -79,6 +79,9 @@ spring:
 # Server Configuration
 server:
   port: ${SERVER_PORT:8096}
+  servlet:
+    context-path: /api
+  max-http-request-header-size: 64KB
   error:
     include-message: never
     include-binding-errors: never
@@ -92,6 +95,9 @@ server:
 
 # Management Endpoints (Actuator)
 management:
+  server:
+    port: ${MANAGEMENT_PORT:8096}
+    base-path: /
   endpoints:
     web:
       exposure:
