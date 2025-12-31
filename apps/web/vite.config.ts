@@ -42,27 +42,7 @@ export default defineConfig({
           {
             urlPattern: ({ url }) =>
               url.pathname.includes('/Audio/') && url.pathname.includes('/stream'),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'yaytsa-audio-0.0.0-placeholder',
-              plugins: [
-                {
-                  cacheKeyWillBeUsed: async ({ request }: { request: Request }) => {
-                    const url = new URL(request.url);
-                    return url.origin + url.pathname;
-                  },
-                },
-              ],
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 30 * 24 * 60 * 60,
-                purgeOnQuotaError: true,
-              },
-              cacheableResponse: {
-                statuses: [200, 206],
-              },
-              rangeRequests: true,
-            },
+            handler: 'NetworkOnly',
           },
         ],
         cleanupOutdatedCaches: true,
