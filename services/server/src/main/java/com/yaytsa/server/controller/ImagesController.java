@@ -7,6 +7,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +59,8 @@ public class ImagesController {
       @Parameter(description = "Output format (webp, jpeg, png)")
           @RequestParam(defaultValue = "webp")
           String format,
-      WebRequest webRequest) {
+      WebRequest webRequest,
+      HttpServletResponse response) {
 
     try {
       UUID itemUuid = UUID.fromString(itemId);
@@ -67,6 +72,16 @@ public class ImagesController {
 
       int clampedQuality = quality == null ? 85 : Math.min(100, Math.max(1, quality));
       ImageParams params = ImageParams.of(maxWidth, maxHeight, clampedQuality, format, tag);
+
+      boolean requiresProcessing = params.requiresResize() || !"jpeg".equalsIgnoreCase(format);
+
+      if (imageService.isXAccelRedirectEnabled() && !requiresProcessing) {
+        Optional<Path> imagePath = imageService.getImagePath(itemUuid, imageType);
+        if (imagePath.isPresent()) {
+          return handleXAccelRedirect(imagePath.get(), format, etag, response);
+        }
+      }
+
       Optional<byte[]> imageData = imageService.getItemImage(itemUuid, imageType, params);
 
       if (imageData.isEmpty()) {
@@ -88,6 +103,33 @@ public class ImagesController {
     }
   }
 
+  private ResponseEntity<byte[]> handleXAccelRedirect(
+      Path imagePath, String format, Optional<String> etag, HttpServletResponse response) {
+    String encodedPath = encodePathForHeader(imagePath.toAbsolutePath().toString());
+    String redirectPath = imageService.getXAccelInternalPath() + encodedPath;
+
+    response.setStatus(HttpServletResponse.SC_OK);
+    response.setContentType(getMediaTypeForFormat(format).toString());
+    response.setHeader("Cache-Control", "public, max-age=604800");
+    response.setHeader("X-Accel-Redirect", redirectPath);
+    etag.ifPresent(e -> response.setHeader("ETag", e));
+
+    log.debug("X-Accel-Redirect image to: {}", redirectPath);
+    return null;
+  }
+
+  private String encodePathForHeader(String path) {
+    StringBuilder encoded = new StringBuilder();
+    for (String segment : path.split("/")) {
+      if (!segment.isEmpty()) {
+        encoded
+            .append("/")
+            .append(URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20"));
+      }
+    }
+    return encoded.toString();
+  }
+
   @Operation(
       summary = "Get image by index",
       description = "Get image by type and index for items with multiple images")
@@ -102,10 +144,11 @@ public class ImagesController {
       @RequestParam(required = false) Integer maxHeight,
       @RequestParam(required = false) Integer quality,
       @RequestParam(defaultValue = "webp") String format,
-      WebRequest webRequest) {
+      WebRequest webRequest,
+      HttpServletResponse response) {
 
     return getItemImage(
-        itemId, imageType, apiKey, tag, maxWidth, maxHeight, quality, format, webRequest);
+        itemId, imageType, apiKey, tag, maxWidth, maxHeight, quality, format, webRequest, response);
   }
 
   @Operation(summary = "Upload image for item", description = "Upload a new image for a media item")

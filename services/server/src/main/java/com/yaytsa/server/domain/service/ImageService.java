@@ -34,9 +34,7 @@ import org.jaudiotagger.tag.images.Artwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ImageService {
@@ -55,16 +53,24 @@ public class ImageService {
   private final Cache<String, byte[]> imageCache;
   private final Path mediaRootPath;
   private volatile Path realMediaRoot;
+  private final boolean xAccelRedirectEnabled;
+  private final String xAccelInternalPath;
 
   public ImageService(
       ImageRepository imageRepository,
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
-      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot) {
+      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+      @Value("${yaytsa.media.streaming.x-accel-redirect.enabled:false}")
+          boolean xAccelRedirectEnabled,
+      @Value("${yaytsa.media.streaming.x-accel-redirect.internal-path:/_internal/media}")
+          String xAccelInternalPath) {
     this.imageRepository = imageRepository;
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+    this.xAccelRedirectEnabled = xAccelRedirectEnabled;
+    this.xAccelInternalPath = xAccelInternalPath;
     this.imageCache =
         Caffeine.newBuilder()
             .maximumSize(500)
@@ -72,6 +78,9 @@ public class ImageService {
             .recordStats()
             .build();
     initRealMediaRoot();
+    if (xAccelRedirectEnabled) {
+      logger.info("Image X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
+    }
   }
 
   private void initRealMediaRoot() {
@@ -187,34 +196,59 @@ public class ImageService {
     }
   }
 
-  private Optional<byte[]> loadImageData(UUID itemId, ImageType imageType) throws IOException {
+  public Optional<Path> getImagePath(UUID itemId, String imageTypeStr) {
+    try {
+      ImageType imageType = ImageType.valueOf(imageTypeStr);
+      return findImagePath(itemId, imageType);
+    } catch (IllegalArgumentException e) {
+      logger.warn("Invalid image type: {}", imageTypeStr);
+      return Optional.empty();
+    }
+  }
+
+  public boolean isXAccelRedirectEnabled() {
+    return xAccelRedirectEnabled;
+  }
+
+  public String getXAccelInternalPath() {
+    return xAccelInternalPath;
+  }
+
+  private Optional<Path> findImagePath(UUID itemId, ImageType imageType) {
     Optional<ImageEntity> imageEntity = imageRepository.findFirstByItemIdAndType(itemId, imageType);
 
     if (imageEntity.isPresent()) {
       Path imagePath = Paths.get(imageEntity.get().getPath()).toAbsolutePath().normalize();
-
-      if (!isPathSafe(imagePath)) {
-        logger.error("Path traversal attempt detected for image {}: {}", itemId, imagePath);
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+      if (isPathSafe(imagePath) && Files.exists(imagePath)) {
+        return Optional.of(imagePath);
       }
-
-      if (Files.exists(imagePath)) {
-        return Optional.of(Files.readAllBytes(imagePath));
-      }
-      logger.warn("Image file not found on disk: {}", imagePath);
+      logger.debug(
+          "Stored image path not accessible: {}, falling back to folder artwork", imagePath);
     }
 
     if (imageType == ImageType.Primary) {
       Optional<ItemEntity> item = itemRepository.findById(itemId);
       if (item.isPresent()) {
-        ItemEntity itemEntity = item.get();
-
-        Optional<byte[]> folderArt = findFolderArtwork(itemEntity);
-        if (folderArt.isPresent()) {
-          return folderArt;
+        Optional<Path> folderArtPath = findFolderArtworkPath(item.get());
+        if (folderArtPath.isPresent()) {
+          return folderArtPath;
         }
+      }
+    }
 
-        Optional<byte[]> embeddedArt = extractEmbeddedArtwork(itemEntity);
+    return Optional.empty();
+  }
+
+  private Optional<byte[]> loadImageData(UUID itemId, ImageType imageType) throws IOException {
+    Optional<Path> imagePath = findImagePath(itemId, imageType);
+    if (imagePath.isPresent()) {
+      return Optional.of(Files.readAllBytes(imagePath.get()));
+    }
+
+    if (imageType == ImageType.Primary) {
+      Optional<ItemEntity> item = itemRepository.findById(itemId);
+      if (item.isPresent()) {
+        Optional<byte[]> embeddedArt = extractEmbeddedArtwork(item.get());
         if (embeddedArt.isPresent()) {
           return embeddedArt;
         }
@@ -224,42 +258,59 @@ public class ImageService {
     return Optional.empty();
   }
 
-  private Optional<byte[]> findFolderArtwork(ItemEntity item) {
+  private Optional<Path> findFolderArtworkPath(ItemEntity item) {
     try {
-      Path folder = null;
-
-      if (item.getType() == ItemType.MusicAlbum) {
-        var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(item.getId());
-        if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
-          folder = Paths.get(tracks.get(0).getItem().getPath()).getParent();
-        }
-      } else if (item.getType() == ItemType.MusicArtist) {
-        var albums = itemRepository.findAllByParentId(item.getId());
-        for (ItemEntity album : albums) {
-          var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(album.getId());
-          if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
-            folder = Paths.get(tracks.get(0).getItem().getPath()).getParent().getParent();
-            break;
-          }
-        }
-      } else if (item.getPath() != null
-          && !item.getPath().startsWith("artist:")
-          && !item.getPath().startsWith("album:")) {
-        folder = Paths.get(item.getPath()).getParent();
-      }
-
+      Path folder = getFolderForItem(item);
       if (folder != null) {
         for (String artworkName : ARTWORK_NAMES) {
           Path artworkPath = folder.resolve(artworkName);
           if (isPathSafe(artworkPath) && Files.exists(artworkPath)) {
             logger.debug("Found folder artwork at: {}", artworkPath);
-            return Optional.of(Files.readAllBytes(artworkPath));
+            return Optional.of(artworkPath);
           }
         }
       }
     } catch (Exception e) {
+      logger.debug(
+          "Failed to find folder artwork path: itemId={}, itemType={}, error={}",
+          item.getId(),
+          item.getType(),
+          e.getMessage());
+    }
+    return Optional.empty();
+  }
+
+  private Path getFolderForItem(ItemEntity item) {
+    if (item.getType() == ItemType.MusicAlbum) {
+      var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(item.getId());
+      if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
+        return Paths.get(tracks.get(0).getItem().getPath()).getParent();
+      }
+    } else if (item.getType() == ItemType.MusicArtist) {
+      var albums = itemRepository.findAllByParentId(item.getId());
+      for (ItemEntity album : albums) {
+        var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(album.getId());
+        if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
+          return Paths.get(tracks.get(0).getItem().getPath()).getParent().getParent();
+        }
+      }
+    } else if (item.getPath() != null
+        && !item.getPath().startsWith("artist:")
+        && !item.getPath().startsWith("album:")) {
+      return Paths.get(item.getPath()).getParent();
+    }
+    return null;
+  }
+
+  private Optional<byte[]> findFolderArtwork(ItemEntity item) {
+    try {
+      Optional<Path> artworkPath = findFolderArtworkPath(item);
+      if (artworkPath.isPresent()) {
+        return Optional.of(Files.readAllBytes(artworkPath.get()));
+      }
+    } catch (Exception e) {
       logger.warn(
-          "Failed to find folder artwork: itemId={}, itemType={}, error={}",
+          "Failed to read folder artwork: itemId={}, itemType={}, error={}",
           item.getId(),
           item.getType(),
           e.getMessage());
