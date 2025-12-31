@@ -1,8 +1,10 @@
 package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.SessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
@@ -20,14 +22,20 @@ public class SessionService {
   private final SessionRepository sessionRepository;
   private final UserRepository userRepository;
   private final ItemRepository itemRepository;
+  private final AudioTrackRepository audioTrackRepository;
+  private final PlayStateService playStateService;
 
   public SessionService(
       SessionRepository sessionRepository,
       UserRepository userRepository,
-      ItemRepository itemRepository) {
+      ItemRepository itemRepository,
+      AudioTrackRepository audioTrackRepository,
+      PlayStateService playStateService) {
     this.sessionRepository = sessionRepository;
     this.userRepository = userRepository;
     this.itemRepository = itemRepository;
+    this.audioTrackRepository = audioTrackRepository;
+    this.playStateService = playStateService;
   }
 
   public void reportPlaybackStart(UUID userId, String deviceId, UUID itemId) {
@@ -38,6 +46,21 @@ public class SessionService {
     session.setPaused(false);
     session.setLastUpdate(OffsetDateTime.now());
     sessionRepository.save(session);
+
+    if (item != null) {
+      playStateService.incrementPlayCount(userId, itemId);
+
+      if (item.getType() == ItemType.AudioTrack) {
+        audioTrackRepository
+            .findById(itemId)
+            .ifPresent(
+                track -> {
+                  if (track.getAlbum() != null) {
+                    playStateService.incrementPlayCount(userId, track.getAlbum().getId());
+                  }
+                });
+      }
+    }
   }
 
   public void reportPlaybackProgress(
