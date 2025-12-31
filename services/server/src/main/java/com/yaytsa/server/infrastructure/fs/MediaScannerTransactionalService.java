@@ -261,24 +261,47 @@ public class MediaScannerTransactionalService {
     }
   }
 
-  private Optional<Path> findFolderArtwork(Path folder) {
-    String[] artworkNames = {
-      "cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png"
-    };
+  private static final String[] ARTWORK_NAMES = {
+    "cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png",
+    "Cover.jpg", "Cover.jpeg", "Cover.png", "Folder.jpg", "Folder.jpeg", "Folder.png"
+  };
 
-    for (String name : artworkNames) {
+  private static final String[] IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"
+  };
+
+  private Optional<Path> findFolderArtwork(Path folder) {
+    if (folder == null || !Files.isDirectory(folder)) {
+      return Optional.empty();
+    }
+
+    for (String name : ARTWORK_NAMES) {
       Path artworkPath = folder.resolve(name);
       if (Files.exists(artworkPath)) {
         return Optional.of(artworkPath);
       }
-      Path upperCase =
-          folder.resolve(
-              name.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + name.substring(1));
-      if (Files.exists(upperCase)) {
-        return Optional.of(upperCase);
+    }
+
+    try (var stream = Files.newDirectoryStream(folder)) {
+      for (Path file : stream) {
+        if (Files.isRegularFile(file) && isImageFile(file)) {
+          return Optional.of(file);
+        }
       }
+    } catch (Exception e) {
+      log.debug("Failed to scan folder for images: {}", folder);
     }
     return Optional.empty();
+  }
+
+  private boolean isImageFile(Path file) {
+    String name = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+    for (String ext : IMAGE_EXTENSIONS) {
+      if (name.endsWith(ext)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void saveFolderArtwork(ItemEntity albumItem, Path artworkPath) {

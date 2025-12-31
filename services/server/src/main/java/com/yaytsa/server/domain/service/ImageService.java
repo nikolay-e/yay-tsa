@@ -258,15 +258,32 @@ public class ImageService {
     return Optional.empty();
   }
 
+  private static final String[] IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"
+  };
+
   private Optional<Path> findFolderArtworkPath(ItemEntity item) {
     try {
       Path folder = getFolderForItem(item);
-      if (folder != null) {
-        for (String artworkName : ARTWORK_NAMES) {
-          Path artworkPath = folder.resolve(artworkName);
-          if (isPathSafe(artworkPath) && Files.exists(artworkPath)) {
-            logger.debug("Found folder artwork at: {}", artworkPath);
-            return Optional.of(artworkPath);
+      if (folder == null || !Files.isDirectory(folder)) {
+        return Optional.empty();
+      }
+
+      for (String artworkName : ARTWORK_NAMES) {
+        Path artworkPath = folder.resolve(artworkName);
+        if (isPathSafe(artworkPath) && Files.exists(artworkPath)) {
+          logger.debug("Found named artwork at: {}", artworkPath);
+          return Optional.of(artworkPath);
+        }
+      }
+
+      try (var stream = Files.newDirectoryStream(folder)) {
+        for (Path file : stream) {
+          if (Files.isRegularFile(file) && isImageFile(file)) {
+            if (isPathSafe(file)) {
+              logger.debug("Found image file in folder: {}", file);
+              return Optional.of(file);
+            }
           }
         }
       }
@@ -278,6 +295,16 @@ public class ImageService {
           e.getMessage());
     }
     return Optional.empty();
+  }
+
+  private boolean isImageFile(Path file) {
+    String name = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+    for (String ext : IMAGE_EXTENSIONS) {
+      if (name.endsWith(ext)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private Path getFolderForItem(ItemEntity item) {
