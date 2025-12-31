@@ -104,6 +104,7 @@ export default defineConfig({
           '/api': {
             target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
             changeOrigin: true,
+            rewrite: path => path.replace(/^\/api/, ''),
           },
         },
       }
@@ -122,6 +123,7 @@ export default defineConfig({
           '/api': {
             target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
             changeOrigin: true,
+            rewrite: path => path.replace(/^\/api/, ''),
           },
         },
       },

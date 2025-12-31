@@ -231,7 +231,7 @@ http {
             limit_req zone=auth_limit burst=3 nodelay;
             limit_req_status 429;
 
-            proxy_pass __BACKEND_URL__/api/Users/AuthenticateByName;
+            proxy_pass __BACKEND_URL__/Users/AuthenticateByName;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -246,6 +246,9 @@ http {
         location ~ ^/api/Audio/[^/]+/stream {
             limit_conn stream_conn 10;
             limit_req zone=stream_limit burst=20 nodelay;
+
+            # Strip /api prefix before proxying (backend no longer has context-path)
+            rewrite ^/api(.*)$ $1 break;
 
             # Use variable to allow proxy_pass in regex location
             set $backend __BACKEND_URL__;
@@ -267,9 +270,11 @@ http {
         }
 
         # API proxy to backend
+        # Strip /api prefix - backend no longer has context-path
         location /api/ {
             limit_req zone=api_limit burst=50 nodelay;
 
+            rewrite ^/api(.*)$ $1 break;
             proxy_pass __BACKEND_URL__;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
