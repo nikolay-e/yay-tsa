@@ -238,7 +238,7 @@ export class MediaServerClient {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const headers = this.buildRequestHeaders(options.headers, hasBody);
-        const response = await fetch(url, { ...options, headers });
+        const response = await fetch(url, { ...options, headers, credentials: 'include' });
         const duration = Date.now() - startTime;
 
         // Handle non-OK responses
