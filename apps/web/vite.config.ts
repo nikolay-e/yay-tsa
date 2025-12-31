@@ -22,8 +22,20 @@ export default defineConfig({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2}'],
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'yaytsa-navigation-0.0.0-placeholder',
+              networkTimeoutSeconds: 10,
+              fetchOptions: {
+                credentials: 'include',
+              },
+            },
+          },
           {
             urlPattern: ({ url }) =>
               url.pathname.includes('/Items/') && url.pathname.includes('/Images/'),
@@ -36,6 +48,9 @@ export default defineConfig({
               },
               cacheableResponse: {
                 statuses: [0, 200],
+              },
+              fetchOptions: {
+                credentials: 'include',
               },
             },
           },
