@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import { Home, Disc3, Users, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -91,9 +91,9 @@ function Sidebar() {
       </div>
       <nav className="flex-1 px-2">
         {navItems.map(item => (
-          <a
+          <Link
             key={item.href}
-            href={item.href}
+            to={item.href}
             data-testid={
               item.href === '/' ? 'nav-home' : item.href === '/albums' ? 'nav-albums' : undefined
             }
@@ -105,7 +105,7 @@ function Sidebar() {
           >
             <item.icon className="h-5 w-5" />
             <span>{item.label}</span>
-          </a>
+          </Link>
         ))}
       </nav>
       <div className="border-border border-t p-4">
@@ -134,9 +134,9 @@ function BottomTabBar() {
   return (
     <nav className="pb-safe z-bottom-tab border-border bg-bg-secondary fixed right-0 bottom-0 left-0 flex border-t md:hidden">
       {tabs.map(tab => (
-        <a
+        <Link
           key={tab.href}
-          href={tab.href}
+          to={tab.href}
           data-testid={
             tab.href === '/' ? 'nav-home' : tab.href === '/albums' ? 'nav-albums' : undefined
           }
@@ -148,7 +148,7 @@ function BottomTabBar() {
         >
           <tab.icon className="h-5 w-5" />
           <span className="text-xs">{tab.label}</span>
-        </a>
+        </Link>
       ))}
       <button
         onClick={() => void logout()}
