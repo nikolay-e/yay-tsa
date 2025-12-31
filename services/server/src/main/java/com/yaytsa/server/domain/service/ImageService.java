@@ -218,21 +218,31 @@ public class ImageService {
     Optional<ImageEntity> imageEntity = imageRepository.findFirstByItemIdAndType(itemId, imageType);
 
     if (imageEntity.isPresent()) {
-      Path imagePath = Paths.get(imageEntity.get().getPath()).toAbsolutePath().normalize();
-      if (isPathSafe(imagePath) && Files.exists(imagePath)) {
-        return Optional.of(imagePath);
+      String storedPath = imageEntity.get().getPath();
+      if (storedPath != null && !storedPath.startsWith("/app/temp/")) {
+        Path imagePath = Paths.get(storedPath).toAbsolutePath().normalize();
+        if (isPathSafe(imagePath) && Files.exists(imagePath)) {
+          logger.debug("Using stored image path: {}", imagePath);
+          return Optional.of(imagePath);
+        }
       }
-      logger.debug(
-          "Stored image path not accessible: {}, falling back to folder artwork", imagePath);
+      logger.debug("Stored image path not usable: {}, falling back to folder artwork", storedPath);
     }
 
     if (imageType == ImageType.Primary) {
       Optional<ItemEntity> item = itemRepository.findById(itemId);
       if (item.isPresent()) {
+        logger.debug(
+            "Looking for folder artwork: itemId={}, type={}, itemType={}",
+            itemId,
+            imageType,
+            item.get().getType());
         Optional<Path> folderArtPath = findFolderArtworkPath(item.get());
         if (folderArtPath.isPresent()) {
+          logger.debug("Found folder artwork: {}", folderArtPath.get());
           return folderArtPath;
         }
+        logger.debug("No folder artwork found for itemId={}", itemId);
       }
     }
 
@@ -265,31 +275,49 @@ public class ImageService {
   private Optional<Path> findFolderArtworkPath(ItemEntity item) {
     try {
       Path folder = getFolderForItem(item);
-      if (folder == null || !Files.isDirectory(folder)) {
+      logger.debug(
+          "getFolderForItem returned: {} for item={}, type={}",
+          folder,
+          item.getName(),
+          item.getType());
+
+      if (folder == null) {
+        logger.debug("No folder found for item: {}", item.getName());
+        return Optional.empty();
+      }
+
+      if (!Files.exists(folder)) {
+        logger.debug("Folder does not exist: {}", folder);
+        return Optional.empty();
+      }
+
+      if (!Files.isDirectory(folder)) {
+        logger.debug("Path is not a directory: {}", folder);
         return Optional.empty();
       }
 
       for (String artworkName : ARTWORK_NAMES) {
         Path artworkPath = folder.resolve(artworkName);
-        if (isPathSafe(artworkPath) && Files.exists(artworkPath)) {
-          logger.debug("Found named artwork at: {}", artworkPath);
+        if (Files.exists(artworkPath) && isPathSafe(artworkPath)) {
+          logger.debug("Found named artwork: {}", artworkPath);
           return Optional.of(artworkPath);
         }
       }
 
+      logger.debug("No standard artwork names found, scanning folder: {}", folder);
       try (var stream = Files.newDirectoryStream(folder)) {
         for (Path file : stream) {
-          if (Files.isRegularFile(file) && isImageFile(file)) {
-            if (isPathSafe(file)) {
-              logger.debug("Found image file in folder: {}", file);
-              return Optional.of(file);
-            }
+          if (Files.isRegularFile(file) && isImageFile(file) && isPathSafe(file)) {
+            logger.debug("Found image file: {}", file);
+            return Optional.of(file);
           }
         }
       }
+
+      logger.debug("No images found in folder: {}", folder);
     } catch (Exception e) {
-      logger.debug(
-          "Failed to find folder artwork path: itemId={}, itemType={}, error={}",
+      logger.warn(
+          "Error finding folder artwork: itemId={}, itemType={}, error={}",
           item.getId(),
           item.getType(),
           e.getMessage());
@@ -310,22 +338,31 @@ public class ImageService {
   private Path getFolderForItem(ItemEntity item) {
     if (item.getType() == ItemType.MusicAlbum) {
       var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(item.getId());
+      logger.debug("Album {} has {} tracks", item.getName(), tracks.size());
       if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
-        return Paths.get(tracks.get(0).getItem().getPath()).getParent();
+        String trackPath = tracks.get(0).getItem().getPath();
+        logger.debug("First track path: {}", trackPath);
+        return Paths.get(trackPath).getParent();
       }
     } else if (item.getType() == ItemType.MusicArtist) {
       var albums = itemRepository.findAllByParentId(item.getId());
+      logger.debug("Artist {} has {} albums", item.getName(), albums.size());
       for (ItemEntity album : albums) {
         var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(album.getId());
         if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
-          return Paths.get(tracks.get(0).getItem().getPath()).getParent().getParent();
+          String trackPath = tracks.get(0).getItem().getPath();
+          logger.debug("First track path for artist: {}", trackPath);
+          return Paths.get(trackPath).getParent().getParent();
         }
       }
     } else if (item.getPath() != null
         && !item.getPath().startsWith("artist:")
         && !item.getPath().startsWith("album:")) {
+      logger.debug("Using item path directly: {}", item.getPath());
       return Paths.get(item.getPath()).getParent();
     }
+    logger.debug(
+        "Could not determine folder for item: {}, type={}", item.getName(), item.getType());
     return null;
   }
 
