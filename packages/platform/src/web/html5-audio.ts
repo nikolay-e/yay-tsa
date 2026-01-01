@@ -3,9 +3,9 @@
  * Uses native browser <audio> element for playback
  */
 
+import { createLogger } from '@yaytsa/core';
 import { AudioEngine } from '../audio.interface.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';
-import { createLogger } from '@yaytsa/core';
 
 const log = createLogger('Audio');
 

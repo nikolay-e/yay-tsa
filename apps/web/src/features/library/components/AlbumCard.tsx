@@ -2,7 +2,7 @@ import { useState, useEffect, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import { type MusicAlbum } from '@yaytsa/core';
-import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
+import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { cn } from '@/shared/utils/cn';
 
 interface AlbumCardProps {

@@ -19,8 +19,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Controller for user-specific item queries. These endpoints are prefixed with
@@ -214,7 +216,9 @@ public class UsersController {
     ItemEntity item =
         itemService
             .findById(itemUuid)
-            .orElseThrow(() -> new RuntimeException("Item not found: " + itemId));
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));
 
     PlayStateEntity playState = playStateService.getPlayState(userUuid, itemUuid).orElse(null);
 

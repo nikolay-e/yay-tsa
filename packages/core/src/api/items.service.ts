@@ -3,7 +3,6 @@
  * Handles queries for music library items (albums, artists, tracks)
  */
 
-import { BaseService } from './base-api.service.js';
 import {
   ItemsQuery,
   ItemsResult,
@@ -12,6 +11,7 @@ import {
   MusicArtist,
   MediaServerError,
 } from '../internal/models/types.js';
+import { BaseService } from './base-api.service.js';
 
 export class ItemsService extends BaseService {
   /**

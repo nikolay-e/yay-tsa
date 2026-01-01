@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { type MusicArtist } from '@yaytsa/core';
-import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
+import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { cn } from '@/shared/utils/cn';
 
 interface ArtistCardProps {

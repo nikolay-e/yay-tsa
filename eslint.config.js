@@ -4,6 +4,8 @@ import typescriptParser from '@typescript-eslint/parser';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
+import boundaries from 'eslint-plugin-boundaries';
+import importPlugin from 'eslint-plugin-import';
 import globals from 'globals';
 
 export default [
@@ -17,6 +19,9 @@ export default [
       'packages/*/build/**',
       '**/*.config.js',
       '**/*.config.ts',
+      '**/tests/**',
+      '**/*.test.ts',
+      '**/*.spec.ts',
     ],
   },
 
@@ -127,6 +132,54 @@ export default [
       'no-implied-eval': 'error',
       'no-new-func': 'error',
       'no-script-url': 'error',
+
+      // Ban deep relative imports (max 2 levels up)
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../../../*'],
+              message:
+                'Use path aliases (@/, @app/, @features/, @shared/, @pages/) instead of deep relative imports.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Import cycle detection and case-sensitivity for all TS/TSX files
+  {
+    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts', 'apps/*/src/**/*.tsx'],
+    plugins: {
+      import: importPlugin,
+    },
+    settings: {
+      'import/resolver': {
+        typescript: {
+          alwaysTryTypes: true,
+          project: [
+            './packages/core/tsconfig.json',
+            './packages/platform/tsconfig.json',
+            './apps/web/tsconfig.json',
+          ],
+        },
+      },
+    },
+    rules: {
+      // Detect circular dependencies
+      'import/no-cycle': ['error', { maxDepth: 10, ignoreExternal: true }],
+      // Case-sensitive imports (critical for Linux CI)
+      'import/no-unresolved': ['error', { caseSensitive: true }],
+      // Enforce named exports order
+      'import/order': [
+        'warn',
+        {
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+          'newlines-between': 'never',
+        },
+      ],
     },
   },
 
@@ -195,6 +248,73 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       'prefer-const': 'error',
       'no-var': 'error',
+    },
+  },
+
+  // Import boundaries for web app
+  {
+    files: ['apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx'],
+    plugins: {
+      boundaries,
+    },
+    settings: {
+      'boundaries/include': ['apps/web/src/**/*'],
+      'boundaries/elements': [
+        { type: 'app', pattern: 'apps/web/src/app/**/*' },
+        { type: 'pages', pattern: 'apps/web/src/pages/**/*' },
+        { type: 'features', pattern: 'apps/web/src/features/**/*' },
+        { type: 'shared', pattern: 'apps/web/src/shared/**/*' },
+      ],
+    },
+    rules: {
+      'boundaries/element-types': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            // shared: can only import from shared (no features, pages, app)
+            { from: 'shared', allow: ['shared'] },
+            // features: can import from shared and other features (not pages or app)
+            { from: 'features', allow: ['shared', 'features'] },
+            // pages: can import from features and shared (not app)
+            { from: 'pages', allow: ['shared', 'features'] },
+            // app: can import from anything within the app
+            { from: 'app', allow: ['shared', 'features', 'pages', 'app'] },
+          ],
+        },
+      ],
+      'boundaries/no-private': 'error',
+    },
+  },
+
+  // Cross-package import boundaries
+  {
+    files: ['packages/*/src/**/*.ts'],
+    plugins: {
+      boundaries,
+    },
+    settings: {
+      'boundaries/include': ['packages/*/src/**/*', 'apps/*/src/**/*'],
+      'boundaries/elements': [
+        { type: 'core', pattern: 'packages/core/src/**/*' },
+        { type: 'platform', pattern: 'packages/platform/src/**/*' },
+        { type: 'web', pattern: 'apps/web/src/**/*' },
+      ],
+    },
+    rules: {
+      'boundaries/element-types': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            // core: standalone, no dependencies on other packages
+            { from: 'core', allow: ['core'] },
+            // platform: can import from core
+            { from: 'platform', allow: ['core', 'platform'] },
+            // packages cannot import from apps
+          ],
+        },
+      ],
     },
   },
 ];

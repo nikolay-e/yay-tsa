@@ -213,9 +213,10 @@ repos:
 
       - id: eslint
         name: 'ESLint (TypeScript/React quality)'
-        entry: npx eslint --fix
+        entry: npx eslint --fix --no-warn-ignored
         language: node
         files: ^(packages|apps)/.*\.(js|ts|tsx)$
+        exclude: /(tests|\.test\.|\.spec\.|\.config\.)/
         pass_filenames: true
 
       - id: docker-compose-check

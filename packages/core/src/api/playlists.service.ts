@@ -3,7 +3,6 @@
  * Handles creating and managing playlists
  */
 
-import { BaseService } from './base-api.service.js';
 import {
   Playlist,
   AudioItem,
@@ -11,6 +10,7 @@ import {
   CreatePlaylistDto,
   MediaServerError,
 } from '../internal/models/types.js';
+import { BaseService } from './base-api.service.js';
 
 export class PlaylistsService extends BaseService {
   /**

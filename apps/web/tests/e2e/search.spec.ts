@@ -67,15 +67,28 @@ test.describe('Search Functionality', () => {
     expect(resultsCount).toBeGreaterThan(0);
   });
 
-  test('should handle search input changes', async () => {
+  test('should update results when search input changes', async () => {
     await libraryPage.navigateToSearch();
 
-    await libraryPage.search('a');
-    await libraryPage.clearSearch();
-    await libraryPage.search('be');
+    // Get initial album for comparison
+    await libraryPage.goto();
+    const firstAlbum = await libraryPage.getAlbumTitle(0);
+    const searchTerm = firstAlbum.substring(0, 3);
 
-    const resultsCount = await libraryPage.getAlbumCount();
-    expect(resultsCount).toBeGreaterThanOrEqual(0);
+    await libraryPage.navigateToSearch();
+
+    // Search for something specific
+    await libraryPage.search(searchTerm);
+    const resultsWithTerm = await libraryPage.getAlbumCount();
+
+    // Clear and search for something unlikely to exist
+    await libraryPage.clearSearch();
+    await libraryPage.search('zzz999nonexistent');
+    const resultsWithNonexistent = await libraryPage.getAlbumCount();
+
+    // Results should differ - term should find albums, nonexistent should find none
+    expect(resultsWithTerm).toBeGreaterThan(0);
+    expect(resultsWithNonexistent).toBe(0);
   });
 
   test('should open album from search results', async () => {
@@ -92,17 +105,27 @@ test.describe('Search Functionality', () => {
     await expect(albumPage.albumTitle).toBeVisible();
   });
 
-  test('should handle special characters in search', async () => {
+  test('should handle special characters in search without crashing', async () => {
     await libraryPage.navigateToSearch();
 
+    // Search with special characters should not throw errors
     await libraryPage.search('test-album.2024');
-    // search() already waits for results
+
+    // Verify search completed and UI is still functional
+    const resultsCount = await libraryPage.getAlbumCount();
+    // May return 0 results, but should not crash - that's the expected behavior
+    expect(resultsCount).toBeGreaterThanOrEqual(0);
+    await expect(libraryPage.searchInput).toBeVisible();
   });
 
-  test('should preserve search on navigation', async ({ authenticatedPage }) => {
-    // Search is on home page, navigate away and back to check preservation
+  test('should clear search when navigating away and back', async ({ authenticatedPage }) => {
+    // Search is on home page, navigate away and back
     await libraryPage.navigateToSearch();
     await libraryPage.search('test');
+
+    // Verify search is active
+    const searchValueBefore = await libraryPage.searchInput.inputValue();
+    expect(searchValueBefore).toBe('test');
 
     // Navigate to albums page
     await authenticatedPage.goto('/albums');
@@ -112,9 +135,10 @@ test.describe('Search Functionality', () => {
     await authenticatedPage.goto('/');
     await expect(libraryPage.searchInput).toBeVisible();
 
-    const searchValue = await libraryPage.searchInput.inputValue();
-    // Search may or may not be preserved depending on implementation
-    expect(searchValue).toBeDefined();
+    const searchValueAfter = await libraryPage.searchInput.inputValue();
+    // Expected: search is cleared after navigation (fresh state)
+    // This is the correct UX - user starts fresh when returning
+    expect(searchValueAfter).toBe('');
   });
 
   test('should perform case-insensitive search', async () => {

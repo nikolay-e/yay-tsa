@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useArtist, useArtistAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
-import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
+import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 
 export function ArtistDetailPage() {

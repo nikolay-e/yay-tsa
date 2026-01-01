@@ -131,12 +131,38 @@ test.describe('Playback and Player Controls', () => {
     expect(currentTrack).toContain(thirdTrackTitle.split(' - ')[0]);
   });
 
-  test('should handle playback errors gracefully', async ({ playAlbumFromLibrary, playerBar }) => {
+  test('should recover from seek to invalid position', async ({
+    playAlbumFromLibrary,
+    playerBar,
+    authenticatedPage,
+  }) => {
     await playAlbumFromLibrary();
-
-    // Wait for audio to be ready
     await playerBar.waitForAudioReady();
 
+    // Try to seek to an invalid position (beyond duration)
+    const duration = await authenticatedPage.evaluate(() => {
+      const player = (window as any).__playerStore__;
+      return player?.audioEngine?.getDuration() ?? 0;
+    });
+
+    // Seek beyond end - should be clamped or handled gracefully
+    await authenticatedPage.evaluate(
+      dur => {
+        const player = (window as any).__playerStore__;
+        player?.audioEngine?.seek(dur + 100);
+      },
+      duration
+    );
+
+    // Player should still be functional after invalid seek
     expect(await playerBar.isVisible()).toBe(true);
+    const currentTime = await authenticatedPage.evaluate(() => {
+      const player = (window as any).__playerStore__;
+      return player?.audioEngine?.getCurrentTime() ?? -1;
+    });
+
+    // Time should be valid (clamped to duration or reset)
+    expect(currentTime).toBeGreaterThanOrEqual(0);
+    expect(currentTime).toBeLessThanOrEqual(duration + 1);
   });
 });

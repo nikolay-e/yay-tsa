@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
+import { type MusicAlbum } from '@yaytsa/core';
 import { useRecentlyPlayedAlbums } from '@/features/library/hooks/useAlbums';
 import { AlbumCard } from '@/features/library/components/AlbumCard';
 import { usePlayerStore } from '@/features/player/stores/player.store';
-import { type MusicAlbum } from '@yaytsa/core';
 
 export function HomePage() {
   const { data: recentlyPlayed, isLoading } = useRecentlyPlayedAlbums(10);

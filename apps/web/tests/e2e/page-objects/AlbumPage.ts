@@ -1,6 +1,6 @@
 import type { Page, Locator } from '@playwright/test';
 import { expect } from '@playwright/test';
-import { LIBRARY_TEST_IDS, PLAYER_TEST_IDS } from '../../../src/lib/shared/test-ids';
+import { LIBRARY_TEST_IDS, PLAYER_TEST_IDS } from '../../../src/shared/testing/test-ids';
 
 export class AlbumPage {
   readonly page: Page;

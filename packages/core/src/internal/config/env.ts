@@ -3,8 +3,8 @@
  * Loads configuration from environment variables
  */
 
-import { DEFAULT_CLIENT_NAME, DEFAULT_DEVICE_NAME, STORAGE_KEYS } from './constants.js';
 import { createLogger } from '../utils/logger.js';
+import { DEFAULT_CLIENT_NAME, DEFAULT_DEVICE_NAME, STORAGE_KEYS } from './constants.js';
 
 const log = createLogger('Config');
 

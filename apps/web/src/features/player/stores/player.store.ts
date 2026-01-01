@@ -9,10 +9,15 @@ import {
   type MediaServerClient,
   type KaraokeStatus,
 } from '@yaytsa/core';
-import { HTML5AudioEngine, MediaSessionManager, type AudioEngine } from '@yaytsa/platform';
+import {
+  HTML5AudioEngine,
+  MediaSessionManager,
+  PinkNoiseGenerator,
+  type AudioEngine,
+} from '@yaytsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
-import { useTimingStore } from './timing.store';
 import { log } from '@/shared/utils/logger';
+import { useTimingStore } from './timing.store';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -509,6 +514,48 @@ useAuthStore.subscribe(
     }
   }
 );
+
+declare global {
+  interface Window {
+    __playerStore__?: {
+      readonly isPlaying: boolean;
+      readonly volume: number;
+      readonly currentTrack: AudioItem | null;
+      readonly audioEngine: AudioEngine | null;
+      readonly mediaSession: MediaSessionManager | null;
+    };
+    __platformClasses__?: {
+      PinkNoiseGenerator: typeof PinkNoiseGenerator;
+      MediaSessionManager: typeof MediaSessionManager;
+      HTML5AudioEngine: typeof HTML5AudioEngine;
+    };
+  }
+}
+
+if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
+  window.__playerStore__ = {
+    get isPlaying() {
+      return usePlayerStore.getState().isPlaying;
+    },
+    get volume() {
+      return usePlayerStore.getState().volume;
+    },
+    get currentTrack() {
+      return usePlayerStore.getState().currentTrack;
+    },
+    get audioEngine() {
+      return audioEngine;
+    },
+    get mediaSession() {
+      return mediaSession;
+    },
+  };
+  window.__platformClasses__ = {
+    PinkNoiseGenerator,
+    MediaSessionManager,
+    HTML5AudioEngine,
+  };
+}
 
 export const useCurrentTrack = () => usePlayerStore(state => state.currentTrack);
 export const useIsPlaying = () => usePlayerStore(state => state.isPlaying);

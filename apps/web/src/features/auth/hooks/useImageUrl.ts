@@ -1,4 +1,4 @@
-import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useAuthStore } from '../stores/auth.store';
 
 export function useImageUrl() {
   const client = useAuthStore(state => state.client);

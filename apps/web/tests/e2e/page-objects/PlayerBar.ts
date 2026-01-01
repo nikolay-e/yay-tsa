@@ -1,6 +1,6 @@
 import type { Page, Locator } from '@playwright/test';
 import { expect } from '@playwright/test';
-import { PLAYER_TEST_IDS } from '../../../src/lib/shared/test-ids';
+import { PLAYER_TEST_IDS } from '../../../src/shared/testing/test-ids';
 
 export class PlayerBar {
   readonly page: Page;

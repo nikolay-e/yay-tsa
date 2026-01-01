@@ -14,7 +14,7 @@ Yaytsa - a minimal music player with a custom Java-based media server backend. B
 
 ```
 apps/
-└── web/         # @yaytsa/web - SvelteKit PWA (SPA mode)
+└── web/         # @yaytsa/web - React 19 PWA (Vite + React Router)
 packages/
 ├── core/        # @yaytsa/core - Framework-agnostic business logic
 └── platform/    # @yaytsa/platform - Platform-specific audio/media adapters
@@ -81,17 +81,17 @@ docker compose --profile test up    # Run E2E tests
 
 **Layer 3: Web (`@yaytsa/web`)** - 85-95% portable UI
 
-- **SvelteKit 2** with `@sveltejs/adapter-static` (SPA mode, no SSR)
-- **Svelte Stores** (`lib/features/*/stores/`) - Reactive state management per feature
-- **Components** - `lib/features/*/components/` - Feature-specific UI components
-- **Routes** - SvelteKit file-based routing (`routes/`)
+- **React 19** with Vite 7 (SPA mode)
+- **Zustand Stores** (`features/*/stores/`) - Reactive state management per feature
+- **Components** - `features/*/components/` - Feature-specific UI components
+- **React Router 7** - Client-side routing (`pages/`)
 
 ### Critical Data Flow
 
 ```
 User Action (Component)
   ↓
-Svelte Store (player.ts, auth.ts)
+Zustand Store (player.store.ts, auth.store.ts)
   ↓
 Core Service (AuthService, ItemsService)
   ↓
@@ -102,7 +102,7 @@ Media Server (Java backend)
 
 ### Example: Play Album
 
-1. User clicks "Play" in `AlbumCard.svelte`
+1. User clicks "Play" in `AlbumCard.tsx`
 2. Calls `player.playAlbum(albumId)` from `features/player/stores/player.store.ts`
 3. Player store fetches tracks via `ItemsService.getAlbumTracks()` from core
 4. Calls `PlaybackQueue.setQueue()` state machine (core)
@@ -111,9 +111,9 @@ Media Server (Java backend)
 
 ### State Management Pattern
 
-**Svelte Writable + Derived Stores** (reactive, no global store)
+**Zustand Stores** (reactive, atomic state)
 
-**Auth Store** (`lib/features/auth/stores/auth.store.ts`):
+**Auth Store** (`features/auth/stores/auth.store.ts`):
 
 ```typescript
 interface AuthState {
@@ -134,7 +134,7 @@ interface AuthState {
 - CSRF protection: validates stored URL before use
 - Derived stores: `isAuthenticated`, `client` (read-only)
 
-**Player Store** (`lib/features/player/stores/player.store.ts`):
+**Player Store** (`features/player/stores/player.store.ts`):
 
 ```typescript
 interface PlayerState {
@@ -183,7 +183,7 @@ headers: {
 MediaBrowser Client="Yaytsa", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
 ```
 
-**Session Storage Strategy** (`lib/features/auth/stores/auth.store.ts`):
+**Session Storage Strategy** (`features/auth/stores/auth.store.ts`):
 
 - Uses `sessionStorage` (not `localStorage`) - cleared on tab close, reduces XSS risk
 - Stores: `jf_session`, `jf_user_id`, `jf_server_url`
@@ -252,7 +252,7 @@ reportPlaybackProgress({
 
 - Core: `tsconfig.json:2-23` - standalone, no dependencies, strict mode
 - Platform: Depends on `@yaytsa/core` via workspace
-- Web: Extends `.svelte-kit/tsconfig.json`, imports both core + platform
+- Web: Vite/React tsconfig, imports both core + platform
 
 **Transpilation**:
 
@@ -273,21 +273,10 @@ reportPlaybackProgress({
 - `optimizeDeps: { include: ['@yaytsa/core', '@yaytsa/platform'] }`
 - Manual chunks for code splitting
 
-### SvelteKit Adapter (`apps/web/svelte.config.js:10-19`)
+### Vite SPA Configuration
 
-```javascript
-adapter: adapter({
-  fallback: 'index.html', // SPA mode
-  precompress: false, // Nginx handles gzip/brotli
-});
-```
-
-**SSR Disabled** (`routes/+layout.ts:1-3`):
-
-```typescript
-export const ssr = false;
-export const prerender = false;
-```
+React Router handles client-side routing with Vite serving as the build tool.
+Nginx serves static files with fallback to `index.html` for SPA routing.
 
 ## Testing Strategy
 
@@ -353,7 +342,7 @@ if (import.meta.env.PROD && parsed.protocol !== 'https:') {
 
 Allows `http://localhost` in development, enforces HTTPS in production.
 
-### CSRF Protection (`lib/features/auth/stores/auth.store.ts`)
+### CSRF Protection (`features/auth/stores/auth.store.ts`)
 
 ```typescript
 const storedUrl = sessionStorage.getItem(STORAGE_KEYS.SERVER_URL);
@@ -427,11 +416,10 @@ script-src 'self';
 
 **Web App**:
 
-- `apps/web/src/lib/features/auth/stores/auth.store.ts` - Authentication store
-- `apps/web/src/lib/features/player/stores/player.store.ts` - Player store with engine integration
-- `apps/web/src/lib/features/library/stores/library.store.ts` - Library store
+- `apps/web/src/features/auth/stores/auth.store.ts` - Authentication store
+- `apps/web/src/features/player/stores/player.store.ts` - Player store with engine integration
+- `apps/web/src/features/library/` - Library components and hooks
 - `apps/web/vite.config.ts` - Build configuration
-- `apps/web/svelte.config.js` - SvelteKit adapter
 
 **Build & Deployment**:
 

@@ -1,9 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { App } from './App';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { ToastContainer } from './components/Toast';
+import { App } from './app/App';
+import { ErrorBoundary } from './app/infra/ErrorBoundary';
+import { ToastContainer } from './shared/ui/Toast';
 import './index.css';
 
 const queryClient = new QueryClient({

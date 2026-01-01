@@ -1,13 +1,13 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { RootLayout } from './routes/RootLayout';
-import { HomePage } from './routes/HomePage';
-import { LoginPage } from './routes/LoginPage';
-import { AlbumsPage } from './routes/AlbumsPage';
-import { AlbumDetailPage } from './routes/AlbumDetailPage';
-import { ArtistsPage } from './routes/ArtistsPage';
-import { ArtistDetailPage } from './routes/ArtistDetailPage';
-import { SettingsPage } from './routes/SettingsPage';
-import { ProtectedRoute } from './components/ProtectedRoute';
+import { RootLayout } from '@/pages/RootLayout';
+import { HomePage } from '@/pages/HomePage';
+import { LoginPage } from '@/pages/LoginPage';
+import { AlbumsPage } from '@/pages/AlbumsPage';
+import { AlbumDetailPage } from '@/pages/AlbumDetailPage';
+import { ArtistsPage } from '@/pages/ArtistsPage';
+import { ArtistDetailPage } from '@/pages/ArtistDetailPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { ProtectedRoute } from './routing/ProtectedRoute';
 
 const router = createBrowserRouter([
   {

@@ -14,6 +14,11 @@ import {
   Timer,
   X,
 } from 'lucide-react';
+import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
+import { formatDuration } from '@/shared/utils/time';
+import { cn } from '@/shared/utils/cn';
+import { toast } from '@/shared/ui/Toast';
+import { useTimingStore } from '../stores/timing.store';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -26,11 +31,6 @@ import {
   useKaraokeStatus,
   useSleepTimer,
 } from '../stores/player.store';
-import { useTimingStore } from '../stores/timing.store';
-import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
-import { formatDuration } from '@/shared/utils/time';
-import { cn } from '@/shared/utils/cn';
-import { toast } from '@/components/Toast';
 
 export function PlayerBar() {
   const [hasImageError, setHasImageError] = useState(false);
@@ -284,15 +284,23 @@ export function PlayerBar() {
 
       {showSleepModal && (
         <div
+          role="presentation"
           className="z-modal-backdrop fixed inset-0 flex items-center justify-center bg-black/50"
           onClick={() => setShowSleepModal(false)}
+          onKeyDown={e => e.key === 'Escape' && setShowSleepModal(false)}
         >
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events */}
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sleep-timer-title"
             className="bg-bg-secondary w-80 rounded-lg p-6 shadow-lg"
             onClick={e => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-text-primary text-lg font-semibold">Sleep Timer</h3>
+              <h3 id="sleep-timer-title" className="text-text-primary text-lg font-semibold">
+                Sleep Timer
+              </h3>
               <button
                 onClick={() => setShowSleepModal(false)}
                 className="text-text-secondary hover:text-text-primary p-1"

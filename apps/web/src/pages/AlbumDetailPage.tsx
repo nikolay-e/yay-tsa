@@ -6,7 +6,7 @@ import { ItemsService, type MusicAlbum } from '@yaytsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
-import { useImageUrl, getImagePlaceholder } from '@/shared/utils/image';
+import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import {
   usePlayerStore,
   useCurrentTrack,

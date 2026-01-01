@@ -2,14 +2,19 @@
   "name": "@yaytsa/core",
   "version": "0.0.0-placeholder",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "vitest run --config vitest.integration.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:unit": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest --config vitest.integration.config.ts"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

@@ -25,10 +25,23 @@ export class LoginPage {
     await this.usernameInput.fill(username);
     await this.passwordInput.fill(password);
     await this.loginButton.click();
+
+    // Wait for login to complete (either success or error)
+    await Promise.race([
+      this.page.waitForURL('/', { timeout: 15000 }),
+      this.errorMessage.waitFor({ state: 'visible', timeout: 15000 }),
+    ]).catch(() => {
+      // Ignore timeout - we'll check the result in the test
+    });
   }
 
   async waitForRedirectToRecent(): Promise<void> {
+    // Wait for URL change AND React to render home page content
     await this.page.waitForURL('/', { timeout: 15000 });
+    // Ensure home page content is actually visible (not just URL changed)
+    await expect(
+      this.page.getByRole('heading', { name: /Recently Played|Discover|Albums/i }).first()
+    ).toBeVisible({ timeout: 10000 });
   }
 
   async expectError(errorText?: string): Promise<void> {

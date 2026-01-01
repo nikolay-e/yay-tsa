@@ -10,9 +10,9 @@
       "project": ["src/**/*.ts"]
     },
     "apps/web": {
-      "entry": ["src/main.tsx", "src/App.tsx", "src/routes/**/*.tsx"],
+      "entry": ["src/main.tsx", "src/app/App.tsx", "src/pages/**/*.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
-      "ignore": ["**/test-ids/**"],
+      "ignore": ["**/testing/**"],
       "paths": {
         "@/*": ["src/*"]
       }

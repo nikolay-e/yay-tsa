@@ -2,7 +2,7 @@ import { test as baseTest, expect } from './fixtures/auth.fixture';
 import { LibraryPage } from './page-objects/LibraryPage';
 import { AlbumPage } from './page-objects/AlbumPage';
 import { PlayerBar } from './page-objects/PlayerBar';
-import { PLAYER_TEST_IDS } from '../../src/lib/shared/test-ids';
+import { PLAYER_TEST_IDS } from '../../src/shared/testing/test-ids';
 
 const test = baseTest;
 

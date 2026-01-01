@@ -69,6 +69,10 @@ public class PlaylistService {
   }
 
   public void addItemsToPlaylist(UUID playlistId, List<UUID> itemIds) {
+    if (!playlistRepository.existsById(playlistId)) {
+      throw new PlaylistNotFoundException("Playlist not found: " + playlistId);
+    }
+
     int maxPosition = playlistEntryRepository.findMaxPositionByPlaylistId(playlistId).orElse(-1);
 
     for (int i = 0; i < itemIds.size(); i++) {
@@ -186,6 +190,12 @@ public class PlaylistService {
 
   public static class PlaylistEntryNotFoundException extends RuntimeException {
     public PlaylistEntryNotFoundException(String message) {
+      super(message);
+    }
+  }
+
+  public static class PlaylistNotFoundException extends RuntimeException {
+    public PlaylistNotFoundException(String message) {
       super(message);
     }
   }

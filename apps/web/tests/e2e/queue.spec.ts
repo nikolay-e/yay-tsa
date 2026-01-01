@@ -99,7 +99,12 @@ test.describe('Queue Management', () => {
     expect(secondAlbumTrack).not.toBe(firstAlbumTrack);
   });
 
-  test('should handle queue end', async ({ libraryPage, albumPage, playerBar }) => {
+  test('should stop at queue end when repeat is off', async ({
+    libraryPage,
+    albumPage,
+    playerBar,
+    authenticatedPage,
+  }) => {
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -107,7 +112,21 @@ test.describe('Queue Management', () => {
 
     await albumPage.playTrack(trackCount - 1);
     await playerBar.waitForPlayerToLoad();
+    await playerBar.waitForAudioReady();
 
-    expect(await playerBar.isVisible()).toBe(true);
+    const lastTrackTitle = await playerBar.getCurrentTrackTitle();
+
+    // Click next on the last track - should stay on last track or stop
+    await playerBar.next();
+    await authenticatedPage.waitForTimeout(500);
+
+    // Verify we haven't looped back to first track (no repeat)
+    const currentTrackAfterNext = await playerBar.getCurrentTrackTitle();
+
+    // Expected behavior: either stays on last track or playback stops
+    // It should NOT jump to first track when repeat is off
+    if (trackCount > 1) {
+      expect(currentTrackAfterNext).toBe(lastTrackTitle);
+    }
   });
 });
