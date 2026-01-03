@@ -67,7 +67,7 @@ export class ItemsService extends BaseService {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicAlbum',
       Recursive: true,
-      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Artists'],
+      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Artists', 'ImageTags'],
       SortBy: options?.sortBy ?? 'SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
@@ -104,7 +104,7 @@ export class ItemsService extends BaseService {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicArtist',
       Recursive: true,
-      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Overview', 'ChildCount'],
+      Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Overview', 'ChildCount', 'ImageTags'],
       SortBy: options?.sortBy ?? 'SortName',
       SortOrder: 'Ascending',
       StartIndex: options?.startIndex,
@@ -259,7 +259,7 @@ export class ItemsService extends BaseService {
       SortOrder: 'Descending',
       Filters: 'IsPlayed',
       enableUserData: true,
-      Fields: 'PrimaryImageAspectRatio,Genres,DateCreated,Artists',
+      Fields: 'PrimaryImageAspectRatio,Genres,DateCreated,Artists,ImageTags',
     };
 
     if (limit !== undefined) {
