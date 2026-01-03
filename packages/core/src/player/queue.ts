@@ -3,7 +3,7 @@
  * Manages playback queue, shuffle, and repeat modes
  */
 
-import { AudioItem, QueueState, RepeatMode, ShuffleMode } from '../internal/models/types.js';
+import { type AudioItem, type QueueState, type RepeatMode, type ShuffleMode } from '../internal/models/types.js';
 
 export class PlaybackQueue {
   private items: AudioItem[] = [];
@@ -115,13 +115,18 @@ export class PlaybackQueue {
 
     const wasEmpty = this.items.length === 0;
     this.items.splice(index, 0, item);
-    this.originalOrder.splice(index, 0, item);
 
-    // If queue was empty, set current index to first item
+    // When shuffle is active, items and originalOrder have different orderings.
+    // Append to originalOrder to preserve its integrity (similar to removeAt using findIndex).
+    if (this.shuffleMode === 'on') {
+      this.originalOrder.push(item);
+    } else {
+      this.originalOrder.splice(index, 0, item);
+    }
+
     if (wasEmpty) {
       this.currentIndex = 0;
     } else if (index <= this.currentIndex) {
-      // Adjust current index if inserting before current position
       this.currentIndex++;
     }
   }

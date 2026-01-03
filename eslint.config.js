@@ -25,16 +25,16 @@ export default [
     ],
   },
 
-  // JavaScript/TypeScript files (non-TS project files)
+  // JavaScript files (non-TS project files)
   {
     files: ['**/*.js'],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2024,
       sourceType: 'module',
       globals: {
         ...globals.browser,
         ...globals.node,
-        ...globals.es2020,
+        ...globals.es2024,
       },
     },
     rules: {
@@ -52,7 +52,7 @@ export default [
   {
     files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2024,
       sourceType: 'module',
       parser: typescriptParser,
       parserOptions: {
@@ -66,7 +66,7 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
-        ...globals.es2020,
+        ...globals.es2024,
       },
     },
     plugins: {
@@ -76,16 +76,32 @@ export default [
       ...js.configs.recommended.rules,
       ...typescript.configs.recommended.rules,
 
-      // TypeScript-specific rules for quality
+      // TypeScript-specific rules
       '@typescript-eslint/no-unused-vars': [
         'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+      '@typescript-eslint/prefer-optional-chain': 'warn',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      '@typescript-eslint/consistent-type-imports': [
+        'warn',
+        {
+          prefer: 'type-imports',
+          disallowTypeAnnotations: true,
+          fixStyle: 'inline-type-imports',
+        },
+      ],
 
-      // Strict type safety rules - enforce proper typing
+      // Strict type safety rules
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
@@ -96,9 +112,7 @@ export default [
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': [
         'error',
-        {
-          checksVoidReturn: { attributes: false },
-        },
+        { checksVoidReturn: { attributes: false } },
       ],
       '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/promise-function-async': 'warn',
@@ -106,32 +120,30 @@ export default [
       'no-return-await': 'off',
       '@typescript-eslint/return-await': ['error', 'in-try-catch'],
 
-      // Type safety improvements
-      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
-      '@typescript-eslint/prefer-optional-chain': 'warn',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
-
-      // Code quality rules
+      // Code quality
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       'no-debugger': 'error',
       'no-alert': 'error',
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-var': 'error',
       'prefer-const': 'error',
-      'prefer-arrow-callback': 'error',
+      'prefer-arrow-callback': 'warn',
       'prefer-template': 'warn',
       'object-shorthand': 'warn',
-
-      // Async/Promise rules
-      'no-promise-executor-return': 'error',
-      'prefer-promise-reject-errors': 'error',
+      curly: ['error', 'multi-line'],
+      'no-nested-ternary': 'warn',
+      'no-unneeded-ternary': 'warn',
+      'no-duplicate-imports': 'error',
 
       // Security rules - CRITICAL for auth/API project
       'no-eval': 'error',
       'no-implied-eval': 'error',
       'no-new-func': 'error',
       'no-script-url': 'error',
+
+      // Promise rules
+      'no-promise-executor-return': 'error',
+      'prefer-promise-reject-errors': 'error',
 
       // Ban deep relative imports (max 2 levels up)
       'no-restricted-imports': [
@@ -187,7 +199,7 @@ export default [
   {
     files: ['apps/web/src/**/*.tsx'],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2024,
       sourceType: 'module',
       parser: typescriptParser,
       parserOptions: {
@@ -240,9 +252,21 @@ export default [
       // TypeScript in React
       '@typescript-eslint/no-unused-vars': [
         'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/consistent-type-imports': [
+        'warn',
+        {
+          prefer: 'type-imports',
+          disallowTypeAnnotations: true,
+          fixStyle: 'inline-type-imports',
+        },
+      ],
 
       // Code quality
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],

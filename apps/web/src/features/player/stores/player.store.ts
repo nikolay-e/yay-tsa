@@ -59,6 +59,7 @@ interface PlayerActions {
 type PlayerStore = PlayerState & PlayerActions;
 
 const VOLUME_STORAGE_KEY = 'yaytsa_volume';
+const PROGRESS_REPORT_INTERVAL_MS = 10000;
 
 let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
@@ -66,6 +67,7 @@ let playbackReporter: PlaybackReporter | null = null;
 let currentItemId: string | null = null;
 let currentClient: MediaServerClient | null = null;
 let currentLoadId: symbol | null = null;
+let lastProgressReportTime = 0;
 
 function getAudioEngine(): AudioEngine {
   audioEngine ??= new HTML5AudioEngine();
@@ -129,7 +131,9 @@ export const usePlayerStore = create<PlayerStore>()(
       const duration = engine.getDuration();
       useTimingStore.getState().updateTiming(seconds, duration);
 
-      if (playbackReporter && currentItemId) {
+      const now = Date.now();
+      if (playbackReporter && currentItemId && now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS) {
+        lastProgressReportTime = now;
         playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
           log.player.warn('Failed to report playback progress', { error: String(err) });
         });
@@ -174,7 +178,17 @@ export const usePlayerStore = create<PlayerStore>()(
         throw new Error('Not authenticated');
       }
 
-      set({ isLoading: true, error: null });
+      // Update UI immediately (optimistic update)
+      set({ currentTrack: track, isLoading: true, error: null });
+
+      // Report previous track stopped (fire-and-forget, don't block playback)
+      if (playbackReporter && currentItemId) {
+        const previousItemId = currentItemId;
+        const previousPosition = engine.getCurrentTime();
+        playbackReporter.reportStopped(previousItemId, previousPosition).catch(err => {
+          log.player.warn('Failed to report stopped', { error: String(err) });
+        });
+      }
 
       try {
         const itemsService = new ItemsService(currentClient);
@@ -201,13 +215,14 @@ export const usePlayerStore = create<PlayerStore>()(
           artwork: imageUrl,
         });
 
-        if (playbackReporter && currentItemId) {
-          await playbackReporter.reportStopped(currentItemId, engine.getCurrentTime());
-        }
-
         currentItemId = track.Id;
+        lastProgressReportTime = 0;
         playbackReporter = new PlaybackReporter(currentClient);
-        await playbackReporter.reportStart(track.Id);
+
+        // Report new track started (fire-and-forget, don't block playback)
+        playbackReporter.reportStart(track.Id).catch(err => {
+          log.player.warn('Failed to report start', { error: String(err) });
+        });
 
         await engine.play();
 
@@ -216,7 +231,6 @@ export const usePlayerStore = create<PlayerStore>()(
         }
 
         set({
-          currentTrack: track,
           isPlaying: true,
           isLoading: false,
           error: null,

@@ -4,8 +4,8 @@
  */
 
 import {
-  ClientInfo,
-  ServerConfig,
+  type ClientInfo,
+  type ServerConfig,
   MediaServerError,
   NetworkError,
   AuthenticationError,
@@ -153,7 +153,11 @@ export class MediaServerClient {
     };
 
     // Only set Content-Type when we actually send a body to avoid CORS preflights on GETs
-    if (includeContentType && !headers['Content-Type']) {
+    // Use case-insensitive check since Headers API normalizes to lowercase
+    const hasContentType = Object.keys(headers).some(
+      k => k.toLowerCase() === 'content-type'
+    );
+    if (includeContentType && !hasContentType) {
       headers['Content-Type'] = 'application/json';
     }
 

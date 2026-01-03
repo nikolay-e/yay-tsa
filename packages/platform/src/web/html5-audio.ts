@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from '@yaytsa/core';
-import { AudioEngine } from '../audio.interface.js';
+import { type AudioEngine } from '../audio.interface.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';
 
 const log = createLogger('Audio');
@@ -100,8 +100,9 @@ export class HTML5AudioEngine implements AudioEngine {
 
   private sanitizeError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
-    // Remove API keys from error messages to prevent token exposure in logs
-    return message.replace(/api_key=[^&\s]+/g, 'api_key=[REDACTED]');
+    return message
+      .replace(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
+      .replace(/token=[^&\s]+/gi, 'token=[REDACTED]');
   }
 
   private ensureNotDisposed(): void {

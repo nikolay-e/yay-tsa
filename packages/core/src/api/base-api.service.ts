@@ -3,7 +3,7 @@
  * Provides common functionality for all API services
  */
 
-import { MediaServerClient } from './api.client.js';
+import { type MediaServerClient } from './api.client.js';
 
 export abstract class BaseService {
   constructor(protected client: MediaServerClient) {}

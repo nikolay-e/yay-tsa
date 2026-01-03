@@ -3,16 +3,16 @@
  * Manages player state and playback reporting to Media Server
  */
 
-import { MediaServerClient } from '../api/api.client.js';
+import { type MediaServerClient } from '../api/api.client.js';
 import {
-  PlayerState,
-  PlaybackStatus,
-  AudioItem,
-  RepeatMode,
-  ShuffleMode,
-  PlaybackProgressInfo,
-  PlaybackStartInfo,
-  PlaybackStopInfo,
+  type PlayerState,
+  type PlaybackStatus,
+  type AudioItem,
+  type RepeatMode,
+  type ShuffleMode,
+  type PlaybackProgressInfo,
+  type PlaybackStartInfo,
+  type PlaybackStopInfo,
 } from '../internal/models/types.js';
 import { secondsToTicks, ticksToSeconds } from '../internal/config/constants.js';
 import { createLogger } from '../internal/utils/logger.js';

@@ -4,11 +4,11 @@
  */
 
 import {
-  ItemsQuery,
-  ItemsResult,
-  AudioItem,
-  MusicAlbum,
-  MusicArtist,
+  type ItemsQuery,
+  type ItemsResult,
+  type AudioItem,
+  type MusicAlbum,
+  type MusicArtist,
   MediaServerError,
 } from '../internal/models/types.js';
 import { BaseService } from './base-api.service.js';

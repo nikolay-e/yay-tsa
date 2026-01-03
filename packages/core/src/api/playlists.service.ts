@@ -4,10 +4,10 @@
  */
 
 import {
-  Playlist,
-  AudioItem,
-  ItemsResult,
-  CreatePlaylistDto,
+  type Playlist,
+  type AudioItem,
+  type ItemsResult,
+  type CreatePlaylistDto,
   MediaServerError,
 } from '../internal/models/types.js';
 import { BaseService } from './base-api.service.js';
