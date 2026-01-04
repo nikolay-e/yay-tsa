@@ -373,4 +373,78 @@ public class MediaScannerTransactionalService {
       return String.valueOf(data.length);
     }
   }
+
+  @Transactional
+  public int scanMissingArtwork() {
+    int found = 0;
+    found += scanMissingAlbumArtwork();
+    found += scanMissingArtistArtwork();
+    return found;
+  }
+
+  private int scanMissingAlbumArtwork() {
+    List<ItemEntity> albumsWithoutArt = itemRepository.findAlbumsWithoutPrimaryImage();
+    log.info("Found {} albums without Primary image", albumsWithoutArt.size());
+
+    int found = 0;
+    for (ItemEntity album : albumsWithoutArt) {
+      List<ItemEntity> tracks = itemRepository.findAllByParentId(album.getId());
+      if (tracks.isEmpty()) continue;
+
+      ItemEntity firstTrack = tracks.getFirst();
+      String trackPath = firstTrack.getPath();
+      if (trackPath == null || trackPath.startsWith("artist:") || trackPath.startsWith("album:")) {
+        continue;
+      }
+
+      Path albumFolder = Path.of(trackPath).getParent();
+      Optional<Path> artwork = findFolderArtwork(albumFolder);
+
+      if (artwork.isPresent()) {
+        saveFolderArtwork(album, artwork.get());
+        found++;
+        log.info("Found missing artwork for album '{}' at {}", album.getName(), artwork.get());
+      }
+    }
+
+    log.info("Scanned {} albums, found {} missing artwork files", albumsWithoutArt.size(), found);
+    return found;
+  }
+
+  private int scanMissingArtistArtwork() {
+    List<ItemEntity> artistsWithoutArt = itemRepository.findArtistsWithoutPrimaryImage();
+    log.info("Found {} artists without Primary image", artistsWithoutArt.size());
+
+    int found = 0;
+    for (ItemEntity artist : artistsWithoutArt) {
+      List<ItemEntity> albums = itemRepository.findAllByParentId(artist.getId());
+      if (albums.isEmpty()) continue;
+
+      for (ItemEntity album : albums) {
+        List<ItemEntity> tracks = itemRepository.findAllByParentId(album.getId());
+        if (tracks.isEmpty()) continue;
+
+        ItemEntity firstTrack = tracks.getFirst();
+        String trackPath = firstTrack.getPath();
+        if (trackPath == null
+            || trackPath.startsWith("artist:")
+            || trackPath.startsWith("album:")) {
+          continue;
+        }
+
+        Path artistFolder = Path.of(trackPath).getParent().getParent();
+        Optional<Path> artwork = findFolderArtwork(artistFolder);
+
+        if (artwork.isPresent()) {
+          saveFolderArtwork(artist, artwork.get());
+          found++;
+          log.info("Found missing artwork for artist '{}' at {}", artist.getName(), artwork.get());
+          break;
+        }
+      }
+    }
+
+    log.info("Scanned {} artists, found {} missing artwork files", artistsWithoutArt.size(), found);
+    return found;
+  }
 }

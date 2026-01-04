@@ -1,6 +1,7 @@
 package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ImageService;
+import com.yaytsa.server.infrastructure.fs.MediaScannerTransactionalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,9 +17,12 @@ import org.springframework.web.bind.annotation.*;
 public class AdminController {
 
   private final ImageService imageService;
+  private final MediaScannerTransactionalService mediaScannerService;
 
-  public AdminController(ImageService imageService) {
+  public AdminController(
+      ImageService imageService, MediaScannerTransactionalService mediaScannerService) {
     this.imageService = imageService;
+    this.mediaScannerService = mediaScannerService;
   }
 
   @Operation(
@@ -80,5 +84,18 @@ public class AdminController {
 
     return ResponseEntity.ok(
         Map.of("cleared", true, "itemId", itemId, "entriesCleared", keysToInvalidate.size()));
+  }
+
+  @Operation(
+      summary = "Scan for missing artwork",
+      description =
+          "Scans all albums and artists without Primary images and attempts to find "
+              + "artwork files (cover.jpg, folder.jpg, etc.) on disk")
+  @ApiResponse(responseCode = "200", description = "Artwork scan completed")
+  @PostMapping("/Library/ScanMissingArtwork")
+  public ResponseEntity<Map<String, Object>> scanMissingArtwork() {
+    int found = mediaScannerService.scanMissingArtwork();
+    return ResponseEntity.ok(
+        Map.of("success", true, "artworkFound", found, "message", "Missing artwork scan complete"));
   }
 }

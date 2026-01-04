@@ -66,6 +66,9 @@ public class FileSystemMediaScanner {
 
     int removed = transactionalService.removeDeletedItems(libraryRoot, processedPaths);
 
+    int artworkFound = transactionalService.scanMissingArtwork();
+    log.info("Found {} missing artwork files during scan", artworkFound);
+
     log.info(
         "Scan completed: {} scanned, {} added, {} updated, {} removed, {} errors",
         audioFiles.size(),

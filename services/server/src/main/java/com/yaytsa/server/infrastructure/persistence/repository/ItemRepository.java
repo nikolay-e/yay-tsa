@@ -72,4 +72,26 @@ public interface ItemRepository
       nativeQuery = true)
   List<ItemEntity> searchFullTextByType(
       @Param("searchTerm") String searchTerm, @Param("itemType") String itemType);
+
+  @Query(
+      """
+      SELECT i FROM ItemEntity i
+      WHERE i.type = 'MusicAlbum'
+      AND NOT EXISTS (
+        SELECT 1 FROM ImageEntity img
+        WHERE img.item = i AND img.type = 'Primary'
+      )
+      """)
+  List<ItemEntity> findAlbumsWithoutPrimaryImage();
+
+  @Query(
+      """
+      SELECT i FROM ItemEntity i
+      WHERE i.type = 'MusicArtist'
+      AND NOT EXISTS (
+        SELECT 1 FROM ImageEntity img
+        WHERE img.item = i AND img.type = 'Primary'
+      )
+      """)
+  List<ItemEntity> findArtistsWithoutPrimaryImage();
 }
