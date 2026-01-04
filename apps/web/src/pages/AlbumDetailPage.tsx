@@ -26,7 +26,7 @@ export function AlbumDetailPage() {
 
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const playTracks = usePlayerStore(state => state.playTracks);
-  const toggleShuffle = usePlayerStore(state => state.toggleShuffle);
+  const setShuffle = usePlayerStore(state => state.setShuffle);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
@@ -68,7 +68,7 @@ export function AlbumDetailPage() {
       })
     : getImagePlaceholder();
 
-  const artistName = album.Artists?.[0] || 'Unknown Artist';
+  const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const year = album.ProductionYear;
   const trackCount = tracks.length;
 
@@ -121,7 +121,7 @@ export function AlbumDetailPage() {
             <button
               data-testid="album-shuffle-button"
               onClick={() => {
-                toggleShuffle();
+                setShuffle(true);
                 if (id) playAlbum(id);
               }}
               className={cn(
@@ -140,6 +140,7 @@ export function AlbumDetailPage() {
       <TrackList
         tracks={tracks}
         showArtist={false}
+        showImage={false}
         currentTrackId={currentTrack?.Id}
         isPlaying={isPlaying}
         onPlayTrack={(_, index) => playTracks(tracks, index)}

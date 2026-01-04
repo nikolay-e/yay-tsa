@@ -1,32 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { Search, Loader2 } from 'lucide-react';
-import { useArtists } from '@/features/library/hooks';
+import { useInfiniteArtists } from '@/features/library/hooks';
 import { ArtistCard } from '@/features/library/components';
 import { cn } from '@/shared/utils/cn';
 
-const PAGE_SIZE = 50;
-
 export function ArtistsPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [startIndex, setStartIndex] = useState(0);
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
-  const { data, isLoading, error } = useArtists({
-    startIndex,
-    limit: PAGE_SIZE,
-    searchTerm: searchTerm || undefined,
-  });
+  const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
+    useInfiniteArtists({
+      searchTerm: deferredSearchTerm || undefined,
+    });
 
-  const artists = data?.Items || [];
-  const totalCount = data?.TotalRecordCount || 0;
-  const hasMore = startIndex + PAGE_SIZE < totalCount;
+  const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleLoadMore = () => {
-    setStartIndex(prev => prev + PAGE_SIZE);
+    void fetchNextPage();
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setStartIndex(0);
   };
 
   return (
@@ -56,7 +51,7 @@ export function ArtistsPage() {
         </div>
       )}
 
-      {isLoading && startIndex === 0 ? (
+      {isLoading ? (
         <div className="flex h-64 items-center justify-center">
           <Loader2 className="text-accent h-8 w-8 animate-spin" />
         </div>
@@ -72,25 +67,25 @@ export function ArtistsPage() {
             ))}
           </div>
 
-          {hasMore && (
+          {hasNextPage && (
             <div className="flex justify-center pt-4">
               <button
                 onClick={handleLoadMore}
-                disabled={isLoading}
+                disabled={isFetchingNextPage}
                 className={cn(
                   'bg-bg-secondary text-text-primary rounded-md px-6 py-2',
                   'hover:bg-bg-tertiary transition-colors',
                   'disabled:opacity-50'
                 )}
               >
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More'}
+                {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More'}
               </button>
             </div>
           )}
 
           {totalCount > 0 && (
             <p className="text-text-tertiary text-center text-sm">
-              Showing {Math.min(startIndex + PAGE_SIZE, totalCount)} of {totalCount} artists
+              Showing {artists.length} of {totalCount} artists
             </p>
           )}
         </>

@@ -48,6 +48,7 @@ interface PlayerActions {
   seek: (seconds: number) => void;
   setVolume: (level: number) => void;
   toggleShuffle: () => void;
+  setShuffle: (enabled: boolean) => void;
   toggleRepeat: () => void;
   stop: () => void;
   toggleKaraoke: () => Promise<void>;
@@ -379,6 +380,13 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ isShuffle: newShuffle });
       },
 
+      setShuffle: (enabled: boolean) => {
+        const { queue, isShuffle } = get();
+        if (isShuffle === enabled) return;
+        queue.setShuffleMode(enabled ? 'on' : 'off');
+        set({ isShuffle: enabled });
+      },
+
       toggleRepeat: () => {
         const { repeatMode } = get();
         const modes: RepeatMode[] = ['off', 'all', 'one'];
@@ -421,23 +429,22 @@ export const usePlayerStore = create<PlayerStore>()(
 
         const newKaraokeMode = !isKaraokeMode;
         const currentTime = engine.getCurrentTime();
+        const wasPlaying = isPlaying;
 
         set({ isLoading: true });
 
         try {
           if (newKaraokeMode) {
             const status = await currentClient.getKaraokeStatus(currentTrack.Id);
-            set({ karaokeStatus: status });
 
             if (status.state === 'NOT_STARTED') {
               await currentClient.requestKaraokeProcessing(currentTrack.Id);
-              set({ karaokeStatus: { state: 'PROCESSING', message: null } });
-              set({ isLoading: false });
+              set({ karaokeStatus: { ...status, state: 'PROCESSING' }, isLoading: false });
               return;
             }
 
             if (status.state === 'PROCESSING') {
-              set({ isLoading: false });
+              set({ karaokeStatus: status, isLoading: false });
               return;
             }
 
@@ -445,43 +452,54 @@ export const usePlayerStore = create<PlayerStore>()(
               const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
               await engine.load(instrumentalUrl);
               engine.seek(currentTime);
-              if (isPlaying) await engine.play();
+              if (wasPlaying) await engine.play();
+              set({ karaokeStatus: status, isKaraokeMode: true, isLoading: false });
+              return;
             }
+
+            set({ karaokeStatus: status, isLoading: false });
           } else {
             const itemsService = new ItemsService(currentClient);
             const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
             await engine.load(streamUrl);
             engine.seek(currentTime);
-            if (isPlaying) await engine.play();
+            if (wasPlaying) await engine.play();
+            set({ isKaraokeMode: false, karaokeStatus: null, isLoading: false });
           }
-
-          set({ isKaraokeMode: newKaraokeMode, isLoading: false });
         } catch (error) {
           log.player.error('Failed to toggle karaoke mode', error);
-          set({ isLoading: false, error: error instanceof Error ? error : new Error(String(error)) });
+          set({
+            isLoading: false,
+            isKaraokeMode: false,
+            karaokeStatus: null,
+            error: error instanceof Error ? error : new Error(String(error)),
+          });
         }
       },
 
       refreshKaraokeStatus: async () => {
-        const { currentTrack, karaokeStatus } = get();
+        const { currentTrack, karaokeStatus, isPlaying } = get();
         if (!currentTrack || !currentClient) return;
         if (karaokeStatus?.state !== 'PROCESSING') return;
 
+        const wasPlaying = isPlaying;
+
         try {
           const status = await currentClient.getKaraokeStatus(currentTrack.Id);
-          set({ karaokeStatus: status });
 
           if (status.state === 'READY') {
-            const { isPlaying } = get();
             const currentTime = getAudioEngine().getCurrentTime();
             const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
             await getAudioEngine().load(instrumentalUrl);
             getAudioEngine().seek(currentTime);
-            if (isPlaying) await getAudioEngine().play();
-            set({ isKaraokeMode: true });
+            if (wasPlaying) await getAudioEngine().play();
+            set({ karaokeStatus: status, isKaraokeMode: true });
+          } else {
+            set({ karaokeStatus: status });
           }
         } catch (error) {
-          log.player.warn('Failed to refresh karaoke status', { error: String(error) });
+          log.player.warn('Failed to load karaoke instrumental', { error: String(error) });
+          set({ karaokeStatus: null, isKaraokeMode: false });
         }
       },
 

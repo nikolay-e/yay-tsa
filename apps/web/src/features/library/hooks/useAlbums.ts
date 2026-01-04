@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { ItemsService, type MusicAlbum } from '@yaytsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 
@@ -24,6 +24,40 @@ export function useAlbums(options: UseAlbumsOptions = {}) {
       return itemsService.getAlbums(queryOptions);
     },
     enabled: enabled && !!client,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+interface UseInfiniteAlbumsOptions {
+  limit?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  artistId?: string;
+  isFavorite?: boolean;
+}
+
+export function useInfiniteAlbums(options: UseInfiniteAlbumsOptions = {}) {
+  const client = useAuthStore(state => state.client);
+  const { limit = 50, ...queryOptions } = options;
+
+  return useInfiniteQuery({
+    queryKey: ['albums', 'infinite', queryOptions],
+    queryFn: async ({ pageParam = 0 }) => {
+      if (!client) throw new Error('Not authenticated');
+      const itemsService = new ItemsService(client);
+      return itemsService.getAlbums({
+        ...queryOptions,
+        startIndex: pageParam,
+        limit,
+      });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loadedCount = allPages.reduce((sum, page) => sum + page.Items.length, 0);
+      if (loadedCount >= lastPage.TotalRecordCount) return undefined;
+      return loadedCount;
+    },
+    enabled: !!client,
     staleTime: 5 * 60 * 1000,
   });
 }

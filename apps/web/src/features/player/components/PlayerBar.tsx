@@ -35,6 +35,7 @@ import {
 export function PlayerBar() {
   const [hasImageError, setHasImageError] = useState(false);
   const [showSleepModal, setShowSleepModal] = useState(false);
+  const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const volume = useVolume();
@@ -83,6 +84,22 @@ export function PlayerBar() {
     return () => clearInterval(interval);
   }, [karaokeStatus?.state, refreshKaraokeStatus]);
 
+  useEffect(() => {
+    if (!sleepTimer.endTime) {
+      setSleepMinutesLeft(0);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const remaining = Math.ceil((sleepTimer.endTime! - Date.now()) / 60000);
+      setSleepMinutesLeft(Math.max(0, remaining));
+    };
+
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 60000);
+    return () => clearInterval(interval);
+  }, [sleepTimer.endTime]);
+
   if (!currentTrack) {
     return null;
   }
@@ -95,7 +112,7 @@ export function PlayerBar() {
       })
     : getImagePlaceholder();
 
-  const artistName = currentTrack.Artists?.[0] || 'Unknown Artist';
+  const artistName = currentTrack.Artists?.[0] ?? 'Unknown Artist';
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -253,9 +270,9 @@ export function PlayerBar() {
             aria-label="Sleep timer"
           >
             <Timer className="h-4 w-4" />
-            {sleepTimer.endTime && (
+            {sleepTimer.endTime && sleepMinutesLeft > 0 && (
               <span className="bg-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white">
-                {Math.ceil((sleepTimer.endTime - Date.now()) / 60000)}
+                {sleepMinutesLeft}
               </span>
             )}
           </button>
