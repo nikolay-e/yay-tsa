@@ -24,8 +24,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,10 +44,12 @@ public class KaraokeController {
   private static final Logger log = LoggerFactory.getLogger(KaraokeController.class);
   private static final long SSE_TIMEOUT_MS = 300_000; // 5 minutes
   private static final long POLL_INTERVAL_MS = 500; // Poll every 500ms
+  private static final int SSE_THREAD_POOL_SIZE = 10; // Support up to 10 concurrent SSE connections
 
   private final KaraokeService karaokeService;
   private final ObjectMapper objectMapper;
-  private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+  private final ScheduledExecutorService scheduler =
+      Executors.newScheduledThreadPool(SSE_THREAD_POOL_SIZE);
   private final boolean xAccelRedirectEnabled;
   private final String xAccelInternalPath;
 
@@ -109,8 +113,9 @@ public class KaraokeController {
     SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
     ProcessingStatus[] lastStatus = {null};
     AtomicLong eventId = new AtomicLong(0);
+    AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
 
-    var future =
+    ScheduledFuture<?> future =
         scheduler.scheduleAtFixedRate(
             () -> {
               try {
@@ -125,21 +130,29 @@ public class KaraokeController {
                           .name("status")
                           .data(json, MediaType.APPLICATION_JSON));
 
-                  // Complete SSE stream on terminal states (READY or FAILED)
-                  // Processing runs independently on backend - this just notifies the client
                   if (status.state() == ProcessingState.READY
                       || status.state() == ProcessingState.FAILED) {
+                    ScheduledFuture<?> currentFuture = futureRef.get();
+                    if (currentFuture != null) {
+                      currentFuture.cancel(false);
+                    }
                     emitter.complete();
                   }
                 }
               } catch (Exception e) {
                 log.debug("SSE stream error for track {}: {}", trackId, e.getMessage());
+                ScheduledFuture<?> currentFuture = futureRef.get();
+                if (currentFuture != null) {
+                  currentFuture.cancel(false);
+                }
                 emitter.completeWithError(e);
               }
             },
             0,
             POLL_INTERVAL_MS,
             TimeUnit.MILLISECONDS);
+
+    futureRef.set(future);
 
     emitter.onCompletion(() -> future.cancel(false));
     emitter.onTimeout(() -> future.cancel(false));

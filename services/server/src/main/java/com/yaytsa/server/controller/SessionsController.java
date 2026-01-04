@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -102,13 +103,20 @@ public class SessionsController {
   @Operation(summary = "Get active sessions", description = "Retrieve all active playback sessions")
   @GetMapping
   public ResponseEntity<List<Map<String, Object>>> getSessions(
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     List<SessionEntity> activeSessions = sessionService.getAllActiveSessions();
 
+    UUID currentUserId = authenticatedUser.getUserEntity().getId();
+    boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
+
     List<Map<String, Object>> sessions =
-        activeSessions.stream().map(this::mapSessionToResponse).collect(Collectors.toList());
+        activeSessions.stream()
+            .filter(s -> isAdmin || s.getUser().getId().equals(currentUserId))
+            .map(this::mapSessionToResponse)
+            .collect(Collectors.toList());
 
     return ResponseEntity.ok(sessions);
   }
@@ -117,6 +125,7 @@ public class SessionsController {
   @GetMapping("/{sessionId}")
   public ResponseEntity<Map<String, Object>> getSession(
       @PathVariable String sessionId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
@@ -126,7 +135,15 @@ public class SessionsController {
       return ResponseEntity.notFound().build();
     }
 
-    return ResponseEntity.ok(mapSessionToResponse(sessionOpt.get()));
+    SessionEntity session = sessionOpt.get();
+    UUID currentUserId = authenticatedUser.getUserEntity().getId();
+    boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
+
+    if (!isAdmin && !session.getUser().getId().equals(currentUserId)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    return ResponseEntity.ok(mapSessionToResponse(session));
   }
 
   private Map<String, Object> mapSessionToResponse(SessionEntity session) {
@@ -164,7 +181,12 @@ public class SessionsController {
       })
   @PostMapping("/Playing/Ping")
   public ResponseEntity<Void> pingSession(
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestParam(value = "playSessionId", required = false) String playSessionId) {
+
+    UUID userId = authenticatedUser.getUserEntity().getId();
+    String deviceId = authenticatedUser.getDeviceId();
+    sessionService.pingSession(userId, deviceId);
 
     return ResponseEntity.noContent().build();
   }
@@ -172,6 +194,7 @@ public class SessionsController {
   @Operation(
       summary = "Send playback command",
       description = "Send a command to control playback (play, pause, stop, next, previous)")
+  @ApiResponse(responseCode = "501", description = "Not implemented")
   @PostMapping("/{sessionId}/Playing/{command}")
   public ResponseEntity<Void> sendPlaybackCommand(
       @PathVariable String sessionId,
@@ -180,7 +203,6 @@ public class SessionsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement remote control commands
-    return ResponseEntity.noContent().build();
+    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
   }
 }

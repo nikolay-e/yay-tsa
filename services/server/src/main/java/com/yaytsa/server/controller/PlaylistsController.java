@@ -7,6 +7,7 @@ import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntryEntity;
+import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.mapper.ItemMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -41,6 +43,7 @@ public class PlaylistsController {
       description = "Retrieve all playlists for the current user")
   @GetMapping
   public ResponseEntity<Map<String, Object>> getPlaylists(
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Parameter(description = "User ID") @RequestParam(required = false) String userId,
       @Parameter(description = "Starting index") @RequestParam(defaultValue = "0") int startIndex,
       @Parameter(description = "Limit results") @RequestParam(defaultValue = "100") int limit,
@@ -49,8 +52,18 @@ public class PlaylistsController {
 
     List<Map<String, Object>> items = new ArrayList<>();
 
+    int totalCount = 0;
     if (userId != null) {
-      List<PlaylistEntity> playlists = playlistService.getUserPlaylists(UUID.fromString(userId));
+      UUID requestedUserId = UUID.fromString(userId);
+      UUID currentUserId = authenticatedUser.getUserEntity().getId();
+      boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
+
+      if (!isAdmin && !requestedUserId.equals(currentUserId)) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      }
+
+      List<PlaylistEntity> playlists = playlistService.getUserPlaylists(requestedUserId);
+      totalCount = playlists.size();
 
       int endIndex = Math.min(startIndex + limit, playlists.size());
       List<PlaylistEntity> paginatedPlaylists =
@@ -69,7 +82,7 @@ public class PlaylistsController {
 
     Map<String, Object> response = new HashMap<>();
     response.put("Items", items);
-    response.put("TotalRecordCount", items.size());
+    response.put("TotalRecordCount", totalCount);
     response.put("StartIndex", startIndex);
 
     return ResponseEntity.ok(response);
@@ -106,6 +119,7 @@ public class PlaylistsController {
   @GetMapping("/{playlistId}")
   public ResponseEntity<Map<String, Object>> getPlaylist(
       @PathVariable String playlistId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
@@ -117,6 +131,10 @@ public class PlaylistsController {
     }
 
     PlaylistEntity playlistEntity = optionalPlaylist.get();
+
+    if (!isOwnerOrAdmin(playlistEntity, authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     Map<String, Object> playlist = new HashMap<>();
     playlist.put("Id", playlistEntity.getId().toString());
     playlist.put("Name", playlistEntity.getName());
@@ -133,8 +151,19 @@ public class PlaylistsController {
   public ResponseEntity<Map<String, Object>> updatePlaylist(
       @PathVariable String playlistId,
       @RequestBody Map<String, Object> playlistData,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(UUID.fromString(playlistId));
+
+    if (existing.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
 
     String name = playlistData.get("Name") != null ? playlistData.get("Name").toString() : null;
     Optional<PlaylistEntity> updated =
@@ -157,8 +186,19 @@ public class PlaylistsController {
   @DeleteMapping("/{playlistId}")
   public ResponseEntity<Void> deletePlaylist(
       @PathVariable String playlistId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(UUID.fromString(playlistId));
+
+    if (existing.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
 
     playlistService.deletePlaylist(UUID.fromString(playlistId));
     return ResponseEntity.noContent().build();
@@ -168,6 +208,7 @@ public class PlaylistsController {
   @GetMapping("/{playlistId}/Items")
   public ResponseEntity<Map<String, Object>> getPlaylistItems(
       @PathVariable String playlistId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Parameter(description = "User ID for user-specific data")
           @RequestParam(value = "UserId", required = false)
           String userId,
@@ -184,6 +225,16 @@ public class PlaylistsController {
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     UUID playlistUuid = UUID.fromString(playlistId);
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
+    if (existing.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
     Page<PlaylistEntryEntity> page =
         playlistService.getPlaylistItems(playlistUuid, startIndex, limit);
 
@@ -231,6 +282,7 @@ public class PlaylistsController {
   @PostMapping("/{playlistId}/Items")
   public ResponseEntity<Void> addItemsToPlaylist(
       @PathVariable String playlistId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Parameter(description = "Item IDs to add (comma-separated)") @RequestParam(value = "Ids")
           String ids,
       @Parameter(description = "User ID") @RequestParam(value = "UserId", required = false)
@@ -239,6 +291,16 @@ public class PlaylistsController {
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     UUID playlistUuid = UUID.fromString(playlistId);
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
+    if (existing.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
     List<UUID> itemIds =
         Arrays.stream(ids.split(","))
             .map(String::trim)
@@ -258,6 +320,7 @@ public class PlaylistsController {
   @DeleteMapping("/{playlistId}/Items")
   public ResponseEntity<Void> removeItemsFromPlaylist(
       @PathVariable String playlistId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Parameter(description = "Playlist entry IDs to remove (comma-separated)")
           @RequestParam(value = "EntryIds")
           String entryIds,
@@ -265,6 +328,16 @@ public class PlaylistsController {
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     UUID playlistUuid = UUID.fromString(playlistId);
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
+    if (existing.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
     List<UUID> entryIdsList =
         Arrays.stream(entryIds.split(","))
             .map(String::trim)
@@ -284,14 +357,34 @@ public class PlaylistsController {
       @PathVariable String playlistId,
       @PathVariable String itemId,
       @PathVariable int newIndex,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     UUID playlistUuid = UUID.fromString(playlistId);
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
+    if (existing.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+
+    if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
     UUID entryId = UUID.fromString(itemId);
 
     playlistService.movePlaylistItem(playlistUuid, entryId, newIndex);
 
     return ResponseEntity.noContent().build();
+  }
+
+  private boolean isOwnerOrAdmin(PlaylistEntity playlist, AuthenticatedUser user) {
+    if (user == null) {
+      return false;
+    }
+    UUID currentUserId = user.getUserEntity().getId();
+    boolean isAdmin = user.getUserEntity().isAdmin();
+    return playlist.getUserId().equals(currentUserId) || isAdmin;
   }
 }

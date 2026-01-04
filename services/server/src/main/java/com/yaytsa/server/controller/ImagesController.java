@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -132,7 +133,9 @@ public class ImagesController {
 
   @Operation(
       summary = "Get image by index",
-      description = "Get image by type and index for items with multiple images")
+      description =
+          "Get image by type and index for items with multiple images. "
+              + "Note: Currently only returns the first image of the type (imageIndex is ignored).")
   @GetMapping("/Items/{itemId}/Images/{imageType}/{imageIndex}")
   public ResponseEntity<byte[]> getItemImageByIndex(
       @PathVariable String itemId,
@@ -146,12 +149,14 @@ public class ImagesController {
       @RequestParam(defaultValue = "webp") String format,
       WebRequest webRequest,
       HttpServletResponse response) {
-
+    // TODO: Implement imageIndex support in ImageService.findByItemIdAndTypeWithIndex()
+    // Currently only one image per type is supported, so imageIndex is ignored
     return getItemImage(
         itemId, imageType, apiKey, tag, maxWidth, maxHeight, quality, format, webRequest, response);
   }
 
   @Operation(summary = "Upload image for item", description = "Upload a new image for a media item")
+  @ApiResponse(responseCode = "501", description = "Not implemented")
   @PostMapping("/Items/{itemId}/Images/{imageType}")
   public ResponseEntity<Void> uploadItemImage(
       @PathVariable String itemId,
@@ -160,11 +165,11 @@ public class ImagesController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement image upload
-    return ResponseEntity.noContent().build();
+    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
   }
 
   @Operation(summary = "Delete item image", description = "Delete an image for a media item")
+  @ApiResponse(responseCode = "501", description = "Not implemented")
   @DeleteMapping("/Items/{itemId}/Images/{imageType}")
   public ResponseEntity<Void> deleteItemImage(
       @PathVariable String itemId,
@@ -172,21 +177,19 @@ public class ImagesController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement image deletion
-    return ResponseEntity.noContent().build();
+    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
   }
 
   @Operation(
       summary = "Get available image types",
       description = "Get list of available image types for an item")
+  @ApiResponse(responseCode = "501", description = "Not implemented")
   @GetMapping("/Items/{itemId}/Images")
   public ResponseEntity<Object[]> getItemImageTypes(
       @PathVariable String itemId,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    // TODO: Implement listing of available image types
-    Object[] imageTypes = new Object[0];
-    return ResponseEntity.ok(imageTypes);
+    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
   }
 
   private MediaType getMediaTypeForFormat(String format) {

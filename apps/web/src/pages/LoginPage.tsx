@@ -24,7 +24,7 @@ export function LoginPage() {
 
     try {
       await login(username, password, { rememberMe });
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }

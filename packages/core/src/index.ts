@@ -9,6 +9,7 @@ export { BaseService } from './api/base-api.service.js';
 export { AuthService, validateServerUrl } from './api/auth.service.js';
 export { ItemsService } from './api/items.service.js';
 export { PlaylistsService } from './api/playlists.service.js';
+export { AdminService, type CacheStats, type CacheClearResult } from './api/admin.service.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';

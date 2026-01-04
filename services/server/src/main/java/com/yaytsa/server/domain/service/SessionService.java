@@ -103,6 +103,16 @@ public class SessionService {
     return sessionRepository.findByIdWithUserAndItem(sessionId);
   }
 
+  public void pingSession(UUID userId, String deviceId) {
+    sessionRepository
+        .findByUserIdAndDeviceId(userId, deviceId)
+        .ifPresent(
+            session -> {
+              session.setLastUpdate(OffsetDateTime.now());
+              sessionRepository.save(session);
+            });
+  }
+
   private SessionEntity findOrCreateSession(UUID userId, String deviceId) {
     return sessionRepository
         .findByUserIdAndDeviceId(userId, deviceId)
