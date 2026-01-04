@@ -87,19 +87,20 @@ jobs:
 
       - name: Generate image tags
         id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
         run: |
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          SHORT_SHA="$(git rev-parse --short HEAD)"
-          PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}"
-
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
           TAGS="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${PRIMARY_TAG}"
-          APP_ENVIRONMENT="development"
-          if [[ "$BRANCH_NAME" == "main" ]]; then
+          APP_ENVIRONMENT="staging"
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:${GIT_REF_NAME}"
             TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:latest"
             APP_ENVIRONMENT="production"
-          elif [[ "$BRANCH_NAME" == "develop" ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:staging-latest"
-            APP_ENVIRONMENT="staging"
           fi
 
           {
@@ -158,20 +159,24 @@ jobs:
 
       - name: Generate image tags
         id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
         run: |
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          SHORT_SHA="$(git rev-parse --short HEAD)"
-          PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}"
-
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
           TAGS="${{ env.REGISTRY }}/${{ github.repository }}/backend:${PRIMARY_TAG}"
-          if [[ "$BRANCH_NAME" == "main" ]]; then
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:${GIT_REF_NAME}"
             TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:latest"
-          elif [[ "$BRANCH_NAME" == "develop" ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:staging-latest"
           fi
 
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-          echo "primary_tag=${PRIMARY_TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata (labels)
         id: meta
@@ -220,20 +225,24 @@ jobs:
 
       - name: Generate image tags
         id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
         run: |
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          SHORT_SHA="$(git rev-parse --short HEAD)"
-          PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}"
-
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
           TAGS="${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${PRIMARY_TAG}"
-          if [[ "$BRANCH_NAME" == "main" ]]; then
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${GIT_REF_NAME}"
             TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:latest"
-          elif [[ "$BRANCH_NAME" == "develop" ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:staging-latest"
           fi
 
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-          echo "primary_tag=${PRIMARY_TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata (labels)
         id: meta
