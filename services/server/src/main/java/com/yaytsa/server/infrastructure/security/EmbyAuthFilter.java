@@ -50,12 +50,13 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
     if (credentials.isPresent()) {
       String token = credentials.get().token();
       String deviceId = credentials.get().deviceId();
+      String deviceName = credentials.get().deviceName();
 
       Optional<UserEntity> userEntity = authService.validateToken(token);
 
       if (userEntity.isPresent()) {
         AuthenticatedUser authenticatedUser =
-            new AuthenticatedUser(userEntity.get(), token, deviceId);
+            new AuthenticatedUser(userEntity.get(), token, deviceId, deviceName);
 
         UsernamePasswordAuthenticationToken authentication =
             new UsernamePasswordAuthenticationToken(

@@ -34,7 +34,6 @@ export function RootLayout() {
 
   useEffect(() => {
     if (sessionRestored.current) {
-      setAuthState(isAuthenticated ? 'authenticated' : 'unauthenticated');
       return;
     }
     sessionRestored.current = true;
@@ -44,7 +43,14 @@ export function RootLayout() {
       setAuthState(restored ? 'authenticated' : 'unauthenticated');
     };
     void init();
-  }, [restoreSession, isAuthenticated]);
+  }, [restoreSession]);
+
+  useEffect(() => {
+    if (!sessionRestored.current) {
+      return;
+    }
+    setAuthState(isAuthenticated ? 'authenticated' : 'unauthenticated');
+  }, [isAuthenticated]);
 
   if (authState === 'loading') {
     return (

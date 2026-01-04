@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.domain.service.KaraokeService;
 import com.yaytsa.server.domain.service.KaraokeService.ProcessingState;
 import com.yaytsa.server.domain.service.KaraokeService.ProcessingStatus;
+import com.yaytsa.server.util.PathUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -13,10 +14,8 @@ import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.URLEncoder;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -228,7 +227,7 @@ public class KaraokeController {
     response.setHeader("Accept-Ranges", "bytes");
 
     if (xAccelRedirectEnabled) {
-      String encodedPath = encodePathForHeader(filePath.toAbsolutePath().toString());
+      String encodedPath = PathUtils.encodePathForHeader(filePath.toAbsolutePath().toString());
       String redirectPath = xAccelInternalPath + encodedPath;
       response.setStatus(HttpServletResponse.SC_OK);
       response.setHeader("X-Accel-Redirect", redirectPath);
@@ -241,18 +240,6 @@ public class KaraokeController {
         fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
       }
     }
-  }
-
-  private String encodePathForHeader(String path) {
-    StringBuilder encoded = new StringBuilder();
-    for (String segment : path.split("/")) {
-      if (!segment.isEmpty()) {
-        String encodedSegment =
-            URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20");
-        encoded.append("/").append(encodedSegment);
-      }
-    }
-    return encoded.toString();
   }
 
   private String detectMimeType(Path filePath) {

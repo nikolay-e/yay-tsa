@@ -44,11 +44,16 @@ public class SessionsController {
       @RequestBody PlaybackStartInfo playbackInfo,
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
+    UUID itemId = parseUuid(playbackInfo.getItemId());
+    if (itemId == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
     UUID userId = authenticatedUser.getUserEntity().getId();
     String deviceId = authenticatedUser.getDeviceId();
-    UUID itemId = UUID.fromString(playbackInfo.getItemId());
+    String deviceName = authenticatedUser.getDeviceName();
 
-    sessionService.reportPlaybackStart(userId, deviceId, itemId);
+    sessionService.reportPlaybackStart(userId, deviceId, deviceName, itemId);
 
     return ResponseEntity.noContent().build();
   }
@@ -64,14 +69,20 @@ public class SessionsController {
       @RequestBody PlaybackProgressInfo progressInfo,
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
+    UUID itemId = parseUuid(progressInfo.getItemId());
+    if (itemId == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
     UUID userId = authenticatedUser.getUserEntity().getId();
     String deviceId = authenticatedUser.getDeviceId();
-    UUID itemId = UUID.fromString(progressInfo.getItemId());
+    String deviceName = authenticatedUser.getDeviceName();
     Long ticks = progressInfo.getPositionTicks();
     long positionMs = ticks != null ? Math.max(0, ticks / (TICKS_PER_SECOND / 1000)) : 0;
     boolean isPaused = progressInfo.getIsPaused() != null && progressInfo.getIsPaused();
 
-    sessionService.reportPlaybackProgress(userId, deviceId, itemId, positionMs, isPaused);
+    sessionService.reportPlaybackProgress(
+        userId, deviceId, deviceName, itemId, positionMs, isPaused);
 
     return ResponseEntity.noContent().build();
   }
@@ -89,9 +100,13 @@ public class SessionsController {
       @RequestBody PlaybackStopInfo stopInfo,
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
+    UUID itemId = parseUuid(stopInfo.getItemId());
+    if (itemId == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
     UUID userId = authenticatedUser.getUserEntity().getId();
     String deviceId = authenticatedUser.getDeviceId();
-    UUID itemId = UUID.fromString(stopInfo.getItemId());
     Long ticks = stopInfo.getPositionTicks();
     long positionMs = ticks != null ? Math.max(0, ticks / (TICKS_PER_SECOND / 1000)) : 0;
 
@@ -129,7 +144,12 @@ public class SessionsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    Optional<SessionEntity> sessionOpt = sessionService.getSession(UUID.fromString(sessionId));
+    UUID sessionUuid = parseUuid(sessionId);
+    if (sessionUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    Optional<SessionEntity> sessionOpt = sessionService.getSession(sessionUuid);
 
     if (sessionOpt.isEmpty()) {
       return ResponseEntity.notFound().build();
@@ -204,5 +224,16 @@ public class SessionsController {
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+  }
+
+  private UUID parseUuid(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
   }
 }

@@ -38,8 +38,8 @@ public class SessionService {
     this.playStateService = playStateService;
   }
 
-  public void reportPlaybackStart(UUID userId, String deviceId, UUID itemId) {
-    SessionEntity session = findOrCreateSession(userId, deviceId);
+  public void reportPlaybackStart(UUID userId, String deviceId, String deviceName, UUID itemId) {
+    SessionEntity session = findOrCreateSession(userId, deviceId, deviceName);
     ItemEntity item = itemRepository.findById(itemId).orElse(null);
     session.setNowPlayingItem(item);
     session.setPositionMs(0L);
@@ -64,8 +64,13 @@ public class SessionService {
   }
 
   public void reportPlaybackProgress(
-      UUID userId, String deviceId, UUID itemId, long positionMs, boolean isPaused) {
-    SessionEntity session = findOrCreateSession(userId, deviceId);
+      UUID userId,
+      String deviceId,
+      String deviceName,
+      UUID itemId,
+      long positionMs,
+      boolean isPaused) {
+    SessionEntity session = findOrCreateSession(userId, deviceId, deviceName);
     ItemEntity item = itemRepository.findById(itemId).orElse(null);
     session.setNowPlayingItem(item);
     session.setPositionMs(positionMs);
@@ -113,7 +118,7 @@ public class SessionService {
             });
   }
 
-  private SessionEntity findOrCreateSession(UUID userId, String deviceId) {
+  private SessionEntity findOrCreateSession(UUID userId, String deviceId, String deviceName) {
     return sessionRepository
         .findByUserIdAndDeviceId(userId, deviceId)
         .orElseGet(
@@ -126,7 +131,7 @@ public class SessionService {
               SessionEntity newSession = new SessionEntity();
               newSession.setUser(user);
               newSession.setDeviceId(deviceId);
-              newSession.setDeviceName("Unknown Device");
+              newSession.setDeviceName(deviceName != null ? deviceName : "Unknown Device");
               newSession.setLastUpdate(OffsetDateTime.now());
               return newSession;
             });

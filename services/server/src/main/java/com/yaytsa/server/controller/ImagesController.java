@@ -2,14 +2,13 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ImageService;
 import com.yaytsa.server.dto.ImageParams;
+import com.yaytsa.server.util.PathUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
@@ -106,7 +105,7 @@ public class ImagesController {
 
   private ResponseEntity<byte[]> handleXAccelRedirect(
       Path imagePath, String format, Optional<String> etag, HttpServletResponse response) {
-    String encodedPath = encodePathForHeader(imagePath.toAbsolutePath().toString());
+    String encodedPath = PathUtils.encodePathForHeader(imagePath.toAbsolutePath().toString());
     String redirectPath = imageService.getXAccelInternalPath() + encodedPath;
 
     response.setStatus(HttpServletResponse.SC_OK);
@@ -117,18 +116,6 @@ public class ImagesController {
 
     log.debug("X-Accel-Redirect image to: {}", redirectPath);
     return null;
-  }
-
-  private String encodePathForHeader(String path) {
-    StringBuilder encoded = new StringBuilder();
-    for (String segment : path.split("/")) {
-      if (!segment.isEmpty()) {
-        encoded
-            .append("/")
-            .append(URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20"));
-      }
-    }
-    return encoded.toString();
   }
 
   @Operation(

@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Playlists", description = "Playlist management")
 public class PlaylistsController {
 
+  private static final int MAX_PAGE_SIZE = 1000;
+
   private final PlaylistService playlistService;
   private final ItemService itemService;
   private final ItemMapper itemMapper;
@@ -50,11 +52,19 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
+    int validStartIndex = Math.max(0, startIndex);
+    int validLimit = Math.max(0, Math.min(limit, MAX_PAGE_SIZE));
+
     List<Map<String, Object>> items = new ArrayList<>();
 
     int totalCount = 0;
     if (userId != null) {
-      UUID requestedUserId = UUID.fromString(userId);
+      UUID requestedUserId;
+      try {
+        requestedUserId = UUID.fromString(userId);
+      } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().build();
+      }
       UUID currentUserId = authenticatedUser.getUserEntity().getId();
       boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
 
@@ -65,9 +75,9 @@ public class PlaylistsController {
       List<PlaylistEntity> playlists = playlistService.getUserPlaylists(requestedUserId);
       totalCount = playlists.size();
 
-      int endIndex = Math.min(startIndex + limit, playlists.size());
+      int endIndex = Math.min(validStartIndex + validLimit, playlists.size());
       List<PlaylistEntity> paginatedPlaylists =
-          playlists.subList(Math.min(startIndex, playlists.size()), endIndex);
+          playlists.subList(Math.min(validStartIndex, playlists.size()), endIndex);
 
       for (PlaylistEntity playlist : paginatedPlaylists) {
         Map<String, Object> item = new HashMap<>();
@@ -83,7 +93,7 @@ public class PlaylistsController {
     Map<String, Object> response = new HashMap<>();
     response.put("Items", items);
     response.put("TotalRecordCount", totalCount);
-    response.put("StartIndex", startIndex);
+    response.put("StartIndex", validStartIndex);
 
     return ResponseEntity.ok(response);
   }
@@ -93,21 +103,41 @@ public class PlaylistsController {
       value = {
         @ApiResponse(responseCode = "201", description = "Playlist created successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid request"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
       })
   @PostMapping
   public ResponseEntity<Map<String, String>> createPlaylist(
       @RequestBody CreatePlaylistRequest request,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userId = UUID.fromString(request.userId());
-    List<UUID> itemIds =
-        request.ids() != null
-            ? request.ids().stream().map(UUID::fromString).collect(Collectors.toList())
-            : null;
+    UUID requestedUserId;
+    try {
+      requestedUserId = UUID.fromString(request.userId());
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build();
+    }
 
-    PlaylistEntity playlist = playlistService.createPlaylist(userId, request.name(), itemIds);
+    UUID currentUserId = authenticatedUser.getUserEntity().getId();
+    boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
+
+    if (!isAdmin && !requestedUserId.equals(currentUserId)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    List<UUID> itemIds = null;
+    if (request.ids() != null) {
+      try {
+        itemIds = request.ids().stream().map(UUID::fromString).collect(Collectors.toList());
+      } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().build();
+      }
+    }
+
+    PlaylistEntity playlist =
+        playlistService.createPlaylist(requestedUserId, request.name(), itemIds);
 
     Map<String, String> response = new HashMap<>();
     response.put("Id", playlist.getId().toString());
@@ -123,8 +153,12 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    Optional<PlaylistEntity> optionalPlaylist =
-        playlistService.getPlaylist(UUID.fromString(playlistId));
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    Optional<PlaylistEntity> optionalPlaylist = playlistService.getPlaylist(playlistUuid);
 
     if (optionalPlaylist.isEmpty()) {
       return ResponseEntity.notFound().build();
@@ -155,7 +189,12 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    Optional<PlaylistEntity> existing = playlistService.getPlaylist(UUID.fromString(playlistId));
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
 
     if (existing.isEmpty()) {
       return ResponseEntity.notFound().build();
@@ -166,8 +205,7 @@ public class PlaylistsController {
     }
 
     String name = playlistData.get("Name") != null ? playlistData.get("Name").toString() : null;
-    Optional<PlaylistEntity> updated =
-        playlistService.updatePlaylist(UUID.fromString(playlistId), name);
+    Optional<PlaylistEntity> updated = playlistService.updatePlaylist(playlistUuid, name);
 
     if (updated.isEmpty()) {
       return ResponseEntity.notFound().build();
@@ -190,7 +228,12 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    Optional<PlaylistEntity> existing = playlistService.getPlaylist(UUID.fromString(playlistId));
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
 
     if (existing.isEmpty()) {
       return ResponseEntity.notFound().build();
@@ -200,7 +243,7 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    playlistService.deletePlaylist(UUID.fromString(playlistId));
+    playlistService.deletePlaylist(playlistUuid);
     return ResponseEntity.noContent().build();
   }
 
@@ -224,7 +267,13 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = UUID.fromString(playlistId);
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    int validStartIndex = Math.max(0, startIndex);
+    int validLimit = Math.max(0, Math.min(limit, MAX_PAGE_SIZE));
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
@@ -236,40 +285,38 @@ public class PlaylistsController {
     }
 
     Page<PlaylistEntryEntity> page =
-        playlistService.getPlaylistItems(playlistUuid, startIndex, limit);
+        playlistService.getPlaylistItems(playlistUuid, validStartIndex, validLimit);
 
     List<Map<String, Object>> items =
         page.getContent().stream()
-            .map(
+            .flatMap(
                 entry -> {
+                  Optional<ItemEntity> itemEntity = itemService.findById(entry.getItemId());
+                  if (itemEntity.isEmpty()) {
+                    return java.util.stream.Stream.empty();
+                  }
                   Map<String, Object> item = new HashMap<>();
                   item.put("PlaylistItemId", entry.getId().toString());
-
-                  Optional<ItemEntity> itemEntity = itemService.findById(entry.getItemId());
-                  if (itemEntity.isPresent()) {
-                    BaseItemResponse dto = itemMapper.toDto(itemEntity.get(), null);
-                    item.put("Id", dto.id());
-                    item.put("Name", dto.name());
-                    item.put("Type", dto.type());
-                    item.put("RunTimeTicks", dto.runTimeTicks());
-                    item.put("IndexNumber", dto.indexNumber());
-                    item.put("ParentIndexNumber", dto.parentIndexNumber());
-                    item.put("AlbumId", dto.albumId());
-                    item.put("AlbumArtist", dto.albumArtist());
-                    if (dto.imageTags() != null) {
-                      item.put("ImageTags", dto.imageTags());
-                    }
-                  } else {
-                    item.put("Id", entry.getItemId().toString());
+                  BaseItemResponse dto = itemMapper.toDto(itemEntity.get(), null);
+                  item.put("Id", dto.id());
+                  item.put("Name", dto.name());
+                  item.put("Type", dto.type());
+                  item.put("RunTimeTicks", dto.runTimeTicks());
+                  item.put("IndexNumber", dto.indexNumber());
+                  item.put("ParentIndexNumber", dto.parentIndexNumber());
+                  item.put("AlbumId", dto.albumId());
+                  item.put("AlbumArtist", dto.albumArtist());
+                  if (dto.imageTags() != null) {
+                    item.put("ImageTags", dto.imageTags());
                   }
-                  return item;
+                  return java.util.stream.Stream.of(item);
                 })
             .collect(Collectors.toList());
 
     Map<String, Object> response = new HashMap<>();
     response.put("Items", items);
     response.put("TotalRecordCount", Math.toIntExact(page.getTotalElements()));
-    response.put("StartIndex", startIndex);
+    response.put("StartIndex", validStartIndex);
 
     return ResponseEntity.ok(response);
   }
@@ -290,7 +337,10 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = UUID.fromString(playlistId);
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
@@ -301,11 +351,17 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    List<UUID> itemIds =
-        Arrays.stream(ids.split(","))
-            .map(String::trim)
-            .map(UUID::fromString)
-            .collect(Collectors.toList());
+    List<UUID> itemIds;
+    try {
+      itemIds =
+          Arrays.stream(ids.split(","))
+              .map(String::trim)
+              .filter(s -> !s.isEmpty())
+              .map(UUID::fromString)
+              .collect(Collectors.toList());
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build();
+    }
 
     playlistService.addItemsToPlaylist(playlistUuid, itemIds);
 
@@ -327,7 +383,10 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = UUID.fromString(playlistId);
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
@@ -338,11 +397,17 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    List<UUID> entryIdsList =
-        Arrays.stream(entryIds.split(","))
-            .map(String::trim)
-            .map(UUID::fromString)
-            .collect(Collectors.toList());
+    List<UUID> entryIdsList;
+    try {
+      entryIdsList =
+          Arrays.stream(entryIds.split(","))
+              .map(String::trim)
+              .filter(s -> !s.isEmpty())
+              .map(UUID::fromString)
+              .collect(Collectors.toList());
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build();
+    }
 
     playlistService.removeItemsFromPlaylist(playlistUuid, entryIdsList);
 
@@ -361,7 +426,15 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = UUID.fromString(playlistId);
+    UUID playlistUuid = parseUuid(playlistId);
+    if (playlistUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID entryId = parseUuid(itemId);
+    if (entryId == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
@@ -371,8 +444,6 @@ public class PlaylistsController {
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
-
-    UUID entryId = UUID.fromString(itemId);
 
     playlistService.movePlaylistItem(playlistUuid, entryId, newIndex);
 
@@ -386,5 +457,16 @@ public class PlaylistsController {
     UUID currentUserId = user.getUserEntity().getId();
     boolean isAdmin = user.getUserEntity().isAdmin();
     return playlist.getUserId().equals(currentUserId) || isAdmin;
+  }
+
+  private UUID parseUuid(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
   }
 }

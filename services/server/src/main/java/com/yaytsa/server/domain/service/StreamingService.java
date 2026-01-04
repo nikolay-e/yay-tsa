@@ -2,13 +2,12 @@ package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
+import com.yaytsa.server.util.PathUtils;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.URLEncoder;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -131,7 +130,7 @@ public class StreamingService {
   private void handleXAccelRedirect(
       Path filePath, long fileSize, String mimeType, HttpServletResponse response) {
 
-    String encodedPath = encodePathForHeader(filePath.toAbsolutePath().toString());
+    String encodedPath = PathUtils.encodePathForHeader(filePath.toAbsolutePath().toString());
     String redirectPath = xAccelInternalPath + encodedPath;
 
     response.setStatus(HttpServletResponse.SC_OK);
@@ -141,18 +140,6 @@ public class StreamingService {
     response.setHeader("X-Accel-Buffering", "no");
 
     log.debug("X-Accel-Redirect to: {}", redirectPath);
-  }
-
-  private String encodePathForHeader(String path) {
-    StringBuilder encoded = new StringBuilder();
-    for (String segment : path.split("/")) {
-      if (!segment.isEmpty()) {
-        String encodedSegment =
-            URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20");
-        encoded.append("/").append(encodedSegment);
-      }
-    }
-    return encoded.toString();
   }
 
   public Resource getAudioResource(UUID itemId) {

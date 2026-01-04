@@ -12,11 +12,14 @@ public class AuthenticatedUser implements UserDetails {
   private final UserEntity userEntity;
   private final String token;
   private final String deviceId;
+  private final String deviceName;
 
-  public AuthenticatedUser(UserEntity userEntity, String token, String deviceId) {
+  public AuthenticatedUser(
+      UserEntity userEntity, String token, String deviceId, String deviceName) {
     this.userEntity = userEntity;
     this.token = token;
     this.deviceId = deviceId;
+    this.deviceName = deviceName;
   }
 
   @Override
@@ -68,5 +71,9 @@ public class AuthenticatedUser implements UserDetails {
 
   public String getDeviceId() {
     return deviceId;
+  }
+
+  public String getDeviceName() {
+    return deviceName;
   }
 }
