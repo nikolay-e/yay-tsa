@@ -23,13 +23,11 @@ CMD ["npm", "run", "dev"]
 
 FROM base AS builder
 
-ARG GIT_SHA=0.0.0-dev
-ENV GIT_SHA=${GIT_SHA}
+ARG GIT_SHA=dev
+ARG APP_ENVIRONMENT=development
 
 RUN apk add --no-cache brotli gzip && \
-    npm run build && \
-    find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
-        sed -i "s/0\.0\.0-placeholder/${GIT_SHA}/g" {} + 2>/dev/null || true && \
+    VITE_APP_VERSION=${GIT_SHA} VITE_APP_ENVIRONMENT=${APP_ENVIRONMENT} npm run build && \
     find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
         -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
 

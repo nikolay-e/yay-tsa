@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { VersionInfo } from '@/shared/components/VersionInfo';
 import { cn } from '@/shared/utils/cn';
 
 export function LoginPage() {
@@ -118,6 +119,10 @@ export function LoginPage() {
             )}
           </button>
         </form>
+
+        <div className="mt-6">
+          <VersionInfo />
+        </div>
       </div>
     </div>
   );

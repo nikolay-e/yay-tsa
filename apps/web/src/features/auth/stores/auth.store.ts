@@ -4,7 +4,6 @@ import {
   MediaServerClient,
   AuthService,
   getOrCreateDeviceId,
-  APP_VERSION,
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   type ClientInfo,
@@ -17,6 +16,7 @@ import {
 } from '@/shared/utils/session-manager';
 import { log } from '@/shared/utils/logger';
 
+const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
 const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const API_BASE_PATH = '/api';
 

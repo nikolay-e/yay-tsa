@@ -93,14 +93,20 @@ jobs:
           PRIMARY_TAG="${BRANCH_NAME}-${SHORT_SHA}"
 
           TAGS="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${PRIMARY_TAG}"
+          APP_ENVIRONMENT="development"
           if [[ "$BRANCH_NAME" == "main" ]]; then
             TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:latest"
+            APP_ENVIRONMENT="production"
           elif [[ "$BRANCH_NAME" == "develop" ]]; then
             TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:staging-latest"
+            APP_ENVIRONMENT="staging"
           fi
 
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-          echo "primary_tag=${PRIMARY_TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+            echo "app_environment=${APP_ENVIRONMENT}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata (labels)
         id: meta
@@ -120,6 +126,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ steps.tags.outputs.primary_tag }}
+            APP_ENVIRONMENT=${{ steps.tags.outputs.app_environment }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
           platforms: linux/amd64

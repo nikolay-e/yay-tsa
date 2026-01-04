@@ -4,6 +4,7 @@ import { Home, Disc3, Users, LogOut, Settings, type LucideIcon } from 'lucide-re
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { useCurrentTrack } from '@/features/player/stores/player.store';
+import { VersionInfo } from '@/shared/components/VersionInfo';
 import { cn } from '@/shared/utils/cn';
 
 interface NavItem {
@@ -129,6 +130,7 @@ function Sidebar() {
           <LogOut className="h-5 w-5" />
           <span>Logout</span>
         </button>
+        <VersionInfo />
       </div>
     </aside>
   );

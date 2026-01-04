@@ -29,7 +29,7 @@ export default defineConfig({
             urlPattern: ({ request }) => request.mode === 'navigate',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'yaytsa-navigation-0.0.0-placeholder',
+              cacheName: `yaytsa-navigation-${process.env.VITE_APP_VERSION || 'dev'}`,
               networkTimeoutSeconds: 10,
               fetchOptions: {
                 credentials: 'include',
@@ -41,7 +41,7 @@ export default defineConfig({
               url.pathname.includes('/Items/') && url.pathname.includes('/Images/'),
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'yaytsa-images-0.0.0-placeholder',
+              cacheName: `yaytsa-images-${process.env.VITE_APP_VERSION || 'dev'}`,
               expiration: {
                 maxEntries: 500,
                 maxAgeSeconds: 30 * 24 * 60 * 60,

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Trash2, RefreshCw, HardDrive, Database, Info, Server } from 'lucide-react';
-import { APP_VERSION, AdminService, type CacheStats } from '@yaytsa/core';
+import { AdminService, type CacheStats } from '@yaytsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { VersionInfo } from '@/shared/components/VersionInfo';
 
 async function clearServiceWorkerCaches(): Promise<number> {
   if (!('caches' in window)) return 0;
@@ -254,10 +255,7 @@ export function SettingsPage() {
         </h2>
 
         <div className="bg-bg-secondary border-border rounded-lg border p-4">
-          <div className="flex justify-between">
-            <span className="text-text-secondary">Version</span>
-            <span className="font-mono">{APP_VERSION}</span>
-          </div>
+          <VersionInfo />
         </div>
       </section>
     </div>
