@@ -17,7 +17,7 @@ import {
 } from '@yaytsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
-import { useTimingStore } from './timing.store';
+import { useTimingStore } from './playback-timing.store';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -70,14 +70,26 @@ let currentClient: MediaServerClient | null = null;
 let currentLoadId: symbol | null = null;
 let lastProgressReportTime = 0;
 
-function getAudioEngine(): AudioEngine {
-  audioEngine ??= new HTML5AudioEngine();
-  return audioEngine;
+function getAudioEngine(): AudioEngine | null {
+  if (audioEngine) return audioEngine;
+  try {
+    audioEngine = new HTML5AudioEngine();
+    return audioEngine;
+  } catch (e) {
+    log.player.error('Failed to initialize audio engine', e);
+    return null;
+  }
 }
 
-function getMediaSession(): MediaSessionManager {
-  mediaSession ??= new MediaSessionManager();
-  return mediaSession;
+function getMediaSession(): MediaSessionManager | null {
+  if (mediaSession) return mediaSession;
+  try {
+    mediaSession = new MediaSessionManager();
+    return mediaSession;
+  } catch (e) {
+    log.player.warn('Failed to initialize media session', { error: String(e) });
+    return null;
+  }
 }
 
 function getSavedVolume(): number {
@@ -126,6 +138,31 @@ export const usePlayerStore = create<PlayerStore>()(
     const engine = getAudioEngine();
     const session = getMediaSession();
 
+    if (!engine) {
+      log.player.error('Audio engine not available, player will not function');
+      return {
+        ...initialState,
+        error: new Error('Audio playback is not supported in this browser'),
+        playTrack: async () => {},
+        playTracks: async () => {},
+        playAlbum: async () => {},
+        pause: () => {},
+        resume: async () => {},
+        next: async () => {},
+        previous: async () => {},
+        seek: () => {},
+        setVolume: () => {},
+        toggleShuffle: () => {},
+        setShuffle: () => {},
+        toggleRepeat: () => {},
+        stop: () => {},
+        toggleKaraoke: async () => {},
+        refreshKaraokeStatus: async () => {},
+        setSleepTimer: () => {},
+        clearSleepTimer: () => {},
+      };
+    }
+
     engine.setVolume(initialState.volume);
 
     engine.onTimeUpdate(seconds => {
@@ -163,7 +200,7 @@ export const usePlayerStore = create<PlayerStore>()(
       set({ error, isPlaying: false, isLoading: false });
     });
 
-    session.setActionHandlers({
+    session?.setActionHandlers({
       onPlay: () => void get().resume(),
       onPause: () => get().pause(),
       onSeek: seconds => get().seek(seconds),
@@ -172,6 +209,8 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     async function loadAndPlay(track: AudioItem): Promise<void> {
+      if (!engine) return;
+
       const loadId = Symbol('load');
       currentLoadId = loadId;
 
@@ -201,15 +240,21 @@ export const usePlayerStore = create<PlayerStore>()(
           return;
         }
 
-        const imageUrl = track.AlbumPrimaryImageTag
-          ? currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
-              tag: track.AlbumPrimaryImageTag,
-              maxWidth: 256,
-              maxHeight: 256,
-            })
-          : undefined;
+        let imageUrl: string | undefined;
+        if (track.AlbumPrimaryImageTag) {
+          imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
+            tag: track.AlbumPrimaryImageTag,
+            maxWidth: 256,
+            maxHeight: 256,
+          });
+        } else if (track.AlbumId) {
+          imageUrl = currentClient.getImageUrl(track.AlbumId, 'Primary', {
+            maxWidth: 256,
+            maxHeight: 256,
+          });
+        }
 
-        session.updateMetadata({
+        session?.updateMetadata({
           title: track.Name,
           artist: track.Artists?.join(', ') ?? 'Unknown Artist',
           album: track.Album ?? 'Unknown Album',
@@ -488,11 +533,11 @@ export const usePlayerStore = create<PlayerStore>()(
           const status = await currentClient.getKaraokeStatus(currentTrack.Id);
 
           if (status.state === 'READY') {
-            const currentTime = getAudioEngine().getCurrentTime();
+            const currentTime = engine.getCurrentTime();
             const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-            await getAudioEngine().load(instrumentalUrl);
-            getAudioEngine().seek(currentTime);
-            if (wasPlaying) await getAudioEngine().play();
+            await engine.load(instrumentalUrl);
+            engine.seek(currentTime);
+            if (wasPlaying) await engine.play();
             set({ karaokeStatus: status, isKaraokeMode: true });
           } else {
             set({ karaokeStatus: status });

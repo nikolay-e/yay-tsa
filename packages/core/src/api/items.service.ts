@@ -187,6 +187,7 @@ export class ItemsService extends BaseService {
     const userId = this.requireAuth();
     const result = await this.client.get<ItemsResult<AudioItem>>(`/Items/${albumId}/Tracks`, {
       userId,
+      Fields: 'MediaSources,Artists,Album,AlbumId,AlbumPrimaryImageTag,RunTimeTicks',
     });
     return result?.Items ?? [];
   }

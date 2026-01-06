@@ -15,10 +15,11 @@ import {
   X,
 } from 'lucide-react';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
+import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatDuration } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
-import { useTimingStore } from '../stores/timing.store';
+import { useTimingStore } from '../stores/playback-timing.store';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -33,7 +34,7 @@ import {
 } from '../stores/player.store';
 
 export function PlayerBar() {
-  const [hasImageError, setHasImageError] = useState(false);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const currentTrack = useCurrentTrack();
@@ -71,10 +72,6 @@ export function PlayerBar() {
   }, [playerError]);
 
   useEffect(() => {
-    setHasImageError(false);
-  }, [currentTrack?.Id]);
-
-  useEffect(() => {
     if (karaokeStatus?.state !== 'PROCESSING') return;
 
     const interval = setInterval(() => {
@@ -104,13 +101,16 @@ export function PlayerBar() {
     return null;
   }
 
-  const imageUrl = currentTrack.AlbumPrimaryImageTag
-    ? getImageUrl(currentTrack.AlbumId || currentTrack.Id, 'Primary', {
-        tag: currentTrack.AlbumPrimaryImageTag,
-        maxWidth: 64,
-        maxHeight: 64,
-      })
-    : getImagePlaceholder();
+  const imageKey = `${currentTrack.Id}-${currentTrack.AlbumPrimaryImageTag ?? currentTrack.AlbumId ?? 'none'}`;
+  const hasImageError = errorKey === imageKey;
+
+  const imageUrl = getTrackImageUrl(getImageUrl, {
+    albumId: currentTrack.AlbumId,
+    albumPrimaryImageTag: currentTrack.AlbumPrimaryImageTag,
+    trackId: currentTrack.Id,
+    maxWidth: 64,
+    maxHeight: 64,
+  });
 
   const artistName = currentTrack.Artists?.[0] ?? 'Unknown Artist';
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -133,7 +133,7 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="safe-area-bottom z-player border-border bg-bg-secondary fixed right-0 bottom-0 left-0 border-t"
+      className="z-player border-border bg-bg-secondary pb-safe fixed right-0 bottom-[--spacing-bottom-tab] left-0 border-t md:bottom-0"
     >
       <div
         data-testid="seek-slider"
@@ -163,7 +163,7 @@ export function PlayerBar() {
             src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={currentTrack.Name}
             className="h-12 w-12 shrink-0 rounded-sm object-cover"
-            onError={() => setHasImageError(true)}
+            onError={() => setErrorKey(imageKey)}
           />
           <div className="min-w-0">
             <p data-testid="current-track-title" className="text-text-primary truncate font-medium">

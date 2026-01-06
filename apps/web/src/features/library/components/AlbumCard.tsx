@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import { type MusicAlbum } from '@yaytsa/core';
@@ -11,11 +11,10 @@ interface AlbumCardProps {
 }
 
 export function AlbumCard({ album, onPlay }: AlbumCardProps) {
-  const [hasImageError, setHasImageError] = useState(false);
+  const imageKey = `${album.Id}-${album.ImageTags?.Primary ?? 'none'}`;
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const hasImageError = errorKey === imageKey;
 
-  useEffect(() => {
-    setHasImageError(false);
-  }, [album.Id]);
   const { getImageUrl } = useImageUrl();
   const imageUrl = album.ImageTags?.Primary
     ? getImageUrl(album.Id, 'Primary', {
@@ -42,7 +41,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
             alt={album.Name}
             className="h-full w-full object-cover"
             loading="lazy"
-            onError={() => setHasImageError(true)}
+            onError={() => setErrorKey(imageKey)}
           />
         </div>
         <h3 data-testid="album-title" className="text-text-primary truncate font-medium">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Play, Shuffle, Loader2 } from 'lucide-react';
@@ -16,11 +16,7 @@ import { cn } from '@/shared/utils/cn';
 
 export function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [hasImageError, setHasImageError] = useState(false);
-
-  useEffect(() => {
-    setHasImageError(false);
-  }, [id]);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const client = useAuthStore(state => state.client);
   const { getImageUrl } = useImageUrl();
 
@@ -60,6 +56,9 @@ export function AlbumDetailPage() {
     );
   }
 
+  const imageKey = `${album.Id}-${album.ImageTags?.Primary ?? 'none'}`;
+  const hasImageError = errorKey === imageKey;
+
   const imageUrl = album.ImageTags?.Primary
     ? getImageUrl(album.Id, 'Primary', {
         maxWidth: 400,
@@ -89,7 +88,7 @@ export function AlbumDetailPage() {
             src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={album.Name}
             className="h-48 w-48 rounded-md object-cover shadow-lg sm:h-56 sm:w-56"
-            onError={() => setHasImageError(true)}
+            onError={() => setErrorKey(imageKey)}
           />
         </div>
 

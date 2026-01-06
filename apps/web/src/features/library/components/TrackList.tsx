@@ -2,6 +2,7 @@ import { useState, memo } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { type AudioItem } from '@yaytsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
+import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatTicksDuration } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 
@@ -17,49 +18,59 @@ interface TrackListProps {
   showImage?: boolean;
 }
 
-const TrackImage = memo(function TrackImage({
-  track,
-  isCurrentTrack,
-  isPlaying,
-}: {
-  track: AudioItem;
-  isCurrentTrack: boolean;
-  isPlaying: boolean;
-}) {
-  const [hasError, setHasError] = useState(false);
-  const { getImageUrl } = useImageUrl();
+const TrackImage = memo(
+  function TrackImage({
+    track,
+    isCurrentTrack,
+    isPlaying,
+  }: {
+    track: AudioItem;
+    isCurrentTrack: boolean;
+    isPlaying: boolean;
+  }) {
+    const imageKey = `${track.Id}-${track.AlbumPrimaryImageTag ?? track.AlbumId ?? 'none'}`;
+    const [errorKey, setErrorKey] = useState<string | null>(null);
+    const hasError = errorKey === imageKey;
+    const { getImageUrl } = useImageUrl();
 
-  const imageUrl = track.AlbumPrimaryImageTag
-    ? getImageUrl(track.AlbumId || track.Id, 'Primary', {
-        tag: track.AlbumPrimaryImageTag,
-        maxWidth: 48,
-        maxHeight: 48,
-      })
-    : getImagePlaceholder();
+    const imageUrl = getTrackImageUrl(getImageUrl, {
+      albumId: track.AlbumId,
+      albumPrimaryImageTag: track.AlbumPrimaryImageTag,
+      trackId: track.Id,
+      maxWidth: 48,
+      maxHeight: 48,
+    });
 
-  return (
-    <div className="group/img relative h-10 w-10 shrink-0 overflow-hidden rounded-sm">
-      <img
-        src={hasError ? getImagePlaceholder() : imageUrl}
-        alt={track.Name}
-        className="h-full w-full object-cover"
-        onError={() => setHasError(true)}
-      />
-      <div
-        className={cn(
-          'absolute inset-0 flex items-center justify-center bg-black/50',
-          isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        )}
-      >
-        {isCurrentTrack && isPlaying ? (
-          <Pause className="text-accent h-4 w-4" fill="currentColor" />
-        ) : (
-          <Play className="h-4 w-4 text-white" fill="currentColor" />
-        )}
+    return (
+      <div className="group/img relative h-10 w-10 shrink-0 overflow-hidden rounded-sm">
+        <img
+          src={hasError ? getImagePlaceholder() : imageUrl}
+          alt={track.Name}
+          className="h-full w-full object-cover"
+          onError={() => setErrorKey(imageKey)}
+        />
+        <div
+          className={cn(
+            'absolute inset-0 flex items-center justify-center bg-black/50',
+            isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}
+        >
+          {isCurrentTrack && isPlaying ? (
+            <Pause className="text-accent h-4 w-4" fill="currentColor" />
+          ) : (
+            <Play className="h-4 w-4 text-white" fill="currentColor" />
+          )}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+  (prev, next) =>
+    prev.track.Id === next.track.Id &&
+    prev.track.AlbumId === next.track.AlbumId &&
+    prev.track.AlbumPrimaryImageTag === next.track.AlbumPrimaryImageTag &&
+    prev.isCurrentTrack === next.isCurrentTrack &&
+    prev.isPlaying === next.isPlaying
+);
 
 export function TrackList({
   tracks,

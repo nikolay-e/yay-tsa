@@ -138,13 +138,15 @@ public class KaraokeController {
                     emitter.complete();
                   }
                 }
-              } catch (Exception e) {
-                log.debug("SSE stream error for track {}: {}", trackId, e.getMessage());
-                ScheduledFuture<?> currentFuture = futureRef.get();
-                if (currentFuture != null) {
-                  currentFuture.cancel(false);
-                }
-                emitter.completeWithError(e);
+              } catch (IllegalArgumentException e) {
+                log.warn("Track {} not found during SSE polling", trackId);
+                cancelFutureAndCompleteWithError(futureRef, emitter, e);
+              } catch (IOException e) {
+                log.debug("SSE connection closed for track {}", trackId);
+                cancelFutureAndCompleteWithError(futureRef, emitter, e);
+              } catch (RuntimeException e) {
+                log.error("Unexpected error polling status for track {}", trackId, e);
+                cancelFutureAndCompleteWithError(futureRef, emitter, e);
               }
             },
             0,
@@ -240,6 +242,15 @@ public class KaraokeController {
         fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
       }
     }
+  }
+
+  private void cancelFutureAndCompleteWithError(
+      AtomicReference<ScheduledFuture<?>> futureRef, SseEmitter emitter, Exception e) {
+    ScheduledFuture<?> currentFuture = futureRef.get();
+    if (currentFuture != null) {
+      currentFuture.cancel(false);
+    }
+    emitter.completeWithError(e);
   }
 
   private String detectMimeType(Path filePath) {

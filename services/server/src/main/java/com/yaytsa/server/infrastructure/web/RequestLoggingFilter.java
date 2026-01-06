@@ -1,4 +1,4 @@
-package com.yaytsa.server.error;
+package com.yaytsa.server.infrastructure.web;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

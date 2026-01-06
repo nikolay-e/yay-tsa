@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useArtist, useArtistAlbums } from '@/features/library/hooks';
@@ -8,12 +8,7 @@ import { usePlayerStore } from '@/features/player/stores/player.store';
 
 export function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [hasImageError, setHasImageError] = useState(false);
-
-  useEffect(() => {
-    setHasImageError(false);
-  }, [id]);
-
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const { getImageUrl } = useImageUrl();
   const playAlbum = usePlayerStore(state => state.playAlbum);
 
@@ -37,6 +32,9 @@ export function ArtistDetailPage() {
       </div>
     );
   }
+
+  const imageKey = `${artist.Id}-${artist.ImageTags?.Primary ?? 'none'}`;
+  const hasImageError = errorKey === imageKey;
 
   const imageUrl = artist.ImageTags?.Primary
     ? getImageUrl(artist.Id, 'Primary', {
@@ -64,7 +62,7 @@ export function ArtistDetailPage() {
             src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={artist.Name}
             className="h-48 w-48 rounded-full object-cover shadow-lg sm:h-56 sm:w-56"
-            onError={() => setHasImageError(true)}
+            onError={() => setErrorKey(imageKey)}
           />
         </div>
 
