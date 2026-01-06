@@ -255,10 +255,8 @@ export class ItemsService extends BaseService {
     const params: Record<string, string | number | boolean> = {
       userId,
       IncludeItemTypes: 'MusicAlbum',
-      Recursive: true,
       SortBy: 'DatePlayed',
       SortOrder: 'Descending',
-      Filters: 'IsPlayed',
       enableUserData: true,
       Fields: 'PrimaryImageAspectRatio,Genres,DateCreated,Artists,ImageTags',
     };

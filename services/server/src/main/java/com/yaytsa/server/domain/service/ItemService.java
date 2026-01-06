@@ -91,6 +91,10 @@ public class ItemService {
   private Page<ItemEntity> queryRecentlyPlayed(ItemsQueryParams params) {
     Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit());
 
+    if (params.includeItemTypes() != null && params.includeItemTypes().contains("MusicAlbum")) {
+      return itemRepository.findRecentlyPlayedAlbumsByUser(params.userId(), pageable);
+    }
+
     return itemRepository.findRecentlyPlayedByUser(params.userId(), pageable);
   }
 

@@ -52,6 +52,24 @@ public interface ItemRepository
   Page<ItemEntity> findRecentlyPlayedByUser(@Param("userId") UUID userId, Pageable pageable);
 
   @Query(
+      """
+      SELECT a FROM ItemEntity a
+      WHERE a.type = 'MusicAlbum'
+      AND a.id IN (
+        SELECT at.album.id FROM AudioTrackEntity at
+        JOIN PlayStateEntity ps ON ps.item.id = at.item.id
+        WHERE ps.user.id = :userId
+        AND ps.lastPlayedAt IS NOT NULL
+      )
+      ORDER BY (
+        SELECT MAX(ps2.lastPlayedAt) FROM AudioTrackEntity at2
+        JOIN PlayStateEntity ps2 ON ps2.item.id = at2.item.id
+        WHERE at2.album.id = a.id AND ps2.user.id = :userId
+      ) DESC
+      """)
+  Page<ItemEntity> findRecentlyPlayedAlbumsByUser(@Param("userId") UUID userId, Pageable pageable);
+
+  @Query(
       value =
           """
           SELECT * FROM items
