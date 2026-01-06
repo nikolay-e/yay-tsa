@@ -194,6 +194,9 @@ public class KaraokeService {
 
     JobEntry job = processingJobs.get(trackId);
     if (job != null) {
+      if (job.status().state() == ProcessingState.FAILED) {
+        return ProcessingStatus.notStarted();
+      }
       return job.status();
     }
 
