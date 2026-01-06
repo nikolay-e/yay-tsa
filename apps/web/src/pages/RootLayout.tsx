@@ -74,7 +74,7 @@ export function RootLayout() {
 
   return (
     <div className="flex h-full min-h-screen">
-      {showSidebar && <Sidebar />}
+      {showSidebar && <Sidebar hasPlayer={!!showPlayer} />}
       <main
         className={cn(
           'h-full min-h-screen flex-1 overflow-y-auto',
@@ -96,12 +96,17 @@ export function RootLayout() {
   );
 }
 
-function Sidebar() {
+function Sidebar({ hasPlayer }: { hasPlayer: boolean }) {
   const logout = useAuthStore(state => state.logout);
   const location = useLocation();
 
   return (
-    <aside className="w-sidebar border-border bg-bg-secondary fixed top-0 left-0 hidden h-full flex-col border-r md:flex">
+    <aside
+      className={cn(
+        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 hidden h-full flex-col border-r md:flex',
+        hasPlayer && 'pb-20'
+      )}
+    >
       <div className="p-6">
         <h1 className="text-accent text-xl font-bold">Yaytsa</h1>
       </div>
