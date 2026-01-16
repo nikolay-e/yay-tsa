@@ -14,7 +14,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.90.17",
+    "@tanstack/react-query": "^5.90.18",
     "@yaytsa/core": "*",
     "@yaytsa/platform": "*",
     "clsx": "^2.1.1",
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "@tailwindcss/vite": "^4.1.18",
-    "@types/node": "^25.0.8",
+    "@types/node": "^25.0.9",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
