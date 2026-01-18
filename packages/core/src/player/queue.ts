@@ -3,7 +3,15 @@
  * Manages playback queue, shuffle, and repeat modes
  */
 
-import { type AudioItem, type QueueState, type RepeatMode, type ShuffleMode } from '../internal/models/types.js';
+import {
+  type AudioItem,
+  type QueueState,
+  type RepeatMode,
+  type ShuffleMode,
+} from '../internal/models/types.js';
+import { createLogger } from '../internal/utils/logger.js';
+
+const log = createLogger('Queue');
 
 export class PlaybackQueue {
   private items: AudioItem[] = [];
@@ -110,6 +118,7 @@ export class PlaybackQueue {
    */
   insertAt(item: AudioItem, index: number): void {
     if (index < 0 || index > this.items.length) {
+      log.warn('insertAt called with invalid index', { index, length: this.items.length });
       return;
     }
 

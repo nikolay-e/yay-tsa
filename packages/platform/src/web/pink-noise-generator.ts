@@ -1,4 +1,5 @@
 import { createLogger } from '@yaytsa/core';
+import { easeInOutQuad } from '../shared/easing.js';
 
 const log = createLogger('PinkNoise');
 
@@ -163,9 +164,7 @@ export class PinkNoiseGenerator {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / durationMs, 1);
 
-        // Ease-in-out curve for smoother transitions
-        const easedProgress =
-          progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        const easedProgress = easeInOutQuad(progress);
 
         const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
         this.setVolume(currentVolume);

@@ -181,7 +181,8 @@ export interface AudioItem extends BaseItem {
   Artists?: string[];
   ArtistItems?: NameIdPair[];
   MediaSources?: MediaSourceInfo[];
-  PlaylistItemId?: string; // Present when item is from a playlist query
+  PlaylistItemId?: string;
+  Lyrics?: string;
 }
 
 export interface MusicAlbum extends BaseItem {
@@ -412,6 +413,22 @@ export interface QueueState {
   originalOrder: AudioItem[];
   repeatMode: RepeatMode;
   shuffleMode: ShuffleMode;
+}
+
+// ============================================================================
+// Server Info
+// ============================================================================
+
+export interface ServerInfo {
+  Id: string;
+  ServerName: string;
+  Version: string;
+  ProductName?: string;
+  OperatingSystem?: string;
+  HasUpdateAvailable?: boolean;
+  CanSelfRestart?: boolean;
+  CanLaunchWebUI?: boolean;
+  StartupWizardCompleted?: boolean;
 }
 
 // ============================================================================

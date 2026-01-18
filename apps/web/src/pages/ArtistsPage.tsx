@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useDeferredValue } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { useState, useMemo, useDeferredValue } from 'react';
 import { useInfiniteArtists } from '@/features/library/hooks';
 import { ArtistCard } from '@/features/library/components';
-import { cn } from '@/shared/utils/cn';
+import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { SearchInput } from '@/shared/ui/SearchInput';
+import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 
 export function ArtistsPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -10,7 +11,7 @@ export function ArtistsPage() {
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteArtists({
-      searchTerm: deferredSearchTerm || undefined,
+      searchTerm: deferredSearchTerm.trim() || undefined,
     });
 
   const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
@@ -20,29 +21,11 @@ export function ArtistsPage() {
     void fetchNextPage();
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Artists</h1>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="text-text-tertiary absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={handleSearch}
-            placeholder="Search artists..."
-            className={cn(
-              'border-border bg-bg-secondary w-full rounded-sm border py-2 pr-4 pl-9',
-              'text-text-primary placeholder:text-text-tertiary',
-              'focus:border-accent transition-colors'
-            )}
-          />
-        </div>
+        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search artists..." />
       </div>
 
       {error && (
@@ -52,9 +35,7 @@ export function ArtistsPage() {
       )}
 
       {isLoading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="text-accent h-8 w-8 animate-spin" />
-        </div>
+        <LoadingSpinner />
       ) : artists.length === 0 ? (
         <div className="flex h-64 items-center justify-center">
           <p className="text-text-secondary">No artists found</p>
@@ -66,28 +47,14 @@ export function ArtistsPage() {
               <ArtistCard key={artist.Id} artist={artist} />
             ))}
           </div>
-
-          {hasNextPage && (
-            <div className="flex justify-center pt-4">
-              <button
-                onClick={handleLoadMore}
-                disabled={isFetchingNextPage}
-                className={cn(
-                  'bg-bg-secondary text-text-primary rounded-md px-6 py-2',
-                  'hover:bg-bg-tertiary transition-colors',
-                  'disabled:opacity-50'
-                )}
-              >
-                {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More'}
-              </button>
-            </div>
-          )}
-
-          {totalCount > 0 && (
-            <p className="text-text-tertiary text-center text-sm">
-              Showing {artists.length} of {totalCount} artists
-            </p>
-          )}
+          <InfiniteScrollFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            onLoadMore={handleLoadMore}
+            currentCount={artists.length}
+            totalCount={totalCount}
+            itemLabel="artists"
+          />
         </>
       )}
     </div>

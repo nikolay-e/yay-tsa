@@ -1,10 +1,11 @@
-import { useState, memo } from 'react';
+import { memo } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { type AudioItem } from '@yaytsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
-import { formatTicksDuration } from '@/shared/utils/time';
+import { formatTicks } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
+import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
 
@@ -28,9 +29,11 @@ const TrackImage = memo(
     isCurrentTrack: boolean;
     isPlaying: boolean;
   }) {
-    const imageKey = `${track.Id}-${track.AlbumPrimaryImageTag ?? track.AlbumId ?? 'none'}`;
-    const [errorKey, setErrorKey] = useState<string | null>(null);
-    const hasError = errorKey === imageKey;
+    const { hasError, onError } = useImageErrorTracking(
+      track.Id,
+      track.AlbumPrimaryImageTag,
+      track.AlbumId
+    );
     const { getImageUrl } = useImageUrl();
 
     const imageUrl = getTrackImageUrl(getImageUrl, {
@@ -47,7 +50,7 @@ const TrackImage = memo(
           src={hasError ? getImagePlaceholder() : imageUrl}
           alt={track.Name}
           className="h-full w-full object-cover"
-          onError={() => setErrorKey(imageKey)}
+          onError={onError}
         />
         <div
           className={cn(
@@ -66,6 +69,7 @@ const TrackImage = memo(
   },
   (prev, next) =>
     prev.track.Id === next.track.Id &&
+    prev.track.Name === next.track.Name &&
     prev.track.AlbumId === next.track.AlbumId &&
     prev.track.AlbumPrimaryImageTag === next.track.AlbumPrimaryImageTag &&
     prev.isCurrentTrack === next.isCurrentTrack &&
@@ -93,7 +97,7 @@ export function TrackList({
     <div className="space-y-1">
       {tracks.map((track, index) => {
         const isCurrentTrack = track.Id === currentTrackId;
-        const duration = formatTicksDuration(track.RunTimeTicks);
+        const duration = formatTicks(track.RunTimeTicks);
         const artistName = track.Artists?.[0] ?? UNKNOWN_ARTIST;
 
         return (

@@ -146,13 +146,10 @@ test.describe('Playback and Player Controls', () => {
     });
 
     // Seek beyond end - should be clamped or handled gracefully
-    await authenticatedPage.evaluate(
-      dur => {
-        const player = (window as any).__playerStore__;
-        player?.audioEngine?.seek(dur + 100);
-      },
-      duration
-    );
+    await authenticatedPage.evaluate(dur => {
+      const player = (window as any).__playerStore__;
+      player?.audioEngine?.seek(dur + 100);
+    }, duration);
 
     // Player should still be functional after invalid seek
     expect(await playerBar.isVisible()).toBe(true);

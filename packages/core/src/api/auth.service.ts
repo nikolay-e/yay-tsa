@@ -3,7 +3,11 @@
  * Handles user authentication with Media Server
  */
 
-import { type AuthPayload, type AuthResponse, AuthenticationError } from '../internal/models/types.js';
+import {
+  type AuthPayload,
+  type AuthResponse,
+  AuthenticationError,
+} from '../internal/models/types.js';
 import { type MediaServerClient } from './api.client.js';
 
 export class AuthService {

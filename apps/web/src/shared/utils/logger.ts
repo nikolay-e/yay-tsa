@@ -35,7 +35,8 @@ function createLogger(namespace: string) {
   return {
     debug(message: string, context?: LogContext) {
       if (shouldLog('debug')) {
-        console.debug(`${prefix} ${message}${formatContext(context)}`);
+        // eslint-disable-next-line no-console
+        console.log(`${prefix} ${message}${formatContext(context)}`);
       }
     },
 

@@ -214,7 +214,7 @@ yaytsa:
 logging:
   level:
     root: ${LOG_LEVEL:INFO}
-    com.yaytsa.server: ${APP_LOG_LEVEL:DEBUG}
+    com.yaytsa.server: ${APP_LOG_LEVEL:INFO}
     org.springframework.web: INFO
     org.springframework.security: INFO
     org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}

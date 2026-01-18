@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class JAudioTaggerExtractor {
 
   private static final Logger log = LoggerFactory.getLogger(JAudioTaggerExtractor.class);
+  private static final int DEFAULT_CHANNELS = 2;
 
   static {
     java.util.logging.Logger.getLogger("org.jaudiotagger").setLevel(Level.OFF);
@@ -32,7 +33,7 @@ public class JAudioTaggerExtractor {
 
       String title = getTagValue(tag, FieldKey.TITLE);
       if (title == null || title.isBlank()) {
-        title = filePath.getFileName().toString().replaceFirst("\\.[^.]+$", "");
+        title = PathUtils.getFilenameWithoutExtension(filePath);
       }
 
       String artist = getTagValue(tag, FieldKey.ARTIST);
@@ -124,14 +125,17 @@ public class JAudioTaggerExtractor {
   }
 
   private int parseChannels(String channels) {
-    if (channels == null) return 2;
+    if (channels == null) {
+      return DEFAULT_CHANNELS;
+    }
     String lower = channels.toLowerCase(java.util.Locale.ROOT);
     if (lower.contains("mono")) return 1;
-    if (lower.contains("stereo")) return 2;
+    if (lower.contains("stereo")) return DEFAULT_CHANNELS;
     try {
       return Integer.parseInt(channels.replaceAll("[^0-9]", ""));
     } catch (Exception e) {
-      return 2;
+      log.trace("Could not parse channels '{}', defaulting to stereo", channels);
+      return DEFAULT_CHANNELS;
     }
   }
 

@@ -5,21 +5,30 @@
 
 import { createLogger } from '@yaytsa/core';
 import { type AudioEngine } from '../audio.interface.js';
+import { easeInOutQuad } from '../shared/easing.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';
 
 const log = createLogger('Audio');
 
+export interface HTML5AudioEngineOptions {
+  loadTimeoutMs?: number;
+}
+
+const DEFAULT_LOAD_TIMEOUT_MS = 30000;
+
 export class HTML5AudioEngine implements AudioEngine {
   private audio: HTMLAudioElement;
-  private audioSecondary: HTMLAudioElement; // Second element for seamless switching
+  private audioSecondary: HTMLAudioElement;
   private activeElement: 'primary' | 'secondary' = 'primary';
   private _isPlaying: boolean = false;
   private audioContext: AudioContext | null = null;
   private disposed: boolean = false;
+  private readonly loadTimeoutMs: number;
 
   // Preload state for seamless switching
   private preloadedUrl: string | null = null;
   private preloadPromise: Promise<void> | null = null;
+  private preloadEventCleanup: (() => void) | null = null;
 
   // Store event handler references for cleanup
   private handlePlay = () => {
@@ -44,28 +53,27 @@ export class HTML5AudioEngine implements AudioEngine {
   // Track current fade operation for cancellation
   private currentFadeCancel: (() => void) | null = null;
 
+  // Track element fades for crossfade cancellation
+  private activeElementFades: Set<() => void> = new Set();
+
   // Vocal removal processor for karaoke mode
   private vocalRemovalProcessor: VocalRemovalProcessor | null = null;
   private karaokeEnabled: boolean = false;
 
-  constructor() {
+  constructor(options: HTML5AudioEngineOptions = {}) {
+    this.loadTimeoutMs = options.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS;
     this.audio = new Audio();
     this.audio.crossOrigin = 'anonymous';
     this.audio.preload = 'auto';
 
-    // Secondary audio element for seamless switching (karaoke, gapless)
     this.audioSecondary = new Audio();
     this.audioSecondary.crossOrigin = 'anonymous';
     this.audioSecondary.preload = 'auto';
-    this.audioSecondary.volume = 0; // Start silent
+    this.audioSecondary.volume = 0;
 
-    // Track playing state
     this.audio.addEventListener('play', this.handlePlay);
     this.audio.addEventListener('pause', this.handlePause);
     this.audio.addEventListener('ended', this.handleEnded);
-
-    // AudioContext will be lazily initialized on first user gesture
-    // to comply with browser autoplay policies (especially iOS Safari)
   }
 
   private ensureAudioContext(): AudioContext | null {
@@ -160,10 +168,6 @@ export class HTML5AudioEngine implements AudioEngine {
             return;
           }
 
-          // Use 'canplay' for instant playback start - minimal buffering delay
-          // Trade-off: may have brief stutter on very slow connections, but provides
-          // gapless switching experience for track changes and karaoke mode
-          const LOAD_TIMEOUT_MS = 30000;
           let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
           const handleCanPlay = () => {
@@ -187,7 +191,7 @@ export class HTML5AudioEngine implements AudioEngine {
             if (this.loadCancelled) return;
             cleanup();
             this.currentLoadReject = null;
-            reject(new Error('Audio load timeout after 30 seconds'));
+            reject(new Error(`Audio load timeout after ${this.loadTimeoutMs / 1000} seconds`));
           };
 
           const cleanup = () => {
@@ -200,7 +204,7 @@ export class HTML5AudioEngine implements AudioEngine {
             this.loadEventCleanup = null;
           };
 
-          timeoutId = setTimeout(handleTimeout, LOAD_TIMEOUT_MS);
+          timeoutId = setTimeout(handleTimeout, this.loadTimeoutMs);
 
           // Store cleanup function for cancellation
           this.loadEventCleanup = cleanup;
@@ -365,10 +369,20 @@ export class HTML5AudioEngine implements AudioEngine {
       this.currentFadeCancel = null;
     }
 
+    // Cancel any element fades (crossfade)
+    for (const cancel of this.activeElementFades) {
+      cancel();
+    }
+    this.activeElementFades.clear();
+
     // Cancel pending load operations
     this.cancelCurrentLoad();
 
     // Clear preload state
+    if (this.preloadEventCleanup) {
+      this.preloadEventCleanup();
+      this.preloadEventCleanup = null;
+    }
     this.preloadedUrl = null;
     this.preloadPromise = null;
 
@@ -412,6 +426,22 @@ export class HTML5AudioEngine implements AudioEngine {
       this.currentFadeCancel();
     }
 
+    const { promise, cancel } = this.createFade(fromLevel, toLevel, durationMs, true, volume =>
+      this.setVolume(volume)
+    );
+
+    this.currentFadeCancel = cancel;
+
+    return { promise, cancel };
+  }
+
+  private createFade(
+    fromLevel: number,
+    toLevel: number,
+    durationMs: number,
+    useEasing: boolean,
+    setVolume: (v: number) => void
+  ): { promise: Promise<void>; cancel: () => void } {
     const startTime = Date.now();
     const startVolume = Math.max(0, Math.min(1, fromLevel));
     const endVolume = Math.max(0, Math.min(1, toLevel));
@@ -429,13 +459,9 @@ export class HTML5AudioEngine implements AudioEngine {
       }
     };
 
-    this.currentFadeCancel = cancel;
-
     const promise = new Promise<void>(resolve => {
-      // Set initial volume
-      this.setVolume(startVolume);
+      setVolume(startVolume);
 
-      // Use setInterval for smooth fade (~60fps equivalent)
       const FADE_INTERVAL_MS = 16;
       intervalId = setInterval(() => {
         if (cancelled) {
@@ -446,19 +472,19 @@ export class HTML5AudioEngine implements AudioEngine {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / durationMs, 1);
 
-        // Use ease-in-out curve for smoother fade (less jarring for sleep)
-        const easedProgress =
-          progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        const easedProgress = useEasing ? easeInOutQuad(progress) : progress;
 
         const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
-        this.setVolume(currentVolume);
+        setVolume(currentVolume);
 
         if (progress >= 1) {
           if (intervalId) {
             clearInterval(intervalId);
             intervalId = null;
           }
-          this.currentFadeCancel = null;
+          if (this.currentFadeCancel === cancel) {
+            this.currentFadeCancel = null;
+          }
           resolve();
         }
       }, FADE_INTERVAL_MS);
@@ -522,6 +548,12 @@ export class HTML5AudioEngine implements AudioEngine {
       return this.preloadPromise;
     }
 
+    // Cancel any existing preload operation to prevent race condition
+    if (this.preloadEventCleanup) {
+      this.preloadEventCleanup();
+      this.preloadEventCleanup = null;
+    }
+
     const targetElement = this.activeElement === 'primary' ? this.audioSecondary : this.audio;
 
     this.preloadedUrl = url;
@@ -543,7 +575,11 @@ export class HTML5AudioEngine implements AudioEngine {
       const cleanup = () => {
         targetElement.removeEventListener('canplay', handleCanPlay);
         targetElement.removeEventListener('error', handleError);
+        this.preloadEventCleanup = null;
       };
+
+      // Store cleanup for cancellation
+      this.preloadEventCleanup = cleanup;
 
       targetElement.addEventListener('canplay', handleCanPlay, { once: true });
       targetElement.addEventListener('error', handleError, { once: true });
@@ -622,8 +658,11 @@ export class HTML5AudioEngine implements AudioEngine {
     currentElement.src = '';
     currentElement.load();
 
-    // Swap active element
+    // Swap active element and both audio references
     this.activeElement = this.activeElement === 'primary' ? 'secondary' : 'primary';
+    const temp = this.audio;
+    this.audio = this.audioSecondary;
+    this.audioSecondary = temp;
 
     // Update event listeners to track new active element
     currentElement.removeEventListener('play', this.handlePlay);
@@ -634,9 +673,6 @@ export class HTML5AudioEngine implements AudioEngine {
     nextElement.addEventListener('pause', this.handlePause);
     nextElement.addEventListener('ended', this.handleEnded);
 
-    // Update internal audio reference
-    this.audio = nextElement;
-
     // Clear preload state
     this.preloadedUrl = null;
     this.preloadPromise = null;
@@ -646,37 +682,21 @@ export class HTML5AudioEngine implements AudioEngine {
     return { duration: Number.isFinite(newDuration) ? newDuration : 0 };
   }
 
-  /**
-   * Fade volume on a specific audio element (for crossfade)
-   */
   private async fadeElementVolume(
     element: HTMLAudioElement,
     fromLevel: number,
     toLevel: number,
     durationMs: number
   ): Promise<void> {
-    return new Promise(resolve => {
-      const startTime = Date.now();
-      const startVolume = Math.max(0, Math.min(1, fromLevel));
-      const endVolume = Math.max(0, Math.min(1, toLevel));
-
-      element.volume = startVolume;
-
-      const FADE_INTERVAL_MS = 16;
-      const intervalId = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / durationMs, 1);
-
-        // Linear fade for quick crossfade (less noticeable)
-        const currentVolume = startVolume + (endVolume - startVolume) * progress;
-        element.volume = currentVolume;
-
-        if (progress >= 1) {
-          clearInterval(intervalId);
-          resolve();
-        }
-      }, FADE_INTERVAL_MS);
+    const { promise, cancel } = this.createFade(fromLevel, toLevel, durationMs, false, v => {
+      element.volume = v;
     });
+    this.activeElementFades.add(cancel);
+    try {
+      await promise;
+    } finally {
+      this.activeElementFades.delete(cancel);
+    }
   }
 
   /**

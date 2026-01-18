@@ -20,6 +20,16 @@ export interface CacheClearResult {
   itemId?: string;
 }
 
+export interface LibraryRescanResult {
+  success: boolean;
+  message: string;
+  scanInProgress?: boolean;
+}
+
+export interface ScanStatus {
+  scanInProgress: boolean;
+}
+
 export class AdminService extends BaseService {
   async getCacheStats(): Promise<CacheStats> {
     this.requireAuth();
@@ -44,6 +54,24 @@ export class AdminService extends BaseService {
     const result = await this.client.delete<CacheClearResult>(`/Admin/Cache/Images/${itemId}`);
     if (!result) {
       throw new Error('Failed to clear item cache');
+    }
+    return result;
+  }
+
+  async rescanLibrary(): Promise<LibraryRescanResult> {
+    this.requireAuth();
+    const result = await this.client.post<LibraryRescanResult>('/Admin/Library/Rescan', {});
+    if (!result) {
+      throw new Error('Failed to trigger library rescan');
+    }
+    return result;
+  }
+
+  async getScanStatus(): Promise<ScanStatus> {
+    this.requireAuth();
+    const result = await this.client.get<ScanStatus>('/Admin/Library/ScanStatus');
+    if (!result) {
+      throw new Error('Failed to get scan status');
     }
     return result;
   }

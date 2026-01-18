@@ -420,6 +420,9 @@ public class ImageService {
   }
 
   private byte[] processImage(byte[] originalData, ImageParams params) throws IOException {
+    if (originalData == null || originalData.length == 0) {
+      throw new IOException("Image data is empty or null");
+    }
     if (!params.requiresResize() && "jpeg".equalsIgnoreCase(params.format())) {
       return originalData;
     }

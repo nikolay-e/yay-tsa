@@ -1,6 +1,6 @@
 import { ticksToSeconds } from '@yaytsa/core';
 
-export function formatDuration(seconds: number): string {
+export function formatSeconds(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
 
   const hours = Math.floor(seconds / 3600);
@@ -13,7 +13,7 @@ export function formatDuration(seconds: number): string {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
-export function formatTicksDuration(ticks: number | undefined): string {
+export function formatTicks(ticks: number | undefined): string {
   if (!ticks) return '0:00';
-  return formatDuration(ticksToSeconds(ticks));
+  return formatSeconds(ticksToSeconds(ticks));
 }

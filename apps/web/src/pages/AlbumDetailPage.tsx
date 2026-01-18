@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Play, Shuffle, Loader2 } from 'lucide-react';
+import { Play, Shuffle } from 'lucide-react';
 import { ItemsService, type MusicAlbum } from '@yaytsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
+import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
+import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { NotFound } from '@/shared/ui/NotFound';
+import { BackLink } from '@/shared/ui/BackLink';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -16,7 +19,6 @@ import { cn } from '@/shared/utils/cn';
 
 export function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [errorKey, setErrorKey] = useState<string | null>(null);
   const client = useAuthStore(state => state.client);
   const { getImageUrl } = useImageUrl();
 
@@ -38,26 +40,20 @@ export function AlbumDetailPage() {
 
   const { data: tracks = [], isLoading: tracksLoading } = useAlbumTracks(id);
 
+  const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
+    album?.Id ?? '',
+    album?.ImageTags?.Primary
+  );
+
   const isLoading = albumLoading || tracksLoading;
 
   if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="text-accent h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!album) {
-    return (
-      <div className="p-6">
-        <p className="text-text-secondary">Album not found</p>
-      </div>
-    );
+    return <NotFound message="Album not found" />;
   }
-
-  const imageKey = `${album.Id}-${album.ImageTags?.Primary ?? 'none'}`;
-  const hasImageError = errorKey === imageKey;
 
   const imageUrl = album.ImageTags?.Primary
     ? getImageUrl(album.Id, 'Primary', {
@@ -73,14 +69,7 @@ export function AlbumDetailPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <Link
-        data-testid="album-back-button"
-        to="/albums"
-        className="text-text-secondary hover:text-text-primary inline-flex items-center gap-2 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Albums
-      </Link>
+      <BackLink to="/albums" label="Back to Albums" data-testid="album-back-button" />
 
       <div className="flex flex-col gap-6 sm:flex-row">
         <div className="shrink-0">
@@ -88,7 +77,7 @@ export function AlbumDetailPage() {
             src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={album.Name}
             className="h-48 w-48 rounded-md object-cover shadow-lg sm:h-56 sm:w-56"
-            onError={() => setErrorKey(imageKey)}
+            onError={onImageError}
           />
         </div>
 
@@ -107,7 +96,9 @@ export function AlbumDetailPage() {
           <div className="flex gap-2">
             <button
               data-testid="album-play-button"
-              onClick={() => id && playAlbum(id)}
+              onClick={() => {
+                if (id) void playAlbum(id);
+              }}
               className={cn(
                 'flex items-center gap-2 px-6 py-2',
                 'bg-accent rounded-full text-white',
@@ -121,7 +112,7 @@ export function AlbumDetailPage() {
               data-testid="album-shuffle-button"
               onClick={() => {
                 setShuffle(true);
-                if (id) playAlbum(id);
+                if (id) void playAlbum(id);
               }}
               className={cn(
                 'flex items-center gap-2 px-6 py-2',
@@ -142,7 +133,7 @@ export function AlbumDetailPage() {
         showImage={false}
         currentTrackId={currentTrack?.Id}
         isPlaying={isPlaying}
-        onPlayTrack={(_, index) => playTracks(tracks, index)}
+        onPlayTrack={(_, index) => void playTracks(tracks, index)}
       />
     </div>
   );

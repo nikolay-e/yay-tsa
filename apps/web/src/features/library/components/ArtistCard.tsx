@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type MusicArtist } from '@yaytsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
+import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { cn } from '@/shared/utils/cn';
 
 interface ArtistCardProps {
@@ -9,10 +9,10 @@ interface ArtistCardProps {
 }
 
 export function ArtistCard({ artist }: ArtistCardProps) {
-  const imageKey = `${artist.Id}-${artist.ImageTags?.Primary ?? 'none'}`;
-  const [errorKey, setErrorKey] = useState<string | null>(null);
-  const hasImageError = errorKey === imageKey;
-
+  const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
+    artist.Id,
+    artist.ImageTags?.Primary
+  );
   const { getImageUrl } = useImageUrl();
   const imageUrl = artist.ImageTags?.Primary
     ? getImageUrl(artist.Id, 'Primary', {
@@ -39,7 +39,7 @@ export function ArtistCard({ artist }: ArtistCardProps) {
           alt={artist.Name}
           className="h-full w-full object-cover"
           loading="lazy"
-          onError={() => setErrorKey(imageKey)}
+          onError={onImageError}
         />
       </div>
       <h3 data-testid="artist-name" className="text-text-primary truncate text-center font-medium">

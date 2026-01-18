@@ -6,6 +6,7 @@
 import {
   type ClientInfo,
   type ServerConfig,
+  type ServerInfo,
   MediaServerError,
   NetworkError,
   AuthenticationError,
@@ -58,7 +59,7 @@ export class MediaServerClient {
       `Version="${this.clientInfo.version}"`,
     ];
 
-    const authToken = token || this.token;
+    const authToken = token ?? this.token;
     if (authToken) {
       parts.push(`Token="${authToken}"`);
     }
@@ -135,8 +136,8 @@ export class MediaServerClient {
   getConfig(): ServerConfig {
     return {
       serverUrl: this.serverUrl,
-      userId: this.userId || undefined,
-      token: this.token || undefined,
+      userId: this.userId ?? undefined,
+      token: this.token ?? undefined,
     };
   }
 
@@ -154,9 +155,7 @@ export class MediaServerClient {
 
     // Only set Content-Type when we actually send a body to avoid CORS preflights on GETs
     // Use case-insensitive check since Headers API normalizes to lowercase
-    const hasContentType = Object.keys(headers).some(
-      k => k.toLowerCase() === 'content-type'
-    );
+    const hasContentType = Object.keys(headers).some(k => k.toLowerCase() === 'content-type');
     if (includeContentType && !hasContentType) {
       headers['Content-Type'] = 'application/json';
     }
@@ -232,7 +231,7 @@ export class MediaServerClient {
     retries = this.DEFAULT_RETRY_COUNT
   ): Promise<T | undefined> {
     const url = `${this.serverUrl}${endpoint}`;
-    const method = options.method || 'GET';
+    const method = options.method ?? 'GET';
     const isIdempotent = method === 'GET' || method === 'DELETE';
     const hasBody = options.body !== undefined;
     const startTime = Date.now();
@@ -340,7 +339,7 @@ export class MediaServerClient {
     return headers;
   }
 
-  private buildQueryString(params: Record<string, any>, joinArrays: boolean = false): string {
+  private buildQueryString(params: Record<string, unknown>, joinArrays: boolean = false): string {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -371,8 +370,8 @@ export class MediaServerClient {
       'message' in errorData &&
       typeof errorData.message === 'string'
         ? errorData.message
-        : undefined) ||
-      response.statusText ||
+        : undefined) ??
+      response.statusText ??
       'Request failed';
 
     if (response.status === 401 || response.status === 403) {
@@ -394,7 +393,7 @@ export class MediaServerClient {
   /**
    * GET request
    */
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T | undefined> {
+  async get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T | undefined> {
     let url = endpoint;
     if (params) {
       const queryString = this.buildQueryString(params, true);
@@ -408,8 +407,8 @@ export class MediaServerClient {
    */
   async post<T>(
     endpoint: string,
-    data?: any,
-    params?: Record<string, any>
+    data?: unknown,
+    params?: Record<string, unknown>
   ): Promise<T | undefined> {
     let url = endpoint;
     if (params) {
@@ -425,7 +424,7 @@ export class MediaServerClient {
   /**
    * DELETE request
    */
-  async delete<T>(endpoint: string, params?: Record<string, any>): Promise<T | undefined> {
+  async delete<T>(endpoint: string, params?: Record<string, unknown>): Promise<T | undefined> {
     let url = endpoint;
     if (params) {
       const queryString = this.buildQueryString(params);
@@ -445,7 +444,7 @@ export class MediaServerClient {
     errorMessage?: string
   ): T {
     if (result === undefined) {
-      throw new MediaServerError(errorMessage || `Empty response from ${method} ${endpoint}`, 500);
+      throw new MediaServerError(errorMessage ?? `Empty response from ${method} ${endpoint}`, 500);
     }
     return result;
   }
@@ -456,7 +455,7 @@ export class MediaServerClient {
    */
   async getRequired<T>(
     endpoint: string,
-    params?: Record<string, any>,
+    params?: Record<string, unknown>,
     errorMessage?: string
   ): Promise<T> {
     const result = await this.get<T>(endpoint, params);
@@ -467,7 +466,7 @@ export class MediaServerClient {
    * POST request that requires a non-empty response
    * Throws an error if the response is empty
    */
-  async postRequired<T>(endpoint: string, data?: any, errorMessage?: string): Promise<T> {
+  async postRequired<T>(endpoint: string, data?: unknown, errorMessage?: string): Promise<T> {
     const result = await this.post<T>(endpoint, data);
     return this.requireResponse(result, 'POST', endpoint, errorMessage);
   }
@@ -540,8 +539,8 @@ export class MediaServerClient {
     const params = new URLSearchParams({
       api_key: this.token,
       deviceId: this.clientInfo.deviceId,
-      audioCodec: options?.audioCodec || 'aac,mp3,opus',
-      container: options?.container || 'mp3,aac,m4a,flac,opus',
+      audioCodec: options?.audioCodec ?? 'aac,mp3,opus',
+      container: options?.container ?? 'mp3,aac,m4a,flac,opus',
     });
 
     // Add audioBitRate if specified, otherwise use static=true for direct streaming
@@ -557,8 +556,8 @@ export class MediaServerClient {
   /**
    * Get server info
    */
-  async getServerInfo(): Promise<any> {
-    return this.get('/System/Info/Public');
+  async getServerInfo(): Promise<ServerInfo | undefined> {
+    return this.get<ServerInfo>('/System/Info/Public');
   }
 
   /**

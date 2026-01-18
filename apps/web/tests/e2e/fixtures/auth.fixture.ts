@@ -34,7 +34,9 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
     // Wait for either: session stored OR error visible OR navigation to home
     const result = await Promise.race([
       page
-        .waitForFunction(() => sessionStorage.getItem('yaytsa_session') !== null, { timeout: 15000 })
+        .waitForFunction(() => sessionStorage.getItem('yaytsa_session') !== null, {
+          timeout: 15000,
+        })
         .then(() => 'success' as const),
       page.waitForURL('/', { timeout: 15000 }).then(() => 'navigated' as const),
       page
@@ -46,7 +48,9 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
 
     if (result === 'success' || result === 'navigated') {
       // Double-check session is stored
-      const hasSession = await page.evaluate(() => sessionStorage.getItem('yaytsa_session') !== null);
+      const hasSession = await page.evaluate(
+        () => sessionStorage.getItem('yaytsa_session') !== null
+      );
       if (hasSession) {
         return;
       }
@@ -55,7 +59,10 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
     // Gather diagnostic info
     const sessionKeys = await page.evaluate(() => Object.keys(sessionStorage));
     const currentUrl = page.url();
-    const pageContent = await page.locator('body').textContent().catch(() => 'N/A');
+    const pageContent = await page
+      .locator('body')
+      .textContent()
+      .catch(() => 'N/A');
 
     if (attempt < maxRetries) {
       console.log(`Login attempt ${attempt} result: ${result}`);
@@ -65,7 +72,10 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
       console.log(`  Network errors: ${networkErrors.join(', ') || 'none'}`);
       await page.waitForTimeout(1000);
     } else {
-      const errorDiv = await page.locator('.text-error').textContent().catch(() => null);
+      const errorDiv = await page
+        .locator('.text-error')
+        .textContent()
+        .catch(() => null);
       throw new Error(
         `Login failed after ${maxRetries} attempts.\n` +
           `Last result: ${result}\n` +

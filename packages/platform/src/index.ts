@@ -6,6 +6,7 @@
 // Audio engine interface and implementations
 export type { AudioEngine } from './audio.interface.js';
 export { HTML5AudioEngine } from './web/html5-audio.js';
+export type { HTML5AudioEngineOptions } from './web/html5-audio.js';
 
 // Pink noise generator for sleep mode
 export { PinkNoiseGenerator } from './web/pink-noise-generator.js';

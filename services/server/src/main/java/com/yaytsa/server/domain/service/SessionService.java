@@ -1,5 +1,7 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.error.ResourceNotFoundException;
+import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
@@ -126,7 +128,7 @@ public class SessionService {
               UserEntity user =
                   userRepository
                       .findById(userId)
-                      .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                      .orElseThrow(() -> new ResourceNotFoundException(ResourceType.User, userId));
 
               SessionEntity newSession = new SessionEntity();
               newSession.setUser(user);

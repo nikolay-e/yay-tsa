@@ -20,11 +20,6 @@ import org.springframework.scheduling.annotation.EnableAsync;
 public class MediaServerApplication {
 
   public static void main(String[] args) {
-    // Enable virtual threads for the application
-    System.setProperty(
-        "java.util.concurrent.ForkJoinPool.common.threadFactory",
-        "java.util.concurrent.Executors$VirtualThreadFactory");
-
     SpringApplication.run(MediaServerApplication.class, args);
   }
 }

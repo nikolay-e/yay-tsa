@@ -172,7 +172,7 @@ public class ImagesController {
       description = "Get list of available image types for an item")
   @ApiResponse(responseCode = "501", description = "Not implemented")
   @GetMapping("/Items/{itemId}/Images")
-  public ResponseEntity<Object[]> getItemImageTypes(
+  public ResponseEntity<Void> getItemImageTypes(
       @PathVariable String itemId,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 

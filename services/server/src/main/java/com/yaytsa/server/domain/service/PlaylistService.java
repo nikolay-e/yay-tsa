@@ -1,17 +1,23 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.error.ItemNotFoundException;
+import com.yaytsa.server.error.PlaylistEntryNotFoundException;
+import com.yaytsa.server.error.PlaylistNotFoundException;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntryEntity;
+import com.yaytsa.server.infrastructure.persistence.query.OffsetBasedPageRequest;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlaylistEntryRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlaylistRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -64,26 +70,41 @@ public class PlaylistService {
   @Transactional(readOnly = true)
   public Page<PlaylistEntryEntity> getPlaylistItems(UUID playlistId, int startIndex, int limit) {
     Pageable pageable =
-        PageRequest.of(startIndex / limit, limit, Sort.by(Sort.Direction.ASC, "position"));
+        new OffsetBasedPageRequest(startIndex, limit, Sort.by(Sort.Direction.ASC, "position"));
     return playlistEntryRepository.findByPlaylistId(playlistId, pageable);
   }
 
   public void addItemsToPlaylist(UUID playlistId, List<UUID> itemIds) {
+    if (itemIds == null || itemIds.isEmpty()) {
+      return;
+    }
     if (!playlistRepository.existsById(playlistId)) {
       throw new PlaylistNotFoundException("Playlist not found: " + playlistId);
     }
 
+    Set<UUID> existingItemIds =
+        itemRepository.findAllById(itemIds).stream()
+            .map(ItemEntity::getId)
+            .collect(Collectors.toSet());
+
+    List<UUID> missingIds = itemIds.stream().filter(id -> !existingItemIds.contains(id)).toList();
+
+    if (!missingIds.isEmpty()) {
+      throw new ItemNotFoundException(missingIds);
+    }
+
     int maxPosition = playlistEntryRepository.findMaxPositionByPlaylistId(playlistId).orElse(-1);
 
+    List<PlaylistEntryEntity> entries = new ArrayList<>(itemIds.size());
     for (int i = 0; i < itemIds.size(); i++) {
       PlaylistEntryEntity entry = new PlaylistEntryEntity();
       entry.setId(UUID.randomUUID());
       entry.setPlaylistId(playlistId);
       entry.setItemId(itemIds.get(i));
       entry.setPosition(maxPosition + i + 1);
-
-      playlistEntryRepository.save(entry);
+      entries.add(entry);
     }
+    playlistEntryRepository.saveAll(entries);
   }
 
   public void removeItemsFromPlaylist(UUID playlistId, List<UUID> entryIds) {
@@ -186,17 +207,5 @@ public class PlaylistService {
       entries.get(i).setPosition(i);
     }
     playlistEntryRepository.saveAll(entries);
-  }
-
-  public static class PlaylistEntryNotFoundException extends RuntimeException {
-    public PlaylistEntryNotFoundException(String message) {
-      super(message);
-    }
-  }
-
-  public static class PlaylistNotFoundException extends RuntimeException {
-    public PlaylistNotFoundException(String message) {
-      super(message);
-    }
   }
 }

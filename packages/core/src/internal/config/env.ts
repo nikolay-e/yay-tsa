@@ -48,16 +48,16 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 
   return {
     yaytsaServerUrl:
-      runtimeConfig?.serverUrl || env.VITE_YAYTSA_SERVER_URL || env.YAYTSA_SERVER_URL,
+      runtimeConfig?.serverUrl ?? env.VITE_YAYTSA_SERVER_URL ?? env.YAYTSA_SERVER_URL,
     yaytsaClientName:
-      runtimeConfig?.clientName ||
-      env.VITE_YAYTSA_CLIENT_NAME ||
-      env.YAYTSA_CLIENT_NAME ||
+      runtimeConfig?.clientName ??
+      env.VITE_YAYTSA_CLIENT_NAME ??
+      env.YAYTSA_CLIENT_NAME ??
       DEFAULT_CLIENT_NAME,
     yaytsaDeviceName:
-      runtimeConfig?.deviceName ||
-      env.VITE_YAYTSA_DEVICE_NAME ||
-      env.YAYTSA_DEVICE_NAME ||
+      runtimeConfig?.deviceName ??
+      env.VITE_YAYTSA_DEVICE_NAME ??
+      env.YAYTSA_DEVICE_NAME ??
       DEFAULT_DEVICE_NAME,
     yaytsaDeviceId: env.YAYTSA_DEVICE_ID,
   };
@@ -77,8 +77,8 @@ export function getRequiredConfig(): Required<Omit<EnvironmentConfig, 'yaytsaDev
 
   return {
     yaytsaServerUrl: config.yaytsaServerUrl,
-    yaytsaClientName: config.yaytsaClientName || DEFAULT_CLIENT_NAME,
-    yaytsaDeviceName: config.yaytsaDeviceName || DEFAULT_DEVICE_NAME,
+    yaytsaClientName: config.yaytsaClientName ?? DEFAULT_CLIENT_NAME,
+    yaytsaDeviceName: config.yaytsaDeviceName ?? DEFAULT_DEVICE_NAME,
   };
 }
 

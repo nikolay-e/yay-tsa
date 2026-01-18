@@ -47,7 +47,7 @@ function detectEnvironment(): { isDev: boolean; logLevel: LogLevel } {
   }
 
   // Priority 2: Vite environment (browser or SSR)
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
+  if (import.meta?.env) {
     const env = import.meta.env as Record<string, unknown>;
     const isDev = env.DEV === true || env.MODE === 'development';
     const envLevel: unknown = env.VITE_LOG_LEVEL;

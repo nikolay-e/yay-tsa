@@ -170,7 +170,11 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(seconds, duration);
 
       const now = Date.now();
-      if (playbackReporter && currentItemId && now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS) {
+      if (
+        playbackReporter &&
+        currentItemId &&
+        now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS
+      ) {
         lastProgressReportTime = now;
         playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
           log.player.warn('Failed to report playback progress', { error: String(err) });
@@ -562,12 +566,15 @@ export const usePlayerStore = create<PlayerStore>()(
         const endTime = Date.now() + minutes * 60 * 1000;
         set({ sleepTimerMinutes: minutes, sleepTimerEndTime: endTime });
 
-        sleepTimerId = setTimeout(() => {
-          get().pause();
-          set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
-          sleepTimerId = null;
-          log.player.info('Sleep timer triggered, playback paused');
-        }, minutes * 60 * 1000);
+        sleepTimerId = setTimeout(
+          () => {
+            get().pause();
+            set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+            sleepTimerId = null;
+            log.player.info('Sleep timer triggered, playback paused');
+          },
+          minutes * 60 * 1000
+        );
       },
 
       clearSleepTimer: () => {

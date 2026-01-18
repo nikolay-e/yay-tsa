@@ -97,19 +97,28 @@ public class MediaScannerTransactionalService {
       ItemEntity item, Path filePath, OffsetDateTime mtime, long fileSize, String libraryRoot)
       throws IOException {
     Optional<AudioMetadata> metadataOpt = metadataExtractor.extract(filePath);
-    if (metadataOpt.isEmpty()) return;
+    if (metadataOpt.isEmpty()) {
+      log.warn("Failed to extract metadata for existing track: {} at {}", item.getId(), filePath);
+      return;
+    }
 
     AudioMetadata metadata = metadataOpt.get();
+
+    ItemEntity artistItem = findOrCreateArtist(metadata.albumArtist(), libraryRoot);
+    ItemEntity albumItem = findOrCreateAlbum(metadata.album(), artistItem, libraryRoot);
 
     item.setName(metadata.title());
     item.setSortName(createSortName(metadata.title()));
     item.setMtime(mtime);
     item.setSizeBytes(fileSize);
+    item.setParent(albumItem);
     itemRepository.save(item);
 
     Optional<AudioTrackEntity> trackOpt = audioTrackRepository.findById(item.getId());
     if (trackOpt.isPresent()) {
       AudioTrackEntity track = trackOpt.get();
+      track.setAlbum(albumItem);
+      track.setAlbumArtist(artistItem);
       track.setTrackNumber(metadata.trackNumber());
       track.setDiscNumber(metadata.discNumber() != null ? metadata.discNumber() : 1);
       track.setDurationMs(metadata.durationMs());
@@ -354,10 +363,8 @@ public class MediaScannerTransactionalService {
   }
 
   private AudioMetadata createFallbackMetadata(Path filePath) {
-    String filename = filePath.getFileName().toString().replaceFirst("\\.[^.]+$", "");
-    return new AudioMetadata(
-        filename, null, null, null, null, null, null, 0L, 0, 0, 2, "unknown", null, null, List.of(),
-        null, null);
+    String filename = PathUtils.getFilenameWithoutExtension(filePath);
+    return AudioMetadata.fallback(filename);
   }
 
   private String computeHash(byte[] data) {

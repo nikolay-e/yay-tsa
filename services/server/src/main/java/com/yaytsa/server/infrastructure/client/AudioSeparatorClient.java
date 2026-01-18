@@ -122,7 +122,8 @@ public class AudioSeparatorClient {
     Throwable cause = e.getCause();
     return cause instanceof SocketTimeoutException
         || cause instanceof java.net.ConnectException
-        || cause instanceof java.io.IOException;
+        || cause instanceof java.net.NoRouteToHostException
+        || cause instanceof java.net.UnknownHostException;
   }
 
   public boolean isHealthy() {

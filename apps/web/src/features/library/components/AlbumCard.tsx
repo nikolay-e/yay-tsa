@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import { type MusicAlbum } from '@yaytsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
+import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { cn } from '@/shared/utils/cn';
 
 interface AlbumCardProps {
@@ -11,10 +11,10 @@ interface AlbumCardProps {
 }
 
 export function AlbumCard({ album, onPlay }: AlbumCardProps) {
-  const imageKey = `${album.Id}-${album.ImageTags?.Primary ?? 'none'}`;
-  const [errorKey, setErrorKey] = useState<string | null>(null);
-  const hasImageError = errorKey === imageKey;
-
+  const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
+    album.Id,
+    album.ImageTags?.Primary
+  );
   const { getImageUrl } = useImageUrl();
   const imageUrl = album.ImageTags?.Primary
     ? getImageUrl(album.Id, 'Primary', {
@@ -41,7 +41,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
             alt={album.Name}
             className="h-full w-full object-cover"
             loading="lazy"
-            onError={() => setErrorKey(imageKey)}
+            onError={onImageError}
           />
           <button
             onClick={e => {

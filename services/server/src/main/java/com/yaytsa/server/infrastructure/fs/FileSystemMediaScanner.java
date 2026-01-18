@@ -145,7 +145,7 @@ public class FileSystemMediaScanner {
 
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException exc) {
-              log.warn("Failed to access file: {}", file);
+              log.warn("Failed to access file: {}", file, exc);
               return FileVisitResult.CONTINUE;
             }
           });

@@ -149,11 +149,20 @@ public class KaraokeController {
                 cancelFutureAndCompleteWithError(futureRef, emitter, e);
               }
             },
-            0,
+            POLL_INTERVAL_MS,
             POLL_INTERVAL_MS,
             TimeUnit.MILLISECONDS);
 
     futureRef.set(future);
+
+    try {
+      ProcessingStatus initialStatus = karaokeService.getStatus(trackId);
+      String json = objectMapper.writeValueAsString(initialStatus);
+      emitter.send(
+          SseEmitter.event().id("0").name("status").data(json, MediaType.APPLICATION_JSON));
+    } catch (Exception e) {
+      log.debug("Failed to send initial status for track {}", trackId);
+    }
 
     emitter.onCompletion(() -> future.cancel(false));
     emitter.onTimeout(() -> future.cancel(false));

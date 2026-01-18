@@ -1,7 +1,5 @@
 package com.yaytsa.server.error;
 
-import com.yaytsa.server.domain.service.PlaylistService.PlaylistEntryNotFoundException;
-import com.yaytsa.server.domain.service.PlaylistService.PlaylistNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -104,22 +102,13 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
   }
 
-  @ExceptionHandler(PlaylistNotFoundException.class)
-  public ResponseEntity<ProblemDetail> handlePlaylistNotFound(
-      PlaylistNotFoundException ex, HttpServletRequest request) {
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ProblemDetail> handleResourceNotFound(
+      ResourceNotFoundException ex, HttpServletRequest request) {
     ProblemDetail problem = createProblemDetail(HttpStatus.NOT_FOUND, ex.getMessage(), request);
 
-    log.debug("Playlist not found: path={}", request.getRequestURI());
-
-    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
-  }
-
-  @ExceptionHandler(PlaylistEntryNotFoundException.class)
-  public ResponseEntity<ProblemDetail> handlePlaylistEntryNotFound(
-      PlaylistEntryNotFoundException ex, HttpServletRequest request) {
-    ProblemDetail problem = createProblemDetail(HttpStatus.NOT_FOUND, ex.getMessage(), request);
-
-    log.debug("Playlist entry not found: path={}", request.getRequestURI());
+    log.debug(
+        "{} not found: path={}", ex.getResourceType().getDisplayName(), request.getRequestURI());
 
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
   }

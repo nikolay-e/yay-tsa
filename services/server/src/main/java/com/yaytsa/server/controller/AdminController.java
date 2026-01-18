@@ -1,6 +1,7 @@
 package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ImageService;
+import com.yaytsa.server.domain.service.LibraryScanService;
 import com.yaytsa.server.infrastructure.fs.MediaScannerTransactionalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -18,11 +19,15 @@ public class AdminController {
 
   private final ImageService imageService;
   private final MediaScannerTransactionalService mediaScannerService;
+  private final LibraryScanService libraryScanService;
 
   public AdminController(
-      ImageService imageService, MediaScannerTransactionalService mediaScannerService) {
+      ImageService imageService,
+      MediaScannerTransactionalService mediaScannerService,
+      LibraryScanService libraryScanService) {
     this.imageService = imageService;
     this.mediaScannerService = mediaScannerService;
+    this.libraryScanService = libraryScanService;
   }
 
   @Operation(
@@ -77,6 +82,7 @@ public class AdminController {
   public ResponseEntity<Map<String, Object>> clearItemCache(@PathVariable String itemId) {
     var cache = imageService.getCache();
     String prefix = itemId + "-";
+    // O(n) scan - Caffeine doesn't support prefix-based invalidation natively
     var keysToInvalidate =
         cache.asMap().keySet().stream().filter(key -> key.startsWith(prefix)).toList();
     cache.invalidateAll(keysToInvalidate);
@@ -97,5 +103,32 @@ public class AdminController {
     int found = mediaScannerService.scanMissingArtwork();
     return ResponseEntity.ok(
         Map.of("success", true, "artworkFound", found, "message", "Missing artwork scan complete"));
+  }
+
+  @Operation(
+      summary = "Rescan media library",
+      description =
+          "Triggers a full rescan of the media library from disk. "
+              + "Discovers new files, updates changed files, and removes deleted files.")
+  @ApiResponse(responseCode = "200", description = "Library rescan initiated")
+  @ApiResponse(responseCode = "409", description = "Scan already in progress")
+  @PostMapping("/Library/Rescan")
+  public ResponseEntity<Map<String, Object>> rescanLibrary() {
+    var scanFuture = libraryScanService.triggerFullScan();
+    if (scanFuture.isPresent()) {
+      return ResponseEntity.ok(
+          Map.of("success", true, "message", "Library rescan initiated", "scanInProgress", true));
+    }
+    return ResponseEntity.status(409)
+        .body(Map.of("success", false, "message", "Scan already in progress"));
+  }
+
+  @Operation(
+      summary = "Get library scan status",
+      description = "Returns whether a scan is currently in progress")
+  @ApiResponse(responseCode = "200", description = "Scan status retrieved")
+  @GetMapping("/Library/ScanStatus")
+  public ResponseEntity<Map<String, Object>> getScanStatus() {
+    return ResponseEntity.ok(Map.of("scanInProgress", libraryScanService.isScanInProgress()));
   }
 }

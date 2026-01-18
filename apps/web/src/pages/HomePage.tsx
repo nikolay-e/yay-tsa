@@ -3,6 +3,7 @@ import { type MusicAlbum } from '@yaytsa/core';
 import { useRecentlyPlayedAlbums } from '@/features/library/hooks/useAlbums';
 import { AlbumCard } from '@/features/library/components/AlbumCard';
 import { usePlayerStore } from '@/features/player/stores/player.store';
+import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 
 export function HomePage() {
   const { data: recentlyPlayed, isLoading } = useRecentlyPlayedAlbums(10);
@@ -40,11 +41,7 @@ export function HomePage() {
         </div>
       )}
 
-      {isLoading && (
-        <div className="text-text-secondary py-12 text-center">
-          <p>Loading...</p>
-        </div>
-      )}
+      {isLoading && <LoadingSpinner />}
     </div>
   );
 }

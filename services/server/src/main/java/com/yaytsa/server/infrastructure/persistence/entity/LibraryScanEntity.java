@@ -24,8 +24,9 @@ public class LibraryScanEntity {
   @Column(name = "library_root", nullable = false, columnDefinition = "TEXT")
   private String libraryRoot;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "scan_type", nullable = false, length = 20)
-  private String scanType;
+  private ScanType scanType;
 
   @CreationTimestamp
   @Column(name = "started_at", nullable = false)
@@ -49,8 +50,9 @@ public class LibraryScanEntity {
   @Column(name = "error_count")
   private Integer errorCount = 0;
 
+  @Enumerated(EnumType.STRING)
   @Column(length = 20)
-  private String status = "Running";
+  private ScanStatus status = ScanStatus.Running;
 
   @Column(name = "error_message", columnDefinition = "TEXT")
   private String errorMessage;

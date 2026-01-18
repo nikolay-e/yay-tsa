@@ -119,8 +119,7 @@ test.describe('@yaytsa/platform: PinkNoiseGenerator', () => {
   }) => {
     const result = await authenticatedPage.evaluate(async () => {
       const { PinkNoiseGenerator } = (window as any).__platformClasses__;
-      const AudioContextClass =
-        window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const sharedContext = new AudioContextClass();
 
       const generator = new PinkNoiseGenerator();

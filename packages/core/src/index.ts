@@ -9,11 +9,25 @@ export { BaseService } from './api/base-api.service.js';
 export { AuthService, validateServerUrl } from './api/auth.service.js';
 export { ItemsService } from './api/items.service.js';
 export { PlaylistsService } from './api/playlists.service.js';
-export { AdminService, type CacheStats, type CacheClearResult } from './api/admin.service.js';
+export {
+  AdminService,
+  type CacheStats,
+  type CacheClearResult,
+  type LibraryRescanResult,
+  type ScanStatus,
+} from './api/admin.service.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
 export { PlaybackState, PlaybackReporter } from './player/playback-state.js';
+
+// Lyrics modules
+export {
+  parseLyrics,
+  findActiveLineIndex,
+  type LyricLine,
+  type ParsedLyrics,
+} from './lyrics/index.js';
 
 // Configuration
 export {
