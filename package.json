@@ -55,7 +55,7 @@
     "jsdom": "^27.3.0",
     "knip": "^5.82.1",
     "madge": "^8.0.0",
-    "prettier": "^3.8.0",
+    "prettier": "^3.8.1",
     "sharp": "^0.34.4",
     "type-coverage": "^2.29.7",
     "vitest": "^4.0.17",
