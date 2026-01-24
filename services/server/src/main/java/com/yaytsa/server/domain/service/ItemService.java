@@ -48,6 +48,13 @@ public class ItemService {
 
     if (params.includeItemTypes() != null && !params.includeItemTypes().isEmpty()) {
       spec = spec.and(ItemSpecifications.hasTypes(params.includeItemTypes()));
+
+      if (params.includeItemTypes().contains("MusicArtist")) {
+        spec = spec.and(ItemSpecifications.artistHasAlbums());
+      }
+      if (params.includeItemTypes().contains("MusicAlbum")) {
+        spec = spec.and(ItemSpecifications.albumHasTracks());
+      }
     }
 
     if (params.parentId() != null) {

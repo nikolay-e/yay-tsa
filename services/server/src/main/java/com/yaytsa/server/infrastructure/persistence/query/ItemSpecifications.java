@@ -174,4 +174,22 @@ public final class ItemSpecifications {
       return cb.equal(root.get("libraryRoot"), libraryRoot);
     };
   }
+
+  public static Specification<ItemEntity> artistHasAlbums() {
+    return (root, query, cb) -> {
+      Subquery<UUID> subquery = query.subquery(UUID.class);
+      Root<AlbumEntity> albumRoot = subquery.from(AlbumEntity.class);
+      subquery.select(albumRoot.get("artist").get("id"));
+      return root.get("id").in(subquery);
+    };
+  }
+
+  public static Specification<ItemEntity> albumHasTracks() {
+    return (root, query, cb) -> {
+      Subquery<UUID> subquery = query.subquery(UUID.class);
+      Root<AudioTrackEntity> trackRoot = subquery.from(AudioTrackEntity.class);
+      subquery.select(trackRoot.get("album").get("id"));
+      return root.get("id").in(subquery);
+    };
+  }
 }

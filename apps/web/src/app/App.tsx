@@ -6,6 +6,7 @@ import { AlbumsPage } from '@/pages/AlbumsPage';
 import { AlbumDetailPage } from '@/pages/AlbumDetailPage';
 import { ArtistsPage } from '@/pages/ArtistsPage';
 import { ArtistDetailPage } from '@/pages/ArtistDetailPage';
+import { SongsPage } from '@/pages/SongsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ProtectedRoute } from './routing/ProtectedRoute';
 
@@ -55,6 +56,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <ArtistDetailPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'songs',
+        element: (
+          <ProtectedRoute>
+            <SongsPage />
           </ProtectedRoute>
         ),
       },

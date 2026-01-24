@@ -73,8 +73,13 @@ public class LyricsService {
       return null;
     }
 
-    Path lyricsDir = audioFilePath.getParent().resolve(".lyrics");
+    Path parentDir = audioFilePath.getParent();
     String baseName = getFileNameWithoutExtension(audioFilePath.getFileName().toString());
+
+    Path lyricsDir = parentDir.resolve(".lyrics");
+    if (isKaraokeDir(parentDir)) {
+      lyricsDir = parentDir.getParent().resolve(".lyrics");
+    }
 
     Path lrcPath = lyricsDir.resolve(baseName + ".lrc");
     if (Files.exists(lrcPath) && isPathSafe(lrcPath)) {
@@ -87,6 +92,10 @@ public class LyricsService {
     }
 
     return null;
+  }
+
+  private boolean isKaraokeDir(Path dir) {
+    return dir != null && ".karaoke".equals(dir.getFileName().toString());
   }
 
   private String readFileContent(Path path) {

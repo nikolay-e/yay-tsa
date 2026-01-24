@@ -1,6 +1,6 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
-import { Home, Disc3, Users, LogOut, Settings, type LucideIcon } from 'lucide-react';
+import { Home, Disc3, Users, Music, LogOut, Settings, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { useCurrentTrack } from '@/features/player/stores/player.store';
@@ -16,8 +16,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home, testId: 'nav-home' },
-  { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
   { href: '/artists', label: 'Artists', icon: Users },
+  { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
+  { href: '/songs', label: 'Songs', icon: Music },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
