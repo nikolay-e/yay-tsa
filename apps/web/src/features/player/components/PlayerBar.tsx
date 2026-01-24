@@ -120,7 +120,7 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="z-player border-border bg-bg-secondary md:pb-safe fixed right-0 bottom-[--spacing-bottom-tab] left-0 border-t md:bottom-0"
+      className="z-player border-border bg-bg-secondary pb-safe fixed right-0 bottom-0 left-0 border-t"
     >
       <div
         data-testid="seek-slider"
@@ -173,8 +173,8 @@ export function PlayerBar() {
           onToggleRepeat={toggleRepeat}
         />
 
-        <div className="hidden flex-1 items-center justify-end gap-2 md:flex">
-          <span className="text-text-tertiary text-xs tabular-nums">
+        <div className="flex shrink-0 items-center justify-end gap-1 md:flex-1 md:gap-2">
+          <span className="text-text-tertiary hidden text-xs tabular-nums md:inline">
             <span data-testid="current-time">{formatSeconds(currentTime)}</span> /{' '}
             <span data-testid="total-time">{formatSeconds(duration)}</span>
           </span>
@@ -230,7 +230,9 @@ export function PlayerBar() {
             )}
           </button>
 
-          <VolumeControls volume={volume} onVolumeChange={setVolume} />
+          <div className="hidden md:block">
+            <VolumeControls volume={volume} onVolumeChange={setVolume} />
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,16 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
-import { Home, Disc3, Users, Music, LogOut, Settings, type LucideIcon } from 'lucide-react';
+import {
+  Home,
+  Disc3,
+  Users,
+  Music,
+  LogOut,
+  Settings,
+  Menu,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { useCurrentTrack } from '@/features/player/stores/player.store';
@@ -26,6 +36,7 @@ type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
 export function RootLayout() {
   const [authState, setAuthState] = useState<AuthState>('loading');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const restoreSession = useAuthStore(state => state.restoreSession);
   const location = useLocation();
@@ -54,6 +65,10 @@ export function RootLayout() {
     setAuthState(isAuthenticated ? 'authenticated' : 'unauthenticated');
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
   if (authState === 'loading') {
     return (
       <div className="bg-bg-primary flex h-full items-center justify-center">
@@ -70,46 +85,70 @@ export function RootLayout() {
     return <Navigate to="/" replace />;
   }
 
-  const showSidebar = authState === 'authenticated' && !isLoginPage;
+  const showNavigation = authState === 'authenticated' && !isLoginPage;
   const showPlayer = authState === 'authenticated' && !isLoginPage && currentTrack;
 
   return (
     <div className="flex h-full min-h-screen">
-      {showSidebar && <Sidebar hasPlayer={!!showPlayer} />}
-      <main
-        className={cn(
-          'h-full min-h-screen flex-1 overflow-y-auto',
-          showSidebar && 'md:ml-sidebar',
-          showPlayer && 'pb-20',
-          authState === 'authenticated' &&
-            !isLoginPage &&
-            'pb-[calc(var(--spacing-bottom-tab)+var(--spacing-safe-b))] md:pb-0',
-          showPlayer &&
-            authState === 'authenticated' &&
-            'pb-[calc(5rem+var(--spacing-bottom-tab)+var(--spacing-safe-b))] md:pb-20'
+      {showNavigation && (
+        <>
+          <Sidebar
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+            hasPlayer={!!showPlayer}
+          />
+          {isSidebarOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+        </>
+      )}
+      <main className={cn('h-full min-h-screen flex-1 overflow-y-auto', showPlayer && 'pb-20')}>
+        {showNavigation && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="bg-bg-secondary fixed top-4 left-4 z-30 rounded-full p-2 shadow-lg"
+            aria-label="Open menu"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
         )}
-      >
         <Outlet />
       </main>
-      {authState === 'authenticated' && !isLoginPage && <BottomTabBar />}
       {showPlayer && <PlayerBar />}
     </div>
   );
 }
 
-function Sidebar({ hasPlayer }: { hasPlayer: boolean }) {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  hasPlayer: boolean;
+}
+
+function Sidebar({ isOpen, onClose, hasPlayer }: SidebarProps) {
   const logout = useAuthStore(state => state.logout);
   const location = useLocation();
 
   return (
     <aside
       className={cn(
-        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 hidden h-full flex-col border-r md:flex',
+        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-50 flex h-full flex-col border-r transition-transform duration-300',
+        isOpen ? 'translate-x-0' : '-translate-x-full',
         hasPlayer && 'pb-20'
       )}
     >
-      <div className="p-6">
+      <div className="flex items-center justify-between p-6">
         <h1 className="text-accent text-xl font-bold">Yaytsa</h1>
+        <button
+          onClick={onClose}
+          className="hover:bg-bg-hover rounded-full p-1"
+          aria-label="Close menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
       <nav className="flex-1 px-2">
         {NAV_ITEMS.map(item => (
@@ -139,37 +178,5 @@ function Sidebar({ hasPlayer }: { hasPlayer: boolean }) {
         <VersionInfo />
       </div>
     </aside>
-  );
-}
-
-function BottomTabBar() {
-  const logout = useAuthStore(state => state.logout);
-  const location = useLocation();
-
-  return (
-    <nav className="pb-safe z-bottom-tab border-border bg-bg-secondary fixed right-0 bottom-0 left-0 flex border-t md:hidden">
-      {NAV_ITEMS.map(tab => (
-        <Link
-          key={tab.href}
-          to={tab.href}
-          data-testid={tab.testId}
-          className={cn(
-            'min-h-touch flex flex-1 flex-col items-center justify-center gap-1 py-2',
-            'text-text-secondary touch-manipulation transition-colors',
-            location.pathname === tab.href && 'text-accent'
-          )}
-        >
-          <tab.icon className="h-5 w-5" />
-          <span className="text-xs">{tab.label}</span>
-        </Link>
-      ))}
-      <button
-        onClick={() => void logout()}
-        className="min-h-touch text-text-secondary hover:text-error flex flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2"
-      >
-        <LogOut className="h-5 w-5" />
-        <span className="text-xs">Logout</span>
-      </button>
-    </nav>
   );
 }
