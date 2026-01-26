@@ -1,16 +1,6 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
-import {
-  Home,
-  Disc3,
-  Users,
-  Music,
-  LogOut,
-  Settings,
-  Menu,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
+import { Home, Disc3, Users, Music, LogOut, Settings, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { useCurrentTrack } from '@/features/player/stores/player.store';
@@ -36,7 +26,6 @@ type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
 export function RootLayout() {
   const [authState, setAuthState] = useState<AuthState>('loading');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const restoreSession = useAuthStore(state => state.restoreSession);
   const location = useLocation();
@@ -65,10 +54,6 @@ export function RootLayout() {
     setAuthState(isAuthenticated ? 'authenticated' : 'unauthenticated');
   }, [isAuthenticated]);
 
-  useEffect(() => {
-    setIsSidebarOpen(false);
-  }, [location.pathname]);
-
   if (authState === 'loading') {
     return (
       <div className="bg-bg-primary flex h-full items-center justify-center">
@@ -90,65 +75,40 @@ export function RootLayout() {
 
   return (
     <div className="flex h-full min-h-screen">
-      {showNavigation && (
-        <>
-          <Sidebar
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-            hasPlayer={!!showPlayer}
-          />
-          {isSidebarOpen && (
-            <div
-              className="fixed inset-0 z-40 bg-black/50"
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
-        </>
-      )}
-      <main className={cn('h-full min-h-screen flex-1 overflow-y-auto', showPlayer && 'pb-20')}>
-        {showNavigation && (
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="bg-bg-secondary fixed top-4 left-4 z-30 rounded-full p-2 shadow-lg"
-            aria-label="Open menu"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
+      {showNavigation && <Sidebar hasPlayer={!!showPlayer} />}
+      <main
+        className={cn(
+          'h-full min-h-screen flex-1 overflow-y-auto',
+          showNavigation && 'md:ml-sidebar',
+          showNavigation && (showPlayer ? 'pb-32' : 'pb-14'),
+          showNavigation && (showPlayer ? 'md:pb-20' : 'md:pb-0')
         )}
+      >
         <Outlet />
       </main>
+      {showNavigation && <BottomTabBar hasPlayer={!!showPlayer} />}
       {showPlayer && <PlayerBar />}
     </div>
   );
 }
 
 interface SidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
   hasPlayer: boolean;
 }
 
-function Sidebar({ isOpen, onClose, hasPlayer }: SidebarProps) {
+function Sidebar({ hasPlayer }: SidebarProps) {
   const logout = useAuthStore(state => state.logout);
   const location = useLocation();
 
   return (
     <aside
       className={cn(
-        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-50 flex h-full flex-col border-r transition-transform duration-300',
-        isOpen ? 'translate-x-0' : '-translate-x-full',
+        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-50 hidden h-full flex-col border-r md:flex',
         hasPlayer && 'pb-20'
       )}
     >
-      <div className="flex items-center justify-between p-6">
+      <div className="p-6">
         <h1 className="text-accent text-xl font-bold">Yaytsa</h1>
-        <button
-          onClick={onClose}
-          className="hover:bg-bg-hover rounded-full p-1"
-          aria-label="Close menu"
-        >
-          <X className="h-5 w-5" />
-        </button>
       </div>
       <nav className="flex-1 px-2">
         {NAV_ITEMS.map(item => (
@@ -178,5 +138,40 @@ function Sidebar({ isOpen, onClose, hasPlayer }: SidebarProps) {
         <VersionInfo />
       </div>
     </aside>
+  );
+}
+
+interface BottomTabBarProps {
+  hasPlayer: boolean;
+}
+
+function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
+  const location = useLocation();
+
+  return (
+    <nav
+      className={cn(
+        'border-border bg-bg-secondary z-bottom-tab h-bottom-tab fixed right-0 bottom-0 left-0 flex items-center justify-around border-t md:hidden',
+        hasPlayer && 'bottom-20'
+      )}
+    >
+      {NAV_ITEMS.map(item => {
+        const isActive = location.pathname === item.href;
+        return (
+          <Link
+            key={item.href}
+            to={item.href}
+            data-testid={item.testId}
+            className={cn(
+              'flex flex-1 flex-col items-center gap-1 py-2 transition-colors',
+              isActive ? 'text-accent' : 'text-text-secondary'
+            )}
+          >
+            <item.icon className="h-5 w-5" />
+            <span className="text-xs">{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
