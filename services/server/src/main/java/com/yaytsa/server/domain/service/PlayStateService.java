@@ -7,8 +7,12 @@ import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayStateRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +36,15 @@ public class PlayStateService {
   @Transactional(readOnly = true)
   public Optional<PlayStateEntity> getPlayState(UUID userId, UUID itemId) {
     return playStateRepository.findByUserIdAndItemId(userId, itemId);
+  }
+
+  @Transactional(readOnly = true)
+  public Map<UUID, PlayStateEntity> getPlayStatesForItems(UUID userId, Collection<UUID> itemIds) {
+    if (itemIds == null || itemIds.isEmpty()) {
+      return Map.of();
+    }
+    return playStateRepository.findAllByUserIdAndItemIdIn(userId, itemIds).stream()
+        .collect(Collectors.toMap(ps -> ps.getItem().getId(), Function.identity()));
   }
 
   public void setFavorite(UUID userId, UUID itemId, boolean isFavorite) {

@@ -212,7 +212,7 @@ export class HTML5AudioEngine implements AudioEngine {
           this.audio.addEventListener('canplay', handleCanPlay, { once: true });
           this.audio.addEventListener('error', handleError, { once: true });
 
-          this.audio.src = url;
+          this.audio.src = absoluteUrl;
           this.audio.load();
         });
       })

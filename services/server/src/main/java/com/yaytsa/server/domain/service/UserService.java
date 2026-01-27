@@ -1,5 +1,7 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.error.ResourceNotFoundException;
+import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.util.Optional;
@@ -34,17 +36,12 @@ public class UserService {
     String username = authentication.getName();
     return userRepository
         .findByUsername(username)
-        .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
+        .orElseThrow(
+            () -> new ResourceNotFoundException(ResourceType.User, "User not found: " + username));
   }
 
   public static class UnauthorizedException extends RuntimeException {
     public UnauthorizedException(String message) {
-      super(message);
-    }
-  }
-
-  public static class UserNotFoundException extends RuntimeException {
-    public UserNotFoundException(String message) {
       super(message);
     }
   }

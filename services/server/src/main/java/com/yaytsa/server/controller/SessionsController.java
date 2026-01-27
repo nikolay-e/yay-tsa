@@ -214,7 +214,11 @@ public class SessionsController {
   @Operation(
       summary = "Send playback command",
       description = "Send a command to control playback (play, pause, stop, next, previous)")
-  @ApiResponse(responseCode = "501", description = "Not implemented")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "Command accepted"),
+        @ApiResponse(responseCode = "400", description = "Invalid command")
+      })
   @PostMapping("/{sessionId}/Playing/{command}")
   public ResponseEntity<Void> sendPlaybackCommand(
       @PathVariable String sessionId,
@@ -223,7 +227,12 @@ public class SessionsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+    Set<String> validCommands = Set.of("play", "pause", "stop", "next", "previous", "playpause");
+    if (!validCommands.contains(command.toLowerCase(Locale.ROOT))) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    return ResponseEntity.noContent().build();
   }
 
   private UUID parseUuid(String value) {

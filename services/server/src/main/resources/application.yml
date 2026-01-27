@@ -263,7 +263,7 @@ logging:
 yaytsa:
   security:
     cors:
-      allowed-origins: http://localhost:*,https://localhost:*
+      allowed-origins: ${CORS_ORIGINS:http://localhost:*,https://localhost:*,http://frontend:*}
     https-required-in-production: false
 
 ---

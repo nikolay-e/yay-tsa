@@ -25,6 +25,7 @@ export function SearchInput({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
+        data-testid="search-input"
         className={cn(
           'border-border bg-bg-secondary w-full rounded-sm border py-2 pr-4 pl-9',
           'text-text-primary placeholder:text-text-tertiary',

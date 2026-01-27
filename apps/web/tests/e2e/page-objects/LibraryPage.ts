@@ -6,15 +6,33 @@ export class LibraryPage {
   readonly page: Page;
   readonly albumCards: Locator;
   readonly searchInput: Locator;
-  readonly navHomeTab: Locator;
-  readonly navAlbumsTab: Locator;
 
   constructor(page: Page) {
     this.page = page;
     this.albumCards = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD);
     this.searchInput = page.getByTestId(NAVIGATION_TEST_IDS.SEARCH_INPUT);
-    this.navHomeTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME);
-    this.navAlbumsTab = page.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS);
+  }
+
+  get navHomeTab(): Locator {
+    const sidebar = this.page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
+    const bottomTab = this.page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
+    return sidebar
+      .getByTestId(NAVIGATION_TEST_IDS.NAV_HOME)
+      .or(bottomTab.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME));
+  }
+
+  get navAlbumsTab(): Locator {
+    const sidebar = this.page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
+    const bottomTab = this.page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
+    return sidebar
+      .getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS)
+      .or(bottomTab.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS));
+  }
+
+  private getVisibleNavLink(testId: string): Locator {
+    const sidebar = this.page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
+    const bottomTab = this.page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
+    return sidebar.getByTestId(testId).or(bottomTab.getByTestId(testId));
   }
 
   async goto(): Promise<void> {
@@ -52,12 +70,17 @@ export class LibraryPage {
   }
 
   async navigateToSearch(): Promise<void> {
-    // Search is now on the home page
     const currentPath = new URL(this.page.url()).pathname;
-    if (currentPath !== '/') {
-      await this.page.goto('/');
+    if (currentPath !== '/albums') {
+      await this.page.goto('/albums');
     }
     await expect(this.searchInput).toBeVisible({ timeout: 10000 });
+  }
+
+  async navigateToAlbums(): Promise<void> {
+    const navLink = this.getVisibleNavLink(NAVIGATION_TEST_IDS.NAV_ALBUMS);
+    await navLink.click();
+    await this.waitForAlbumsToLoad();
   }
 
   async search(query: string): Promise<void> {

@@ -102,6 +102,7 @@ function Sidebar({ hasPlayer }: SidebarProps) {
 
   return (
     <aside
+      data-testid="sidebar"
       className={cn(
         'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-50 hidden h-full flex-col border-r md:flex',
         hasPlayer && 'pb-20'
@@ -150,6 +151,7 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
 
   return (
     <nav
+      data-testid="bottom-tab-bar"
       className={cn(
         'border-border bg-bg-secondary z-bottom-tab h-bottom-tab fixed right-0 bottom-0 left-0 flex items-center justify-around border-t md:hidden',
         hasPlayer && 'bottom-20'

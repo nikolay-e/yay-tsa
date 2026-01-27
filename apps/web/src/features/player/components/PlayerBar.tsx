@@ -5,6 +5,7 @@ import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatSeconds } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
+import { PLAYER_TEST_IDS } from '@/shared/testing/test-ids';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { useTimingStore } from '../stores/playback-timing.store';
 import { useLyrics } from '../hooks/useLyrics';
@@ -221,6 +222,7 @@ export function PlayerBar() {
               sleepTimer.endTime ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
             )}
             aria-label="Sleep timer"
+            data-testid={PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}
           >
             <Timer className="h-4 w-4" />
             {sleepTimer.endTime && sleepMinutesLeft > 0 && (
