@@ -43,7 +43,8 @@ test.describe('Authentication Flow', () => {
     await loginPage.login(username, password);
     await loginPage.waitForRedirectToRecent();
 
-    const logoutButton = loginPage.page.getByRole('button', { name: 'Logout' }).first();
+    await loginPage.page.goto('/settings');
+    const logoutButton = loginPage.page.getByRole('button', { name: 'Logout' });
     await logoutButton.click();
     await loginPage.expectStillOnLoginPage();
     await expect(loginPage.usernameInput).toBeVisible();
@@ -74,7 +75,8 @@ test.describe('Authentication Flow', () => {
     await loginPage.login(username, password);
     await loginPage.waitForRedirectToRecent();
 
-    const logoutButton = loginPage.page.getByRole('button', { name: 'Logout' }).first();
+    await loginPage.page.goto('/settings');
+    const logoutButton = loginPage.page.getByRole('button', { name: 'Logout' });
     await logoutButton.click();
     await loginPage.expectStillOnLoginPage();
 

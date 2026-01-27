@@ -28,8 +28,9 @@ COPY src ./src
 COPY --from=builder /root/.m2 /root/.m2
 
 ENV TESTCONTAINERS_RYUK_DISABLED=true
+ENV NO_COLOR=1
 
-CMD ["mvn", "test", "-B", "--fail-at-end"]
+CMD ["mvn", "test", "-B", "-Dstyle.color=never", "--fail-at-end"]
 
 # Stage 3: Runtime stage
 FROM eclipse-temurin:21-jre-alpine

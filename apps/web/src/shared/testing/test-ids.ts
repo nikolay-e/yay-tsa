@@ -10,6 +10,7 @@ export const PLAYER_TEST_IDS = {
   CURRENT_TRACK_TITLE: 'current-track-title',
   CURRENT_TRACK_ARTIST: 'current-track-artist',
   QUEUE_BUTTON: 'queue-button',
+  SLEEP_TIMER_BUTTON: 'sleep-timer-button',
 } as const;
 
 export const LIBRARY_TEST_IDS = {
@@ -32,4 +33,10 @@ export const NAVIGATION_TEST_IDS = {
   NAV_LIBRARY: 'nav-library',
   NAV_SEARCH: 'nav-search',
   NAV_SETTINGS: 'nav-settings',
+  NAV_ALBUMS: 'nav-albums',
+  NAV_ARTISTS: 'nav-artists',
+  NAV_SONGS: 'nav-songs',
+  SEARCH_INPUT: 'search-input',
+  SIDEBAR: 'sidebar',
+  BOTTOM_TAB_BAR: 'bottom-tab-bar',
 } as const;

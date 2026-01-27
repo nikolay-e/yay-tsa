@@ -95,7 +95,12 @@ public class ImageService {
 
   public Optional<byte[]> getItemImage(UUID itemId, String imageTypeStr, ImageParams params) {
     try {
-      ImageType imageType = ImageType.valueOf(imageTypeStr);
+      Optional<ImageType> imageTypeOpt = ImageType.parse(imageTypeStr);
+      if (imageTypeOpt.isEmpty()) {
+        logger.warn("Invalid image type: itemId={}, type={}", itemId, imageTypeStr);
+        return Optional.empty();
+      }
+      ImageType imageType = imageTypeOpt.get();
       String cacheKey = params.cacheKey(itemId.toString(), imageTypeStr);
 
       byte[] cached = imageCache.getIfPresent(cacheKey);
@@ -115,9 +120,6 @@ public class ImageService {
 
       return Optional.of(processedImage);
 
-    } catch (IllegalArgumentException e) {
-      logger.warn("Invalid image type: itemId={}, type={}", itemId, imageTypeStr);
-      return Optional.empty();
     } catch (Exception | NoClassDefFoundError | UnsatisfiedLinkError e) {
       logger.error(
           "Error processing image: itemId={}, type={}, error={}",
@@ -130,13 +132,14 @@ public class ImageService {
   }
 
   public Optional<String> getImageTag(UUID itemId, String imageTypeStr) {
-    try {
-      ImageType imageType = ImageType.valueOf(imageTypeStr);
-      return imageRepository.findFirstByItemIdAndType(itemId, imageType).map(this::generateETag);
-    } catch (IllegalArgumentException e) {
+    Optional<ImageType> imageTypeOpt = ImageType.parse(imageTypeStr);
+    if (imageTypeOpt.isEmpty()) {
       logger.warn("Invalid image type: {}", imageTypeStr);
       return Optional.empty();
     }
+    return imageRepository
+        .findFirstByItem_IdAndType(itemId, imageTypeOpt.get())
+        .map(this::generateETag);
   }
 
   public Optional<byte[]> extractAlbumArt(Path audioFilePath) {
@@ -197,13 +200,12 @@ public class ImageService {
   }
 
   public Optional<Path> getImagePath(UUID itemId, String imageTypeStr) {
-    try {
-      ImageType imageType = ImageType.valueOf(imageTypeStr);
-      return findImagePath(itemId, imageType);
-    } catch (IllegalArgumentException e) {
+    Optional<ImageType> imageTypeOpt = ImageType.parse(imageTypeStr);
+    if (imageTypeOpt.isEmpty()) {
       logger.warn("Invalid image type: {}", imageTypeStr);
       return Optional.empty();
     }
+    return findImagePath(itemId, imageTypeOpt.get());
   }
 
   public boolean isXAccelRedirectEnabled() {
@@ -215,7 +217,8 @@ public class ImageService {
   }
 
   private Optional<Path> findImagePath(UUID itemId, ImageType imageType) {
-    Optional<ImageEntity> imageEntity = imageRepository.findFirstByItemIdAndType(itemId, imageType);
+    Optional<ImageEntity> imageEntity =
+        imageRepository.findFirstByItem_IdAndType(itemId, imageType);
 
     if (imageEntity.isPresent()) {
       String storedPath = imageEntity.get().getPath();

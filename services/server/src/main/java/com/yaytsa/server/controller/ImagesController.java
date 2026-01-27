@@ -2,14 +2,16 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ImageService;
 import com.yaytsa.server.dto.ImageParams;
+import com.yaytsa.server.infrastructure.persistence.entity.ImageEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.ImageRepository;
 import com.yaytsa.server.util.PathUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletResponse;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -30,9 +32,11 @@ public class ImagesController {
   private static final Logger log = LoggerFactory.getLogger(ImagesController.class);
 
   private final ImageService imageService;
+  private final ImageRepository imageRepository;
 
-  public ImagesController(ImageService imageService) {
+  public ImagesController(ImageService imageService, ImageRepository imageRepository) {
     this.imageService = imageService;
+    this.imageRepository = imageRepository;
   }
 
   @Operation(
@@ -56,29 +60,32 @@ public class ImagesController {
       @Parameter(description = "Maximum height") @RequestParam(required = false) Integer maxHeight,
       @Parameter(description = "Image quality (1-100)") @RequestParam(required = false)
           Integer quality,
-      @Parameter(description = "Output format (webp, jpeg, png)")
-          @RequestParam(defaultValue = "webp")
+      @Parameter(
+              description =
+                  "Output format (webp, jpeg, png). If not specified, serves original format via"
+                      + " X-Accel-Redirect when no resize is needed.")
+          @RequestParam(required = false)
           String format,
-      WebRequest webRequest,
-      HttpServletResponse response) {
+      WebRequest webRequest) {
 
     try {
       UUID itemUuid = UUID.fromString(itemId);
 
       Optional<String> etag = imageService.getImageTag(itemUuid, imageType);
       if (etag.isPresent() && webRequest.checkNotModified(etag.get())) {
-        return null;
+        return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag.get()).build();
       }
 
       int clampedQuality = quality == null ? 85 : Math.min(100, Math.max(1, quality));
       ImageParams params = ImageParams.of(maxWidth, maxHeight, clampedQuality, format, tag);
 
-      boolean requiresProcessing = params.requiresResize() || !"jpeg".equalsIgnoreCase(format);
+      boolean requiresProcessing = params.requiresResize() || format != null;
 
       if (imageService.isXAccelRedirectEnabled() && !requiresProcessing) {
         Optional<Path> imagePath = imageService.getImagePath(itemUuid, imageType);
         if (imagePath.isPresent()) {
-          return handleXAccelRedirect(imagePath.get(), format, etag, response);
+          String actualFormat = getFormatFromPath(imagePath.get());
+          return handleXAccelRedirect(imagePath.get(), actualFormat, etag);
         }
       }
 
@@ -90,7 +97,7 @@ public class ImagesController {
       }
 
       HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(getMediaTypeForFormat(format));
+      headers.setContentType(getMediaTypeForFormat(params.format()));
       headers.setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
       etag.ifPresent(headers::setETag);
 
@@ -104,18 +111,18 @@ public class ImagesController {
   }
 
   private ResponseEntity<byte[]> handleXAccelRedirect(
-      Path imagePath, String format, Optional<String> etag, HttpServletResponse response) {
+      Path imagePath, String format, Optional<String> etag) {
     String encodedPath = PathUtils.encodePathForHeader(imagePath.toAbsolutePath().toString());
     String redirectPath = imageService.getXAccelInternalPath() + encodedPath;
 
-    response.setStatus(HttpServletResponse.SC_OK);
-    response.setContentType(getMediaTypeForFormat(format).toString());
-    response.setHeader("Cache-Control", "public, max-age=604800");
-    response.setHeader("X-Accel-Redirect", redirectPath);
-    etag.ifPresent(e -> response.setHeader("ETag", e));
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(getMediaTypeForFormat(format));
+    headers.setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
+    etag.ifPresent(headers::setETag);
+    headers.add("X-Accel-Redirect", redirectPath);
 
     log.debug("X-Accel-Redirect image to: {}", redirectPath);
-    return null;
+    return ResponseEntity.ok().headers(headers).build();
   }
 
   @Operation(
@@ -133,13 +140,12 @@ public class ImagesController {
       @RequestParam(required = false) Integer maxWidth,
       @RequestParam(required = false) Integer maxHeight,
       @RequestParam(required = false) Integer quality,
-      @RequestParam(defaultValue = "webp") String format,
-      WebRequest webRequest,
-      HttpServletResponse response) {
+      @RequestParam(required = false) String format,
+      WebRequest webRequest) {
     // TODO: Implement imageIndex support in ImageService.findByItemIdAndTypeWithIndex()
     // Currently only one image per type is supported, so imageIndex is ignored
     return getItemImage(
-        itemId, imageType, apiKey, tag, maxWidth, maxHeight, quality, format, webRequest, response);
+        itemId, imageType, apiKey, tag, maxWidth, maxHeight, quality, format, webRequest);
   }
 
   @Operation(summary = "Upload image for item", description = "Upload a new image for a media item")
@@ -170,14 +176,36 @@ public class ImagesController {
   @Operation(
       summary = "Get available image types",
       description = "Get list of available image types for an item")
-  @ApiResponse(responseCode = "501", description = "Not implemented")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Image types retrieved successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid item ID")
+      })
   @GetMapping("/Items/{itemId}/Images")
-  public ResponseEntity<Void> getItemImageTypes(
+  public ResponseEntity<List<ImageTypeInfo>> getItemImageTypes(
       @PathVariable String itemId,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+    try {
+      UUID itemUuid = UUID.fromString(itemId);
+      List<ImageEntity> images = imageRepository.findAllByItem_Id(itemUuid);
+
+      List<ImageTypeInfo> imageTypes =
+          images.stream()
+              .map(
+                  img ->
+                      new ImageTypeInfo(
+                          img.getType().name(), img.getWidth(), img.getHeight(), img.getTag()))
+              .toList();
+
+      return ResponseEntity.ok(imageTypes);
+    } catch (IllegalArgumentException e) {
+      log.warn("Invalid item ID: {}", itemId);
+      return ResponseEntity.badRequest().build();
+    }
   }
+
+  public record ImageTypeInfo(String imageType, Integer width, Integer height, String tag) {}
 
   private MediaType getMediaTypeForFormat(String format) {
     if (format == null) {
@@ -189,5 +217,19 @@ public class ImagesController {
       case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
       default -> MediaType.IMAGE_JPEG;
     };
+  }
+
+  private String getFormatFromPath(Path path) {
+    String fileName = path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+    if (fileName.endsWith(".webp")) {
+      return "webp";
+    }
+    if (fileName.endsWith(".png")) {
+      return "png";
+    }
+    if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+      return "jpeg";
+    }
+    return "jpeg";
   }
 }

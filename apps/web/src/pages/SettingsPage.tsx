@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, HardDrive, Info, Server } from 'lucide-react';
+import { RefreshCw, HardDrive, Info, Server, LogOut } from 'lucide-react';
 import { AdminService } from '@yaytsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -29,6 +29,7 @@ async function forceReload(): Promise<void> {
 
 export function SettingsPage() {
   const client = useAuthStore(state => state.client);
+  const logout = useAuthStore(state => state.logout);
   const [status, setStatus] = useState<string | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
@@ -118,7 +119,7 @@ export function SettingsPage() {
 
       {status && <div className="bg-bg-tertiary mb-8 rounded-lg p-3 text-sm">{status}</div>}
 
-      <section>
+      <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
           <Info className="h-4 w-4" />
           About
@@ -127,6 +128,24 @@ export function SettingsPage() {
         <div className="bg-bg-secondary border-border rounded-lg border p-4">
           <VersionInfo />
         </div>
+      </section>
+
+      <section>
+        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+          <LogOut className="h-4 w-4" />
+          Account
+        </h2>
+
+        <button
+          onClick={() => void logout()}
+          className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
+        >
+          <LogOut className="text-error h-5 w-5 shrink-0" />
+          <div>
+            <div className="font-medium">Logout</div>
+            <div className="text-text-secondary text-sm">Sign out of your account</div>
+          </div>
+        </button>
       </section>
     </div>
   );

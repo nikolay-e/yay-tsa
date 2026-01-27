@@ -1,10 +1,9 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
-import { Home, Disc3, Users, Music, LogOut, Settings, type LucideIcon } from 'lucide-react';
+import { Home, Disc3, Users, Music, Settings, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { useCurrentTrack } from '@/features/player/stores/player.store';
-import { VersionInfo } from '@/shared/components/VersionInfo';
 import { cn } from '@/shared/utils/cn';
 
 interface NavItem {
@@ -97,13 +96,13 @@ interface SidebarProps {
 }
 
 function Sidebar({ hasPlayer }: SidebarProps) {
-  const logout = useAuthStore(state => state.logout);
   const location = useLocation();
 
   return (
     <aside
+      data-testid="sidebar"
       className={cn(
-        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-50 hidden h-full flex-col border-r md:flex',
+        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-40 hidden h-full flex-col border-r md:flex',
         hasPlayer && 'pb-20'
       )}
     >
@@ -127,16 +126,6 @@ function Sidebar({ hasPlayer }: SidebarProps) {
           </Link>
         ))}
       </nav>
-      <div className="border-border border-t p-4">
-        <button
-          onClick={() => void logout()}
-          className="text-text-secondary hover:bg-bg-hover hover:text-error flex w-full items-center gap-4 rounded-md px-4 py-2 transition-colors"
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Logout</span>
-        </button>
-        <VersionInfo />
-      </div>
     </aside>
   );
 }
@@ -150,6 +139,7 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
 
   return (
     <nav
+      data-testid="bottom-tab-bar"
       className={cn(
         'border-border bg-bg-secondary z-bottom-tab h-bottom-tab fixed right-0 bottom-0 left-0 flex items-center justify-around border-t md:hidden',
         hasPlayer && 'bottom-20'

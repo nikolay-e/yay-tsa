@@ -74,7 +74,13 @@ export class PlayerBar {
   }
 
   async setVolume(percentage: number): Promise<void> {
-    await this.volumeSlider.fill(percentage.toString());
+    const normalizedVolume = percentage / 100;
+    await this.page.evaluate((vol: number) => {
+      const player = (
+        window as unknown as { __playerStore__?: { setVolume?: (v: number) => void } }
+      ).__playerStore__;
+      player?.setVolume?.(vol);
+    }, normalizedVolume);
   }
 
   async seek(percentage: number): Promise<void> {

@@ -1,6 +1,7 @@
 package com.yaytsa.server.infrastructure.persistence.repository;
 
 import com.yaytsa.server.infrastructure.persistence.entity.AlbumEntity;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,11 @@ public interface AlbumRepository extends JpaRepository<AlbumEntity, UUID> {
 
   @Query("SELECT COUNT(a) FROM AlbumEntity a WHERE a.artist.id = :artistId")
   long countByArtistId(@Param("artistId") UUID artistId);
+
+  @Query(
+      "SELECT a FROM AlbumEntity a "
+          + "LEFT JOIN FETCH a.artist "
+          + "LEFT JOIN FETCH a.item "
+          + "WHERE a.itemId IN :itemIds")
+  List<AlbumEntity> findAllByIdInWithArtist(@Param("itemIds") Collection<UUID> itemIds);
 }

@@ -18,8 +18,7 @@ test.describe('Search Functionality', () => {
     await libraryPage.navigateToSearch();
 
     await expect(libraryPage.searchInput).toBeVisible();
-    // Search is now on home page
-    await expect(authenticatedPage).toHaveURL('/');
+    await expect(authenticatedPage).toHaveURL('/albums');
   });
 
   test('should search for albums', async () => {
@@ -119,25 +118,19 @@ test.describe('Search Functionality', () => {
   });
 
   test('should clear search when navigating away and back', async ({ authenticatedPage }) => {
-    // Search is on home page, navigate away and back
     await libraryPage.navigateToSearch();
     await libraryPage.search('test');
 
-    // Verify search is active
     const searchValueBefore = await libraryPage.searchInput.inputValue();
     expect(searchValueBefore).toBe('test');
 
-    // Navigate to albums page
-    await authenticatedPage.goto('/albums');
-    await expect(authenticatedPage).toHaveURL('/albums');
-
-    // Navigate back to home
     await authenticatedPage.goto('/');
+    await expect(authenticatedPage).toHaveURL('/');
+
+    await authenticatedPage.goto('/albums');
     await expect(libraryPage.searchInput).toBeVisible();
 
     const searchValueAfter = await libraryPage.searchInput.inputValue();
-    // Expected: search is cleared after navigation (fresh state)
-    // This is the correct UX - user starts fresh when returning
     expect(searchValueAfter).toBe('');
   });
 

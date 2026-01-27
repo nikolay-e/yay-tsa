@@ -110,13 +110,24 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = userId != null ? UUID.fromString(userId) : null;
-    UUID parentUuid = parentId != null ? UUID.fromString(parentId) : null;
+    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    if (userId != null && userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID parentUuid = parentId != null ? parseUuid(parentId) : null;
+    if (parentId != null && parentUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     List<String> itemTypes = parseCommaSeparatedList(includeItemTypes);
     List<UUID> artistUuids = parseUuidList(artistIds);
     List<UUID> albumUuids = parseUuidList(albumIds);
     List<UUID> genreUuids = parseUuidList(genreIds);
+
+    if (artistUuids == null || albumUuids == null || genreUuids == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     ItemService.ItemsQueryParams params =
         new ItemService.ItemsQueryParams(
@@ -151,6 +162,7 @@ public class ItemsController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Successfully retrieved item"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format"),
         @ApiResponse(responseCode = "404", description = "Item not found"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
       })
@@ -163,8 +175,15 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = UUID.fromString(itemId);
-    UUID userUuid = userId != null ? UUID.fromString(userId) : null;
+    UUID itemUuid = parseUuid(itemId);
+    if (itemUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    if (userId != null && userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     Optional<ItemEntity> itemOpt = itemService.findById(itemUuid);
     if (itemOpt.isEmpty()) {
@@ -178,6 +197,11 @@ public class ItemsController {
   }
 
   @Operation(summary = "Get album tracks", description = "Retrieve all tracks for a specific album")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully retrieved tracks"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format")
+      })
   @GetMapping("/{albumId}/Tracks")
   public ResponseEntity<QueryResultResponse<BaseItemResponse>> getAlbumTracks(
       @PathVariable String albumId,
@@ -187,8 +211,15 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID albumUuid = UUID.fromString(albumId);
-    UUID userUuid = userId != null ? UUID.fromString(userId) : null;
+    UUID albumUuid = parseUuid(albumId);
+    if (albumUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    if (userId != null && userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     List<AudioTrackEntity> tracks = itemService.getAlbumTracks(albumUuid);
 
@@ -214,6 +245,11 @@ public class ItemsController {
   }
 
   @Operation(summary = "Mark item as favorite", description = "Add item to user's favorites")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully marked as favorite"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format")
+      })
   @PostMapping("/{itemId}/Favorite")
   public ResponseEntity<Void> markFavorite(
       @PathVariable String itemId,
@@ -221,8 +257,15 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = UUID.fromString(itemId);
-    UUID userUuid = UUID.fromString(userId);
+    UUID itemUuid = parseUuid(itemId);
+    if (itemUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     playStateService.setFavorite(userUuid, itemUuid, true);
 
@@ -230,6 +273,11 @@ public class ItemsController {
   }
 
   @Operation(summary = "Unmark item as favorite", description = "Remove item from user's favorites")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully unmarked as favorite"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format")
+      })
   @DeleteMapping("/{itemId}/Favorite")
   public ResponseEntity<Void> unmarkFavorite(
       @PathVariable String itemId,
@@ -237,8 +285,15 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = UUID.fromString(itemId);
-    UUID userUuid = UUID.fromString(userId);
+    UUID itemUuid = parseUuid(itemId);
+    if (itemUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     playStateService.setFavorite(userUuid, itemUuid, false);
 
@@ -252,6 +307,7 @@ public class ItemsController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "Item deleted successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid item ID format"),
         @ApiResponse(responseCode = "404", description = "Item not found"),
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(
@@ -264,7 +320,10 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = UUID.fromString(itemId);
+    UUID itemUuid = parseUuid(itemId);
+    if (itemUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     Optional<ItemEntity> itemOptional = itemService.findById(itemUuid);
     if (itemOptional.isEmpty()) {
@@ -294,11 +353,26 @@ public class ItemsController {
     if (value == null || value.isBlank()) {
       return Collections.emptyList();
     }
-    return Arrays.stream(value.split(","))
-        .map(String::trim)
-        .filter(s -> !s.isEmpty())
-        .map(UUID::fromString)
-        .collect(Collectors.toList());
+    try {
+      return Arrays.stream(value.split(","))
+          .map(String::trim)
+          .filter(s -> !s.isEmpty())
+          .map(UUID::fromString)
+          .collect(Collectors.toList());
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
+  private UUID parseUuid(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
   }
 
   private BaseItemResponse convertToDto(ItemEntity item, UUID userId, boolean enableUserData) {

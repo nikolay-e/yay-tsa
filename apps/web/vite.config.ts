@@ -31,9 +31,6 @@ export default defineConfig({
             options: {
               cacheName: `yaytsa-navigation-${process.env.VITE_APP_VERSION || 'dev'}`,
               networkTimeoutSeconds: 10,
-              fetchOptions: {
-                credentials: 'include',
-              },
             },
           },
           {
@@ -48,9 +45,6 @@ export default defineConfig({
               },
               cacheableResponse: {
                 statuses: [0, 200],
-              },
-              fetchOptions: {
-                credentials: 'include',
               },
             },
           },

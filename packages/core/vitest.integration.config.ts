@@ -15,11 +15,7 @@ export default defineConfig(({ mode }) => {
       },
       // Single thread to prevent database concurrency issues
       pool: 'forks',
-      poolOptions: {
-        forks: {
-          singleFork: true,
-        },
-      },
+      isolate: false,
       // Longer timeout for network requests
       testTimeout: 30000,
       hookTimeout: 30000,

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ImageRepository extends JpaRepository<ImageEntity, UUID> {
-  Optional<ImageEntity> findFirstByItemIdAndType(UUID itemId, ImageType type);
+  Optional<ImageEntity> findFirstByItem_IdAndType(UUID itemId, ImageType type);
 
-  List<ImageEntity> findAllByItemId(UUID itemId);
+  List<ImageEntity> findAllByItem_Id(UUID itemId);
 }

@@ -6,6 +6,8 @@ import com.yaytsa.server.domain.service.UserService;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.dto.response.QueryResultResponse;
 import com.yaytsa.server.dto.response.UserResponse;
+import com.yaytsa.server.error.ResourceNotFoundException;
+import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
@@ -17,24 +19,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Controller for user-specific item queries. These endpoints are prefixed with
- * /Users/{userId}/Items to provide user-scoped results.
- *
- * <p>IMPORTANT: The frontend uses these endpoints for: - Getting single items: GET
- * /Users/{userId}/Items/{itemId} - Listing playlists: GET
- * /Users/{userId}/Items?IncludeItemTypes=Playlist
- */
 @RestController
 @RequestMapping("/Users")
 @Tag(name = "User Items", description = "User-specific item queries")
+@Transactional(readOnly = true)
 public class UsersController {
 
   private final UserService userService;
@@ -66,6 +63,7 @@ public class UsersController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Successfully retrieved user"),
+        @ApiResponse(responseCode = "400", description = "Invalid user ID format"),
         @ApiResponse(responseCode = "404", description = "User not found"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
       })
@@ -75,11 +73,15 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = UUID.fromString(userId);
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
     UserEntity user =
         userService
             .findById(userUuid)
-            .orElseThrow(() -> new UserService.UserNotFoundException("User not found: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException(ResourceType.User, userUuid));
 
     UserResponse userDto = userMapper.toDto(user);
     return ResponseEntity.ok(userDto);
@@ -93,6 +95,7 @@ public class UsersController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Successfully retrieved items"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format"),
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "User not found")
       })
@@ -134,8 +137,15 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = UUID.fromString(userId);
-    UUID parentUuid = parentId != null ? UUID.fromString(parentId) : null;
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID parentUuid = parentId != null ? parseUuid(parentId) : null;
+    if (parentId != null && parentUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     List<String> itemTypesList =
         includeItemTypes != null ? Arrays.asList(includeItemTypes.split(",")) : null;
@@ -157,31 +167,8 @@ public class UsersController {
             isFavorite);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
-
     List<BaseItemResponse> itemDtos =
-        itemsPage.getContent().stream()
-            .map(
-                item -> {
-                  PlayStateEntity playState =
-                      enableUserData
-                          ? playStateService.getPlayState(userUuid, item.getId()).orElse(null)
-                          : null;
-
-                  AudioTrackEntity audioTrack =
-                      item.getType() == ItemType.AudioTrack
-                          ? audioTrackRepository.findById(item.getId()).orElse(null)
-                          : null;
-
-                  AlbumEntity album = null;
-                  if (audioTrack != null && audioTrack.getAlbum() != null) {
-                    album = albumRepository.findByIdWithArtist(audioTrack.getAlbum().getId());
-                  } else if (item.getType() == ItemType.MusicAlbum) {
-                    album = albumRepository.findByIdWithArtist(item.getId());
-                  }
-
-                  return itemMapper.toDto(item, playState, audioTrack, album);
-                })
-            .collect(Collectors.toList());
+        mapItemsToResponses(itemsPage.getContent(), userUuid, enableUserData);
 
     QueryResultResponse<BaseItemResponse> result =
         new QueryResultResponse<>(
@@ -197,6 +184,7 @@ public class UsersController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Successfully retrieved item"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format"),
         @ApiResponse(responseCode = "404", description = "Item not found"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
       })
@@ -210,8 +198,15 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = UUID.fromString(userId);
-    UUID itemUuid = UUID.fromString(itemId);
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID itemUuid = parseUuid(itemId);
+    if (itemUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     ItemEntity item =
         itemService
@@ -242,6 +237,11 @@ public class UsersController {
   @Operation(
       summary = "Get user's favorite items",
       description = "Retrieve items marked as favorite by the user")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully retrieved favorites"),
+        @ApiResponse(responseCode = "400", description = "Invalid user ID format")
+      })
   @GetMapping("/{userId}/FavoriteItems")
   public ResponseEntity<QueryResultResponse<BaseItemResponse>> getUserFavorites(
       @PathVariable String userId,
@@ -252,7 +252,10 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = UUID.fromString(userId);
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     List<String> itemTypesList =
         includeItemTypes != null ? Arrays.asList(includeItemTypes.split(",")) : null;
@@ -274,29 +277,7 @@ public class UsersController {
             true);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
-
-    List<BaseItemResponse> itemDtos =
-        itemsPage.getContent().stream()
-            .map(
-                item -> {
-                  PlayStateEntity playState =
-                      playStateService.getPlayState(userUuid, item.getId()).orElse(null);
-
-                  AudioTrackEntity audioTrack =
-                      item.getType() == ItemType.AudioTrack
-                          ? audioTrackRepository.findById(item.getId()).orElse(null)
-                          : null;
-
-                  AlbumEntity album = null;
-                  if (audioTrack != null && audioTrack.getAlbum() != null) {
-                    album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
-                  } else if (item.getType() == ItemType.MusicAlbum) {
-                    album = albumRepository.findById(item.getId()).orElse(null);
-                  }
-
-                  return itemMapper.toDto(item, playState, audioTrack, album);
-                })
-            .collect(Collectors.toList());
+    List<BaseItemResponse> itemDtos = mapItemsToResponses(itemsPage.getContent(), userUuid, true);
 
     QueryResultResponse<BaseItemResponse> result =
         new QueryResultResponse<>(
@@ -308,6 +289,11 @@ public class UsersController {
   @Operation(
       summary = "Get user's recently played items",
       description = "Retrieve items recently played by the user, sorted by last played date")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully retrieved resume items"),
+        @ApiResponse(responseCode = "400", description = "Invalid user ID format")
+      })
   @GetMapping("/{userId}/Items/Resume")
   public ResponseEntity<QueryResultResponse<BaseItemResponse>> getResumeItems(
       @PathVariable String userId,
@@ -317,7 +303,10 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = UUID.fromString(userId);
+    UUID userUuid = parseUuid(userId);
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
 
     List<String> itemTypesList =
         includeItemTypes != null ? Arrays.asList(includeItemTypes.split(",")) : null;
@@ -339,33 +328,84 @@ public class UsersController {
             null);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
-
-    List<BaseItemResponse> itemDtos =
-        itemsPage.getContent().stream()
-            .map(
-                item -> {
-                  PlayStateEntity playState =
-                      playStateService.getPlayState(userUuid, item.getId()).orElse(null);
-
-                  AudioTrackEntity audioTrack =
-                      item.getType() == ItemType.AudioTrack
-                          ? audioTrackRepository.findById(item.getId()).orElse(null)
-                          : null;
-
-                  AlbumEntity album = null;
-                  if (audioTrack != null && audioTrack.getAlbum() != null) {
-                    album = albumRepository.findById(audioTrack.getAlbum().getId()).orElse(null);
-                  } else if (item.getType() == ItemType.MusicAlbum) {
-                    album = albumRepository.findById(item.getId()).orElse(null);
-                  }
-
-                  return itemMapper.toDto(item, playState, audioTrack, album);
-                })
-            .collect(Collectors.toList());
+    List<BaseItemResponse> itemDtos = mapItemsToResponses(itemsPage.getContent(), userUuid, true);
 
     QueryResultResponse<BaseItemResponse> result =
         new QueryResultResponse<>(itemDtos, Math.toIntExact(itemsPage.getTotalElements()), 0);
 
     return ResponseEntity.ok(result);
+  }
+
+  private List<BaseItemResponse> mapItemsToResponses(
+      List<ItemEntity> items, UUID userId, boolean enableUserData) {
+    if (items.isEmpty()) {
+      return List.of();
+    }
+
+    List<UUID> allItemIds = items.stream().map(ItemEntity::getId).toList();
+
+    List<UUID> audioTrackIds =
+        items.stream()
+            .filter(item -> item.getType() == ItemType.AudioTrack)
+            .map(ItemEntity::getId)
+            .toList();
+
+    List<UUID> albumIds =
+        items.stream()
+            .filter(item -> item.getType() == ItemType.MusicAlbum)
+            .map(ItemEntity::getId)
+            .toList();
+
+    Map<UUID, PlayStateEntity> playStatesMap =
+        enableUserData ? playStateService.getPlayStatesForItems(userId, allItemIds) : Map.of();
+
+    Map<UUID, AudioTrackEntity> audioTracksMap =
+        audioTrackIds.isEmpty()
+            ? Map.of()
+            : audioTrackRepository.findAllByIdInWithRelations(audioTrackIds).stream()
+                .collect(Collectors.toMap(AudioTrackEntity::getItemId, Function.identity()));
+
+    Set<UUID> albumIdsFromTracks =
+        audioTracksMap.values().stream()
+            .filter(at -> at.getAlbum() != null)
+            .map(at -> at.getAlbum().getId())
+            .collect(Collectors.toSet());
+
+    Set<UUID> allAlbumIds = new HashSet<>(albumIds);
+    allAlbumIds.addAll(albumIdsFromTracks);
+
+    Map<UUID, AlbumEntity> albumsMap =
+        allAlbumIds.isEmpty()
+            ? Map.of()
+            : albumRepository.findAllByIdInWithArtist(allAlbumIds).stream()
+                .collect(Collectors.toMap(AlbumEntity::getItemId, Function.identity()));
+
+    return items.stream()
+        .map(
+            item -> {
+              PlayStateEntity playState = playStatesMap.get(item.getId());
+              AudioTrackEntity audioTrack = audioTracksMap.get(item.getId());
+
+              AlbumEntity album = null;
+              if (audioTrack != null && audioTrack.getAlbum() != null) {
+                album = albumsMap.get(audioTrack.getAlbum().getId());
+              } else if (item.getType() == ItemType.MusicAlbum) {
+                album = albumsMap.get(item.getId());
+              }
+
+              return itemMapper.toDto(item, playState, audioTrack, album);
+            })
+        .toList();
+  }
+
+  private UUID parseUuid(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
   }
 }

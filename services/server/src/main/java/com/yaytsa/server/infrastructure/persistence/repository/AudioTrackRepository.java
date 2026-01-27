@@ -1,6 +1,7 @@
 package com.yaytsa.server.infrastructure.persistence.repository;
 
 import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,4 +22,12 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
 
   @Query("SELECT COUNT(at) FROM AudioTrackEntity at WHERE at.album.id = :albumId")
   long countByAlbumId(@Param("albumId") UUID albumId);
+
+  @Query(
+      "SELECT at FROM AudioTrackEntity at "
+          + "LEFT JOIN FETCH at.item "
+          + "LEFT JOIN FETCH at.album "
+          + "LEFT JOIN FETCH at.albumArtist "
+          + "WHERE at.itemId IN :itemIds")
+  List<AudioTrackEntity> findAllByIdInWithRelations(@Param("itemIds") Collection<UUID> itemIds);
 }

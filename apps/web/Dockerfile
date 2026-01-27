@@ -31,7 +31,7 @@ RUN apk add --no-cache brotli gzip && \
     find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
         -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
 
-FROM mcr.microsoft.com/playwright:v1.57.0-noble AS test
+FROM mcr.microsoft.com/playwright:v1.58.0-noble AS test
 
 WORKDIR /app
 
@@ -48,6 +48,8 @@ COPY apps/ ./apps/
 RUN npm run build:core && npm run build:platform
 
 RUN npx playwright install chromium
+
+ENV NO_COLOR=1
 
 CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/web && npm run test:e2e"]
 

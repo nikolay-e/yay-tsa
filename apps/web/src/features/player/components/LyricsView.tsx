@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 import { useLyrics } from '../hooks/useLyrics';
 import { useCurrentTrack } from '../stores/player.store';
 import { LyricLine } from './LyricLine';
@@ -12,9 +13,9 @@ interface LyricsViewProps {
 export function LyricsView({ onClose }: LyricsViewProps) {
   const currentTrack = useCurrentTrack();
   const { parsedLyrics, activeLineIndex, isTimeSynced, hasLyrics } = useLyrics();
-  const containerRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const lastScrolledIndex = useRef<number>(-1);
+  const dialogRef = useFocusTrap<HTMLDivElement>(true);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -26,8 +27,8 @@ export function LyricsView({ onClose }: LyricsViewProps) {
   );
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [handleKeyDown]);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
     >
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Lyrics"
@@ -92,7 +94,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
           </button>
         </div>
 
-        <div ref={containerRef} className="flex-1 overflow-y-auto py-8">
+        <div className="flex-1 overflow-y-auto py-8">
           {!hasLyrics ? (
             <div className="text-text-tertiary flex h-full items-center justify-center">
               No lyrics available

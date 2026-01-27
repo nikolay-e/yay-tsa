@@ -204,7 +204,7 @@ export class ItemsService extends BaseService {
    */
   async getArtistAlbums(artistId: string): Promise<MusicAlbum[]> {
     const result = await this.getAlbums({ artistId });
-    return result.Items;
+    return result.Items ?? [];
   }
 
   /**
@@ -212,7 +212,7 @@ export class ItemsService extends BaseService {
    */
   async getArtistTracks(artistId: string): Promise<AudioItem[]> {
     const result = await this.getTracks({ artistId });
-    return result.Items;
+    return result.Items ?? [];
   }
 
   /**
@@ -237,9 +237,9 @@ export class ItemsService extends BaseService {
     ]);
 
     return {
-      albums: albums.Items,
-      artists: artists.Items,
-      tracks: tracks.Items,
+      albums: albums.Items ?? [],
+      artists: artists.Items ?? [],
+      tracks: tracks.Items ?? [],
     };
   }
 
