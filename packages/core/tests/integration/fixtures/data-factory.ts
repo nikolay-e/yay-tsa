@@ -9,7 +9,7 @@ import { AuthService } from '../../../src/api/auth.service.js';
 import { ItemsService } from '../../../src/api/items.service.js';
 import { PlaylistsService } from '../../../src/api/playlists.service.js';
 import type { AudioItem, MusicAlbum, MusicArtist } from '../../../src/index.js';
-import { TestConfig } from '../setup.js';
+import { TestConfig } from '../types.js';
 
 export interface TestFixtures {
   // Discovered library data (read-only, not modified by tests)
@@ -40,8 +40,9 @@ export class TestDataFactory {
 
   constructor(private config: TestConfig) {
     this.client = new MediaServerClient(config.serverUrl, {
-      clientName: 'Media Server Client Integration Tests',
-      deviceName: 'Integration Test Runner',
+      name: 'Media Server Client Integration Tests',
+      device: 'Integration Test Runner',
+      deviceId: 'test-device-id',
       version: '0.1.0',
     });
 

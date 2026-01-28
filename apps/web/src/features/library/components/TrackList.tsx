@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
 import { type AudioItem } from '@yaytsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -99,65 +100,92 @@ export function TrackList({
         const isCurrentTrack = track.Id === currentTrackId;
         const duration = formatTicks(track.RunTimeTicks);
         const artistName = track.Artists?.[0] ?? UNKNOWN_ARTIST;
+        const artistId = track.ArtistItems?.[0]?.Id;
 
         return (
           <div
             data-testid="track-row"
             key={track.Id}
-            role="button"
-            tabIndex={0}
-            onClick={() => onPlayTrack?.(track, index)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onPlayTrack?.(track, index);
-              }
-            }}
             className={cn(
-              'flex w-full cursor-pointer items-center gap-4 rounded-sm p-2 text-left',
+              'flex w-full items-center gap-4 rounded-sm p-2 text-left',
               'group hover:bg-bg-secondary transition-colors',
               isCurrentTrack && 'bg-bg-secondary'
             )}
           >
-            {showImage ? (
-              <TrackImage track={track} isCurrentTrack={isCurrentTrack} isPlaying={isPlaying} />
-            ) : (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                {isCurrentTrack ? (
-                  isPlaying ? (
-                    <Pause className="text-accent h-4 w-4" fill="currentColor" />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => onPlayTrack?.(track, index)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onPlayTrack?.(track, index);
+                }
+              }}
+              className="cursor-pointer"
+            >
+              {showImage ? (
+                <TrackImage track={track} isCurrentTrack={isCurrentTrack} isPlaying={isPlaying} />
+              ) : (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                  {isCurrentTrack ? (
+                    isPlaying ? (
+                      <Pause className="text-accent h-4 w-4" fill="currentColor" />
+                    ) : (
+                      <Play className="text-accent h-4 w-4" fill="currentColor" />
+                    )
                   ) : (
-                    <Play className="text-accent h-4 w-4" fill="currentColor" />
-                  )
-                ) : (
-                  <>
-                    <span className="text-text-tertiary text-sm group-hover:hidden">
-                      {track.IndexNumber ?? index + 1}
-                    </span>
-                    <Play
-                      className="text-text-primary hidden h-4 w-4 group-hover:block"
-                      fill="currentColor"
-                    />
-                  </>
-                )}
-              </div>
-            )}
+                    <>
+                      <span className="text-text-tertiary text-sm group-hover:hidden">
+                        {track.IndexNumber ?? index + 1}
+                      </span>
+                      <Play
+                        className="text-text-primary hidden h-4 w-4 group-hover:block"
+                        fill="currentColor"
+                      />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="min-w-0 flex-1">
-              <p
+              <button
+                type="button"
                 data-testid="track-title"
+                onClick={() => onPlayTrack?.(track, index)}
                 className={cn(
-                  'truncate font-medium',
+                  'block w-full cursor-pointer truncate text-left font-medium hover:underline',
                   isCurrentTrack ? 'text-accent' : 'text-text-primary'
                 )}
               >
                 {track.Name}
-              </p>
+              </button>
               {(showArtist || showAlbum) && (
                 <p className="text-text-secondary truncate text-sm">
-                  {showArtist && artistName}
-                  {showArtist && showAlbum && ' • '}
-                  {showAlbum && track.Album}
+                  {showArtist && artistId ? (
+                    <Link
+                      to={`/artists/${artistId}`}
+                      onClick={e => e.stopPropagation()}
+                      className="hover:text-text-primary hover:underline"
+                    >
+                      {artistName}
+                    </Link>
+                  ) : (
+                    showArtist && artistName
+                  )}
+                  {showArtist && showAlbum && track.Album && ' • '}
+                  {showAlbum && track.AlbumId ? (
+                    <Link
+                      to={`/albums/${track.AlbumId}`}
+                      onClick={e => e.stopPropagation()}
+                      className="hover:text-text-primary hover:underline"
+                    >
+                      {track.Album}
+                    </Link>
+                  ) : (
+                    showAlbum && track.Album
+                  )}
                 </p>
               )}
             </div>

@@ -176,53 +176,37 @@ export class IndexedDBCache implements ICache {
     });
   }
 
+  private async performRequest<T>(
+    mode: IDBTransactionMode,
+    operation: (store: IDBObjectStore) => IDBRequest<T>
+  ): Promise<T> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    return new Promise((resolve, reject) => {
+      // safe check done above but TS needs help
+      const transaction = this.db!.transaction([this.storeName], mode);
+      const store = transaction.objectStore(this.storeName);
+      const request = operation(store);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () =>
+        reject(new Error(`IndexedDB operation failed: ${request.error?.message}`));
+    });
+  }
+
   async delete(key: string): Promise<void> {
     return this.withRetry(async () => {
       await this.init();
-
-      if (!this.db) {
-        return;
-      }
-
-      const db = this.db;
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([this.storeName], 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.delete(key);
-
-        request.onsuccess = () => {
-          resolve();
-        };
-
-        request.onerror = () => {
-          reject(new Error(`Failed to delete cache entry: ${request.error?.message}`));
-        };
-      });
+      if (!this.db) return;
+      await this.performRequest('readwrite', store => store.delete(key));
     });
   }
 
   async clear(): Promise<void> {
     return this.withRetry(async () => {
       await this.init();
-
-      if (!this.db) {
-        return;
-      }
-
-      const db = this.db;
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([this.storeName], 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.clear();
-
-        request.onsuccess = () => {
-          resolve();
-        };
-
-        request.onerror = () => {
-          reject(new Error(`Failed to clear cache: ${request.error?.message}`));
-        };
-      });
+      if (!this.db) return;
+      await this.performRequest('readwrite', store => store.clear());
     });
   }
 
@@ -234,35 +218,15 @@ export class IndexedDBCache implements ICache {
   async keys(): Promise<string[]> {
     return this.withRetry(async () => {
       await this.init();
-
-      if (!this.db) {
-        return [];
-      }
-
-      const db = this.db;
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([this.storeName], 'readonly');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.getAllKeys();
-
-        request.onsuccess = () => {
-          resolve(request.result as string[]);
-        };
-
-        request.onerror = () => {
-          reject(new Error(`Failed to get cache keys: ${request.error?.message}`));
-        };
-      });
+      if (!this.db) return [];
+      return (await this.performRequest('readonly', store => store.getAllKeys())) as string[];
     });
   }
 
   async cleanup(): Promise<void> {
     return this.withRetry(async () => {
       await this.init();
-
-      if (!this.db) {
-        return;
-      }
+      if (!this.db) return;
 
       const db = this.db;
       const now = Date.now();

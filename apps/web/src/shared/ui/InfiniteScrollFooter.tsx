@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+import { useInView } from '@/shared/hooks/useInView';
 
 interface InfiniteScrollFooterProps {
   hasNextPage: boolean;
@@ -18,10 +20,21 @@ export function InfiniteScrollFooter({
   totalCount,
   itemLabel,
 }: InfiniteScrollFooterProps) {
+  const { ref, isInView } = useInView({
+    rootMargin: '200px', // Start loading before reaching bottom
+    enabled: hasNextPage && !isFetchingNextPage,
+  });
+
+  useEffect(() => {
+    if (isInView && hasNextPage && !isFetchingNextPage) {
+      onLoadMore();
+    }
+  }, [isInView, hasNextPage, isFetchingNextPage, onLoadMore]);
+
   return (
     <>
       {hasNextPage && (
-        <div className="flex justify-center pt-4">
+        <div ref={ref} className="flex justify-center pt-4">
           <button
             onClick={onLoadMore}
             disabled={isFetchingNextPage}

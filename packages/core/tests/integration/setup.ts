@@ -6,12 +6,7 @@
 import { MediaServerError } from '../../src/index.js';
 import { TestDataFactory, TestFixtures } from './fixtures/data-factory.js';
 import { ScenarioContext } from './fixtures/scenarios.js';
-
-export interface TestConfig {
-  serverUrl: string;
-  username: string;
-  password: string;
-}
+import { TestConfig } from './types.js';
 
 /**
  * Load test configuration from environment

@@ -1,6 +1,7 @@
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ItemsService, type MusicArtist, type MusicAlbum, type AudioItem } from '@yaytsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
 interface UseArtistsOptions {
   startIndex?: number;
@@ -35,28 +36,15 @@ interface UseInfiniteArtistsOptions {
 }
 
 export function useInfiniteArtists(options: UseInfiniteArtistsOptions = {}) {
-  const client = useAuthStore(state => state.client);
   const { limit = 50, ...queryOptions } = options;
 
-  return useInfiniteQuery({
-    queryKey: ['artists', 'infinite', queryOptions],
-    queryFn: async ({ pageParam = 0 }) => {
-      if (!client) throw new Error('Not authenticated');
+  return useInfiniteLibraryQuery<MusicArtist>({
+    queryKey: ['artists', 'infinite'],
+    options: { limit, ...queryOptions },
+    fetcher: async (client, params) => {
       const itemsService = new ItemsService(client);
-      return itemsService.getArtists({
-        ...queryOptions,
-        startIndex: pageParam,
-        limit,
-      });
+      return itemsService.getArtists(params);
     },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const loadedCount = allPages.reduce((sum, page) => sum + page.Items.length, 0);
-      if (loadedCount >= lastPage.TotalRecordCount) return undefined;
-      return loadedCount;
-    },
-    enabled: !!client,
-    staleTime: 5 * 60 * 1000,
   });
 }
 

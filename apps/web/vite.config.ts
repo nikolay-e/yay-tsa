@@ -74,52 +74,36 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, './src/shared'),
     },
   },
-  server: httpsEnabled
-    ? {
-        https: {
-          key: fs.readFileSync(keyPath),
-          cert: fs.readFileSync(certPath),
-        },
-        strictPort: true,
-        port: 5173,
-        hmr: {
-          protocol: 'wss',
-        },
-        allowedHosts: [
-          'localhost',
-          '127.0.0.1',
-          'vite-server',
-          'app-dev',
-          'host.docker.internal',
-          'frontend',
-        ],
-        proxy: {
-          '/api': {
-            target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
-            changeOrigin: true,
-            rewrite: urlPath => urlPath.replace(/^\/api/, ''),
-          },
-        },
-      }
-    : {
-        strictPort: true,
-        port: 5173,
-        allowedHosts: [
-          'localhost',
-          '127.0.0.1',
-          'vite-server',
-          'app-dev',
-          'host.docker.internal',
-          'frontend',
-        ],
-        proxy: {
-          '/api': {
-            target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
-            changeOrigin: true,
-            rewrite: urlPath => urlPath.replace(/^\/api/, ''),
-          },
-        },
+  server: {
+    strictPort: true,
+    port: 5173,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'vite-server',
+      'app-dev',
+      'host.docker.internal',
+      'frontend',
+    ],
+    proxy: {
+      '/api': {
+        target: process.env.YAYTSA_BACKEND_URL || 'http://localhost:8096',
+        changeOrigin: true,
+        rewrite: urlPath => urlPath.replace(/^\/api/, ''),
       },
+    },
+    ...(httpsEnabled
+      ? {
+          https: {
+            key: fs.readFileSync(keyPath),
+            cert: fs.readFileSync(certPath),
+          },
+          hmr: {
+            protocol: 'wss',
+          },
+        }
+      : {}),
+  },
   build: {
     target: 'es2020',
     minify: 'terser',

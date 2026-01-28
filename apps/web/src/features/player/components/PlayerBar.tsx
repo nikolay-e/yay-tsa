@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Mic, MicOff, Timer, AlignLeft } from 'lucide-react';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -109,6 +110,7 @@ export function PlayerBar() {
   });
 
   const artistName = currentTrack.Artists?.[0] ?? 'Unknown Artist';
+  const artistId = currentTrack.ArtistItems?.[0]?.Id;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -121,7 +123,7 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="z-player border-border bg-bg-secondary pb-safe fixed right-0 bottom-0 left-0 border-t"
+      className="z-player border-border bg-bg-secondary pb-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t"
     >
       <div
         data-testid="seek-slider"
@@ -147,19 +149,56 @@ export function PlayerBar() {
 
       <div className="mx-auto flex max-w-7xl items-center gap-4 p-2 px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <img
-            src={hasImageError ? getImagePlaceholder() : imageUrl}
-            alt={currentTrack.Name}
-            className="h-12 w-12 shrink-0 rounded-sm object-cover"
-            onError={onImageError}
-          />
+          {currentTrack.AlbumId ? (
+            <Link to={`/albums/${currentTrack.AlbumId}`}>
+              <img
+                src={hasImageError ? getImagePlaceholder() : imageUrl}
+                alt={currentTrack.Name}
+                className="h-12 w-12 shrink-0 rounded-sm object-cover transition-opacity hover:opacity-80"
+                onError={onImageError}
+              />
+            </Link>
+          ) : (
+            <img
+              src={hasImageError ? getImagePlaceholder() : imageUrl}
+              alt={currentTrack.Name}
+              className="h-12 w-12 shrink-0 rounded-sm object-cover"
+              onError={onImageError}
+            />
+          )}
           <div className="min-w-0">
-            <p data-testid="current-track-title" className="text-text-primary truncate font-medium">
-              {currentTrack.Name}
-            </p>
-            <p data-testid="current-track-artist" className="text-text-secondary truncate text-sm">
-              {artistName}
-            </p>
+            {currentTrack.AlbumId ? (
+              <Link
+                to={`/albums/${currentTrack.AlbumId}`}
+                data-testid="current-track-title"
+                className="text-text-primary block truncate font-medium hover:underline"
+              >
+                {currentTrack.Name}
+              </Link>
+            ) : (
+              <p
+                data-testid="current-track-title"
+                className="text-text-primary truncate font-medium"
+              >
+                {currentTrack.Name}
+              </p>
+            )}
+            {artistId ? (
+              <Link
+                to={`/artists/${artistId}`}
+                data-testid="current-track-artist"
+                className="text-text-secondary hover:text-text-primary block truncate text-sm hover:underline"
+              >
+                {artistName}
+              </Link>
+            ) : (
+              <p
+                data-testid="current-track-artist"
+                className="text-text-secondary truncate text-sm"
+              >
+                {artistName}
+              </p>
+            )}
           </div>
         </div>
 

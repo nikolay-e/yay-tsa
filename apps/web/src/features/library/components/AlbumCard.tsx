@@ -25,6 +25,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
     : getImagePlaceholder();
 
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
+  const artistId = album.ArtistItems?.[0]?.Id;
 
   return (
     <div
@@ -64,8 +65,17 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
         <h3 data-testid="album-title" className="text-text-primary truncate font-medium">
           {album.Name}
         </h3>
-        <p className="text-text-secondary truncate text-sm">{artistName}</p>
       </Link>
+      {artistId ? (
+        <Link
+          to={`/artists/${artistId}`}
+          className="text-text-secondary hover:text-text-primary block truncate text-sm hover:underline"
+        >
+          {artistName}
+        </Link>
+      ) : (
+        <p className="text-text-secondary truncate text-sm">{artistName}</p>
+      )}
     </div>
   );
 }
