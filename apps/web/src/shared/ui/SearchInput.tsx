@@ -29,7 +29,7 @@ export function SearchInput({
         className={cn(
           'border-border bg-bg-secondary w-full rounded-sm border py-2 pr-4 pl-9',
           'text-text-primary placeholder:text-text-tertiary',
-          'focus:border-accent transition-colors'
+          'focus:border-accent focus-visible:ring-accent transition-colors focus-visible:ring-2 focus-visible:outline-none'
         )}
       />
     </div>

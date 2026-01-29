@@ -106,23 +106,20 @@ export function TrackList({
           <div
             data-testid="track-row"
             key={track.Id}
+            aria-current={isCurrentTrack ? 'true' : undefined}
             className={cn(
               'flex w-full items-center gap-4 rounded-sm p-2 text-left',
               'group hover:bg-bg-secondary transition-colors',
               isCurrentTrack && 'bg-bg-secondary'
             )}
           >
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               onClick={() => onPlayTrack?.(track, index)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onPlayTrack?.(track, index);
-                }
-              }}
-              className="cursor-pointer"
+              className="focus-visible:ring-accent cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              aria-label={
+                isCurrentTrack && isPlaying ? `Pause ${track.Name}` : `Play ${track.Name}`
+              }
             >
               {showImage ? (
                 <TrackImage track={track} isCurrentTrack={isCurrentTrack} isPlaying={isPlaying} />
@@ -136,18 +133,18 @@ export function TrackList({
                     )
                   ) : (
                     <>
-                      <span className="text-text-tertiary text-sm group-hover:hidden">
+                      <span className="text-text-tertiary text-sm group-focus-within:hidden group-hover:hidden">
                         {track.IndexNumber ?? index + 1}
                       </span>
                       <Play
-                        className="text-text-primary hidden h-4 w-4 group-hover:block"
+                        className="text-text-primary hidden h-4 w-4 group-focus-within:block group-hover:block"
                         fill="currentColor"
                       />
                     </>
                   )}
                 </div>
               )}
-            </div>
+            </button>
 
             <div className="min-w-0 flex-1">
               <button

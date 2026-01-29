@@ -45,6 +45,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
             onError={onImageError}
           />
           <button
+            type="button"
             onClick={e => {
               e.preventDefault();
               onPlay?.();
@@ -53,11 +54,12 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
               'absolute top-1/2 left-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2',
               'flex items-center justify-center',
               'bg-accent rounded-full text-white shadow-lg',
-              'scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-100',
+              'scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100',
               'transition-all duration-200',
-              'hover:bg-accent-hover hover:scale-110'
+              'hover:bg-accent-hover hover:scale-110',
+              'focus-visible:ring-accent focus-visible:scale-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
             )}
-            aria-label={`Play ${album.Name}`}
+            aria-label={`Play ${album.Name || 'album'}`}
           >
             <Play className="ml-0.5 h-6 w-6" fill="currentColor" />
           </button>

@@ -113,11 +113,17 @@ export function PlayerBar() {
   const artistId = currentTrack.ArtistItems?.[0]?.Id;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (duration === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    seek(percent * duration);
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    seek(parseFloat(e.target.value));
+  };
+
+  const formatTimeText = (time: number, total: number): string => {
+    const formatNum = (n: number) => {
+      const mins = Math.floor(n / 60);
+      const secs = Math.floor(n % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+    return `${formatNum(time)} of ${formatNum(total)}`;
   };
 
   return (
@@ -125,27 +131,21 @@ export function PlayerBar() {
       data-testid="player-bar"
       className="z-player border-border bg-bg-secondary pb-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t"
     >
-      <div
+      <input
         data-testid="seek-slider"
-        role="slider"
-        tabIndex={0}
+        type="range"
+        min={0}
+        max={duration || 1}
+        step={0.1}
+        value={currentTime}
+        onChange={handleSeekChange}
         aria-label="Seek"
-        aria-valuenow={Math.round(currentTime)}
-        aria-valuemin={0}
-        aria-valuemax={Math.round(duration)}
-        className="bg-bg-tertiary h-1 cursor-pointer"
-        onClick={handleSeek}
-        onKeyDown={e => {
-          if (duration === 0) return;
-          if (e.key === 'ArrowLeft') seek(Math.max(0, currentTime - 5));
-          if (e.key === 'ArrowRight') seek(Math.min(duration, currentTime + 5));
+        aria-valuetext={formatTimeText(currentTime, duration)}
+        className="bg-bg-tertiary accent-accent h-1 w-full cursor-pointer appearance-none"
+        style={{
+          background: `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`,
         }}
-      >
-        <div
-          className="bg-accent h-full transition-[width] duration-100"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
+      />
 
       <div className="mx-auto flex max-w-7xl items-center gap-4 p-2 px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -225,9 +225,10 @@ export function PlayerBar() {
             </div>
           ) : (
             <button
+              type="button"
               onClick={() => void toggleKaraoke()}
               className={cn(
-                'rounded-full p-2 transition-colors',
+                'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
                 isKaraokeMode ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
               )}
               aria-label={isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode'}
@@ -239,10 +240,11 @@ export function PlayerBar() {
           )}
 
           <button
+            type="button"
             onClick={() => setShowLyricsView(true)}
             disabled={!hasLyrics}
             className={cn(
-              'rounded-full p-2 transition-colors',
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
               hasLyrics
                 ? 'text-text-secondary hover:text-text-primary'
                 : 'text-text-tertiary cursor-not-allowed opacity-50'
@@ -255,12 +257,14 @@ export function PlayerBar() {
           </button>
 
           <button
+            type="button"
             onClick={() => setShowSleepModal(true)}
             className={cn(
-              'relative rounded-full p-2 transition-colors',
+              'focus-visible:ring-accent relative rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
               sleepTimer.endTime ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
             )}
             aria-label="Sleep timer"
+            title="Sleep timer"
             data-testid={PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}
           >
             <Timer className="h-4 w-4" />

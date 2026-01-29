@@ -10,7 +10,10 @@ export function useInView(options: UseInViewOptions = {}) {
   const [isInView, setIsInView] = useState(false);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setIsInView(false);
+      return;
+    }
     const element = ref.current;
     if (!element) return;
 

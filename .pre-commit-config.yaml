@@ -237,9 +237,8 @@ repos:
         name: 'Docker build validation'
         entry: docker build -t yaytsa:test -f apps/web/Dockerfile .
         language: system
-        files: >-
-          ^(apps/web/Dockerfile|apps/web/docker/entrypoint\.sh|infra/nginx/nginx\.conf\.template|
-          packages/.*/.*\.(ts|tsx|js|json)|apps/web/.*\.(ts|tsx|js|json)|package\.json)$
+        # Trigger on: Dockerfile, entrypoint, nginx config, TS/JS sources, package.json
+        files: ^(apps/web/Dockerfile|apps/web/docker/|infra/nginx/|packages/|package\.json)
         pass_filenames: false
         stages: [pre-push]
 

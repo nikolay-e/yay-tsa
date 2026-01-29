@@ -46,6 +46,11 @@ export class IndexedDBCache implements ICache {
         reject(new Error(`Failed to open IndexedDB: ${request.error?.message}`));
       };
 
+      request.onblocked = () => {
+        this.resetConnection();
+        reject(new Error('IndexedDB open blocked by another connection'));
+      };
+
       request.onsuccess = () => {
         this.db = request.result;
 
@@ -122,13 +127,13 @@ export class IndexedDBCache implements ICache {
           const now = Date.now();
           const expiresAt = entry.timestamp + entry.ttl;
           if (now > expiresAt) {
-            void this.delete(key);
+            void this.delete(key).catch(() => {});
             resolve(null);
             return;
           }
 
           if (entry.version !== this.version) {
-            void this.delete(key);
+            void this.delete(key).catch(() => {});
             resolve(null);
             return;
           }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RefreshCw, HardDrive, Info, Server, LogOut } from 'lucide-react';
-import { AdminService } from '@yaytsa/core';
+import { AdminService, MediaServerError } from '@yaytsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { VersionInfo } from '@/shared/components/VersionInfo';
@@ -43,7 +43,7 @@ export function SettingsPage() {
       const result = await adminService.rescanLibrary();
       setStatus(result.message);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('409')) {
+      if (error instanceof MediaServerError && error.statusCode === 409) {
         setStatus('Scan already in progress');
       } else {
         setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);

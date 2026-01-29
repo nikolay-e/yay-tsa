@@ -28,7 +28,14 @@ export function LyricsView({ onClose }: LyricsViewProps) {
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, { capture: true });
+      document.body.style.overflow = originalOverflow;
+    };
   }, [handleKeyDown]);
 
   useEffect(() => {
@@ -69,7 +76,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Lyrics"
+        aria-labelledby="lyrics-dialog-title"
         className={cn(
           'bg-bg-primary flex h-full flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-lg'
         )}
@@ -78,7 +85,10 @@ export function LyricsView({ onClose }: LyricsViewProps) {
       >
         <div className="border-border flex shrink-0 items-center justify-between border-b p-4">
           <div className="min-w-0 flex-1">
-            <h2 className="text-text-primary truncate text-lg font-semibold">
+            <h2
+              id="lyrics-dialog-title"
+              className="text-text-primary truncate text-lg font-semibold"
+            >
               {currentTrack?.Name ?? 'Lyrics'}
             </h2>
             {currentTrack?.Artists?.[0] && (
@@ -86,8 +96,9 @@ export function LyricsView({ onClose }: LyricsViewProps) {
             )}
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary ml-4 p-2"
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent ml-4 rounded-full p-2 focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Close lyrics"
           >
             <X className="h-5 w-5" />

@@ -26,9 +26,10 @@ export function PlaybackControls({
   return (
     <div className="flex items-center gap-2">
       <button
+        type="button"
         onClick={onToggleShuffle}
         className={cn(
-          'hidden rounded-full p-2 transition-colors sm:flex',
+          'focus-visible:ring-accent hidden rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex',
           isShuffle ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
         )}
         aria-label="Shuffle"
@@ -38,20 +39,23 @@ export function PlaybackControls({
       </button>
 
       <button
+        type="button"
         data-testid="previous-button"
         onClick={onPrevious}
-        className="text-text-secondary hover:text-text-primary p-2 transition-colors"
+        className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
         aria-label="Previous"
       >
         <SkipBack className="h-5 w-5" fill="currentColor" />
       </button>
 
       <button
+        type="button"
         data-testid="play-pause-button"
         onClick={onPlayPause}
         className={cn(
           'bg-accent rounded-full p-3 text-white',
-          'hover:bg-accent-hover transition-colors'
+          'hover:bg-accent-hover transition-colors',
+          'focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
         )}
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
@@ -63,18 +67,20 @@ export function PlaybackControls({
       </button>
 
       <button
+        type="button"
         data-testid="next-button"
         onClick={onNext}
-        className="text-text-secondary hover:text-text-primary p-2 transition-colors"
+        className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
         aria-label="Next"
       >
         <SkipForward className="h-5 w-5" fill="currentColor" />
       </button>
 
       <button
+        type="button"
         onClick={onToggleRepeat}
         className={cn(
-          'hidden rounded-full p-2 transition-colors sm:flex',
+          'focus-visible:ring-accent hidden rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex',
           repeatMode !== 'off' ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
         )}
         aria-label={`Repeat: ${repeatMode}`}

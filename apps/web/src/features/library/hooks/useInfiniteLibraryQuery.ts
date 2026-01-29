@@ -42,7 +42,7 @@ export function useInfiniteLibraryQuery<TData>({
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage: ItemsResult<TData>, allPages: ItemsResult<TData>[]) => {
-      const loadedCount = allPages.reduce((sum, page) => sum + page.Items.length, 0);
+      const loadedCount = allPages.reduce((sum, page) => sum + (page.Items?.length ?? 0), 0);
       if (loadedCount >= lastPage.TotalRecordCount) return undefined;
       return loadedCount;
     },

@@ -29,8 +29,9 @@ export function VolumeControls({ volume, onVolumeChange }: VolumeControlsProps) 
   return (
     <div className="flex items-center gap-1">
       <button
+        type="button"
         onClick={toggleMute}
-        className="text-text-secondary hover:text-text-primary p-2 transition-colors"
+        className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
         aria-label={volume > 0 ? 'Mute' : 'Unmute'}
         aria-pressed={volume === 0}
       >
