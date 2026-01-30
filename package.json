@@ -37,8 +37,8 @@
     "postversion": "npm run sync:version && git add -A"
   },
   "devDependencies": {
-    "@commitlint/cli": "^20.3.1",
-    "@commitlint/config-conventional": "^20.3.1",
+    "@commitlint/cli": "^20.4.0",
+    "@commitlint/config-conventional": "^20.4.0",
     "@eslint/js": "^9.18.0",
     "@lhci/cli": "^0.15.1",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
@@ -53,7 +53,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^17.2.0",
-    "jscpd": "^4.0.7",
+    "jscpd": "^4.0.8",
     "jsdom": "^27.3.0",
     "knip": "^5.82.1",
     "madge": "^8.0.0",
