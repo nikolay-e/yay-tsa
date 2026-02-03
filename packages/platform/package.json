@@ -17,7 +17,7 @@
     "@yaytsa/core": "*"
   },
   "devDependencies": {
-    "@types/node": "^25.1.0",
+    "@types/node": "^25.2.0",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }
