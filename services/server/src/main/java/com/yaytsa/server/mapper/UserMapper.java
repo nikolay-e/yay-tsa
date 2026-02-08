@@ -16,7 +16,7 @@ public class UserMapper {
     }
 
     return new UserResponse(
-        entity.getDisplayName() != null ? entity.getDisplayName() : entity.getUsername(),
+        entity.getUsername(),
         SERVER_ID,
         SERVER_NAME,
         entity.getId().toString(),

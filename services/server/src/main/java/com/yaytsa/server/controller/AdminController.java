@@ -157,6 +157,30 @@ public class AdminController {
   }
 
   @Operation(
+      summary = "Refetch broken lyrics",
+      description =
+          "Re-fetches lyrics for tracks with broken, empty, or negative-cached .lrc files. "
+              + "Validates existing files and force-refetches from multiple sources when needed.")
+  @ApiResponse(responseCode = "200", description = "Lyrics refetch initiated")
+  @ApiResponse(responseCode = "409", description = "Lyrics fetch already in progress")
+  @PostMapping("/Library/RefetchLyrics")
+  public ResponseEntity<Map<String, Object>> refetchLyrics() {
+    if (lyricsFetchService.isFetchInProgress()) {
+      return ResponseEntity.status(409)
+          .body(Map.of("success", false, "message", "Lyrics fetch already in progress"));
+    }
+    new Thread(() -> lyricsFetchService.refetchBrokenLyrics(), "lyrics-refetch").start();
+    return ResponseEntity.ok(
+        Map.of(
+            "success",
+            true,
+            "message",
+            "Lyrics refetch initiated for broken/missing files",
+            "fetchInProgress",
+            true));
+  }
+
+  @Operation(
       summary = "Get lyrics fetch status",
       description = "Returns whether a lyrics fetch is running and stats from the last run")
   @ApiResponse(responseCode = "200", description = "Lyrics fetch status retrieved")

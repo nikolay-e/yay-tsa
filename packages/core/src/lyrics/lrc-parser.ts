@@ -8,7 +8,9 @@ export interface ParsedLyrics {
   isTimeSynced: boolean;
 }
 
-const LRC_TIME_REGEX = /^\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)$/;
+const LRC_TIME_REGEX = /\[(\d{1,3}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+const LRC_METADATA_REGEX = /^\[[a-z]{2}:.+\]$/i;
+const NEGATIVE_CACHE_MARKER = '[no lyrics found]';
 
 function parseTimestamp(minutes: string, seconds: string, centiseconds?: string): number {
   const mins = parseInt(minutes, 10);
@@ -22,6 +24,10 @@ export function parseLyrics(content: string | null | undefined): ParsedLyrics | 
     return null;
   }
 
+  if (content.trim() === NEGATIVE_CACHE_MARKER) {
+    return null;
+  }
+
   const rawLines = content.split(/\r?\n/);
   const lines: LyricLine[] = [];
   let hasTimestamps = false;
@@ -30,13 +36,25 @@ export function parseLyrics(content: string | null | undefined): ParsedLyrics | 
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const match = trimmed.match(LRC_TIME_REGEX);
-    if (match) {
+    if (LRC_METADATA_REGEX.test(trimmed)) continue;
+
+    const timestamps: number[] = [];
+    let lastIndex = 0;
+    LRC_TIME_REGEX.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = LRC_TIME_REGEX.exec(trimmed)) !== null) {
+      timestamps.push(parseTimestamp(match[1], match[2], match[3]));
+      lastIndex = LRC_TIME_REGEX.lastIndex;
+    }
+
+    if (timestamps.length > 0) {
       hasTimestamps = true;
-      const time = parseTimestamp(match[1], match[2], match[3]);
-      const text = match[4].trim();
+      const text = trimmed.slice(lastIndex).trim();
       if (text) {
-        lines.push({ time, text });
+        for (const time of timestamps) {
+          lines.push({ time, text });
+        }
       }
     } else if (!trimmed.startsWith('[')) {
       lines.push({ time: -1, text: trimmed });

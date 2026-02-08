@@ -24,7 +24,7 @@ public class LyricsFetcherClient {
   private final RestClient restClient;
   private final RestClient healthCheckClient;
 
-  public record LyricsResult(boolean success, String outputPath, String source) {}
+  public record LyricsResult(boolean success, String outputPath, String source, boolean synced) {}
 
   public LyricsFetcherClient(
       RestClient.Builder restClientBuilder,
@@ -45,8 +45,26 @@ public class LyricsFetcherClient {
         restClientBuilder.baseUrl(fetcherUrl).requestFactory(healthRequestFactory).build();
   }
 
-  public LyricsResult fetchLyrics(String artist, String title, String outputPath) {
-    var request = Map.of("artist", artist, "title", title, "outputPath", outputPath);
+  public LyricsResult fetchLyrics(
+      String artist,
+      String title,
+      String outputPath,
+      Long durationMs,
+      String album,
+      boolean force) {
+    var request = new java.util.HashMap<String, Object>();
+    request.put("artist", artist);
+    request.put("title", title);
+    request.put("outputPath", outputPath);
+    if (durationMs != null) {
+      request.put("durationMs", durationMs);
+    }
+    if (album != null && !album.isBlank()) {
+      request.put("album", album);
+    }
+    if (force) {
+      request.put("force", true);
+    }
 
     Exception lastException = null;
 
@@ -63,15 +81,16 @@ public class LyricsFetcherClient {
                 .body(Map.class);
 
         if (response == null) {
-          return new LyricsResult(false, null, null);
+          return new LyricsResult(false, null, null, false);
         }
 
         boolean success = Boolean.TRUE.equals(response.get("success"));
         String path =
             response.get("outputPath") != null ? response.get("outputPath").toString() : null;
         String source = response.get("source") != null ? response.get("source").toString() : null;
+        boolean synced = Boolean.TRUE.equals(response.get("synced"));
 
-        return new LyricsResult(success, path, source);
+        return new LyricsResult(success, path, source, synced);
 
       } catch (ResourceAccessException e) {
         lastException = e;
@@ -92,12 +111,12 @@ public class LyricsFetcherClient {
         }
       } catch (Exception e) {
         log.debug("Lyrics fetch failed for '{}': {}", title, e.getMessage());
-        return new LyricsResult(false, null, null);
+        return new LyricsResult(false, null, null, false);
       }
     }
 
     log.debug("Lyrics fetch failed for '{}' after {} attempts", title, MAX_RETRIES);
-    return new LyricsResult(false, null, null);
+    return new LyricsResult(false, null, null, false);
   }
 
   private boolean isRetryableException(ResourceAccessException e) {

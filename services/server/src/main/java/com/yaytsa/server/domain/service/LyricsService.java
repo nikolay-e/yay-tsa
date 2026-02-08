@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 public class LyricsService {
 
   private static final Logger log = LoggerFactory.getLogger(LyricsService.class);
+  private static final String NEGATIVE_CACHE_MARKER = "[no lyrics found]";
 
   private final ItemRepository itemRepository;
   private final Path mediaRootPath;
@@ -101,6 +102,9 @@ public class LyricsService {
   private String readFileContent(Path path) {
     try {
       String content = Files.readString(path);
+      if (NEGATIVE_CACHE_MARKER.equals(content.trim())) {
+        return null;
+      }
       log.debug("Read lyrics from disk: {}", path);
       return content;
     } catch (IOException e) {

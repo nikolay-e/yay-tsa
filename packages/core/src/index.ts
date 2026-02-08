@@ -16,6 +16,8 @@ export {
   type CacheClearResult,
   type LibraryRescanResult,
   type ScanStatus,
+  type LyricsFetchResult,
+  type LyricsFetchStatus,
 } from './api/admin.service.js';
 
 // Player modules
