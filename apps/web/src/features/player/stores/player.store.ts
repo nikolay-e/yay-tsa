@@ -31,6 +31,7 @@ interface PlayerState {
   volume: number;
   error: Error | null;
   isKaraokeMode: boolean;
+  isKaraokeTransitioning: boolean;
   karaokeStatus: KaraokeStatus | null;
   karaokeEnabled: boolean;
   sleepTimerMinutes: number | null;
@@ -73,6 +74,10 @@ let lastProgressReportTime = 0;
 // Gapless preload state
 let preloadedTrackId: string | null = null;
 let preloadedStreamUrl: string | null = null;
+
+// Karaoke toggle serialization
+let karaokeToggleId: symbol | null = null;
+let karaokeTargetMode: boolean | null = null;
 
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
@@ -133,25 +138,30 @@ function resetPreloadState(): void {
   preloadedStreamUrl = null;
 }
 
-async function gaplessSwitchUrl(
+async function karaokeSwitchUrl(
   engine: AudioEngine,
   url: string,
-  seekPosition: number,
-  wasPlaying: boolean
-): Promise<void> {
+  wasPlaying: boolean,
+  toggleId: symbol
+): Promise<boolean> {
   if (engine.preload && engine.seamlessSwitch) {
+    const hint = engine.getCurrentTime();
     await engine.preload(url);
-    const result = await engine.seamlessSwitch(seekPosition, 50);
+    if (karaokeToggleId !== toggleId) return false;
+    const result = await engine.seamlessSwitch(hint, 50);
     if (!wasPlaying) engine.pause();
     if (result) {
-      useTimingStore.getState().updateTiming(seekPosition, result.duration);
+      useTimingStore.getState().updateTiming(result.position, result.duration);
     }
-    return;
+    return karaokeToggleId === toggleId;
   }
 
+  const position = engine.getCurrentTime();
   await engine.load(url);
-  engine.seek(seekPosition);
+  if (karaokeToggleId !== toggleId) return false;
+  engine.seek(position);
   if (wasPlaying) await engine.play();
+  return karaokeToggleId === toggleId;
 }
 
 const initialState: PlayerState = {
@@ -164,6 +174,7 @@ const initialState: PlayerState = {
   volume: getSavedVolume(),
   error: null,
   isKaraokeMode: false,
+  isKaraokeTransitioning: false,
   karaokeStatus: null,
   karaokeEnabled: false,
   sleepTimerMinutes: null,
@@ -219,8 +230,51 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     });
 
+    let gaplessTriggered = false;
+
+    const CROSSFADE_MS = 150;
+    const APPROACHING_END_MS = CROSSFADE_MS + 350;
+
+    function tryGaplessTransition(): boolean {
+      if (gaplessTriggered || !engine) return true;
+
+      const { repeatMode, queue } = get();
+
+      if (repeatMode === 'one') return false;
+
+      const nextItem = resolveNextItem(queue, repeatMode);
+      if (!nextItem) return false;
+
+      if (
+        preloadedTrackId === nextItem.Id &&
+        preloadedStreamUrl &&
+        engine.isPreloaded?.(preloadedStreamUrl)
+      ) {
+        gaplessTriggered = true;
+        queue.next();
+        if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== nextItem.Id) {
+          queue.jumpTo(0);
+        }
+        gaplessTransition(nextItem).catch(() => {
+          resetPreloadState();
+          void get().next();
+        });
+        return true;
+      }
+      return false;
+    }
+
+    engine.onApproachingEnd?.(() => {
+      tryGaplessTransition();
+    }, APPROACHING_END_MS);
+
     engine.onEnded(() => {
-      const { repeatMode, queue, next } = get();
+      if (gaplessTriggered) {
+        gaplessTriggered = false;
+        return;
+      }
+
+      const { repeatMode, next } = get();
 
       if (repeatMode === 'one') {
         engine.seek(0);
@@ -228,28 +282,15 @@ export const usePlayerStore = create<PlayerStore>()(
         return;
       }
 
-      const nextItem = resolveNextItem(queue, repeatMode);
-      if (!nextItem) {
-        set({ isPlaying: false });
-        return;
-      }
-
-      if (
-        preloadedTrackId === nextItem.Id &&
-        preloadedStreamUrl &&
-        engine.isPreloaded?.(preloadedStreamUrl)
-      ) {
-        queue.next();
-        if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== nextItem.Id) {
-          queue.jumpTo(0);
-        }
-        gaplessTransition(nextItem).catch(() => {
-          resetPreloadState();
+      if (!tryGaplessTransition()) {
+        const nextItem = resolveNextItem(get().queue, repeatMode);
+        if (nextItem) {
           void next();
-        });
-      } else {
-        void next();
+        } else {
+          set({ isPlaying: false });
+        }
       }
+      gaplessTriggered = false;
     });
 
     engine.onLoading(isLoading => {
@@ -272,6 +313,7 @@ export const usePlayerStore = create<PlayerStore>()(
     async function loadAndPlay(track: AudioItem): Promise<void> {
       if (!engine) return;
 
+      gaplessTriggered = false;
       const loadId = Symbol('load');
       currentLoadId = loadId;
 
@@ -399,7 +441,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
       set({ currentTrack: track, error: null });
 
-      const result = await engine.seamlessSwitch!(0, 150);
+      const result = await engine.seamlessSwitch!(0, CROSSFADE_MS);
 
       if (currentLoadId !== loadId) return;
 
@@ -620,51 +662,90 @@ export const usePlayerStore = create<PlayerStore>()(
         const { currentTrack, isKaraokeMode, isPlaying } = get();
         if (!currentTrack || !currentClient) return;
 
-        const newKaraokeMode = !isKaraokeMode;
-        const currentTime = engine.getCurrentTime();
-        const wasPlaying = isPlaying;
+        const currentMode = karaokeTargetMode !== null ? karaokeTargetMode : isKaraokeMode;
+        const newKaraokeMode = !currentMode;
+        karaokeTargetMode = newKaraokeMode;
 
-        set({ isLoading: true });
+        if (newKaraokeMode) {
+          set({ isKaraokeTransitioning: true });
 
-        try {
-          if (newKaraokeMode) {
+          try {
             const status = await currentClient.getKaraokeStatus(currentTrack.Id);
 
             if (status.state === 'NOT_STARTED') {
               await currentClient.requestKaraokeProcessing(currentTrack.Id);
-              set({ karaokeStatus: { ...status, state: 'PROCESSING' }, isLoading: false });
+              set({
+                karaokeStatus: { ...status, state: 'PROCESSING' },
+                isKaraokeTransitioning: false,
+              });
+              karaokeTargetMode = null;
               return;
             }
 
             if (status.state === 'PROCESSING') {
-              set({ karaokeStatus: status, isLoading: false });
+              set({ karaokeStatus: status, isKaraokeTransitioning: false });
+              karaokeTargetMode = null;
               return;
             }
 
             if (status.state === 'READY') {
+              const toggleId = Symbol('karaoke');
+              karaokeToggleId = toggleId;
+
+              set({ isKaraokeMode: true, karaokeStatus: status });
               const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-              await gaplessSwitchUrl(engine, instrumentalUrl, currentTime, wasPlaying);
+              const completed = await karaokeSwitchUrl(
+                engine,
+                instrumentalUrl,
+                isPlaying,
+                toggleId
+              );
+              if (!completed) return;
               resetPreloadState();
-              set({ karaokeStatus: status, isKaraokeMode: true, isLoading: false });
+              set({ isKaraokeTransitioning: false });
+              karaokeTargetMode = null;
+              karaokeToggleId = null;
               return;
             }
 
-            set({ karaokeStatus: status, isLoading: false });
-          } else {
+            set({ karaokeStatus: status, isKaraokeTransitioning: false });
+            karaokeTargetMode = null;
+          } catch (error) {
+            log.player.error('Failed to enable karaoke', error);
+            set({
+              isKaraokeMode: false,
+              isKaraokeTransitioning: false,
+              karaokeStatus: null,
+              error: error instanceof Error ? error : new Error(String(error)),
+            });
+            karaokeTargetMode = null;
+          }
+        } else {
+          const toggleId = Symbol('karaoke');
+          karaokeToggleId = toggleId;
+
+          set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeStatus: null });
+
+          try {
             const itemsService = new ItemsService(currentClient);
             const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
-            await gaplessSwitchUrl(engine, streamUrl, currentTime, wasPlaying);
+            const completed = await karaokeSwitchUrl(engine, streamUrl, isPlaying, toggleId);
+            if (!completed) return;
             resetPreloadState();
-            set({ isKaraokeMode: false, karaokeStatus: null, isLoading: false });
+            set({ isKaraokeTransitioning: false });
+            karaokeTargetMode = null;
+            karaokeToggleId = null;
+          } catch (error) {
+            log.player.error('Failed to disable karaoke', error);
+            set({
+              isKaraokeMode: false,
+              isKaraokeTransitioning: false,
+              karaokeStatus: null,
+              error: error instanceof Error ? error : new Error(String(error)),
+            });
+            karaokeTargetMode = null;
+            karaokeToggleId = null;
           }
-        } catch (error) {
-          log.player.error('Failed to toggle karaoke mode', error);
-          set({
-            isLoading: false,
-            isKaraokeMode: false,
-            karaokeStatus: null,
-            error: error instanceof Error ? error : new Error(String(error)),
-          });
         }
       },
 
@@ -672,24 +753,33 @@ export const usePlayerStore = create<PlayerStore>()(
         const { currentTrack, karaokeStatus, isPlaying } = get();
         if (!currentTrack || !currentClient) return;
         if (karaokeStatus?.state !== 'PROCESSING') return;
+        if (karaokeToggleId !== null) return;
 
-        const wasPlaying = isPlaying;
+        const refreshId = Symbol('karaokeRefresh');
+        karaokeToggleId = refreshId;
 
         try {
           const status = await currentClient.getKaraokeStatus(currentTrack.Id);
+          if (karaokeToggleId !== refreshId) return;
 
           if (status.state === 'READY') {
-            const currentTime = engine.getCurrentTime();
+            set({ isKaraokeTransitioning: true, karaokeStatus: status, isKaraokeMode: true });
             const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-            await gaplessSwitchUrl(engine, instrumentalUrl, currentTime, wasPlaying);
+            const completed = await karaokeSwitchUrl(engine, instrumentalUrl, isPlaying, refreshId);
+            if (!completed) return;
             resetPreloadState();
-            set({ karaokeStatus: status, isKaraokeMode: true });
+            set({ isKaraokeTransitioning: false });
           } else {
             set({ karaokeStatus: status });
           }
         } catch (error) {
+          if (karaokeToggleId !== refreshId) return;
           log.player.warn('Failed to load karaoke instrumental', { error: String(error) });
           set({ karaokeStatus: null, isKaraokeMode: false });
+        } finally {
+          if (karaokeToggleId === refreshId) {
+            karaokeToggleId = null;
+          }
         }
       },
 
@@ -790,6 +880,8 @@ export const useIsShuffle = () => usePlayerStore(state => state.isShuffle);
 export const useRepeatMode = () => usePlayerStore(state => state.repeatMode);
 export const usePlayerError = () => usePlayerStore(state => state.error);
 export const useIsKaraokeMode = () => usePlayerStore(state => state.isKaraokeMode);
+export const useIsKaraokeTransitioning = () =>
+  usePlayerStore(state => state.isKaraokeTransitioning);
 export const useKaraokeStatus = () => usePlayerStore(state => state.karaokeStatus);
 export const useSleepTimer = () =>
   usePlayerStore(

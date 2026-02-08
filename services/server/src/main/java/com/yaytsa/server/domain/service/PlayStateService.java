@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,10 +55,13 @@ public class PlayStateService {
   }
 
   public void incrementPlayCount(UUID userId, UUID itemId) {
-    PlayStateEntity playState = findOrCreatePlayState(userId, itemId);
-    playState.setPlayCount(playState.getPlayCount() + 1);
-    playState.setLastPlayedAt(OffsetDateTime.now());
-    playStateRepository.save(playState);
+    int updated = playStateRepository.incrementPlayCount(userId, itemId, OffsetDateTime.now());
+    if (updated == 0) {
+      PlayStateEntity playState = findOrCreatePlayState(userId, itemId);
+      playState.setPlayCount(1);
+      playState.setLastPlayedAt(OffsetDateTime.now());
+      playStateRepository.save(playState);
+    }
   }
 
   public void updatePlaybackPosition(UUID userId, UUID itemId, long positionMs) {
@@ -87,6 +91,14 @@ public class PlayStateService {
               newPlayState.setIsFavorite(false);
               newPlayState.setPlayCount(0);
               newPlayState.setPlaybackPositionMs(0L);
+
+              try {
+                playStateRepository.saveAndFlush(newPlayState);
+              } catch (DataIntegrityViolationException e) {
+                return playStateRepository
+                    .findByUserIdAndItemId(userId, itemId)
+                    .orElseThrow(() -> e);
+              }
               return newPlayState;
             });
   }

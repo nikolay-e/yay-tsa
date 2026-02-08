@@ -69,6 +69,8 @@ export interface AudioEngine {
    */
   onEnded(callback: () => void): () => void;
 
+  onApproachingEnd?(callback: () => void, thresholdMs?: number): () => void;
+
   /**
    * Subscribe to error events
    * @param callback Called when an error occurs
@@ -95,7 +97,7 @@ export interface AudioEngine {
   seamlessSwitch?(
     seekPosition?: number,
     crossfadeDurationMs?: number
-  ): Promise<{ duration: number }>;
+  ): Promise<{ duration: number; position: number }>;
 
   /**
    * Gradually fade volume over time (optional - not all engines support this)

@@ -14,6 +14,7 @@ export function SongsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const playTracks = usePlayerStore(state => state.playTracks);
+  const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
@@ -60,6 +61,7 @@ export function SongsPage() {
             currentTrackId={currentTrack?.Id}
             isPlaying={isPlaying}
             onPlayTrack={handlePlayTrack}
+            onPauseTrack={pause}
             showAlbum={true}
             showArtist={true}
             showImage={true}

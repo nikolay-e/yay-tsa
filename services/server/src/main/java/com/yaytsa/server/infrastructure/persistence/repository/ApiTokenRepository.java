@@ -1,9 +1,11 @@
 package com.yaytsa.server.infrastructure.persistence.repository;
 
 import com.yaytsa.server.infrastructure.persistence.entity.ApiTokenEntity;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,4 +21,8 @@ public interface ApiTokenRepository extends JpaRepository<ApiTokenEntity, UUID> 
   Optional<ApiTokenEntity> findByUserIdAndDeviceId(UUID userId, String deviceId);
 
   void deleteByUserIdAndDeviceId(UUID userId, String deviceId);
+
+  @Modifying
+  @Query("UPDATE ApiTokenEntity t SET t.lastUsedAt = :usedAt WHERE t.id = :tokenId")
+  void updateLastUsedAt(UUID tokenId, OffsetDateTime usedAt);
 }

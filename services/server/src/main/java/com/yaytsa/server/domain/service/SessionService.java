@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -195,6 +196,14 @@ public class SessionService {
               newSession.setDeviceId(deviceId);
               newSession.setDeviceName(deviceName != null ? deviceName : "Unknown Device");
               newSession.setLastUpdate(OffsetDateTime.now());
+
+              try {
+                sessionRepository.saveAndFlush(newSession);
+              } catch (DataIntegrityViolationException e) {
+                return sessionRepository
+                    .findByUserIdAndDeviceId(userId, deviceId)
+                    .orElseThrow(() -> e);
+              }
               return newSession;
             });
   }

@@ -47,30 +47,17 @@ public class AuthService {
       throw new AuthenticationException("Invalid username or password");
     }
 
-    user.setLastLoginAt(OffsetDateTime.now());
-    userRepository.save(user);
+    userRepository.updateLastLoginAt(user.getId(), OffsetDateTime.now());
 
-    Optional<ApiTokenEntity> existingToken =
-        apiTokenRepository.findByUserIdAndDeviceId(user.getId(), deviceId);
+    apiTokenRepository.deleteByUserIdAndDeviceId(user.getId(), deviceId);
+    apiTokenRepository.flush();
 
-    ApiTokenEntity tokenEntity;
-    if (existingToken.isPresent() && existingToken.get().isValid()) {
-      tokenEntity = existingToken.get();
-      tokenEntity.setLastUsedAt(OffsetDateTime.now());
-    } else {
-      if (existingToken.isPresent()) {
-        apiTokenRepository.delete(existingToken.get());
-        apiTokenRepository.flush();
-      }
-
-      tokenEntity = new ApiTokenEntity();
-      tokenEntity.setUser(user);
-      tokenEntity.setToken(generateSecureToken());
-      tokenEntity.setDeviceId(deviceId);
-      tokenEntity.setDeviceName(deviceName);
-      tokenEntity.setLastUsedAt(OffsetDateTime.now());
-    }
-
+    ApiTokenEntity tokenEntity = new ApiTokenEntity();
+    tokenEntity.setUser(user);
+    tokenEntity.setToken(generateSecureToken());
+    tokenEntity.setDeviceId(deviceId);
+    tokenEntity.setDeviceName(deviceName);
+    tokenEntity.setLastUsedAt(OffsetDateTime.now());
     apiTokenRepository.save(tokenEntity);
 
     return new AuthenticationResult(
@@ -107,17 +94,14 @@ public class AuthService {
     return apiTokenRepository
         .findByTokenAndNotRevoked(token)
         .filter(ApiTokenEntity::isValid)
-        .map(
-            tokenEntity -> {
-              updateLastUsedAt(tokenEntity);
-              return tokenEntity.getUser();
-            });
+        .map(ApiTokenEntity::getUser);
   }
 
   @Transactional
-  public void updateLastUsedAt(ApiTokenEntity tokenEntity) {
-    tokenEntity.setLastUsedAt(OffsetDateTime.now());
-    apiTokenRepository.save(tokenEntity);
+  public void updateLastUsedAt(String token) {
+    apiTokenRepository
+        .findByTokenAndNotRevoked(token)
+        .ifPresent(t -> apiTokenRepository.updateLastUsedAt(t.getId(), OffsetDateTime.now()));
   }
 
   private String generateSecureToken() {

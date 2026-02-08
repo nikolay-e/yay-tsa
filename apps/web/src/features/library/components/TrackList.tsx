@@ -16,6 +16,7 @@ interface TrackListProps {
   currentTrackId?: string;
   isPlaying?: boolean;
   onPlayTrack?: (track: AudioItem, index: number) => void;
+  onPauseTrack?: () => void;
   showAlbum?: boolean;
   showArtist?: boolean;
   showImage?: boolean;
@@ -83,6 +84,7 @@ export function TrackList({
   currentTrackId,
   isPlaying = false,
   onPlayTrack,
+  onPauseTrack,
   showAlbum = false,
   showArtist = true,
   showImage = true,
@@ -116,7 +118,13 @@ export function TrackList({
           >
             <button
               type="button"
-              onClick={() => onPlayTrack?.(track, index)}
+              onClick={() => {
+                if (isCurrentTrack && isPlaying) {
+                  onPauseTrack?.();
+                } else {
+                  onPlayTrack?.(track, index);
+                }
+              }}
               className="focus-visible:ring-accent cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               aria-label={
                 isCurrentTrack && isPlaying ? `Pause ${track.Name}` : `Play ${track.Name}`

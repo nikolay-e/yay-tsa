@@ -124,6 +124,7 @@ function FavoriteArtists() {
 
 function FavoriteTracks() {
   const playTracks = usePlayerStore(state => state.playTracks);
+  const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
@@ -152,6 +153,7 @@ function FavoriteTracks() {
         currentTrackId={currentTrack?.Id}
         isPlaying={isPlaying}
         onPlayTrack={(_, index) => void playTracks(tracks, index)}
+        onPauseTrack={pause}
         showAlbum
         showArtist
         showImage

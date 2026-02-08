@@ -40,6 +40,11 @@ export class HTML5AudioEngine implements AudioEngine {
   private errorCallbacks = new Set<(error: Error) => void>();
   private loadingCallbacks = new Set<(isLoading: boolean) => void>();
 
+  // Approaching-end detection
+  private approachingEndCallbacks = new Set<() => void>();
+  private approachingEndThresholdMs: number = 500;
+  private approachingEndFired: boolean = false;
+
   // Dispatch handlers — single handler per event type, iterates registered callbacks
   private dispatchPlay = () => {
     this._isPlaying = true;
@@ -54,6 +59,18 @@ export class HTML5AudioEngine implements AudioEngine {
   private dispatchTimeUpdate = () => {
     const time = this.audio.currentTime;
     for (const cb of this.timeUpdateCallbacks) cb(time);
+
+    if (!this.approachingEndFired && this.approachingEndCallbacks.size > 0) {
+      const duration = this.audio.duration;
+      if (
+        Number.isFinite(duration) &&
+        duration > 0 &&
+        time >= duration - this.approachingEndThresholdMs / 1000
+      ) {
+        this.approachingEndFired = true;
+        for (const cb of this.approachingEndCallbacks) cb();
+      }
+    }
   };
   private dispatchError = () => {
     const mediaError = this.audio.error;
@@ -309,6 +326,7 @@ export class HTML5AudioEngine implements AudioEngine {
           this.audio.addEventListener('canplay', handleCanPlay, { once: true });
           this.audio.addEventListener('error', handleError, { once: true });
 
+          this.approachingEndFired = false;
           this.audio.src = absoluteUrl;
           this.audio.load();
         });
@@ -383,6 +401,7 @@ export class HTML5AudioEngine implements AudioEngine {
     if (seconds < 0) {
       throw new Error(`Invalid seek position: ${seconds} (cannot be negative)`);
     }
+    this.approachingEndFired = false;
     const duration = this.getDuration();
     const clampedSeconds = duration > 0 ? Math.min(seconds, duration) : seconds;
     this.audio.currentTime = clampedSeconds;
@@ -436,6 +455,14 @@ export class HTML5AudioEngine implements AudioEngine {
     };
   }
 
+  onApproachingEnd(callback: () => void, thresholdMs: number = 500): () => void {
+    this.approachingEndCallbacks.add(callback);
+    this.approachingEndThresholdMs = thresholdMs;
+    return () => {
+      this.approachingEndCallbacks.delete(callback);
+    };
+  }
+
   onError(callback: (error: Error) => void): () => void {
     this.errorCallbacks.add(callback);
     return () => {
@@ -484,6 +511,7 @@ export class HTML5AudioEngine implements AudioEngine {
     // Clear callback registries
     this.timeUpdateCallbacks.clear();
     this.endedCallbacks.clear();
+    this.approachingEndCallbacks.clear();
     this.errorCallbacks.clear();
     this.loadingCallbacks.clear();
 
@@ -722,37 +750,44 @@ export class HTML5AudioEngine implements AudioEngine {
   async seamlessSwitch(
     seekPosition: number = 0,
     crossfadeDurationMs: number = 150
-  ): Promise<{ duration: number }> {
+  ): Promise<{ duration: number; position: number }> {
     this.ensureNotDisposed();
 
     if (!this.preloadPromise || !this.preloadedUrl) {
       throw new Error('No audio preloaded. Call preload() first.');
     }
 
-    // Wait for preload to complete (should be instant if already loaded)
     await this.preloadPromise;
 
-    // this.audio is always the active element, this.audioSecondary is the preloaded one
     const currentElement = this.audio;
     const nextElement = this.audioSecondary;
-
     const newDuration = nextElement.duration;
+    const isMidTrackSwitch = seekPosition > 0;
 
-    // Seek to position before starting
-    if (seekPosition > 0 && Number.isFinite(newDuration)) {
+    // Pre-seek to approximate position to prime the buffer region.
+    // For next-track (seekPosition=0) this is a no-op.
+    if (isMidTrackSwitch && Number.isFinite(newDuration)) {
       nextElement.currentTime = Math.min(seekPosition, newDuration);
     }
 
-    // Prepare next element for playback (muted via gain node or element.volume)
     if (!this.webAudioInitialized) {
       nextElement.volume = 0;
     }
 
-    // Always start next element — seamless switch means continuous playback.
-    // Callers that need paused state should pause() after the switch.
+    // Start muted playback to prime the decode pipeline.
+    // Secondary gain node is already at 0 — no audible output yet.
     await nextElement.play();
 
-    // Crossfade via WebAudio GainNodes (sample-accurate) or element.volume (fallback)
+    // CRITICAL: For mid-track switches (karaoke), snap to the live position
+    // AFTER play() resolved so all async work is done. The only operations
+    // between this read and the crossfade ramp are synchronous — zero drift.
+    let finalPosition = seekPosition;
+    if (isMidTrackSwitch && Number.isFinite(newDuration)) {
+      finalPosition = currentElement.currentTime;
+      nextElement.currentTime = Math.min(finalPosition, newDuration);
+    }
+
+    // Crossfade: everything below is synchronous scheduling — no await gaps.
     if (
       this.webAudioInitialized &&
       this.audioContext &&
@@ -762,23 +797,19 @@ export class HTML5AudioEngine implements AudioEngine {
       const now = this.audioContext.currentTime;
       const fadeEnd = now + crossfadeDurationMs / 1000;
 
-      // Cancel any in-progress ramps
       this.elemGainPrimary.gain.cancelScheduledValues(now);
       this.elemGainSecondary.gain.cancelScheduledValues(now);
 
-      // Crossfade: primary (active) fades out, secondary (preloaded) fades in
       this.elemGainPrimary.gain.setValueAtTime(1, now);
       this.elemGainPrimary.gain.linearRampToValueAtTime(0, fadeEnd);
 
       this.elemGainSecondary.gain.setValueAtTime(0, now);
       this.elemGainSecondary.gain.linearRampToValueAtTime(1, fadeEnd);
 
-      // Wait for crossfade to complete (small buffer for scheduling precision)
       await new Promise<void>(resolve => {
         setTimeout(resolve, crossfadeDurationMs + 20);
       });
     } else {
-      // Fallback: element.volume crossfade (when WebAudio not available)
       const currentVolume = currentElement.volume;
       const fadeOutPromise = this.fadeElementVolume(
         currentElement,
@@ -795,17 +826,16 @@ export class HTML5AudioEngine implements AudioEngine {
       await Promise.all([fadeOutPromise, fadeInPromise]);
     }
 
-    // Stop old element and free memory
     currentElement.pause();
     currentElement.src = '';
     currentElement.load();
 
-    // Swap element references: this.audio always points to the active element
+    this.approachingEndFired = false;
+
     const tempElem = this.audio;
     this.audio = this.audioSecondary;
     this.audioSecondary = tempElem;
 
-    // Swap WebAudio node references to stay aligned with element references
     if (this.webAudioInitialized) {
       const tempSource = this.sourceNodePrimary;
       this.sourceNodePrimary = this.sourceNodeSecondary;
@@ -816,17 +846,18 @@ export class HTML5AudioEngine implements AudioEngine {
       this.elemGainSecondary = tempGain;
     }
 
-    // Migrate ALL dispatch handlers from old element to new element
     this.detachDispatchHandlers(currentElement);
     this.attachDispatchHandlers(nextElement);
 
-    // Clear preload state
     this.preloadedUrl = null;
     this.preloadPromise = null;
 
-    log.info('Seamless switch complete', { seekPosition, crossfadeDurationMs });
+    log.info('Seamless switch complete', { seekPosition, finalPosition, crossfadeDurationMs });
 
-    return { duration: Number.isFinite(newDuration) ? newDuration : 0 };
+    return {
+      duration: Number.isFinite(newDuration) ? newDuration : 0,
+      position: finalPosition,
+    };
   }
 
   private async fadeElementVolume(

@@ -25,6 +25,7 @@ export function AlbumDetailPage() {
 
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const playTracks = usePlayerStore(state => state.playTracks);
+  const pause = usePlayerStore(state => state.pause);
   const setShuffle = usePlayerStore(state => state.setShuffle);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
@@ -142,6 +143,7 @@ export function AlbumDetailPage() {
         currentTrackId={currentTrack?.Id}
         isPlaying={isPlaying}
         onPlayTrack={(_, index) => void playTracks(tracks, index)}
+        onPauseTrack={pause}
       />
     </div>
   );

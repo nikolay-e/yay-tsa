@@ -20,6 +20,7 @@ import {
   useRepeatMode,
   usePlayerError,
   useIsKaraokeMode,
+  useIsKaraokeTransitioning,
   useKaraokeStatus,
   useSleepTimer,
 } from '../stores/player.store';
@@ -40,6 +41,7 @@ export function PlayerBar() {
   const repeatMode = useRepeatMode();
   const playerError = usePlayerError();
   const isKaraokeMode = useIsKaraokeMode();
+  const isKaraokeTransitioning = useIsKaraokeTransitioning();
   const karaokeStatus = useKaraokeStatus();
   const sleepTimer = useSleepTimer();
   const currentTime = useTimingStore(s => s.currentTime);
@@ -224,25 +226,28 @@ export function PlayerBar() {
             <span data-testid="total-time">{formatSeconds(duration)}</span>
           </span>
 
-          {karaokeStatus?.state === 'PROCESSING' ? (
-            <div className="text-accent p-2">
-              <Mic className="h-4 w-4 animate-pulse" />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void toggleKaraoke()}
-              className={cn(
-                'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                isKaraokeMode ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
-              )}
-              aria-label={isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode'}
-              aria-pressed={isKaraokeMode}
-              title={isKaraokeMode ? 'Karaoke mode on' : 'Karaoke mode'}
-            >
-              {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void toggleKaraoke()}
+            className={cn(
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+              isKaraokeMode || karaokeStatus?.state === 'PROCESSING'
+                ? 'text-accent'
+                : 'text-text-secondary hover:text-text-primary',
+              (isKaraokeTransitioning || karaokeStatus?.state === 'PROCESSING') && 'animate-pulse'
+            )}
+            aria-label={isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode'}
+            aria-pressed={isKaraokeMode}
+            title={
+              karaokeStatus?.state === 'PROCESSING'
+                ? 'Processing karaoke...'
+                : isKaraokeMode
+                  ? 'Karaoke mode on'
+                  : 'Karaoke mode'
+            }
+          >
+            {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
 
           <button
             type="button"
