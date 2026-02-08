@@ -177,10 +177,17 @@ public final class ItemSpecifications {
 
   public static Specification<ItemEntity> artistHasAlbums() {
     return (root, query, cb) -> {
-      Subquery<UUID> subquery = query.subquery(UUID.class);
-      Root<AlbumEntity> albumRoot = subquery.from(AlbumEntity.class);
-      subquery.select(albumRoot.get("artist").get("id"));
-      return root.get("id").in(subquery);
+      Subquery<UUID> trackAlbumIds = query.subquery(UUID.class);
+      Root<AudioTrackEntity> trackRoot = trackAlbumIds.from(AudioTrackEntity.class);
+      trackAlbumIds.select(trackRoot.get("album").get("id"));
+
+      Subquery<UUID> artistIds = query.subquery(UUID.class);
+      Root<AlbumEntity> albumRoot = artistIds.from(AlbumEntity.class);
+      artistIds
+          .select(albumRoot.get("artist").get("id"))
+          .where(albumRoot.get("item").get("id").in(trackAlbumIds));
+
+      return root.get("id").in(artistIds);
     };
   }
 

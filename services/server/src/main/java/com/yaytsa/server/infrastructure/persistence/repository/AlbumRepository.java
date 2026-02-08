@@ -21,7 +21,9 @@ public interface AlbumRepository extends JpaRepository<AlbumEntity, UUID> {
           + " :itemId")
   AlbumEntity findByIdWithArtist(@Param("itemId") UUID itemId);
 
-  @Query("SELECT COUNT(a) FROM AlbumEntity a WHERE a.artist.id = :artistId")
+  @Query(
+      "SELECT COUNT(a) FROM AlbumEntity a WHERE a.artist.id = :artistId"
+          + " AND EXISTS (SELECT 1 FROM AudioTrackEntity t WHERE t.album.id = a.item.id)")
   long countByArtistId(@Param("artistId") UUID artistId);
 
   @Query(

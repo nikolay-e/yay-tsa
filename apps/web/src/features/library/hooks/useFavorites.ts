@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FavoritesService } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { usePlayerStore } from '@/features/player/stores/player.store';
 
 interface FavoriteToggleParams {
   itemId: string;
@@ -76,9 +77,28 @@ export function useFavoriteToggle() {
         }
       }
 
-      return { previousData };
+      const currentTrack = usePlayerStore.getState().currentTrack;
+      if (currentTrack?.Id === itemId) {
+        const baseUserData = currentTrack.UserData ?? {
+          PlaybackPositionTicks: 0,
+          PlayCount: 0,
+          IsFavorite: false,
+          Played: false,
+        };
+        usePlayerStore.setState({
+          currentTrack: {
+            ...currentTrack,
+            UserData: { ...baseUserData, IsFavorite: newValue },
+          },
+        });
+      }
+
+      return {
+        previousData,
+        previousTrackFavorite: currentTrack?.Id === itemId ? isFavorite : null,
+      };
     },
-    onError: (_error, _variables, context) => {
+    onError: (_error, variables, context) => {
       if (!context?.previousData) return;
       const queryCache = queryClient.getQueryCache();
       for (const query of queryCache.getAll()) {
@@ -86,6 +106,24 @@ export function useFavoriteToggle() {
         const prev = context.previousData.get(keyStr);
         if (prev !== undefined) {
           queryClient.setQueryData(query.queryKey, prev);
+        }
+      }
+
+      if (context.previousTrackFavorite !== null && context.previousTrackFavorite !== undefined) {
+        const currentTrack = usePlayerStore.getState().currentTrack;
+        if (currentTrack?.Id === variables.itemId) {
+          const baseUserData = currentTrack.UserData ?? {
+            PlaybackPositionTicks: 0,
+            PlayCount: 0,
+            IsFavorite: false,
+            Played: false,
+          };
+          usePlayerStore.setState({
+            currentTrack: {
+              ...currentTrack,
+              UserData: { ...baseUserData, IsFavorite: context.previousTrackFavorite },
+            },
+          });
         }
       }
     },

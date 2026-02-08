@@ -30,15 +30,42 @@ export class HTML5AudioEngine implements AudioEngine {
   private preloadPromise: Promise<void> | null = null;
   private preloadEventCleanup: (() => void) | null = null;
 
-  // Store event handler references for cleanup
-  private handlePlay = () => {
+  // Callback registries for external subscribers
+  private timeUpdateCallbacks = new Set<(seconds: number) => void>();
+  private endedCallbacks = new Set<() => void>();
+  private errorCallbacks = new Set<(error: Error) => void>();
+  private loadingCallbacks = new Set<(isLoading: boolean) => void>();
+
+  // Dispatch handlers — single handler per event type, iterates registered callbacks
+  private dispatchPlay = () => {
     this._isPlaying = true;
   };
-  private handlePause = () => {
+  private dispatchPause = () => {
     this._isPlaying = false;
   };
-  private handleEnded = () => {
+  private dispatchEnded = () => {
     this._isPlaying = false;
+    for (const cb of this.endedCallbacks) cb();
+  };
+  private dispatchTimeUpdate = () => {
+    const time = this.audio.currentTime;
+    for (const cb of this.timeUpdateCallbacks) cb(time);
+  };
+  private dispatchError = () => {
+    const mediaError = this.audio.error;
+    const errorMessage = mediaError?.message ?? 'Unknown error';
+    const sanitized = this.sanitizeError(errorMessage);
+    const error = new Error(`Audio error: ${sanitized}`);
+    for (const cb of this.errorCallbacks) cb(error);
+  };
+  private dispatchWaiting = () => {
+    for (const cb of this.loadingCallbacks) cb(true);
+  };
+  private dispatchCanPlay = () => {
+    for (const cb of this.loadingCallbacks) cb(false);
+  };
+  private dispatchPlaying = () => {
+    for (const cb of this.loadingCallbacks) cb(false);
   };
 
   // Promise chains for serializing operations (prevents race conditions)
@@ -71,9 +98,29 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audioSecondary.preload = 'auto';
     this.audioSecondary.volume = 0;
 
-    this.audio.addEventListener('play', this.handlePlay);
-    this.audio.addEventListener('pause', this.handlePause);
-    this.audio.addEventListener('ended', this.handleEnded);
+    this.attachDispatchHandlers(this.audio);
+  }
+
+  private attachDispatchHandlers(element: HTMLAudioElement): void {
+    element.addEventListener('play', this.dispatchPlay);
+    element.addEventListener('pause', this.dispatchPause);
+    element.addEventListener('ended', this.dispatchEnded);
+    element.addEventListener('timeupdate', this.dispatchTimeUpdate);
+    element.addEventListener('error', this.dispatchError);
+    element.addEventListener('waiting', this.dispatchWaiting);
+    element.addEventListener('canplay', this.dispatchCanPlay);
+    element.addEventListener('playing', this.dispatchPlaying);
+  }
+
+  private detachDispatchHandlers(element: HTMLAudioElement): void {
+    element.removeEventListener('play', this.dispatchPlay);
+    element.removeEventListener('pause', this.dispatchPause);
+    element.removeEventListener('ended', this.dispatchEnded);
+    element.removeEventListener('timeupdate', this.dispatchTimeUpdate);
+    element.removeEventListener('error', this.dispatchError);
+    element.removeEventListener('waiting', this.dispatchWaiting);
+    element.removeEventListener('canplay', this.dispatchCanPlay);
+    element.removeEventListener('playing', this.dispatchPlaying);
   }
 
   private ensureAudioContext(): AudioContext | null {
@@ -320,42 +367,30 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   onTimeUpdate(callback: (seconds: number) => void): () => void {
-    const handler = () => callback(this.audio.currentTime);
-    this.audio.addEventListener('timeupdate', handler);
-    return () => this.audio.removeEventListener('timeupdate', handler);
+    this.timeUpdateCallbacks.add(callback);
+    return () => {
+      this.timeUpdateCallbacks.delete(callback);
+    };
   }
 
   onEnded(callback: () => void): () => void {
-    const handler = () => callback();
-    this.audio.addEventListener('ended', handler);
-    return () => this.audio.removeEventListener('ended', handler);
+    this.endedCallbacks.add(callback);
+    return () => {
+      this.endedCallbacks.delete(callback);
+    };
   }
 
   onError(callback: (error: Error) => void): () => void {
-    const handler = () => {
-      const mediaError = this.audio.error;
-      const errorMessage = mediaError?.message ?? 'Unknown error';
-      const sanitized = this.sanitizeError(errorMessage);
-      const error = new Error(`Audio error: ${sanitized}`);
-      callback(error);
+    this.errorCallbacks.add(callback);
+    return () => {
+      this.errorCallbacks.delete(callback);
     };
-    this.audio.addEventListener('error', handler);
-    return () => this.audio.removeEventListener('error', handler);
   }
 
   onLoading(callback: (isLoading: boolean) => void): () => void {
-    const handleWaiting = () => callback(true);
-    const handleCanPlay = () => callback(false);
-    const handlePlaying = () => callback(false);
-
-    this.audio.addEventListener('waiting', handleWaiting);
-    this.audio.addEventListener('canplay', handleCanPlay);
-    this.audio.addEventListener('playing', handlePlaying);
-
+    this.loadingCallbacks.add(callback);
     return () => {
-      this.audio.removeEventListener('waiting', handleWaiting);
-      this.audio.removeEventListener('canplay', handleCanPlay);
-      this.audio.removeEventListener('playing', handlePlaying);
+      this.loadingCallbacks.delete(callback);
     };
   }
 
@@ -386,13 +421,15 @@ export class HTML5AudioEngine implements AudioEngine {
     this.preloadedUrl = null;
     this.preloadPromise = null;
 
-    // Remove event listeners to prevent memory leaks (both elements)
-    this.audio.removeEventListener('play', this.handlePlay);
-    this.audio.removeEventListener('pause', this.handlePause);
-    this.audio.removeEventListener('ended', this.handleEnded);
-    this.audioSecondary.removeEventListener('play', this.handlePlay);
-    this.audioSecondary.removeEventListener('pause', this.handlePause);
-    this.audioSecondary.removeEventListener('ended', this.handleEnded);
+    // Remove dispatch handlers from both elements
+    this.detachDispatchHandlers(this.audio);
+    this.detachDispatchHandlers(this.audioSecondary);
+
+    // Clear callback registries
+    this.timeUpdateCallbacks.clear();
+    this.endedCallbacks.clear();
+    this.errorCallbacks.clear();
+    this.loadingCallbacks.clear();
 
     // Clean up both audio elements
     this.audio.pause();
@@ -664,14 +701,9 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audio = this.audioSecondary;
     this.audioSecondary = temp;
 
-    // Update event listeners to track new active element
-    currentElement.removeEventListener('play', this.handlePlay);
-    currentElement.removeEventListener('pause', this.handlePause);
-    currentElement.removeEventListener('ended', this.handleEnded);
-
-    nextElement.addEventListener('play', this.handlePlay);
-    nextElement.addEventListener('pause', this.handlePause);
-    nextElement.addEventListener('ended', this.handleEnded);
+    // Migrate ALL dispatch handlers from old element to new element
+    this.detachDispatchHandlers(currentElement);
+    this.attachDispatchHandlers(nextElement);
 
     // Clear preload state
     this.preloadedUrl = null;

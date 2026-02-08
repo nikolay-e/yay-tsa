@@ -88,6 +88,15 @@ export interface AudioEngine {
    */
   dispose(): void;
 
+  preload?(url: string): Promise<void>;
+
+  isPreloaded?(url: string): boolean;
+
+  seamlessSwitch?(
+    seekPosition?: number,
+    crossfadeDurationMs?: number
+  ): Promise<{ duration: number }>;
+
   /**
    * Gradually fade volume over time (optional - not all engines support this)
    * @param fromLevel Starting volume (0.0 to 1.0)

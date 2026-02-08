@@ -24,7 +24,7 @@
   --spacing-8: 2rem;
   --spacing-player-bar: 72px;
   --spacing-player-bar-mobile: 64px;
-  --spacing-sidebar: 240px;
+  --spacing-sidebar: 160px;
   --spacing-bottom-tab: 52px;
   --spacing-safe-b: env(safe-area-inset-bottom, 0);
 
@@ -216,6 +216,10 @@
 
 @utility min-w-touch {
   min-width: 44px;
+}
+
+@utility bottom-above-player {
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0));
 }
 
 /* Tailwind CSS Animate compatible utilities */

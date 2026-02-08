@@ -197,9 +197,14 @@ export class PlaybackQueue {
     return this.items.length === 0;
   }
 
-  /**
-   * Check if there's a next item
-   */
+  peekNext(): AudioItem | null {
+    if (this.isEmpty()) return null;
+    if (this.repeatMode === 'one') return this.getCurrentItem();
+    if (this.currentIndex < this.items.length - 1) return this.items[this.currentIndex + 1];
+    if (this.repeatMode === 'all') return this.items[0];
+    return null;
+  }
+
   hasNext(): boolean {
     if (this.isEmpty()) return false;
 

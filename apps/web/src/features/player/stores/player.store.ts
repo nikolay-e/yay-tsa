@@ -70,6 +70,10 @@ let currentClient: MediaServerClient | null = null;
 let currentLoadId: symbol | null = null;
 let lastProgressReportTime = 0;
 
+// Gapless preload state
+let preloadedTrackId: string | null = null;
+let preloadedStreamUrl: string | null = null;
+
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
   try {
@@ -116,6 +120,18 @@ function saveVolume(volume: number): void {
 }
 
 let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
+
+function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioItem | null {
+  const next = queue.peekNext();
+  if (next) return next;
+  if (repeatMode === 'all' && !queue.isEmpty()) return queue.getItemAt(0);
+  return null;
+}
+
+function resetPreloadState(): void {
+  preloadedTrackId = null;
+  preloadedStreamUrl = null;
+}
 
 const initialState: PlayerState = {
   queue: new PlaybackQueue(),
@@ -188,10 +204,30 @@ export const usePlayerStore = create<PlayerStore>()(
       if (repeatMode === 'one') {
         engine.seek(0);
         void engine.play();
-      } else if (queue.hasNext() || repeatMode === 'all') {
-        void next();
-      } else {
+        return;
+      }
+
+      const nextItem = resolveNextItem(queue, repeatMode);
+      if (!nextItem) {
         set({ isPlaying: false });
+        return;
+      }
+
+      if (
+        preloadedTrackId === nextItem.Id &&
+        preloadedStreamUrl &&
+        engine.isPreloaded?.(preloadedStreamUrl)
+      ) {
+        queue.next();
+        if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== nextItem.Id) {
+          queue.jumpTo(0);
+        }
+        gaplessTransition(nextItem).catch(() => {
+          resetPreloadState();
+          void next();
+        });
+      } else {
+        void next();
       }
     });
 
@@ -285,6 +321,9 @@ export const usePlayerStore = create<PlayerStore>()(
           isLoading: false,
           error: null,
         });
+
+        resetPreloadState();
+        preloadNextTrack();
       } catch (error) {
         if (currentLoadId !== loadId) {
           return;
@@ -300,6 +339,78 @@ export const usePlayerStore = create<PlayerStore>()(
         });
         throw error;
       }
+    }
+
+    function preloadNextTrack(): void {
+      if (!engine || !currentClient) return;
+
+      const { queue, repeatMode } = get();
+      const nextItem = resolveNextItem(queue, repeatMode);
+
+      if (!nextItem || nextItem.Id === preloadedTrackId) return;
+
+      const itemsService = new ItemsService(currentClient);
+      const streamUrl = itemsService.getStreamUrl(nextItem.Id);
+
+      preloadedTrackId = nextItem.Id;
+      preloadedStreamUrl = streamUrl;
+
+      engine.preload?.(streamUrl)?.catch(() => {
+        if (preloadedTrackId === nextItem.Id) {
+          resetPreloadState();
+        }
+      });
+    }
+
+    async function gaplessTransition(track: AudioItem): Promise<void> {
+      if (!engine || !currentClient) return;
+
+      if (playbackReporter && currentItemId) {
+        const prevId = currentItemId;
+        const prevPos = engine.getCurrentTime();
+        playbackReporter.reportStopped(prevId, prevPos).catch(err => {
+          log.player.warn('Failed to report stopped', { error: String(err) });
+        });
+      }
+
+      set({ currentTrack: track, error: null });
+
+      const result = await engine.seamlessSwitch!(0, 150);
+
+      let imageUrl: string | undefined;
+      if (track.AlbumPrimaryImageTag) {
+        imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
+          tag: track.AlbumPrimaryImageTag,
+          maxWidth: 256,
+          maxHeight: 256,
+        });
+      } else if (track.AlbumId) {
+        imageUrl = currentClient.getImageUrl(track.AlbumId, 'Primary', {
+          maxWidth: 256,
+          maxHeight: 256,
+        });
+      }
+
+      session?.updateMetadata({
+        title: track.Name,
+        artist: track.Artists?.join(', ') ?? 'Unknown Artist',
+        album: track.Album ?? 'Unknown Album',
+        artwork: imageUrl,
+      });
+
+      currentItemId = track.Id;
+      lastProgressReportTime = 0;
+      playbackReporter = new PlaybackReporter(currentClient);
+      playbackReporter.reportStart(track.Id).catch(err => {
+        log.player.warn('Failed to report start', { error: String(err) });
+      });
+
+      useTimingStore.getState().updateTiming(0, result.duration);
+
+      set({ isPlaying: true, isLoading: false });
+
+      resetPreloadState();
+      preloadNextTrack();
     }
 
     return {
@@ -427,6 +538,8 @@ export const usePlayerStore = create<PlayerStore>()(
         const newShuffle = !isShuffle;
         queue.setShuffleMode(newShuffle ? 'on' : 'off');
         set({ isShuffle: newShuffle });
+        resetPreloadState();
+        preloadNextTrack();
       },
 
       setShuffle: (enabled: boolean) => {
@@ -434,6 +547,8 @@ export const usePlayerStore = create<PlayerStore>()(
         if (isShuffle === enabled) return;
         queue.setShuffleMode(enabled ? 'on' : 'off');
         set({ isShuffle: enabled });
+        resetPreloadState();
+        preloadNextTrack();
       },
 
       toggleRepeat: () => {
@@ -442,12 +557,15 @@ export const usePlayerStore = create<PlayerStore>()(
         const currentIndex = modes.indexOf(repeatMode);
         const nextMode = modes[(currentIndex + 1) % modes.length];
         set({ repeatMode: nextMode });
+        resetPreloadState();
+        preloadNextTrack();
       },
 
       stop: () => {
         engine.pause();
         engine.seek(0);
         useTimingStore.getState().reset();
+        resetPreloadState();
 
         if (playbackReporter && currentItemId) {
           playbackReporter.reportStopped(currentItemId, 0).catch(err => {

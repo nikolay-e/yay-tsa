@@ -107,7 +107,7 @@ function Sidebar({ hasPlayer }: SidebarProps) {
         hasPlayer && 'pb-20'
       )}
     >
-      <div className="p-6">
+      <div className="px-4 py-5">
         <h1 className="text-accent text-xl font-bold">Yay-Tsa</h1>
       </div>
       <nav className="flex-1 px-2">
@@ -117,13 +117,13 @@ function Sidebar({ hasPlayer }: SidebarProps) {
             to={item.href}
             data-testid={item.testId}
             className={cn(
-              'flex items-center gap-4 rounded-md px-4 py-2 transition-colors',
+              'flex items-center gap-3 rounded-md px-3 py-2 transition-colors',
               'hover:bg-bg-hover',
               location.pathname === item.href && 'bg-bg-tertiary text-accent'
             )}
           >
-            <item.icon className="h-5 w-5" />
-            <span>{item.label}</span>
+            <item.icon className="h-5 w-5 shrink-0" />
+            <span className="truncate">{item.label}</span>
           </Link>
         ))}
       </nav>
@@ -143,7 +143,7 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
       data-testid="bottom-tab-bar"
       className={cn(
         'border-border bg-bg-secondary z-bottom-tab h-bottom-tab fixed right-0 bottom-0 left-0 flex items-center justify-around border-t md:hidden',
-        hasPlayer && 'bottom-20'
+        hasPlayer && 'bottom-above-player'
       )}
     >
       {NAV_ITEMS.map(item => {
