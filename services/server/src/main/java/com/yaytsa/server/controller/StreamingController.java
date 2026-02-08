@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -96,7 +97,7 @@ public class StreamingController {
       summary = "Get audio stream URL",
       description = "Generate a URL for streaming an audio item")
   @GetMapping("/Audio/{itemId}/stream/url")
-  public ResponseEntity<String> getStreamUrl(
+  public ResponseEntity<Map<String, String>> getStreamUrl(
       @PathVariable UUID itemId,
       @RequestParam(value = "api_key", required = false) String apiKey,
       @RequestParam(value = "deviceId", required = false) String deviceId,
@@ -107,6 +108,6 @@ public class StreamingController {
 
     String streamUrl = streamingService.getStreamUrl(itemId);
 
-    return ResponseEntity.ok(streamUrl);
+    return ResponseEntity.ok(Map.of("url", streamUrl));
   }
 }

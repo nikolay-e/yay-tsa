@@ -40,8 +40,10 @@ public class SecurityConfig {
   }
 
   @Bean
+  @SuppressWarnings("java:S4502") // CSRF disabled intentionally: stateless REST API with token auth
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    http.csrf(csrf -> csrf.disable())
+    // CSRF protection not needed: SessionCreationPolicy.STATELESS + token-based auth (no cookies)
+    http.csrf(csrf -> csrf.disable()) // lgtm[java/spring-disabled-csrf-protection]
         .httpBasic(basic -> basic.disable())
         .formLogin(form -> form.disable())
         .logout(logout -> logout.disable())

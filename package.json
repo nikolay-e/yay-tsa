@@ -36,6 +36,10 @@
     "type-check": "cd packages/core && npx tsc --noEmit",
     "postversion": "npm run sync:version && git add -A"
   },
+  "overrides": {
+    "lodash": "4.17.23",
+    "tmp": "0.2.5"
+  },
   "devDependencies": {
     "@commitlint/cli": "^20.4.1",
     "@commitlint/config-conventional": "^20.4.1",

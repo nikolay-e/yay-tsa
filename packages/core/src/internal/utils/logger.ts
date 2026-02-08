@@ -112,6 +112,8 @@ function formatErrorMessage(error: Error | unknown): string {
   return String(error);
 }
 
+// Security: console.* in JS doesn't execute code via format strings (unlike C/Python printf).
+// Messages are internal developer strings, not user input. Context is sanitized.
 export function createLogger(namespace: string): Logger {
   return {
     debug(message: string, context?: LogContext): void {

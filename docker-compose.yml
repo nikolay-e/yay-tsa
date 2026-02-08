@@ -1,10 +1,10 @@
 # Yay-Tsa - Local Media Server Stack
 #
 # USAGE:
-#   docker compose up                    # Start all services (dev mode with karaoke)
-#   docker compose up -d                 # Start all services in background
-#   docker compose --profile test up     # Run E2E tests
-#   docker compose down -v               # Stop and clean volumes
+#   docker compose up                      # Start core services (db, backend, frontend)
+#   docker compose --profile karaoke up    # Start with karaoke (audio separator)
+#   docker compose --profile test up       # Run E2E tests
+#   docker compose down -v                 # Stop and clean volumes
 
 services:
   # PostgreSQL Database
@@ -134,6 +134,7 @@ services:
   # Audio Separator (Karaoke - vocal removal)
   # Build: KARAOKE_VARIANT=cpu (default, native ARM) or KARAOKE_VARIANT=gpu (x86_64 with CUDA)
   # Runtime: KARAOKE_DEVICE=cpu (default) or KARAOKE_DEVICE=cuda (requires GPU)
+  # Usage: docker compose --profile karaoke up
   audio-separator:
     build:
       context: ./services/audio-separator
@@ -142,6 +143,8 @@ services:
         VARIANT: ${KARAOKE_VARIANT:-cpu}
     container_name: yay-tsa-audio-separator
     restart: unless-stopped
+    profiles:
+      - karaoke
     environment:
       MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
       OUTPUT_FORMAT: wav

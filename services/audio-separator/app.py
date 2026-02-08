@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cuda") == "cuda"
-ALLOWED_MEDIA_PREFIX = "/media"
+ALLOWED_MEDIA_ROOT = Path("/media").resolve()
 FFMPEG_TIMEOUT_SECONDS = 300
 
 
@@ -76,7 +76,9 @@ def separate_audio(request: SeparationRequest):
     input_path = Path(request.inputPath).resolve()
     track_id = request.trackId
 
-    if not str(input_path).startswith(ALLOWED_MEDIA_PREFIX):
+    try:
+        input_path.relative_to(ALLOWED_MEDIA_ROOT)
+    except ValueError:
         log.error(f"Path traversal attempt: {input_path}")
         raise HTTPException(status_code=403, detail="Invalid input path")
 
