@@ -1,2 +1,24 @@
 apiVersion: v1
-entries: {}
+entries:
+  yaytsa:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-02-08T09:44:29.694751504Z"
+    description: A portable, minimal music client for Jellyfin
+    digest: 4c39c9647743620c5dad5d4c5f6bc4ffd2d3cf825eb8e72b36cfa6a042e1ba01
+    home: https://github.com/nikolay-e/yaytsa
+    keywords:
+    - jellyfin
+    - music
+    - client
+    - media
+    maintainers:
+    - name: Nikolay Eremeev
+    name: yaytsa
+    sources:
+    - https://github.com/nikolay-e/yaytsa
+    type: application
+    urls:
+    - https://github.com/nikolay-e/yaytsa/releases/download/yaytsa-0.1.0/yaytsa-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-02-08T09:44:29.694760691Z"
