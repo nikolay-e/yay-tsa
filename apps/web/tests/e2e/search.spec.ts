@@ -124,10 +124,10 @@ test.describe('Search Functionality', () => {
     const searchValueBefore = await libraryPage.searchInput.inputValue();
     expect(searchValueBefore).toBe('test');
 
-    await authenticatedPage.goto('/');
+    await libraryPage.navigateHome();
     await expect(authenticatedPage).toHaveURL('/');
 
-    await authenticatedPage.goto('/albums');
+    await libraryPage.navigateToAlbums();
     await expect(libraryPage.searchInput).toBeVisible();
 
     const searchValueAfter = await libraryPage.searchInput.inputValue();

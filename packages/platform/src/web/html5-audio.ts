@@ -119,6 +119,13 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audioSecondary.preload = 'auto';
     this.audioSecondary.volume = 0;
 
+    if (typeof document !== 'undefined') {
+      this.audio.style.display = 'none';
+      this.audioSecondary.style.display = 'none';
+      document.body.appendChild(this.audio);
+      document.body.appendChild(this.audioSecondary);
+    }
+
     this.attachDispatchHandlers(this.audio);
   }
 
@@ -519,9 +526,11 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audio.pause();
     this.audio.src = '';
     this.audio.load();
+    this.audio.remove();
     this.audioSecondary.pause();
     this.audioSecondary.src = '';
     this.audioSecondary.load();
+    this.audioSecondary.remove();
 
     // Dispose vocal removal processor
     if (this.vocalRemovalProcessor) {

@@ -19,7 +19,7 @@ test.describe('Accessibility', () => {
     authenticatedPage,
     checkAccessibility,
   }) => {
-    await authenticatedPage.goto('/albums');
+    await authenticatedPage.getByTestId('nav-albums').first().click();
     await expect(authenticatedPage.getByRole('heading', { name: 'Albums' })).toBeVisible();
 
     await checkAccessibility(authenticatedPage);
@@ -29,7 +29,7 @@ test.describe('Accessibility', () => {
     authenticatedPage,
     checkAccessibility,
   }) => {
-    await authenticatedPage.goto('/artists');
+    await authenticatedPage.getByTestId('nav-artists').first().click();
     await expect(authenticatedPage.getByRole('heading', { name: 'Artists' })).toBeVisible();
 
     await checkAccessibility(authenticatedPage);
@@ -39,7 +39,7 @@ test.describe('Accessibility', () => {
     authenticatedPage,
     checkAccessibility,
   }) => {
-    await authenticatedPage.goto('/songs');
+    await authenticatedPage.getByTestId('nav-songs').first().click();
     await expect(authenticatedPage.getByRole('heading', { name: 'Songs' })).toBeVisible();
 
     await checkAccessibility(authenticatedPage);
@@ -49,7 +49,7 @@ test.describe('Accessibility', () => {
     authenticatedPage,
     checkAccessibility,
   }) => {
-    await authenticatedPage.goto('/settings');
+    await authenticatedPage.getByTestId('nav-settings').first().click();
     await expect(authenticatedPage.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
     await checkAccessibility(authenticatedPage);

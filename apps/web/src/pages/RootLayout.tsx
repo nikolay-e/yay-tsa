@@ -15,11 +15,11 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home, testId: 'nav-home' },
-  { href: '/favorites', label: 'Favorites', icon: Heart },
-  { href: '/artists', label: 'Artists', icon: Users },
+  { href: '/favorites', label: 'Favorites', icon: Heart, testId: 'nav-favorites' },
+  { href: '/artists', label: 'Artists', icon: Users, testId: 'nav-artists' },
   { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
-  { href: '/songs', label: 'Songs', icon: Music },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/songs', label: 'Songs', icon: Music, testId: 'nav-songs' },
+  { href: '/settings', label: 'Settings', icon: Settings, testId: 'nav-settings' },
 ];
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
@@ -154,6 +154,7 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
               key={item.href}
               to={item.href}
               data-testid={item.testId}
+              aria-label={item.label}
               className={cn(
                 'flex flex-1 items-center justify-center py-2 transition-colors',
                 isActive ? 'text-accent' : 'text-text-secondary'

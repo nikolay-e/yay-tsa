@@ -7,45 +7,49 @@ export class LibraryPage {
   readonly albumCards: Locator;
   readonly searchInput: Locator;
 
+  private readonly sidebar: Locator;
+  private readonly bottomTab: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.albumCards = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD);
     this.searchInput = page.getByTestId(NAVIGATION_TEST_IDS.SEARCH_INPUT);
+    this.sidebar = page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
+    this.bottomTab = page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
   }
 
   get navHomeTab(): Locator {
-    const sidebar = this.page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
-    const bottomTab = this.page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
-    return sidebar
+    return this.sidebar
       .getByTestId(NAVIGATION_TEST_IDS.NAV_HOME)
-      .or(bottomTab.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME));
+      .or(this.bottomTab.getByTestId(NAVIGATION_TEST_IDS.NAV_HOME));
   }
 
   get navAlbumsTab(): Locator {
-    const sidebar = this.page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
-    const bottomTab = this.page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
-    return sidebar
+    return this.sidebar
       .getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS)
-      .or(bottomTab.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS));
+      .or(this.bottomTab.getByTestId(NAVIGATION_TEST_IDS.NAV_ALBUMS));
   }
 
-  private getVisibleNavLink(testId: string): Locator {
-    const sidebar = this.page.getByTestId(NAVIGATION_TEST_IDS.SIDEBAR);
-    const bottomTab = this.page.getByTestId(NAVIGATION_TEST_IDS.BOTTOM_TAB_BAR);
-    return sidebar.getByTestId(testId).or(bottomTab.getByTestId(testId));
+  private async clickNavLink(testId: string): Promise<void> {
+    if (await this.sidebar.isVisible()) {
+      await this.sidebar.getByTestId(testId).click();
+    } else {
+      await this.bottomTab.getByTestId(testId).click();
+    }
   }
 
   async goto(): Promise<void> {
-    await this.page.goto('/');
-    await this.waitForAlbumsToLoad();
+    const currentPath = new URL(this.page.url()).pathname;
+    if (currentPath === '/albums') {
+      await this.waitForAlbumsToLoad();
+      return;
+    }
+    await this.navigateToAlbums();
   }
 
   async navigateHome(): Promise<void> {
-    // Navigate to home using SPA-friendly navigation
-    // Works on both mobile and desktop by clicking any visible home link
-    const visibleHomeLink = this.page.locator('a[href="/"]:visible').first();
-    await visibleHomeLink.click();
-    await this.waitForAlbumsToLoad();
+    await this.clickNavLink(NAVIGATION_TEST_IDS.NAV_HOME);
+    await this.page.waitForURL('/');
   }
 
   async waitForAlbumsToLoad(): Promise<void> {
@@ -72,14 +76,13 @@ export class LibraryPage {
   async navigateToSearch(): Promise<void> {
     const currentPath = new URL(this.page.url()).pathname;
     if (currentPath !== '/albums') {
-      await this.page.goto('/albums');
+      await this.navigateToAlbums();
     }
     await expect(this.searchInput).toBeVisible({ timeout: 10000 });
   }
 
   async navigateToAlbums(): Promise<void> {
-    const navLink = this.getVisibleNavLink(NAVIGATION_TEST_IDS.NAV_ALBUMS);
-    await navLink.click();
+    await this.clickNavLink(NAVIGATION_TEST_IDS.NAV_ALBUMS);
     await this.waitForAlbumsToLoad();
   }
 
@@ -94,8 +97,6 @@ export class LibraryPage {
   }
 
   async waitForSearchResults(): Promise<void> {
-    // Wait for either albums to appear OR "No albums found" message
-    // This handles both successful search and empty results
     const albumCard = this.page.getByTestId('album-card').first();
     const noResults = this.page.getByText('No albums found');
     await expect(albumCard.or(noResults)).toBeVisible({ timeout: 10000 });
@@ -132,6 +133,7 @@ export class LibraryPage {
 
   async goBack(): Promise<void> {
     await this.page.goBack();
+    await this.page.waitForURL('/albums');
     await this.waitForAlbumsToLoad();
   }
 }

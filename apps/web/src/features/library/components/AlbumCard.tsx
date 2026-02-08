@@ -38,6 +38,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
       <Link to={`/albums/${album.Id}`} className="block">
         <div className="bg-bg-tertiary relative mb-2 aspect-square overflow-hidden rounded-sm">
           <img
+            data-testid="album-cover"
             src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={album.Name}
             className="h-full w-full object-cover"

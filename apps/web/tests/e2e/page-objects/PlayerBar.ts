@@ -84,7 +84,19 @@ export class PlayerBar {
   }
 
   async seek(percentage: number): Promise<void> {
-    await this.seekSlider.fill(percentage.toString());
+    await this.seekSlider.evaluate((el, pct) => {
+      const input = el as HTMLInputElement;
+      const max = parseFloat(input.max) || 100;
+      const min = parseFloat(input.min) || 0;
+      const value = min + ((max - min) * pct) / 100;
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!;
+      nativeInputValueSetter.call(input, value.toString());
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, percentage);
   }
 
   async getCurrentTime(): Promise<string> {

@@ -39,16 +39,14 @@ test.describe('Responsive UI - Mobile', () => {
   });
 
   test('should navigate with bottom tab bar', async ({ authenticatedPage }) => {
-    await expect(libraryPage.navHomeTab).toBeVisible();
-    await expect(libraryPage.navAlbumsTab).toBeVisible();
+    const bottomTab = authenticatedPage.getByTestId('bottom-tab-bar');
+    await expect(bottomTab).toBeVisible();
 
-    // Navigate to albums
-    await libraryPage.navAlbumsTab.click();
-    await expect(authenticatedPage).toHaveURL('/albums');
-
-    // Navigate back to home
-    await libraryPage.navHomeTab.click();
+    await libraryPage.navigateHome();
     await expect(authenticatedPage).toHaveURL('/');
+
+    await libraryPage.navigateToAlbums();
+    await expect(authenticatedPage).toHaveURL('/albums');
   });
 
   test('should handle touch interactions for playback', async () => {
@@ -162,12 +160,10 @@ test.describe('Responsive UI - Tablet', () => {
   });
 
   test('should navigate on tablet', async ({ authenticatedPage }) => {
-    // Navigate to albums
-    await libraryPage.navAlbumsTab.click();
-    await expect(authenticatedPage).toHaveURL('/albums');
-
-    // Navigate back to home
-    await libraryPage.navHomeTab.click();
+    await libraryPage.navigateHome();
     await expect(authenticatedPage).toHaveURL('/');
+
+    await libraryPage.navigateToAlbums();
+    await expect(authenticatedPage).toHaveURL('/albums');
   });
 });

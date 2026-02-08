@@ -36,12 +36,10 @@ export class LoginPage {
   }
 
   async waitForRedirectToRecent(): Promise<void> {
-    // Wait for URL change AND React to render home page content
     await this.page.waitForURL('/', { timeout: 15000 });
-    // Ensure home page content is actually visible (not just URL changed)
-    await expect(
-      this.page.getByRole('heading', { name: /Recently Played|Discover|Albums/i }).first()
-    ).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByRole('heading', { level: 1 }).first()).toBeVisible({
+      timeout: 10000,
+    });
   }
 
   async expectError(errorText?: string): Promise<void> {

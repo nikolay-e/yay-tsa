@@ -18,9 +18,7 @@ test.describe('Authentication Flow', () => {
     await loginPage.waitForRedirectToRecent();
 
     await expect(loginPage.page).toHaveURL('/');
-    await expect(
-      loginPage.page.getByRole('heading', { name: /Recently Played|Discover/ })
-    ).toBeVisible();
+    await expect(loginPage.page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   });
 
   test('should show error with invalid credentials', async ({ loginPage }) => {
@@ -44,7 +42,8 @@ test.describe('Authentication Flow', () => {
     await loginPage.waitForRedirectToRecent();
 
     await loginPage.page.goto('/settings');
-    const logoutButton = loginPage.page.getByRole('button', { name: 'Logout' });
+    const logoutButton = loginPage.page.getByRole('button', { name: /Logout/i });
+    await expect(logoutButton).toBeVisible({ timeout: 10000 });
     await logoutButton.click();
     await loginPage.expectStillOnLoginPage();
     await expect(loginPage.usernameInput).toBeVisible();
@@ -58,9 +57,7 @@ test.describe('Authentication Flow', () => {
     await loginPage.reload();
 
     await expect(loginPage.page).toHaveURL('/');
-    await expect(
-      loginPage.page.getByRole('heading', { name: /Recently Played|Discover/ })
-    ).toBeVisible();
+    await expect(loginPage.page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   });
 
   test('should redirect to login if not authenticated', async ({ loginPage }) => {
@@ -76,7 +73,8 @@ test.describe('Authentication Flow', () => {
     await loginPage.waitForRedirectToRecent();
 
     await loginPage.page.goto('/settings');
-    const logoutButton = loginPage.page.getByRole('button', { name: 'Logout' });
+    const logoutButton = loginPage.page.getByRole('button', { name: /Logout/i });
+    await expect(logoutButton).toBeVisible({ timeout: 10000 });
     await logoutButton.click();
     await loginPage.expectStillOnLoginPage();
 

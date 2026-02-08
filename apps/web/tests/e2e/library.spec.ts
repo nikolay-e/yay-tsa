@@ -30,7 +30,7 @@ test.describe('Library Browsing', () => {
     // Use browser back navigation
     await albumPage.goBack();
 
-    await expect(libraryPage.page).toHaveURL('/');
+    await expect(libraryPage.page).toHaveURL('/albums');
   });
 
   test('should load more albums on scroll (pagination)', async ({ libraryPage }) => {
@@ -83,14 +83,12 @@ test.describe('Library Browsing', () => {
   });
 
   test('should navigate between Albums and Home tabs', async ({ libraryPage }) => {
-    await expect(libraryPage.page).toHaveURL('/');
-
-    // Navigate to albums page (use direct navigation since bottom bar hidden on desktop)
-    await libraryPage.page.goto('/albums');
     await expect(libraryPage.page).toHaveURL('/albums');
 
-    // Navigate back to home
-    await libraryPage.page.goto('/');
+    await libraryPage.navigateHome();
     await expect(libraryPage.page).toHaveURL('/');
+
+    await libraryPage.navigateToAlbums();
+    await expect(libraryPage.page).toHaveURL('/albums');
   });
 });

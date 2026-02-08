@@ -93,7 +93,7 @@ test.describe('Queue Management', () => {
     await libraryPage.clickAlbum(1);
     await albumPage.waitForAlbumToLoad();
     await albumPage.playAlbum();
-    await playerBar.waitForPlayerToLoad();
+    await playerBar.waitForTrackChange(firstAlbumTrack);
 
     const secondAlbumTrack = await playerBar.getCurrentTrackTitle();
     expect(secondAlbumTrack).not.toBe(firstAlbumTrack);
