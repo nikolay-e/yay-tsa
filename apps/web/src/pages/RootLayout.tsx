@@ -155,12 +155,11 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
               to={item.href}
               data-testid={item.testId}
               className={cn(
-                'flex flex-1 flex-col items-center gap-1 py-2 transition-colors',
+                'flex flex-1 items-center justify-center py-2 transition-colors',
                 isActive ? 'text-accent' : 'text-text-secondary'
               )}
             >
               <item.icon className="h-5 w-5" />
-              <span className="text-xs">{item.label}</span>
             </Link>
           );
         })}

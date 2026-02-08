@@ -236,6 +236,7 @@ public class KaraokeController {
     response.setContentType(mimeType);
     response.setContentLengthLong(fileSize);
     response.setHeader("Accept-Ranges", "bytes");
+    response.setHeader("Cache-Control", "public, max-age=86400, immutable");
 
     if (xAccelRedirectEnabled) {
       String encodedPath = PathUtils.encodePathForHeader(filePath.toAbsolutePath().toString());

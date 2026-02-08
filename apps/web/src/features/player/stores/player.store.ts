@@ -659,7 +659,13 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       toggleKaraoke: async () => {
-        const { currentTrack, isKaraokeMode, isPlaying, isKaraokeTransitioning } = get();
+        const {
+          currentTrack,
+          isKaraokeMode,
+          isPlaying,
+          isKaraokeTransitioning,
+          karaokeStatus: cachedStatus,
+        } = get();
         if (!currentTrack || !currentClient || isKaraokeTransitioning) return;
 
         const currentMode = karaokeTargetMode !== null ? karaokeTargetMode : isKaraokeMode;
@@ -670,7 +676,10 @@ export const usePlayerStore = create<PlayerStore>()(
           set({ isKaraokeTransitioning: true });
 
           try {
-            const status = await currentClient.getKaraokeStatus(currentTrack.Id);
+            const status =
+              cachedStatus?.state === 'READY'
+                ? cachedStatus
+                : await currentClient.getKaraokeStatus(currentTrack.Id);
 
             if (status.state === 'NOT_STARTED') {
               await currentClient.requestKaraokeProcessing(currentTrack.Id);
