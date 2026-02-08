@@ -48,7 +48,7 @@ const initialState: AuthState = {
   token: null,
   userId: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
   error: null,
 };
 
@@ -145,9 +145,10 @@ export const useAuthStore = create<AuthStore>()(
 
     restoreSession: async () => {
       const session = loadSessionAuto();
-      if (!session) return false;
-
-      set({ isLoading: true });
+      if (!session) {
+        set({ isLoading: false });
+        return false;
+      }
 
       try {
         const clientInfo = createClientInfo();
