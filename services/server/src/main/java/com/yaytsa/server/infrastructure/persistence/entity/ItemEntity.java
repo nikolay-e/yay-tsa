@@ -42,7 +42,7 @@ public class ItemEntity {
   @JoinColumn(name = "parent_id", foreignKey = @ForeignKey(name = "fk_parent"))
   private ItemEntity parent;
 
-  @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
+  @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL)
   private List<ItemEntity> children = new ArrayList<>();
 
   @Column(unique = true, columnDefinition = "TEXT")
