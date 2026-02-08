@@ -139,7 +139,7 @@ yaytsa:
       scan-on-startup: ${SCAN_ON_STARTUP:true}
       watch-enabled: ${WATCH_ENABLED:false}
       supported-extensions: mp3,flac,m4a,aac,ogg,opus,wav,wma
-      ignored-folders: .git,.svn,node_modules,@eaDir,.karaoke
+      ignored-folders: .git,.svn,node_modules,@eaDir,.karaoke,.lyrics
 
     # Streaming configuration
     streaming:
@@ -186,6 +186,12 @@ yaytsa:
       separator-url: ${KARAOKE_SEPARATOR_URL:http://audio-separator:8000}
       model: ${KARAOKE_MODEL:htdemucs}
       stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
+
+    # Lyrics fetching configuration
+    lyrics:
+      fetcher-url: ${LYRICS_FETCHER_URL:http://audio-separator:8000}
+      fetch-on-scan: ${LYRICS_FETCH_ON_SCAN:true}
+      timeout-seconds: ${LYRICS_TIMEOUT:20}
 
     # Session configuration
     sessions:

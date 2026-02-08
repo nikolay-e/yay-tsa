@@ -56,6 +56,18 @@ class SeparationResponse(BaseModel):
     processing_time_ms: int
 
 
+class LyricsRequest(BaseModel):
+    artist: str
+    title: str
+    outputPath: str
+
+
+class LyricsResponse(BaseModel):
+    success: bool
+    outputPath: str | None = None
+    source: str | None = None
+
+
 class HealthResponse(BaseModel):
     status: str
     model: str
@@ -196,6 +208,43 @@ def separate_audio(request: SeparationRequest):
 
     except Exception as e:
         log.exception(f"Separation failed for {track_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fetch-lyrics", response_model=LyricsResponse)
+def fetch_lyrics(request: LyricsRequest):
+    output_path = Path(request.outputPath).resolve()
+
+    try:
+        output_path.relative_to(ALLOWED_MEDIA_ROOT)
+    except ValueError:
+        log.error(f"Path traversal attempt: {output_path}")
+        raise HTTPException(status_code=403, detail="Invalid output path")
+
+    if output_path.exists() and output_path.stat().st_size > 0:
+        log.info(f"Lyrics already exist: {output_path}")
+        return LyricsResponse(success=True, outputPath=str(output_path), source="cached")
+
+    search_term = f"{request.artist} {request.title}"
+    log.info(f"Searching synced lyrics for: {search_term}")
+
+    try:
+        import syncedlyrics
+
+        lrc = syncedlyrics.search(search_term)
+
+        if not lrc:
+            log.info(f"No synced lyrics found for: {search_term}")
+            return LyricsResponse(success=False)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(lrc, encoding="utf-8")
+        log.info(f"Wrote synced lyrics to: {output_path}")
+
+        return LyricsResponse(success=True, outputPath=str(output_path), source="syncedlyrics")
+
+    except Exception as e:
+        log.exception(f"Lyrics fetch failed for {search_term}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

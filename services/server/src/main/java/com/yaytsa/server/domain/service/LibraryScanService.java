@@ -28,6 +28,7 @@ public class LibraryScanService {
 
   private final FileSystemMediaScanner scanner;
   private final LibraryScanRepository libraryScanRepository;
+  private final LyricsFetchService lyricsFetchService;
   private final Executor taskExecutor;
   private final AtomicBoolean scanInProgress = new AtomicBoolean(false);
 
@@ -40,9 +41,11 @@ public class LibraryScanService {
   public LibraryScanService(
       FileSystemMediaScanner scanner,
       LibraryScanRepository libraryScanRepository,
+      LyricsFetchService lyricsFetchService,
       @Qualifier("applicationTaskExecutor") Executor taskExecutor) {
     this.scanner = scanner;
     this.libraryScanRepository = libraryScanRepository;
+    this.lyricsFetchService = lyricsFetchService;
     this.taskExecutor = taskExecutor;
   }
 
@@ -78,6 +81,10 @@ public class LibraryScanService {
                     log.error("Full library scan failed", ex);
                   } else {
                     log.info("Full library scan completed");
+                    if (lyricsFetchService.isFetchOnScanEnabled()) {
+                      CompletableFuture.runAsync(
+                          () -> lyricsFetchService.fetchMissingLyrics(), taskExecutor);
+                    }
                   }
                 });
 
