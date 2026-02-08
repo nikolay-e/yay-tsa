@@ -659,8 +659,8 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       toggleKaraoke: async () => {
-        const { currentTrack, isKaraokeMode, isPlaying } = get();
-        if (!currentTrack || !currentClient) return;
+        const { currentTrack, isKaraokeMode, isPlaying, isKaraokeTransitioning } = get();
+        if (!currentTrack || !currentClient || isKaraokeTransitioning) return;
 
         const currentMode = karaokeTargetMode !== null ? karaokeTargetMode : isKaraokeMode;
         const newKaraokeMode = !currentMode;
@@ -711,12 +711,17 @@ export const usePlayerStore = create<PlayerStore>()(
             set({ karaokeStatus: status, isKaraokeTransitioning: false });
             karaokeTargetMode = null;
           } catch (error) {
-            log.player.error('Failed to enable karaoke', error);
+            const isAbort = error instanceof DOMException && error.name === 'AbortError';
+            if (isAbort) {
+              log.player.warn('Karaoke enable interrupted by track change');
+            } else {
+              log.player.error('Failed to enable karaoke', error);
+            }
             set({
               isKaraokeMode: false,
               isKaraokeTransitioning: false,
               karaokeStatus: null,
-              error: error instanceof Error ? error : new Error(String(error)),
+              error: isAbort ? null : error instanceof Error ? error : new Error(String(error)),
             });
             karaokeTargetMode = null;
           }
@@ -736,12 +741,17 @@ export const usePlayerStore = create<PlayerStore>()(
             karaokeTargetMode = null;
             karaokeToggleId = null;
           } catch (error) {
-            log.player.error('Failed to disable karaoke', error);
+            const isAbort = error instanceof DOMException && error.name === 'AbortError';
+            if (isAbort) {
+              log.player.warn('Karaoke disable interrupted by track change');
+            } else {
+              log.player.error('Failed to disable karaoke', error);
+            }
             set({
               isKaraokeMode: false,
               isKaraokeTransitioning: false,
               karaokeStatus: null,
-              error: error instanceof Error ? error : new Error(String(error)),
+              error: isAbort ? null : error instanceof Error ? error : new Error(String(error)),
             });
             karaokeTargetMode = null;
             karaokeToggleId = null;
