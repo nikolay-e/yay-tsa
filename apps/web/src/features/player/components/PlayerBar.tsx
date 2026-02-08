@@ -130,7 +130,7 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="z-player border-border bg-bg-secondary pb-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t"
+      className="z-player border-border bg-bg-secondary pb-safe px-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t"
     >
       <input
         data-testid="seek-slider"

@@ -106,7 +106,7 @@ export function ToastContainer() {
   }
 
   return (
-    <div className="z-toast fixed top-4 right-4 flex max-w-sm flex-col gap-2">
+    <div className="z-toast fixed top-[max(1rem,env(safe-area-inset-top,0px))] right-[max(1rem,env(safe-area-inset-right,0px))] flex max-w-sm flex-col gap-2">
       {items.map(item => (
         <ToastItem key={item.id} item={item} />
       ))}

@@ -78,7 +78,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
         aria-modal="true"
         aria-labelledby="lyrics-dialog-title"
         className={cn(
-          'bg-bg-primary flex h-full flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-lg'
+          'bg-bg-primary pt-safe pb-safe px-safe flex h-full flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-lg md:px-0 md:pt-0 md:pb-0'
         )}
         onClick={e => e.stopPropagation()}
         onKeyDown={e => e.stopPropagation()}
