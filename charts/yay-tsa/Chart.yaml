@@ -1,12 +1,9 @@
 apiVersion: v2
 name: yay-tsa
-description: A portable, minimal music client for Jellyfin
+description: A portable, minimal Jellyfin-inspired music server and client
 type: application
 
-# Chart version - increment this on chart changes
 version: 0.1.0
-
-# Application version - should match the Docker image tag
 appVersion: '0.1.0'
 
 keywords:

@@ -2,10 +2,8 @@ name: Release Helm Chart
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'charts/**'
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -17,8 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Configure Git
         run: |
@@ -30,7 +26,65 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1
+      - name: Determine chart version
+        id: version
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            CHART_VERSION="${GITHUB_REF_NAME#v}"
+            APP_VERSION="${GITHUB_REF_NAME}"
+            RELEASE_TYPE="stable"
+          else
+            BASE_VERSION=$(grep '^version:' charts/yay-tsa/Chart.yaml | awk '{print $2}')
+            CHART_VERSION="${BASE_VERSION}-main.${SHORT_SHA}"
+            APP_VERSION="main-${SHORT_SHA}"
+            RELEASE_TYPE="dev"
+          fi
+
+          {
+            echo "chart_version=${CHART_VERSION}"
+            echo "app_version=${APP_VERSION}"
+            echo "release_type=${RELEASE_TYPE}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Package chart
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" charts/yay-tsa/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: '${{ steps.version.outputs.app_version }}'/" charts/yay-tsa/Chart.yaml
+          helm package charts/yay-tsa -d .packaged
+
+      - name: Create GitHub Release (stable only)
+        if: steps.version.outputs.release_type == 'stable'
+        run: |
+          gh release create "yay-tsa-${{ steps.version.outputs.chart_version }}" \
+            .packaged/yay-tsa-${{ steps.version.outputs.chart_version }}.tgz \
+            --title "yay-tsa-${{ steps.version.outputs.chart_version }}" \
+            --notes "Helm chart release ${{ steps.version.outputs.chart_version }}"
         env:
-          CR_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Update repository index
+        run: |
+          cp .packaged/*.tgz gh-pages/
+          cd gh-pages
+
+          # Clean old dev tarballs (keep last 10)
+          find . -maxdepth 1 -name 'yay-tsa-*-main.*.tgz' -printf '%T@ %p\n' | sort -rn | tail -n +11 | cut -d' ' -f2- | xargs -r rm
+
+          # Regenerate index from all tarballs in directory
+          helm repo index . --url https://nikolay-e.github.io/yay-tsa
+
+      - name: Push to gh-pages
+        run: |
+          cd gh-pages
+          git add .
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "Release yay-tsa-${{ steps.version.outputs.chart_version }}"
+          git push
