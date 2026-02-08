@@ -21,6 +21,7 @@ export class VocalRemovalProcessor {
   private isConnected: boolean = false;
   private _enabled: boolean = false;
   private bassPreservationCutoff: number;
+  private pendingToggleTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(audioContext: AudioContext, config: VocalRemovalConfig = {}) {
     this.audioContext = audioContext;
@@ -195,15 +196,18 @@ export class VocalRemovalProcessor {
 
     if (!this.isConnected) return;
 
-    // Use exponential ramp for smooth transition (prevents clicks)
+    if (this.pendingToggleTimer) {
+      clearTimeout(this.pendingToggleTimer);
+      this.pendingToggleTimer = null;
+    }
+
     if (this.outputGain) {
       const currentTime = this.audioContext.currentTime;
       this.outputGain.gain.setValueAtTime(this.outputGain.gain.value, currentTime);
       this.outputGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.05);
 
-      // After fade out, switch chains
-      setTimeout(() => {
-        // Check if state hasn't changed while waiting
+      this.pendingToggleTimer = setTimeout(() => {
+        this.pendingToggleTimer = null;
         if (this._enabled !== targetEnabled) return;
 
         if (targetEnabled) {
@@ -212,7 +216,6 @@ export class VocalRemovalProcessor {
           this.connectBypass();
         }
 
-        // Fade back in
         if (this.outputGain) {
           const time = this.audioContext.currentTime;
           this.outputGain.gain.setValueAtTime(0.001, time);
@@ -247,6 +250,11 @@ export class VocalRemovalProcessor {
   }
 
   dispose(): void {
+    if (this.pendingToggleTimer) {
+      clearTimeout(this.pendingToggleTimer);
+      this.pendingToggleTimer = null;
+    }
+
     this.disconnectAll();
 
     this.inputNode = null;

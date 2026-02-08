@@ -385,6 +385,9 @@ export const usePlayerStore = create<PlayerStore>()(
     async function gaplessTransition(track: AudioItem): Promise<void> {
       if (!engine || !currentClient) return;
 
+      const loadId = Symbol('gapless');
+      currentLoadId = loadId;
+
       if (playbackReporter && currentItemId) {
         const prevId = currentItemId;
         const prevPos = engine.getCurrentTime();
@@ -396,6 +399,8 @@ export const usePlayerStore = create<PlayerStore>()(
       set({ currentTrack: track, error: null });
 
       const result = await engine.seamlessSwitch!(0, 150);
+
+      if (currentLoadId !== loadId) return;
 
       let imageUrl: string | undefined;
       if (track.AlbumPrimaryImageTag) {

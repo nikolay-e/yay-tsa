@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Items", description = "Media library item management")
 public class ItemsController {
 
+  private static final int MAX_PAGE_SIZE = 1000;
+
   private final ItemService itemService;
   private final PlayStateService playStateService;
   private final PlaylistService playlistService;
@@ -129,6 +131,8 @@ public class ItemsController {
       return ResponseEntity.badRequest().build();
     }
 
+    int validLimit = Math.max(0, Math.min(limit, MAX_PAGE_SIZE));
+
     ItemService.ItemsQueryParams params =
         new ItemService.ItemsQueryParams(
             userUuid,
@@ -138,7 +142,7 @@ public class ItemsController {
             sortBy,
             sortOrder,
             startIndex,
-            limit,
+            validLimit,
             searchTerm,
             artistUuids,
             albumUuids,
