@@ -1,0 +1,82 @@
+{{- if .Values.audioSeparator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "yaytsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audio-separator
+  name: {{ include "yaytsa.fullname" . }}-audio-separator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "yaytsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: audio-separator
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "yaytsa.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: audio-separator
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - env:
+            - name: DEVICE
+              value: {{ .Values.audioSeparator.config.device | quote }}
+            - name: MODEL_NAME
+              value: {{ .Values.audioSeparator.config.modelName | quote }}
+            - name: OUTPUT_FORMAT
+              value: {{ .Values.audioSeparator.config.outputFormat | quote }}
+          image: "{{ .Values.audioSeparator.image.repository }}:{{ .Values.audioSeparator.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.audioSeparator.image.pullPolicy }}
+          livenessProbe:
+            failureThreshold: {{ .Values.audioSeparator.probes.liveness.failureThreshold }}
+            httpGet:
+              path: {{ .Values.audioSeparator.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.audioSeparator.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.audioSeparator.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.audioSeparator.probes.liveness.timeoutSeconds }}
+          name: audio-separator
+          ports:
+            - containerPort: {{ .Values.audioSeparator.service.port }}
+              name: http
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: {{ .Values.audioSeparator.probes.readiness.failureThreshold }}
+            httpGet:
+              path: {{ .Values.audioSeparator.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.audioSeparator.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.audioSeparator.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.audioSeparator.probes.readiness.timeoutSeconds }}
+          resources:
+            {{- toYaml .Values.audioSeparator.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.audioSeparator.securityContext | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.backend.media.enabled }}
+            - mountPath: /media
+              name: media
+            {{- end }}
+      restartPolicy: Always
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+      volumes:
+        {{- if .Values.backend.media.enabled }}
+        - hostPath:
+            path: {{ .Values.backend.media.hostPath }}
+            type: Directory
+          name: media
+        {{- end }}
+{{- end }}

@@ -1,0 +1,23 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "yaytsa.fullname" . }}-backend
+  labels:
+    {{- include "yaytsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.backend.service.type }}
+  ports:
+    - port: {{ .Values.backend.service.port }}
+      {{- if .Values.backend.nginxSidecar.enabled }}
+      targetPort: nginx
+      {{- else }}
+      targetPort: http
+      {{- end }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "yaytsa.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+{{- end }}

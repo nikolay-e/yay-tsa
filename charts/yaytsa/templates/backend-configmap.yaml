@@ -1,0 +1,42 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "yaytsa.fullname" . }}-backend
+  labels:
+    {{- include "yaytsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+data:
+  # Server configuration
+  SERVER_PORT: "8096"
+  LOG_LEVEL: {{ .Values.backend.config.logLevel | quote }}
+  APP_LOG_LEVEL: {{ .Values.backend.config.appLogLevel | quote }}
+  {{- if .Values.backend.config.publicUrl }}
+  PUBLIC_URL: {{ .Values.backend.config.publicUrl | quote }}
+  {{- end }}
+
+  # Media library configuration
+  LIBRARY_ROOTS: {{ .Values.backend.media.mountPath | quote }}
+  SCAN_ON_STARTUP: {{ .Values.backend.config.scanOnStartup | quote }}
+  SCAN_THREADS: {{ .Values.backend.config.scanThreads | quote }}
+  WATCH_ENABLED: "false"
+
+  # Transcoding configuration
+  TRANSCODE_ENABLED: {{ .Values.backend.config.transcodeEnabled | quote }}
+  MAX_CONCURRENT_TRANSCODES: {{ .Values.backend.config.maxConcurrentTranscodes | quote }}
+  TRANSCODE_TEMP_DIR: "/app/temp/transcode"
+  IMAGE_CACHE_DIR: "/app/temp/images"
+
+  # CORS configuration
+  CORS_ENABLED: {{ .Values.backend.config.corsEnabled | quote }}
+  CORS_ORIGINS: {{ .Values.backend.config.corsOrigins | quote }}
+
+  # HikariCP connection pool
+  HIKARI_MAX_POOL_SIZE: {{ .Values.backend.database.hikari.maximumPoolSize | quote }}
+  HIKARI_MIN_IDLE: {{ .Values.backend.database.hikari.minimumIdle | quote }}
+  HIKARI_CONNECTION_TIMEOUT: {{ .Values.backend.database.hikari.connectionTimeout | quote }}
+  HIKARI_IDLE_TIMEOUT: {{ .Values.backend.database.hikari.idleTimeout | quote }}
+
+  # Swagger/OpenAPI
+  SWAGGER_ENABLED: "true"
+{{- end }}

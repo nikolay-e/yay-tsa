@@ -26,7 +26,7 @@ repos:
       - id: check-json # [CHECK] Validates JSON syntax.
       - id: check-yaml # [CHECK] Validates YAML syntax.
         args: [--unsafe] # Specific to this project: Allows custom Docker Compose tags.
-        exclude: ^helm/.*/templates/.*\.yaml$ # Exclude Helm templates (use Go templating)
+        exclude: ^charts/.*/templates/.*\.yaml$
 
   # ------------------------------------------------------------------------------
   # EMOJI REMOVAL (Autofixing)
@@ -50,7 +50,7 @@ repos:
         entry: npx --no-install prettier --write --ignore-unknown --plugin=prettier-plugin-tailwindcss
         language: system
         types_or: [javascript, jsx, ts, tsx, css, scss, markdown, yaml, json]
-        exclude: ^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$
+        exclude: ^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|charts/)
 
   # ------------------------------------------------------------------------------
   # MARKDOWN LINTING (Autofixing)
@@ -146,7 +146,7 @@ repos:
             document-start: disable,
             indentation: disable,
             comments: disable}}
-        exclude: ^(helm/.*/templates/.*\.yaml|\.github/.*\.yml)$
+        exclude: ^(charts/.*/templates/.*\.yaml|\.github/.*\.yml)$
 
   # ------------------------------------------------------------------------------
   # GITHUB ACTIONS VALIDATION (CI/CD Quality)

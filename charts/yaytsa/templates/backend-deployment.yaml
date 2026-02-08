@@ -1,0 +1,226 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yaytsa.fullname" . }}-backend
+  labels:
+    {{- include "yaytsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "yaytsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/backend-configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "yaytsa.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: {{ .Values.backend.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.backend.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.backend.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.backend.securityContext.fsGroup }}
+        seccompProfile:
+          type: {{ .Values.backend.securityContext.seccompProfile.type }}
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: backend
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8096
+          protocol: TCP
+        env:
+        - name: JAVA_OPTS
+          value: {{ .Values.backend.jvm.opts | quote }}
+        - name: SPRING_PROFILES_ACTIVE
+          value: {{ .Values.backend.config.profile | quote }}
+        # Database credentials from secret
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.secretName }}
+              key: POSTGRES_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.secretName }}
+              key: POSTGRES_PORT
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.secretName }}
+              key: POSTGRES_DB
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.secretName }}
+              key: POSTGRES_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.secretName }}
+              key: POSTGRES_PASSWORD
+        {{- if .Values.backend.config.karaokeSeparatorUrl }}
+        - name: KARAOKE_SEPARATOR_URL
+          value: {{ .Values.backend.config.karaokeSeparatorUrl | quote }}
+        {{- else if .Values.audioSeparator.enabled }}
+        - name: KARAOKE_SEPARATOR_URL
+          value: "http://{{ include "yaytsa.fullname" . }}-audio-separator:{{ .Values.audioSeparator.service.port }}"
+        {{- end }}
+        {{- if .Values.backend.nginxSidecar.enabled }}
+        - name: X_ACCEL_REDIRECT_ENABLED
+          value: "true"
+        - name: X_ACCEL_INTERNAL_PATH
+          value: {{ .Values.backend.nginxSidecar.internalPath | quote }}
+        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "yaytsa.fullname" . }}-backend
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.backend.probes.liveness.path }}
+            port: {{ .Values.backend.probes.liveness.port }}
+          initialDelaySeconds: {{ .Values.backend.probes.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.backend.probes.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.backend.probes.liveness.timeoutSeconds }}
+          failureThreshold: {{ .Values.backend.probes.liveness.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.backend.probes.readiness.path }}
+            port: {{ .Values.backend.probes.readiness.port }}
+          initialDelaySeconds: {{ .Values.backend.probes.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.backend.probes.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.backend.probes.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.backend.probes.readiness.failureThreshold }}
+        resources:
+          {{- toYaml .Values.backend.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: {{ .Values.backend.securityContext.allowPrivilegeEscalation }}
+          capabilities:
+            drop:
+            {{- range .Values.backend.securityContext.capabilities.drop }}
+            - {{ . }}
+            {{- end }}
+          readOnlyRootFilesystem: {{ .Values.backend.securityContext.readOnlyRootFilesystem }}
+          runAsNonRoot: {{ .Values.backend.securityContext.runAsNonRoot }}
+          runAsUser: {{ .Values.backend.securityContext.runAsUser }}
+        volumeMounts:
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: temp-volume
+          mountPath: /app/temp
+        {{- if .Values.backend.media.enabled }}
+        - name: media-volume
+          mountPath: {{ .Values.backend.media.mountPath }}
+          readOnly: true
+        {{- end }}
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+      {{- if .Values.backend.nginxSidecar.enabled }}
+      - name: nginx-sidecar
+        image: "{{ .Values.backend.nginxSidecar.image.repository }}:{{ .Values.backend.nginxSidecar.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.nginxSidecar.image.pullPolicy }}
+        ports:
+        - name: nginx
+          containerPort: {{ .Values.backend.nginxSidecar.port }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /nginx-health
+            port: nginx
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /nginx-health
+            port: nginx
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.backend.nginxSidecar.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 101
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        - name: nginx-tmp
+          mountPath: /tmp
+        {{- if .Values.backend.media.enabled }}
+        - name: media-volume
+          mountPath: {{ .Values.backend.media.mountPath }}
+          readOnly: true
+        {{- end }}
+      {{- end }}
+      volumes:
+      - name: logs-volume
+        emptyDir: {}
+      - name: temp-volume
+        {{- if .Values.backend.tempStorage.enabled }}
+        {{- if .Values.backend.tempStorage.existingClaim }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.backend.tempStorage.existingClaim }}
+        {{- else }}
+        persistentVolumeClaim:
+          claimName: {{ include "yaytsa.fullname" . }}-backend-temp
+        {{- end }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- if .Values.backend.nginxSidecar.enabled }}
+      - name: nginx-config
+        configMap:
+          name: {{ include "yaytsa.fullname" . }}-backend-nginx
+      - name: nginx-tmp
+        emptyDir: {}
+      {{- end }}
+      {{- if .Values.backend.media.enabled }}
+      - name: media-volume
+        {{- if .Values.backend.media.hostPath }}
+        hostPath:
+          path: {{ .Values.backend.media.hostPath }}
+          type: Directory
+        {{- else if .Values.backend.media.existingClaim }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.backend.media.existingClaim }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

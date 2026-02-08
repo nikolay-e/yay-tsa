@@ -1,0 +1,12 @@
+{{- if and .Values.ingress.enabled .Values.backend.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "yaytsa.fullname" . }}-strip-api
+  labels:
+    {{- include "yaytsa.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+{{- end }}

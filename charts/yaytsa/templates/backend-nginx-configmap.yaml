@@ -1,0 +1,115 @@
+{{- if and .Values.backend.enabled .Values.backend.nginxSidecar.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "yaytsa.fullname" . }}-backend-nginx
+  labels:
+    {{- include "yaytsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+        use epoll;
+        multi_accept on;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for" '
+                        'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time"';
+
+        access_log /dev/stdout main;
+
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+
+        keepalive_timeout 65;
+        keepalive_requests 100;
+
+        client_max_body_size 100M;
+        client_body_buffer_size 128k;
+
+        # Large headers support for OAuth2 Proxy JWT tokens
+        large_client_header_buffers 4 64k;
+        proxy_buffer_size 64k;
+        proxy_buffers 4 64k;
+        proxy_busy_buffers_size 64k;
+
+        proxy_buffering off;
+        proxy_request_buffering off;
+
+        # Temp paths for non-root
+        client_body_temp_path /tmp/client_body;
+        proxy_temp_path /tmp/proxy;
+        fastcgi_temp_path /tmp/fastcgi;
+        uwsgi_temp_path /tmp/uwsgi;
+        scgi_temp_path /tmp/scgi;
+
+        server {
+            listen {{ .Values.backend.nginxSidecar.port }} default_server;
+            server_name _;
+
+            # Health check endpoint
+            location /nginx-health {
+                access_log off;
+                return 200 'ok';
+                add_header Content-Type text/plain;
+            }
+
+            # Internal location for X-Accel-Redirect media streaming
+            location {{ .Values.backend.nginxSidecar.internalPath }} {
+                internal;
+                alias /;
+
+                # Efficient file serving
+                sendfile on;
+                tcp_nopush on;
+                aio threads;
+                directio 512k;
+
+                # Range request support
+                max_ranges 1;
+
+                # No caching for media files (client controls caching)
+                add_header Cache-Control "no-store";
+            }
+
+            # Proxy all other requests to backend
+            location / {
+                proxy_pass http://127.0.0.1:8096;
+                proxy_http_version 1.1;
+
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+
+                # Disable buffering for streaming
+                proxy_buffering off;
+                proxy_request_buffering off;
+
+                # SSE support
+                proxy_set_header Connection '';
+                proxy_cache off;
+
+                # Long timeout for streaming
+                proxy_read_timeout 3600s;
+                proxy_send_timeout 3600s;
+
+                # Pass through range requests
+                proxy_set_header Range $http_range;
+                proxy_set_header If-Range $http_if_range;
+            }
+        }
+    }
+{{- end }}
