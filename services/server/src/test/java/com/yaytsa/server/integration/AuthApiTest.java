@@ -58,7 +58,8 @@ class AuthApiTest extends BaseIntegrationTest {
       headers.setContentType(MediaType.APPLICATION_JSON);
       headers.set(AUTH_HEADER, AUTH_VALUE);
 
-      String body = "{\"Username\":\"admin\",\"Pw\":\"wrongpassword\"}";
+      String username = System.getenv().getOrDefault("YAYTSA_TEST_USERNAME", "admin");
+      String body = String.format("{\"Username\":\"%s\",\"Pw\":\"wrongpassword\"}", username);
       HttpEntity<String> request = new HttpEntity<>(body, headers);
 
       ResponseEntity<String> response =
