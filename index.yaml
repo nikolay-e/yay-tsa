@@ -1,5 +1,26 @@
 apiVersion: v1
 entries:
+  yay-tsa:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-02-08T10:12:14.346703507Z"
+    description: A portable, minimal music client for Jellyfin
+    digest: e10a7816eeaacbc8b813fff803a72910b604162f44838bc7ce0e3398aaf8e77c
+    home: https://github.com/nikolay-e/yay-tsa
+    keywords:
+    - jellyfin
+    - music
+    - client
+    - media
+    maintainers:
+    - name: Nikolay Eremeev
+    name: yay-tsa
+    sources:
+    - https://github.com/nikolay-e/yay-tsa
+    type: application
+    urls:
+    - https://github.com/nikolay-e/yay-tsa/releases/download/yay-tsa-0.1.0/yay-tsa-0.1.0.tgz
+    version: 0.1.0
   yaytsa:
   - apiVersion: v2
     appVersion: 0.1.0
@@ -21,4 +42,4 @@ entries:
     urls:
     - https://github.com/nikolay-e/yaytsa/releases/download/yaytsa-0.1.0/yaytsa-0.1.0.tgz
     version: 0.1.0
-generated: "2026-02-08T09:44:29.694760691Z"
+generated: "2026-02-08T10:12:14.346709057Z"
