@@ -1,5 +1,5 @@
 {
-  "name": "@yaytsa/web",
+  "name": "@yay-tsa/web",
   "version": "0.0.0-placeholder",
   "private": true,
   "type": "module",
@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.20",
-    "@yaytsa/core": "*",
-    "@yaytsa/platform": "*",
+    "@yay-tsa/core": "*",
+    "@yay-tsa/platform": "*",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",

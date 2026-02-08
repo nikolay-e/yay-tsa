@@ -1,17 +1,17 @@
-# @yaytsa/platform
+# @yay-tsa/platform
 
-Platform-specific audio and media adapters for Yaytsa music player.
+Platform-specific audio and media adapters for Yay-Tsa music player.
 
 ## Installation
 
 ```bash
-npm install @yaytsa/platform
+npm install @yay-tsa/platform
 ```
 
 ## Usage
 
 ```typescript
-import { HTML5AudioEngine, MediaSessionManager } from '@yaytsa/platform';
+import { HTML5AudioEngine, MediaSessionManager } from '@yay-tsa/platform';
 
 const audioEngine = new HTML5AudioEngine();
 await audioEngine.load(streamUrl);
@@ -33,6 +33,6 @@ mediaSession.updateMetadata({ title, artist, album, artworkUrl });
 
 ## Dependencies
 
-Depends on `@yaytsa/core` for playback state types.
+Depends on `@yay-tsa/core` for playback state types.
 
 See [CLAUDE.md](../../CLAUDE.md) for detailed architecture.

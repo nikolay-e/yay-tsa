@@ -135,11 +135,11 @@ export default defineConfig({
             return 'vendor-utils';
           }
 
-          if (id.includes('@yaytsa/core')) {
+          if (id.includes('@yay-tsa/core')) {
             return 'vendor-core';
           }
 
-          if (id.includes('@yaytsa/platform')) {
+          if (id.includes('@yay-tsa/platform')) {
             return 'vendor-platform';
           }
         },
@@ -147,6 +147,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@yaytsa/core', '@yaytsa/platform'],
+    include: ['@yay-tsa/core', '@yay-tsa/platform'],
   },
 });

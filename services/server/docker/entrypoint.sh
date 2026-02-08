@@ -1,9 +1,9 @@
 #!/bin/sh
-# Docker entrypoint script for Yaytsa Media Server
+# Docker entrypoint script for Yay-Tsa Media Server
 
 set -e
 
-echo "Starting Yaytsa Media Server..."
+echo "Starting Yay-Tsa Media Server..."
 echo "Java version:"
 java -version
 

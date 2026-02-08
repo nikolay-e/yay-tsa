@@ -1,5 +1,5 @@
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
-import { type ItemsResult, type MediaServerClient } from '@yaytsa/core';
+import { type ItemsResult, type MediaServerClient } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 
 interface LibraryQueryOptions {

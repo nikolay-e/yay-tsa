@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "yaytsa.fullname" . }}-backend
+  name: {{ include "yay-tsa.fullname" . }}-backend
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
 data:
   # Server configuration

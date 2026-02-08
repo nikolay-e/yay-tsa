@@ -1,4 +1,4 @@
-import { createLogger } from '@yaytsa/core';
+import { createLogger } from '@yay-tsa/core';
 
 const log = createLogger('VocalRemoval');
 

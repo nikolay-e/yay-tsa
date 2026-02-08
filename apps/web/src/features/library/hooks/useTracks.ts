@@ -1,4 +1,4 @@
-import { ItemsService, type AudioItem } from '@yaytsa/core';
+import { ItemsService, type AudioItem } from '@yay-tsa/core';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
 interface UseInfiniteTracksOptions {

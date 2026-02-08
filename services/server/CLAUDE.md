@@ -1,4 +1,4 @@
-# yaytsa-server
+# yay-tsa-server
 
 > Extends [../../CLAUDE.md](../../CLAUDE.md) - inherits workspace conventions (integration tests only, no docstrings, Russian communication)
 

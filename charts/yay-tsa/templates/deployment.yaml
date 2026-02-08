@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "yaytsa.fullname" . }}
+  name: {{ include "yay-tsa.fullname" . }}
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "yaytsa.selectorLabels" . | nindent 6 }}
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: frontend
   template:
     metadata:
@@ -20,7 +20,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "yaytsa.selectorLabels" . | nindent 8 }}
+        {{- include "yay-tsa.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: frontend
     spec:
       {{- with .Values.imagePullSecrets }}
@@ -43,7 +43,7 @@ spec:
           protocol: TCP
         envFrom:
         - configMapRef:
-            name: {{ include "yaytsa.fullname" . }}
+            name: {{ include "yay-tsa.fullname" . }}
         livenessProbe:
           {{- if eq (default "http" .Values.probes.type) "exec" }}
           exec:

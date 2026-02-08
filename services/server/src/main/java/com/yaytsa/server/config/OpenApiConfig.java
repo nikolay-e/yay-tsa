@@ -34,12 +34,14 @@ public class OpenApiConfig {
     return new OpenAPI()
         .info(
             new Info()
-                .title("Yaytsa Media Server API")
+                .title("Yay-Tsa Media Server API")
                 .version("0.1.0")
                 .description(
                     "A Jellyfin-compatible media server API for streaming music collections")
                 .contact(
-                    new Contact().name("Yaytsa Team").url("https://github.com/yourusername/yaytsa"))
+                    new Contact()
+                        .name("Yay-Tsa Team")
+                        .url("https://github.com/yourusername/yaytsa"))
                 .license(new License().name("MIT").url("https://opensource.org/licenses/MIT")))
         .servers(
             List.of(

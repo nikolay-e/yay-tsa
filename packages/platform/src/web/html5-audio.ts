@@ -3,7 +3,7 @@
  * Uses native browser <audio> element for playback
  */
 
-import { createLogger } from '@yaytsa/core';
+import { createLogger } from '@yay-tsa/core';
 import { type AudioEngine } from '../audio.interface.js';
 import { easeInOutQuad } from '../shared/easing.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';

@@ -3,7 +3,7 @@
  * Enables background playback and lock screen controls
  */
 
-import { createLogger } from '@yaytsa/core';
+import { createLogger } from '@yay-tsa/core';
 
 const log = createLogger('MediaSession');
 

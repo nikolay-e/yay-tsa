@@ -1,5 +1,5 @@
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1 } from 'lucide-react';
-import type { RepeatMode } from '@yaytsa/core';
+import type { RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 
 interface PlaybackControlsProps {

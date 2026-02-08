@@ -1,4 +1,4 @@
--- Yaytsa Media Server Database Schema
+-- Yay-Tsa Media Server Database Schema
 -- Initial migration for PostgreSQL 15+
 
 -- Enable required extensions

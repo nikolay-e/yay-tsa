@@ -8,13 +8,13 @@ import {
   type AudioItem,
   type MediaServerClient,
   type KaraokeStatus,
-} from '@yaytsa/core';
+} from '@yay-tsa/core';
 import {
   HTML5AudioEngine,
   MediaSessionManager,
   PinkNoiseGenerator,
   type AudioEngine,
-} from '@yaytsa/platform';
+} from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 import { useTimingStore } from './playback-timing.store';

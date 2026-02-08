@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "yaytsa.fullname" . }}
+  name: {{ include "yay-tsa.fullname" . }}
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "yaytsa.fullname" . }}
+    name: {{ include "yay-tsa.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

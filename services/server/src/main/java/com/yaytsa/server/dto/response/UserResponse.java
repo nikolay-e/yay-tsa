@@ -75,7 +75,7 @@ public record UserResponse(
     return new UserResponse(
         name,
         serverId,
-        "Yaytsa Media Server",
+        "Yay-Tsa Media Server",
         id,
         null, // primaryImageTag
         true, // hasPassword

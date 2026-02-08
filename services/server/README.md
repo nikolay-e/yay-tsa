@@ -1,10 +1,10 @@
-# Yaytsa Media Server
+# Yay-Tsa Media Server
 
 A high-performance, Jellyfin-compatible media server built with Java 21 and Spring Boot, designed for streaming music collections with modern architecture and virtual threads support.
 
 ## Overview
 
-Yaytsa Media Server is a modular monolith following the ports/adapters (hexagonal) architecture pattern. It provides:
+Yay-Tsa Media Server is a modular monolith following the ports/adapters (hexagonal) architecture pattern. It provides:
 
 - 🎵 **Music Library Management** - Scan, organize, and serve music collections
 - 🔊 **Audio Streaming** - Direct streaming with byte-range support (RFC 9110)
@@ -43,8 +43,8 @@ Yaytsa Media Server is a modular monolith following the ports/adapters (hexagona
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/yaytsa.git
-cd yaytsa/server
+git clone https://github.com/yourusername/yay-tsa.git
+cd yay-tsa/server
 ```
 
 1. Copy and configure environment variables:
@@ -94,7 +94,7 @@ mvn clean package
 1. Run the application:
 
 ```bash
-java -jar target/yaytsa-media-server-0.1.0-SNAPSHOT.jar
+java -jar target/yay-tsa-media-server-0.1.0-SNAPSHOT.jar
 ```
 
 ## Configuration
@@ -473,6 +473,6 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- GitHub Issues: <https://github.com/yourusername/yaytsa/issues>
-- Documentation: <https://docs.yaytsa.io>
-- Discord: <https://discord.gg/yaytsa>
+- GitHub Issues: <https://github.com/yourusername/yay-tsa/issues>
+- Documentation: <https://docs.yay-tsa.io>
+- Discord: <https://discord.gg/yay-tsa>

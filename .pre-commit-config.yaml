@@ -235,7 +235,7 @@ repos:
 
       - id: docker-build
         name: 'Docker build validation'
-        entry: docker build -t yaytsa:test -f apps/web/Dockerfile .
+        entry: docker build -t yay-tsa:test -f apps/web/Dockerfile .
         language: system
         # Trigger on: Dockerfile, entrypoint, nginx config, TS/JS sources, package.json
         files: ^(apps/web/Dockerfile|apps/web/docker/|infra/nginx/|packages/|package\.json)

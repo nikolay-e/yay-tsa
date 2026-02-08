@@ -1,10 +1,10 @@
 {
-  "name": "yaytsa",
+  "name": "yay-tsa",
   "version": "0.0.0-placeholder",
   "private": true,
-  "description": "Yaytsa - A minimal music player",
+  "description": "Yay-Tsa - A minimal music player",
   "keywords": [
-    "yaytsa",
+    "yay-tsa",
     "music",
     "player",
     "audio"

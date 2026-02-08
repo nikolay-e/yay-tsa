@@ -7,9 +7,9 @@ API routes do NOT use oauth2-proxy - backend handles auth via X-Emby-Authorizati
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "yaytsa.fullname" . }}-api
+  name: {{ include "yay-tsa.fullname" . }}-api
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
   annotations:
     {{- if .Values.ingress.className }}
     kubernetes.io/ingress.class: {{ .Values.ingress.className }}
@@ -18,7 +18,7 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     {{- end }}
     {{- $namespace := .Release.Namespace }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $namespace }}-{{ include "yaytsa.fullname" . }}-strip-api@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $namespace }}-{{ include "yay-tsa.fullname" . }}-strip-api@kubernetescrd
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
@@ -42,7 +42,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}-backend
+                name: {{ include "yay-tsa.fullname" $ }}-backend
                 port:
                   number: {{ $.Values.backend.service.port }}
     {{- end }}

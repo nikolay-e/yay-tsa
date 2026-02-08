@@ -24,7 +24,7 @@ public record SystemInfoResponse(
     return new SystemInfoResponse(
         serverName,
         version,
-        "Yaytsa",
+        "Yay-Tsa",
         System.getProperty("os.name"),
         serverId,
         localAddress,
@@ -44,7 +44,7 @@ public record SystemInfoResponse(
     return new SystemInfoResponse(
         serverName,
         version,
-        "Yaytsa",
+        "Yay-Tsa",
         System.getProperty("os.name"),
         serverId,
         localAddress,

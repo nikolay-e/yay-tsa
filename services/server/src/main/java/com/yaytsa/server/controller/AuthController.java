@@ -70,7 +70,7 @@ public class AuthController {
     Map<String, String> headerParts = parseEmbyAuthHeader(embyAuth);
     String deviceId = headerParts.getOrDefault("DeviceId", UUID.randomUUID().toString());
     String deviceName = headerParts.getOrDefault("Device", "Web Browser");
-    String client = headerParts.getOrDefault("Client", "Yaytsa Web");
+    String client = headerParts.getOrDefault("Client", "Yay-Tsa Web");
     String version = headerParts.getOrDefault("Version", "0.1.0");
 
     try {

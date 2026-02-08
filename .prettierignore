@@ -24,5 +24,5 @@ pnpm-lock.yaml
 yarn.lock
 
 # Helm templates (use Go templating, not pure YAML)
-helm/**/templates/**
+charts/**/templates/**
 LICENSE.md

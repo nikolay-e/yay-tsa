@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
 
-test.describe('@yaytsa/platform: PinkNoiseGenerator', () => {
+test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
   test('Given: PinkNoiseGenerator, When: start called, Then: isPlaying returns true', async ({
     authenticatedPage,
   }) => {

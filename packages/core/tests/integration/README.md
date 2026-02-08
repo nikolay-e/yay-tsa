@@ -53,10 +53,10 @@ All tests follow the **Given-When-Then** pattern:
 
 ```bash
 # Run all integration tests
-npm run test:integration --workspace=@yaytsa/core
+npm run test:integration --workspace=@yay-tsa/core
 
 # Run specific feature
-npm run test:integration --workspace=@yaytsa/core tests/integration/features/queue-management
+npm run test:integration --workspace=@yay-tsa/core tests/integration/features/queue-management
 ```
 
 ## Configuration

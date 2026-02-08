@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "System", description = "System information and configuration")
 public class SystemController {
 
-  @Value("${yaytsa.server.name:Yaytsa Media Server}")
+  @Value("${yaytsa.server.name:Yay-Tsa Media Server}")
   private String serverName;
 
   @Value("${yaytsa.server.version:0.1.0}")
@@ -64,6 +64,6 @@ public class SystemController {
   @Operation(summary = "Ping server", description = "Simple health check endpoint")
   @GetMapping("/Ping")
   public ResponseEntity<String> ping() {
-    return ResponseEntity.ok("Yaytsa Media Server");
+    return ResponseEntity.ok("Yay-Tsa Media Server");
   }
 }

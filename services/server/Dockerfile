@@ -1,4 +1,4 @@
-# Multi-stage Docker build for Yaytsa Media Server
+# Multi-stage Docker build for Yay-Tsa Media Server
 
 # Stage 1: Build stage
 FROM maven:3.9-eclipse-temurin-21 AS builder
@@ -49,25 +49,25 @@ RUN apk update && \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user
-RUN addgroup -g 1000 yaytsa && \
-    adduser -D -u 1000 -G yaytsa yaytsa
+RUN addgroup -g 1000 yay-tsa && \
+    adduser -D -u 1000 -G yay-tsa yay-tsa
 
 # Set working directory
 WORKDIR /app
 
 # Create necessary directories
 RUN mkdir -p /app/media /app/temp/transcode /app/temp/images /app/logs /app/stems && \
-    chown -R yaytsa:yaytsa /app
+    chown -R yay-tsa:yay-tsa /app
 
 # Copy JAR from builder stage
-COPY --from=builder --chown=yaytsa:yaytsa /app/target/*.jar app.jar
+COPY --from=builder --chown=yay-tsa:yay-tsa /app/target/*.jar app.jar
 
 # Copy entrypoint script and fix line endings (Windows CRLF -> Unix LF)
-COPY --chown=yaytsa:yaytsa docker/entrypoint.sh /app/entrypoint.sh
+COPY --chown=yay-tsa:yay-tsa docker/entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Switch to non-root user
-USER yaytsa
+USER yay-tsa
 
 # Expose port
 EXPOSE 8096

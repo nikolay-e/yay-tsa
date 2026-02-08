@@ -35,7 +35,7 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-accent mb-2 text-3xl font-bold">Yaytsa</h1>
+          <h1 className="text-accent mb-2 text-3xl font-bold">Yay-Tsa</h1>
           <p className="text-text-secondary">Sign in to your media server</p>
         </div>
 

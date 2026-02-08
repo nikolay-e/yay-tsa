@@ -107,7 +107,7 @@ function Sidebar({ hasPlayer }: SidebarProps) {
       )}
     >
       <div className="p-6">
-        <h1 className="text-accent text-xl font-bold">Yaytsa</h1>
+        <h1 className="text-accent text-xl font-bold">Yay-Tsa</h1>
       </div>
       <nav className="flex-1 px-2">
         {NAV_ITEMS.map(item => (

@@ -3,21 +3,21 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
     app.kubernetes.io/component: audio-separator
-  name: {{ include "yaytsa.fullname" . }}-audio-separator
+  name: {{ include "yay-tsa.fullname" . }}-audio-separator
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "yaytsa.selectorLabels" . | nindent 6 }}
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: audio-separator
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        {{- include "yaytsa.selectorLabels" . | nindent 8 }}
+        {{- include "yay-tsa.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: audio-separator
     spec:
       {{- with .Values.imagePullSecrets }}

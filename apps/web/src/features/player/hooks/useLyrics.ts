@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { parseLyrics, findActiveLineIndex, type ParsedLyrics } from '@yaytsa/core';
+import { parseLyrics, findActiveLineIndex, type ParsedLyrics } from '@yay-tsa/core';
 import { useCurrentTrack } from '../stores/player.store';
 import { useTimingStore } from '../stores/playback-timing.store';
 

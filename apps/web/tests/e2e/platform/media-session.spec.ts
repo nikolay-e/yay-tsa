@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
 
-test.describe('@yaytsa/platform: MediaSessionManager', () => {
+test.describe('@yay-tsa/platform: MediaSessionManager', () => {
   test('Given: MediaSessionManager, When: supported called, Then: Returns browser support status', async ({
     authenticatedPage,
   }) => {

@@ -25,8 +25,8 @@ class SystemApiTest extends BaseIntegrationTest {
       assertEquals(HttpStatus.OK, response.getStatusCode());
 
       JsonNode json = objectMapper.readTree(response.getBody());
-      assertEquals("Yaytsa Media Server", json.get("ServerName").asText());
-      assertEquals("Yaytsa", json.get("ProductName").asText());
+      assertEquals("Yay-Tsa Media Server", json.get("ServerName").asText());
+      assertEquals("Yay-Tsa", json.get("ProductName").asText());
       assertNotNull(json.get("Version").asText());
       assertNotNull(json.get("Id").asText());
       assertTrue(json.get("StartupWizardCompleted").asBoolean());

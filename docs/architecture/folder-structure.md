@@ -68,8 +68,8 @@ src/
 
 **Cross-Package Rules:**
 
-- `@yaytsa/core` is standalone (no external package imports)
-- `@yaytsa/platform` can import from `@yaytsa/core`
+- `@yay-tsa/core` is standalone (no external package imports)
+- `@yay-tsa/platform` can import from `@yay-tsa/core`
 - Packages NEVER import from apps
 
 ### Enforced Restrictions
@@ -156,7 +156,7 @@ This prevents:
 
 ```typescript
 // ❌ Blocked by exports field
-import { internal } from '@yaytsa/core/src/internal/helper';
+import { internal } from '@yay-tsa/core/src/internal/helper';
 ```
 
 ## Empty Folders Policy

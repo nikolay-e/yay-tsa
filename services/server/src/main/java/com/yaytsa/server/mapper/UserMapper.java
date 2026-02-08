@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 public class UserMapper {
 
   private static final String SERVER_ID = "yaytsa-server";
-  private static final String SERVER_NAME = "Yaytsa Media Server";
+  private static final String SERVER_NAME = "Yay-Tsa Media Server";
 
   public UserResponse toDto(UserEntity entity) {
     if (entity == null) {

@@ -1,4 +1,4 @@
-# Yaytsa
+# Yay-Tsa
 
 Minimal music player with custom Java-based media server backend.
 

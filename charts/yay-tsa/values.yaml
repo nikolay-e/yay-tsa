@@ -2,7 +2,7 @@ replicaCount: 1
 
 frontend:
   image:
-    repository: ghcr.io/nikolay-e/yaytsa/frontend
+    repository: ghcr.io/nikolay-e/yay-tsa/frontend
     pullPolicy: IfNotPresent
     tag: ''
 
@@ -12,8 +12,8 @@ fullnameOverride: ''
 
 config:
   serverUrl: ''
-  clientName: 'Yaytsa'
-  deviceName: 'Yaytsa Web'
+  clientName: 'Yay-Tsa'
+  deviceName: 'Yay-Tsa Web'
   logLevel: 'error'
 
 serviceAccount:
@@ -49,14 +49,14 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    - host: yaytsa.example.com
+    - host: yay-tsa.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
     - hosts:
-        - yaytsa.example.com
-      secretName: yaytsa-tls
+        - yay-tsa.example.com
+      secretName: yay-tsa-tls
 
 resources:
   requests:
@@ -97,7 +97,7 @@ affinity: {}
 backend:
   enabled: false
   image:
-    repository: ghcr.io/nikolay-e/yaytsa/backend
+    repository: ghcr.io/nikolay-e/yay-tsa/backend
     pullPolicy: IfNotPresent
     tag: ''
   replicaCount: 1
@@ -110,14 +110,14 @@ backend:
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     hosts:
-      - host: yaytsa-api.example.com
+      - host: yay-tsa-api.example.com
         paths:
           - path: /
             pathType: Prefix
     tls:
       - hosts:
-          - yaytsa-api.example.com
-        secretName: yaytsa-api-tls
+          - yay-tsa-api.example.com
+        secretName: yay-tsa-api-tls
   resources:
     requests:
       memory: '1Gi'
@@ -147,7 +147,7 @@ backend:
       timeoutSeconds: 5
       failureThreshold: 3
   database:
-    secretName: 'yaytsa-postgres'
+    secretName: 'yay-tsa-postgres'
     hikari:
       maximumPoolSize: 10
       minimumIdle: 5
@@ -203,7 +203,7 @@ backend:
 audioSeparator:
   enabled: false
   image:
-    repository: ghcr.io/nikolay-e/yaytsa/audio-separator
+    repository: ghcr.io/nikolay-e/yay-tsa/audio-separator
     pullPolicy: IfNotPresent
     tag: ''
   service:

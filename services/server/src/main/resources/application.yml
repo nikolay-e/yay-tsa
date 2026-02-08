@@ -1,6 +1,6 @@
 spring:
   application:
-    name: yaytsa-media-server
+    name: yay-tsa-media-server
 
   # Enable Java 21 Virtual Threads
   threads:
@@ -123,7 +123,7 @@ management:
 yaytsa:
   # Server identification
   server:
-    name: 'Yaytsa Media Server'
+    name: 'Yay-Tsa Media Server'
     version: '0.1.0'
     id: 'yaytsa-4f8a3e2c-9d1b-4a5e-8c7f-3e9d1b4a5e8c'
 
@@ -205,7 +205,7 @@ yaytsa:
       allowed-headers: '*'
       exposed-headers: Content-Range,Accept-Ranges,X-Total-Count
       # Set to false when using * origins (avoids browser CORS errors)
-      # Yaytsa uses token-in-header/query, not cookies, so credentials aren't needed
+      # Yay-Tsa uses token-in-header/query, not cookies, so credentials aren't needed
       allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
       max-age: 3600
     https-required-in-production: true
@@ -223,7 +223,7 @@ logging:
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss} - %msg [%thread] %logger{36} %X{userId} %X{deviceId} %X{requestId}%n'
   file:
-    name: ${LOG_FILE:./logs/yaytsa.log}
+    name: ${LOG_FILE:./logs/yay-tsa.log}
     max-size: 10MB
     max-history: 30
 

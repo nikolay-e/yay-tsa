@@ -6,9 +6,9 @@ manifest.json and service-worker.js must be publicly accessible for PWA function
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "yaytsa.fullname" . }}-pwa
+  name: {{ include "yay-tsa.fullname" . }}-pwa
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
   annotations:
     {{- if .Values.ingress.className }}
     kubernetes.io/ingress.class: {{ .Values.ingress.className }}
@@ -20,7 +20,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.priority: "100"
     # Strip /api prefix for auth endpoint + security headers
     {{- $namespace := .Release.Namespace }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $namespace }}-{{ include "yaytsa.fullname" . }}-strip-api@kubernetescrd,kube-system-security-headers@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $namespace }}-{{ include "yay-tsa.fullname" . }}-strip-api@kubernetescrd,kube-system-security-headers@kubernetescrd
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
@@ -45,7 +45,7 @@ spec:
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}
+                name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           # Service worker files (vite-pwa generates sw.js and registerSW.js)
@@ -53,45 +53,45 @@ spec:
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}
+                name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           - path: /registerSW.js
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}
+                name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           - path: /robots.txt
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}
+                name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           - path: /favicon.ico
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}
+                name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           - path: /favicon.svg
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}
+                name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- if $.Values.backend.enabled }}
-          # Auth endpoint must be public for yaytsa's native login to work
+          # Auth endpoint must be public for yay-tsa's native login to work
           # Routes to backend with /api stripped (backend has no context-path)
           - path: /api/Users/AuthenticateByName
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}-backend
+                name: {{ include "yay-tsa.fullname" $ }}-backend
                 port:
                   number: {{ $.Values.backend.service.port }}
           # Public server info endpoint (needed for session restore)
@@ -99,7 +99,7 @@ spec:
             pathType: Exact
             backend:
               service:
-                name: {{ include "yaytsa.fullname" $ }}-backend
+                name: {{ include "yay-tsa.fullname" $ }}-backend
                 port:
                   number: {{ $.Values.backend.service.port }}
           {{- end }}

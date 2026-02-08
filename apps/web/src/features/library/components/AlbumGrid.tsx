@@ -1,4 +1,4 @@
-import { type MusicAlbum } from '@yaytsa/core';
+import { type MusicAlbum } from '@yay-tsa/core';
 import { AlbumCard } from './AlbumCard';
 
 interface AlbumGridProps {

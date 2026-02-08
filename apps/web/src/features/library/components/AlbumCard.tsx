@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
-import { type MusicAlbum } from '@yaytsa/core';
+import { type MusicAlbum } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { cn } from '@/shared/utils/cn';

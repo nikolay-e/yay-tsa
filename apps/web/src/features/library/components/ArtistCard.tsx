@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { type MusicArtist } from '@yaytsa/core';
+import { type MusicArtist } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { cn } from '@/shared/utils/cn';

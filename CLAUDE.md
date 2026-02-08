@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Yaytsa - a minimal music player with a custom Java-based media server backend. Built as an npm workspaces monorepo with strict separation between framework-agnostic business logic (core), platform adapters (platform), and UI implementations (web). The backend is a Java 21 Spring Boot server with PostgreSQL.
+Yay-Tsa - a minimal music player with a custom Java-based media server backend. Built as an npm workspaces monorepo with strict separation between framework-agnostic business logic (core), platform adapters (platform), and UI implementations (web). The backend is a Java 21 Spring Boot server with PostgreSQL.
 
 **Core Architecture Principle**: Layered architecture with 100% portable core logic, platform abstraction through interfaces, and reactive UI layer. Bundle size target: <150KB gzipped.
 
@@ -14,10 +14,10 @@ Yaytsa - a minimal music player with a custom Java-based media server backend. B
 
 ```
 apps/
-└── web/         # @yaytsa/web - React 19 PWA (Vite + React Router)
+└── web/         # @yay-tsa/web - React 19 PWA (Vite + React Router)
 packages/
-├── core/        # @yaytsa/core - Framework-agnostic business logic
-└── platform/    # @yaytsa/platform - Platform-specific audio/media adapters
+├── core/        # @yay-tsa/core - Framework-agnostic business logic
+└── platform/    # @yay-tsa/platform - Platform-specific audio/media adapters
 services/
 ├── server/      # Java Spring Boot backend
 └── audio-separator/  # Python FastAPI for karaoke
@@ -56,7 +56,7 @@ docker compose up              # Development with HMR
 docker compose --profile test up    # Run E2E tests
 
 # Kubernetes (via GitOps)
-# See /Users/nikolay/code/gitops/helm-charts/yaytsa/
+# See /Users/nikolay/code/gitops/helm-charts/yay-tsa/
 # Deployment managed via Argo CD (gitops repository)
 ```
 
@@ -64,7 +64,7 @@ docker compose --profile test up    # Run E2E tests
 
 ### Three-Layer Architecture
 
-**Layer 1: Core (`@yaytsa/core`)** - 100% portable
+**Layer 1: Core (`@yay-tsa/core`)** - 100% portable
 
 - **No UI framework dependencies** - pure TypeScript business logic
 - **API Client** (`api/client.ts:14-324`) - HTTP client with Emby-compatible auth headers
@@ -72,14 +72,14 @@ docker compose --profile test up    # Run E2E tests
 - **State Machines** - PlaybackQueue (`player/queue.ts:8-426`) with shuffle/repeat logic
 - **Models** - TypeScript types for media server entities
 
-**Layer 2: Platform (`@yaytsa/platform`)** - 0% portable (intentionally)
+**Layer 2: Platform (`@yay-tsa/platform`)** - 0% portable (intentionally)
 
 - **AudioEngine Interface** (`audio.interface.ts:6-90`) - Contract for audio playback
 - **HTML5AudioEngine** (`web/html5-audio.ts`) - Browser implementation using Web Audio API
 - **MediaSessionManager** (`web/media-session.ts`) - Background playback control (lock screen, notifications)
 - Future: ExpoAudioEngine for React Native, TauriAudioEngine for desktop
 
-**Layer 3: Web (`@yaytsa/web`)** - 85-95% portable UI
+**Layer 3: Web (`@yay-tsa/web`)** - 85-95% portable UI
 
 - **React 19** with Vite 7 (SPA mode)
 - **Zustand Stores** (`features/*/stores/`) - Reactive state management per feature
@@ -180,7 +180,7 @@ headers: {
 **buildAuthHeader Format** (`client.ts:36-50`):
 
 ```
-MediaBrowser Client="Yaytsa", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
+MediaBrowser Client="Yay-Tsa", Device="Chrome", DeviceId="uuid", Version="0.1.0", Token="..."
 ```
 
 **Session Storage Strategy** (`features/auth/stores/auth.store.ts`):
@@ -251,7 +251,7 @@ reportPlaybackProgress({
 **Workspace References**:
 
 - Core: `tsconfig.json:2-23` - standalone, no dependencies, strict mode
-- Platform: Depends on `@yaytsa/core` via workspace
+- Platform: Depends on `@yay-tsa/core` via workspace
 - Web: Vite/React tsconfig, imports both core + platform
 
 **Transpilation**:
@@ -270,7 +270,7 @@ reportPlaybackProgress({
 **Production Optimizations**:
 
 - Terser minification with `drop: ['console', 'debugger']`
-- `optimizeDeps: { include: ['@yaytsa/core', '@yaytsa/platform'] }`
+- `optimizeDeps: { include: ['@yay-tsa/core', '@yay-tsa/platform'] }`
 - Manual chunks for code splitting
 
 ### Vite SPA Configuration
@@ -382,11 +382,11 @@ script-src 'self';
 
 ### Kubernetes (via GitOps)
 
-**GitOps Repository**: `/Users/nikolay/code/gitops/helm-charts/yaytsa/`
+**GitOps Repository**: `/Users/nikolay/code/gitops/helm-charts/yay-tsa/`
 
 **Deployment Workflow**:
 
-1. Build Docker image: `docker build -t yaytsa:tag .`
+1. Build Docker image: `docker build -t yay-tsa:tag .`
 2. Push to registry
 3. Update `values.yaml` in gitops repo
 4. ArgoCD auto-syncs to cluster
@@ -428,7 +428,7 @@ script-src 'self';
 - `docker-compose.yml` - Development and production configs
 - `infra/nginx/nginx.conf.template` - Nginx configuration
 - `apps/web/docker/entrypoint.sh` - Frontend container entrypoint
-- `/Users/nikolay/code/gitops/helm-charts/yaytsa/` - Kubernetes manifests
+- `/Users/nikolay/code/gitops/helm-charts/yay-tsa/` - Kubernetes manifests
 
 ## Additional Documentation
 

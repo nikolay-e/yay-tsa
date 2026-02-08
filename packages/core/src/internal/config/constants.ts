@@ -7,7 +7,7 @@
  */
 // Placeholder - actual version injected at runtime via APP_VERSION env var
 export const APP_VERSION = '0.0.0-placeholder';
-export const DEFAULT_CLIENT_NAME = 'Yaytsa';
+export const DEFAULT_CLIENT_NAME = 'Yay-Tsa';
 export const DEFAULT_DEVICE_NAME = 'Web Browser';
 
 /**

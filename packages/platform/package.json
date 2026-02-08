@@ -1,5 +1,5 @@
 {
-  "name": "@yaytsa/platform",
+  "name": "@yay-tsa/platform",
   "version": "0.0.0-placeholder",
   "type": "module",
   "exports": {
@@ -14,7 +14,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@yaytsa/core": "*"
+    "@yay-tsa/core": "*"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",

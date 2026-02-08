@@ -1,6 +1,6 @@
-# E2E Tests - Yaytsa Music Client
+# E2E Tests - Yay-Tsa Music Client
 
-Playwright E2E тесты для веб-приложения Yaytsa.
+Playwright E2E тесты для веб-приложения Yay-Tsa.
 
 ## Setup
 

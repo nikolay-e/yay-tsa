@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "yaytsa.fullname" . }}
+  name: {{ include "yay-tsa.fullname" . }}
   labels:
-    {{- include "yaytsa.labels" . | nindent 4 }}
+    {{- include "yay-tsa.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
 spec:
   type: {{ .Values.service.type }}
@@ -13,5 +13,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "yaytsa.selectorLabels" . | nindent 4 }}
+    {{- include "yay-tsa.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: frontend

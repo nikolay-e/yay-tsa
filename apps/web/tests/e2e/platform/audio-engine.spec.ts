@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/playback.fixture';
 
-test.describe('@yaytsa/platform: HTML5AudioEngine', () => {
+test.describe('@yay-tsa/platform: HTML5AudioEngine', () => {
   test('Given: Audio loaded, When: fadeVolume called, Then: Volume transitions smoothly', async ({
     playAlbumFromLibrary,
     playerBar,

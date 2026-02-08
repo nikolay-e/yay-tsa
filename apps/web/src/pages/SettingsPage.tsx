@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RefreshCw, HardDrive, Info, Server, LogOut } from 'lucide-react';
-import { AdminService, MediaServerError } from '@yaytsa/core';
+import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { VersionInfo } from '@/shared/components/VersionInfo';

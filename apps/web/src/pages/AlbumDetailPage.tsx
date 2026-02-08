@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Shuffle } from 'lucide-react';
-import { ItemsService, type MusicAlbum } from '@yaytsa/core';
+import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';

@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '@yaytsa/core';
+import { STORAGE_KEYS } from '@yay-tsa/core';
 
 export interface SessionData {
   token: string;

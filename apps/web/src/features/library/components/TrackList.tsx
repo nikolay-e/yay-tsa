@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
-import { type AudioItem } from '@yaytsa/core';
+import { type AudioItem } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatTicks } from '@/shared/utils/time';

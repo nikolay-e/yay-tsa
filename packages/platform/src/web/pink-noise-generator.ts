@@ -1,4 +1,4 @@
-import { createLogger } from '@yaytsa/core';
+import { createLogger } from '@yay-tsa/core';
 import { easeInOutQuad } from '../shared/easing.js';
 
 const log = createLogger('PinkNoise');

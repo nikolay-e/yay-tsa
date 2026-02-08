@@ -1,6 +1,6 @@
 # License
 
-Yaytsa – music player  
+Yay-Tsa – music player  
 Copyright (C) 2025  Nikolay Eremeev
 
 This program is free software; you can redistribute it and/or modify

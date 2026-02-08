@@ -7,7 +7,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
- * Yaytsa Media Server Application
+ * Yay-Tsa Media Server Application
  *
  * <p>A Jellyfin-compatible media server built with Spring Boot 3.3 and Java 21 virtual threads.
  * This server provides streaming capabilities, library management, and playback tracking for music

@@ -1,21 +1,21 @@
-# @yaytsa/core
+# @yay-tsa/core
 
-Framework-agnostic business logic for Yaytsa music player.
+Framework-agnostic business logic for Yay-Tsa music player.
 
 ## Installation
 
 ```bash
-npm install @yaytsa/core
+npm install @yay-tsa/core
 ```
 
 ## Usage
 
 ```typescript
-import { MediaServerClient, PlaybackQueue } from '@yaytsa/core';
+import { MediaServerClient, PlaybackQueue } from '@yay-tsa/core';
 
 const client = new MediaServerClient({
   serverUrl: 'https://your-server.com',
-  clientInfo: { name: 'Yaytsa', version: '1.0.0' },
+  clientInfo: { name: 'Yay-Tsa', version: '1.0.0' },
 });
 
 await client.authenticate(username, password);

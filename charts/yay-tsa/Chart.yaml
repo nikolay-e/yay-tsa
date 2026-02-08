@@ -1,5 +1,5 @@
 apiVersion: v2
-name: yaytsa
+name: yay-tsa
 description: A portable, minimal music client for Jellyfin
 type: application
 
@@ -18,7 +18,7 @@ keywords:
 maintainers:
   - name: Nikolay Eremeev
 
-home: https://github.com/nikolay-e/yaytsa
+home: https://github.com/nikolay-e/yay-tsa
 
 sources:
-  - https://github.com/nikolay-e/yaytsa
+  - https://github.com/nikolay-e/yay-tsa

@@ -1,4 +1,4 @@
-import { ticksToSeconds } from '@yaytsa/core';
+import { ticksToSeconds } from '@yay-tsa/core';
 
 export function formatSeconds(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';

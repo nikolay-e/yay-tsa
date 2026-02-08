@@ -116,8 +116,8 @@ echo "INFO: Log level set to: $YAYTSA_LOG_LEVEL"
 # Note: version is baked into static files at Docker build time via sed
 CONFIG_JSON=$(jq -n \
   --arg serverUrl "${YAYTSA_SERVER_URL:-}" \
-  --arg clientName "${YAYTSA_CLIENT_NAME:-Yaytsa}" \
-  --arg deviceName "${YAYTSA_DEVICE_NAME:-Yaytsa Web}" \
+  --arg clientName "${YAYTSA_CLIENT_NAME:-Yay-Tsa}" \
+  --arg deviceName "${YAYTSA_DEVICE_NAME:-Yay-Tsa Web}" \
   --arg logLevel "${YAYTSA_LOG_LEVEL}" \
   '{
     serverUrl: $serverUrl,
@@ -206,7 +206,7 @@ YAYTSA_MEDIA_PATH="${YAYTSA_MEDIA_PATH:-/media}"
 echo "INFO: Media path for X-Accel-Redirect: $YAYTSA_MEDIA_PATH"
 
 # Backend URL for nginx proxying (MUST be absolute http/https URL)
-# In docker-compose: defaults to http://backend:8096 (yaytsa-backend service)
+# In docker-compose: defaults to http://backend:8096 (yay-tsa-backend service)
 # In Kubernetes: use internal service discovery URL
 # NEVER falls back to YAYTSA_SERVER_URL (which can be relative /api)
 if [ -z "$YAYTSA_BACKEND_URL" ]; then
@@ -216,8 +216,8 @@ if [ -z "$YAYTSA_BACKEND_URL" ]; then
     echo "INFO: Using default docker-compose backend URL: $YAYTSA_BACKEND_URL"
     ;;
   "kubernetes")
-    K8S_NAMESPACE="${KUBERNETES_NAMESPACE:-yaytsa-production}"
-    YAYTSA_BACKEND_URL="http://yaytsa-server.${K8S_NAMESPACE}.svc.cluster.local:8080"
+    K8S_NAMESPACE="${KUBERNETES_NAMESPACE:-yay-tsa-production}"
+    YAYTSA_BACKEND_URL="http://yay-tsa-server.${K8S_NAMESPACE}.svc.cluster.local:8080"
     echo "INFO: Using default Kubernetes backend URL: $YAYTSA_BACKEND_URL"
     ;;
   *)

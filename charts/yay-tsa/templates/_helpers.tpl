@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "yaytsa.name" -}}
+{{- define "yay-tsa.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "yaytsa.fullname" -}}
+{{- define "yay-tsa.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "yaytsa.chart" -}}
+{{- define "yay-tsa.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "yaytsa.labels" -}}
-helm.sh/chart: {{ include "yaytsa.chart" . }}
-{{ include "yaytsa.selectorLabels" . }}
+{{- define "yay-tsa.labels" -}}
+helm.sh/chart: {{ include "yay-tsa.chart" . }}
+{{ include "yay-tsa.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,7 +43,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "yaytsa.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "yaytsa.name" . }}
+{{- define "yay-tsa.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "yay-tsa.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}

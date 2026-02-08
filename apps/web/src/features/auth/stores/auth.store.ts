@@ -7,7 +7,7 @@ import {
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   type ClientInfo,
-} from '@yaytsa/core';
+} from '@yay-tsa/core';
 import {
   saveSession,
   saveSessionPersistent,

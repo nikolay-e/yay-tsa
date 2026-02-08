@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ItemsService, type MusicAlbum } from '@yaytsa/core';
+import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
