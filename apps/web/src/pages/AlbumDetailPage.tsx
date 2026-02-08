@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Play, Shuffle } from 'lucide-react';
+import { Pause, Play, Shuffle } from 'lucide-react';
 import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -99,7 +99,11 @@ export function AlbumDetailPage() {
             <button
               data-testid="album-play-button"
               onClick={() => {
-                if (id) void playAlbum(id);
+                if (isPlaying && currentTrack?.AlbumId === id) {
+                  pause();
+                } else if (id) {
+                  void playAlbum(id);
+                }
               }}
               className={cn(
                 'flex items-center gap-2 px-6 py-2',
@@ -107,8 +111,17 @@ export function AlbumDetailPage() {
                 'hover:bg-accent-hover transition-colors'
               )}
             >
-              <Play className="h-5 w-5" fill="currentColor" />
-              Play
+              {isPlaying && currentTrack?.AlbumId === id ? (
+                <>
+                  <Pause className="h-5 w-5" fill="currentColor" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="h-5 w-5" fill="currentColor" />
+                  Play
+                </>
+              )}
             </button>
             <button
               data-testid="album-shuffle-button"
