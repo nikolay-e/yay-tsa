@@ -34,6 +34,7 @@ public class SessionService {
   private final AudioTrackRepository audioTrackRepository;
   private final PlayStateService playStateService;
   private final PlayHistoryRepository playHistoryRepository;
+  private final LyricsFetchService lyricsFetchService;
 
   public SessionService(
       SessionRepository sessionRepository,
@@ -41,13 +42,15 @@ public class SessionService {
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
       PlayStateService playStateService,
-      PlayHistoryRepository playHistoryRepository) {
+      PlayHistoryRepository playHistoryRepository,
+      LyricsFetchService lyricsFetchService) {
     this.sessionRepository = sessionRepository;
     this.userRepository = userRepository;
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.playStateService = playStateService;
     this.playHistoryRepository = playHistoryRepository;
+    this.lyricsFetchService = lyricsFetchService;
   }
 
   public void reportPlaybackStart(UUID userId, String deviceId, String deviceName, UUID itemId) {
@@ -64,6 +67,12 @@ public class SessionService {
     session.setPlaybackStartedAt(OffsetDateTime.now());
     session.setLastUpdate(OffsetDateTime.now());
     sessionRepository.save(session);
+
+    if (item != null && item.getType() == ItemType.AudioTrack) {
+      audioTrackRepository
+          .findByIdWithRelations(itemId)
+          .ifPresent(lyricsFetchService::fetchLyricsForTrackAsync);
+    }
   }
 
   public void reportPlaybackProgress(

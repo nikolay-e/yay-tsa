@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -286,6 +287,41 @@ public class LyricsFetchService {
     } catch (Exception e) {
       failed.incrementAndGet();
       log.debug("Error processing lyrics for track {}: {}", track.getItemId(), e.getMessage());
+    }
+  }
+
+  @Async
+  public void fetchLyricsForTrackAsync(AudioTrackEntity track) {
+    if (track.getItem() == null || track.getItem().getPath() == null || !hasArtistName(track)) {
+      return;
+    }
+
+    try {
+      Path trackPath = Path.of(track.getItem().getPath());
+      Path lyricsDir = trackPath.getParent().resolve(".lyrics");
+      Path lrcPath =
+          lyricsDir.resolve(trackPath.getFileName().toString().replaceFirst("\\.[^.]+$", ".lrc"));
+
+      if (Files.exists(lrcPath) && Files.size(lrcPath) > 0) {
+        return;
+      }
+
+      String artist = resolveArtistName(track);
+      String title = track.getItem().getName();
+      Long durationMs = track.getDurationMs();
+      String album = track.getAlbum() != null ? track.getAlbum().getName() : null;
+
+      log.info("On-demand lyrics fetch for: {} - {}", artist, title);
+      LyricsResult result =
+          client.fetchLyrics(artist, title, lrcPath.toString(), durationMs, album, false);
+
+      if (result.success()) {
+        log.info(
+            "On-demand lyrics fetched for: {} - {} (source: {})", artist, title, result.source());
+      }
+    } catch (Exception e) {
+      log.debug(
+          "On-demand lyrics fetch failed for track {}: {}", track.getItemId(), e.getMessage());
     }
   }
 
