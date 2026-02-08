@@ -736,7 +736,6 @@ export class HTML5AudioEngine implements AudioEngine {
     const currentElement = this.audio;
     const nextElement = this.audioSecondary;
 
-    const wasPlaying = this._isPlaying;
     const newDuration = nextElement.duration;
 
     // Seek to position before starting
@@ -749,10 +748,9 @@ export class HTML5AudioEngine implements AudioEngine {
       nextElement.volume = 0;
     }
 
-    // Start next element if we were playing
-    if (wasPlaying) {
-      await nextElement.play();
-    }
+    // Always start next element — seamless switch means continuous playback.
+    // Callers that need paused state should pause() after the switch.
+    await nextElement.play();
 
     // Crossfade via WebAudio GainNodes (sample-accurate) or element.volume (fallback)
     if (

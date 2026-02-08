@@ -142,6 +142,7 @@ async function gaplessSwitchUrl(
   if (engine.preload && engine.seamlessSwitch) {
     await engine.preload(url);
     const result = await engine.seamlessSwitch(seekPosition, 50);
+    if (!wasPlaying) engine.pause();
     if (result) {
       useTimingStore.getState().updateTiming(seekPosition, result.duration);
     }
