@@ -74,7 +74,7 @@ public class LyricsFetchService {
         return false;
       }
 
-      List<AudioTrackEntity> tracks = audioTrackRepository.findAll();
+      List<AudioTrackEntity> tracks = audioTrackRepository.findAllWithRelations();
 
       AtomicInteger total = new AtomicInteger(0);
       AtomicInteger fetched = new AtomicInteger(0);
@@ -135,7 +135,7 @@ public class LyricsFetchService {
         return false;
       }
 
-      List<AudioTrackEntity> tracks = audioTrackRepository.findAll();
+      List<AudioTrackEntity> tracks = audioTrackRepository.findAllWithRelations();
 
       AtomicInteger total = new AtomicInteger(0);
       AtomicInteger fetched = new AtomicInteger(0);

@@ -30,4 +30,12 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
           + "LEFT JOIN FETCH at.albumArtist "
           + "WHERE at.itemId IN :itemIds")
   List<AudioTrackEntity> findAllByIdInWithRelations(@Param("itemIds") Collection<UUID> itemIds);
+
+  @Query(
+      "SELECT at FROM AudioTrackEntity at "
+          + "LEFT JOIN FETCH at.item "
+          + "LEFT JOIN FETCH at.album a "
+          + "LEFT JOIN FETCH a.parent "
+          + "LEFT JOIN FETCH at.albumArtist")
+  List<AudioTrackEntity> findAllWithRelations();
 }
