@@ -78,9 +78,9 @@ export function RootLayout() {
       {showNavigation && <Sidebar hasPlayer={!!showPlayer} />}
       <main
         className={cn(
-          'h-full min-h-screen flex-1 overflow-y-auto',
+          'pt-safe h-full min-h-screen flex-1 overflow-y-auto',
           showNavigation && 'md:ml-sidebar',
-          showNavigation && (showPlayer ? 'pb-32' : 'pb-14'),
+          showNavigation && (showPlayer ? 'pb-mobile-nav-player' : 'pb-mobile-nav'),
           showNavigation && (showPlayer ? 'md:pb-20' : 'md:pb-0')
         )}
       >
@@ -103,7 +103,7 @@ function Sidebar({ hasPlayer }: SidebarProps) {
     <aside
       data-testid="sidebar"
       className={cn(
-        'w-sidebar border-border bg-bg-secondary fixed top-0 left-0 z-40 hidden h-full flex-col border-r md:flex',
+        'w-sidebar border-border bg-bg-secondary pt-safe fixed top-0 left-0 z-40 hidden h-full flex-col border-r md:flex',
         hasPlayer && 'pb-20'
       )}
     >
@@ -142,27 +142,29 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
     <nav
       data-testid="bottom-tab-bar"
       className={cn(
-        'border-border bg-bg-secondary z-bottom-tab h-bottom-tab fixed right-0 bottom-0 left-0 flex items-center justify-around border-t md:hidden',
-        hasPlayer && 'bottom-above-player'
+        'border-border bg-bg-secondary z-bottom-tab px-safe fixed right-0 bottom-0 left-0 border-t md:hidden',
+        hasPlayer ? 'bottom-above-player' : 'pb-safe'
       )}
     >
-      {NAV_ITEMS.map(item => {
-        const isActive = location.pathname === item.href;
-        return (
-          <Link
-            key={item.href}
-            to={item.href}
-            data-testid={item.testId}
-            className={cn(
-              'flex flex-1 flex-col items-center gap-1 py-2 transition-colors',
-              isActive ? 'text-accent' : 'text-text-secondary'
-            )}
-          >
-            <item.icon className="h-5 w-5" />
-            <span className="text-xs">{item.label}</span>
-          </Link>
-        );
-      })}
+      <div className="h-bottom-tab flex items-center justify-around">
+        {NAV_ITEMS.map(item => {
+          const isActive = location.pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              data-testid={item.testId}
+              className={cn(
+                'flex flex-1 flex-col items-center gap-1 py-2 transition-colors',
+                isActive ? 'text-accent' : 'text-text-secondary'
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="text-xs">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

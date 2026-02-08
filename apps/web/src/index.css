@@ -26,7 +26,10 @@
   --spacing-player-bar-mobile: 64px;
   --spacing-sidebar: 160px;
   --spacing-bottom-tab: 52px;
+  --spacing-safe-t: env(safe-area-inset-top, 0);
+  --spacing-safe-r: env(safe-area-inset-right, 0);
   --spacing-safe-b: env(safe-area-inset-bottom, 0);
+  --spacing-safe-l: env(safe-area-inset-left, 0);
 
   /* Border Radius */
   --radius-xs: 2px;
@@ -119,10 +122,10 @@
   html,
   body {
     height: 100dvh;
+    background-color: var(--color-bg-primary);
   }
 
   body {
-    background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -172,8 +175,31 @@
   padding-top: env(safe-area-inset-top, 0);
 }
 
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+@utility px-safe {
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
 @utility safe-area-bottom {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0) + 0.5rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+@utility pb-mobile-nav {
+  padding-bottom: calc(var(--spacing-bottom-tab) + env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
+
+@utility pb-mobile-nav-player {
+  padding-bottom: calc(
+    var(--spacing-bottom-tab) + 4.5rem + env(safe-area-inset-bottom, 0px) + 0.75rem
+  );
 }
 
 @utility scrollbar-thin {
@@ -219,7 +245,7 @@
 }
 
 @utility bottom-above-player {
-  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0));
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* Tailwind CSS Animate compatible utilities */

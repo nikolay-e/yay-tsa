@@ -133,6 +133,26 @@ function resetPreloadState(): void {
   preloadedStreamUrl = null;
 }
 
+async function gaplessSwitchUrl(
+  engine: AudioEngine,
+  url: string,
+  seekPosition: number,
+  wasPlaying: boolean
+): Promise<void> {
+  if (engine.preload && engine.seamlessSwitch) {
+    await engine.preload(url);
+    const result = await engine.seamlessSwitch(seekPosition, 50);
+    if (result) {
+      useTimingStore.getState().updateTiming(seekPosition, result.duration);
+    }
+    return;
+  }
+
+  await engine.load(url);
+  engine.seek(seekPosition);
+  if (wasPlaying) await engine.play();
+}
+
 const initialState: PlayerState = {
   queue: new PlaybackQueue(),
   currentTrack: null,
@@ -617,9 +637,8 @@ export const usePlayerStore = create<PlayerStore>()(
 
             if (status.state === 'READY') {
               const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-              await engine.load(instrumentalUrl);
-              engine.seek(currentTime);
-              if (wasPlaying) await engine.play();
+              await gaplessSwitchUrl(engine, instrumentalUrl, currentTime, wasPlaying);
+              resetPreloadState();
               set({ karaokeStatus: status, isKaraokeMode: true, isLoading: false });
               return;
             }
@@ -628,9 +647,8 @@ export const usePlayerStore = create<PlayerStore>()(
           } else {
             const itemsService = new ItemsService(currentClient);
             const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
-            await engine.load(streamUrl);
-            engine.seek(currentTime);
-            if (wasPlaying) await engine.play();
+            await gaplessSwitchUrl(engine, streamUrl, currentTime, wasPlaying);
+            resetPreloadState();
             set({ isKaraokeMode: false, karaokeStatus: null, isLoading: false });
           }
         } catch (error) {
@@ -657,9 +675,8 @@ export const usePlayerStore = create<PlayerStore>()(
           if (status.state === 'READY') {
             const currentTime = engine.getCurrentTime();
             const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-            await engine.load(instrumentalUrl);
-            engine.seek(currentTime);
-            if (wasPlaying) await engine.play();
+            await gaplessSwitchUrl(engine, instrumentalUrl, currentTime, wasPlaying);
+            resetPreloadState();
             set({ karaokeStatus: status, isKaraokeMode: true });
           } else {
             set({ karaokeStatus: status });
