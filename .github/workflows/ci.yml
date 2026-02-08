@@ -113,7 +113,27 @@ jobs:
 
       - name: Build and run tests
         run: |
-          docker compose --profile test up --build --exit-code-from test --abort-on-container-exit
+          docker compose --profile test up --build -d
+          docker compose --profile test logs -f backend-test test &
+          LOGS_PID=$!
+          BACKEND_EXIT=$(docker wait yay-tsa-backend-test)
+          TEST_EXIT=$(docker wait yay-tsa-test)
+          kill $LOGS_PID 2>/dev/null || true
+          echo "Backend tests exit code: $BACKEND_EXIT"
+          echo "Frontend tests exit code: $TEST_EXIT"
+          if [ "$BACKEND_EXIT" -ne 0 ]; then
+            echo "::group::Failed backend test logs"
+            docker logs yay-tsa-backend-test
+            echo "::endgroup::"
+          fi
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::group::Failed frontend test logs"
+            docker logs yay-tsa-test
+            echo "::endgroup::"
+          fi
+          if [ "$BACKEND_EXIT" -ne 0 ] || [ "$TEST_EXIT" -ne 0 ]; then
+            exit 1
+          fi
         env:
           YAYTSA_TEST_USERNAME: admin
           YAYTSA_TEST_PASSWORD: admin123

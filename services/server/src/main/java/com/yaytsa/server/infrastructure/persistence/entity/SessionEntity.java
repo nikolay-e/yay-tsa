@@ -70,6 +70,9 @@ public class SessionEntity {
   @Column(name = "is_shuffled", nullable = false)
   private Boolean isShuffled = false;
 
+  @Column(name = "playback_started_at")
+  private OffsetDateTime playbackStartedAt;
+
   @Column(name = "last_update", nullable = false)
   private OffsetDateTime lastUpdate;
 

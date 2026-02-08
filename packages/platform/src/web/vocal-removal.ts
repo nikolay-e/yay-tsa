@@ -9,7 +9,8 @@ export interface VocalRemovalConfig {
 
 export class VocalRemovalProcessor {
   private audioContext: AudioContext;
-  private sourceNode: MediaElementAudioSourceNode | null = null;
+  private inputNode: AudioNode | null = null;
+  private outputNode: AudioNode | null = null;
   private splitter: ChannelSplitterNode | null = null;
   private merger: ChannelMergerNode | null = null;
   private highPassFilter: BiquadFilterNode | null = null;
@@ -31,14 +32,15 @@ export class VocalRemovalProcessor {
     return this._enabled;
   }
 
-  connectToAudioElement(audioElement: HTMLAudioElement): void {
+  connectToGraph(inputNode: AudioNode, outputNode: AudioNode): void {
     if (this.isConnected) {
-      log.warn('Already connected to an audio element');
+      log.warn('Already connected to audio graph');
       return;
     }
 
     try {
-      this.sourceNode = this.audioContext.createMediaElementSource(audioElement);
+      this.inputNode = inputNode;
+      this.outputNode = outputNode;
       this.createProcessingNodes();
       this.isConnected = true;
 
@@ -48,7 +50,7 @@ export class VocalRemovalProcessor {
         this.connectBypass();
       }
 
-      log.info('Vocal removal processor connected');
+      log.info('Vocal removal processor connected to graph');
     } catch (error) {
       log.error('Failed to connect vocal removal processor', { error: String(error) });
       throw error;
@@ -80,9 +82,9 @@ export class VocalRemovalProcessor {
   }
 
   private disconnectAll(): void {
-    if (this.sourceNode) {
+    if (this.inputNode) {
       try {
-        this.sourceNode.disconnect();
+        this.inputNode.disconnect();
       } catch {
         // Already disconnected
       }
@@ -139,16 +141,17 @@ export class VocalRemovalProcessor {
   }
 
   private connectBypass(): void {
-    if (!this.sourceNode || !this.outputGain) return;
+    if (!this.inputNode || !this.outputNode || !this.outputGain) return;
 
     this.disconnectAll();
-    this.sourceNode.connect(this.outputGain);
-    this.outputGain.connect(this.audioContext.destination);
+    this.inputNode.connect(this.outputGain);
+    this.outputGain.connect(this.outputNode);
   }
 
   private connectEffectChain(): void {
     if (
-      !this.sourceNode ||
+      !this.inputNode ||
+      !this.outputNode ||
       !this.splitter ||
       !this.merger ||
       !this.highPassFilter ||
@@ -163,11 +166,11 @@ export class VocalRemovalProcessor {
     this.disconnectAll();
 
     // Low frequencies bypass (preserve bass)
-    this.sourceNode.connect(this.lowPassFilter);
+    this.inputNode.connect(this.lowPassFilter);
     this.lowPassFilter.connect(this.outputGain);
 
     // High frequencies go through phase cancellation
-    this.sourceNode.connect(this.highPassFilter);
+    this.inputNode.connect(this.highPassFilter);
     this.highPassFilter.connect(this.splitter);
 
     // Left output: L - R (left channel + inverted right channel)
@@ -181,7 +184,7 @@ export class VocalRemovalProcessor {
     this.invertGainLeft.connect(this.merger, 0, 1); // Inverted left to right output
 
     this.merger.connect(this.outputGain);
-    this.outputGain.connect(this.audioContext.destination);
+    this.outputGain.connect(this.outputNode);
   }
 
   setEnabled(enabled: boolean): void {
@@ -246,7 +249,8 @@ export class VocalRemovalProcessor {
   dispose(): void {
     this.disconnectAll();
 
-    this.sourceNode = null;
+    this.inputNode = null;
+    this.outputNode = null;
     this.splitter = null;
     this.merger = null;
     this.highPassFilter = null;

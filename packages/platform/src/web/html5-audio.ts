@@ -1,8 +1,3 @@
-/**
- * HTML5 Audio implementation of AudioEngine
- * Uses native browser <audio> element for playback
- */
-
 import { createLogger } from '@yay-tsa/core';
 import { type AudioEngine } from '../audio.interface.js';
 import { easeInOutQuad } from '../shared/easing.js';
@@ -19,11 +14,20 @@ const DEFAULT_LOAD_TIMEOUT_MS = 30000;
 export class HTML5AudioEngine implements AudioEngine {
   private audio: HTMLAudioElement;
   private audioSecondary: HTMLAudioElement;
-  private activeElement: 'primary' | 'secondary' = 'primary';
   private _isPlaying: boolean = false;
   private audioContext: AudioContext | null = null;
   private disposed: boolean = false;
   private readonly loadTimeoutMs: number;
+
+  // WebAudio graph nodes (initialized lazily on first user gesture)
+  private sourceNodePrimary: MediaElementAudioSourceNode | null = null;
+  private sourceNodeSecondary: MediaElementAudioSourceNode | null = null;
+  private elemGainPrimary: GainNode | null = null;
+  private elemGainSecondary: GainNode | null = null;
+  private masterGain: GainNode | null = null;
+  private inputBus: GainNode | null = null;
+  private webAudioInitialized: boolean = false;
+  private storedVolume: number = 1;
 
   // Preload state for seamless switching
   private preloadedUrl: string | null = null;
@@ -80,7 +84,7 @@ export class HTML5AudioEngine implements AudioEngine {
   // Track current fade operation for cancellation
   private currentFadeCancel: (() => void) | null = null;
 
-  // Track element fades for crossfade cancellation
+  // Track element fades for crossfade cancellation (fallback path only)
   private activeElementFades: Set<() => void> = new Set();
 
   // Vocal removal processor for karaoke mode
@@ -142,6 +146,7 @@ export class HTML5AudioEngine implements AudioEngine {
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
           log.info('AudioContext initialized lazily');
+          this.initWebAudioGraph();
         }
       } catch (error) {
         log.warn('AudioContext creation failed, using basic audio', {
@@ -151,6 +156,51 @@ export class HTML5AudioEngine implements AudioEngine {
     }
 
     return this.audioContext;
+  }
+
+  private initWebAudioGraph(): void {
+    if (this.webAudioInitialized || !this.audioContext) return;
+
+    try {
+      this.masterGain = this.audioContext.createGain();
+      this.masterGain.gain.value = this.storedVolume;
+
+      this.inputBus = this.audioContext.createGain();
+      this.inputBus.gain.value = 1;
+
+      // Create source nodes AFTER masterGain so volume is correct immediately
+      this.sourceNodePrimary = this.audioContext.createMediaElementSource(this.audio);
+      this.sourceNodeSecondary = this.audioContext.createMediaElementSource(this.audioSecondary);
+
+      this.elemGainPrimary = this.audioContext.createGain();
+      this.elemGainPrimary.gain.value = 1;
+
+      this.elemGainSecondary = this.audioContext.createGain();
+      this.elemGainSecondary.gain.value = 0;
+
+      // Connect the graph:
+      // SourceA → ElemGainA ─┐
+      //                       ├→ InputBus → MasterGain → Destination
+      // SourceB → ElemGainB ─┘
+      this.sourceNodePrimary.connect(this.elemGainPrimary);
+      this.sourceNodeSecondary.connect(this.elemGainSecondary);
+      this.elemGainPrimary.connect(this.inputBus);
+      this.elemGainSecondary.connect(this.inputBus);
+      this.inputBus.connect(this.masterGain);
+      this.masterGain.connect(this.audioContext.destination);
+
+      // Volume now controlled via masterGain; element.volume must be 1
+      // (element.volume acts as pre-gain before MediaElementAudioSourceNode)
+      this.audio.volume = 1;
+      this.audioSecondary.volume = 1;
+
+      this.webAudioInitialized = true;
+      log.info('WebAudio graph initialized');
+    } catch (error) {
+      log.warn('Failed to initialize WebAudio graph, using basic audio', {
+        error: String(error),
+      });
+    }
   }
 
   private sanitizeError(error: unknown): string {
@@ -341,8 +391,14 @@ export class HTML5AudioEngine implements AudioEngine {
   setVolume(level: number): void {
     this.ensureNotDisposed();
 
-    // Clamp between 0 and 1
-    this.audio.volume = Math.max(0, Math.min(1, level));
+    const clamped = Math.max(0, Math.min(1, level));
+    this.storedVolume = clamped;
+
+    if (this.masterGain && this.audioContext) {
+      this.masterGain.gain.setValueAtTime(clamped, this.audioContext.currentTime);
+    } else {
+      this.audio.volume = clamped;
+    }
   }
 
   getCurrentTime(): number {
@@ -359,7 +415,7 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   getVolume(): number {
-    return this.audio.volume;
+    return this.storedVolume;
   }
 
   isPlaying(): boolean {
@@ -444,6 +500,31 @@ export class HTML5AudioEngine implements AudioEngine {
       this.vocalRemovalProcessor.dispose();
       this.vocalRemovalProcessor = null;
     }
+
+    // Disconnect WebAudio nodes (ignore errors from already-disconnected nodes)
+    if (this.webAudioInitialized) {
+      const nodes = [
+        this.sourceNodePrimary,
+        this.sourceNodeSecondary,
+        this.elemGainPrimary,
+        this.elemGainSecondary,
+        this.inputBus,
+        this.masterGain,
+      ];
+      for (const node of nodes) {
+        try {
+          node?.disconnect();
+        } catch (_) {
+          // Node already disconnected
+        }
+      }
+    }
+    this.sourceNodePrimary = null;
+    this.sourceNodeSecondary = null;
+    this.elemGainPrimary = null;
+    this.elemGainSecondary = null;
+    this.inputBus = null;
+    this.masterGain = null;
 
     // Close audio context
     if (this.audioContext && this.audioContext.state !== 'closed') {
@@ -542,8 +623,8 @@ export class HTML5AudioEngine implements AudioEngine {
     this.ensureNotDisposed();
 
     const ctx = this.ensureAudioContext();
-    if (!ctx) {
-      log.warn('AudioContext not available for karaoke mode');
+    if (!ctx || !this.webAudioInitialized || !this.inputBus || !this.masterGain) {
+      log.warn('WebAudio not available for karaoke mode');
       this.karaokeEnabled = false;
       return;
     }
@@ -552,14 +633,24 @@ export class HTML5AudioEngine implements AudioEngine {
 
     if (enabled && !this.vocalRemovalProcessor) {
       try {
+        // Disconnect direct path: inputBus → masterGain
+        this.inputBus.disconnect(this.masterGain);
+
+        // Create and insert vocal removal processor between inputBus and masterGain
         this.vocalRemovalProcessor = new VocalRemovalProcessor(ctx, {
           enabled: true,
           bassPreservationCutoff: 120,
         });
-        this.vocalRemovalProcessor.connectToAudioElement(this.audio);
+        this.vocalRemovalProcessor.connectToGraph(this.inputBus, this.masterGain);
         log.info('Karaoke mode enabled');
       } catch (error) {
         log.error('Failed to enable karaoke mode', { error: String(error) });
+        // Restore direct connection on failure
+        try {
+          this.inputBus.connect(this.masterGain);
+        } catch (_) {
+          // Best-effort reconnect
+        }
         this.karaokeEnabled = false;
       }
     } else if (this.vocalRemovalProcessor) {
@@ -572,11 +663,6 @@ export class HTML5AudioEngine implements AudioEngine {
     return this.karaokeEnabled;
   }
 
-  /**
-   * Preload audio into secondary element for seamless switching.
-   * Returns immediately, loading happens in background.
-   * Use seamlessSwitch() when ready to switch.
-   */
   async preload(url: string): Promise<void> {
     this.ensureNotDisposed();
 
@@ -591,7 +677,8 @@ export class HTML5AudioEngine implements AudioEngine {
       this.preloadEventCleanup = null;
     }
 
-    const targetElement = this.activeElement === 'primary' ? this.audioSecondary : this.audio;
+    // Always preload into secondary element (this.audio is always the active one)
+    const targetElement = this.audioSecondary;
 
     this.preloadedUrl = url;
     this.preloadPromise = new Promise<void>((resolve, reject) => {
@@ -628,19 +715,10 @@ export class HTML5AudioEngine implements AudioEngine {
     return this.preloadPromise;
   }
 
-  /**
-   * Check if a URL is preloaded and ready for seamless switch
-   */
   isPreloaded(url: string): boolean {
     return this.preloadedUrl === url && this.preloadPromise !== null;
   }
 
-  /**
-   * Seamlessly switch to preloaded audio with crossfade.
-   * No UI blocking - current audio keeps playing during transition.
-   * @param seekPosition - Position to seek to in the new stream (for karaoke switching)
-   * @param crossfadeDurationMs - Crossfade duration (default 150ms for quick switch)
-   */
   async seamlessSwitch(
     seekPosition: number = 0,
     crossfadeDurationMs: number = 150
@@ -654,11 +732,11 @@ export class HTML5AudioEngine implements AudioEngine {
     // Wait for preload to complete (should be instant if already loaded)
     await this.preloadPromise;
 
-    const currentElement = this.activeElement === 'primary' ? this.audio : this.audioSecondary;
-    const nextElement = this.activeElement === 'primary' ? this.audioSecondary : this.audio;
+    // this.audio is always the active element, this.audioSecondary is the preloaded one
+    const currentElement = this.audio;
+    const nextElement = this.audioSecondary;
 
     const wasPlaying = this._isPlaying;
-    const currentVolume = currentElement.volume;
     const newDuration = nextElement.duration;
 
     // Seek to position before starting
@@ -666,40 +744,79 @@ export class HTML5AudioEngine implements AudioEngine {
       nextElement.currentTime = Math.min(seekPosition, newDuration);
     }
 
-    // Set up next element
-    nextElement.volume = 0;
+    // Prepare next element for playback (muted via gain node or element.volume)
+    if (!this.webAudioInitialized) {
+      nextElement.volume = 0;
+    }
 
     // Start next element if we were playing
     if (wasPlaying) {
       await nextElement.play();
     }
 
-    // Crossfade: fade out current, fade in next
-    const fadeOutPromise = this.fadeElementVolume(
-      currentElement,
-      currentVolume,
-      0,
-      crossfadeDurationMs
-    );
-    const fadeInPromise = this.fadeElementVolume(
-      nextElement,
-      0,
-      currentVolume,
-      crossfadeDurationMs
-    );
+    // Crossfade via WebAudio GainNodes (sample-accurate) or element.volume (fallback)
+    if (
+      this.webAudioInitialized &&
+      this.audioContext &&
+      this.elemGainPrimary &&
+      this.elemGainSecondary
+    ) {
+      const now = this.audioContext.currentTime;
+      const fadeEnd = now + crossfadeDurationMs / 1000;
 
-    await Promise.all([fadeOutPromise, fadeInPromise]);
+      // Cancel any in-progress ramps
+      this.elemGainPrimary.gain.cancelScheduledValues(now);
+      this.elemGainSecondary.gain.cancelScheduledValues(now);
+
+      // Crossfade: primary (active) fades out, secondary (preloaded) fades in
+      this.elemGainPrimary.gain.setValueAtTime(1, now);
+      this.elemGainPrimary.gain.linearRampToValueAtTime(0, fadeEnd);
+
+      this.elemGainSecondary.gain.setValueAtTime(0, now);
+      this.elemGainSecondary.gain.linearRampToValueAtTime(1, fadeEnd);
+
+      // Wait for crossfade to complete (small buffer for scheduling precision)
+      await new Promise<void>(resolve => {
+        setTimeout(resolve, crossfadeDurationMs + 20);
+      });
+    } else {
+      // Fallback: element.volume crossfade (when WebAudio not available)
+      const currentVolume = currentElement.volume;
+      const fadeOutPromise = this.fadeElementVolume(
+        currentElement,
+        currentVolume,
+        0,
+        crossfadeDurationMs
+      );
+      const fadeInPromise = this.fadeElementVolume(
+        nextElement,
+        0,
+        currentVolume,
+        crossfadeDurationMs
+      );
+      await Promise.all([fadeOutPromise, fadeInPromise]);
+    }
 
     // Stop old element and free memory
     currentElement.pause();
     currentElement.src = '';
     currentElement.load();
 
-    // Swap active element and both audio references
-    this.activeElement = this.activeElement === 'primary' ? 'secondary' : 'primary';
-    const temp = this.audio;
+    // Swap element references: this.audio always points to the active element
+    const tempElem = this.audio;
     this.audio = this.audioSecondary;
-    this.audioSecondary = temp;
+    this.audioSecondary = tempElem;
+
+    // Swap WebAudio node references to stay aligned with element references
+    if (this.webAudioInitialized) {
+      const tempSource = this.sourceNodePrimary;
+      this.sourceNodePrimary = this.sourceNodeSecondary;
+      this.sourceNodeSecondary = tempSource;
+
+      const tempGain = this.elemGainPrimary;
+      this.elemGainPrimary = this.elemGainSecondary;
+      this.elemGainSecondary = tempGain;
+    }
 
     // Migrate ALL dispatch handlers from old element to new element
     this.detachDispatchHandlers(currentElement);
@@ -731,10 +848,7 @@ export class HTML5AudioEngine implements AudioEngine {
     }
   }
 
-  /**
-   * Get current active audio element (for event handlers)
-   */
   getActiveAudioElement(): HTMLAudioElement {
-    return this.activeElement === 'primary' ? this.audio : this.audioSecondary;
+    return this.audio;
   }
 }
