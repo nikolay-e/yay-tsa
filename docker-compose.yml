@@ -56,6 +56,8 @@ services:
       SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
       CORS_ENABLED: true
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:*,http://frontend:5173'
+      ADMIN_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
+      ADMIN_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
     ports:
