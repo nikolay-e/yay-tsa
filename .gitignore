@@ -59,6 +59,9 @@ tsconfig.tsbuildinfo
 # ESLint cache
 .eslintcache
 
+# Project state (local only)
+CURRENT.md
+
 # Runtime data (not tracked)
 services/server/logs/
 services/server/media/
