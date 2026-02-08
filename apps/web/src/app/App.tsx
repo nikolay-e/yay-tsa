@@ -1,15 +1,32 @@
+import React, { lazy, Suspense } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { RootLayout } from '@/pages/RootLayout';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
-import { AlbumsPage } from '@/pages/AlbumsPage';
-import { AlbumDetailPage } from '@/pages/AlbumDetailPage';
-import { ArtistsPage } from '@/pages/ArtistsPage';
-import { ArtistDetailPage } from '@/pages/ArtistDetailPage';
-import { SongsPage } from '@/pages/SongsPage';
-import { SettingsPage } from '@/pages/SettingsPage';
-import { FavoritesPage } from '@/pages/FavoritesPage';
+import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { ProtectedRoute } from './routing/ProtectedRoute';
+
+const AlbumsPage = lazy(() => import('@/pages/AlbumsPage').then(m => ({ default: m.AlbumsPage })));
+const AlbumDetailPage = lazy(() =>
+  import('@/pages/AlbumDetailPage').then(m => ({ default: m.AlbumDetailPage }))
+);
+const ArtistsPage = lazy(() =>
+  import('@/pages/ArtistsPage').then(m => ({ default: m.ArtistsPage }))
+);
+const ArtistDetailPage = lazy(() =>
+  import('@/pages/ArtistDetailPage').then(m => ({ default: m.ArtistDetailPage }))
+);
+const FavoritesPage = lazy(() =>
+  import('@/pages/FavoritesPage').then(m => ({ default: m.FavoritesPage }))
+);
+const SongsPage = lazy(() => import('@/pages/SongsPage').then(m => ({ default: m.SongsPage })));
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage }))
+);
+
+function LazyRoute({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>;
+}
 
 const router = createBrowserRouter([
   {
@@ -32,7 +49,9 @@ const router = createBrowserRouter([
         path: 'albums',
         element: (
           <ProtectedRoute>
-            <AlbumsPage />
+            <LazyRoute>
+              <AlbumsPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },
@@ -40,7 +59,9 @@ const router = createBrowserRouter([
         path: 'albums/:id',
         element: (
           <ProtectedRoute>
-            <AlbumDetailPage />
+            <LazyRoute>
+              <AlbumDetailPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },
@@ -48,7 +69,9 @@ const router = createBrowserRouter([
         path: 'artists',
         element: (
           <ProtectedRoute>
-            <ArtistsPage />
+            <LazyRoute>
+              <ArtistsPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },
@@ -56,7 +79,9 @@ const router = createBrowserRouter([
         path: 'artists/:id',
         element: (
           <ProtectedRoute>
-            <ArtistDetailPage />
+            <LazyRoute>
+              <ArtistDetailPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },
@@ -64,7 +89,9 @@ const router = createBrowserRouter([
         path: 'favorites',
         element: (
           <ProtectedRoute>
-            <FavoritesPage />
+            <LazyRoute>
+              <FavoritesPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },
@@ -72,7 +99,9 @@ const router = createBrowserRouter([
         path: 'songs',
         element: (
           <ProtectedRoute>
-            <SongsPage />
+            <LazyRoute>
+              <SongsPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },
@@ -80,7 +109,9 @@ const router = createBrowserRouter([
         path: 'settings',
         element: (
           <ProtectedRoute>
-            <SettingsPage />
+            <LazyRoute>
+              <SettingsPage />
+            </LazyRoute>
           </ProtectedRoute>
         ),
       },

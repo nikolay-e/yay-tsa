@@ -78,8 +78,9 @@ http {
         # Security headers
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
-        add_header X-XSS-Protection "1; mode=block" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
         # CSP: Inline scripts allowed via hash for SvelteKit hydration
         # Runtime hashes computed at startup (__CSP_SCRIPT_HASHES__)
         # img-src/media-src use same domains as connect-src (backend serves images/audio)

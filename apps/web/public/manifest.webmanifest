@@ -1,7 +1,7 @@
 {
   "name": "Yay-Tsa",
   "short_name": "Yay-Tsa",
-  "description": "Music Player",
+  "description": "Self-hosted music streaming PWA for your personal media server",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f0f",
