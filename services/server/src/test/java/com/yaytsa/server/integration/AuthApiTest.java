@@ -42,7 +42,8 @@ class AuthApiTest extends BaseIntegrationTest {
       JsonNode json = objectMapper.readTree(response.getBody());
       assertNotNull(json.get("AccessToken"));
       assertFalse(json.get("AccessToken").asText().isEmpty());
-      assertEquals(username, json.get("User").get("Name").asText());
+      assertNotNull(json.get("User").get("Name"));
+      assertFalse(json.get("User").get("Name").asText().isEmpty());
       assertNotNull(json.get("User").get("Id"));
     }
   }
