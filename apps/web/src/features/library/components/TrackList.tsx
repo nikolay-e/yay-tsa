@@ -7,6 +7,7 @@ import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatTicks } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
+import { FavoriteButton } from './FavoriteButton';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
 
@@ -187,6 +188,14 @@ export function TrackList({
               )}
             </div>
 
+            <FavoriteButton
+              itemId={track.Id}
+              isFavorite={track.UserData?.IsFavorite ?? false}
+              className={cn(
+                'shrink-0',
+                !track.UserData?.IsFavorite && 'opacity-0 group-hover:opacity-100'
+              )}
+            />
             <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>
           </div>
         );

@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Shuffle } from 'lucide-react';
 import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
+import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
@@ -93,7 +94,7 @@ export function AlbumDetailPage() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               data-testid="album-play-button"
               onClick={() => {
@@ -123,6 +124,13 @@ export function AlbumDetailPage() {
               <Shuffle className="h-5 w-5" />
               Shuffle
             </button>
+            <div data-testid="album-favorite-button">
+              <FavoriteButton
+                itemId={album.Id}
+                isFavorite={album.UserData?.IsFavorite ?? false}
+                size="md"
+              />
+            </div>
           </div>
         </div>
       </div>

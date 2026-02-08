@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mic, MicOff, Timer, AlignLeft } from 'lucide-react';
+import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatSeconds } from '@/shared/utils/time';
@@ -200,6 +201,10 @@ export function PlayerBar() {
               </p>
             )}
           </div>
+          <FavoriteButton
+            itemId={currentTrack.Id}
+            isFavorite={currentTrack.UserData?.IsFavorite ?? false}
+          />
         </div>
 
         <PlaybackControls

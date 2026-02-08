@@ -8,6 +8,7 @@ import { ArtistsPage } from '@/pages/ArtistsPage';
 import { ArtistDetailPage } from '@/pages/ArtistDetailPage';
 import { SongsPage } from '@/pages/SongsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { FavoritesPage } from '@/pages/FavoritesPage';
 import { ProtectedRoute } from './routing/ProtectedRoute';
 
 const router = createBrowserRouter([
@@ -56,6 +57,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <ArtistDetailPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'favorites',
+        element: (
+          <ProtectedRoute>
+            <FavoritesPage />
           </ProtectedRoute>
         ),
       },
