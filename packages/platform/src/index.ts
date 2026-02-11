@@ -19,3 +19,6 @@ export type { VocalRemovalConfig } from './web/vocal-removal.js';
 // Media Session API for background playback
 export { MediaSessionManager } from './web/media-session.js';
 export type { MediaMetadata, MediaSessionHandlers } from './web/media-session.js';
+
+// Wake Lock for preventing screen lock during playback
+export { WakeLockManager } from './web/wake-lock.js';

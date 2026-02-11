@@ -13,6 +13,7 @@ import {
   HTML5AudioEngine,
   MediaSessionManager,
   PinkNoiseGenerator,
+  WakeLockManager,
   type AudioEngine,
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -74,6 +75,9 @@ let lastProgressReportTime = 0;
 // Gapless preload state
 let preloadedTrackId: string | null = null;
 let preloadedStreamUrl: string | null = null;
+
+// Wake lock to prevent screen auto-lock during playback
+const wakeLock = new WakeLockManager();
 
 // Karaoke toggle serialization
 let karaokeToggleId: symbol | null = null;
@@ -388,6 +392,7 @@ export const usePlayerStore = create<PlayerStore>()(
           error: null,
         });
 
+        void wakeLock.acquire();
         resetPreloadState();
         preloadNextTrack();
       } catch (error) {
@@ -525,6 +530,7 @@ export const usePlayerStore = create<PlayerStore>()(
       pause: () => {
         engine.pause();
         set({ isPlaying: false });
+        wakeLock.release();
 
         if (playbackReporter && currentItemId) {
           playbackReporter
@@ -539,6 +545,7 @@ export const usePlayerStore = create<PlayerStore>()(
         try {
           await engine.play();
           set({ isPlaying: true });
+          void wakeLock.acquire();
 
           if (playbackReporter && currentItemId) {
             playbackReporter
@@ -642,6 +649,7 @@ export const usePlayerStore = create<PlayerStore>()(
         engine.seek(0);
         useTimingStore.getState().reset();
         resetPreloadState();
+        wakeLock.release();
 
         if (playbackReporter && currentItemId) {
           playbackReporter.reportStopped(currentItemId, 0).catch(err => {

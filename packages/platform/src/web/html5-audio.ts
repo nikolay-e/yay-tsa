@@ -108,6 +108,9 @@ export class HTML5AudioEngine implements AudioEngine {
   private vocalRemovalProcessor: VocalRemovalProcessor | null = null;
   private karaokeEnabled: boolean = false;
 
+  // AudioContext interrupt recovery cleanup
+  private contextRecoveryCleanup: (() => void) | null = null;
+
   constructor(options: HTML5AudioEngineOptions = {}) {
     this.loadTimeoutMs = options.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS;
     this.audio = new Audio();
@@ -171,6 +174,7 @@ export class HTML5AudioEngine implements AudioEngine {
           this.audioContext = new AudioContextClass();
           log.info('AudioContext initialized lazily');
           this.initWebAudioGraph();
+          this.setupContextRecovery(this.audioContext);
         }
       } catch (error) {
         log.warn('AudioContext creation failed, using basic audio', {
@@ -180,6 +184,38 @@ export class HTML5AudioEngine implements AudioEngine {
     }
 
     return this.audioContext;
+  }
+
+  private setupContextRecovery(ctx: AudioContext): void {
+    const handleStateChange = () => {
+      const state = ctx.state as string;
+      if ((state === 'suspended' || state === 'interrupted') && this._isPlaying) {
+        log.info('AudioContext interrupted during playback, attempting resume');
+        ctx.resume().catch(err => {
+          log.warn('AudioContext resume failed on statechange', { error: String(err) });
+        });
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const state = ctx.state as string;
+        if (state === 'suspended' || state === 'interrupted') {
+          log.info('Page visible with suspended AudioContext, resuming');
+          ctx.resume().catch(err => {
+            log.warn('AudioContext resume failed on visibilitychange', { error: String(err) });
+          });
+        }
+      }
+    };
+
+    ctx.addEventListener('statechange', handleStateChange);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    this.contextRecoveryCleanup = () => {
+      ctx.removeEventListener('statechange', handleStateChange);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }
 
   private initWebAudioGraph(): void {
@@ -560,6 +596,12 @@ export class HTML5AudioEngine implements AudioEngine {
     this.elemGainSecondary = null;
     this.inputBus = null;
     this.masterGain = null;
+
+    // Remove AudioContext recovery listeners
+    if (this.contextRecoveryCleanup) {
+      this.contextRecoveryCleanup();
+      this.contextRecoveryCleanup = null;
+    }
 
     // Close audio context
     if (this.audioContext && this.audioContext.state !== 'closed') {
