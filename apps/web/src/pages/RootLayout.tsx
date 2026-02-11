@@ -142,8 +142,8 @@ function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
     <nav
       data-testid="bottom-tab-bar"
       className={cn(
-        'border-border bg-bg-secondary z-bottom-tab px-safe fixed right-0 bottom-0 left-0 border-t md:hidden',
-        hasPlayer ? 'bottom-above-player' : 'pb-safe'
+        'border-border bg-bg-secondary z-bottom-tab px-safe fixed right-0 left-0 border-t md:hidden',
+        hasPlayer ? 'bottom-above-player' : 'pb-safe bottom-0'
       )}
     >
       <div className="h-bottom-tab flex items-center justify-around">

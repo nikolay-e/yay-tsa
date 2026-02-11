@@ -99,6 +99,8 @@ export interface AudioEngine {
     crossfadeDurationMs?: number
   ): Promise<{ duration: number; position: number }>;
 
+  transitionToPreloaded?(): Promise<{ duration: number; position: number }>;
+
   /**
    * Gradually fade volume over time (optional - not all engines support this)
    * @param fromLevel Starting volume (0.0 to 1.0)

@@ -75,6 +75,7 @@ let lastProgressReportTime = 0;
 // Gapless preload state
 let preloadedTrackId: string | null = null;
 let preloadedStreamUrl: string | null = null;
+let preloadedKaraokeStatus: KaraokeStatus | null = null;
 
 // Wake lock to prevent screen auto-lock during playback
 const wakeLock = new WakeLockManager();
@@ -140,6 +141,7 @@ function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioIte
 function resetPreloadState(): void {
   preloadedTrackId = null;
   preloadedStreamUrl = null;
+  preloadedKaraokeStatus = null;
 }
 
 async function karaokeSwitchUrl(
@@ -239,7 +241,7 @@ export const usePlayerStore = create<PlayerStore>()(
     const CROSSFADE_MS = 150;
     const APPROACHING_END_MS = CROSSFADE_MS + 350;
 
-    function tryGaplessTransition(): boolean {
+    function tryGaplessTransition(instant: boolean = false): boolean {
       if (gaplessTriggered || !engine) return true;
 
       const { repeatMode, queue } = get();
@@ -255,14 +257,9 @@ export const usePlayerStore = create<PlayerStore>()(
         engine.isPreloaded?.(preloadedStreamUrl)
       ) {
         gaplessTriggered = true;
-        queue.next();
-        if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== nextItem.Id) {
-          queue.jumpTo(0);
-        }
-        gaplessTransition(nextItem).catch(() => {
+        gaplessTransition(nextItem, instant).catch(() => {
           gaplessTriggered = false;
           resetPreloadState();
-          void loadAndPlay(nextItem);
         });
         return true;
       }
@@ -270,7 +267,7 @@ export const usePlayerStore = create<PlayerStore>()(
     }
 
     engine.onApproachingEnd?.(() => {
-      tryGaplessTransition();
+      tryGaplessTransition(false);
     }, APPROACHING_END_MS);
 
     engine.onEnded(() => {
@@ -279,7 +276,7 @@ export const usePlayerStore = create<PlayerStore>()(
         return;
       }
 
-      const { repeatMode, next } = get();
+      const { repeatMode } = get();
 
       if (repeatMode === 'one') {
         engine.seek(0);
@@ -289,15 +286,19 @@ export const usePlayerStore = create<PlayerStore>()(
         return;
       }
 
-      if (!tryGaplessTransition()) {
-        const nextItem = resolveNextItem(get().queue, repeatMode);
-        if (nextItem) {
-          void next();
-        } else {
-          set({ isPlaying: false });
+      if (tryGaplessTransition(true)) return;
+
+      const nextItem = resolveNextItem(get().queue, repeatMode);
+      if (nextItem) {
+        const { queue } = get();
+        queue.next();
+        if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== nextItem.Id) {
+          queue.jumpTo(0);
         }
+        void loadAndPlay(nextItem);
+      } else {
+        set({ isPlaying: false });
       }
-      gaplessTriggered = false;
     });
 
     engine.onLoading(isLoading => {
@@ -415,25 +416,54 @@ export const usePlayerStore = create<PlayerStore>()(
     function preloadNextTrack(): void {
       if (!engine || !currentClient) return;
 
-      const { queue, repeatMode } = get();
+      const { queue, repeatMode, isKaraokeMode } = get();
       const nextItem = resolveNextItem(queue, repeatMode);
 
       if (!nextItem || nextItem.Id === preloadedTrackId) return;
 
-      const itemsService = new ItemsService(currentClient);
-      const streamUrl = itemsService.getStreamUrl(nextItem.Id);
+      const client = currentClient;
+      const trackId = nextItem.Id;
 
-      preloadedTrackId = nextItem.Id;
+      if (isKaraokeMode) {
+        preloadedTrackId = trackId;
+        client
+          .getKaraokeStatus(trackId)
+          .then(async status => {
+            if (preloadedTrackId !== trackId) return;
+            if (status.state === 'READY') {
+              const url = client.getInstrumentalStreamUrl(trackId);
+              preloadedStreamUrl = url;
+              preloadedKaraokeStatus = status;
+              return engine.preload?.(url);
+            }
+            preloadedKaraokeStatus = null;
+            const url = new ItemsService(client).getStreamUrl(trackId);
+            preloadedStreamUrl = url;
+            return engine.preload?.(url);
+          })
+          .catch(() => {
+            if (preloadedTrackId === trackId) {
+              resetPreloadState();
+            }
+          });
+        return;
+      }
+
+      const itemsService = new ItemsService(client);
+      const streamUrl = itemsService.getStreamUrl(trackId);
+
+      preloadedTrackId = trackId;
       preloadedStreamUrl = streamUrl;
+      preloadedKaraokeStatus = null;
 
       engine.preload?.(streamUrl)?.catch(() => {
-        if (preloadedTrackId === nextItem.Id) {
+        if (preloadedTrackId === trackId) {
           resetPreloadState();
         }
       });
     }
 
-    async function gaplessTransition(track: AudioItem): Promise<void> {
+    async function gaplessTransition(track: AudioItem, instant: boolean = false): Promise<void> {
       if (!engine || !currentClient) return;
 
       const loadId = Symbol('gapless');
@@ -449,9 +479,21 @@ export const usePlayerStore = create<PlayerStore>()(
 
       set({ currentTrack: track, error: null });
 
-      const result = await engine.seamlessSwitch!(0, CROSSFADE_MS);
+      let result;
+      if (instant && engine.transitionToPreloaded) {
+        result = await engine.transitionToPreloaded();
+      } else {
+        result = await engine.seamlessSwitch?.(0, CROSSFADE_MS);
+        if (!result) throw new Error('seamlessSwitch not available');
+      }
 
       if (currentLoadId !== loadId) return;
+
+      const { queue, repeatMode } = get();
+      queue.next();
+      if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== track.Id) {
+        queue.jumpTo(0);
+      }
 
       let imageUrl: string | undefined;
       if (track.AlbumPrimaryImageTag) {
@@ -483,7 +525,16 @@ export const usePlayerStore = create<PlayerStore>()(
 
       useTimingStore.getState().updateTiming(0, result.duration);
 
-      set({ isPlaying: true, isLoading: false });
+      let karaokeUpdate: Record<string, unknown> = {};
+      if (!get().isKaraokeTransitioning) {
+        if (preloadedKaraokeStatus) {
+          karaokeUpdate = { isKaraokeMode: true, karaokeStatus: preloadedKaraokeStatus };
+        } else if (get().isKaraokeMode) {
+          karaokeUpdate = { isKaraokeMode: false, karaokeStatus: null };
+        }
+      }
+
+      set({ isPlaying: true, isLoading: false, ...karaokeUpdate });
 
       resetPreloadState();
       preloadNextTrack();
@@ -684,7 +735,7 @@ export const usePlayerStore = create<PlayerStore>()(
         } = get();
         if (!currentTrack || !currentClient || isKaraokeTransitioning) return;
 
-        const currentMode = karaokeTargetMode !== null ? karaokeTargetMode : isKaraokeMode;
+        const currentMode = karaokeTargetMode ?? isKaraokeMode;
         const newKaraokeMode = !currentMode;
         karaokeTargetMode = newKaraokeMode;
 
@@ -727,6 +778,7 @@ export const usePlayerStore = create<PlayerStore>()(
               );
               if (!completed) return;
               resetPreloadState();
+              preloadNextTrack();
               set({ isKaraokeTransitioning: false });
               karaokeTargetMode = null;
               karaokeToggleId = null;
@@ -742,11 +794,15 @@ export const usePlayerStore = create<PlayerStore>()(
             } else {
               log.player.error('Failed to enable karaoke', error);
             }
+            let karaokeError: Error | null = null;
+            if (!isAbort) {
+              karaokeError = error instanceof Error ? error : new Error(String(error));
+            }
             set({
               isKaraokeMode: false,
               isKaraokeTransitioning: false,
               karaokeStatus: null,
-              error: isAbort ? null : error instanceof Error ? error : new Error(String(error)),
+              error: karaokeError,
             });
             karaokeTargetMode = null;
           }
@@ -762,6 +818,7 @@ export const usePlayerStore = create<PlayerStore>()(
             const completed = await karaokeSwitchUrl(engine, streamUrl, isPlaying, toggleId);
             if (!completed) return;
             resetPreloadState();
+            preloadNextTrack();
             set({ isKaraokeTransitioning: false });
             karaokeTargetMode = null;
             karaokeToggleId = null;
@@ -772,11 +829,15 @@ export const usePlayerStore = create<PlayerStore>()(
             } else {
               log.player.error('Failed to disable karaoke', error);
             }
+            let karaokeError: Error | null = null;
+            if (!isAbort) {
+              karaokeError = error instanceof Error ? error : new Error(String(error));
+            }
             set({
               isKaraokeMode: false,
               isKaraokeTransitioning: false,
               karaokeStatus: null,
-              error: isAbort ? null : error instanceof Error ? error : new Error(String(error)),
+              error: karaokeError,
             });
             karaokeTargetMode = null;
             karaokeToggleId = null;
@@ -803,6 +864,7 @@ export const usePlayerStore = create<PlayerStore>()(
             const completed = await karaokeSwitchUrl(engine, instrumentalUrl, isPlaying, refreshId);
             if (!completed) return;
             resetPreloadState();
+            preloadNextTrack();
             set({ isKaraokeTransitioning: false });
           } else {
             set({ karaokeStatus: status });

@@ -22,7 +22,7 @@
   --spacing-4: 1rem;
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
-  --spacing-player-bar: 72px;
+  --spacing-player-bar: 76px;
   --spacing-player-bar-mobile: 64px;
   --spacing-sidebar: 160px;
   --spacing-bottom-tab: 52px;
@@ -198,8 +198,15 @@
 
 @utility pb-mobile-nav-player {
   padding-bottom: calc(
-    var(--spacing-bottom-tab) + 4.5rem + env(safe-area-inset-bottom, 0px) + 0.75rem
+    var(--spacing-bottom-tab) + var(--spacing-player-bar-mobile) +
+      env(safe-area-inset-bottom, 0px) + 0.75rem
   );
+  @media (min-width: 768px) {
+    padding-bottom: calc(
+      var(--spacing-bottom-tab) + var(--spacing-player-bar) + env(safe-area-inset-bottom, 0px) +
+        0.75rem
+    );
+  }
 }
 
 @utility scrollbar-thin {
@@ -245,7 +252,10 @@
 }
 
 @utility bottom-above-player {
-  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--spacing-player-bar-mobile) + env(safe-area-inset-bottom, 0px));
+  @media (min-width: 768px) {
+    bottom: calc(var(--spacing-player-bar) + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Tailwind CSS Animate compatible utilities */

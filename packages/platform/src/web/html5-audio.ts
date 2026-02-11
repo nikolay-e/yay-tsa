@@ -390,11 +390,10 @@ export class HTML5AudioEngine implements AudioEngine {
     this.playPromiseChain = this.playPromiseChain
       .then(async () => {
         try {
-          const ctx = this.ensureAudioContext();
-          if (ctx) {
-            const state = ctx.state as string;
+          if (this.audioContext) {
+            const state = this.audioContext.state as string;
             if (state === 'suspended' || state === 'interrupted') {
-              await ctx.resume();
+              await this.audioContext.resume();
             }
           }
 
@@ -407,7 +406,7 @@ export class HTML5AudioEngine implements AudioEngine {
         }
       })
       .catch(error => {
-        result.error = result.error || (error as Error);
+        result.error = result.error ?? (error as Error);
       });
 
     await this.playPromiseChain;
@@ -796,6 +795,36 @@ export class HTML5AudioEngine implements AudioEngine {
     return this.preloadedUrl === url && this.preloadPromise !== null;
   }
 
+  private performElementSwap(): void {
+    const oldElement = this.audio;
+    const newElement = this.audioSecondary;
+
+    oldElement.pause();
+    oldElement.src = '';
+    oldElement.load();
+
+    this.approachingEndFired = false;
+
+    this.audio = newElement;
+    this.audioSecondary = oldElement;
+
+    if (this.webAudioInitialized) {
+      const tempSource = this.sourceNodePrimary;
+      this.sourceNodePrimary = this.sourceNodeSecondary;
+      this.sourceNodeSecondary = tempSource;
+
+      const tempGain = this.elemGainPrimary;
+      this.elemGainPrimary = this.elemGainSecondary;
+      this.elemGainSecondary = tempGain;
+    }
+
+    this.detachDispatchHandlers(oldElement);
+    this.attachDispatchHandlers(newElement);
+
+    this.preloadedUrl = null;
+    this.preloadPromise = null;
+  }
+
   async seamlessSwitch(
     seekPosition: number = 0,
     crossfadeDurationMs: number = 150
@@ -875,37 +904,47 @@ export class HTML5AudioEngine implements AudioEngine {
       await Promise.all([fadeOutPromise, fadeInPromise]);
     }
 
-    currentElement.pause();
-    currentElement.src = '';
-    currentElement.load();
-
-    this.approachingEndFired = false;
-
-    const tempElem = this.audio;
-    this.audio = this.audioSecondary;
-    this.audioSecondary = tempElem;
-
-    if (this.webAudioInitialized) {
-      const tempSource = this.sourceNodePrimary;
-      this.sourceNodePrimary = this.sourceNodeSecondary;
-      this.sourceNodeSecondary = tempSource;
-
-      const tempGain = this.elemGainPrimary;
-      this.elemGainPrimary = this.elemGainSecondary;
-      this.elemGainSecondary = tempGain;
-    }
-
-    this.detachDispatchHandlers(currentElement);
-    this.attachDispatchHandlers(nextElement);
-
-    this.preloadedUrl = null;
-    this.preloadPromise = null;
+    this.performElementSwap();
 
     log.info('Seamless switch complete', { seekPosition, finalPosition, crossfadeDurationMs });
 
     return {
       duration: Number.isFinite(newDuration) ? newDuration : 0,
       position: finalPosition,
+    };
+  }
+
+  async transitionToPreloaded(): Promise<{ duration: number; position: number }> {
+    this.ensureNotDisposed();
+
+    if (!this.preloadPromise || !this.preloadedUrl) {
+      throw new Error('No audio preloaded. Call preload() first.');
+    }
+
+    await this.preloadPromise;
+
+    const nextElement = this.audioSecondary;
+    const newDuration = nextElement.duration;
+
+    if (this.webAudioInitialized && this.audioContext && this.elemGainSecondary) {
+      this.elemGainSecondary.gain.setValueAtTime(1, this.audioContext.currentTime);
+    } else {
+      nextElement.volume = this.storedVolume;
+    }
+
+    await nextElement.play();
+
+    this.performElementSwap();
+
+    if (this.webAudioInitialized && this.audioContext && this.elemGainPrimary) {
+      this.elemGainPrimary.gain.setValueAtTime(1, this.audioContext.currentTime);
+    }
+
+    log.info('Instant transition complete');
+
+    return {
+      duration: Number.isFinite(newDuration) ? newDuration : 0,
+      position: 0,
     };
   }
 
