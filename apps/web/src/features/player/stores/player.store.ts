@@ -256,8 +256,9 @@ export const usePlayerStore = create<PlayerStore>()(
           queue.jumpTo(0);
         }
         gaplessTransition(nextItem).catch(() => {
+          gaplessTriggered = false;
           resetPreloadState();
-          void get().next();
+          void loadAndPlay(nextItem);
         });
         return true;
       }
@@ -278,7 +279,9 @@ export const usePlayerStore = create<PlayerStore>()(
 
       if (repeatMode === 'one') {
         engine.seek(0);
-        void engine.play();
+        engine.play().catch(() => {
+          set({ isPlaying: false });
+        });
         return;
       }
 
@@ -533,15 +536,20 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       resume: async () => {
-        await engine.play();
-        set({ isPlaying: true });
+        try {
+          await engine.play();
+          set({ isPlaying: true });
 
-        if (playbackReporter && currentItemId) {
-          playbackReporter
-            .reportProgress(currentItemId, engine.getCurrentTime(), false)
-            .catch(err => {
-              log.player.warn('Failed to report resume', { error: String(err) });
-            });
+          if (playbackReporter && currentItemId) {
+            playbackReporter
+              .reportProgress(currentItemId, engine.getCurrentTime(), false)
+              .catch(err => {
+                log.player.warn('Failed to report resume', { error: String(err) });
+              });
+          }
+        } catch (error) {
+          log.player.warn('Resume failed', { error: String(error) });
+          set({ isPlaying: false });
         }
       },
 

@@ -349,11 +349,11 @@ export class HTML5AudioEngine implements AudioEngine {
   async play(): Promise<void> {
     this.ensureNotDisposed();
 
-    // Serialize play operations through Promise chain
+    const result: { error: Error | null } = { error: null };
+
     this.playPromiseChain = this.playPromiseChain
       .then(async () => {
         try {
-          // Lazily initialize and resume AudioContext (iOS/Safari autoplay policy)
           const ctx = this.ensureAudioContext();
           if (ctx) {
             const state = ctx.state as string;
@@ -364,24 +364,22 @@ export class HTML5AudioEngine implements AudioEngine {
 
           await this.audio.play();
         } catch (error) {
-          // Distinguish AbortError from real errors
           const err = error as Error;
-          if (err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
-            const sanitized = this.sanitizeError(err.message);
-            throw new Error(`Failed to play audio: ${sanitized}`);
+          if (err.name !== 'AbortError') {
+            result.error = err;
           }
-          // AbortError and NotAllowedError are expected - don't throw
         }
       })
       .catch(error => {
-        // Catch to prevent unhandled rejection, but don't rethrow
-        if ((error as Error).name !== 'AbortError') {
-          const sanitized = this.sanitizeError(error);
-          log.warn('Play failed', { error: sanitized });
-        }
+        result.error = result.error || (error as Error);
       });
 
-    return this.playPromiseChain;
+    await this.playPromiseChain;
+
+    if (result.error) {
+      const sanitized = this.sanitizeError(result.error.message);
+      throw new Error(`Failed to play audio: ${sanitized}`);
+    }
   }
 
   pause(): void {
