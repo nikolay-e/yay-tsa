@@ -14,11 +14,15 @@ metadata:
     {{- if .Values.ingress.className }}
     kubernetes.io/ingress.class: {{ .Values.ingress.className }}
     {{- end }}
-    {{- if .Values.ingress.tls }}
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    {{- if and .Values.ingress.annotations (hasKey .Values.ingress.annotations "cert-manager.io/cluster-issuer") }}
+    cert-manager.io/cluster-issuer: {{ index .Values.ingress.annotations "cert-manager.io/cluster-issuer" }}
     {{- end }}
     {{- $namespace := .Release.Namespace }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $namespace }}-{{ include "yay-tsa.fullname" . }}-strip-api@kubernetescrd
+    {{- $middlewares := list (printf "%s-%s-strip-api@kubernetescrd" $namespace (include "yay-tsa.fullname" .)) }}
+    {{- range .Values.ingress.additionalMiddlewares }}
+    {{- $middlewares = append $middlewares . }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ join "," $middlewares }}
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
