@@ -1,9 +1,10 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { X, Search, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useLyrics } from '../hooks/useLyrics';
-import { useCurrentTrack } from '../stores/player.store';
+import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
 import { LyricLine } from './LyricLine';
 
 interface LyricsViewProps {
@@ -12,7 +13,10 @@ interface LyricsViewProps {
 
 export function LyricsView({ onClose }: LyricsViewProps) {
   const currentTrack = useCurrentTrack();
+  const client = useAuthStore(state => state.client);
   const { parsedLyrics, activeLineIndex, isTimeSynced, hasLyrics } = useLyrics();
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const lastScrolledIndex = useRef<number>(-1);
   const dialogRef = useFocusTrap<HTMLDivElement>(true);
@@ -57,6 +61,34 @@ export function LyricsView({ onClose }: LyricsViewProps) {
 
     return () => clearTimeout(timeoutId);
   }, [activeLineIndex, isTimeSynced]);
+
+  useEffect(() => {
+    setIsFetching(false);
+    setFetchError(null);
+  }, [currentTrack?.Id]);
+
+  const handleFetchLyrics = async () => {
+    if (!client || !currentTrack) return;
+    const trackId = currentTrack.Id;
+    setIsFetching(true);
+    setFetchError(null);
+    try {
+      const result = await client.fetchLyrics(trackId);
+      if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
+      if (result.found && result.lyrics) {
+        usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
+      } else {
+        setFetchError('not_found');
+      }
+    } catch {
+      if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
+      setFetchError('Lyrics service unavailable');
+    } finally {
+      if (usePlayerStore.getState().currentTrack?.Id === trackId) {
+        setIsFetching(false);
+      }
+    }
+  };
 
   const getLineState = (index: number): 'active' | 'past' | 'future' => {
     if (!isTimeSynced) return 'future';
@@ -107,8 +139,36 @@ export function LyricsView({ onClose }: LyricsViewProps) {
 
         <div className="flex-1 overflow-y-auto py-8">
           {!hasLyrics ? (
-            <div className="text-text-tertiary flex h-full items-center justify-center">
-              No lyrics available
+            <div className="flex h-full flex-col items-center justify-center gap-4">
+              {isFetching ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="text-accent h-8 w-8 animate-spin" />
+                  <span className="text-text-secondary text-sm">Searching for lyrics...</span>
+                </div>
+              ) : fetchError === 'not_found' ? (
+                <span className="text-text-tertiary text-sm">No lyrics found</span>
+              ) : fetchError ? (
+                <div className="flex flex-col items-center gap-3">
+                  <span className="text-text-tertiary text-sm">{fetchError}</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleFetchLyrics()}
+                    className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
+                  >
+                    <Search className="h-4 w-4" />
+                    Try Again
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleFetchLyrics()}
+                  className="bg-accent hover:bg-accent-hover flex items-center gap-2 rounded-full px-6 py-2.5 text-white transition-colors"
+                >
+                  <Search className="h-4 w-4" />
+                  Search Lyrics
+                </button>
+              )}
             </div>
           ) : (
             <>

@@ -30,24 +30,6 @@ export interface ScanStatus {
   scanInProgress: boolean;
 }
 
-export interface LyricsFetchResult {
-  success: boolean;
-  message: string;
-  fetchInProgress?: boolean;
-}
-
-export interface LyricsFetchStatus {
-  fetchInProgress: boolean;
-  lastRun?: {
-    total: number;
-    fetched: number;
-    skipped: number;
-    failed: number;
-    startedAt: string;
-    completedAt?: string;
-  };
-}
-
 export class AdminService extends BaseService {
   async getCacheStats(): Promise<CacheStats> {
     this.requireAuth();
@@ -90,24 +72,6 @@ export class AdminService extends BaseService {
     const result = await this.client.get<ScanStatus>('/Admin/Library/ScanStatus');
     if (!result) {
       throw new Error('Failed to get scan status');
-    }
-    return result;
-  }
-
-  async refetchLyrics(): Promise<LyricsFetchResult> {
-    this.requireAuth();
-    const result = await this.client.post<LyricsFetchResult>('/Admin/Library/RefetchLyrics', {});
-    if (!result) {
-      throw new Error('Failed to trigger lyrics refetch');
-    }
-    return result;
-  }
-
-  async getLyricsFetchStatus(): Promise<LyricsFetchStatus> {
-    this.requireAuth();
-    const result = await this.client.get<LyricsFetchStatus>('/Admin/Library/LyricsFetchStatus');
-    if (!result) {
-      throw new Error('Failed to get lyrics fetch status');
     }
     return result;
   }

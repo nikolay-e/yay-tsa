@@ -288,9 +288,13 @@ export class PlaybackQueue {
     return this.getCurrentItem();
   }
 
-  /**
-   * Jump to specific index
-   */
+  advanceTo(trackId: string): boolean {
+    const index = this.items.findIndex(item => item.Id === trackId);
+    if (index < 0) return false;
+    this.currentIndex = index;
+    return true;
+  }
+
   jumpTo(index: number): AudioItem | null {
     if (index < 0 || index >= this.items.length) {
       return null;

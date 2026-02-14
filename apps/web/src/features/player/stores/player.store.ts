@@ -19,6 +19,8 @@ import {
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 import { useTimingStore } from './playback-timing.store';
+import { PlaybackController, withTimeout } from './playback-controller';
+import { PreloadManager } from './preload-manager';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -57,32 +59,27 @@ interface PlayerActions {
   refreshKaraokeStatus: () => Promise<void>;
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
+  updateCurrentTrackLyrics: (lyrics: string) => void;
 }
 
 type PlayerStore = PlayerState & PlayerActions;
 
 const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const PROGRESS_REPORT_INTERVAL_MS = 10000;
+const CROSSFADE_MS = 150;
+const APPROACHING_END_MS = CROSSFADE_MS + 350;
+const ENGINE_TIMEOUT_MS = 5000;
 
 let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
 let playbackReporter: PlaybackReporter | null = null;
 let currentItemId: string | null = null;
 let currentClient: MediaServerClient | null = null;
-let currentLoadId: symbol | null = null;
 let lastProgressReportTime = 0;
 
-// Gapless preload state
-let preloadedTrackId: string | null = null;
-let preloadedStreamUrl: string | null = null;
-let preloadedKaraokeStatus: KaraokeStatus | null = null;
-
-// Wake lock to prevent screen auto-lock during playback
 const wakeLock = new WakeLockManager();
 
-// Karaoke toggle serialization
-let karaokeToggleId: symbol | null = null;
-let karaokeTargetMode: boolean | null = null;
+let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
 
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
@@ -129,45 +126,11 @@ function saveVolume(volume: number): void {
   }
 }
 
-let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
-
 function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioItem | null {
   const next = queue.peekNext();
   if (next) return next;
   if (repeatMode === 'all' && !queue.isEmpty()) return queue.getItemAt(0);
   return null;
-}
-
-function resetPreloadState(): void {
-  preloadedTrackId = null;
-  preloadedStreamUrl = null;
-  preloadedKaraokeStatus = null;
-}
-
-async function karaokeSwitchUrl(
-  engine: AudioEngine,
-  url: string,
-  wasPlaying: boolean,
-  toggleId: symbol
-): Promise<boolean> {
-  if (engine.preload && engine.seamlessSwitch) {
-    const hint = engine.getCurrentTime();
-    await engine.preload(url);
-    if (karaokeToggleId !== toggleId) return false;
-    const result = await engine.seamlessSwitch(hint, 50);
-    if (!wasPlaying) engine.pause();
-    if (result) {
-      useTimingStore.getState().updateTiming(result.position, result.duration);
-    }
-    return karaokeToggleId === toggleId;
-  }
-
-  const position = engine.getCurrentTime();
-  await engine.load(url);
-  if (karaokeToggleId !== toggleId) return false;
-  engine.seek(position);
-  if (wasPlaying) await engine.play();
-  return karaokeToggleId === toggleId;
 }
 
 const initialState: PlayerState = {
@@ -189,10 +152,10 @@ const initialState: PlayerState = {
 
 export const usePlayerStore = create<PlayerStore>()(
   subscribeWithSelector((set, get) => {
-    const engine = getAudioEngine();
+    const maybeEngine = getAudioEngine();
     const session = getMediaSession();
 
-    if (!engine) {
+    if (!maybeEngine) {
       log.player.error('Audio engine not available, player will not function');
       return {
         ...initialState,
@@ -214,261 +177,22 @@ export const usePlayerStore = create<PlayerStore>()(
         refreshKaraokeStatus: async () => {},
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
+        updateCurrentTrackLyrics: () => {},
       };
     }
 
+    const engine = maybeEngine;
     engine.setVolume(initialState.volume);
 
-    engine.onTimeUpdate(seconds => {
-      const duration = engine.getDuration();
-      useTimingStore.getState().updateTiming(seconds, duration);
+    const controller = new PlaybackController();
+    const preloader = new PreloadManager(engine);
 
-      const now = Date.now();
-      if (
-        playbackReporter &&
-        currentItemId &&
-        now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS
-      ) {
-        lastProgressReportTime = now;
-        playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
-          log.player.warn('Failed to report playback progress', { error: String(err) });
-        });
-      }
-    });
+    // Suppress spurious ended event after gapless transition (#4)
+    let suppressNextEnded = false;
 
-    let gaplessTriggered = false;
+    // --- Helpers ---
 
-    const CROSSFADE_MS = 150;
-    const APPROACHING_END_MS = CROSSFADE_MS + 350;
-
-    function tryGaplessTransition(instant: boolean = false): boolean {
-      if (gaplessTriggered || !engine) return true;
-
-      const { repeatMode, queue } = get();
-
-      if (repeatMode === 'one') return false;
-
-      const nextItem = resolveNextItem(queue, repeatMode);
-      if (!nextItem) return false;
-
-      if (
-        preloadedTrackId === nextItem.Id &&
-        preloadedStreamUrl &&
-        engine.isPreloaded?.(preloadedStreamUrl)
-      ) {
-        gaplessTriggered = true;
-        gaplessTransition(nextItem, instant).catch(() => {
-          gaplessTriggered = false;
-          resetPreloadState();
-        });
-        return true;
-      }
-      return false;
-    }
-
-    engine.onApproachingEnd?.(() => {
-      tryGaplessTransition(false);
-    }, APPROACHING_END_MS);
-
-    engine.onEnded(() => {
-      if (gaplessTriggered) {
-        gaplessTriggered = false;
-        return;
-      }
-
-      const { repeatMode } = get();
-
-      if (repeatMode === 'one') {
-        engine.seek(0);
-        engine.play().catch(() => {
-          set({ isPlaying: false });
-        });
-        return;
-      }
-
-      if (tryGaplessTransition(true)) return;
-
-      const nextItem = resolveNextItem(get().queue, repeatMode);
-      if (nextItem) {
-        const { queue } = get();
-        queue.next();
-        if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== nextItem.Id) {
-          queue.jumpTo(0);
-        }
-        void loadAndPlay(nextItem);
-      } else {
-        set({ isPlaying: false });
-      }
-    });
-
-    engine.onLoading(isLoading => {
-      set({ isLoading });
-    });
-
-    engine.onError(error => {
-      log.player.error('Audio engine error', error);
-      set({ error, isPlaying: false, isLoading: false });
-    });
-
-    session?.setActionHandlers({
-      onPlay: () => void get().resume(),
-      onPause: () => get().pause(),
-      onSeek: seconds => get().seek(seconds),
-      onNext: () => void get().next(),
-      onPrevious: () => void get().previous(),
-    });
-
-    async function loadAndPlay(track: AudioItem): Promise<void> {
-      if (!engine) return;
-
-      gaplessTriggered = false;
-      const loadId = Symbol('load');
-      currentLoadId = loadId;
-
-      if (!currentClient) {
-        throw new Error('Not authenticated');
-      }
-
-      // Update UI immediately (optimistic update)
-      set({ currentTrack: track, isLoading: true, error: null });
-
-      // Report previous track stopped (fire-and-forget, don't block playback)
-      if (playbackReporter && currentItemId) {
-        const previousItemId = currentItemId;
-        const previousPosition = engine.getCurrentTime();
-        playbackReporter.reportStopped(previousItemId, previousPosition).catch(err => {
-          log.player.warn('Failed to report stopped', { error: String(err) });
-        });
-      }
-
-      try {
-        const itemsService = new ItemsService(currentClient);
-        const streamUrl = itemsService.getStreamUrl(track.Id);
-
-        await engine.load(streamUrl);
-
-        if (currentLoadId !== loadId) {
-          return;
-        }
-
-        let imageUrl: string | undefined;
-        if (track.AlbumPrimaryImageTag) {
-          imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
-            tag: track.AlbumPrimaryImageTag,
-            maxWidth: 256,
-            maxHeight: 256,
-          });
-        } else if (track.AlbumId) {
-          imageUrl = currentClient.getImageUrl(track.AlbumId, 'Primary', {
-            maxWidth: 256,
-            maxHeight: 256,
-          });
-        }
-
-        session?.updateMetadata({
-          title: track.Name,
-          artist: track.Artists?.join(', ') ?? 'Unknown Artist',
-          album: track.Album ?? 'Unknown Album',
-          artwork: imageUrl,
-        });
-
-        currentItemId = track.Id;
-        lastProgressReportTime = 0;
-        playbackReporter = new PlaybackReporter(currentClient);
-
-        // Report new track started (fire-and-forget, don't block playback)
-        playbackReporter.reportStart(track.Id).catch(err => {
-          log.player.warn('Failed to report start', { error: String(err) });
-        });
-
-        await engine.play();
-
-        if (currentLoadId !== loadId) {
-          return;
-        }
-
-        set({
-          isPlaying: true,
-          isLoading: false,
-          error: null,
-        });
-
-        void wakeLock.acquire();
-        resetPreloadState();
-        preloadNextTrack();
-      } catch (error) {
-        if (currentLoadId !== loadId) {
-          return;
-        }
-        log.player.error('Failed to load and play track', error, {
-          trackId: track.Id,
-          trackName: track.Name,
-        });
-        set({
-          error: error instanceof Error ? error : new Error(String(error)),
-          isPlaying: false,
-          isLoading: false,
-        });
-        throw error;
-      }
-    }
-
-    function preloadNextTrack(): void {
-      if (!engine || !currentClient) return;
-
-      const { queue, repeatMode, isKaraokeMode } = get();
-      const nextItem = resolveNextItem(queue, repeatMode);
-
-      if (!nextItem || nextItem.Id === preloadedTrackId) return;
-
-      const client = currentClient;
-      const trackId = nextItem.Id;
-
-      if (isKaraokeMode) {
-        preloadedTrackId = trackId;
-        client
-          .getKaraokeStatus(trackId)
-          .then(async status => {
-            if (preloadedTrackId !== trackId) return;
-            if (status.state === 'READY') {
-              const url = client.getInstrumentalStreamUrl(trackId);
-              preloadedStreamUrl = url;
-              preloadedKaraokeStatus = status;
-              return engine.preload?.(url);
-            }
-            preloadedKaraokeStatus = null;
-            const url = new ItemsService(client).getStreamUrl(trackId);
-            preloadedStreamUrl = url;
-            return engine.preload?.(url);
-          })
-          .catch(() => {
-            if (preloadedTrackId === trackId) {
-              resetPreloadState();
-            }
-          });
-        return;
-      }
-
-      const itemsService = new ItemsService(client);
-      const streamUrl = itemsService.getStreamUrl(trackId);
-
-      preloadedTrackId = trackId;
-      preloadedStreamUrl = streamUrl;
-      preloadedKaraokeStatus = null;
-
-      engine.preload?.(streamUrl)?.catch(() => {
-        if (preloadedTrackId === trackId) {
-          resetPreloadState();
-        }
-      });
-    }
-
-    async function gaplessTransition(track: AudioItem, instant: boolean = false): Promise<void> {
-      if (!engine || !currentClient) return;
-
-      const loadId = Symbol('gapless');
-      currentLoadId = loadId;
-
+    function reportStopped(): void {
       if (playbackReporter && currentItemId) {
         const prevId = currentItemId;
         const prevPos = engine.getCurrentTime();
@@ -476,25 +200,10 @@ export const usePlayerStore = create<PlayerStore>()(
           log.player.warn('Failed to report stopped', { error: String(err) });
         });
       }
+    }
 
-      set({ currentTrack: track, error: null });
-
-      let result;
-      if (instant && engine.transitionToPreloaded) {
-        result = await engine.transitionToPreloaded();
-      } else {
-        result = await engine.seamlessSwitch?.(0, CROSSFADE_MS);
-        if (!result) throw new Error('seamlessSwitch not available');
-      }
-
-      if (currentLoadId !== loadId) return;
-
-      const { queue, repeatMode } = get();
-      queue.next();
-      if (repeatMode === 'all' && queue.getCurrentItem()?.Id !== track.Id) {
-        queue.jumpTo(0);
-      }
-
+    function updateSessionMetadata(track: AudioItem): void {
+      if (!currentClient) return;
       let imageUrl: string | undefined;
       if (track.AlbumPrimaryImageTag) {
         imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
@@ -515,142 +224,377 @@ export const usePlayerStore = create<PlayerStore>()(
         album: track.Album ?? 'Unknown Album',
         artwork: imageUrl,
       });
+    }
 
-      currentItemId = track.Id;
+    function startPlaybackReporter(trackId: string): void {
+      if (!currentClient) return;
       lastProgressReportTime = 0;
       playbackReporter = new PlaybackReporter(currentClient);
-      playbackReporter.reportStart(track.Id).catch(err => {
+      playbackReporter.reportStart(trackId).catch(err => {
         log.player.warn('Failed to report start', { error: String(err) });
       });
+    }
 
-      useTimingStore.getState().updateTiming(0, result.duration);
+    function schedulePreload(): void {
+      if (!currentClient) return;
+      const { queue, repeatMode } = get();
+      const next = resolveNextItem(queue, repeatMode);
+      if (next) {
+        const url = new ItemsService(currentClient).getStreamUrl(next.Id);
+        preloader.prepare(next.Id, url);
+      } else {
+        preloader.invalidate();
+      }
+    }
 
-      let karaokeUpdate: Record<string, unknown> = {};
-      if (!get().isKaraokeTransitioning) {
-        if (preloadedKaraokeStatus) {
-          karaokeUpdate = { isKaraokeMode: true, karaokeStatus: preloadedKaraokeStatus };
-        } else if (get().isKaraokeMode) {
-          karaokeUpdate = { isKaraokeMode: false, karaokeStatus: null };
+    async function handleKaraokeTransition(track: AudioItem, signal: AbortSignal): Promise<void> {
+      if (!currentClient) return;
+
+      const client = currentClient;
+      const trackId = track.Id;
+
+      try {
+        const status = await client.getKaraokeStatus(trackId);
+        if (signal.aborted) return;
+
+        if (status.state === 'READY') {
+          const url = client.getInstrumentalStreamUrl(trackId);
+          if (engine.preload && engine.seamlessSwitch) {
+            const hint = engine.getCurrentTime();
+            await withTimeout(engine.preload(url), ENGINE_TIMEOUT_MS);
+            if (signal.aborted) return;
+            const result = await withTimeout(engine.seamlessSwitch(hint, 50), ENGINE_TIMEOUT_MS);
+            if (!get().isPlaying) engine.pause();
+            if (result) {
+              useTimingStore.getState().updateTiming(result.position, result.duration);
+            }
+          } else {
+            const position = engine.getCurrentTime();
+            await withTimeout(engine.load(url), ENGINE_TIMEOUT_MS);
+            if (signal.aborted) return;
+            engine.seek(position);
+            if (get().isPlaying) await engine.play();
+          }
+          if (!signal.aborted) {
+            set({ karaokeStatus: status });
+          }
+        } else {
+          if (!signal.aborted) {
+            set({ isKaraokeMode: false, karaokeStatus: null });
+          }
+        }
+      } catch {
+        if (!signal.aborted) {
+          set({ isKaraokeMode: false, karaokeStatus: null });
         }
       }
-
-      set({ isPlaying: true, isLoading: false, ...karaokeUpdate });
-
-      resetPreloadState();
-      preloadNextTrack();
     }
+
+    async function karaokeSwitchUrl(url: string, signal: AbortSignal): Promise<void> {
+      if (engine.preload && engine.seamlessSwitch) {
+        const hint = engine.getCurrentTime();
+        await withTimeout(engine.preload(url), ENGINE_TIMEOUT_MS);
+        if (signal.aborted) return;
+        const result = await withTimeout(engine.seamlessSwitch(hint, 50), ENGINE_TIMEOUT_MS);
+        if (!get().isPlaying) engine.pause();
+        if (result) {
+          useTimingStore.getState().updateTiming(result.position, result.duration);
+        }
+      } else {
+        const position = engine.getCurrentTime();
+        await withTimeout(engine.load(url), ENGINE_TIMEOUT_MS);
+        if (signal.aborted) return;
+        engine.seek(position);
+        if (get().isPlaying) await engine.play();
+      }
+    }
+
+    // --- Core playback commands ---
+
+    async function loadAndPlay(track: AudioItem, signal: AbortSignal): Promise<void> {
+      if (!currentClient) throw new Error('Not authenticated');
+
+      set({ currentTrack: track, isLoading: true, error: null });
+      reportStopped();
+
+      try {
+        const streamUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
+
+        await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
+        set({ currentTrack: track, isLoading: false, error: null });
+
+        if (signal.aborted) return;
+
+        await engine.play();
+        if (signal.aborted) return;
+
+        // --- Commit: identity + playing state ---
+        currentItemId = track.Id;
+        set({ isPlaying: true });
+        void wakeLock.acquire();
+
+        // --- Side effects ---
+        get().queue.advanceTo(track.Id);
+        updateSessionMetadata(track);
+        startPlaybackReporter(track.Id);
+        preloader.invalidate();
+        schedulePreload();
+      } catch (error) {
+        if (signal.aborted) return;
+        log.player.error('Failed to load and play track', error, {
+          trackId: track.Id,
+          trackName: track.Name,
+        });
+        set({
+          error: error instanceof Error ? error : new Error(String(error)),
+          isPlaying: false,
+          isLoading: false,
+        });
+        throw error;
+      }
+    }
+
+    async function gaplessTransition(
+      track: AudioItem,
+      instant: boolean,
+      signal: AbortSignal
+    ): Promise<void> {
+      if (!currentClient) return;
+
+      reportStopped();
+
+      // --- Engine mutation (point of no return) ---
+      let result;
+      if (instant && engine.transitionToPreloaded) {
+        result = await withTimeout(engine.transitionToPreloaded(), ENGINE_TIMEOUT_MS);
+      } else {
+        if (!engine.seamlessSwitch) throw new Error('seamlessSwitch not available');
+        result = await withTimeout(engine.seamlessSwitch(0, CROSSFADE_MS), ENGINE_TIMEOUT_MS);
+      }
+
+      // --- Always: engine-level cleanup ---
+      preloader.consume();
+      suppressNextEnded = true;
+      currentItemId = track.Id;
+
+      if (signal.aborted) {
+        set({ currentTrack: track, isLoading: false, error: null });
+        return;
+      }
+
+      // --- Commit: state matches engine reality ---
+      set({ currentTrack: track, isPlaying: true, isLoading: false, error: null });
+      useTimingStore.getState().updateTiming(0, result.duration);
+
+      // --- Side effects ---
+      get().queue.advanceTo(track.Id);
+      updateSessionMetadata(track);
+      startPlaybackReporter(track.Id);
+
+      if (get().isKaraokeMode) {
+        await handleKaraokeTransition(track, signal);
+      }
+
+      schedulePreload();
+    }
+
+    // --- Engine event handlers ---
+
+    engine.onTimeUpdate(seconds => {
+      const duration = engine.getDuration();
+      useTimingStore.getState().updateTiming(seconds, duration);
+
+      const now = Date.now();
+      if (
+        playbackReporter &&
+        currentItemId &&
+        now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS
+      ) {
+        lastProgressReportTime = now;
+        playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
+          log.player.warn('Failed to report playback progress', { error: String(err) });
+        });
+      }
+    });
+
+    engine.onApproachingEnd?.(() => {
+      void controller.ifIdle(async signal => {
+        const { queue, repeatMode } = get();
+        if (repeatMode === 'one') return;
+
+        const next = resolveNextItem(queue, repeatMode);
+        if (!next || !preloader.isReady(next.Id)) return;
+
+        await gaplessTransition(next, false, signal);
+      });
+    }, APPROACHING_END_MS);
+
+    engine.onEnded(() => {
+      if (suppressNextEnded) {
+        suppressNextEnded = false;
+        return;
+      }
+
+      void controller.ifIdle(async signal => {
+        const { repeatMode } = get();
+
+        if (repeatMode === 'one') {
+          engine.seek(0);
+          await engine.play();
+          return;
+        }
+
+        const next = resolveNextItem(get().queue, repeatMode);
+        if (!next) {
+          set({ isPlaying: false });
+          return;
+        }
+
+        if (preloader.isReady(next.Id)) {
+          await gaplessTransition(next, true, signal);
+        } else {
+          get().queue.advanceTo(next.Id);
+          await loadAndPlay(next, signal);
+        }
+      });
+    });
+
+    engine.onLoading(isLoading => {
+      set({ isLoading });
+    });
+
+    engine.onError(error => {
+      log.player.error('Audio engine error', error);
+      set({ error, isPlaying: false, isLoading: false });
+    });
+
+    session?.setActionHandlers({
+      onPlay: () => void get().resume(),
+      onPause: () => get().pause(),
+      onSeek: seconds => get().seek(seconds),
+      onNext: () => void get().next(),
+      onPrevious: () => void get().previous(),
+    });
 
     return {
       ...initialState,
 
       playTrack: async track => {
-        const { queue } = get();
-        queue.setQueue([track], 0);
-        await loadAndPlay(track);
+        await controller.interrupt(async signal => {
+          const { queue } = get();
+          queue.setQueue([track], 0);
+          await loadAndPlay(track, signal);
+        });
       },
 
       playTracks: async (tracks, startIndex = 0) => {
         if (tracks.length === 0) return;
 
-        const { queue, isShuffle } = get();
-        queue.setQueue(tracks, startIndex);
-
-        if (isShuffle) {
-          queue.setShuffleMode('on');
-        }
-
-        const currentTrack = queue.getCurrentItem();
-        if (currentTrack) {
-          await loadAndPlay(currentTrack);
-        }
+        await controller.interrupt(async signal => {
+          const { queue, isShuffle } = get();
+          queue.setQueue(tracks, startIndex);
+          if (isShuffle) {
+            queue.setShuffleMode('on');
+          }
+          const currentTrack = queue.getCurrentItem();
+          if (currentTrack) {
+            await loadAndPlay(currentTrack, signal);
+          }
+        });
       },
 
       playAlbum: async (albumId, startIndex = 0) => {
-        if (!currentClient) {
-          throw new Error('Not authenticated');
-        }
-
-        const itemsService = new ItemsService(currentClient);
-        const tracks = await itemsService.getAlbumTracks(albumId);
-
-        if (tracks.length > 0) {
-          await get().playTracks(tracks, startIndex);
-        }
+        await controller.interrupt(async signal => {
+          if (!currentClient) throw new Error('Not authenticated');
+          const itemsService = new ItemsService(currentClient);
+          const tracks = await itemsService.getAlbumTracks(albumId);
+          if (signal.aborted || tracks.length === 0) return;
+          const { queue, isShuffle } = get();
+          queue.setQueue(tracks, startIndex);
+          if (isShuffle) {
+            queue.setShuffleMode('on');
+          }
+          const currentTrack = queue.getCurrentItem();
+          if (currentTrack) {
+            await loadAndPlay(currentTrack, signal);
+          }
+        });
       },
 
       pause: () => {
-        engine.pause();
-        set({ isPlaying: false });
-        wakeLock.release();
-
-        if (playbackReporter && currentItemId) {
-          playbackReporter
-            .reportProgress(currentItemId, engine.getCurrentTime(), true)
-            .catch(err => {
-              log.player.warn('Failed to report pause', { error: String(err) });
-            });
-        }
-      },
-
-      resume: async () => {
-        try {
-          await engine.play();
-          set({ isPlaying: true });
-          void wakeLock.acquire();
+        void controller.interrupt(async () => {
+          engine.pause();
+          set({ isPlaying: false });
+          wakeLock.release();
 
           if (playbackReporter && currentItemId) {
             playbackReporter
-              .reportProgress(currentItemId, engine.getCurrentTime(), false)
+              .reportProgress(currentItemId, engine.getCurrentTime(), true)
               .catch(err => {
-                log.player.warn('Failed to report resume', { error: String(err) });
+                log.player.warn('Failed to report pause', { error: String(err) });
               });
           }
-        } catch (error) {
-          log.player.warn('Resume failed', { error: String(error) });
-          set({ isPlaying: false });
-        }
+
+          return Promise.resolve();
+        });
+      },
+
+      resume: async () => {
+        await controller.interrupt(async () => {
+          try {
+            await engine.play();
+            set({ isPlaying: true });
+            void wakeLock.acquire();
+
+            if (playbackReporter && currentItemId) {
+              playbackReporter
+                .reportProgress(currentItemId, engine.getCurrentTime(), false)
+                .catch(err => {
+                  log.player.warn('Failed to report resume', { error: String(err) });
+                });
+            }
+          } catch (error) {
+            log.player.warn('Resume failed', { error: String(error) });
+            set({ isPlaying: false });
+          }
+        });
       },
 
       next: async () => {
-        const { queue, repeatMode } = get();
-
-        let nextTrack: AudioItem | null = null;
-
-        if (queue.hasNext()) {
-          nextTrack = queue.next();
-        } else if (repeatMode === 'all') {
-          const allItems = queue.getAllItems();
-          if (allItems.length > 0) {
-            queue.setQueue(allItems, 0);
-            nextTrack = queue.getCurrentItem();
+        await controller.interrupt(async signal => {
+          const { queue, repeatMode } = get();
+          const next = resolveNextItem(queue, repeatMode);
+          if (!next) {
+            set({ isPlaying: false });
+            return;
           }
-        }
-
-        if (nextTrack) {
-          await loadAndPlay(nextTrack);
-        }
+          get().queue.advanceTo(next.Id);
+          await loadAndPlay(next, signal);
+        });
       },
 
       previous: async () => {
-        const { queue } = get();
-        const currentTime = engine.getCurrentTime();
-
-        if (currentTime > 3) {
-          engine.seek(0);
-          return;
-        }
-
-        if (queue.hasPrevious()) {
-          const prevTrack = queue.previous();
-          if (prevTrack) {
-            await loadAndPlay(prevTrack);
+        await controller.interrupt(async signal => {
+          const currentTime = engine.getCurrentTime();
+          if (currentTime > 3) {
+            engine.seek(0);
+            return;
           }
-        } else {
-          engine.seek(0);
-        }
+
+          const { queue } = get();
+          if (queue.hasPrevious()) {
+            const prevTrack = queue.previous();
+            if (prevTrack) {
+              await loadAndPlay(prevTrack, signal);
+            }
+          } else {
+            engine.seek(0);
+          }
+        });
       },
 
       seek: seconds => {
+        if (controller.isActive) return;
         engine.seek(seconds);
         useTimingStore.getState().updateTiming(seconds, engine.getDuration());
 
@@ -672,8 +616,8 @@ export const usePlayerStore = create<PlayerStore>()(
         const newShuffle = !isShuffle;
         queue.setShuffleMode(newShuffle ? 'on' : 'off');
         set({ isShuffle: newShuffle });
-        resetPreloadState();
-        preloadNextTrack();
+        preloader.invalidate();
+        schedulePreload();
       },
 
       setShuffle: (enabled: boolean) => {
@@ -681,8 +625,8 @@ export const usePlayerStore = create<PlayerStore>()(
         if (isShuffle === enabled) return;
         queue.setShuffleMode(enabled ? 'on' : 'off');
         set({ isShuffle: enabled });
-        resetPreloadState();
-        preloadNextTrack();
+        preloader.invalidate();
+        schedulePreload();
       },
 
       toggleRepeat: () => {
@@ -691,37 +635,44 @@ export const usePlayerStore = create<PlayerStore>()(
         const currentIndex = modes.indexOf(repeatMode);
         const nextMode = modes[(currentIndex + 1) % modes.length];
         set({ repeatMode: nextMode });
-        resetPreloadState();
-        preloadNextTrack();
+        preloader.invalidate();
+        schedulePreload();
       },
 
       stop: () => {
-        engine.pause();
-        engine.seek(0);
-        useTimingStore.getState().reset();
-        resetPreloadState();
-        wakeLock.release();
+        void controller.interrupt(async () => {
+          engine.pause();
+          engine.seek(0);
+          useTimingStore.getState().reset();
+          preloader.invalidate();
+          wakeLock.release();
 
-        if (playbackReporter && currentItemId) {
-          playbackReporter.reportStopped(currentItemId, 0).catch(err => {
-            log.player.warn('Failed to report stop', { error: String(err) });
+          if (playbackReporter && currentItemId) {
+            playbackReporter.reportStopped(currentItemId, 0).catch(err => {
+              log.player.warn('Failed to report stop', { error: String(err) });
+            });
+            playbackReporter = null;
+            currentItemId = null;
+          }
+
+          if (sleepTimerId) {
+            clearTimeout(sleepTimerId);
+            sleepTimerId = null;
+          }
+
+          set({
+            currentTrack: null,
+            isPlaying: false,
+            isLoading: false,
+            error: null,
+            isKaraokeMode: false,
+            isKaraokeTransitioning: false,
+            karaokeStatus: null,
+            sleepTimerMinutes: null,
+            sleepTimerEndTime: null,
           });
-          playbackReporter = null;
-          currentItemId = null;
-        }
 
-        if (sleepTimerId) {
-          clearTimeout(sleepTimerId);
-          sleepTimerId = null;
-        }
-
-        set({
-          currentTrack: null,
-          isPlaying: false,
-          isLoading: false,
-          error: null,
-          sleepTimerMinutes: null,
-          sleepTimerEndTime: null,
+          return Promise.resolve();
         });
       },
 
@@ -729,155 +680,131 @@ export const usePlayerStore = create<PlayerStore>()(
         const {
           currentTrack,
           isKaraokeMode,
-          isPlaying,
           isKaraokeTransitioning,
           karaokeStatus: cachedStatus,
         } = get();
         if (!currentTrack || !currentClient || isKaraokeTransitioning) return;
 
-        const currentMode = karaokeTargetMode ?? isKaraokeMode;
-        const newKaraokeMode = !currentMode;
-        karaokeTargetMode = newKaraokeMode;
+        await controller.ifIdle(async signal => {
+          const newKaraokeMode = !isKaraokeMode;
 
-        if (newKaraokeMode) {
-          set({ isKaraokeTransitioning: true });
+          if (newKaraokeMode) {
+            set({ isKaraokeTransitioning: true });
 
-          try {
-            const status =
-              cachedStatus?.state === 'READY'
-                ? cachedStatus
-                : await currentClient.getKaraokeStatus(currentTrack.Id);
+            try {
+              const status =
+                cachedStatus?.state === 'READY'
+                  ? cachedStatus
+                  : await currentClient!.getKaraokeStatus(currentTrack.Id);
 
-            if (status.state === 'NOT_STARTED') {
-              await currentClient.requestKaraokeProcessing(currentTrack.Id);
-              set({
-                karaokeStatus: { ...status, state: 'PROCESSING' },
-                isKaraokeTransitioning: false,
-              });
-              karaokeTargetMode = null;
-              return;
-            }
+              if (signal.aborted) return;
 
-            if (status.state === 'PROCESSING') {
+              if (status.state === 'NOT_STARTED') {
+                await currentClient!.requestKaraokeProcessing(currentTrack.Id);
+                set({
+                  karaokeStatus: { ...status, state: 'PROCESSING' },
+                  isKaraokeTransitioning: false,
+                });
+                return;
+              }
+
+              if (status.state === 'PROCESSING') {
+                set({ karaokeStatus: status, isKaraokeTransitioning: false });
+                return;
+              }
+
+              if (status.state === 'READY') {
+                set({ isKaraokeMode: true, karaokeStatus: status });
+                const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
+                await karaokeSwitchUrl(instrumentalUrl, signal);
+                if (signal.aborted) return;
+                preloader.invalidate();
+                schedulePreload();
+                set({ isKaraokeTransitioning: false });
+                return;
+              }
+
               set({ karaokeStatus: status, isKaraokeTransitioning: false });
-              karaokeTargetMode = null;
-              return;
+            } catch (error) {
+              if (signal.aborted) return;
+              const isAbort = error instanceof DOMException && error.name === 'AbortError';
+              if (isAbort) {
+                log.player.warn('Karaoke enable interrupted by track change');
+              } else {
+                log.player.error('Failed to enable karaoke', error);
+              }
+              let karaokeError: Error | null = null;
+              if (!isAbort) {
+                karaokeError = error instanceof Error ? error : new Error(String(error));
+              }
+              set({
+                isKaraokeMode: false,
+                isKaraokeTransitioning: false,
+                karaokeStatus: null,
+                error: karaokeError,
+              });
             }
+          } else {
+            set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeStatus: null });
 
-            if (status.state === 'READY') {
-              const toggleId = Symbol('karaoke');
-              karaokeToggleId = toggleId;
-
-              set({ isKaraokeMode: true, karaokeStatus: status });
-              const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-              const completed = await karaokeSwitchUrl(
-                engine,
-                instrumentalUrl,
-                isPlaying,
-                toggleId
-              );
-              if (!completed) return;
-              resetPreloadState();
-              preloadNextTrack();
+            try {
+              const itemsService = new ItemsService(currentClient!);
+              const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
+              await karaokeSwitchUrl(streamUrl, signal);
+              if (signal.aborted) return;
+              preloader.invalidate();
+              schedulePreload();
               set({ isKaraokeTransitioning: false });
-              karaokeTargetMode = null;
-              karaokeToggleId = null;
-              return;
+            } catch (error) {
+              if (signal.aborted) return;
+              const isAbort = error instanceof DOMException && error.name === 'AbortError';
+              if (isAbort) {
+                log.player.warn('Karaoke disable interrupted by track change');
+              } else {
+                log.player.error('Failed to disable karaoke', error);
+              }
+              let karaokeError: Error | null = null;
+              if (!isAbort) {
+                karaokeError = error instanceof Error ? error : new Error(String(error));
+              }
+              set({
+                isKaraokeMode: false,
+                isKaraokeTransitioning: false,
+                karaokeStatus: null,
+                error: karaokeError,
+              });
             }
-
-            set({ karaokeStatus: status, isKaraokeTransitioning: false });
-            karaokeTargetMode = null;
-          } catch (error) {
-            const isAbort = error instanceof DOMException && error.name === 'AbortError';
-            if (isAbort) {
-              log.player.warn('Karaoke enable interrupted by track change');
-            } else {
-              log.player.error('Failed to enable karaoke', error);
-            }
-            let karaokeError: Error | null = null;
-            if (!isAbort) {
-              karaokeError = error instanceof Error ? error : new Error(String(error));
-            }
-            set({
-              isKaraokeMode: false,
-              isKaraokeTransitioning: false,
-              karaokeStatus: null,
-              error: karaokeError,
-            });
-            karaokeTargetMode = null;
           }
-        } else {
-          const toggleId = Symbol('karaoke');
-          karaokeToggleId = toggleId;
-
-          set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeStatus: null });
-
-          try {
-            const itemsService = new ItemsService(currentClient);
-            const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
-            const completed = await karaokeSwitchUrl(engine, streamUrl, isPlaying, toggleId);
-            if (!completed) return;
-            resetPreloadState();
-            preloadNextTrack();
-            set({ isKaraokeTransitioning: false });
-            karaokeTargetMode = null;
-            karaokeToggleId = null;
-          } catch (error) {
-            const isAbort = error instanceof DOMException && error.name === 'AbortError';
-            if (isAbort) {
-              log.player.warn('Karaoke disable interrupted by track change');
-            } else {
-              log.player.error('Failed to disable karaoke', error);
-            }
-            let karaokeError: Error | null = null;
-            if (!isAbort) {
-              karaokeError = error instanceof Error ? error : new Error(String(error));
-            }
-            set({
-              isKaraokeMode: false,
-              isKaraokeTransitioning: false,
-              karaokeStatus: null,
-              error: karaokeError,
-            });
-            karaokeTargetMode = null;
-            karaokeToggleId = null;
-          }
-        }
+        });
       },
 
       refreshKaraokeStatus: async () => {
-        const { currentTrack, karaokeStatus, isPlaying } = get();
+        const { currentTrack, karaokeStatus } = get();
         if (!currentTrack || !currentClient) return;
         if (karaokeStatus?.state !== 'PROCESSING') return;
-        if (karaokeToggleId !== null) return;
 
-        const refreshId = Symbol('karaokeRefresh');
-        karaokeToggleId = refreshId;
+        await controller.ifIdle(async signal => {
+          try {
+            const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
+            if (signal.aborted) return;
 
-        try {
-          const status = await currentClient.getKaraokeStatus(currentTrack.Id);
-          if (karaokeToggleId !== refreshId) return;
-
-          if (status.state === 'READY') {
-            set({ isKaraokeTransitioning: true, karaokeStatus: status, isKaraokeMode: true });
-            const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
-            const completed = await karaokeSwitchUrl(engine, instrumentalUrl, isPlaying, refreshId);
-            if (!completed) return;
-            resetPreloadState();
-            preloadNextTrack();
-            set({ isKaraokeTransitioning: false });
-          } else {
-            set({ karaokeStatus: status });
+            if (status.state === 'READY') {
+              set({ isKaraokeTransitioning: true, karaokeStatus: status, isKaraokeMode: true });
+              const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
+              await karaokeSwitchUrl(instrumentalUrl, signal);
+              if (signal.aborted) return;
+              preloader.invalidate();
+              schedulePreload();
+              set({ isKaraokeTransitioning: false });
+            } else {
+              set({ karaokeStatus: status });
+            }
+          } catch (error) {
+            if (signal.aborted) return;
+            log.player.warn('Failed to load karaoke instrumental', { error: String(error) });
+            set({ karaokeStatus: null, isKaraokeMode: false });
           }
-        } catch (error) {
-          if (karaokeToggleId !== refreshId) return;
-          log.player.warn('Failed to load karaoke instrumental', { error: String(error) });
-          set({ karaokeStatus: null, isKaraokeMode: false });
-        } finally {
-          if (karaokeToggleId === refreshId) {
-            karaokeToggleId = null;
-          }
-        }
+        });
       },
 
       setSleepTimer: (minutes: number | null) => {
@@ -911,6 +838,13 @@ export const usePlayerStore = create<PlayerStore>()(
           sleepTimerId = null;
         }
         set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+      },
+
+      updateCurrentTrackLyrics: (lyrics: string) => {
+        const { currentTrack } = get();
+        if (currentTrack) {
+          set({ currentTrack: { ...currentTrack, Lyrics: lyrics } });
+        }
       },
     };
   })

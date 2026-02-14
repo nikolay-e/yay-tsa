@@ -616,9 +616,20 @@ export class MediaServerClient {
 
     return `${this.serverUrl}/Karaoke/${itemId}/instrumental?${params}`;
   }
+
+  async fetchLyrics(trackId: string): Promise<LyricsFetchResponse> {
+    const result = await this.post<LyricsFetchResponse>(`/Lyrics/${trackId}/fetch`);
+    return result ?? { found: false, lyrics: null, source: null };
+  }
 }
 
 export interface KaraokeStatus {
   state: 'NOT_STARTED' | 'PROCESSING' | 'READY' | 'FAILED';
   message: string | null;
+}
+
+export interface LyricsFetchResponse {
+  found: boolean;
+  lyrics: string | null;
+  source: string | null;
 }

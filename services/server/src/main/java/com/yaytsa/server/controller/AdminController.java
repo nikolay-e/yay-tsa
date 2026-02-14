@@ -2,13 +2,10 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ImageService;
 import com.yaytsa.server.domain.service.LibraryScanService;
-import com.yaytsa.server.domain.service.LyricsFetchService;
-import com.yaytsa.server.domain.service.LyricsFetchService.FetchStats;
 import com.yaytsa.server.infrastructure.fs.MediaScannerTransactionalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,17 +20,14 @@ public class AdminController {
   private final ImageService imageService;
   private final MediaScannerTransactionalService mediaScannerService;
   private final LibraryScanService libraryScanService;
-  private final LyricsFetchService lyricsFetchService;
 
   public AdminController(
       ImageService imageService,
       MediaScannerTransactionalService mediaScannerService,
-      LibraryScanService libraryScanService,
-      LyricsFetchService lyricsFetchService) {
+      LibraryScanService libraryScanService) {
     this.imageService = imageService;
     this.mediaScannerService = mediaScannerService;
     this.libraryScanService = libraryScanService;
-    this.lyricsFetchService = lyricsFetchService;
   }
 
   @Operation(
@@ -88,7 +82,6 @@ public class AdminController {
   public ResponseEntity<Map<String, Object>> clearItemCache(@PathVariable String itemId) {
     var cache = imageService.getCache();
     String prefix = itemId + "-";
-    // O(n) scan - Caffeine doesn't support prefix-based invalidation natively
     var keysToInvalidate =
         cache.asMap().keySet().stream().filter(key -> key.startsWith(prefix)).toList();
     cache.invalidateAll(keysToInvalidate);
@@ -136,73 +129,5 @@ public class AdminController {
   @GetMapping("/Library/ScanStatus")
   public ResponseEntity<Map<String, Object>> getScanStatus() {
     return ResponseEntity.ok(Map.of("scanInProgress", libraryScanService.isScanInProgress()));
-  }
-
-  @Operation(
-      summary = "Fetch missing lyrics",
-      description =
-          "Triggers fetching of synced lyrics (.lrc) for all tracks missing them. "
-              + "Uses the audio-separator sidecar's syncedlyrics integration.")
-  @ApiResponse(responseCode = "200", description = "Lyrics fetch initiated")
-  @ApiResponse(responseCode = "409", description = "Lyrics fetch already in progress")
-  @PostMapping("/Library/FetchLyrics")
-  public ResponseEntity<Map<String, Object>> fetchLyrics() {
-    if (lyricsFetchService.isFetchInProgress()) {
-      return ResponseEntity.status(409)
-          .body(Map.of("success", false, "message", "Lyrics fetch already in progress"));
-    }
-    new Thread(() -> lyricsFetchService.fetchMissingLyrics(), "lyrics-fetch-manual").start();
-    return ResponseEntity.ok(
-        Map.of("success", true, "message", "Lyrics fetch initiated", "fetchInProgress", true));
-  }
-
-  @Operation(
-      summary = "Refetch broken lyrics",
-      description =
-          "Re-fetches lyrics for tracks with broken, empty, or negative-cached .lrc files. "
-              + "Validates existing files and force-refetches from multiple sources when needed.")
-  @ApiResponse(responseCode = "200", description = "Lyrics refetch initiated")
-  @ApiResponse(responseCode = "409", description = "Lyrics fetch already in progress")
-  @PostMapping("/Library/RefetchLyrics")
-  public ResponseEntity<Map<String, Object>> refetchLyrics() {
-    if (lyricsFetchService.isFetchInProgress()) {
-      return ResponseEntity.status(409)
-          .body(Map.of("success", false, "message", "Lyrics fetch already in progress"));
-    }
-    new Thread(() -> lyricsFetchService.refetchBrokenLyrics(), "lyrics-refetch").start();
-    return ResponseEntity.ok(
-        Map.of(
-            "success",
-            true,
-            "message",
-            "Lyrics refetch initiated for broken/missing files",
-            "fetchInProgress",
-            true));
-  }
-
-  @Operation(
-      summary = "Get lyrics fetch status",
-      description = "Returns whether a lyrics fetch is running and stats from the last run")
-  @ApiResponse(responseCode = "200", description = "Lyrics fetch status retrieved")
-  @GetMapping("/Library/LyricsFetchStatus")
-  public ResponseEntity<Map<String, Object>> getLyricsFetchStatus() {
-    Map<String, Object> result = new LinkedHashMap<>();
-    result.put("fetchInProgress", lyricsFetchService.isFetchInProgress());
-
-    FetchStats stats = lyricsFetchService.getLastRunStats();
-    if (stats != null) {
-      Map<String, Object> lastRun = new LinkedHashMap<>();
-      lastRun.put("total", stats.total());
-      lastRun.put("fetched", stats.fetched());
-      lastRun.put("skipped", stats.skipped());
-      lastRun.put("failed", stats.failed());
-      lastRun.put("startedAt", stats.startedAt().toString());
-      if (stats.completedAt() != null) {
-        lastRun.put("completedAt", stats.completedAt().toString());
-      }
-      result.put("lastRun", lastRun);
-    }
-
-    return ResponseEntity.ok(result);
   }
 }

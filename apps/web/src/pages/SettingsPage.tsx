@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, HardDrive, Info, Server, LogOut, Music } from 'lucide-react';
+import { RefreshCw, HardDrive, Info, Server, LogOut } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -33,7 +33,6 @@ export function SettingsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
-  const [isRefetchingLyrics, setIsRefetchingLyrics] = useState(false);
 
   const handleRescanLibrary = async () => {
     if (!client) return;
@@ -51,25 +50,6 @@ export function SettingsPage() {
       }
     } finally {
       setIsRescanning(false);
-    }
-  };
-
-  const handleRefetchLyrics = async () => {
-    if (!client) return;
-    const adminService = new AdminService(client);
-    setIsRefetchingLyrics(true);
-    setStatus(null);
-    try {
-      const result = await adminService.refetchLyrics();
-      setStatus(result.message);
-    } catch (error) {
-      if (error instanceof MediaServerError && error.statusCode === 409) {
-        setStatus('Lyrics fetch already in progress');
-      } else {
-        setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    } finally {
-      setIsRefetchingLyrics(false);
     }
   };
 
@@ -109,22 +89,6 @@ export function SettingsPage() {
             <div className="font-medium">Reload Media</div>
             <div className="text-text-secondary text-sm">
               Rescan library from disk. Discovers new files and removes deleted ones.
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => void handleRefetchLyrics()}
-          disabled={isRefetchingLyrics || !client}
-          className="bg-bg-secondary hover:bg-bg-hover border-border mt-3 flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
-        >
-          <Music
-            className={`text-accent h-5 w-5 shrink-0 ${isRefetchingLyrics ? 'animate-pulse' : ''}`}
-          />
-          <div>
-            <div className="font-medium">Refetch Lyrics</div>
-            <div className="text-text-secondary text-sm">
-              Re-download broken or missing synced lyrics from multiple sources.
             </div>
           </div>
         </button>

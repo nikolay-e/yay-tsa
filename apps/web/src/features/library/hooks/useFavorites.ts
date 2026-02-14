@@ -56,8 +56,16 @@ export function useFavoriteToggle() {
         await service.markFavorite(itemId);
       }
     },
-    onMutate: ({ itemId, isFavorite }: FavoriteToggleParams) => {
+    onMutate: async ({ itemId, isFavorite }: FavoriteToggleParams) => {
       const newValue = !isFavorite;
+
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['albums'] }),
+        queryClient.cancelQueries({ queryKey: ['artists'] }),
+        queryClient.cancelQueries({ queryKey: ['tracks'] }),
+        queryClient.cancelQueries({ queryKey: ['album'] }),
+        queryClient.cancelQueries({ queryKey: ['artist'] }),
+      ]);
 
       const queryCache = queryClient.getQueryCache();
       const queries = queryCache.getAll();

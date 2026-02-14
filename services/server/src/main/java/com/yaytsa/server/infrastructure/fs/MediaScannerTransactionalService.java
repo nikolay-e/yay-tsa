@@ -180,7 +180,7 @@ public class MediaScannerTransactionalService {
               return item.getId();
             });
 
-    return itemRepository.findById(artistId).orElseThrow();
+    return itemRepository.getReferenceById(artistId);
   }
 
   private ItemEntity findOrCreateAlbum(
@@ -220,7 +220,7 @@ public class MediaScannerTransactionalService {
               return item.getId();
             });
 
-    return itemRepository.findById(albumId).orElseThrow();
+    return itemRepository.getReferenceById(albumId);
   }
 
   private void processGenres(ItemEntity item, List<String> genres) {
@@ -239,7 +239,7 @@ public class MediaScannerTransactionalService {
                 return genreRepository.save(newGenre).getId();
               });
 
-      GenreEntity genre = genreRepository.findById(genreId).orElseThrow();
+      GenreEntity genre = genreRepository.getReferenceById(genreId);
 
       boolean exists =
           item.getItemGenres().stream().anyMatch(ig -> ig.getGenre().getId().equals(genre.getId()));
@@ -392,17 +392,18 @@ public class MediaScannerTransactionalService {
   private int scanMissingAlbumArtwork() {
     List<ItemEntity> albumsWithoutArt = itemRepository.findAlbumsWithoutPrimaryImage();
     log.info("Found {} albums without Primary image", albumsWithoutArt.size());
+    if (albumsWithoutArt.isEmpty()) return 0;
+
+    List<UUID> albumIds = albumsWithoutArt.stream().map(ItemEntity::getId).toList();
+    Map<UUID, String> trackPathByAlbum = new HashMap<>();
+    for (Object[] row : itemRepository.findFirstTrackPathPerParent(albumIds)) {
+      trackPathByAlbum.put((UUID) row[0], (String) row[1]);
+    }
 
     int found = 0;
     for (ItemEntity album : albumsWithoutArt) {
-      List<ItemEntity> tracks = itemRepository.findAllByParentId(album.getId());
-      if (tracks.isEmpty()) continue;
-
-      ItemEntity firstTrack = tracks.getFirst();
-      String trackPath = firstTrack.getPath();
-      if (trackPath == null || trackPath.startsWith("artist:") || trackPath.startsWith("album:")) {
-        continue;
-      }
+      String trackPath = trackPathByAlbum.get(album.getId());
+      if (trackPath == null) continue;
 
       Path albumFolder = Path.of(trackPath).getParent();
       Optional<Path> artwork = findFolderArtwork(albumFolder);
@@ -421,33 +422,26 @@ public class MediaScannerTransactionalService {
   private int scanMissingArtistArtwork() {
     List<ItemEntity> artistsWithoutArt = itemRepository.findArtistsWithoutPrimaryImage();
     log.info("Found {} artists without Primary image", artistsWithoutArt.size());
+    if (artistsWithoutArt.isEmpty()) return 0;
+
+    List<UUID> artistIds = artistsWithoutArt.stream().map(ItemEntity::getId).toList();
+    Map<UUID, String> trackPathByArtist = new HashMap<>();
+    for (Object[] row : itemRepository.findFirstTrackPathPerArtist(artistIds)) {
+      trackPathByArtist.put((UUID) row[0], (String) row[1]);
+    }
 
     int found = 0;
     for (ItemEntity artist : artistsWithoutArt) {
-      List<ItemEntity> albums = itemRepository.findAllByParentId(artist.getId());
-      if (albums.isEmpty()) continue;
+      String trackPath = trackPathByArtist.get(artist.getId());
+      if (trackPath == null) continue;
 
-      for (ItemEntity album : albums) {
-        List<ItemEntity> tracks = itemRepository.findAllByParentId(album.getId());
-        if (tracks.isEmpty()) continue;
+      Path artistFolder = Path.of(trackPath).getParent().getParent();
+      Optional<Path> artwork = findFolderArtwork(artistFolder);
 
-        ItemEntity firstTrack = tracks.getFirst();
-        String trackPath = firstTrack.getPath();
-        if (trackPath == null
-            || trackPath.startsWith("artist:")
-            || trackPath.startsWith("album:")) {
-          continue;
-        }
-
-        Path artistFolder = Path.of(trackPath).getParent().getParent();
-        Optional<Path> artwork = findFolderArtwork(artistFolder);
-
-        if (artwork.isPresent()) {
-          saveFolderArtwork(artist, artwork.get());
-          found++;
-          log.info("Found missing artwork for artist '{}' at {}", artist.getName(), artwork.get());
-          break;
-        }
+      if (artwork.isPresent()) {
+        saveFolderArtwork(artist, artwork.get());
+        found++;
+        log.info("Found missing artwork for artist '{}' at {}", artist.getName(), artwork.get());
       }
     }
 

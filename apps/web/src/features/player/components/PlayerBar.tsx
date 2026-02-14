@@ -10,7 +10,6 @@ import { toast } from '@/shared/ui/Toast';
 import { PLAYER_TEST_IDS } from '@/shared/testing/test-ids';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { useTimingStore } from '../stores/playback-timing.store';
-import { useLyrics } from '../hooks/useLyrics';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -34,7 +33,6 @@ export function PlayerBar() {
   const [showLyricsView, setShowLyricsView] = useState(false);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const currentTrack = useCurrentTrack();
-  const { hasLyrics } = useLyrics();
   const isPlaying = useIsPlaying();
   const volume = useVolume();
   const isShuffle = useIsShuffle();
@@ -252,16 +250,9 @@ export function PlayerBar() {
           <button
             type="button"
             onClick={() => setShowLyricsView(true)}
-            disabled={!hasLyrics}
-            className={cn(
-              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-              hasLyrics
-                ? 'text-text-secondary hover:text-text-primary'
-                : 'text-text-tertiary cursor-not-allowed opacity-50'
-            )}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Show lyrics"
-            aria-disabled={!hasLyrics}
-            title={hasLyrics ? 'Show lyrics' : 'No lyrics available'}
+            title="Show lyrics"
           >
             <AlignLeft className="h-4 w-4" />
           </button>

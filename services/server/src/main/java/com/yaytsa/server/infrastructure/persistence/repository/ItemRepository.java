@@ -112,4 +112,35 @@ public interface ItemRepository
       )
       """)
   List<ItemEntity> findArtistsWithoutPrimaryImage();
+
+  @Query(
+      value =
+          """
+          SELECT DISTINCT ON (track.parent_id) track.parent_id AS parent_id, track.path AS track_path
+          FROM items track
+          WHERE track.type = 'AudioTrack'
+          AND track.parent_id IN (:parentIds)
+          AND track.path IS NOT NULL
+          AND track.path NOT LIKE 'artist:%'
+          AND track.path NOT LIKE 'album:%'
+          ORDER BY track.parent_id, track.path
+          """,
+      nativeQuery = true)
+  List<Object[]> findFirstTrackPathPerParent(@Param("parentIds") List<UUID> parentIds);
+
+  @Query(
+      value =
+          """
+          SELECT DISTINCT ON (album.parent_id) album.parent_id AS artist_id, track.path AS track_path
+          FROM items album
+          JOIN items track ON track.parent_id = album.id AND track.type = 'AudioTrack'
+          WHERE album.type = 'MusicAlbum'
+          AND album.parent_id IN (:artistIds)
+          AND track.path IS NOT NULL
+          AND track.path NOT LIKE 'artist:%'
+          AND track.path NOT LIKE 'album:%'
+          ORDER BY album.parent_id, track.path
+          """,
+      nativeQuery = true)
+  List<Object[]> findFirstTrackPathPerArtist(@Param("artistIds") List<UUID> artistIds);
 }

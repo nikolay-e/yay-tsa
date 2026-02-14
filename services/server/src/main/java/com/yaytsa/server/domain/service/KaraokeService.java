@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -51,7 +50,11 @@ public class KaraokeService {
   private final ScheduledExecutorService cleanupScheduler =
       Executors.newSingleThreadScheduledExecutor();
 
-  private record JobEntry(ProcessingStatus status, Instant createdAt) {}
+  private record JobEntry(ProcessingStatus status, Instant createdAt, Instant updatedAt) {
+    JobEntry withStatus(ProcessingStatus newStatus) {
+      return new JobEntry(newStatus, this.createdAt, Instant.now());
+    }
+  }
 
   public enum ProcessingState {
     NOT_STARTED,
@@ -139,28 +142,23 @@ public class KaraokeService {
 
   private void cleanupExpiredJobs() {
     long now = Instant.now().toEpochMilli();
-    Iterator<Map.Entry<UUID, JobEntry>> it = processingJobs.entrySet().iterator();
-    while (it.hasNext()) {
-      Map.Entry<UUID, JobEntry> entry = it.next();
-      ProcessingState state = entry.getValue().status().state();
-      long age = now - entry.getValue().createdAt().toEpochMilli();
+    processingJobs.forEach(
+        (trackId, job) -> {
+          ProcessingState state = job.status().state();
+          long age = now - job.createdAt().toEpochMilli();
 
-      boolean shouldRemove = false;
-      String reason = null;
+          String reason = null;
+          if ((state == ProcessingState.READY || state == ProcessingState.FAILED)
+              && age > JOB_TTL_MS) {
+            reason = "expired " + state;
+          } else if (state == ProcessingState.PROCESSING && age > STALE_PROCESSING_TIMEOUT_MS) {
+            reason = "stale PROCESSING";
+          }
 
-      if ((state == ProcessingState.READY || state == ProcessingState.FAILED) && age > JOB_TTL_MS) {
-        shouldRemove = true;
-        reason = "expired " + state;
-      } else if (state == ProcessingState.PROCESSING && age > STALE_PROCESSING_TIMEOUT_MS) {
-        shouldRemove = true;
-        reason = "stale PROCESSING";
-      }
-
-      if (shouldRemove) {
-        it.remove();
-        log.debug("Cleaned up {} job: {}", reason, entry.getKey());
-      }
-    }
+          if (reason != null && processingJobs.remove(trackId, job)) {
+            log.debug("Cleaned up {} job: {}", reason, trackId);
+          }
+        });
   }
 
   @PreDestroy
@@ -348,7 +346,15 @@ public class KaraokeService {
   }
 
   private void updateJobStatus(UUID trackId, ProcessingStatus status) {
-    processingJobs.put(trackId, new JobEntry(status, Instant.now()));
+    processingJobs.compute(
+        trackId,
+        (key, existing) -> {
+          Instant now = Instant.now();
+          if (existing == null) {
+            return new JobEntry(status, now, now);
+          }
+          return existing.withStatus(status);
+        });
   }
 
   private boolean isStemPathSafe(Path path) {
