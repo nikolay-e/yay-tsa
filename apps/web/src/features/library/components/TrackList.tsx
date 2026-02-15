@@ -181,7 +181,7 @@ export function TrackList({
                     showArtist && artistName
                   )}
                   {showArtist && showAlbum && track.Album && ' • '}
-                  {showAlbum && track.AlbumId ? (
+                  {showAlbum && track.AlbumId && track.Album ? (
                     <Link
                       to={`/albums/${track.AlbumId}`}
                       onClick={e => e.stopPropagation()}

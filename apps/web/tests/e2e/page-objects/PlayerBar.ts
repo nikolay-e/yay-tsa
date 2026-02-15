@@ -57,6 +57,10 @@ export class PlayerBar {
     await this.waitForTrackChange(previousTitle);
   }
 
+  async clickNext(): Promise<void> {
+    await this.nextButton.click();
+  }
+
   async previous(): Promise<void> {
     const previousTitle = await this.getCurrentTrackTitle();
     await this.previousButton.click();

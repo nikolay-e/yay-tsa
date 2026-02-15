@@ -74,8 +74,12 @@ spec:
         {{- if .Values.backend.config.karaokeSeparatorUrl }}
         - name: KARAOKE_SEPARATOR_URL
           value: {{ .Values.backend.config.karaokeSeparatorUrl | quote }}
+        - name: LYRICS_FETCHER_URL
+          value: {{ .Values.backend.config.karaokeSeparatorUrl | quote }}
         {{- else if .Values.audioSeparator.enabled }}
         - name: KARAOKE_SEPARATOR_URL
+          value: "http://{{ include "yay-tsa.fullname" . }}-audio-separator:{{ .Values.audioSeparator.service.port }}"
+        - name: LYRICS_FETCHER_URL
           value: "http://{{ include "yay-tsa.fullname" . }}-audio-separator:{{ .Values.audioSeparator.service.port }}"
         {{- end }}
         {{- if .Values.backend.nginxSidecar.enabled }}
@@ -120,6 +124,8 @@ spec:
           mountPath: /app/logs
         - name: temp-volume
           mountPath: /app/temp
+        - name: jvm-tmp
+          mountPath: /tmp
         {{- if .Values.backend.media.enabled }}
         - name: media-volume
           mountPath: {{ .Values.backend.media.mountPath }}
@@ -179,6 +185,10 @@ spec:
       volumes:
       - name: logs-volume
         emptyDir: {}
+      - name: jvm-tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
       - name: temp-volume
         {{- if .Values.backend.tempStorage.enabled }}
         {{- if .Values.backend.tempStorage.existingClaim }}

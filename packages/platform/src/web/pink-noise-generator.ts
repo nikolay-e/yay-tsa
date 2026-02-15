@@ -15,6 +15,7 @@ export class PinkNoiseGenerator {
   private isPlaying: boolean = false;
   private currentFadeCancel: (() => void) | null = null;
   private ownsAudioContext: boolean = false;
+  private _volume: number = 0;
 
   async start(config: PinkNoiseConfig = {}): Promise<void> {
     if (this.isPlaying) return;
@@ -43,6 +44,7 @@ export class PinkNoiseGenerator {
 
     // Create gain node for volume control
     this.gainNode = this.audioContext.createGain();
+    this._volume = initialVolume;
     this.gainNode.gain.setValueAtTime(initialVolume, this.audioContext.currentTime);
     this.gainNode.connect(this.audioContext.destination);
 
@@ -114,12 +116,13 @@ export class PinkNoiseGenerator {
   setVolume(level: number): void {
     if (this.gainNode && this.audioContext) {
       const clampedLevel = Math.max(0, Math.min(1, level));
+      this._volume = clampedLevel;
       this.gainNode.gain.setValueAtTime(clampedLevel, this.audioContext.currentTime);
     }
   }
 
   getVolume(): number {
-    return this.gainNode?.gain.value ?? 0;
+    return this._volume;
   }
 
   fadeVolume(

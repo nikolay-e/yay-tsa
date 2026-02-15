@@ -21,10 +21,6 @@ data:
   SCAN_THREADS: {{ .Values.backend.config.scanThreads | quote }}
   WATCH_ENABLED: "false"
 
-  # Transcoding configuration
-  TRANSCODE_ENABLED: {{ .Values.backend.config.transcodeEnabled | quote }}
-  MAX_CONCURRENT_TRANSCODES: {{ .Values.backend.config.maxConcurrentTranscodes | quote }}
-  TRANSCODE_TEMP_DIR: "/app/temp/transcode"
   IMAGE_CACHE_DIR: "/app/temp/images"
 
   # CORS configuration

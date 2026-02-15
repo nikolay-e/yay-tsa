@@ -26,6 +26,7 @@ export class HTML5AudioEngine implements AudioEngine {
   private elemGainSecondary: GainNode | null = null;
   private masterGain: GainNode | null = null;
   private inputBus: GainNode | null = null;
+  private _analyser: AnalyserNode | null = null;
   private webAudioInitialized: boolean = false;
   private storedVolume: number = 1;
 
@@ -249,6 +250,10 @@ export class HTML5AudioEngine implements AudioEngine {
       this.inputBus.connect(this.masterGain);
       this.masterGain.connect(this.audioContext.destination);
 
+      this._analyser = this.audioContext.createAnalyser();
+      this._analyser.fftSize = 2048;
+      this.inputBus.connect(this._analyser);
+
       // Volume now controlled via masterGain; element.volume must be 1
       // (element.volume acts as pre-gain before MediaElementAudioSourceNode)
       this.audio.volume = 1;
@@ -256,6 +261,12 @@ export class HTML5AudioEngine implements AudioEngine {
 
       this.webAudioInitialized = true;
       log.info('WebAudio graph initialized');
+
+      if (!this.audio.paused && this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(err => {
+          log.warn('AudioContext auto-resume failed', { error: String(err) });
+        });
+      }
     } catch (error) {
       log.warn('Failed to initialize WebAudio graph, using basic audio', {
         error: String(error),
@@ -580,6 +591,7 @@ export class HTML5AudioEngine implements AudioEngine {
         this.elemGainSecondary,
         this.inputBus,
         this.masterGain,
+        this._analyser,
       ];
       for (const node of nodes) {
         try {
@@ -595,6 +607,7 @@ export class HTML5AudioEngine implements AudioEngine {
     this.elemGainSecondary = null;
     this.inputBus = null;
     this.masterGain = null;
+    this._analyser = null;
 
     // Remove AudioContext recovery listeners
     if (this.contextRecoveryCleanup) {
@@ -687,8 +700,23 @@ export class HTML5AudioEngine implements AudioEngine {
     return { promise, cancel };
   }
 
+  get analyser(): AnalyserNode | null {
+    return this._analyser;
+  }
+
   getAudioContext(): AudioContext | null {
     return this.ensureAudioContext();
+  }
+
+  getRMS(): number {
+    if (!this._analyser) return -1;
+    const dataArray = new Float32Array(this._analyser.fftSize);
+    this._analyser.getFloatTimeDomainData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i] * dataArray[i];
+    }
+    return Math.sqrt(sum / dataArray.length);
   }
 
   getAudioElement(): HTMLAudioElement | null {

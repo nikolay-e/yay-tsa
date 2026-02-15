@@ -54,6 +54,9 @@ export async function getRMSLevel(page: Page): Promise<number> {
   return page.evaluate(() => {
     const player = (window as any).__playerStore__;
     const audioEngine = player?.audioEngine;
+
+    audioEngine?.getAudioContext?.();
+
     const analyser = audioEngine?.analyser;
 
     if (!analyser) {

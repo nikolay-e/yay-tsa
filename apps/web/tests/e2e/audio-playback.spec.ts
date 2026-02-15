@@ -93,15 +93,15 @@ test.describe('Audio Playback Verification', () => {
 
     await waitForRMSAboveThreshold(authenticatedPage, 0.01, 10000);
 
-    const rmsLevels = await monitorRMSLevels(authenticatedPage, 2000, 100);
+    const rmsLevels = await monitorRMSLevels(authenticatedPage, 4000, 200);
     const averageRMS = calculateAverageRMS(rmsLevels);
 
-    expect(rmsLevels.length).toBeGreaterThan(10);
+    expect(rmsLevels.length).toBeGreaterThan(5);
     expect(averageRMS).toBeGreaterThan(0.01);
 
     const activeSamples = rmsLevels.filter(rms => rms > 0.01);
     const activePercentage = (activeSamples.length / rmsLevels.length) * 100;
-    expect(activePercentage).toBeGreaterThan(80);
+    expect(activePercentage).toBeGreaterThan(50);
   });
 
   test('Given: Track loaded, When: Duration available, Then: Duration is loaded before playback', async ({

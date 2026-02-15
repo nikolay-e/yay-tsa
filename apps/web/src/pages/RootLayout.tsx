@@ -5,6 +5,7 @@ import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { useCurrentTrack } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
+import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
 
 interface NavItem {
   href: string;
@@ -30,6 +31,7 @@ export function RootLayout() {
   const restoreSession = useAuthStore(state => state.restoreSession);
   const location = useLocation();
   const sessionRestored = useRef(false);
+  const sessionRestoreComplete = useRef(false);
   const currentTrack = useCurrentTrack();
 
   const isLoginPage = location.pathname === '/login';
@@ -43,12 +45,13 @@ export function RootLayout() {
     const init = async () => {
       const restored = await restoreSession();
       setAuthState(restored ? 'authenticated' : 'unauthenticated');
+      sessionRestoreComplete.current = true;
     };
     void init();
   }, [restoreSession]);
 
   useEffect(() => {
-    if (!sessionRestored.current) {
+    if (!sessionRestoreComplete.current) {
       return;
     }
     setAuthState(isAuthenticated ? 'authenticated' : 'unauthenticated');
@@ -87,7 +90,19 @@ export function RootLayout() {
         <Outlet />
       </main>
       {showNavigation && <BottomTabBar hasPlayer={!!showPlayer} />}
-      {showPlayer && <PlayerBar />}
+      {showPlayer && (
+        <ErrorBoundary
+          fallback={
+            <div className="z-player border-border bg-bg-secondary pb-safe px-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t p-4 text-center">
+              <p className="text-text-secondary text-sm">
+                Player encountered an error. Reload the page to continue.
+              </p>
+            </div>
+          }
+        >
+          <PlayerBar />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }

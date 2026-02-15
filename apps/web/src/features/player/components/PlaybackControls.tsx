@@ -53,7 +53,7 @@ export function PlaybackControls({
         data-testid="play-pause-button"
         onClick={onPlayPause}
         className={cn(
-          'bg-accent rounded-full p-3 text-white',
+          'bg-accent rounded-full p-3 text-black',
           'hover:bg-accent-hover transition-colors',
           'focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
         )}

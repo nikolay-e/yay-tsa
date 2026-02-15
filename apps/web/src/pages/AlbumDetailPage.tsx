@@ -107,7 +107,7 @@ export function AlbumDetailPage() {
               }}
               className={cn(
                 'flex items-center gap-2 px-6 py-2',
-                'bg-accent rounded-full text-white',
+                'bg-accent rounded-full text-black',
                 'hover:bg-accent-hover transition-colors'
               )}
             >

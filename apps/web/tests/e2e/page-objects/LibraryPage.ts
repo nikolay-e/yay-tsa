@@ -57,7 +57,9 @@ export class LibraryPage {
   }
 
   async getAlbumCount(): Promise<number> {
-    await this.waitForAlbumsToLoad();
+    await this.waitForSearchResults();
+    const noResults = this.page.getByText('No albums found');
+    if (await noResults.isVisible()) return 0;
     return await this.albumCards.count();
   }
 

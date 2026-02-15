@@ -171,8 +171,6 @@ backend:
     publicUrl: ''
     scanOnStartup: false
     scanThreads: 4
-    transcodeEnabled: false
-    maxConcurrentTranscodes: 2
     corsEnabled: true
     corsOrigins: '*'
   securityContext:
@@ -184,7 +182,7 @@ backend:
     capabilities:
       drop:
         - ALL
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     seccompProfile:
       type: RuntimeDefault
   nginxSidecar:

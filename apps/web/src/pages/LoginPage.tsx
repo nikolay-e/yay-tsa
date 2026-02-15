@@ -104,14 +104,14 @@ export function LoginPage() {
             type="submit"
             disabled={isLoading}
             className={cn(
-              'bg-accent w-full rounded-md px-4 py-2 font-medium text-white',
+              'bg-accent w-full rounded-md px-4 py-2 font-medium text-black',
               'hover:bg-accent-hover touch-manipulation transition-colors',
               'disabled:cursor-not-allowed disabled:opacity-50'
             )}
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                 Signing in...
               </span>
             ) : (

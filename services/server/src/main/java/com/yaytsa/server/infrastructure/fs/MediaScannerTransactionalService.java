@@ -2,10 +2,13 @@ package com.yaytsa.server.infrastructure.fs;
 
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.*;
+import com.yaytsa.server.infrastructure.transcoding.FfmpegTranscoder;
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
@@ -447,5 +450,47 @@ public class MediaScannerTransactionalService {
 
     log.info("Scanned {} artists, found {} missing artwork files", artistsWithoutArt.size(), found);
     return found;
+  }
+
+  public record TranscodableTrack(UUID itemId, String filePath, String codec) {}
+
+  @Transactional(readOnly = true)
+  public List<TranscodableTrack> findNonNativeCodecTracks() {
+    return audioTrackRepository.findAllWithCodec().stream()
+        .filter(at -> !FfmpegTranscoder.isBrowserNativeCodec(at.getCodec()))
+        .map(at -> new TranscodableTrack(at.getItemId(), at.getItem().getPath(), at.getCodec()))
+        .toList();
+  }
+
+  @Transactional
+  public void updateTranscodedTrack(UUID itemId, Path newPath) {
+    ItemEntity item =
+        itemRepository
+            .findById(itemId)
+            .orElseThrow(() -> new IllegalStateException("Item not found: " + itemId));
+
+    try {
+      BasicFileAttributes attrs = Files.readAttributes(newPath, BasicFileAttributes.class);
+      OffsetDateTime mtime =
+          OffsetDateTime.ofInstant(attrs.lastModifiedTime().toInstant(), ZoneOffset.UTC);
+
+      item.setPath(newPath.toAbsolutePath().toString());
+      item.setContainer("flac");
+      item.setSizeBytes(attrs.size());
+      item.setMtime(mtime);
+      itemRepository.save(item);
+
+      audioTrackRepository
+          .findById(itemId)
+          .ifPresent(
+              track -> {
+                track.setCodec("flac");
+                audioTrackRepository.save(track);
+              });
+
+      log.info("Updated transcoded track {} -> {}", itemId, newPath.getFileName());
+    } catch (IOException e) {
+      log.error("Failed to update transcoded track {}: {}", itemId, e.getMessage());
+    }
   }
 }

@@ -109,7 +109,7 @@ export function SettingsPage() {
             className={`text-error h-5 w-5 shrink-0 ${isReloading ? 'animate-spin' : ''}`}
           />
           <div>
-            <div className="text-error font-medium">Force Reload</div>
+            <div className="font-medium">Force Reload</div>
             <div className="text-text-secondary text-sm">
               Clear all caches and reload the application
             </div>

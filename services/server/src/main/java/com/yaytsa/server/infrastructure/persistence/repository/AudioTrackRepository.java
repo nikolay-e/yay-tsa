@@ -48,4 +48,7 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
           + "LEFT JOIN FETCH at.albumArtist "
           + "WHERE at.itemId = :itemId")
   Optional<AudioTrackEntity> findByIdWithRelations(@Param("itemId") UUID itemId);
+
+  @Query("SELECT at FROM AudioTrackEntity at JOIN FETCH at.item WHERE at.codec IS NOT NULL")
+  List<AudioTrackEntity> findAllWithCodec();
 }

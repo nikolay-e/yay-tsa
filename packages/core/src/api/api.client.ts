@@ -523,15 +523,7 @@ export class MediaServerClient {
    * Build stream URL for audio playback
    * Note: Uses api_key query parameter as browsers don't send headers for <audio> src
    */
-  getStreamUrl(
-    itemId: string,
-    options?: {
-      audioCodec?: string;
-      audioBitRate?: number;
-      container?: string;
-      static?: boolean;
-    }
-  ): string {
+  getStreamUrl(itemId: string): string {
     if (!this.token) {
       throw new AuthenticationError('Cannot build stream URL: not authenticated');
     }
@@ -539,16 +531,7 @@ export class MediaServerClient {
     const params = new URLSearchParams({
       api_key: this.token,
       deviceId: this.clientInfo.deviceId,
-      audioCodec: options?.audioCodec ?? 'aac,mp3,opus',
-      container: options?.container ?? 'mp3,aac,m4a,flac,opus',
     });
-
-    // Add audioBitRate if specified, otherwise use static=true for direct streaming
-    if (options?.audioBitRate) {
-      params.append('audioBitRate', String(options.audioBitRate));
-    } else if (options?.static !== false) {
-      params.append('static', 'true');
-    }
 
     return `${this.serverUrl}/Audio/${itemId}/stream?${params}`;
   }

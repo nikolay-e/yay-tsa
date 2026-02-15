@@ -163,7 +163,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
                 <button
                   type="button"
                   onClick={() => void handleFetchLyrics()}
-                  className="bg-accent hover:bg-accent-hover flex items-center gap-2 rounded-full px-6 py-2.5 text-white transition-colors"
+                  className="bg-accent hover:bg-accent-hover flex items-center gap-2 rounded-full px-6 py-2.5 text-black transition-colors"
                 >
                   <Search className="h-4 w-4" />
                   Search Lyrics

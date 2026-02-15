@@ -152,26 +152,11 @@ yaytsa:
         enabled: ${X_ACCEL_REDIRECT_ENABLED:false}
         internal-path: ${X_ACCEL_INTERNAL_PATH:/_internal/media}
 
-    # Transcoding configuration
+    # Bulk transcoding configuration (non-native codecs → FLAC during scan)
     transcoding:
-      enabled: ${TRANSCODE_ENABLED:true}
       ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
       max-concurrent: ${MAX_CONCURRENT_TRANSCODES:4}
-      timeout-seconds: 3600
-      temp-directory: ${TRANSCODE_TEMP_DIR:./temp/transcode}
-      presets:
-        - name: mp3-128
-          codec: mp3
-          bitrate: 128k
-          container: mp3
-        - name: mp3-320
-          codec: mp3
-          bitrate: 320k
-          container: mp3
-        - name: opus-96
-          codec: opus
-          bitrate: 96k
-          container: ogg
+      timeout-seconds: ${TRANSCODE_TIMEOUT:600}
 
     # Image processing configuration
     images:
@@ -291,8 +276,6 @@ yaytsa:
   media:
     library:
       roots: ./test-media
-    transcoding:
-      max-concurrent: 2
     images:
       cache-directory: ./test-temp/images
 

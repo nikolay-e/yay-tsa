@@ -244,6 +244,7 @@ test.describe('Sleep Timer and Background Playback', () => {
       const rmsValue = await authenticatedPage.evaluate(() => {
         const player = (window as any).__playerStore__;
         const audioEngine = player?.audioEngine;
+        audioEngine?.getAudioContext?.();
         return audioEngine?.getRMS?.() ?? -1;
       });
       expect(rmsValue).toBeGreaterThanOrEqual(0);
@@ -358,8 +359,8 @@ test.describe('Sleep Timer and Background Playback', () => {
       const sleepTimer = (window as any).__sleepTimerStore__;
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
-          musicDurationMs: 1000,
-          crossfadeDurationMs: 3000,
+          musicDurationMs: 500,
+          crossfadeDurationMs: 8000,
           noiseDurationMs: 0,
         });
       }
@@ -404,7 +405,7 @@ test.describe('Sleep Timer and Background Playback', () => {
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
           musicDurationMs: 500,
-          crossfadeDurationMs: 2000,
+          crossfadeDurationMs: 6000,
           noiseDurationMs: 0,
         });
       }
@@ -424,7 +425,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     for (let i = 0; i < sampleCount; i++) {
       const volume = await playerBar.getVolume();
       volumeSamples.push(volume);
-      await authenticatedPage.waitForTimeout(150);
+      await authenticatedPage.waitForTimeout(200);
     }
 
     const firstVolume = volumeSamples[0];
@@ -510,11 +511,15 @@ test.describe('Sleep Timer and Background Playback', () => {
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
           musicDurationMs: 500,
-          crossfadeDurationMs: 3000,
+          crossfadeDurationMs: 8000,
           noiseDurationMs: 1000,
         });
       }
     });
+
+    // Close modal first so we can re-open it for cancel
+    await authenticatedPage.keyboard.press('Escape');
+    await expect(modal).not.toBeVisible({ timeout: 5000 });
 
     await expect(async () => {
       const phase = await authenticatedPage.evaluate(() => {

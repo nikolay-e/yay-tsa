@@ -837,6 +837,7 @@ export const usePlayerStore = create<PlayerStore>()(
           clearTimeout(sleepTimerId);
           sleepTimerId = null;
         }
+        cleanupCustomSleepTimer();
         set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
       },
 
@@ -861,6 +862,39 @@ useAuthStore.subscribe(
   }
 );
 
+type SleepTimerPhase = 'idle' | 'music' | 'crossfade-to-noise' | 'noise' | 'stopped';
+
+let sleepTimerPhase: SleepTimerPhase = 'idle';
+let sleepTimerCrossfadeInterval: ReturnType<typeof setInterval> | null = null;
+let sleepTimerOriginalVolume: number | null = null;
+let sleepTimerFadeCancel: (() => void) | null = null;
+
+function cleanupCustomSleepTimer() {
+  if (sleepTimerCrossfadeInterval) {
+    clearInterval(sleepTimerCrossfadeInterval);
+    sleepTimerCrossfadeInterval = null;
+  }
+  if (sleepTimerFadeCancel) {
+    sleepTimerFadeCancel();
+    sleepTimerFadeCancel = null;
+  }
+  if (sleepTimerOriginalVolume !== null && audioEngine) {
+    audioEngine.setVolume(sleepTimerOriginalVolume);
+    sleepTimerOriginalVolume = null;
+  }
+  sleepTimerPhase = 'idle';
+}
+
+function completeSleepTimer() {
+  usePlayerStore.getState().pause();
+  if (sleepTimerOriginalVolume !== null && audioEngine) {
+    audioEngine.setVolume(sleepTimerOriginalVolume);
+  }
+  sleepTimerOriginalVolume = null;
+  sleepTimerPhase = 'stopped';
+  usePlayerStore.setState({ sleepTimerEndTime: null, sleepTimerMinutes: null });
+}
+
 declare global {
   interface Window {
     __playerStore__?: {
@@ -869,6 +903,17 @@ declare global {
       readonly currentTrack: AudioItem | null;
       readonly audioEngine: AudioEngine | null;
       readonly mediaSession: MediaSessionManager | null;
+      setVolume: (level: number) => void;
+    };
+    __sleepTimerStore__?: {
+      readonly isActive: boolean;
+      readonly remainingMs: number;
+      readonly phase: SleepTimerPhase;
+      startCustomTimer: (config: {
+        musicDurationMs: number;
+        crossfadeDurationMs: number;
+        noiseDurationMs: number;
+      }) => void;
     };
     __platformClasses__?: {
       PinkNoiseGenerator: typeof PinkNoiseGenerator;
@@ -895,7 +940,67 @@ if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
     get mediaSession() {
       return mediaSession;
     },
+    setVolume(level: number) {
+      usePlayerStore.getState().setVolume(level);
+    },
   };
+
+  window.__sleepTimerStore__ = {
+    get isActive() {
+      return usePlayerStore.getState().sleepTimerEndTime !== null || sleepTimerPhase !== 'idle';
+    },
+    get remainingMs() {
+      const endTime = usePlayerStore.getState().sleepTimerEndTime;
+      if (endTime === null) return 0;
+      return Math.max(0, endTime - Date.now());
+    },
+    get phase(): SleepTimerPhase {
+      if (sleepTimerPhase !== 'idle') return sleepTimerPhase;
+      const endTime = usePlayerStore.getState().sleepTimerEndTime;
+      if (endTime !== null) return 'music';
+      return 'idle';
+    },
+    startCustomTimer({ musicDurationMs, crossfadeDurationMs, noiseDurationMs }) {
+      cleanupCustomSleepTimer();
+
+      if (sleepTimerId) {
+        clearTimeout(sleepTimerId);
+        sleepTimerId = null;
+      }
+      usePlayerStore.getState().clearSleepTimer();
+
+      sleepTimerOriginalVolume = audioEngine?.getVolume() ?? 1;
+      sleepTimerPhase = 'music';
+
+      const totalMs = musicDurationMs + crossfadeDurationMs + noiseDurationMs;
+      const endTime = Date.now() + totalMs;
+      usePlayerStore.setState({ sleepTimerEndTime: endTime, sleepTimerMinutes: totalMs / 60000 });
+
+      setTimeout(() => {
+        sleepTimerPhase = 'crossfade-to-noise';
+        const startVolume = audioEngine?.getVolume() ?? sleepTimerOriginalVolume ?? 1;
+
+        if (audioEngine?.fadeVolume) {
+          const { promise, cancel } = audioEngine.fadeVolume(startVolume, 0, crossfadeDurationMs);
+          sleepTimerFadeCancel = cancel;
+          void promise.then(() => {
+            sleepTimerFadeCancel = null;
+            if (noiseDurationMs > 0) {
+              sleepTimerPhase = 'noise';
+              setTimeout(() => {
+                completeSleepTimer();
+              }, noiseDurationMs);
+            } else {
+              completeSleepTimer();
+            }
+          });
+        } else {
+          completeSleepTimer();
+        }
+      }, musicDurationMs);
+    },
+  };
+
   window.__platformClasses__ = {
     PinkNoiseGenerator,
     MediaSessionManager,

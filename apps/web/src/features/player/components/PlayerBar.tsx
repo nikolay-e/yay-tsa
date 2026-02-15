@@ -28,6 +28,15 @@ import { SleepTimerModal } from './SleepTimerModal';
 import { VolumeControls } from './VolumeControls';
 import { PlaybackControls } from './PlaybackControls';
 
+function formatTimeText(time: number, total: number): string {
+  const formatNum = (n: number) => {
+    const mins = Math.floor(n / 60);
+    const secs = Math.floor(n % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  return `${formatNum(time)} of ${formatNum(total)}`;
+}
+
 export function PlayerBar() {
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [showLyricsView, setShowLyricsView] = useState(false);
@@ -116,15 +125,6 @@ export function PlayerBar() {
 
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     seek(parseFloat(e.target.value));
-  };
-
-  const formatTimeText = (time: number, total: number): string => {
-    const formatNum = (n: number) => {
-      const mins = Math.floor(n / 60);
-      const secs = Math.floor(n % 60);
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-    return `${formatNum(time)} of ${formatNum(total)}`;
   };
 
   return (
@@ -270,7 +270,7 @@ export function PlayerBar() {
           >
             <Timer className="h-4 w-4" />
             {sleepTimer.endTime && sleepMinutesLeft > 0 && (
-              <span className="bg-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white">
+              <span className="bg-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-black">
                 {sleepMinutesLeft}
               </span>
             )}

@@ -76,7 +76,7 @@ export function SleepTimerModal({
               className={cn(
                 'w-full rounded-md p-3 text-left transition-colors',
                 currentMinutes === mins
-                  ? 'bg-accent text-white'
+                  ? 'bg-accent text-black'
                   : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'
               )}
             >

@@ -103,7 +103,7 @@ repos:
   # More powerful than basic ESLint security rules.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/returntocorp/semgrep
-    rev: v1.89.0
+    rev: v1.151.0
     hooks:
       - id: semgrep
         name: semgrep (JS/TS security & best practices)

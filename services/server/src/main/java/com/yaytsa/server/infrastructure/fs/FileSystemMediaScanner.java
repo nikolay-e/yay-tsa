@@ -2,6 +2,7 @@ package com.yaytsa.server.infrastructure.fs;
 
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.*;
+import com.yaytsa.server.infrastructure.transcoding.FfmpegTranscoder;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -21,6 +22,7 @@ public class FileSystemMediaScanner {
 
   private final ItemRepository itemRepository;
   private final MediaScannerTransactionalService transactionalService;
+  private final FfmpegTranscoder transcoder;
 
   @Value("${yaytsa.media.library.supported-extensions:mp3,flac,m4a,aac,ogg,opus,wav,wma}")
   private String supportedExtensions;
@@ -32,9 +34,12 @@ public class FileSystemMediaScanner {
   private int scanThreads;
 
   public FileSystemMediaScanner(
-      ItemRepository itemRepository, MediaScannerTransactionalService transactionalService) {
+      ItemRepository itemRepository,
+      MediaScannerTransactionalService transactionalService,
+      FfmpegTranscoder transcoder) {
     this.itemRepository = itemRepository;
     this.transactionalService = transactionalService;
+    this.transcoder = transcoder;
   }
 
   public record ScanResult(
@@ -66,15 +71,18 @@ public class FileSystemMediaScanner {
 
     int removed = transactionalService.removeDeletedItems(libraryRoot, processedPaths);
 
+    int transcoded = transcodeNonNativeFiles(processedPaths);
+
     int artworkFound = transactionalService.scanMissingArtwork();
     log.info("Found {} missing artwork files during scan", artworkFound);
 
     log.info(
-        "Scan completed: {} scanned, {} added, {} updated, {} removed, {} errors",
+        "Scan completed: {} scanned, {} added, {} updated, {} removed, {} transcoded, {} errors",
         audioFiles.size(),
         added.get(),
         updated.get(),
         removed,
+        transcoded,
         errors.get());
 
     return new ScanResult(audioFiles.size(), added.get(), updated.get(), removed, errors.get());
@@ -116,6 +124,54 @@ public class FileSystemMediaScanner {
       log.error("Error processing file {}: {}", filePath, e.getMessage());
       errors.incrementAndGet();
     }
+  }
+
+  private int transcodeNonNativeFiles(Set<String> processedPaths) {
+    var tracks = transactionalService.findNonNativeCodecTracks();
+    if (tracks.isEmpty()) {
+      return 0;
+    }
+
+    log.info("Found {} tracks with non-native codecs to transcode", tracks.size());
+    int transcoded = 0;
+
+    for (var track : tracks) {
+      Path inputPath = Path.of(track.filePath());
+      if (!Files.exists(inputPath)) {
+        log.warn("Skipping transcode for missing file: {}", track.filePath());
+        continue;
+      }
+
+      var outputPath = transcoder.transcodeToFlac(inputPath);
+      if (outputPath.isPresent()) {
+        if (!transcoder.validateTranscodedOutput(inputPath, outputPath.get())) {
+          log.error("Transcoded output failed validation, keeping original: {}", inputPath);
+          try {
+            Files.deleteIfExists(outputPath.get());
+          } catch (IOException e) {
+            log.warn("Failed to delete invalid transcode output: {}", e.getMessage());
+          }
+          continue;
+        }
+
+        transactionalService.updateTranscodedTrack(track.itemId(), outputPath.get());
+
+        processedPaths.remove(track.filePath());
+        processedPaths.add(outputPath.get().toAbsolutePath().toString());
+
+        try {
+          Files.deleteIfExists(inputPath);
+          log.info("Deleted original file after transcode: {}", inputPath.getFileName());
+        } catch (IOException e) {
+          log.warn("Failed to delete original file {}: {}", inputPath, e.getMessage());
+        }
+
+        transcoded++;
+      }
+    }
+
+    log.info("Transcoded {} of {} non-native codec files to FLAC", transcoded, tracks.size());
+    return transcoded;
   }
 
   private List<Path> collectAudioFiles(

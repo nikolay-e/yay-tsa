@@ -117,7 +117,7 @@ test.describe('Queue Management', () => {
     const lastTrackTitle = await playerBar.getCurrentTrackTitle();
 
     // Click next on the last track - should stay on last track or stop
-    await playerBar.next();
+    await playerBar.clickNext();
     await authenticatedPage.waitForTimeout(500);
 
     // Verify we haven't looped back to first track (no repeat)

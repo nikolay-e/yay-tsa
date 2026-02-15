@@ -9,9 +9,11 @@ import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,11 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-@Transactional(readOnly = true)
 public class StreamingService {
 
   private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=(\\d+)-(\\d*)$");
-  private static final int BUFFER_SIZE = 8192;
   private static final org.slf4j.Logger log =
       org.slf4j.LoggerFactory.getLogger(StreamingService.class);
 
@@ -85,9 +85,31 @@ public class StreamingService {
     return String.format("%s/Audio/%s/stream", baseUrl, itemId);
   }
 
+  private record ResolvedFile(Path filePath, String container) {}
+
+  @Transactional(readOnly = true)
   public void streamAudio(UUID itemId, String rangeHeader, HttpServletResponse response)
       throws IOException {
 
+    ResolvedFile resolved = resolveFile(itemId);
+
+    long fileSize = Files.size(resolved.filePath());
+    String mimeType = detectMimeType(resolved.filePath(), resolved.container());
+    String etag = generateETag(resolved.filePath(), fileSize);
+
+    response.setHeader("Accept-Ranges", "bytes");
+    response.setHeader("ETag", etag);
+
+    if (xAccelRedirectEnabled) {
+      handleXAccelRedirect(resolved.filePath(), fileSize, mimeType, response);
+    } else if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+      handleRangeRequest(resolved.filePath(), fileSize, mimeType, rangeHeader, response);
+    } else {
+      handleFullRequest(resolved.filePath(), fileSize, mimeType, response);
+    }
+  }
+
+  private ResolvedFile resolveFile(UUID itemId) {
     ItemEntity item =
         itemRepository
             .findById(itemId)
@@ -107,24 +129,19 @@ public class StreamingService {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
-    if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+    try {
+      BasicFileAttributes attrs =
+          Files.readAttributes(filePath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+      if (!attrs.isRegularFile()) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+      }
+    } catch (java.nio.file.NoSuchFileException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: " + item.getPath());
+    } catch (IOException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: " + item.getPath());
     }
 
-    long fileSize = Files.size(filePath);
-    String mimeType = detectMimeType(filePath, item.getContainer());
-    String etag = generateETag(filePath, fileSize);
-
-    response.setHeader("Accept-Ranges", "bytes");
-    response.setHeader("ETag", etag);
-
-    if (xAccelRedirectEnabled) {
-      handleXAccelRedirect(filePath, fileSize, mimeType, response);
-    } else if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-      handleRangeRequest(filePath, fileSize, mimeType, rangeHeader, response);
-    } else {
-      handleFullRequest(filePath, fileSize, mimeType, response);
-    }
+    return new ResolvedFile(filePath, item.getContainer());
   }
 
   private void handleXAccelRedirect(
@@ -142,53 +159,16 @@ public class StreamingService {
     log.debug("X-Accel-Redirect to: {}", redirectPath);
   }
 
+  @Transactional(readOnly = true)
   public Resource getAudioResource(UUID itemId) {
-    ItemEntity item =
-        itemRepository
-            .findById(itemId)
-            .orElseThrow(
-                () ->
-                    new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));
-
-    if (item.getPath() == null) {
-      throw new ResponseStatusException(
-          HttpStatus.NOT_FOUND, "File path not available for item: " + itemId);
-    }
-
-    Path filePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
-
-    if (!isPathSafe(filePath)) {
-      log.error("Path traversal attempt detected for item {}: {}", itemId, filePath);
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-    }
-
-    if (!Files.exists(filePath)) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: " + item.getPath());
-    }
-
-    return new FileSystemResource(filePath);
+    ResolvedFile resolved = resolveFile(itemId);
+    return new FileSystemResource(resolved.filePath());
   }
 
+  @Transactional(readOnly = true)
   public String getAudioMimeType(UUID itemId) {
-    ItemEntity item =
-        itemRepository
-            .findById(itemId)
-            .orElseThrow(
-                () ->
-                    new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));
-
-    if (item.getPath() == null) {
-      return "audio/mpeg";
-    }
-
-    Path filePath = Paths.get(item.getPath()).toAbsolutePath().normalize();
-
-    if (!isPathSafe(filePath)) {
-      log.error("Path traversal attempt detected for item {}: {}", itemId, filePath);
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-    }
-
-    return detectMimeType(filePath, item.getContainer());
+    ResolvedFile resolved = resolveFile(itemId);
+    return detectMimeType(resolved.filePath(), resolved.container());
   }
 
   private void handleFullRequest(
@@ -199,10 +179,11 @@ public class StreamingService {
     response.setContentType(mimeType);
     response.setContentLengthLong(fileSize);
 
-    try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
+    try (FileChannel fileChannel =
+            FileChannel.open(filePath, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
         OutputStream outputStream = response.getOutputStream()) {
 
-      fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
+      transferFully(fileChannel, 0, fileSize, Channels.newChannel(outputStream));
     }
   }
 
@@ -237,11 +218,28 @@ public class StreamingService {
     response.setContentLengthLong(contentLength);
     response.setHeader("Content-Range", String.format("bytes %d-%d/%d", start, end, fileSize));
 
-    try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
+    try (FileChannel fileChannel =
+            FileChannel.open(filePath, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
         OutputStream outputStream = response.getOutputStream()) {
 
-      fileChannel.position(start);
-      fileChannel.transferTo(start, contentLength, Channels.newChannel(outputStream));
+      transferFully(fileChannel, start, contentLength, Channels.newChannel(outputStream));
+    }
+  }
+
+  private void transferFully(
+      FileChannel fileChannel,
+      long position,
+      long count,
+      java.nio.channels.WritableByteChannel target)
+      throws IOException {
+    long remaining = count;
+    while (remaining > 0) {
+      long transferred = fileChannel.transferTo(position, remaining, target);
+      if (transferred <= 0) {
+        break;
+      }
+      position += transferred;
+      remaining -= transferred;
     }
   }
 

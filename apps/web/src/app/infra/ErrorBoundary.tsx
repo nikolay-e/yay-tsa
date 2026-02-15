@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             <button
               onClick={this.handleRetry}
-              className="bg-accent hover:bg-accent-hover rounded-md px-4 py-2 text-sm text-white transition-colors"
+              className="bg-accent hover:bg-accent-hover rounded-md px-4 py-2 text-sm text-black transition-colors"
             >
               Try again
             </button>
