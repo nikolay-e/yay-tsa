@@ -37,6 +37,8 @@ interface PlayerState {
   isKaraokeTransitioning: boolean;
   karaokeStatus: KaraokeStatus | null;
   karaokeEnabled: boolean;
+  vocalVolume: number;
+  karaokeTimeOffset: number;
   sleepTimerMinutes: number | null;
   sleepTimerEndTime: number | null;
 }
@@ -57,6 +59,7 @@ interface PlayerActions {
   stop: () => void;
   toggleKaraoke: () => Promise<void>;
   refreshKaraokeStatus: () => Promise<void>;
+  setVocalVolume: (volume: number) => Promise<void>;
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
   updateCurrentTrackLyrics: (lyrics: string) => void;
@@ -146,6 +149,8 @@ const initialState: PlayerState = {
   isKaraokeTransitioning: false,
   karaokeStatus: null,
   karaokeEnabled: false,
+  vocalVolume: 0.3,
+  karaokeTimeOffset: 0,
   sleepTimerMinutes: null,
   sleepTimerEndTime: null,
 };
@@ -175,6 +180,7 @@ export const usePlayerStore = create<PlayerStore>()(
         stop: () => {},
         toggleKaraoke: async () => {},
         refreshKaraokeStatus: async () => {},
+        setVocalVolume: async () => {},
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
         updateCurrentTrackLyrics: () => {},
@@ -276,7 +282,7 @@ export const usePlayerStore = create<PlayerStore>()(
             if (get().isPlaying) await engine.play();
           }
           if (!signal.aborted) {
-            set({ karaokeStatus: status });
+            set({ karaokeStatus: status, karaokeTimeOffset: 0 });
           }
         } else {
           if (!signal.aborted) {
@@ -290,22 +296,33 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
-    async function karaokeSwitchUrl(url: string, signal: AbortSignal): Promise<void> {
+    // startTime >= 0: karaoke (non-seekable) stream starting at startTime seconds server-side
+    // startTime = -1: regular seekable stream (will seek engine to current song position)
+    async function karaokeSwitchUrl(url: string, signal: AbortSignal, startTime: number = -1): Promise<void> {
+      const isKaraokeStream = startTime >= 0;
+      const songPosition = engine.getCurrentTime() + get().karaokeTimeOffset;
+
       if (engine.preload && engine.seamlessSwitch) {
-        const hint = engine.getCurrentTime();
+        // For karaoke: hint=0 because server already starts at startTime, no element seek needed
+        // For regular: hint=songPosition so engine seeks to the correct position
+        const hint = isKaraokeStream ? 0 : songPosition;
         await withTimeout(engine.preload(url), ENGINE_TIMEOUT_MS);
         if (signal.aborted) return;
         const result = await withTimeout(engine.seamlessSwitch(hint, 50), ENGINE_TIMEOUT_MS);
         if (!get().isPlaying) engine.pause();
         if (result) {
-          useTimingStore.getState().updateTiming(result.position, result.duration);
+          const displayPosition = isKaraokeStream ? startTime : result.position;
+          useTimingStore.getState().updateTiming(displayPosition, result.duration);
         }
+        set({ karaokeTimeOffset: isKaraokeStream ? startTime : 0 });
       } else {
-        const position = engine.getCurrentTime();
         await withTimeout(engine.load(url), ENGINE_TIMEOUT_MS);
         if (signal.aborted) return;
-        engine.seek(position);
+        if (!isKaraokeStream) {
+          engine.seek(songPosition);
+        }
         if (get().isPlaying) await engine.play();
+        set({ karaokeTimeOffset: isKaraokeStream ? startTime : 0 });
       }
     }
 
@@ -401,8 +418,10 @@ export const usePlayerStore = create<PlayerStore>()(
     // --- Engine event handlers ---
 
     engine.onTimeUpdate(seconds => {
+      const { isKaraokeMode, karaokeTimeOffset } = get();
+      const displaySeconds = isKaraokeMode ? seconds + karaokeTimeOffset : seconds;
       const duration = engine.getDuration();
-      useTimingStore.getState().updateTiming(seconds, duration);
+      useTimingStore.getState().updateTiming(displaySeconds, duration);
 
       const now = Date.now();
       if (
@@ -411,7 +430,7 @@ export const usePlayerStore = create<PlayerStore>()(
         now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS
       ) {
         lastProgressReportTime = now;
-        playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
+        playbackReporter.reportProgress(currentItemId, displaySeconds, false).catch(err => {
           log.player.warn('Failed to report playback progress', { error: String(err) });
         });
       }
@@ -668,6 +687,7 @@ export const usePlayerStore = create<PlayerStore>()(
             isKaraokeMode: false,
             isKaraokeTransitioning: false,
             karaokeStatus: null,
+            karaokeTimeOffset: 0,
             sleepTimerMinutes: null,
             sleepTimerEndTime: null,
           });
@@ -715,8 +735,10 @@ export const usePlayerStore = create<PlayerStore>()(
 
               if (status.state === 'READY') {
                 set({ isKaraokeMode: true, karaokeStatus: status });
-                const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
-                await karaokeSwitchUrl(instrumentalUrl, signal);
+                const vocalVolume = get().vocalVolume;
+                const startTime = engine.getCurrentTime() + get().karaokeTimeOffset;
+                const karaokeUrl = currentClient!.getKaraokeStreamUrl(currentTrack.Id, vocalVolume, startTime);
+                await karaokeSwitchUrl(karaokeUrl, signal, startTime);
                 if (signal.aborted) return;
                 preloader.invalidate();
                 schedulePreload();
@@ -790,8 +812,10 @@ export const usePlayerStore = create<PlayerStore>()(
 
             if (status.state === 'READY') {
               set({ isKaraokeTransitioning: true, karaokeStatus: status, isKaraokeMode: true });
-              const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
-              await karaokeSwitchUrl(instrumentalUrl, signal);
+              const vocalVolume = get().vocalVolume;
+              const startTime = engine.getCurrentTime() + get().karaokeTimeOffset;
+              const karaokeUrl = currentClient!.getKaraokeStreamUrl(currentTrack.Id, vocalVolume, startTime);
+              await karaokeSwitchUrl(karaokeUrl, signal, startTime);
               if (signal.aborted) return;
               preloader.invalidate();
               schedulePreload();
@@ -802,7 +826,32 @@ export const usePlayerStore = create<PlayerStore>()(
           } catch (error) {
             if (signal.aborted) return;
             log.player.warn('Failed to load karaoke instrumental', { error: String(error) });
-            set({ karaokeStatus: null, isKaraokeMode: false });
+            set({ karaokeStatus: null, isKaraokeMode: false, isKaraokeTransitioning: false });
+          }
+        });
+      },
+
+      setVocalVolume: async (volume: number) => {
+        const clampedVolume = Math.max(0, Math.min(1, volume));
+        set({ vocalVolume: clampedVolume });
+
+        const { currentTrack, isKaraokeMode, isKaraokeTransitioning } = get();
+        if (!currentTrack || !currentClient || !isKaraokeMode || isKaraokeTransitioning) return;
+
+        await controller.ifIdle(async signal => {
+          set({ isKaraokeTransitioning: true });
+          try {
+            const startTime = engine.getCurrentTime() + get().karaokeTimeOffset;
+            const karaokeUrl = currentClient!.getKaraokeStreamUrl(currentTrack.Id, clampedVolume, startTime);
+            await karaokeSwitchUrl(karaokeUrl, signal, startTime);
+            if (signal.aborted) return;
+            preloader.invalidate();
+            schedulePreload();
+            set({ isKaraokeTransitioning: false });
+          } catch (error) {
+            if (signal.aborted) return;
+            log.player.error('Failed to update vocal volume', error);
+            set({ isKaraokeTransitioning: false });
           }
         });
       },
@@ -1019,6 +1068,7 @@ export const useIsKaraokeMode = () => usePlayerStore(state => state.isKaraokeMod
 export const useIsKaraokeTransitioning = () =>
   usePlayerStore(state => state.isKaraokeTransitioning);
 export const useKaraokeStatus = () => usePlayerStore(state => state.karaokeStatus);
+export const useVocalVolume = () => usePlayerStore(state => state.vocalVolume);
 export const useSleepTimer = () =>
   usePlayerStore(
     useShallow(state => ({

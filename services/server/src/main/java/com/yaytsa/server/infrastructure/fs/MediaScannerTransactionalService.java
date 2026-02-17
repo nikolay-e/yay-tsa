@@ -51,7 +51,7 @@ public class MediaScannerTransactionalService {
   }
 
   @Transactional
-  public void createNewTrack(
+  public ItemEntity createNewTrack(
       Path filePath, String absolutePath, OffsetDateTime mtime, long fileSize, String libraryRoot)
       throws IOException {
     Optional<AudioMetadata> metadataOpt = metadataExtractor.extract(filePath);
@@ -93,6 +93,8 @@ public class MediaScannerTransactionalService {
     processGenres(trackItem, metadata.genres());
     processAlbumArtwork(albumItem, filePath, metadata);
     processArtistArtwork(artistItem, filePath);
+
+    return trackItem;
   }
 
   @Transactional

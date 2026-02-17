@@ -53,6 +53,8 @@ public class ImageService {
   private final Cache<String, byte[]> imageCache;
   private final Path mediaRootPath;
   private volatile Path realMediaRoot;
+  private final Path imageCacheDirectory;
+  private volatile Path realImageCacheDir;
   private final boolean xAccelRedirectEnabled;
   private final String xAccelInternalPath;
 
@@ -61,6 +63,7 @@ public class ImageService {
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
       @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+      @Value("${yaytsa.media.images.cache-directory:./temp/images}") String imageCacheDir,
       @Value("${yaytsa.media.streaming.x-accel-redirect.enabled:false}")
           boolean xAccelRedirectEnabled,
       @Value("${yaytsa.media.streaming.x-accel-redirect.internal-path:/_internal/media}")
@@ -69,6 +72,7 @@ public class ImageService {
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+    this.imageCacheDirectory = Paths.get(imageCacheDir).toAbsolutePath().normalize();
     this.xAccelRedirectEnabled = xAccelRedirectEnabled;
     this.xAccelInternalPath = xAccelInternalPath;
     this.imageCache =
@@ -78,6 +82,7 @@ public class ImageService {
             .recordStats()
             .build();
     initRealMediaRoot();
+    initRealImageCacheDir();
     if (xAccelRedirectEnabled) {
       logger.info("Image X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
     }
@@ -90,6 +95,17 @@ public class ImageService {
     } catch (IOException e) {
       logger.warn("Media root path not accessible at startup: {}", mediaRootPath);
       this.realMediaRoot = null;
+    }
+  }
+
+  private void initRealImageCacheDir() {
+    try {
+      Files.createDirectories(imageCacheDirectory);
+      this.realImageCacheDir = imageCacheDirectory.toRealPath();
+      logger.info("Initialized image cache directory: {}", realImageCacheDir);
+    } catch (IOException e) {
+      logger.warn("Image cache directory not accessible at startup: {}", imageCacheDirectory);
+      this.realImageCacheDir = null;
     }
   }
 
@@ -184,12 +200,20 @@ public class ImageService {
 
   private boolean isPathSafe(Path path) {
     try {
-      Path root = getRealMediaRoot();
-      if (root == null) {
-        return false;
-      }
       Path realPath = path.toRealPath();
-      return realPath.startsWith(root);
+
+      // Allow access to media root
+      Path mediaRoot = getRealMediaRoot();
+      if (mediaRoot != null && realPath.startsWith(mediaRoot)) {
+        return true;
+      }
+
+      // Allow access to image cache directory
+      if (realImageCacheDir != null && realPath.startsWith(realImageCacheDir)) {
+        return true;
+      }
+
+      return false;
     } catch (java.nio.file.NoSuchFileException e) {
       logger.debug("Path does not exist: {}", path);
       return false;
@@ -220,16 +244,27 @@ public class ImageService {
     Optional<ImageEntity> imageEntity =
         imageRepository.findFirstByItem_IdAndType(itemId, imageType);
 
+    logger.debug("findImagePath: itemId={}, type={}, imageEntity present={}",
+        itemId, imageType, imageEntity.isPresent());
+
     if (imageEntity.isPresent()) {
       String storedPath = imageEntity.get().getPath();
-      if (storedPath != null && !storedPath.startsWith("/app/temp/")) {
+      logger.debug("Found stored path: {}", storedPath);
+      if (storedPath != null) {
         Path imagePath = Paths.get(storedPath).toAbsolutePath().normalize();
-        if (isPathSafe(imagePath) && Files.exists(imagePath)) {
+        boolean pathSafe = isPathSafe(imagePath);
+        boolean exists = Files.exists(imagePath);
+        logger.debug("Image path checks: path={}, safe={}, exists={}", imagePath, pathSafe, exists);
+        if (pathSafe && exists) {
           logger.debug("Using stored image path: {}", imagePath);
           return Optional.of(imagePath);
+        } else {
+          logger.warn("Stored image path not accessible: path={}, safe={}, exists={}", imagePath, pathSafe, exists);
         }
       }
       logger.debug("Stored image path not usable: {}, falling back to folder artwork", storedPath);
+    } else {
+      logger.debug("No image entity found for itemId={}, type={}", itemId, imageType);
     }
 
     if (imageType == ImageType.Primary) {
