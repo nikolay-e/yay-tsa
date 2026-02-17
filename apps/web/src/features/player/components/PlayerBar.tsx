@@ -19,6 +19,7 @@ import {
   useIsKaraokeMode,
   useIsKaraokeTransitioning,
   useKaraokeStatus,
+  useVocalVolume,
   useSleepTimer,
 } from '../stores/player.store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
@@ -41,6 +42,7 @@ export function PlayerBar() {
   const isKaraokeMode = useIsKaraokeMode();
   const isKaraokeTransitioning = useIsKaraokeTransitioning();
   const karaokeStatus = useKaraokeStatus();
+  const vocalVolume = useVocalVolume();
   const sleepTimer = useSleepTimer();
   useAlbumColors();
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
@@ -220,6 +222,30 @@ export function PlayerBar() {
           >
             {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </button>
+
+          {isKaraokeMode && (
+            <div className="flex items-center gap-2 px-2">
+              <span className="text-text-tertiary text-xs whitespace-nowrap">
+                Вокал
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={vocalVolume * 100}
+                onChange={(e) => void usePlayerStore.getState().setVocalVolume(Number(e.target.value) / 100)}
+                className="w-16 md:w-24 h-1 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-accent"
+                style={{
+                  background: `linear-gradient(to right, rgb(var(--color-accent)) 0%, rgb(var(--color-accent)) ${vocalVolume * 100}%, rgb(var(--color-surface-tertiary)) ${vocalVolume * 100}%, rgb(var(--color-surface-tertiary)) 100%)`
+                }}
+                aria-label="Vocal volume"
+                title={`Громкость вокала: ${Math.round(vocalVolume * 100)}%`}
+              />
+              <span className="text-text-tertiary text-xs tabular-nums w-8">
+                {Math.round(vocalVolume * 100)}%
+              </span>
+            </div>
+          )}
 
           <button
             type="button"

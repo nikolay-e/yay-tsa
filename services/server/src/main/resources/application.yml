@@ -158,6 +158,10 @@ yaytsa:
       max-concurrent: ${MAX_CONCURRENT_TRANSCODES:4}
       timeout-seconds: ${TRANSCODE_TIMEOUT:600}
 
+    # Audio fingerprinting (duplicate detection)
+    fingerprint:
+      fpcalc-path: ${FPCALC_PATH:fpcalc}
+
     # Image processing configuration
     images:
       cache-directory: ${IMAGE_CACHE_DIR:./temp/images}
@@ -177,6 +181,26 @@ yaytsa:
       fetcher-url: ${LYRICS_FETCHER_URL:http://audio-separator:8000}
       fetch-on-scan: ${LYRICS_FETCH_ON_SCAN:true}
       timeout-seconds: ${LYRICS_TIMEOUT:20}
+
+  # Metadata enrichment configuration
+  metadata:
+    # Genius API (https://genius.com/api-clients)
+    # Excellent for modern music and Russian artists
+    genius:
+      access-token: ${GENIUS_ACCESS_TOKEN:}
+
+    # Last.fm API (https://www.last.fm/api)
+    # Free API key: https://www.last.fm/api/account/create
+    lastfm:
+      api-key: ${LASTFM_API_KEY:}
+
+    # Spotify API (https://developer.spotify.com)
+    # Create app at: https://developer.spotify.com/dashboard
+    spotify:
+      client-id: ${SPOTIFY_CLIENT_ID:}
+      client-secret: ${SPOTIFY_CLIENT_SECRET:}
+
+    # MusicBrainz is always enabled (no API key required)
 
     # Session configuration
     sessions:

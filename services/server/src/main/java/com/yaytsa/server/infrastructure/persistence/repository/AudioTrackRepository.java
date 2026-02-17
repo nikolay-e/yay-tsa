@@ -51,4 +51,24 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
 
   @Query("SELECT at FROM AudioTrackEntity at JOIN FETCH at.item WHERE at.codec IS NOT NULL")
   List<AudioTrackEntity> findAllWithCodec();
+
+  /**
+   * Find duplicate tracks by artist, album and title. Used to detect duplicates during upload.
+   *
+   * @param albumArtistId the album artist ID
+   * @param albumId the album ID
+   * @param title the track title (case-insensitive)
+   * @return the duplicate track if found
+   */
+  @Query(
+      "SELECT at FROM AudioTrackEntity at "
+          + "LEFT JOIN FETCH at.item i "
+          + "WHERE at.albumArtist.id = :albumArtistId "
+          + "AND at.album.id = :albumId "
+          + "AND LOWER(i.name) = LOWER(:title)")
+  Optional<AudioTrackEntity> findDuplicateByArtistAlbumAndTitle(
+      @Param("albumArtistId") UUID albumArtistId,
+      @Param("albumId") UUID albumId,
+      @Param("title") String title);
+
 }
