@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.config.LibraryRootsConfig;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.util.PathUtils;
@@ -34,52 +35,25 @@ public class StreamingService {
 
   private final ItemRepository itemRepository;
   private final String baseUrl;
-  private final Path mediaRootPath;
+  private final LibraryRootsConfig libraryRootsConfig;
   private final boolean xAccelRedirectEnabled;
   private final String xAccelInternalPath;
-  private volatile Path realMediaRoot;
-  private final byte[] etagSecret;
 
   public StreamingService(
       ItemRepository itemRepository,
       @Value("${server.base-url:http://localhost:8080}") String baseUrl,
-      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+      LibraryRootsConfig libraryRootsConfig,
       @Value("${yaytsa.media.streaming.x-accel-redirect.enabled:false}")
           boolean xAccelRedirectEnabled,
       @Value("${yaytsa.media.streaming.x-accel-redirect.internal-path:/_internal/media}")
           String xAccelInternalPath) {
     this.itemRepository = itemRepository;
     this.baseUrl = baseUrl;
-    this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+    this.libraryRootsConfig = libraryRootsConfig;
     this.xAccelRedirectEnabled = xAccelRedirectEnabled;
     this.xAccelInternalPath = xAccelInternalPath;
     if (xAccelRedirectEnabled) {
       log.info("X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
-    }
-    this.etagSecret = java.security.SecureRandom.getSeed(32);
-    initRealMediaRoot();
-  }
-
-  private void initRealMediaRoot() {
-    try {
-      this.realMediaRoot = mediaRootPath.toRealPath();
-      log.info("Initialized media root path: {}", realMediaRoot);
-    } catch (IOException e) {
-      log.warn("Media root path not accessible at startup: {}", mediaRootPath);
-      this.realMediaRoot = null;
-    }
-  }
-
-  private synchronized Path getRealMediaRoot() {
-    if (realMediaRoot != null) {
-      return realMediaRoot;
-    }
-    try {
-      realMediaRoot = mediaRootPath.toRealPath();
-      return realMediaRoot;
-    } catch (IOException e) {
-      log.warn("Failed to resolve media root path: {}", e.getMessage());
-      return null;
     }
   }
 
@@ -308,31 +282,13 @@ public class StreamingService {
   }
 
   private boolean isPathSafe(Path filePath) {
-    try {
-      Path root = getRealMediaRoot();
-      if (root == null) {
-        return false;
-      }
-      Path realPath = filePath.toRealPath();
-      return realPath.startsWith(root);
-    } catch (java.nio.file.NoSuchFileException e) {
-      log.debug("Path does not exist: {}", filePath);
-      return false;
-    } catch (IOException e) {
-      log.warn("Path validation failed for {}: {}", filePath, e.getMessage());
-      return false;
-    }
+    return libraryRootsConfig.isPathSafe(filePath);
   }
 
   private String generateETag(Path filePath, long fileSize) {
     try {
       long lastModified = Files.getLastModifiedTime(filePath).toMillis();
-      String data = lastModified + "-" + fileSize + "-" + filePath.toAbsolutePath();
-      javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-      mac.init(new javax.crypto.spec.SecretKeySpec(etagSecret, "HmacSHA256"));
-      byte[] hash = mac.doFinal(data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-      String shortHash = java.util.HexFormat.of().formatHex(hash, 0, 16);
-      return "\"" + shortHash + "\"";
+      return "\"" + Long.toHexString(lastModified) + "-" + Long.toHexString(fileSize) + "\"";
     } catch (Exception e) {
       return "\"" + Long.toHexString(fileSize) + "\"";
     }

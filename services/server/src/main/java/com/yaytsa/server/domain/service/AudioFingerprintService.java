@@ -212,7 +212,7 @@ public class AudioFingerprintService {
     double similarity = newFingerprint.similarity(existingFingerprint);
 
     log.debug(
-        "Fingerprint similarity: {:.2f}% (threshold: {:.2f}%)",
+        "Fingerprint similarity: {}% (threshold: {}%)",
         similarity * 100, SIMILARITY_THRESHOLD * 100);
 
     if (similarity >= SIMILARITY_THRESHOLD) {
@@ -221,12 +221,12 @@ public class AudioFingerprintService {
 
       if ("original".equals(variant)) {
         // Exact duplicate
-        log.info("Exact duplicate detected (similarity: {:.2f}%)", similarity * 100);
+        log.info("Exact duplicate detected (similarity: {}%)", similarity * 100);
         return DuplicateCheckResult.exactDuplicate(similarity);
       } else {
         // Variant (sped up or slowed)
         log.info(
-            "Variant detected: {} (similarity: {:.2f}%)", variant, similarity * 100);
+            "Variant detected: {} (similarity: {}%)", variant, similarity * 100);
         return DuplicateCheckResult.variant(variant, similarity);
       }
     }

@@ -2,6 +2,7 @@ package com.yaytsa.server.domain.service.metadata;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.yaytsa.server.domain.service.AppSettingsService;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -10,7 +11,6 @@ import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
@@ -43,20 +43,24 @@ public class SpotifyProvider implements MetadataProvider {
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   private final RestTemplate restTemplate;
-  private final String clientId;
-  private final String clientSecret;
+  private final AppSettingsService settingsService;
 
   private String accessToken;
   private Instant tokenExpiry;
 
   public SpotifyProvider(
-      RestTemplateBuilder restTemplateBuilder,
-      @Value("${yaytsa.metadata.spotify.client-id:}") String clientId,
-      @Value("${yaytsa.metadata.spotify.client-secret:}") String clientSecret) {
+      RestTemplateBuilder restTemplateBuilder, AppSettingsService settingsService) {
     this.restTemplate =
         restTemplateBuilder.setConnectTimeout(TIMEOUT).setReadTimeout(TIMEOUT).build();
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
+    this.settingsService = settingsService;
+  }
+
+  private String getClientId() {
+    return settingsService.get("metadata.spotify.client-id", "SPOTIFY_CLIENT_ID");
+  }
+
+  private String getClientSecret() {
+    return settingsService.get("metadata.spotify.client-secret", "SPOTIFY_CLIENT_SECRET");
   }
 
   @Override
@@ -114,7 +118,7 @@ public class SpotifyProvider implements MetadataProvider {
           }
 
           log.info(
-              "Spotify match: {} - {} → {} ({}) [confidence: {:.2f}]",
+              "Spotify match: {} - {} → {} ({}) [confidence: {}]",
               artist,
               title,
               track.album.name,
@@ -127,6 +131,7 @@ public class SpotifyProvider implements MetadataProvider {
                   track.album.name,
                   year,
                   genre,
+                  null,
                   null,
                   null,
                   null,
@@ -154,10 +159,7 @@ public class SpotifyProvider implements MetadataProvider {
 
   @Override
   public boolean isEnabled() {
-    return clientId != null
-        && !clientId.isBlank()
-        && clientSecret != null
-        && !clientSecret.isBlank();
+    return !getClientId().isBlank() && !getClientSecret().isBlank();
   }
 
   @Override
@@ -174,7 +176,8 @@ public class SpotifyProvider implements MetadataProvider {
 
     String auth =
         Base64.getEncoder()
-            .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
+            .encodeToString(
+                (getClientId() + ":" + getClientSecret()).getBytes(StandardCharsets.UTF_8));
 
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);

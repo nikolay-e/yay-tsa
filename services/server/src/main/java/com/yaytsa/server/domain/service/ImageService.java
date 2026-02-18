@@ -2,6 +2,7 @@ package com.yaytsa.server.domain.service;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.yaytsa.server.config.LibraryRootsConfig;
 import com.yaytsa.server.dto.ImageParams;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
@@ -51,8 +52,7 @@ public class ImageService {
   private final ItemRepository itemRepository;
   private final AudioTrackRepository audioTrackRepository;
   private final Cache<String, byte[]> imageCache;
-  private final Path mediaRootPath;
-  private volatile Path realMediaRoot;
+  private final LibraryRootsConfig libraryRootsConfig;
   private final Path imageCacheDirectory;
   private volatile Path realImageCacheDir;
   private final boolean xAccelRedirectEnabled;
@@ -62,7 +62,7 @@ public class ImageService {
       ImageRepository imageRepository,
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
-      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+      LibraryRootsConfig libraryRootsConfig,
       @Value("${yaytsa.media.images.cache-directory:./temp/images}") String imageCacheDir,
       @Value("${yaytsa.media.streaming.x-accel-redirect.enabled:false}")
           boolean xAccelRedirectEnabled,
@@ -71,7 +71,7 @@ public class ImageService {
     this.imageRepository = imageRepository;
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
-    this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+    this.libraryRootsConfig = libraryRootsConfig;
     this.imageCacheDirectory = Paths.get(imageCacheDir).toAbsolutePath().normalize();
     this.xAccelRedirectEnabled = xAccelRedirectEnabled;
     this.xAccelInternalPath = xAccelInternalPath;
@@ -81,20 +81,9 @@ public class ImageService {
             .expireAfterAccess(Duration.ofHours(1))
             .recordStats()
             .build();
-    initRealMediaRoot();
     initRealImageCacheDir();
     if (xAccelRedirectEnabled) {
       logger.info("Image X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
-    }
-  }
-
-  private void initRealMediaRoot() {
-    try {
-      this.realMediaRoot = mediaRootPath.toRealPath();
-      logger.info("Initialized media root path: {}", realMediaRoot);
-    } catch (IOException e) {
-      logger.warn("Media root path not accessible at startup: {}", mediaRootPath);
-      this.realMediaRoot = null;
     }
   }
 
@@ -185,42 +174,20 @@ public class ImageService {
     }
   }
 
-  private synchronized Path getRealMediaRoot() {
-    if (realMediaRoot != null) {
-      return realMediaRoot;
-    }
-    try {
-      realMediaRoot = mediaRootPath.toRealPath();
-      return realMediaRoot;
-    } catch (IOException e) {
-      logger.warn("Failed to resolve media root path: {}", e.getMessage());
-      return null;
-    }
-  }
-
   private boolean isPathSafe(Path path) {
-    try {
-      Path realPath = path.toRealPath();
-
-      // Allow access to media root
-      Path mediaRoot = getRealMediaRoot();
-      if (mediaRoot != null && realPath.startsWith(mediaRoot)) {
-        return true;
-      }
-
-      // Allow access to image cache directory
-      if (realImageCacheDir != null && realPath.startsWith(realImageCacheDir)) {
-        return true;
-      }
-
-      return false;
-    } catch (java.nio.file.NoSuchFileException e) {
-      logger.debug("Path does not exist: {}", path);
-      return false;
-    } catch (IOException e) {
-      logger.warn("Path validation failed for {}: {}", path, e.getMessage());
-      return false;
+    if (libraryRootsConfig.isPathSafe(path)) {
+      return true;
     }
+    // Also allow image cache directory
+    if (realImageCacheDir != null) {
+      try {
+        Path realPath = path.toRealPath();
+        return realPath.startsWith(realImageCacheDir);
+      } catch (IOException e) {
+        return false;
+      }
+    }
+    return false;
   }
 
   public Optional<Path> getImagePath(UUID itemId, String imageTypeStr) {

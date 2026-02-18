@@ -52,7 +52,8 @@ services:
       SERVER_PORT: 8096
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-DEBUG}
-      LIBRARY_ROOTS: /media
+      LIBRARY_ROOTS: /media,/app/uploads
+      UPLOAD_LIBRARY_ROOT: /app/uploads
       SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
       CORS_ENABLED: true
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:*,http://frontend:5173'
@@ -64,6 +65,7 @@ services:
       - '${SERVER_PORT:-8096}:8096'
     volumes:
       - ${MEDIA_PATH:-./services/server/media}:/media:ro
+      - uploads_data:/app/uploads
       - ./services/server/logs:/app/logs
       - karaoke_stems:/app/stems
     networks:
@@ -107,6 +109,7 @@ services:
       - ./packages/platform/src:/app/packages/platform/src
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/static:/app/apps/web/static
+      - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
       - /app/node_modules
       - /app/packages/core/node_modules
       - /app/packages/platform/node_modules
@@ -148,11 +151,14 @@ services:
     profiles:
       - karaoke
     environment:
-      MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
+      MODEL_NAME: ${KARAOKE_MODEL:-htdemucs}
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
+      # Allow access to both the main media library and the uploads directory
+      MEDIA_PATHS: /media,/app/uploads
     volumes:
       - ${MEDIA_PATH:-./services/server/media}:/media:rw
+      - uploads_data:/app/uploads:rw
       - karaoke_stems:/app/stems
     networks:
       - yay-tsa-network
@@ -232,3 +238,5 @@ volumes:
     name: yay-tsa-postgres-data
   karaoke_stems:
     name: yay-tsa-karaoke-stems
+  uploads_data:
+    name: yay-tsa-uploads

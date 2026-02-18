@@ -69,6 +69,11 @@ spring:
       - items
       - images
       - users
+      - metadata-genius
+      - metadata-lastfm
+      - metadata-spotify
+      - metadata-musicbrainz
+      - metadata-itunes
 
   # File Upload Configuration
   servlet:
@@ -132,6 +137,9 @@ yaytsa:
   public-url: ${PUBLIC_URL:}
 
   media:
+    # Upload library root (writable, for user-uploaded tracks)
+    upload-library-root: ${UPLOAD_LIBRARY_ROOT:/app/uploads}
+
     # Library scanning configuration
     library:
       roots: ${LIBRARY_ROOTS:/media}

@@ -20,6 +20,9 @@ target
 .env.*.local
 .env.test
 
+# Local Docker Compose overrides (API keys, secrets — never commit)
+docker-compose.override.yml
+
 test-results
 
 # IDE
@@ -47,6 +50,13 @@ coverage/
 .tmp/
 temp/
 tree.tmp
+
+# Backend build artifacts (local only)
+services/server/temp-build/
+
+# Throwaway development scripts (not part of the project)
+test-*.sh
+GenerateHash.java
 # SSL Certificates (auto-generated)
 *.pem
 

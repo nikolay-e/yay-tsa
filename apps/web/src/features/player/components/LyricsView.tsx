@@ -80,7 +80,8 @@ export function LyricsView({ onClose }: LyricsViewProps) {
       } else {
         setFetchError('not_found');
       }
-    } catch {
+    } catch (err) {
+      console.error('[LyricsView] fetchLyrics error:', err);
       if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
       setFetchError('Lyrics service unavailable');
     } finally {

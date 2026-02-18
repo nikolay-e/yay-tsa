@@ -68,6 +68,7 @@ export function AlbumDetailPage() {
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const year = album.ProductionYear;
   const trackCount = tracks.length;
+  const isIncomplete = album.IsComplete === false && (album.TotalTracks ?? 0) > 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -93,6 +94,12 @@ export function AlbumDetailPage() {
               {year && `${year} • `}
               {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
             </p>
+            {isIncomplete && (
+              <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                Альбом не завершён — загружено {trackCount} из {album.TotalTracks} треков
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

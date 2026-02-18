@@ -1,7 +1,8 @@
 package com.yaytsa.server.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yaytsa.server.domain.service.TrackUploadService;
-import com.yaytsa.server.dto.request.UploadUrlRequest;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.mapper.ItemMapper;
@@ -18,19 +19,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * Controller for uploading audio tracks.
- *
- * <p>Allows users to upload their own tracks to the library with automatic metadata extraction,
- * duplicate detection, and proper artist/album linking.
- */
 @RestController
 @RequestMapping("/tracks")
-@Tag(name = "Upload", description = "Track upload operations")
+@PreAuthorize("hasRole('ADMIN')")
+@Tag(name = "Upload", description = "Track upload operations (admin only)")
 public class UploadController {
 
   private static final Logger log = LoggerFactory.getLogger(UploadController.class);
@@ -40,10 +37,13 @@ public class UploadController {
 
   private final TrackUploadService uploadService;
   private final ItemMapper itemMapper;
+  private final ObjectMapper objectMapper;
 
-  public UploadController(TrackUploadService uploadService, ItemMapper itemMapper) {
+  public UploadController(
+      TrackUploadService uploadService, ItemMapper itemMapper, ObjectMapper objectMapper) {
     this.uploadService = uploadService;
     this.itemMapper = itemMapper;
+    this.objectMapper = objectMapper;
   }
 
   @Operation(
@@ -106,12 +106,18 @@ public class UploadController {
 
       BaseItemResponse response = itemMapper.toDto(result.createdItem(), null);
       log.info(
-          "Track uploaded successfully: {} by {} (ID: {})",
+          "Track uploaded successfully: {} by {} (ID: {}), albumComplete={}",
           result.createdItem().getName(),
           result.artistName(),
-          result.createdItem().getId());
+          result.createdItem().getId(),
+          result.albumComplete());
 
-      return ResponseEntity.status(HttpStatus.CREATED).body(response);
+      // Inject IsComplete from album completion status into the track response so the
+      // frontend can show ⏳ for incomplete albums without a separate album request.
+      ObjectNode responseNode = objectMapper.valueToTree(response);
+      responseNode.put("IsComplete", result.albumComplete());
+
+      return ResponseEntity.status(HttpStatus.CREATED).body(responseNode);
 
     } catch (IllegalArgumentException e) {
       log.error("Invalid upload request: {}", e.getMessage());
@@ -131,61 +137,6 @@ public class UploadController {
   private String getFileExtension(String filename) {
     int lastDot = filename.lastIndexOf('.');
     return lastDot > 0 ? filename.substring(lastDot + 1) : "";
-  }
-
-  @Operation(
-      summary = "Upload track from URL",
-      description =
-          "Download and upload a music track from a URL (YouTube, SoundCloud, etc.). "
-              + "Metadata is automatically extracted from the downloaded file.")
-  @ApiResponses(
-      value = {
-        @ApiResponse(
-            responseCode = "201",
-            description = "Track downloaded and uploaded successfully",
-            content = @Content(schema = @Schema(implementation = BaseItemResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Invalid URL or download failed"),
-        @ApiResponse(responseCode = "409", description = "Duplicate track already exists"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
-      })
-  @PostMapping(value = "/upload-url", consumes = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<?> uploadTrackFromUrl(
-      @RequestBody UploadUrlRequest request,
-      @RequestParam(required = false) String libraryRoot,
-      @AuthenticationPrincipal AuthenticatedUser user) {
-
-    log.info("URL upload request from user {} for URL: {}", user.getUsername(), request.url());
-
-    try {
-      var result = uploadService.uploadTrackFromUrl(request.url(), user.getUserEntity().getId(), libraryRoot);
-
-      if (result.isDuplicate()) {
-        log.warn("Duplicate track detected from URL: {}", request.url());
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-            .body(
-                "Duplicate track: "
-                    + result.existingTrack().getItem().getName()
-                    + " by "
-                    + result.artistName());
-      }
-
-      BaseItemResponse response = itemMapper.toDto(result.createdItem(), null);
-      log.info(
-          "Track from URL uploaded successfully: {} by {} (ID: {})",
-          result.createdItem().getName(),
-          result.artistName(),
-          result.createdItem().getId());
-
-      return ResponseEntity.status(HttpStatus.CREATED).body(response);
-
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid URL upload request: {}", e.getMessage());
-      return ResponseEntity.badRequest().body(e.getMessage());
-    } catch (Exception e) {
-      log.error("Failed to upload track from URL: {}", request.url(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to download and upload track: " + e.getMessage());
-    }
   }
 
   private String formatFileSize(long bytes) {

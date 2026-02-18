@@ -20,6 +20,7 @@ public interface MetadataProvider {
    * @param coverArtUrl URL to album cover art (optional)
    * @param artistImageUrl URL to artist image (optional)
    * @param lyrics Song lyrics in plain text (optional)
+   * @param totalTracks Total number of tracks on the album (optional, for completion tracking)
    * @param confidence Confidence score (0.0-1.0) based on match quality
    * @param source Provider name (e.g., "MusicBrainz", "Last.fm")
    */
@@ -31,11 +32,16 @@ public interface MetadataProvider {
       String coverArtUrl,
       String artistImageUrl,
       String lyrics,
+      Integer totalTracks,
       double confidence,
       String source) {
 
     public EnrichedMetadata withConfidence(double newConfidence) {
-      return new EnrichedMetadata(artist, album, year, genre, coverArtUrl, artistImageUrl, lyrics, newConfidence, source);
+      return new EnrichedMetadata(artist, album, year, genre, coverArtUrl, artistImageUrl, lyrics, totalTracks, newConfidence, source);
+    }
+
+    public EnrichedMetadata withCoverArtUrl(String newCoverArtUrl) {
+      return new EnrichedMetadata(artist, album, year, genre, newCoverArtUrl, artistImageUrl, lyrics, totalTracks, confidence, source);
     }
   }
 

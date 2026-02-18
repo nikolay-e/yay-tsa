@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -52,23 +53,19 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
   @Query("SELECT at FROM AudioTrackEntity at JOIN FETCH at.item WHERE at.codec IS NOT NULL")
   List<AudioTrackEntity> findAllWithCodec();
 
-  /**
-   * Find duplicate tracks by artist, album and title. Used to detect duplicates during upload.
-   *
-   * @param albumArtistId the album artist ID
-   * @param albumId the album ID
-   * @param title the track title (case-insensitive)
-   * @return the duplicate track if found
-   */
+  @Modifying
+  @org.springframework.transaction.annotation.Transactional
+  @Query("UPDATE AudioTrackEntity at SET at.lyrics = :lyrics WHERE at.itemId = :id")
+  void updateLyrics(@Param("id") java.util.UUID id, @Param("lyrics") String lyrics);
+
   @Query(
       "SELECT at FROM AudioTrackEntity at "
           + "LEFT JOIN FETCH at.item i "
-          + "WHERE at.albumArtist.id = :albumArtistId "
-          + "AND at.album.id = :albumId "
+          + "LEFT JOIN FETCH at.albumArtist aa "
+          + "WHERE LOWER(aa.name) = LOWER(:artistName) "
           + "AND LOWER(i.name) = LOWER(:title)")
-  Optional<AudioTrackEntity> findDuplicateByArtistAlbumAndTitle(
-      @Param("albumArtistId") UUID albumArtistId,
-      @Param("albumId") UUID albumId,
+  List<AudioTrackEntity> findByArtistNameAndTitle(
+      @Param("artistName") String artistName,
       @Param("title") String title);
 
 }
