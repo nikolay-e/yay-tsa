@@ -88,16 +88,19 @@ public class MusicBrainzProvider implements MetadataProvider {
           Integer year = extractYear(release.date);
 
           log.info(
-              "MusicBrainz match: {} - {} → {} ({}) [confidence: {:.2f}]",
+              "MusicBrainz match: {} - {} → {} ({}) [confidence: {}]",
               artist,
               title,
               release.title,
               year,
               confidence);
 
+          // Cover Art Archive: CC-licensed artwork, safe for public servers
+          String coverArtUrl = "https://coverartarchive.org/release/" + release.id + "/front-500";
+
           return Optional.of(
               new EnrichedMetadata(
-                  albumArtist, release.title, year, null, null, null, null, confidence, getProviderName()));
+                  albumArtist, release.title, year, null, coverArtUrl, null, null, null, confidence, getProviderName()));
         }
       }
 

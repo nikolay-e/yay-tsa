@@ -123,7 +123,13 @@ public record BaseItemResponse(
     @JsonProperty("ChannelPrimaryImageTag") String channelPrimaryImageTag,
 
     // Child count (for albums: track count, for artists: album count)
-    @JsonProperty("ChildCount") Integer childCount) {
+    @JsonProperty("ChildCount") Integer childCount,
+
+    // Album completion status (null for non-albums)
+    @JsonProperty("IsComplete") Boolean isComplete,
+
+    // Total tracks on the album (from metadata provider, for completion badge)
+    @JsonProperty("TotalTracks") Integer totalTracks) {
 
   /** Name-GUID pair for artists, genres, etc. */
   public record NameGuidPair(@JsonProperty("Name") String name, @JsonProperty("Id") String id) {}
@@ -272,6 +278,8 @@ public record BaseItemResponse(
     private String channelNumber;
     private String channelPrimaryImageTag;
     private Integer childCount;
+    private Boolean isComplete;
+    private Integer totalTracks;
 
     public Builder name(String name) {
       this.name = name;
@@ -423,6 +431,16 @@ public record BaseItemResponse(
       return this;
     }
 
+    public Builder isComplete(Boolean isComplete) {
+      this.isComplete = isComplete;
+      return this;
+    }
+
+    public Builder totalTracks(Integer totalTracks) {
+      this.totalTracks = totalTracks;
+      return this;
+    }
+
     public BaseItemResponse build() {
       return new BaseItemResponse(
           name,
@@ -496,7 +514,9 @@ public record BaseItemResponse(
           channelName,
           channelNumber,
           channelPrimaryImageTag,
-          childCount);
+          childCount,
+          isComplete,
+          totalTracks);
     }
   }
 
@@ -588,7 +608,9 @@ public record BaseItemResponse(
         null, // channelName
         null, // channelNumber
         null, // channelPrimaryImageTag
-        null // childCount
+        null, // childCount
+        null, // isComplete
+        null // totalTracks
         );
   }
 
@@ -600,7 +622,9 @@ public record BaseItemResponse(
       List<NameGuidPair> artists,
       Integer year,
       List<String> genres,
-      Map<String, String> imageTags) {
+      Map<String, String> imageTags,
+      Boolean isComplete,
+      Integer totalTracks) {
     return new BaseItemResponse(
         name,
         null,
@@ -673,7 +697,9 @@ public record BaseItemResponse(
         null,
         null,
         null,
-        null // childCount
+        null, // childCount
+        isComplete, // isComplete
+        totalTracks // totalTracks
         );
   }
 }

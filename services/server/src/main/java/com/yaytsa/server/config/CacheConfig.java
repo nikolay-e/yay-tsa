@@ -36,6 +36,7 @@ public class CacheConfig {
             "metadata-musicbrainz", // MusicBrainz API results
             "metadata-lastfm", // Last.fm API results
             "metadata-spotify", // Spotify API results
+            "metadata-itunes", // iTunes Search API results
             "api-tokens", // Token validation
             "items", // Item lookups
             "images" // Image responses
@@ -74,6 +75,15 @@ public class CacheConfig {
   @Bean
   public Caffeine<Object, Object> metadataSpotifyCacheConfig() {
     // Spotify results cached for 7 days
+    return Caffeine.newBuilder()
+        .maximumSize(5000)
+        .expireAfterWrite(7, TimeUnit.DAYS)
+        .recordStats();
+  }
+
+  @Bean
+  public Caffeine<Object, Object> metadataItunesCacheConfig() {
+    // iTunes results cached for 7 days
     return Caffeine.newBuilder()
         .maximumSize(5000)
         .expireAfterWrite(7, TimeUnit.DAYS)

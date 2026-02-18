@@ -2,12 +2,12 @@ package com.yaytsa.server.domain.service.metadata;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.yaytsa.server.domain.service.AppSettingsService;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
@@ -30,14 +30,17 @@ public class LastFmProvider implements MetadataProvider {
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   private final RestTemplate restTemplate;
-  private final String apiKey;
+  private final AppSettingsService settingsService;
 
   public LastFmProvider(
-      RestTemplateBuilder restTemplateBuilder,
-      @Value("${yaytsa.metadata.lastfm.api-key:}") String apiKey) {
+      RestTemplateBuilder restTemplateBuilder, AppSettingsService settingsService) {
     this.restTemplate =
         restTemplateBuilder.setConnectTimeout(TIMEOUT).setReadTimeout(TIMEOUT).build();
-    this.apiKey = apiKey;
+    this.settingsService = settingsService;
+  }
+
+  private String getApiKey() {
+    return settingsService.get("metadata.lastfm.api-key", "LASTFM_API_KEY");
   }
 
   @Override
@@ -53,7 +56,7 @@ public class LastFmProvider implements MetadataProvider {
       String url =
           UriComponentsBuilder.fromHttpUrl(API_BASE)
               .queryParam("method", "track.getInfo")
-              .queryParam("api_key", apiKey)
+              .queryParam("api_key", getApiKey())
               .queryParam("artist", artist)
               .queryParam("track", title)
               .queryParam("format", "json")
@@ -73,7 +76,7 @@ public class LastFmProvider implements MetadataProvider {
       double confidence = calculateConfidence(artist, title, track);
 
       if (confidence < 0.70) {
-        log.debug("Low confidence match from Last.fm: {:.2f}", confidence);
+        log.debug("Low confidence match from Last.fm: {}", confidence);
         return Optional.empty();
       }
 
@@ -93,7 +96,7 @@ public class LastFmProvider implements MetadataProvider {
       }
 
       log.info(
-          "Last.fm match: {} - {} → {} ({}) [confidence: {:.2f}]",
+          "Last.fm match: {} - {} → {} ({}) [confidence: {}]",
           artist,
           title,
           albumName,
@@ -102,7 +105,7 @@ public class LastFmProvider implements MetadataProvider {
 
       return Optional.of(
           new EnrichedMetadata(
-              albumArtist, albumName, year, genre, null, null, null, confidence, getProviderName()));
+              albumArtist, albumName, year, genre, null, null, null, null, confidence, getProviderName()));
 
     } catch (RestClientException e) {
       log.warn("Last.fm query failed: {}", e.getMessage());
@@ -120,7 +123,7 @@ public class LastFmProvider implements MetadataProvider {
 
   @Override
   public boolean isEnabled() {
-    return apiKey != null && !apiKey.isBlank();
+    return !getApiKey().isBlank();
   }
 
   @Override

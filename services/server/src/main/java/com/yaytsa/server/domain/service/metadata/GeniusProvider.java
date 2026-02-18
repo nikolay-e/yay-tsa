@@ -3,6 +3,7 @@ package com.yaytsa.server.domain.service.metadata;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yaytsa.server.domain.service.AppSettingsService;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -12,16 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
 
 /**
  * Genius metadata provider.
@@ -40,17 +35,17 @@ public class GeniusProvider implements MetadataProvider {
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   private final HttpClient httpClient;
-  private final String accessToken;
+  private final AppSettingsService settingsService;
   private final ObjectMapper objectMapper;
 
-  public GeniusProvider(
-      @Value("${yaytsa.metadata.genius.access-token:}") String accessToken,
-      ObjectMapper objectMapper) {
-    this.httpClient = HttpClient.newBuilder()
-        .connectTimeout(TIMEOUT)
-        .build();
-    this.accessToken = accessToken;
+  public GeniusProvider(AppSettingsService settingsService, ObjectMapper objectMapper) {
+    this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+    this.settingsService = settingsService;
     this.objectMapper = objectMapper;
+  }
+
+  private String getAccessToken() {
+    return settingsService.get("metadata.genius.token", "GENIUS_ACCESS_TOKEN");
   }
 
   @Override
@@ -69,14 +64,13 @@ public class GeniusProvider implements MetadataProvider {
       String encodedQuery = URLEncoder.encode(searchQuery, StandardCharsets.UTF_8).replace("+", "%20");
       String searchUrl = API_BASE + "/search?q=" + encodedQuery;
 
-      log.info("Genius API request: {}", searchUrl);
-      log.info("Genius token present: {}, length: {}", accessToken != null && !accessToken.isBlank(), accessToken != null ? accessToken.length() : 0);
+      log.debug("Genius API request: {}", searchUrl);
 
       // Use native Java HttpClient instead of RestTemplate
       HttpRequest request = HttpRequest.newBuilder()
           .uri(URI.create(searchUrl))
           .timeout(TIMEOUT)
-          .header("Authorization", "Bearer " + accessToken)
+          .header("Authorization", "Bearer " + getAccessToken())
           .header("Accept", "application/json")
           .header("User-Agent", "Yay-Tsa-Media-Server/0.1.0")
           .GET()
@@ -84,12 +78,9 @@ public class GeniusProvider implements MetadataProvider {
 
       HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-      log.info("Genius API response status: {}", response.statusCode());
-      log.info("Genius API raw JSON (first 500 chars): {}",
-          response.body() != null && response.body().length() > 500
-              ? response.body().substring(0, 500) : response.body());
+      log.debug("Genius API response status: {}", response.statusCode());
 
-      // Parse JSON manually
+      // Parse JSON
       GeniusSearchResponse searchResponse = objectMapper.readValue(response.body(), GeniusSearchResponse.class);
 
       if (searchResponse == null) {
@@ -123,6 +114,8 @@ public class GeniusProvider implements MetadataProvider {
         if (confidence >= 0.70) {
           String albumName = null;
           Integer year = null;
+          Integer totalTracks = null;
+          Long albumId = null;
 
           // Get detailed song info for album data
           if (song.id != null) {
@@ -133,7 +126,7 @@ public class GeniusProvider implements MetadataProvider {
               HttpRequest detailRequest = HttpRequest.newBuilder()
                   .uri(URI.create(songUrl))
                   .timeout(TIMEOUT)
-                  .header("Authorization", "Bearer " + accessToken)
+                  .header("Authorization", "Bearer " + getAccessToken())
                   .header("Accept", "application/json")
                   .header("User-Agent", "Yay-Tsa-Media-Server/0.1.0")
                   .GET()
@@ -147,6 +140,7 @@ public class GeniusProvider implements MetadataProvider {
                 log.debug("Got detailed song response, album: {}", detail.album != null ? detail.album.name : "null");
                 if (detail.album != null) {
                   albumName = detail.album.name;
+                  albumId = detail.album.id;
                   year = extractYear(detail.releaseDate);
                 }
               } else {
@@ -157,43 +151,44 @@ public class GeniusProvider implements MetadataProvider {
             }
           }
 
-          String artistName =
-              song.primaryArtist != null ? song.primaryArtist.name : artist;
-
-          // Prefer song_art_image_url, fallback to header_image_url
-          String coverArtUrl = song.songArtImageUrl != null
-              ? song.songArtImageUrl
-              : song.headerImageUrl;
-
-          // Get artist image URL
-          String artistImageUrl = song.primaryArtist != null ? song.primaryArtist.imageUrl : null;
-
-          log.info(
-              "Genius match: {} - {} → {} ({}) [confidence: {:.2f}], cover: {}, artist image: {}",
-              artist,
-              title,
-              albumName,
-              year,
-              confidence,
-              coverArtUrl != null ? "available" : "none",
-              artistImageUrl != null ? "available" : "none");
-
-          // Fetch lyrics from song page
-          String lyrics = null;
-          if (song.url != null) {
+          // Fetch total track count for the album
+          if (albumId != null) {
             try {
-              lyrics = fetchLyrics(song.url);
-              if (lyrics != null) {
-                log.info("Fetched lyrics for: {} - {} ({} chars)", artist, title, lyrics.length());
+              String albumTracksUrl = API_BASE + "/albums/" + albumId + "/tracks";
+              HttpRequest albumTracksRequest = HttpRequest.newBuilder()
+                  .uri(URI.create(albumTracksUrl))
+                  .timeout(TIMEOUT)
+                  .header("Authorization", "Bearer " + getAccessToken())
+                  .header("Accept", "application/json")
+                  .header("User-Agent", "Yay-Tsa-Media-Server/0.1.0")
+                  .GET()
+                  .build();
+              HttpResponse<String> albumTracksResponse = httpClient.send(albumTracksRequest, HttpResponse.BodyHandlers.ofString());
+              GeniusAlbumTracksResponse albumTracks = objectMapper.readValue(albumTracksResponse.body(), GeniusAlbumTracksResponse.class);
+              if (albumTracks != null && albumTracks.response != null && albumTracks.response.tracks != null) {
+                totalTracks = albumTracks.response.tracks.size();
+                log.debug("Genius album {} has {} tracks", albumName, totalTracks);
               }
             } catch (Exception e) {
-              log.warn("Failed to fetch lyrics from {}: {}", song.url, e.getMessage());
+              log.warn("Failed to fetch album tracks from Genius: {}", e.getMessage());
             }
           }
 
+          String artistName =
+              song.primaryArtist != null ? song.primaryArtist.name : artist;
+
+          // Use song art image from Genius (cached behind auth — same model as Plex/Navidrome)
+          String coverArtUrl = song.songArtImageUrl != null ? song.songArtImageUrl
+              : song.headerImageUrl;
+          String artistImageUrl = song.primaryArtist != null ? song.primaryArtist.imageUrl : null;
+
+          log.debug(
+              "Genius match: {} - {} -> {} ({}) totalTracks={} coverArt={}",
+              artist, title, albumName, year, totalTracks, coverArtUrl != null ? "yes" : "no");
+
           return Optional.of(
               new EnrichedMetadata(
-                  artistName, cleanAlbumName(albumName), year, null, coverArtUrl, artistImageUrl, lyrics, confidence, getProviderName()));
+                  artistName, cleanAlbumName(albumName), year, null, coverArtUrl, artistImageUrl, null, totalTracks, confidence, getProviderName()));
         }
       }
 
@@ -213,7 +208,7 @@ public class GeniusProvider implements MetadataProvider {
 
   @Override
   public boolean isEnabled() {
-    return accessToken != null && !accessToken.isBlank();
+    return !getAccessToken().isBlank();
   }
 
   @Override
@@ -308,82 +303,6 @@ public class GeniusProvider implements MetadataProvider {
     return null;
   }
 
-  private String fetchLyrics(String songUrl) {
-    try {
-      log.debug("Fetching lyrics from: {}", songUrl);
-
-      HttpRequest request = HttpRequest.newBuilder()
-          .uri(URI.create(songUrl))
-          .timeout(TIMEOUT)
-          .header("User-Agent", "Yay-Tsa-Media-Server/0.1.0")
-          .header("Accept", "text/html,application/xhtml+xml")
-          .GET()
-          .build();
-
-      HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-      if (response.statusCode() != 200) {
-        log.warn("Failed to fetch lyrics page, status: {}", response.statusCode());
-        return null;
-      }
-
-      Document doc = Jsoup.parse(response.body());
-
-      // Genius stores lyrics in div elements with data-lyrics-container="true"
-      Elements lyricsContainers = doc.select("div[data-lyrics-container=true]");
-
-      if (lyricsContainers.isEmpty()) {
-        log.warn("No lyrics containers found on page: {}", songUrl);
-        return null;
-      }
-
-      StringBuilder lyrics = new StringBuilder();
-      for (Element container : lyricsContainers) {
-        // Extract text, preserving line breaks
-        String html = container.html();
-
-        // Check for instrumental marker
-        if (html.toLowerCase().contains("[instrumental]") ||
-            html.toLowerCase().contains("(instrumental)")) {
-          log.info("Track marked as instrumental on Genius");
-          return null;
-        }
-
-        String text = html
-            .replaceAll("<br\\s*/?>", "\n")
-            .replaceAll("</(?:div|p)>", "\n")
-            .replaceAll("<[^>]+>", "")
-            .replaceAll("&amp;", "&")
-            .replaceAll("&lt;", "<")
-            .replaceAll("&gt;", ">")
-            .replaceAll("&quot;", "\"")
-            .replaceAll("&#x27;", "'")
-            .replaceAll("&#39;", "'")
-            .replaceAll("&nbsp;", " ")
-            .trim();
-
-        if (!text.isEmpty()) {
-          lyrics.append(text);
-          lyrics.append("\n\n");
-        }
-      }
-
-      String result = lyrics.toString().trim();
-
-      // Final validation
-      if (result.isEmpty() || result.length() < 20) {
-        log.debug("Lyrics too short after extraction: {} chars", result.length());
-        return null;
-      }
-
-      return result;
-
-    } catch (Exception e) {
-      log.warn("Error fetching lyrics from {}: {}", songUrl, e.getMessage());
-      return null;
-    }
-  }
-
   // API response DTOs
   @JsonIgnoreProperties(ignoreUnknown = true)
   record GeniusSearchResponse(GeniusResponse response) {}
@@ -412,7 +331,7 @@ public class GeniusProvider implements MetadataProvider {
       @JsonProperty("image_url") String imageUrl) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record GeniusAlbum(String name) {}
+  record GeniusAlbum(Long id, String name) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record GeniusSongResponse(GeniusSongResponseData response) {}
@@ -424,4 +343,10 @@ public class GeniusProvider implements MetadataProvider {
   record GeniusSongDetail(
       GeniusAlbum album,
       @JsonProperty("release_date") String releaseDate) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record GeniusAlbumTracksResponse(GeniusAlbumTracksData response) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record GeniusAlbumTracksData(List<Object> tracks) {}
 }

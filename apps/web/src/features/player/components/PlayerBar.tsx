@@ -133,8 +133,59 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="z-player border-border bg-bg-secondary pb-safe px-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t"
+      className="z-player border-border bg-bg-secondary px-safe md:left-sidebar md:pb-safe fixed right-0 bottom-above-tab-bar left-0 border-t"
     >
+      {/* Mobile only: track info above progress bar */}
+      <div className="flex items-center gap-2 px-4 pt-2 md:hidden">
+        {currentTrack.AlbumId ? (
+          <Link to={`/albums/${currentTrack.AlbumId}`}>
+            <img
+              src={hasImageError ? getImagePlaceholder() : imageUrl}
+              alt={currentTrack.Name}
+              className="h-10 w-10 shrink-0 rounded-sm object-cover transition-opacity hover:opacity-80"
+              onError={onImageError}
+            />
+          </Link>
+        ) : (
+          <img
+            src={hasImageError ? getImagePlaceholder() : imageUrl}
+            alt={currentTrack.Name}
+            className="h-10 w-10 shrink-0 rounded-sm object-cover"
+            onError={onImageError}
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          {currentTrack.AlbumId ? (
+            <Link
+              to={`/albums/${currentTrack.AlbumId}`}
+              className="text-text-primary block truncate font-medium hover:underline"
+            >
+              {currentTrack.Name}
+            </Link>
+          ) : (
+            <p className="text-text-primary truncate font-medium">
+              {currentTrack.Name}
+            </p>
+          )}
+          {artistId ? (
+            <Link
+              to={`/artists/${artistId}`}
+              className="text-text-secondary hover:text-text-primary block truncate text-sm hover:underline"
+            >
+              {artistName}
+            </Link>
+          ) : (
+            <p className="text-text-secondary truncate text-sm">
+              {artistName}
+            </p>
+          )}
+        </div>
+        <FavoriteButton
+          itemId={currentTrack.Id}
+          isFavorite={currentTrack.UserData?.IsFavorite ?? false}
+        />
+      </div>
+
       <input
         data-testid="seek-slider"
         type="range"
@@ -152,7 +203,11 @@ export function PlayerBar() {
       />
 
       <div className="mx-auto flex max-w-7xl items-center gap-4 p-2 px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* Mobile: spacer to approximately center playback controls */}
+        <div className="flex-1 md:hidden" aria-hidden="true" />
+
+        {/* Desktop: track info */}
+        <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
           {currentTrack.AlbumId ? (
             <Link to={`/albums/${currentTrack.AlbumId}`}>
               <img
@@ -221,7 +276,7 @@ export function PlayerBar() {
           onToggleRepeat={toggleRepeat}
         />
 
-        <div className="flex shrink-0 items-center justify-end gap-1 md:flex-1 md:gap-2">
+        <div className="flex flex-1 items-center justify-end gap-1 md:gap-2">
           <span className="text-text-tertiary hidden text-xs tabular-nums md:inline">
             <span data-testid="current-time">{formatSeconds(currentTime)}</span> /{' '}
             <span data-testid="total-time">{formatSeconds(duration)}</span>
@@ -253,7 +308,7 @@ export function PlayerBar() {
           {isKaraokeMode && (
             <div className="flex items-center gap-2 px-2">
               <span className="text-text-tertiary text-xs whitespace-nowrap">
-                Вокал
+                Vocal
               </span>
               <input
                 type="range"
@@ -266,7 +321,7 @@ export function PlayerBar() {
                   background: `linear-gradient(to right, rgb(var(--color-accent)) 0%, rgb(var(--color-accent)) ${vocalVolume * 100}%, rgb(var(--color-surface-tertiary)) ${vocalVolume * 100}%, rgb(var(--color-surface-tertiary)) 100%)`
                 }}
                 aria-label="Vocal volume"
-                title={`Громкость вокала: ${Math.round(vocalVolume * 100)}%`}
+                title={`Vocal volume: ${Math.round(vocalVolume * 100)}%`}
               />
               <span className="text-text-tertiary text-xs tabular-nums w-8">
                 {Math.round(vocalVolume * 100)}%

@@ -8,6 +8,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,11 +16,11 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.Set;
 import javax.imageio.ImageIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class CoverArtService {
 
   private static final Logger log = LoggerFactory.getLogger(CoverArtService.class);
+
+  private static final Set<String> ALLOWED_IMAGE_HOSTS = Set.of(
+      "images.genius.com",
+      "coverartarchive.org",
+      "i.scdn.co",
+      "lastfm.freetls.fastly.net",
+      "upload.wikimedia.org",
+      "is1-ssl.mzstatic.com",
+      "is2-ssl.mzstatic.com",
+      "is3-ssl.mzstatic.com",
+      "is4-ssl.mzstatic.com",
+      "is5-ssl.mzstatic.com"
+  );
 
   private final ImageService imageService;
   private final ImageRepository imageRepository;
@@ -103,6 +117,11 @@ public class CoverArtService {
   public boolean downloadAndSaveArtwork(
       ItemEntity item, String imageUrl, ImageType imageType, String source) {
     try {
+      if (!isAllowedImageUrl(imageUrl)) {
+        log.warn("Blocked image download from untrusted URL: {}", imageUrl);
+        return false;
+      }
+
       log.debug("Downloading cover art from: {} for item: {}", imageUrl, item.getId());
 
       HttpRequest request =
@@ -220,6 +239,30 @@ public class CoverArtService {
    * @param imageData raw image bytes
    * @return file extension (jpg, png, etc.)
    */
+  private boolean isAllowedImageUrl(String imageUrl) {
+    try {
+      URI uri = URI.create(imageUrl);
+      String scheme = uri.getScheme();
+      if (!"https".equalsIgnoreCase(scheme)) {
+        return false;
+      }
+      String host = uri.getHost();
+      if (host == null) {
+        return false;
+      }
+      // Block private/internal IPs
+      InetAddress addr = InetAddress.getByName(host);
+      if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress()) {
+        return false;
+      }
+      // Check allowlist
+      return ALLOWED_IMAGE_HOSTS.stream().anyMatch(allowed ->
+          host.equalsIgnoreCase(allowed) || host.endsWith("." + allowed));
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
   private String detectImageFormat(byte[] imageData) throws IOException {
     try (InputStream is = new ByteArrayInputStream(imageData)) {
       BufferedImage image = ImageIO.read(is);

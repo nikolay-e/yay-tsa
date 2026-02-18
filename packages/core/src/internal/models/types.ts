@@ -190,6 +190,8 @@ export interface MusicAlbum extends BaseItem {
   Artists?: string[];
   ArtistItems?: NameIdPair[];
   ChildCount?: number;
+  TotalTracks?: number;
+  IsComplete?: boolean;
 }
 
 export interface MusicArtist extends BaseItem {

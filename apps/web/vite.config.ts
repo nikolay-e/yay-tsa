@@ -147,6 +147,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@yay-tsa/core', '@yay-tsa/platform'],
+    exclude: ['@yay-tsa/core', '@yay-tsa/platform'],
   },
 });

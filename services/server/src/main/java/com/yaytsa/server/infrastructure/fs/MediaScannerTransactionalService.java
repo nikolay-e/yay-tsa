@@ -161,31 +161,35 @@ public class MediaScannerTransactionalService {
         (artistName == null || artistName.isBlank()) ? "Unknown Artist" : artistName;
 
     String cacheKey = finalArtistName.toLowerCase(java.util.Locale.ROOT);
-    UUID artistId =
-        artistIdCache.computeIfAbsent(
-            cacheKey,
-            key -> {
-              Optional<ItemEntity> existing =
-                  itemRepository.findByPath(
-                      "artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT));
-              if (existing.isPresent()) return existing.get().getId();
+    UUID cachedId = artistIdCache.get(cacheKey);
 
-              ItemEntity item = new ItemEntity();
-              item.setType(ItemType.MusicArtist);
-              item.setName(finalArtistName);
-              item.setSortName(createSortName(finalArtistName));
-              item.setPath("artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT));
-              item.setLibraryRoot(libraryRoot);
-              item = itemRepository.save(item);
+    if (cachedId != null) {
+      Optional<ItemEntity> existing = itemRepository.findById(cachedId);
+      if (existing.isPresent()) return existing.get();
+      artistIdCache.remove(cacheKey);
+    }
 
-              ArtistEntity artist = new ArtistEntity();
-              artist.setItem(item);
-              artistRepository.save(artist);
+    String artistPath = "artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT);
+    Optional<ItemEntity> existing = itemRepository.findByPath(artistPath);
+    if (existing.isPresent()) {
+      artistIdCache.put(cacheKey, existing.get().getId());
+      return existing.get();
+    }
 
-              return item.getId();
-            });
+    ItemEntity item = new ItemEntity();
+    item.setType(ItemType.MusicArtist);
+    item.setName(finalArtistName);
+    item.setSortName(createSortName(finalArtistName));
+    item.setPath(artistPath);
+    item.setLibraryRoot(libraryRoot);
+    item = itemRepository.save(item);
 
-    return itemRepository.getReferenceById(artistId);
+    ArtistEntity artist = new ArtistEntity();
+    artist.setItem(item);
+    artistRepository.save(artist);
+
+    artistIdCache.put(cacheKey, item.getId());
+    return item;
   }
 
   private ItemEntity findOrCreateAlbum(
@@ -196,36 +200,40 @@ public class MediaScannerTransactionalService {
     String artistName = artistItem.getName();
     String cacheKey = (artistName + "::" + finalAlbumName).toLowerCase(java.util.Locale.ROOT);
 
-    UUID albumId =
-        albumIdCache.computeIfAbsent(
-            cacheKey,
-            key -> {
-              String albumPath =
-                  "album:"
-                      + artistName.toLowerCase(java.util.Locale.ROOT)
-                      + "::"
-                      + finalAlbumName.toLowerCase(java.util.Locale.ROOT);
-              Optional<ItemEntity> existing = itemRepository.findByPath(albumPath);
-              if (existing.isPresent()) return existing.get().getId();
+    UUID cachedId = albumIdCache.get(cacheKey);
+    if (cachedId != null) {
+      Optional<ItemEntity> existing = itemRepository.findById(cachedId);
+      if (existing.isPresent()) return existing.get();
+      albumIdCache.remove(cacheKey);
+    }
 
-              ItemEntity item = new ItemEntity();
-              item.setType(ItemType.MusicAlbum);
-              item.setName(finalAlbumName);
-              item.setSortName(createSortName(finalAlbumName));
-              item.setPath(albumPath);
-              item.setLibraryRoot(libraryRoot);
-              item.setParent(artistItem);
-              item = itemRepository.save(item);
+    String albumPath =
+        "album:"
+            + artistName.toLowerCase(java.util.Locale.ROOT)
+            + "::"
+            + finalAlbumName.toLowerCase(java.util.Locale.ROOT);
+    Optional<ItemEntity> existing = itemRepository.findByPath(albumPath);
+    if (existing.isPresent()) {
+      albumIdCache.put(cacheKey, existing.get().getId());
+      return existing.get();
+    }
 
-              AlbumEntity album = new AlbumEntity();
-              album.setItem(item);
-              album.setArtist(artistItem);
-              albumRepository.save(album);
+    ItemEntity item = new ItemEntity();
+    item.setType(ItemType.MusicAlbum);
+    item.setName(finalAlbumName);
+    item.setSortName(createSortName(finalAlbumName));
+    item.setPath(albumPath);
+    item.setLibraryRoot(libraryRoot);
+    item.setParent(artistItem);
+    item = itemRepository.save(item);
 
-              return item.getId();
-            });
+    AlbumEntity album = new AlbumEntity();
+    album.setItem(item);
+    album.setArtist(artistItem);
+    albumRepository.save(album);
 
-    return itemRepository.getReferenceById(albumId);
+    albumIdCache.put(cacheKey, item.getId());
+    return item;
   }
 
   private void processGenres(ItemEntity item, List<String> genres) {

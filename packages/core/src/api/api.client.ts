@@ -601,6 +601,16 @@ export class MediaServerClient {
   }
 
   /**
+   * Fetch lyrics on demand for a track
+   */
+  async fetchLyrics(trackId: string): Promise<{ found: boolean; lyrics: string; source: string }> {
+    const result = await this.post<{ found: boolean; lyrics: string; source: string }>(
+      `/Lyrics/${trackId}/fetch`
+    );
+    return result ?? { found: false, lyrics: '', source: '' };
+  }
+
+  /**
    * Build karaoke stream URL with adjustable vocal volume
    * @param itemId Track ID
    * @param vocalVolume Vocal volume from 0.0 (no vocals) to 1.0 (full vocals)
@@ -622,19 +632,9 @@ export class MediaServerClient {
     return `${this.serverUrl}/Karaoke/${itemId}/stream?${params}`;
   }
 
-  async fetchLyrics(trackId: string): Promise<LyricsFetchResponse> {
-    const result = await this.post<LyricsFetchResponse>(`/Lyrics/${trackId}/fetch`);
-    return result ?? { found: false, lyrics: null, source: null };
-  }
 }
 
 export interface KaraokeStatus {
   state: 'NOT_STARTED' | 'PROCESSING' | 'READY' | 'FAILED';
   message: string | null;
-}
-
-export interface LyricsFetchResponse {
-  found: boolean;
-  lyrics: string | null;
-  source: string | null;
 }

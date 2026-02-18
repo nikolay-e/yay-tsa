@@ -37,4 +37,7 @@ public class AlbumEntity {
 
   @Column(name = "total_discs")
   private Integer totalDiscs = 1;
+
+  @Column(name = "is_complete", nullable = false)
+  private Boolean isComplete = true;
 }

@@ -1,7 +1,6 @@
 import { useState, useMemo, useDeferredValue } from 'react';
-import { Upload } from 'lucide-react';
 import { useInfiniteTracks } from '@/features/library/hooks';
-import { TrackList, TrackUploadDialog } from '@/features/library/components';
+import { TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
@@ -13,14 +12,13 @@ import {
 
 export function SongsPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
-  const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage, refetch } =
+  const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteTracks({
       searchTerm: deferredSearchTerm.trim() || undefined,
       sortBy: 'SortName',
@@ -37,25 +35,11 @@ export function SongsPage() {
     void playTracks(tracks, index);
   };
 
-  const handleUploadSuccess = () => {
-    // Refetch tracks after successful upload
-    void refetch();
-  };
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Songs</h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsUploadDialogOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors font-medium"
-          >
-            <Upload size={18} />
-            Upload Track
-          </button>
-          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search songs..." />
-        </div>
+        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search songs..." />
       </div>
 
       {error && (
@@ -92,12 +76,6 @@ export function SongsPage() {
           />
         </>
       )}
-
-      <TrackUploadDialog
-        isOpen={isUploadDialogOpen}
-        onClose={() => setIsUploadDialogOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
-      />
     </div>
   );
 }

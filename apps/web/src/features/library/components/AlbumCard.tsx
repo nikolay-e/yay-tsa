@@ -26,6 +26,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
 
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const artistId = album.ArtistItems?.[0]?.Id;
+  const isIncomplete = album.IsComplete === false && (album.ChildCount ?? 0) > 0 && (album.TotalTracks ?? 0) > 0;
 
   return (
     <div
@@ -44,6 +45,14 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
           loading="lazy"
           onError={onImageError}
         />
+        {isIncomplete && (
+          <div
+            className="absolute top-1.5 right-1.5 z-[3] rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow"
+            title="Загрузите остальные треки через Настройки"
+          >
+            {album.ChildCount}/{album.TotalTracks}
+          </div>
+        )}
         <button
           type="button"
           onClick={e => {

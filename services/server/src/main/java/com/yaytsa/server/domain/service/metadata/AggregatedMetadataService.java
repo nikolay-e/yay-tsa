@@ -103,7 +103,7 @@ public class AggregatedMetadataService {
     log.info("Found {} result(s) from providers:", results.size());
     for (MetadataProvider.EnrichedMetadata result : results) {
       log.info(
-          "  - {}: {} - {} ({}) [confidence: {:.2f}]",
+          "  - {}: {} - {} ({}) [confidence: {}]",
           result.source(),
           result.artist(),
           result.album(),
@@ -114,15 +114,30 @@ public class AggregatedMetadataService {
     // Select best result based on confidence and provider priority
     MetadataProvider.EnrichedMetadata best = selectBestResult(results, enabledProviders);
 
-    log.info(
-        "Selected best match from {}: {} - {} ({}) [confidence: {:.2f}]",
-        best.source(),
-        best.artist(),
-        best.album(),
-        best.year(),
-        best.confidence());
+    // Merge coverArtUrl from other providers if the best result doesn't have one.
+    // MusicBrainz provides Cover Art Archive URLs (CC-licensed), even if it loses on overall score.
+    MetadataProvider.EnrichedMetadata merged = best;
+    if (best.coverArtUrl() == null) {
+      merged = results.stream()
+          .filter(r -> r.coverArtUrl() != null && !r.source().equals(best.source()))
+          .findFirst()
+          .map(r -> {
+            log.info("Merging coverArtUrl from {} into best result from {}", r.source(), best.source());
+            return best.withCoverArtUrl(r.coverArtUrl());
+          })
+          .orElse(best);
+    }
 
-    return Optional.of(best);
+    log.info(
+        "Selected best match from {}: {} - {} ({}) coverArtUrl={} [confidence: {}]",
+        merged.source(),
+        merged.artist(),
+        merged.album(),
+        merged.year(),
+        merged.coverArtUrl() != null ? "yes" : "no",
+        merged.confidence());
+
+    return Optional.of(merged);
   }
 
   /**
@@ -161,7 +176,7 @@ public class AggregatedMetadataService {
     log.debug("Result scoring:");
     for (ScoredResult scoredResult : scored) {
       log.debug(
-          "  - {} (confidence={:.2f}, priority={}, score={:.3f})",
+          "  - {} (confidence={}, priority={}, score={})",
           scoredResult.metadata.source(),
           scoredResult.metadata.confidence(),
           priorityMap.get(scoredResult.metadata.source()),
