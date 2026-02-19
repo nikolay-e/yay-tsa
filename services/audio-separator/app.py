@@ -112,23 +112,36 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Audio Separator Service", version="3.0.0", lifespan=lifespan)
 
 _separator_lock = threading.Lock()
+_cached_model = None
 
 
 # ---------------------------------------------------------------------------
 # Audio separation — demucs Python API (no external audio-separator package)
 # ---------------------------------------------------------------------------
 
-def _separate_with_demucs(input_path: str, output_dir: str) -> list[str]:
-    """Separate audio into stems using the demucs Python API directly."""
-    import torch
+def _get_demucs_model():
+    """Load and cache the demucs model globally (loaded once, reused across requests)."""
+    global _cached_model
+    if _cached_model is not None:
+        return _cached_model
     from demucs.pretrained import get_model
-    from demucs.apply import apply_model
-    from demucs.audio import AudioFile
-
     log.info("Loading demucs model %s…", MODEL_NAME)
     model = get_model(MODEL_NAME)
     device = "cuda" if USE_CUDA else "cpu"
     model.to(device)
+    _cached_model = model
+    log.info("Model %s loaded and cached (device=%s)", MODEL_NAME, device)
+    return model
+
+
+def _separate_with_demucs(input_path: str, output_dir: str) -> list[str]:
+    """Separate audio into stems using the demucs Python API directly."""
+    import torch
+    from demucs.apply import apply_model
+    from demucs.audio import AudioFile
+
+    model = _get_demucs_model()
+    device = "cuda" if USE_CUDA else "cpu"
 
     log.info("Reading audio: %s", input_path)
     wav = AudioFile(input_path).read(
@@ -156,10 +169,20 @@ def _separate_with_demucs(input_path: str, output_dir: str) -> list[str]:
     vocal_file = stems_dir / f"vocals.{OUTPUT_FORMAT}"
     instrumental_file = stems_dir / f"no_vocals.{OUTPUT_FORMAT}"
 
-    log.info("Saving %d stems to %s…", sources.shape[0], stems_dir)
-    # demucs htdemucs two-stems: index 0 = accompaniment, index 1 = vocals
-    torchaudio.save(str(instrumental_file), sources[0], model.samplerate)
-    torchaudio.save(str(vocal_file), sources[1], model.samplerate)
+    log.info("Saving %d stems to %s (sources: %s)…", sources.shape[0], stems_dir, model.sources)
+
+    # Find vocal index dynamically from model.sources list
+    vocal_idx = model.sources.index("vocals") if "vocals" in model.sources else -1
+    if vocal_idx < 0:
+        raise RuntimeError(f"Model does not have 'vocals' source: {model.sources}")
+
+    # Instrumental = sum of all non-vocal stems
+    import torch
+    non_vocal_indices = [i for i in range(len(model.sources)) if i != vocal_idx]
+    instrumental = torch.stack([sources[i] for i in non_vocal_indices]).sum(0)
+
+    torchaudio.save(str(instrumental_file), instrumental, model.samplerate)
+    torchaudio.save(str(vocal_file), sources[vocal_idx], model.samplerate)
 
     log.info("Stems saved — instrumental=%s vocals=%s", instrumental_file, vocal_file)
     return [str(vocal_file), str(instrumental_file)]

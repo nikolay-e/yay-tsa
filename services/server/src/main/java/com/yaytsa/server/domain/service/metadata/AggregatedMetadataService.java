@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service.metadata;
 
+import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,20 @@ public class AggregatedMetadataService {
             .filter(MetadataProvider::isEnabled)
             .map(MetadataProvider::getProviderName)
             .toList());
+  }
+
+  @PreDestroy
+  public void shutdown() {
+    log.info("Shutting down metadata enrichment executor");
+    executor.shutdown();
+    try {
+      if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+        executor.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      executor.shutdownNow();
+      Thread.currentThread().interrupt();
+    }
   }
 
   /**
@@ -85,8 +101,14 @@ public class AggregatedMetadataService {
                         executor))
             .toList();
 
-    // Wait for all queries to complete
-    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    // Wait for all queries to complete (with timeout)
+    try {
+      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+          .orTimeout(15, TimeUnit.SECONDS)
+          .join();
+    } catch (Exception e) {
+      log.warn("Metadata enrichment timed out or failed: {}", e.getMessage());
+    }
 
     // Collect results
     List<MetadataProvider.EnrichedMetadata> results = new ArrayList<>();

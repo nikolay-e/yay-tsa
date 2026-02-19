@@ -48,7 +48,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
         {isIncomplete && (
           <div
             className="absolute top-1.5 right-1.5 z-[3] rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow"
-            title="Загрузите остальные треки через Настройки"
+            title="Upload remaining tracks from Settings"
           >
             {album.ChildCount}/{album.TotalTracks}
           </div>

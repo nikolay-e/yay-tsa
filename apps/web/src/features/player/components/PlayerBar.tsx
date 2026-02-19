@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mic, MicOff, Timer, AlignLeft } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
@@ -51,8 +51,16 @@ export function PlayerBar() {
   const isKaraokeMode = useIsKaraokeMode();
   const isKaraokeTransitioning = useIsKaraokeTransitioning();
   const karaokeStatus = useKaraokeStatus();
-  const vocalVolume = useVocalVolume();
+  const storeVocalVolume = useVocalVolume();
+  const [localVocalVolume, setLocalVocalVolume] = useState(storeVocalVolume);
+  const pendingVocalCommit = useRef(false);
   const sleepTimer = useSleepTimer();
+
+  useEffect(() => {
+    if (!pendingVocalCommit.current) {
+      setLocalVocalVolume(storeVocalVolume);
+    }
+  }, [storeVocalVolume]);
   const currentTime = useTimingStore(s => s.currentTime);
   const duration = useTimingStore(s => s.duration);
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
@@ -129,6 +137,16 @@ export function PlayerBar() {
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     seek(parseFloat(e.target.value));
   };
+
+  const handleVocalVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    pendingVocalCommit.current = true;
+    setLocalVocalVolume(Number(e.target.value) / 100);
+  }, []);
+
+  const commitVocalVolume = useCallback(() => {
+    pendingVocalCommit.current = false;
+    void setVocalVolume(localVocalVolume);
+  }, [localVocalVolume, setVocalVolume]);
 
   return (
     <div
@@ -314,17 +332,19 @@ export function PlayerBar() {
                 type="range"
                 min="0"
                 max="100"
-                value={vocalVolume * 100}
-                onChange={(e) => void setVocalVolume(Number(e.target.value) / 100)}
+                value={localVocalVolume * 100}
+                onChange={handleVocalVolumeChange}
+                onMouseUp={commitVocalVolume}
+                onTouchEnd={commitVocalVolume}
                 className="w-16 md:w-24 h-1 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-accent"
                 style={{
-                  background: `linear-gradient(to right, rgb(var(--color-accent)) 0%, rgb(var(--color-accent)) ${vocalVolume * 100}%, rgb(var(--color-surface-tertiary)) ${vocalVolume * 100}%, rgb(var(--color-surface-tertiary)) 100%)`
+                  background: `linear-gradient(to right, rgb(var(--color-accent)) 0%, rgb(var(--color-accent)) ${localVocalVolume * 100}%, rgb(var(--color-surface-tertiary)) ${localVocalVolume * 100}%, rgb(var(--color-surface-tertiary)) 100%)`
                 }}
                 aria-label="Vocal volume"
-                title={`Vocal volume: ${Math.round(vocalVolume * 100)}%`}
+                title={`Vocal volume: ${Math.round(localVocalVolume * 100)}%`}
               />
               <span className="text-text-tertiary text-xs tabular-nums w-8">
-                {Math.round(vocalVolume * 100)}%
+                {Math.round(localVocalVolume * 100)}%
               </span>
             </div>
           )}

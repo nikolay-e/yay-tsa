@@ -52,13 +52,17 @@ public class AudioFingerprintService {
      * @param other Other fingerprint to compare
      * @return Similarity score (1.0 = identical)
      */
+    // TODO: Replace Levenshtein with proper Chromaprint bitwise comparison for production use
     public double similarity(AudioFingerprint other) {
       if (fingerprint == null || other.fingerprint == null) {
         return 0.0;
       }
 
-      // Simple string similarity (Levenshtein-based)
-      // For production, use proper Chromaprint comparison algorithm
+      // Guard against excessively long fingerprints that could cause OOM in Levenshtein
+      if (fingerprint.length() > 5000 || other.fingerprint.length() > 5000) {
+        return 0.0;
+      }
+
       int distance = levenshteinDistance(fingerprint, other.fingerprint);
       int maxLen = Math.max(fingerprint.length(), other.fingerprint.length());
 

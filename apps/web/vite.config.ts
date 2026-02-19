@@ -147,6 +147,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    // Exclude workspace packages from pre-bundling so Vite uses the source directly
+    // (include would force them through esbuild, breaking the monorepo dev workflow)
     exclude: ['@yay-tsa/core', '@yay-tsa/platform'],
   },
 });

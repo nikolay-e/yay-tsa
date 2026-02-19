@@ -614,7 +614,9 @@ export const usePlayerStore = create<PlayerStore>()(
 
       seek: seconds => {
         if (controller.isActive) return;
-        engine.seek(seconds);
+        const { isKaraokeMode, karaokeTimeOffset } = get();
+        const engineSeconds = isKaraokeMode ? seconds - karaokeTimeOffset : seconds;
+        engine.seek(Math.max(0, engineSeconds));
         useTimingStore.getState().updateTiming(seconds, engine.getDuration());
 
         if (playbackReporter && currentItemId) {

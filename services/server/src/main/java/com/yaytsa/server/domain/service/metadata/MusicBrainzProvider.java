@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -31,7 +32,8 @@ public class MusicBrainzProvider implements MetadataProvider {
   private static final long MIN_REQUEST_INTERVAL_MS = 1100; // Rate limit: 1 req/sec
 
   private final RestTemplate restTemplate;
-  private long lastRequestTime = 0;
+  private final ReentrantLock rateLimitLock = new ReentrantLock();
+  private volatile long lastRequestTime = 0;
 
   public MusicBrainzProvider(RestTemplateBuilder restTemplateBuilder) {
     this.restTemplate =
@@ -131,20 +133,25 @@ public class MusicBrainzProvider implements MetadataProvider {
     return 60; // Slightly higher priority (open database, good quality)
   }
 
-  private synchronized void enforceRateLimit() {
-    long now = System.currentTimeMillis();
-    long timeSinceLastRequest = now - lastRequestTime;
-
-    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS) {
-      long sleepTime = MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
+  private void enforceRateLimit() {
+    long sleepTime;
+    rateLimitLock.lock();
+    try {
+      long now = System.currentTimeMillis();
+      long timeSinceLastRequest = now - lastRequestTime;
+      sleepTime = timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS
+          ? MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest : 0;
+      lastRequestTime = now + sleepTime;
+    } finally {
+      rateLimitLock.unlock();
+    }
+    if (sleepTime > 0) {
       try {
         Thread.sleep(sleepTime);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
       }
     }
-
-    lastRequestTime = System.currentTimeMillis();
   }
 
   private double calculateConfidence(

@@ -68,7 +68,7 @@ public class CoverArtService {
     this.httpClient =
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
-            .followRedirects(HttpClient.Redirect.NORMAL)
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     try {
@@ -134,6 +134,23 @@ public class CoverArtService {
 
       HttpResponse<byte[]> response =
           httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+      // Handle redirects manually to validate target URL
+      if (response.statusCode() >= 300 && response.statusCode() < 400) {
+        String redirectUrl = response.headers().firstValue("Location").orElse(null);
+        if (redirectUrl == null || !isAllowedImageUrl(redirectUrl)) {
+          log.warn("Blocked redirect to untrusted URL: {} → {}", imageUrl, redirectUrl);
+          return false;
+        }
+        HttpRequest redirectRequest =
+            HttpRequest.newBuilder()
+                .uri(URI.create(redirectUrl))
+                .timeout(Duration.ofSeconds(15))
+                .header("User-Agent", "Yay-Tsa-Media-Server/0.1.0")
+                .GET()
+                .build();
+        response = httpClient.send(redirectRequest, HttpResponse.BodyHandlers.ofByteArray());
+      }
 
       if (response.statusCode() != 200) {
         log.warn(

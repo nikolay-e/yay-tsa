@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
@@ -51,7 +52,8 @@ public class AudioSeparatorClient {
     this.healthCheckClient = restClientBuilder.requestFactory(healthRequestFactory).build();
   }
 
-  private String getBaseUrl() {
+  @Cacheable(value = "audio-separator-url", key = "'base-url'")
+  public String getBaseUrl() {
     String configured = settingsService.get("service.separator-url", "AUDIO_SEPARATOR_URL");
     return configured.isBlank() ? defaultUrl : configured;
   }

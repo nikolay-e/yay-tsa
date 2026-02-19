@@ -309,14 +309,17 @@ public class KaraokeController {
         responseOutput.flush();
       }
 
-      int exitCode = process.waitFor();
-      if (exitCode != 0) {
-        log.warn("FFmpeg mixing process exited with code: {}", exitCode);
+      boolean finished = process.waitFor(60, TimeUnit.SECONDS);
+      if (!finished) {
+        log.warn("FFmpeg mixing process timed out, destroying forcibly");
+        process.destroyForcibly();
+      } else if (process.exitValue() != 0) {
+        log.warn("FFmpeg mixing process exited with code: {}", process.exitValue());
       }
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      process.destroy();
+      process.destroyForcibly();
       throw new IOException("Mixing process interrupted", e);
     } catch (IOException e) {
       log.debug("Client disconnected during karaoke mixing");
