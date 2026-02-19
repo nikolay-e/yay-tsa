@@ -45,8 +45,8 @@ public class SpotifyProvider implements MetadataProvider {
   private final RestTemplate restTemplate;
   private final AppSettingsService settingsService;
 
-  private String accessToken;
-  private Instant tokenExpiry;
+  private volatile String accessToken;
+  private volatile Instant tokenExpiry;
 
   public SpotifyProvider(
       RestTemplateBuilder restTemplateBuilder, AppSettingsService settingsService) {

@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -34,6 +35,12 @@ public class UploadController {
 
   private static final List<String> SUPPORTED_EXTENSIONS =
       List.of("mp3", "flac", "m4a", "aac", "ogg", "opus", "wav", "wma");
+
+  private static final Set<String> ALLOWED_MIME_TYPES =
+      Set.of(
+          "audio/mpeg", "audio/flac", "audio/x-flac", "audio/mp4",
+          "audio/wav", "audio/x-wav", "audio/ogg", "audio/aac",
+          "audio/x-m4a", "audio/x-ms-wma", "audio/opus");
 
   private final TrackUploadService uploadService;
   private final ItemMapper itemMapper;
@@ -91,6 +98,13 @@ public class UploadController {
                   + String.join(", ", SUPPORTED_EXTENSIONS));
     }
 
+    // Validate MIME type
+    String contentType = file.getContentType();
+    if (contentType != null && !ALLOWED_MIME_TYPES.contains(contentType)) {
+      return ResponseEntity.badRequest()
+          .body("Unsupported content type: " + contentType);
+    }
+
     try {
       var result = uploadService.uploadTrack(file, user.getUserEntity().getId(), libraryRoot);
 
@@ -125,7 +139,7 @@ public class UploadController {
     } catch (Exception e) {
       log.error("Failed to upload track: {}", originalFilename, e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to upload track: " + e.getMessage());
+          .body("Failed to upload track. Please try again.");
     }
   }
 

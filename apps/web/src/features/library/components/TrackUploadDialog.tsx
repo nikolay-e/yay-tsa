@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, X, CheckCircle2, AlertCircle, Music } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 
@@ -15,6 +15,8 @@ const SUPPORTED_FORMATS = [
 ];
 
 const SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.wma'];
+
+const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
 
 function isAudioFile(file: File): boolean {
   return (
@@ -46,13 +48,41 @@ export function TrackUploadDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const client = useAuthStore(s => s.client);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isUploading) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isUploading, onClose]);
+
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const audioFiles = Array.from(newFiles).filter(isAudioFile);
     if (audioFiles.length === 0) return;
 
+    const oversized = audioFiles.filter(f => f.size > MAX_FILE_SIZE_BYTES);
+    const validFiles = audioFiles.filter(f => f.size <= MAX_FILE_SIZE_BYTES);
+
+    if (oversized.length > 0) {
+      setFiles(prev => [
+        ...prev,
+        ...oversized.map(file => ({
+          file,
+          status: 'error' as const,
+          progress: 0,
+          message: `File too large (max 500 MB)`,
+        })),
+      ]);
+    }
+
+    if (validFiles.length === 0) return;
+
     setFiles(prev => {
       const existingNames = new Set(prev.map(f => f.file.name));
-      const unique = audioFiles.filter(f => !existingNames.has(f.name));
+      const unique = validFiles.filter(f => !existingNames.has(f.name));
       return [...prev, ...unique.map(file => ({ file, status: 'pending' as const, progress: 0 }))];
     });
   }, []);
@@ -224,10 +254,10 @@ export function TrackUploadDialog({
   const totalSize = files.reduce((acc, f) => acc + f.file.size, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-bg-secondary w-full max-w-lg rounded-lg shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+      <div className="bg-bg-secondary w-full max-w-lg rounded-lg shadow-xl" role="dialog" aria-modal="true" aria-labelledby="upload-dialog-title">
         <div className="flex items-center justify-between border-b border-white/10 p-4">
-          <h2 className="text-xl font-semibold">Upload Album</h2>
+          <h2 id="upload-dialog-title" className="text-xl font-semibold">Upload Album</h2>
           <button
             onClick={handleClose}
             disabled={isUploading}

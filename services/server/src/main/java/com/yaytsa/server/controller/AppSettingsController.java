@@ -56,6 +56,10 @@ public class AppSettingsController {
     for (String key : SECRET_KEYS) {
       String value = settings.get(key);
       if (value != null && !value.isBlank()) {
+        if (value.length() > MAX_SETTING_VALUE_LENGTH) {
+          return ResponseEntity.badRequest()
+              .body(Map.of("error", "Value too long for key: " + key));
+        }
         settingsService.set(key, value);
       }
     }
@@ -80,15 +84,21 @@ public class AppSettingsController {
     for (String key : SERVICE_URL_KEYS) {
       String value = settings.get(key);
       if (value != null && !value.isBlank()) {
+        if (value.length() > MAX_SETTING_VALUE_LENGTH) {
+          return ResponseEntity.badRequest()
+              .body(Map.of("error", "Value too long for key: " + key));
+        }
         settingsService.set(key, value);
       }
     }
     return ResponseEntity.ok(Map.of("status", "saved"));
   }
 
+  private static final int MAX_SETTING_VALUE_LENGTH = 500;
+
   private String mask(String value) {
     if (value == null || value.isBlank()) return "";
-    if (value.length() <= 8) return "****";
-    return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+    if (value.length() <= 4) return "****";
+    return "****" + value.substring(value.length() - 4);
   }
 }

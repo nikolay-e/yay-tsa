@@ -97,7 +97,7 @@ export function AlbumDetailPage() {
             {isIncomplete && (
               <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                Альбом не завершён — загружено {trackCount} из {album.TotalTracks} треков
+                Album incomplete — {trackCount} of {album.TotalTracks} tracks uploaded
               </div>
             )}
           </div>

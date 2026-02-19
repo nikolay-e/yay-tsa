@@ -159,10 +159,15 @@ public class TrackUploadService {
       String sanitizedArtist = sanitizeFilename(artist);
       String sanitizedAlbum = sanitizeFilename(album);
       String sanitizedTitle = sanitizeFilename(title);
-      String libraryRoot = uploadLibraryRoot;
+      String libraryRoot = getLibraryRoot(libraryRootOverride);
       String extension = getFileExtension(originalFilename);
-      Path targetDir = Paths.get(libraryRoot, sanitizedArtist, sanitizedAlbum);
-      Path targetFile = targetDir.resolve(sanitizedTitle + "." + extension);
+      Path libraryRootPath = Paths.get(libraryRoot).normalize();
+      Path targetDir = libraryRootPath.resolve(sanitizedArtist).resolve(sanitizedAlbum).normalize();
+      Path targetFile = targetDir.resolve(sanitizedTitle + "." + extension).normalize();
+
+      if (!targetDir.startsWith(libraryRootPath) || !targetFile.startsWith(libraryRootPath)) {
+        throw new IllegalArgumentException("Invalid path: resolved path escapes library root");
+      }
 
       Files.createDirectories(targetDir);
 
@@ -219,7 +224,7 @@ public class TrackUploadService {
   }
 
   @Transactional
-  protected ItemEntity persistTrack(Path targetFile, String libraryRoot) throws IOException {
+  public ItemEntity persistTrack(Path targetFile, String libraryRoot) throws IOException {
     return scannerService.createNewTrack(
         targetFile, targetFile.toString(), OffsetDateTime.now(),
         Files.size(targetFile), libraryRoot);
@@ -304,6 +309,7 @@ public class TrackUploadService {
       return "Unknown";
     }
     return name.replaceAll("[\\\\/:*?\"<>|]", "_")
+        .replace("..", "_")
         .replaceAll("\\s+", " ")
         .trim();
   }

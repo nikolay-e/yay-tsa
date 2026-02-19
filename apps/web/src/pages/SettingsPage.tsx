@@ -127,6 +127,13 @@ export function SettingsPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        setMetadataConfigured(prev => ({
+          geniusToken: prev.geniusToken || !!metadataKeys.geniusToken,
+          lastfmKey: prev.lastfmKey || !!metadataKeys.lastfmKey,
+          spotifyClientId: prev.spotifyClientId || !!metadataKeys.spotifyClientId,
+          spotifyClientSecret: prev.spotifyClientSecret || !!metadataKeys.spotifyClientSecret,
+        }));
+        setMetadataKeys({ geniusToken: '', lastfmKey: '', spotifyClientId: '', spotifyClientSecret: '' });
         setMetadataSaveStatus('saved');
         setTimeout(() => setMetadataSaveStatus('idle'), 2000);
       } else {
@@ -358,7 +365,7 @@ export function SettingsPage() {
                   type="text"
                   value={serviceUrls.lyricsFetcherUrl}
                   onChange={e => setServiceUrls(u => ({ ...u, lyricsFetcherUrl: e.target.value }))}
-                  placeholder="http://audio-separator:8000"
+                  placeholder="http://audio-separator:8000/api/fetch-lyrics"
                   className="bg-bg-tertiary border-border text-text-primary w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-white/30"
                 />
               </div>

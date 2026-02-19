@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { log } from '@/shared/utils/logger';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useLyrics } from '../hooks/useLyrics';
 import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
@@ -81,7 +82,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
         setFetchError('not_found');
       }
     } catch (err) {
-      console.error('[LyricsView] fetchLyrics error:', err);
+      log.player.error('fetchLyrics error', err);
       if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
       setFetchError('Lyrics service unavailable');
     } finally {

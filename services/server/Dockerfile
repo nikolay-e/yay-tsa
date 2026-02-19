@@ -44,6 +44,7 @@ RUN apk update && \
     apk add --no-cache \
     ffmpeg \
     libwebp-tools \
+    chromaprint \
     tzdata \
     curl \
     && rm -rf /var/cache/apk/*
