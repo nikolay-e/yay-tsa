@@ -1,5 +1,6 @@
 package com.yaytsa.server.infrastructure.client;
 
+import com.yaytsa.server.domain.service.AppSettingsService;
 import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
@@ -26,25 +28,34 @@ public class AudioSeparatorClient {
 
   private final RestClient restClient;
   private final RestClient healthCheckClient;
+  private final AppSettingsService settingsService;
+  private final String defaultUrl;
 
   public AudioSeparatorClient(
       RestClient.Builder restClientBuilder,
+      AppSettingsService settingsService,
       @Value("${yaytsa.media.karaoke.separator-url:http://audio-separator:8000}")
           String separatorUrl) {
+    this.settingsService = settingsService;
+    this.defaultUrl = separatorUrl;
 
     var separationRequestFactory = new SimpleClientHttpRequestFactory();
     separationRequestFactory.setConnectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS));
     separationRequestFactory.setReadTimeout(Duration.ofMinutes(READ_TIMEOUT_MINUTES));
 
-    this.restClient =
-        restClientBuilder.baseUrl(separatorUrl).requestFactory(separationRequestFactory).build();
+    this.restClient = restClientBuilder.requestFactory(separationRequestFactory).build();
 
     var healthRequestFactory = new SimpleClientHttpRequestFactory();
     healthRequestFactory.setConnectTimeout(Duration.ofSeconds(HEALTH_CHECK_TIMEOUT_SECONDS));
     healthRequestFactory.setReadTimeout(Duration.ofSeconds(HEALTH_CHECK_TIMEOUT_SECONDS));
 
-    this.healthCheckClient =
-        restClientBuilder.baseUrl(separatorUrl).requestFactory(healthRequestFactory).build();
+    this.healthCheckClient = restClientBuilder.requestFactory(healthRequestFactory).build();
+  }
+
+  @Cacheable(value = "audio-separator-url", key = "'base-url'")
+  public String getBaseUrl() {
+    String configured = settingsService.get("service.separator-url", "AUDIO_SEPARATOR_URL");
+    return configured.isBlank() ? defaultUrl : configured;
   }
 
   public record SeparationResult(
@@ -64,7 +75,7 @@ public class AudioSeparatorClient {
         Map<String, String> response =
             restClient
                 .post()
-                .uri("/api/separate")
+                .uri(getBaseUrl() + "/api/separate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -128,7 +139,7 @@ public class AudioSeparatorClient {
 
   public boolean isHealthy() {
     try {
-      healthCheckClient.get().uri("/health").retrieve().body(String.class);
+      healthCheckClient.get().uri(getBaseUrl() + "/health").retrieve().body(String.class);
       return true;
     } catch (Exception e) {
       log.warn("Audio separator health check failed: {}", e.getMessage());

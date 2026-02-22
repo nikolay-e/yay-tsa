@@ -44,6 +44,7 @@ RUN apk update && \
     apk add --no-cache \
     ffmpeg \
     libwebp-tools \
+    chromaprint \
     tzdata \
     curl \
     && rm -rf /var/cache/apk/*
@@ -56,7 +57,7 @@ RUN addgroup -g 1000 yay-tsa && \
 WORKDIR /app
 
 # Create necessary directories
-RUN mkdir -p /app/media /app/temp/transcode /app/temp/images /app/logs /app/stems && \
+RUN mkdir -p /app/media /app/temp/transcode /app/temp/images /app/logs /app/stems /app/uploads && \
     chown -R yay-tsa:yay-tsa /app
 
 # Copy JAR from builder stage

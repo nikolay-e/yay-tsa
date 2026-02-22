@@ -229,6 +229,105 @@ public class KaraokeController {
     streamFile(vocalPath, response);
   }
 
+  @Operation(
+      summary = "Stream karaoke mix with adjustable vocal volume",
+      description =
+          "Stream instrumental mixed with vocals at specified volume (0.0 = no vocals, 1.0 = full"
+              + " vocals)")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Streaming mixed audio"),
+        @ApiResponse(responseCode = "404", description = "Track or stems not found"),
+        @ApiResponse(responseCode = "400", description = "Invalid volume parameter")
+      })
+  @GetMapping("/{trackId}/stream")
+  public void streamKaraokeMix(
+      @Parameter(description = "Audio track ID") @PathVariable UUID trackId,
+      @Parameter(description = "Vocal volume (0.0 to 1.0, default 0.3)")
+          @RequestParam(value = "vocalVolume", defaultValue = "0.3")
+          double vocalVolume,
+      @Parameter(description = "Start time in seconds (default 0.0)")
+          @RequestParam(value = "startTime", defaultValue = "0.0")
+          double startTime,
+      @Parameter(description = "API key for authentication")
+          @RequestParam(value = "api_key", required = false)
+          String apiKey,
+      HttpServletResponse response)
+      throws IOException {
+
+    if (vocalVolume < 0.0 || vocalVolume > 1.0) {
+      response.sendError(HttpServletResponse.SC_BAD_REQUEST, "vocalVolume must be between 0.0 and 1.0");
+      return;
+    }
+    if (startTime < 0.0) {
+      response.sendError(HttpServletResponse.SC_BAD_REQUEST, "startTime must be >= 0.0");
+      return;
+    }
+
+    Path instrumentalPath = karaokeService.getInstrumentalPath(trackId);
+    Path vocalPath = karaokeService.getVocalPath(trackId);
+
+    streamMixedAudio(instrumentalPath, vocalPath, vocalVolume, startTime, response);
+  }
+
+  private void streamMixedAudio(
+      Path instrumentalPath, Path vocalPath, double vocalVolume, double startTime, HttpServletResponse response)
+      throws IOException {
+
+    response.setContentType("audio/wav");
+    response.setHeader("Accept-Ranges", "none");
+    response.setHeader("Cache-Control", "no-cache");
+    response.setStatus(HttpServletResponse.SC_OK);
+
+    String startTimeStr = String.format(java.util.Locale.US, "%.3f", startTime);
+    ProcessBuilder processBuilder =
+        new ProcessBuilder(
+            "ffmpeg",
+            "-ss", startTimeStr,
+            "-i",
+            instrumentalPath.toAbsolutePath().toString(),
+            "-ss", startTimeStr,
+            "-i",
+            vocalPath.toAbsolutePath().toString(),
+            "-filter_complex",
+            String.format(
+                java.util.Locale.US, "[1:a]volume=%.2f[v];[0:a][v]amix=inputs=2:duration=first", vocalVolume),
+            "-f",
+            "wav",
+            "-");
+
+    processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
+    Process process = processBuilder.start();
+
+    try (var processOutput = process.getInputStream();
+        var responseOutput = response.getOutputStream()) {
+
+      byte[] buffer = new byte[32768];
+      int bytesRead;
+      while ((bytesRead = processOutput.read(buffer)) != -1) {
+        responseOutput.write(buffer, 0, bytesRead);
+        responseOutput.flush();
+      }
+
+      boolean finished = process.waitFor(60, TimeUnit.SECONDS);
+      if (!finished) {
+        log.warn("FFmpeg mixing process timed out, destroying forcibly");
+        process.destroyForcibly();
+      } else if (process.exitValue() != 0) {
+        log.warn("FFmpeg mixing process exited with code: {}", process.exitValue());
+      }
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      process.destroyForcibly();
+      throw new IOException("Mixing process interrupted", e);
+    } catch (IOException e) {
+      log.debug("Client disconnected during karaoke mixing");
+      process.destroy();
+      throw e;
+    }
+  }
+
   private void streamFile(Path filePath, HttpServletResponse response) throws IOException {
     long fileSize = Files.size(filePath);
     String mimeType = detectMimeType(filePath);

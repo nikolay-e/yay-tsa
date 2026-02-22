@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { log } from '@/shared/utils/logger';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useLyrics } from '../hooks/useLyrics';
 import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
@@ -80,7 +81,8 @@ export function LyricsView({ onClose }: LyricsViewProps) {
       } else {
         setFetchError('not_found');
       }
-    } catch {
+    } catch (err) {
+      log.player.error('fetchLyrics error', err);
       if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
       setFetchError('Lyrics service unavailable');
     } finally {
@@ -163,7 +165,7 @@ export function LyricsView({ onClose }: LyricsViewProps) {
                 <button
                   type="button"
                   onClick={() => void handleFetchLyrics()}
-                  className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
+                  className="bg-accent hover:bg-accent-hover flex items-center gap-2 rounded-full px-6 py-2.5 text-black transition-colors"
                 >
                   <Search className="h-4 w-4" />
                   Search Lyrics
