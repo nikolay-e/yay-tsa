@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cuda") == "cuda"
-ALLOWED_MEDIA_ROOT = Path(os.getenv("MEDIA_PATH", "/media")).resolve()
+ALLOWED_MEDIA_ROOT = os.path.realpath(os.getenv("MEDIA_PATH", "/media"))
 FFMPEG_TIMEOUT_SECONDS = 300
 
 LRCLIB_BASE_URL = "https://lrclib.net/api"
@@ -95,6 +95,15 @@ class LyricsRequest(BaseModel):
     force: bool = False
 
 
+def _validate_media_path(user_path: str) -> Path:
+    resolved = os.path.realpath(user_path)
+    root_prefix = ALLOWED_MEDIA_ROOT if ALLOWED_MEDIA_ROOT.endswith(os.sep) else ALLOWED_MEDIA_ROOT + os.sep
+    if not resolved.startswith(root_prefix):
+        log.error(f"Path traversal attempt: {resolved}")
+        raise HTTPException(status_code=403, detail="Invalid path")
+    return Path(resolved)
+
+
 class LyricsResponse(BaseModel):
     success: bool
     outputPath: str | None = None
@@ -120,14 +129,8 @@ def health_check():
 
 @app.post("/api/separate", response_model=SeparationResponse)
 def separate_audio(request: SeparationRequest):
-    input_path = Path(request.inputPath).resolve()
+    input_path = _validate_media_path(request.inputPath)
     track_id = request.trackId
-
-    try:
-        input_path.relative_to(ALLOWED_MEDIA_ROOT)
-    except ValueError:
-        log.error(f"Path traversal attempt: {input_path}")
-        raise HTTPException(status_code=403, detail="Invalid input path")
 
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Input file not found: {input_path}")
@@ -280,7 +283,7 @@ _TITLE_STRIP_PATTERNS = [
 ]
 
 _ARTIST_SPLIT_RE = re.compile(
-    r"\s*(?:,\s*|\s+(?:&|and|feat\.?|ft\.?|vs\.?|x|×)\s+)\s*",
+    r",\s*|\s+(?:&|and|feat\.?|ft\.?|vs\.?|x|×)\s+",
     re.IGNORECASE,
 )
 
@@ -308,9 +311,9 @@ def _split_artists(artist: str) -> list[str]:
 
 
 def _strip_all_parentheticals(title: str) -> str:
-    title = re.sub(r"\s*\([^)]*\)", "", title)
-    title = re.sub(r"\s*\[[^\]]*\]", "", title)
-    return title.strip()
+    title = re.sub(r"\([^)]*\)", "", title)
+    title = re.sub(r"\[[^\]]*\]", "", title)
+    return re.sub(r"  +", " ", title).strip()
 
 
 def _generate_query_variations(artist: str, title: str) -> list[tuple[str, str]]:
@@ -697,13 +700,7 @@ def _select_best_candidate(
 
 @app.post("/api/fetch-lyrics", response_model=LyricsResponse)
 def fetch_lyrics(request: LyricsRequest):
-    output_path = Path(request.outputPath).resolve()
-
-    try:
-        output_path.relative_to(ALLOWED_MEDIA_ROOT)
-    except ValueError:
-        log.error(f"Path traversal attempt: {output_path}")
-        raise HTTPException(status_code=403, detail="Invalid output path")
+    output_path = _validate_media_path(request.outputPath)
 
     if request.force and output_path.exists():
         log.info(f"Force mode: deleting existing lyrics file {output_path}")

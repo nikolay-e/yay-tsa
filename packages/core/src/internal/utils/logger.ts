@@ -112,8 +112,8 @@ function formatErrorMessage(error: Error | unknown): string {
   return String(error);
 }
 
-// Security: console.* in JS doesn't execute code via format strings (unlike C/Python printf).
-// Messages are internal developer strings, not user input. Context is sanitized.
+// Console methods use explicit '%s' format specifiers to prevent CodeQL taint-format-string alerts.
+// The formatted message is passed as a format argument (not format string) position.
 export function createLogger(namespace: string): Logger {
   return {
     debug(message: string, context?: LogContext): void {
@@ -121,10 +121,10 @@ export function createLogger(namespace: string): Logger {
         const formatted = formatMessage(namespace, message);
         if (context) {
           // eslint-disable-next-line no-console
-          console.debug(formatted, sanitizeContext(context));
+          console.debug('%s', formatted, sanitizeContext(context));
         } else {
           // eslint-disable-next-line no-console
-          console.debug(formatted);
+          console.debug('%s', formatted);
         }
       }
     },
@@ -133,9 +133,9 @@ export function createLogger(namespace: string): Logger {
       if (shouldLog('info')) {
         const formatted = formatMessage(namespace, message);
         if (context) {
-          console.info(formatted, sanitizeContext(context));
+          console.info('%s', formatted, sanitizeContext(context));
         } else {
-          console.info(formatted);
+          console.info('%s', formatted);
         }
       }
     },
@@ -144,9 +144,9 @@ export function createLogger(namespace: string): Logger {
       if (shouldLog('warn')) {
         const formatted = formatMessage(namespace, message);
         if (context) {
-          console.warn(formatted, sanitizeContext(context));
+          console.warn('%s', formatted, sanitizeContext(context));
         } else {
-          console.warn(formatted);
+          console.warn('%s', formatted);
         }
       }
     },
@@ -157,13 +157,13 @@ export function createLogger(namespace: string): Logger {
         const errorMsg = error ? formatErrorMessage(error) : undefined;
 
         if (errorMsg && context) {
-          console.error(formatted, errorMsg, sanitizeContext(context));
+          console.error('%s %s', formatted, errorMsg, sanitizeContext(context));
         } else if (errorMsg) {
-          console.error(formatted, errorMsg);
+          console.error('%s %s', formatted, errorMsg);
         } else if (context) {
-          console.error(formatted, sanitizeContext(context));
+          console.error('%s', formatted, sanitizeContext(context));
         } else {
-          console.error(formatted);
+          console.error('%s', formatted);
         }
       }
     },

@@ -36,19 +36,19 @@ function createLogger(namespace: string) {
     debug(message: string, context?: LogContext) {
       if (shouldLog('debug')) {
         // eslint-disable-next-line no-console
-        console.log(`${prefix} ${message}${formatContext(context)}`);
+        console.log('%s', `${prefix} ${message}${formatContext(context)}`);
       }
     },
 
     info(message: string, context?: LogContext) {
       if (shouldLog('info')) {
-        console.info(`${prefix} ${message}${formatContext(context)}`);
+        console.info('%s', `${prefix} ${message}${formatContext(context)}`);
       }
     },
 
     warn(message: string, context?: LogContext) {
       if (shouldLog('warn')) {
-        console.warn(`${prefix} ${message}${formatContext(context)}`);
+        console.warn('%s', `${prefix} ${message}${formatContext(context)}`);
       }
     },
 
@@ -58,7 +58,7 @@ function createLogger(namespace: string) {
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
             : error;
-        console.error(`${prefix} ${message}`, errorInfo, context);
+        console.error('%s', `${prefix} ${message}`, errorInfo, context);
       }
     },
   };
