@@ -103,7 +103,7 @@ export class AuthService {
 
 function isPrivateIP(hostname: string): boolean {
   const parts = hostname.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return false;
+  if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return false;
 
   const [a, b] = parts;
   return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);

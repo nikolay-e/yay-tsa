@@ -280,8 +280,8 @@ export class HTML5AudioEngine implements AudioEngine {
   private sanitizeError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message
-      .replace(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
-      .replace(/token=[^&\s]+/gi, 'token=[REDACTED]');
+      .replaceAll(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
+      .replaceAll(/token=[^&\s]+/gi, 'token=[REDACTED]');
   }
 
   private ensureNotDisposed(): void {

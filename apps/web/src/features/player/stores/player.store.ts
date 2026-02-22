@@ -107,8 +107,8 @@ function getSavedVolume(): number {
   try {
     const saved = localStorage.getItem(VOLUME_STORAGE_KEY);
     if (saved) {
-      const parsed = parseFloat(saved);
-      if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+      const parsed = Number.parseFloat(saved);
+      if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 1) {
         return parsed;
       }
     }

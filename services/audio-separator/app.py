@@ -133,7 +133,11 @@ def health_check():
     )
 
 
-@app.post("/api/separate", response_model=SeparationResponse)
+@app.post(
+    "/api/separate",
+    response_model=SeparationResponse,
+    responses={403: {"description": "Path traversal attempt"}},
+)
 def separate_audio(request: SeparationRequest):
     input_path = _validate_media_path(request.inputPath)
     track_id = request.trackId
@@ -268,7 +272,7 @@ def separate_audio(request: SeparationRequest):
 _TITLE_STRIP_PATTERNS = [
     re.compile(r"\s*\(feat\.?\s+[^)]*\)", re.IGNORECASE),
     re.compile(r"\s*\[feat\.?\s+[^\]]*\]", re.IGNORECASE),
-    re.compile(r"\s*ft\.?\s+.*$", re.IGNORECASE),
+    re.compile(r"\s*ft\.?\s+\S[^\n]*$", re.IGNORECASE),
     re.compile(r"\s*\(with\s+[^)]*\)", re.IGNORECASE),
     re.compile(r"\s*\[with\s+[^\]]*\]", re.IGNORECASE),
     re.compile(r"\s*\(remaster(ed)?\s*\d*\)", re.IGNORECASE),
@@ -288,13 +292,16 @@ _TITLE_STRIP_PATTERNS = [
     re.compile(r"\s*\(extended[^)]*\)", re.IGNORECASE),
 ]
 
-_ARTIST_SPLIT_RE = re.compile(
-    r",\s*|\s+(?:&|and|feat\.?|ft\.?|vs\.?|x|×)\s+",
+_COMMA_SPLIT_RE = re.compile(r",\s*")
+_WORD_SPLIT_RE = re.compile(
+    r"\s+(?:&|and|feat\.?|ft\.?|vs\.?|[x×])\s+",
     re.IGNORECASE,
 )
+_MAX_INPUT_LENGTH = 500
 
 
 def _normalize_text(text: str) -> str:
+    text = text[:_MAX_INPUT_LENGTH]
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = text.lower().strip()
@@ -312,11 +319,15 @@ def _normalize_artist(artist: str) -> str:
 
 
 def _split_artists(artist: str) -> list[str]:
-    parts = _ARTIST_SPLIT_RE.split(artist)
+    artist = artist[:_MAX_INPUT_LENGTH]
+    parts: list[str] = []
+    for comma_part in _COMMA_SPLIT_RE.split(artist):
+        parts.extend(_WORD_SPLIT_RE.split(comma_part))
     return [p.strip() for p in parts if p.strip()]
 
 
 def _strip_all_parentheticals(title: str) -> str:
+    title = title[:_MAX_INPUT_LENGTH]
     title = re.sub(r"\([^)]*\)", "", title)
     title = re.sub(r"\[[^\]]*\]", "", title)
     return re.sub(r"  +", " ", title).strip()
@@ -704,7 +715,11 @@ def _select_best_candidate(
 # Lyrics: API endpoint
 # ===========================================================================
 
-@app.post("/api/fetch-lyrics", response_model=LyricsResponse)
+@app.post(
+    "/api/fetch-lyrics",
+    response_model=LyricsResponse,
+    responses={403: {"description": "Path traversal attempt"}},
+)
 def fetch_lyrics(request: LyricsRequest):
     output_path = _validate_media_path(request.outputPath)
 

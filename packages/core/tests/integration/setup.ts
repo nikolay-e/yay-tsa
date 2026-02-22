@@ -72,7 +72,7 @@ export async function cleanupTestFixtures(fixtures: TestFixtures): Promise<void>
  *   const scenario = createScenario(fixtures);
  *   await scenario.given.user.isAuthenticated();
  *   const results = await scenario.when.user.searches('Beatles');
- *   scenario.then.library.searchReturnsResults(results, 'Beatles');
+ *   scenario.verify.library.searchReturnsResults(results, 'Beatles');
  */
 export function createScenario(fixtures: TestFixtures): ScenarioContext {
   return new ScenarioContext(fixtures);

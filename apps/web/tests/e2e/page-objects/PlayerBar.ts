@@ -90,8 +90,8 @@ export class PlayerBar {
   async seek(percentage: number): Promise<void> {
     await this.seekSlider.evaluate((el, pct) => {
       const input = el as HTMLInputElement;
-      const max = parseFloat(input.max) || 100;
-      const min = parseFloat(input.min) || 0;
+      const max = Number.parseFloat(input.max) || 100;
+      const min = Number.parseFloat(input.min) || 0;
       const value = min + ((max - min) * pct) / 100;
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,

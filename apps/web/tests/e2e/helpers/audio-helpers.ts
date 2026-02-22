@@ -196,7 +196,7 @@ export function isVolumeIncreasing(samples: number[]): boolean {
 export async function getVolumeFromLocalStorage(page: Page): Promise<number | null> {
   return page.evaluate(() => {
     const stored = localStorage.getItem('yaytsa_volume');
-    return stored ? parseFloat(stored) : null;
+    return stored ? Number.parseFloat(stored) : null;
   });
 }
 

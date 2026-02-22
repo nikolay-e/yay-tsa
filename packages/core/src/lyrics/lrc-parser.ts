@@ -13,9 +13,9 @@ const LRC_METADATA_REGEX = /^\[[a-z]{2}:.+\]$/i;
 const NEGATIVE_CACHE_MARKER = '[no lyrics found]';
 
 function parseTimestamp(minutes: string, seconds: string, centiseconds?: string): number {
-  const mins = parseInt(minutes, 10);
-  const secs = parseInt(seconds, 10);
-  const cs = centiseconds ? parseInt(centiseconds.padEnd(3, '0').slice(0, 3), 10) / 1000 : 0;
+  const mins = Number.parseInt(minutes, 10);
+  const secs = Number.parseInt(seconds, 10);
+  const cs = centiseconds ? Number.parseInt(centiseconds.padEnd(3, '0').slice(0, 3), 10) / 1000 : 0;
   return mins * 60 + secs + cs;
 }
 

@@ -26,7 +26,7 @@ export const VolumeControls = memo(function VolumeControls({
   };
 
   const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {
-    onVolumeChange(parseFloat(e.target.value));
+    onVolumeChange(Number.parseFloat(e.target.value));
   };
 
   return (

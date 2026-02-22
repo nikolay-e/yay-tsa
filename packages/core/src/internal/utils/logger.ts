@@ -81,9 +81,9 @@ function shouldLog(level: LogLevel): boolean {
 function sanitizeValue(value: unknown): unknown {
   if (typeof value === 'string') {
     return value
-      .replace(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
-      .replace(/token=[^&\s]+/gi, 'token=[REDACTED]')
-      .replace(/password=[^&\s]+/gi, 'password=[REDACTED]');
+      .replaceAll(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
+      .replaceAll(/token=[^&\s]+/gi, 'token=[REDACTED]')
+      .replaceAll(/password=[^&\s]+/gi, 'password=[REDACTED]');
   }
   return value;
 }

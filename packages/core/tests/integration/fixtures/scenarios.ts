@@ -482,7 +482,7 @@ export class ScenarioContext {
     this.whenUser = new WhenUser(fixtures);
   }
 
-  get then() {
+  get verify() {
     return {
       auth: ThenAuth,
       library: ThenLibrary,

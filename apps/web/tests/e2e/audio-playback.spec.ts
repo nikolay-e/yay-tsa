@@ -114,7 +114,7 @@ test.describe('Audio Playback Verification', () => {
 
     const audioState = await getAudioElementState(authenticatedPage);
     expect(audioState.duration).toBeGreaterThan(0);
-    expect(isFinite(audioState.duration)).toBe(true);
+    expect(Number.isFinite(audioState.duration)).toBe(true);
   });
 
   test('Given: Track playing, When: CurrentTime progresses, Then: CurrentTime increases over time', async ({

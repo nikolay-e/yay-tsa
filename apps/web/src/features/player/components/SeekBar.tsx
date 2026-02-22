@@ -30,7 +30,7 @@ export const SeekBar = memo(function SeekBar({ onSeek }: SeekBarProps) {
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      onSeek(parseFloat(e.target.value));
+      onSeek(Number.parseFloat(e.target.value));
     },
     [onSeek]
   );

@@ -111,7 +111,7 @@ export function LoginPage() {
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="border-text-on-accent/30 border-t-text-on-accent h-4 w-4 animate-spin rounded-full border-2" />
+                <span className="border-text-on-accent/30 border-t-text-on-accent h-4 w-4 animate-spin rounded-full border-2" />{' '}
                 Signing in...
               </span>
             ) : (
