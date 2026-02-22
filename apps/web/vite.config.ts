@@ -105,7 +105,7 @@ export default defineConfig({
       : {}),
   },
   build: {
-    target: 'es2020',
+    target: 'es2021',
     minify: 'terser',
     terserOptions: {
       compress: {

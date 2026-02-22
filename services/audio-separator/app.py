@@ -334,6 +334,8 @@ def _strip_all_parentheticals(title: str) -> str:
 
 
 def _generate_query_variations(artist: str, title: str) -> list[tuple[str, str]]:
+    artist = artist[:_MAX_INPUT_LENGTH]
+    title = title[:_MAX_INPUT_LENGTH]
     seen: set[tuple[str, str]] = set()
     variations: list[tuple[str, str]] = []
 
