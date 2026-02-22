@@ -1,0 +1,370 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Cache pre-commit hooks
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
+  lighthouse:
+    name: Performance Budget
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Run Lighthouse CI
+        run: lhci autorun
+
+  integration-tests:
+    name: Integration & E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Generate test media files
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          bash scripts/generate-test-media.sh services/server/media
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and run tests
+        run: |
+          docker compose --profile test up --build -d
+          docker compose --profile test logs -f backend-test test &
+          LOGS_PID=$!
+          BACKEND_EXIT=$(docker wait yay-tsa-backend-test)
+          TEST_EXIT=$(docker wait yay-tsa-test)
+          kill $LOGS_PID 2>/dev/null || true
+          echo "Backend tests exit code: $BACKEND_EXIT"
+          echo "Frontend tests exit code: $TEST_EXIT"
+          if [ "$BACKEND_EXIT" -ne 0 ]; then
+            echo "::group::Failed backend test logs"
+            docker logs yay-tsa-backend-test
+            echo "::endgroup::"
+          fi
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::group::Failed frontend test logs"
+            docker logs yay-tsa-test
+            echo "::endgroup::"
+          fi
+          if [ "$BACKEND_EXIT" -ne 0 ] || [ "$TEST_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+        env:
+          YAYTSA_TEST_USERNAME: admin
+          YAYTSA_TEST_PASSWORD: admin123
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results
+          path: |
+            test-results/
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: docker compose --profile test down -v
+
+  docker-build-frontend:
+    name: Build Frontend Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
+          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${PRIMARY_TAG}"
+          APP_ENVIRONMENT="staging"
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:${GIT_REF_NAME}"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:latest"
+            APP_ENVIRONMENT="production"
+          fi
+
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+            echo "app_environment=${APP_ENVIRONMENT}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/frontend
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          target: production
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ steps.tags.outputs.primary_tag }}
+            APP_ENVIRONMENT=${{ steps.tags.outputs.app_environment }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          platforms: linux/amd64
+
+      - name: Image digest
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Frontend image pushed with tags: ${{ steps.tags.outputs.tags }}"
+          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
+
+  docker-build-backend:
+    name: Build Backend Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
+          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/backend:${PRIMARY_TAG}"
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:${GIT_REF_NAME}"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:latest"
+          fi
+
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/server
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ steps.tags.outputs.primary_tag }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          platforms: linux/amd64
+
+      - name: Image digest
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Backend image pushed with tags: ${{ steps.tags.outputs.tags }}"
+          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
+
+  docker-build-audio-separator:
+    name: Build Audio Separator Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
+          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${PRIMARY_TAG}"
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${GIT_REF_NAME}"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:latest"
+          fi
+
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/audio-separator
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/audio-separator
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VARIANT=gpu
+          cache-from: type=gha,scope=audio-separator
+          cache-to: type=gha,mode=max,scope=audio-separator
+          platforms: linux/amd64
+
+      - name: Image digest
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Audio Separator image pushed with tags: ${{ steps.tags.outputs.tags }}"
+          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"

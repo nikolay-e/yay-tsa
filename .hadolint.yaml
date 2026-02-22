@@ -1,0 +1,12 @@
+ignored:
+  # DL3008: Pin versions in apt-get install
+  # DL3018: Pin versions in apk add
+  # We allow these for Alpine base images where pinning can break easily
+  - DL3008
+  - DL3018
+
+trustedRegistries:
+  - docker.io
+  - node
+  - nginx
+  - mcr.microsoft.com

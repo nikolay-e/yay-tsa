@@ -1,0 +1,27 @@
+{
+  "name": "@yay-tsa/core",
+  "version": "0.0.0-placeholder",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:watch": "vitest --config vitest.integration.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.6",
+    "dotenv": "^17.3.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
+  }
+}

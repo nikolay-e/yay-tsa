@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Coverage
+coverage/
+
+# Large files
+jellyfin-api-spec.json
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Helm templates (use Go templating, not pure YAML)
+charts/**/templates/**
+LICENSE.md

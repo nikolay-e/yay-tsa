@@ -1,0 +1,73 @@
+{
+  "name": "yay-tsa",
+  "version": "0.0.0-placeholder",
+  "private": true,
+  "description": "Yay-Tsa - A minimal music player",
+  "keywords": [
+    "yay-tsa",
+    "music",
+    "player",
+    "audio"
+  ],
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build:core && npm run build:platform && cd apps/web && npm run build",
+    "build:core": "cd packages/core && npm run build",
+    "build:platform": "cd packages/platform && npm run build",
+    "check:bundle": "bundlewatch",
+    "check:circular": "madge --circular --extensions ts packages/",
+    "check:duplication": "jscpd .",
+    "check:lighthouse": "npm run build && lhci autorun",
+    "check:types": "type-coverage --at-least 90 --ignore-catch",
+    "check:unused": "knip --no-progress",
+    "dev": "npm run build:core && npm run build:platform && cd apps/web && npm run dev",
+    "format": "prettier --write .",
+    "generate:splash": "node scripts/generate-splash-screens.js",
+    "lint": "prettier --check .",
+    "pre-commit": "pre-commit run --all-files",
+    "prepare": "command -v pre-commit >/dev/null 2>&1 && (pre-commit install && pre-commit install --hook-type commit-msg) || true",
+    "sync:version": "node scripts/sync-version.js",
+    "type-check": "cd packages/core && npx tsc --noEmit",
+    "postversion": "npm run sync:version && git add -A"
+  },
+  "overrides": {
+    "lodash": "4.17.23",
+    "tmp": "0.2.5"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.4.2",
+    "@commitlint/config-conventional": "^20.4.2",
+    "@eslint/js": "^9.0.0",
+    "@lhci/cli": "^0.15.1",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.19.1",
+    "bundlewatch": "^0.4.1",
+    "dotenv": "^17.3.1",
+    "eslint": "^9.0.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-boundaries": "^5.4.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^17.3.0",
+    "jscpd": "^4.0.8",
+    "jsdom": "^28.1.0",
+    "knip": "^5.84.1",
+    "madge": "^8.0.0",
+    "prettier": "^3.8.1",
+    "sharp": "^0.34.4",
+    "type-coverage": "^2.29.7",
+    "vitest": "^4.0.18",
+    "yaml": "2.8.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

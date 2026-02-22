@@ -1,0 +1,17 @@
+{
+  "threshold": 3,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.svelte-kit/**",
+    "**/tests/**",
+    "**/*.md",
+    "**/package-lock.json",
+    "**/jellyfin-api-spec.json"
+  ],
+  "minLines": 6,
+  "minTokens": 50,
+  "format": ["typescript", "javascript", "svelte", "css"]
+}

@@ -1,0 +1,311 @@
+worker_processes auto;
+error_log stderr warn;
+pid /var/cache/nginx/nginx.pid;
+
+thread_pool media_pool threads=32 max_queue=65536;
+
+events {
+    worker_connections 4096;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for" '
+                    'rt=$request_time uct="$upstream_connect_time" '
+                    'uht="$upstream_header_time" urt="$upstream_response_time"';
+
+    access_log /dev/stdout main;
+
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;
+    limit_req_zone $binary_remote_addr zone=stream_limit:10m rate=10r/s;
+    limit_conn_zone $binary_remote_addr zone=stream_conn:10m;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    client_max_body_size 10M;
+    server_tokens off;
+    reset_timedout_connection on;
+
+    open_file_cache max=10000 inactive=60s;
+    open_file_cache_valid 120s;
+    open_file_cache_min_uses 2;
+    open_file_cache_errors on;
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_min_length 256;
+    gzip_static on;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/rss+xml
+        font/truetype
+        font/opentype
+        application/vnd.ms-fontobject
+        image/svg+xml
+        application/wasm;
+
+    # HTTP to HTTPS redirect (uncomment if running standalone without reverse proxy)
+    # server {
+    #     listen 80;
+    #     server_name _;
+    #     return 301 https://$host$request_uri;
+    # }
+
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        # CSP: Inline scripts allowed via hash for SvelteKit hydration
+        # Runtime hashes computed at startup (__CSP_SCRIPT_HASHES__)
+        # img-src/media-src use same domains as connect-src (backend serves images/audio)
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+        # HSTS header (only add if served over HTTPS via reverse proxy/ingress)
+        # Tells browsers to always use HTTPS for this site for 1 year
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+        # Health check endpoint for Docker/Kubernetes
+        location = /health {
+            access_log off;
+            return 200 "OK\n";
+            add_header Content-Type text/plain;
+        }
+
+        # Vite assets - content-hashed JS/CSS, safe to cache forever
+        location /assets/ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Workbox runtime - content-hashed, safe to cache forever
+        location ~ ^/workbox-[a-f0-9]+\.js$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Static assets - images, fonts (not in _app/, so safe to cache)
+        location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Runtime config - no cache
+        # Served from writable volume (/var/cache/nginx) since root filesystem is read-only
+        location = /config.js {
+            alias /var/cache/nginx/config.js;
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            # Security headers (must repeat in each location with add_header)
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Runtime config JSON - no cache (contains environment-injected settings)
+        # Served from writable volume (/var/cache/nginx) since root filesystem is read-only
+        location = /config.json {
+            alias /var/cache/nginx/config.json;
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Content-Type application/json;
+            # Security headers (must repeat in each location with add_header)
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # PWA manifest - no cache (may change with config)
+        location ~ ^/manifest\.(json|webmanifest)$ {
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Content-Type application/manifest+json;
+            # Security headers (must repeat in each location with add_header)
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Service worker files - no cache (needs to update immediately)
+        location ~ ^/(sw|service-worker|registerSW)\.js$ {
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Service-Worker-Allowed "/";
+            # Security headers (must repeat in each location with add_header)
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+
+        # Allow .well-known directory for security.txt, app-site association, etc.
+        location ^~ /.well-known/ {
+            allow all;
+        }
+
+        # Block access to hidden files (dotfiles) for security
+        # Prevents exposure of .git, .env, .htaccess, etc.
+        # Note: ^~ prefix on .well-known above takes precedence
+        location ~ /\. {
+            deny all;
+            access_log off;
+            log_not_found off;
+        }
+
+        # X-Accel-Redirect internal location for media streaming
+        # Backend returns X-Accel-Redirect header, nginx serves the file directly
+        location /_internal/media/ {
+            internal;
+            alias __MEDIA_PATH__/;
+
+            aio threads=media_pool;
+            directio 8m;
+            sendfile on;
+            sendfile_max_chunk 1m;
+            tcp_nopush on;
+            tcp_nodelay on;
+
+            output_buffers 2 1m;
+
+            add_header Accept-Ranges bytes always;
+            add_header Cache-Control "private, no-store" always;
+            add_header X-Content-Type-Options "nosniff" always;
+
+            max_ranges 100;
+        }
+
+        # Auth endpoints - strict rate limiting
+        location /api/Users/AuthenticateByName {
+            limit_req zone=auth_limit burst=3 nodelay;
+            limit_req_status 429;
+
+            proxy_pass __BACKEND_URL__/Users/AuthenticateByName;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+        }
+
+        # Streaming endpoints - connection limiting
+        location ~ ^/api/Audio/[^/]+/stream {
+            limit_conn stream_conn 10;
+            limit_req zone=stream_limit burst=20 nodelay;
+
+            # Strip /api prefix before proxying (backend no longer has context-path)
+            rewrite ^/api(.*)$ $1 break;
+
+            # Use variable to allow proxy_pass in regex location
+            set $backend __BACKEND_URL__;
+            proxy_pass $backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Range $http_range;
+            proxy_set_header If-Range $http_if_range;
+
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 600s;
+            proxy_read_timeout 600s;
+
+            proxy_buffering off;
+            proxy_request_buffering off;
+        }
+
+        # API proxy to backend
+        # Strip /api prefix - backend no longer has context-path
+        location /api/ {
+            limit_req zone=api_limit burst=50 nodelay;
+
+            rewrite ^/api(.*)$ $1 break;
+            proxy_pass __BACKEND_URL__;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 300s;
+            proxy_read_timeout 300s;
+
+            proxy_buffering off;
+            proxy_request_buffering off;
+        }
+
+        # SPA fallback - all routes go to index.html
+        location / {
+            try_files $uri $uri/ /index.html;
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, no-transform";
+            # Security headers (must repeat in each location with add_header)
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        }
+    }
+}

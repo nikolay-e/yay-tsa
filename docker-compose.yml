@@ -1,0 +1,234 @@
+# Yay-Tsa - Local Media Server Stack
+#
+# USAGE:
+#   docker compose up                      # Start core services (db, backend, frontend)
+#   docker compose --profile karaoke up    # Start with karaoke (audio separator)
+#   docker compose --profile test up       # Run E2E tests
+#   docker compose down -v                 # Stop and clean volumes
+
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:16-alpine
+    container_name: yay-tsa-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-yaytsa}
+      POSTGRES_USER: ${DB_USER:-yaytsa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-yaytsa}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - yay-tsa-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-yaytsa} -d ${DB_NAME:-yaytsa}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Yay-Tsa Media Server (Java Backend)
+  backend:
+    build:
+      context: ./services/server
+      dockerfile: Dockerfile
+    container_name: yay-tsa-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-yaytsa}
+      DB_USER: ${DB_USER:-yaytsa}
+      DB_PASSWORD: ${DB_PASSWORD:-yaytsa}
+      SERVER_PORT: 8096
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-DEBUG}
+      LIBRARY_ROOTS: /media
+      SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
+      CORS_ENABLED: true
+      CORS_ORIGINS: 'http://localhost:5173,http://localhost:*,http://frontend:5173'
+      ADMIN_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
+      ADMIN_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
+      KARAOKE_SEPARATOR_URL: http://audio-separator:8000
+      KARAOKE_STEMS_PATH: /app/stems
+    ports:
+      - '${SERVER_PORT:-8096}:8096'
+    volumes:
+      - ${MEDIA_PATH:-./services/server/media}:/media:ro
+      - ./services/server/logs:/app/logs
+      - karaoke_stems:/app/stems
+    networks:
+      yay-tsa-network:
+        aliases:
+          - backend
+          - server
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8096/manage/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Frontend (Vite dev server)
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: development
+    container_name: yay-tsa-frontend
+    restart: unless-stopped
+    environment:
+      YAYTSA_BACKEND_URL: http://backend:8096
+      VITE_YAYTSA_CLIENT_NAME: ${YAYTSA_CLIENT_NAME:-Yay-Tsa}
+      VITE_YAYTSA_DEVICE_NAME: ${YAYTSA_DEVICE_NAME:-Docker}
+      VITE_TEST_MODE: 'true'
+    ports:
+      - '${FRONTEND_PORT:-5173}:5173'
+    volumes:
+      - ./packages/core/src:/app/packages/core/src
+      - ./packages/platform/src:/app/packages/platform/src
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/static:/app/apps/web/static
+      - /app/node_modules
+      - /app/packages/core/node_modules
+      - /app/packages/platform/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/core/dist
+      - /app/packages/platform/dist
+    working_dir: /app
+    command: npm run dev
+    networks:
+      - yay-tsa-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:5173']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Audio Separator (Karaoke - vocal removal)
+  # Build: KARAOKE_VARIANT=cpu (default, native ARM) or KARAOKE_VARIANT=gpu (x86_64 with CUDA)
+  # Runtime: KARAOKE_DEVICE=cpu (default) or KARAOKE_DEVICE=cuda (requires GPU)
+  # Usage: docker compose --profile karaoke up
+  audio-separator:
+    build:
+      context: ./services/audio-separator
+      dockerfile: Dockerfile
+      args:
+        VARIANT: ${KARAOKE_VARIANT:-cpu}
+    container_name: yay-tsa-audio-separator
+    restart: unless-stopped
+    profiles:
+      - karaoke
+    environment:
+      MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
+      OUTPUT_FORMAT: wav
+      DEVICE: ${KARAOKE_DEVICE:-cpu}
+    volumes:
+      - ${MEDIA_PATH:-./services/server/media}:/media:rw
+      - karaoke_stems:/app/stems
+    networks:
+      - yay-tsa-network
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+  # Backend Integration Tests
+  backend-test:
+    build:
+      context: ./services/server
+      dockerfile: Dockerfile
+      target: test
+    container_name: yay-tsa-backend-test
+    profiles:
+      - test
+    environment:
+      YAYTSA_SERVER_URL: http://backend:8096
+      YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
+      YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
+    volumes:
+      - ./test-results/backend:/app/target/surefire-reports
+    networks:
+      - yay-tsa-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Frontend E2E Tests
+  test:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: test
+    container_name: yay-tsa-test
+    profiles:
+      - test
+    environment:
+      YAYTSA_SERVER_URL: http://backend:8096
+      YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
+      YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
+      BASE_URL: http://frontend:5173
+    volumes:
+      - ./packages/core/tests:/app/packages/core/tests
+      - ./apps/web/tests:/app/apps/web/tests
+      - ./test-results/frontend:/app/test-results
+    networks:
+      - yay-tsa-network
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+networks:
+  yay-tsa-network:
+    driver: bridge
+    name: yay-tsa-network
+
+volumes:
+  postgres_data:
+    name: yay-tsa-postgres-data
+  karaoke_stems:
+    name: yay-tsa-karaoke-stems

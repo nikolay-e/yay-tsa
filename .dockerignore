@@ -1,0 +1,122 @@
+# Version control
+.git/
+.gitignore
+.gitattributes
+.github/
+.gitleaksignore
+.gitlint
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*id_rsa*
+*id_ed25519*
+credentials.json
+secrets.json
+.secrets.baseline
+.netrc
+.npmrc
+.yarnrc
+.age-key.txt
+
+# Cloud credentials
+.aws/
+.gcloud/
+.azure/
+
+# Private directory
+private/
+
+# Shell history
+.bash_history
+.zsh_history
+.sh_history
+
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn.lock
+
+# Build outputs
+packages/*/build/
+packages/*/dist/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude AI tools
+.claude/
+
+# Documentation
+*.md
+!packages/*/README.md
+docs/
+
+# CI/CD
+.pre-commit-config.yaml
+.travis.yml
+.gitlab-ci.yml
+.circleci/
+renovate.json
+
+# Docker (prevent recursive inclusion)
+Dockerfile.dev
+.dockerignore
+docker-compose*.yml
+
+# Kubernetes
+helm/
+k8s/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+tmp/
+.temp/
+.cache/
+
+# Test media
+test-media/
+
+# Integration test scripts
+run-integration-tests.sh
+
+# Maven/Java build artifacts
+server/target/
+
+# Linter configs
+.bundlewatchrc.json
+.jscpd.json
+.hadolint.yaml
+.markdownlint.yaml
+.markdownlintignore
+.stylelintrc.json
+.treemapperignore
+commitlint.config.js
+
+# Tree mapper output
+tree.tmp
+test-output.log
+directory_tree.yaml

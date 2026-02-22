@@ -1,0 +1,255 @@
+replicaCount: 1
+
+frontend:
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/frontend
+    pullPolicy: IfNotPresent
+    tag: ''
+
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+
+config:
+  serverUrl: ''
+  clientName: 'Yay-Tsa'
+  deviceName: 'Yay-Tsa Web'
+  logLevel: 'error'
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ''
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101
+  fsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 101
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  additionalMiddlewares: []
+  pwaAssetsPublic: false
+  hosts:
+    - host: yay-tsa.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - yay-tsa.example.com
+      secretName: yay-tsa-tls
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+probes:
+  type: http
+  liveness:
+    path: /health
+    port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /health
+    port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+backend:
+  enabled: false
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/backend
+    pullPolicy: IfNotPresent
+    tag: ''
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8096
+  ingress:
+    enabled: false
+    className: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: yay-tsa-api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - yay-tsa-api.example.com
+        secretName: yay-tsa-api-tls
+  resources:
+    requests:
+      memory: '1Gi'
+      cpu: '500m'
+    limits:
+      memory: '2Gi'
+  jvm:
+    opts: >-
+      -XX:+UseContainerSupport
+      -XX:MaxRAMPercentage=75.0
+      -XX:+UseG1GC
+      -XX:MaxGCPauseMillis=200
+      -XX:+ExitOnOutOfMemoryError
+  probes:
+    liveness:
+      path: /manage/health/liveness
+      port: 8096
+      initialDelaySeconds: 60
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /manage/health/readiness
+      port: 8096
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  database:
+    secretName: 'yay-tsa-postgres'
+    hikari:
+      maximumPoolSize: 10
+      minimumIdle: 5
+      connectionTimeout: 30000
+      idleTimeout: 600000
+  media:
+    mountPath: /media
+    enabled: false
+    existingClaim: ''
+  tempStorage:
+    enabled: false
+    size: '5Gi'
+    storageClass: 'local-path'
+    existingClaim: ''
+  config:
+    profile: 'production'
+    logLevel: 'INFO'
+    appLogLevel: 'INFO'
+    publicUrl: ''
+    scanOnStartup: false
+    scanThreads: 4
+    corsEnabled: true
+    corsOrigins: '*'
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+  nginxSidecar:
+    enabled: false
+    image:
+      repository: nginx
+      tag: '1.27-alpine'
+      pullPolicy: IfNotPresent
+    port: 8080
+    internalPath: '/_internal/media'
+    resources:
+      requests:
+        memory: '32Mi'
+        cpu: '10m'
+      limits:
+        memory: '128Mi'
+
+audioSeparator:
+  enabled: false
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/audio-separator
+    pullPolicy: IfNotPresent
+    tag: ''
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      memory: '2Gi'
+      cpu: '500m'
+    limits:
+      memory: '4Gi'
+      nvidia.com/gpu: 1
+  config:
+    modelName: 'htdemucs.yaml'
+    outputFormat: 'wav'
+    device: 'cuda'
+  probes:
+    liveness:
+      path: /health
+      port: 8000
+      initialDelaySeconds: 120
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 3
+    readiness:
+      path: /health
+      port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  media:
+    enabled: false
+    hostPath: ''

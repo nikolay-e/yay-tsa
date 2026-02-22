@@ -1,0 +1,68 @@
+# Dependencies & locks
+package-lock.json
+node_modules
+
+# Generated/build artifacts
+dist
+build
+.svelte-kit
+
+# API spec (too large)
+jellyfin-api-spec.json
+
+# Test directories
+tests
+test
+
+# CI/CD & deployment
+.github
+.dockerignore
+Dockerfile
+docker-compose.yml
+docker-entrypoint.sh
+nginx.conf.template
+
+# Linting & formatting configs
+.gitignore
+.hadolint.yaml
+.markdownlint.yaml
+.markdownlintignore
+.prettierignore
+.stylelintrc.json
+.prettierrc
+.bundlewatchrc.json
+eslint.config.js
+commitlint.config.js
+knip.json
+
+# Test configs
+playwright.config.ts
+vitest.config.ts
+
+# Editor & OS
+.DS_Store
+.claude
+.vscode
+
+# Environment & secrets
+.env
+.env.example
+.nvmrc
+
+# Documentation (not code)
+.treemapperignore
+LICENSE
+LICENSE.md
+CLAUDE.md
+SECURITY.md
+README.md
+
+# Scripts (build tooling)
+scripts
+
+# Static assets
+static
+
+# Temp files
+*.log
+*.tmp

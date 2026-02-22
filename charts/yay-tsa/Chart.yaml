@@ -1,0 +1,21 @@
+apiVersion: v2
+name: yay-tsa
+description: A portable, minimal Jellyfin-inspired music server and client
+type: application
+
+version: 0.2.2
+appVersion: '0.1.0'
+
+keywords:
+  - jellyfin
+  - music
+  - client
+  - media
+
+maintainers:
+  - name: Nikolay Eremeev
+
+home: https://github.com/nikolay-e/yay-tsa
+
+sources:
+  - https://github.com/nikolay-e/yay-tsa

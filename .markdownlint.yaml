@@ -1,0 +1,20 @@
+# Markdown linting rules
+default: true
+
+# MD013: Line length
+MD013: false # Disabled - documentation often needs long lines for clarity
+
+# MD025: Multiple top-level headings (allow for docs with sections)
+MD025: false
+
+# MD033: Inline HTML
+MD033: false
+
+# MD040: Fenced code language (allow code blocks without language)
+MD040: false
+
+# MD041: First line in file should be a top level heading
+MD041: false
+
+# MD046: Code block style (allow both fenced and indented)
+MD046: false

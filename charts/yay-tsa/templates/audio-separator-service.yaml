@@ -1,0 +1,19 @@
+{{- if .Values.audioSeparator.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audio-separator
+  name: {{ include "yay-tsa.fullname" . }}-audio-separator
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.audioSeparator.service.port }}
+      protocol: TCP
+      targetPort: http
+  selector:
+    {{- include "yay-tsa.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: audio-separator
+  type: {{ .Values.audioSeparator.service.type }}
+{{- end }}

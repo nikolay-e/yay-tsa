@@ -1,0 +1,48 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    ignore:
+      - dependency-name: 'tailwindcss'
+        versions: ['>=4.0.0']
+    groups:
+      npm-dependencies:
+        patterns:
+          - '*'
+
+  # Docker base images
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+      - 'docker'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+
+  # GitHub Actions
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    groups:
+      github-actions:
+        patterns:
+          - '*'

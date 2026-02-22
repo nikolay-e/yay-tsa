@@ -1,0 +1,18 @@
+{{- if and .Values.backend.enabled .Values.backend.tempStorage.enabled (not .Values.backend.tempStorage.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-backend-temp
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.backend.tempStorage.storageClass }}
+  storageClassName: {{ .Values.backend.tempStorage.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backend.tempStorage.size }}
+{{- end }}

@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+PLAN.md
+
+playwright-report
+*api-spec.json
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+
+target
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.test
+
+test-results
+
+# IDE
+.vscode/
+.idea/
+.claude/settings.local.json
+*.swp
+*.swo
+*~
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary
+.tmp/
+temp/
+tree.tmp
+# SSL Certificates (auto-generated)
+*.pem
+
+# Prevent known monorepo directory pollution (specific paths only)
+# Add new paths here as they appear, don't use broad wildcards
+packages/core/packages/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ESLint cache
+.eslintcache
+
+# Project state (local only)
+CURRENT.md
+
+# Runtime data (not tracked)
+services/server/logs/
+services/server/media/
+__pycache__/

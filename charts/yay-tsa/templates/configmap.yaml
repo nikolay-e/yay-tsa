@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+data:
+  {{- if .Values.config.serverUrl }}
+  YAYTSA_SERVER_URL: {{ .Values.config.serverUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.enabled }}
+  # Internal K8s service URL for nginx proxying (bypasses public ingress)
+  YAYTSA_BACKEND_URL: "http://{{ include "yay-tsa.fullname" . }}-backend:8096"
+  {{- end }}
+  YAYTSA_CLIENT_NAME: {{ .Values.config.clientName | quote }}
+  YAYTSA_DEVICE_NAME: {{ .Values.config.deviceName | quote }}
+  YAYTSA_LOG_LEVEL: {{ .Values.config.logLevel | default "error" | quote }}
+  APP_VERSION: {{ .Chart.AppVersion | quote }}

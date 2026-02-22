@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0f0f0f" rx="64"/>
+
+  <!-- Music note icon -->
+  <g fill="#1db954">
+    <!-- Note stem -->
+    <rect x="160" y="140" width="40" height="260" rx="8"/>
+
+    <!-- First note head -->
+    <ellipse cx="180" cy="390" rx="60" ry="45"/>
+
+    <!-- Second note -->
+    <rect x="280" y="100" width="40" height="300" rx="8"/>
+    <ellipse cx="300" cy="390" rx="60" ry="45"/>
+
+    <!-- Connection bar -->
+    <rect x="160" y="140" width="160" height="30" rx="8"/>
+  </g>
+</svg>

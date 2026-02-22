@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "path": "apps/web/dist/assets/index-*.js",
+      "maxSize": "100kB"
+    },
+    {
+      "path": "apps/web/dist/assets/vendor-*.js",
+      "maxSize": "100kB"
+    },
+    {
+      "path": "apps/web/dist/assets/index-*.css",
+      "maxSize": "30kB"
+    }
+  ],
+  "ci": {
+    "trackBranches": ["main"]
+  }
+}
