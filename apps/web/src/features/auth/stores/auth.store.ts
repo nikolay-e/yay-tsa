@@ -86,11 +86,11 @@ export const useAuthStore = create<AuthStore>()(
         const client = new MediaServerClient(API_BASE_PATH, clientInfo);
         const authService = new AuthService(client);
 
+        const response = await authService.login(username, password);
+
         client.setAuthErrorCallback(() => {
           void get().logout();
         });
-
-        const response = await authService.login(username, password);
 
         const sessionData = {
           token: response.AccessToken,
