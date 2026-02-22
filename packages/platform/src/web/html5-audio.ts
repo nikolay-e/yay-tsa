@@ -30,6 +30,9 @@ export class HTML5AudioEngine implements AudioEngine {
   private webAudioInitialized: boolean = false;
   private storedVolume: number = 1;
 
+  // Stable duration captured at load time — immune to browser fluctuations during stalls
+  private stableDuration: number = 0;
+
   // Preload state for seamless switching
   private preloadedUrl: string | null = null;
   private preloadPromise: Promise<void> | null = null;
@@ -62,7 +65,7 @@ export class HTML5AudioEngine implements AudioEngine {
     for (const cb of this.timeUpdateCallbacks) cb(time);
 
     if (!this.approachingEndFired && this.approachingEndCallbacks.size > 0) {
-      const duration = this.audio.duration;
+      const duration = this.stableDuration > 0 ? this.stableDuration : this.audio.duration;
       if (
         Number.isFinite(duration) &&
         duration > 0 &&
@@ -332,6 +335,8 @@ export class HTML5AudioEngine implements AudioEngine {
             this.audio.src === absoluteUrl
           ) {
             this.currentLoadReject = null;
+            const d = this.audio.duration;
+            this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
             resolve();
             return;
           }
@@ -342,6 +347,8 @@ export class HTML5AudioEngine implements AudioEngine {
             if (this.loadCancelled) return;
             cleanup();
             this.currentLoadReject = null;
+            const d = this.audio.duration;
+            this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
             resolve();
           };
 
@@ -381,6 +388,7 @@ export class HTML5AudioEngine implements AudioEngine {
           this.audio.addEventListener('error', handleError, { once: true });
 
           this.approachingEndFired = false;
+          this.stableDuration = 0;
           this.audio.src = absoluteUrl;
           this.audio.load();
         });
@@ -476,8 +484,8 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   getDuration(): number {
+    if (this.stableDuration > 0) return this.stableDuration;
     const duration = this.audio.duration;
-    // Validate duration is a finite positive number
     if (!Number.isFinite(duration) || duration < 0) {
       return 0;
     }
@@ -836,6 +844,9 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audio = newElement;
     this.audioSecondary = oldElement;
 
+    const d = this.audio.duration;
+    this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
+
     if (this.webAudioInitialized) {
       const tempSource = this.sourceNodePrimary;
       this.sourceNodePrimary = this.sourceNodeSecondary;
@@ -964,8 +975,13 @@ export class HTML5AudioEngine implements AudioEngine {
 
     this.performElementSwap();
 
-    if (this.webAudioInitialized && this.audioContext && this.elemGainPrimary) {
-      this.elemGainPrimary.gain.setValueAtTime(1, this.audioContext.currentTime);
+    if (this.webAudioInitialized && this.audioContext) {
+      if (this.elemGainPrimary) {
+        this.elemGainPrimary.gain.setValueAtTime(1, this.audioContext.currentTime);
+      }
+      if (this.elemGainSecondary) {
+        this.elemGainSecondary.gain.setValueAtTime(0, this.audioContext.currentTime);
+      }
     }
 
     log.info('Instant transition complete');
