@@ -294,7 +294,7 @@ _TITLE_STRIP_PATTERNS = [
 
 _COMMA_SPLIT_RE = re.compile(r",\s*")
 _WORD_SPLIT_RE = re.compile(
-    r"\s+(?:&|and|feat\.?|ft\.?|vs\.?|[x×])\s+",
+    r"\s++(?:&|and|feat\.?|ft\.?|vs\.?|[x×])\s++",
     re.IGNORECASE,
 )
 _MAX_INPUT_LENGTH = 500
