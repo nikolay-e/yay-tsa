@@ -127,8 +127,10 @@ backend:
     requests:
       memory: '1Gi'
       cpu: '500m'
+      ephemeral-storage: '1Gi'
     limits:
       memory: '2Gi'
+      ephemeral-storage: '5Gi'
   jvm:
     opts: >-
       -XX:+UseContainerSupport
