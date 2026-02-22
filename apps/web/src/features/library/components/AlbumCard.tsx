@@ -26,6 +26,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
 
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const artistId = album.ArtistItems?.[0]?.Id;
+  const isIncomplete = album.IsComplete === false && (album.ChildCount ?? 0) > 0 && (album.TotalTracks ?? 0) > 0;
 
   return (
     <div
@@ -44,6 +45,14 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
           loading="lazy"
           onError={onImageError}
         />
+        {isIncomplete && (
+          <div
+            className="absolute top-1.5 right-1.5 z-[3] rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow"
+            title="Upload remaining tracks from Settings"
+          >
+            {album.ChildCount}/{album.TotalTracks}
+          </div>
+        )}
         <button
           type="button"
           onClick={e => {
@@ -53,7 +62,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
           className={cn(
             'absolute top-1/2 left-1/2 z-[2] h-12 w-12 -translate-x-1/2 -translate-y-1/2',
             'flex items-center justify-center',
-            'bg-accent text-text-on-accent rounded-full shadow-lg',
+            'bg-accent rounded-full text-black shadow-lg',
             'scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100',
             'transition-all duration-200',
             'hover:bg-accent-hover hover:scale-110',

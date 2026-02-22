@@ -105,7 +105,7 @@ export default defineConfig({
       : {}),
   },
   build: {
-    target: 'es2021',
+    target: 'es2020',
     minify: 'terser',
     terserOptions: {
       compress: {
@@ -147,6 +147,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@yay-tsa/core', '@yay-tsa/platform'],
+    // Exclude workspace packages from pre-bundling so Vite uses the source directly
+    // (include would force them through esbuild, breaking the monorepo dev workflow)
+    exclude: ['@yay-tsa/core', '@yay-tsa/platform'],
   },
 });
