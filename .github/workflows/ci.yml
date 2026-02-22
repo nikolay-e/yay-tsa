@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -159,6 +158,9 @@ jobs:
   docker-build-frontend:
     name: Build Frontend Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -231,6 +233,9 @@ jobs:
   docker-build-backend:
     name: Build Backend Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -297,6 +302,9 @@ jobs:
   docker-build-audio-separator:
     name: Build Audio Separator Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Free disk space

@@ -30,6 +30,12 @@ LRCLIB_TIMEOUT_SECONDS = 10
 NEGATIVE_CACHE_MARKER = "[no lyrics found]"
 NEGATIVE_CACHE_MAX_AGE_DAYS = 30
 
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def _sanitize(value) -> str:
+    return _CONTROL_CHAR_RE.sub("", str(value))
+
 # ---------------------------------------------------------------------------
 # Retry-capable HTTP session
 # ---------------------------------------------------------------------------
@@ -99,7 +105,7 @@ def _validate_media_path(user_path: str) -> Path:
     resolved = os.path.realpath(user_path)
     root_prefix = ALLOWED_MEDIA_ROOT if ALLOWED_MEDIA_ROOT.endswith(os.sep) else ALLOWED_MEDIA_ROOT + os.sep
     if not resolved.startswith(root_prefix):
-        log.error(f"Path traversal attempt: {resolved}")
+        log.error("Path traversal attempt: %s", _sanitize(resolved))
         raise HTTPException(status_code=403, detail="Invalid path")
     return Path(resolved)
 
@@ -154,7 +160,7 @@ def separate_audio(request: SeparationRequest):
         karaoke_dir.mkdir(exist_ok=True)
         sep = create_separator(str(karaoke_dir))
 
-        log.info(f"Starting separation for track {track_id}")
+        log.info("Starting separation for track %s", _sanitize(track_id))
         output_files = sep.separate(str(input_path))
         log.info(f"Separation returned: {output_files}")
 
@@ -240,8 +246,8 @@ def separate_audio(request: SeparationRequest):
 
         elapsed_ms = int((time.time() - start_time) * 1000)
         log.info(
-            f"Karaoke complete for {track_id}: instrumental={final_karaoke_path}, "
-            f"vocals={final_vocal_path}, time={elapsed_ms}ms"
+            "Karaoke complete for %s: instrumental=%s, vocals=%s, time=%dms",
+            _sanitize(track_id), final_karaoke_path, final_vocal_path, elapsed_ms,
         )
 
         return SeparationResponse(
@@ -251,7 +257,7 @@ def separate_audio(request: SeparationRequest):
         )
 
     except Exception as e:
-        log.exception(f"Separation failed for {track_id}: {e}")
+        log.exception("Separation failed for %s", _sanitize(track_id))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -485,7 +491,7 @@ def _write_negative_cache(path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(NEGATIVE_CACHE_MARKER, encoding="utf-8")
     except Exception as e:
-        log.warning(f"Failed to write negative cache to {path}: {e}")
+        log.warning("Failed to write negative cache to %s: %s", _sanitize(path), _sanitize(e))
 
 
 # ===========================================================================
@@ -703,13 +709,13 @@ def fetch_lyrics(request: LyricsRequest):
     output_path = _validate_media_path(request.outputPath)
 
     if request.force and output_path.exists():
-        log.info(f"Force mode: deleting existing lyrics file {output_path}")
+        log.info("Force mode: deleting existing lyrics file %s", _sanitize(output_path))
         output_path.unlink(missing_ok=True)
 
     if not request.force and output_path.exists() and output_path.stat().st_size > 0:
         content = output_path.read_text(encoding="utf-8").strip()
         if content != NEGATIVE_CACHE_MARKER:
-            log.info(f"Lyrics already exist: {output_path}")
+            log.info("Lyrics already exist: %s", _sanitize(output_path))
             return LyricsResponse(
                 success=True,
                 outputPath=str(output_path),
@@ -719,7 +725,7 @@ def fetch_lyrics(request: LyricsRequest):
             )
 
     if not request.force and _is_negative_cache_valid(output_path):
-        log.info(f"Negative cache hit for: {request.artist} - {request.title}")
+        log.info("Negative cache hit for: %s - %s", _sanitize(request.artist), _sanitize(request.title))
         return LyricsResponse(success=False, source="negative-cache")
 
     artist = request.artist
@@ -728,30 +734,31 @@ def fetch_lyrics(request: LyricsRequest):
     duration_seconds = request.durationMs / 1000.0 if request.durationMs else None
 
     log.info(
-        f"Searching lyrics for: '{artist} - {title}'"
-        + (f" album='{album}'" if album else "")
-        + (f" duration={duration_seconds:.0f}s" if duration_seconds else "")
+        "Searching lyrics for: '%s - %s'%s%s",
+        _sanitize(artist), _sanitize(title),
+        f" album='{_sanitize(album)}'" if album else "",
+        f" duration={duration_seconds:.0f}s" if duration_seconds else "",
     )
 
     variations = _generate_query_variations(artist, title)
-    log.info(f"Generated {len(variations)} query variations for '{artist} - {title}'")
+    log.info("Generated %d query variations for '%s - %s'", len(variations), _sanitize(artist), _sanitize(title))
 
     candidates, is_instrumental = _search_all_sources(artist, title, album, duration_seconds, variations)
 
     if is_instrumental:
-        log.info(f"Track '{artist} - {title}' is instrumental, skipping lyrics")
+        log.info("Track '%s - %s' is instrumental, skipping lyrics", _sanitize(artist), _sanitize(title))
         _write_negative_cache(output_path)
         return LyricsResponse(success=False, source="instrumental")
 
     if not candidates:
-        log.info(f"No lyrics found for: '{artist} - {title}' from any source")
+        log.info("No lyrics found for: '%s - %s' from any source", _sanitize(artist), _sanitize(title))
         _write_negative_cache(output_path)
         return LyricsResponse(success=False, source="exhausted")
 
     result = _select_best_candidate(candidates)
 
     if not result:
-        log.info(f"No valid candidate selected for: '{artist} - {title}'")
+        log.info("No valid candidate selected for: '%s - %s'", _sanitize(artist), _sanitize(title))
         _write_negative_cache(output_path)
         return LyricsResponse(success=False, source="exhausted")
 
@@ -761,8 +768,9 @@ def fetch_lyrics(request: LyricsRequest):
     output_path.write_text(chosen_lyrics, encoding="utf-8")
     is_synced = _has_lrc_timestamps(chosen_lyrics)
     log.info(
-        f"Wrote {'synced' if is_synced else 'plain'} lyrics to: {output_path} "
-        f"(source: {chosen_source}, candidates: {len(candidates)})"
+        "Wrote %s lyrics to: %s (source: %s, candidates: %d)",
+        "synced" if is_synced else "plain", _sanitize(output_path),
+        chosen_source, len(candidates),
     )
 
     return LyricsResponse(
@@ -777,4 +785,8 @@ def fetch_lyrics(request: LyricsRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=os.getenv("UVICORN_HOST", "127.0.0.1"),
+        port=int(os.getenv("UVICORN_PORT", "8000")),
+    )

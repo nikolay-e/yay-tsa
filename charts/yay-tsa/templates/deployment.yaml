@@ -27,6 +27,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 101  # nginx user
@@ -87,9 +88,11 @@ spec:
           mountPath: /var/run
       volumes:
       - name: cache-volume
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 256Mi
       - name: run-volume
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 16Mi
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
