@@ -62,6 +62,8 @@ services:
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
       ACOUSTID_API_KEY: ${ACOUSTID_API_KEY:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:

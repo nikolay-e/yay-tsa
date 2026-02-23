@@ -6,6 +6,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackAudioFeaturesEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackAudioFeaturesRepository;
+import jakarta.persistence.EntityManager;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -29,7 +30,9 @@ public class TrackAnalysisService {
   private final AppSettingsService settingsService;
   private final ClaudeLlmProvider claudeProvider;
   private final OpenAiLlmProvider openAiProvider;
+  private final MockLlmProvider mockProvider;
   private final TransactionTemplate transactionTemplate;
+  private final EntityManager entityManager;
 
   private final AtomicBoolean batchRunning = new AtomicBoolean(false);
 
@@ -39,13 +42,17 @@ public class TrackAnalysisService {
       AppSettingsService settingsService,
       ClaudeLlmProvider claudeProvider,
       OpenAiLlmProvider openAiProvider,
-      TransactionTemplate transactionTemplate) {
+      MockLlmProvider mockProvider,
+      TransactionTemplate transactionTemplate,
+      EntityManager entityManager) {
     this.featuresRepository = featuresRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.settingsService = settingsService;
     this.claudeProvider = claudeProvider;
     this.openAiProvider = openAiProvider;
+    this.mockProvider = mockProvider;
     this.transactionTemplate = transactionTemplate;
+    this.entityManager = entityManager;
   }
 
   public record AnalysisStats(long total, long analyzed, long unanalyzed, boolean batchRunning) {}
@@ -98,7 +105,7 @@ public class TrackAnalysisService {
                 return true;
               }
               var entity = new TrackAudioFeaturesEntity();
-              entity.setItem(track.getItem());
+              entity.setItem(entityManager.getReference(ItemEntity.class, itemId));
               entity.setMood(analysis.mood());
               entity.setEnergy((short) analysis.energy());
               entity.setLanguage(analysis.language());
@@ -211,10 +218,14 @@ public class TrackAnalysisService {
     if ("claude".equalsIgnoreCase(providerName) && claudeProvider.isEnabled()) {
       return claudeProvider;
     }
+    if ("mock".equalsIgnoreCase(providerName)) {
+      return mockProvider;
+    }
     // Auto-detect: prefer whichever is configured
     if (claudeProvider.isEnabled()) return claudeProvider;
     if (openAiProvider.isEnabled()) return openAiProvider;
-    return null;
+    // Fallback to mock when no real provider is available
+    return mockProvider;
   }
 
   private LlmAnalysisProvider.TrackContext buildContext(AudioTrackEntity track) {
