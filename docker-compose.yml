@@ -61,6 +61,7 @@ services:
       ADMIN_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
+      ACOUSTID_API_KEY: ${ACOUSTID_API_KEY:-}
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:

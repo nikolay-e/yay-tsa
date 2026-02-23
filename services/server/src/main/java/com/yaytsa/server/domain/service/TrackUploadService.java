@@ -1,5 +1,8 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.domain.service.AudioFingerprintService;
+import com.yaytsa.server.domain.service.AudioFingerprintService.AudioFingerprint;
+import com.yaytsa.server.domain.service.metadata.AcoustIdService;
 import com.yaytsa.server.infrastructure.fs.AudioMetadata;
 import com.yaytsa.server.infrastructure.fs.JAudioTaggerExtractor;
 import com.yaytsa.server.infrastructure.fs.MediaScannerTransactionalService;
@@ -38,6 +41,8 @@ public class TrackUploadService {
   private final com.yaytsa.server.domain.service.metadata.AggregatedMetadataService metadataService;
   private final CoverArtService coverArtService;
   private final KaraokeService karaokeService;
+  private final AudioFingerprintService fingerprintService;
+  private final AcoustIdService acoustIdService;
 
   @Value("${yaytsa.media.upload-library-root:/app/uploads}")
   private String uploadLibraryRoot;
@@ -54,7 +59,9 @@ public class TrackUploadService {
       ImageRepository imageRepository,
       com.yaytsa.server.domain.service.metadata.AggregatedMetadataService metadataService,
       CoverArtService coverArtService,
-      KaraokeService karaokeService) {
+      KaraokeService karaokeService,
+      AudioFingerprintService fingerprintService,
+      AcoustIdService acoustIdService) {
     this.metadataExtractor = metadataExtractor;
     this.scannerService = scannerService;
     this.audioTrackRepository = audioTrackRepository;
@@ -64,6 +71,8 @@ public class TrackUploadService {
     this.metadataService = metadataService;
     this.coverArtService = coverArtService;
     this.karaokeService = karaokeService;
+    this.fingerprintService = fingerprintService;
+    this.acoustIdService = acoustIdService;
   }
 
   public record UploadResult(
@@ -114,9 +123,72 @@ public class TrackUploadService {
       log.info("Extracted metadata: {} - {} (Album: {}, Artist: {})",
           metadata.title(), metadata.artist(), metadata.album(), metadata.albumArtist());
 
-      String title = metadata.title() != null ? metadata.title() : getFilenameWithoutExtension(originalFilename);
+      // Generate audio fingerprint
+      AudioFingerprint audioFingerprint = null;
+      try {
+        audioFingerprint = fingerprintService.generateFingerprint(tempFile).orElse(null);
+        if (audioFingerprint != null) {
+          log.info("Generated fingerprint: {} chars, duration: {}s",
+              audioFingerprint.fingerprint().length(), audioFingerprint.duration());
+        }
+      } catch (Exception e) {
+        log.warn("Fingerprint generation failed, continuing without: {}", e.getMessage());
+      }
+
       String artist = getArtistName(metadata);
       String album = metadata.album();
+
+      // Detect missing tags: JAudioTaggerExtractor falls back to filename when tags are absent.
+      // When extracted from a temp file, the title becomes the temp file name (not the original).
+      String tempFileName = getFilenameWithoutExtension(tempFile.getFileName().toString());
+      boolean artistMissing = artist == null || artist.isBlank() || "Unknown Artist".equals(artist);
+      boolean titleMissing = metadata.title() == null || metadata.title().isBlank()
+          || metadata.title().equals(tempFileName);
+
+      // Use original filename as title fallback (not the temp file name)
+      String title = titleMissing ? getFilenameWithoutExtension(originalFilename) : metadata.title();
+
+      if ((artistMissing || titleMissing) && audioFingerprint != null) {
+        log.info("Tags incomplete (artist={}, title={}), trying AcoustID lookup", artist, title);
+        var acoustIdResult = acoustIdService.lookup(
+            audioFingerprint.fingerprint(), audioFingerprint.duration());
+
+        if (acoustIdResult.isPresent()) {
+          var identified = acoustIdResult.get();
+          if (artistMissing && identified.artist() != null && !identified.artist().isBlank()) {
+            artist = identified.artist();
+            log.info("AcoustID identified artist: {}", artist);
+          }
+          if (titleMissing && identified.title() != null && !identified.title().isBlank()) {
+            title = identified.title();
+            log.info("AcoustID identified title: {}", title);
+          }
+          if ((album == null || album.isBlank()) && identified.album() != null) {
+            album = identified.album();
+            log.info("AcoustID identified album: {}", album);
+          }
+        } else {
+          log.info("AcoustID: no match found for this fingerprint");
+        }
+      }
+
+      // Fallback: parse artist/title from original filename (e.g. "Artist - Title", "Artist_-_Title_12345")
+      artistMissing = artist == null || artist.isBlank() || "Unknown Artist".equals(artist);
+      titleMissing = title == null || title.isBlank()
+          || title.equals(getFilenameWithoutExtension(originalFilename));
+      if (artistMissing || titleMissing) {
+        var parsed = parseFilename(originalFilename);
+        if (parsed != null) {
+          if (artistMissing && parsed.artist() != null) {
+            artist = parsed.artist();
+            log.info("Filename parsed artist: {}", artist);
+          }
+          if (titleMissing && parsed.title() != null) {
+            title = parsed.title();
+            log.info("Filename parsed title: {}", title);
+          }
+        }
+      }
 
       // Check for duplicate by artist + title in DB
       var existingTracks = audioTrackRepository.findByArtistNameAndTitle(artist, title);
@@ -184,6 +256,11 @@ public class TrackUploadService {
       ItemEntity createdItem = persistTrack(targetFile, libraryRoot);
 
       log.info("Track created: {} (ID: {})", createdItem.getName(), createdItem.getId());
+
+      // Save fingerprint to DB
+      if (audioFingerprint != null) {
+        saveFingerprint(createdItem.getId(), audioFingerprint);
+      }
 
       // Phase 3: Update album completion
       boolean albumComplete = true;
@@ -297,11 +374,8 @@ public class TrackUploadService {
     if (override != null && !override.isBlank()) {
       return override;
     }
-    String[] roots = libraryRootsConfig.split(",");
-    if (roots.length == 0) {
-      throw new IllegalStateException("No library roots configured");
-    }
-    return roots[0].trim();
+    // Default to upload library root (writable), not media roots (may be read-only)
+    return uploadLibraryRoot;
   }
 
   private String sanitizeFilename(String name) {
@@ -322,6 +396,53 @@ public class TrackUploadService {
   private String getFilenameWithoutExtension(String filename) {
     int lastDot = filename.lastIndexOf('.');
     return lastDot > 0 ? filename.substring(0, lastDot) : filename;
+  }
+
+  private record ParsedFilename(String artist, String title) {}
+
+  /**
+   * Parse artist and title from filename patterns like:
+   * "Artist - Title.mp3", "Artist_-_Title_12345678.mp3", "01. Artist - Title.mp3"
+   */
+  private ParsedFilename parseFilename(String filename) {
+    String name = getFilenameWithoutExtension(filename);
+
+    // Strip trailing numeric IDs (e.g. _80548879 from download sites)
+    name = name.replaceAll("_\\d{6,}$", "");
+
+    // Strip leading track numbers (e.g. "01. ", "01 - ", "1.")
+    name = name.replaceAll("^\\d{1,3}[.\\s)_-]+\\s*", "");
+
+    // Try splitting by common separators: " - ", " — ", "_-_"
+    String[] separators = {" - ", " — ", " – ", "_-_"};
+    for (String sep : separators) {
+      int idx = name.indexOf(sep);
+      if (idx > 0 && idx < name.length() - sep.length()) {
+        String artist = name.substring(0, idx).trim().replace('_', ' ');
+        String title = name.substring(idx + sep.length()).trim().replace('_', ' ');
+        if (!artist.isBlank() && !title.isBlank()) {
+          log.info("Parsed filename '{}' → artist='{}', title='{}'", filename, artist, title);
+          return new ParsedFilename(artist, title);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  @Transactional
+  public void saveFingerprint(UUID itemId, AudioFingerprint fingerprint) {
+    try {
+      audioTrackRepository.findById(itemId).ifPresent(track -> {
+        track.setFingerprint(fingerprint.fingerprint());
+        track.setFingerprintDuration(fingerprint.duration());
+        track.setFingerprintSampleRate(fingerprint.sampleRate());
+        audioTrackRepository.save(track);
+        log.debug("Saved fingerprint for track {}", itemId);
+      });
+    } catch (Exception e) {
+      log.warn("Failed to save fingerprint for track {}: {}", itemId, e.getMessage());
+    }
   }
 
   private void writeMetadataToFile(Path audioFile, String artist, String album, String title) {

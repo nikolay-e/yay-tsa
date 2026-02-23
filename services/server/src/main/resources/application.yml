@@ -46,6 +46,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: 0
+    out-of-order: true
 
   # Security Configuration
   security:
@@ -207,6 +208,11 @@ yaytsa:
     spotify:
       client-id: ${SPOTIFY_CLIENT_ID:}
       client-secret: ${SPOTIFY_CLIENT_SECRET:}
+
+    # AcoustID API (https://acoustid.org/)
+    # Register at: https://acoustid.org/new-application
+    acoustid:
+      api-key: ${ACOUSTID_API_KEY:}
 
     # MusicBrainz is always enabled (no API key required)
 

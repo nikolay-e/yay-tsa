@@ -18,7 +18,8 @@ public class AppSettingsController {
     "metadata.genius.token",
     "metadata.lastfm.api-key",
     "metadata.spotify.client-id",
-    "metadata.spotify.client-secret"
+    "metadata.spotify.client-secret",
+    "metadata.acoustid.api-key"
   };
 
   private static final String[] SERVICE_URL_KEYS = {
@@ -46,7 +47,9 @@ public class AppSettingsController {
             "metadata.spotify.client-secret",
                 mask(
                     settingsService.get(
-                        "metadata.spotify.client-secret", "SPOTIFY_CLIENT_SECRET"))));
+                        "metadata.spotify.client-secret", "SPOTIFY_CLIENT_SECRET")),
+            "metadata.acoustid.api-key",
+                mask(settingsService.get("metadata.acoustid.api-key", "ACOUSTID_API_KEY"))));
   }
 
   @Operation(summary = "Update metadata provider settings")
