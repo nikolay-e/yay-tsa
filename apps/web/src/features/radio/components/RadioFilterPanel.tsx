@@ -30,6 +30,12 @@ const LANGUAGE_LABELS: Record<string, string> = {
   instrumental: 'Instrumental',
 };
 
+const ENERGY_LEVELS = [
+  { label: 'Low', min: 1, max: 4 },
+  { label: 'Medium', min: 4, max: 7 },
+  { label: 'High', min: 7, max: 10 },
+] as const;
+
 export function RadioFilterPanel({ filters, onChange }: RadioFilterPanelProps) {
   const { data: available } = useRadioFilters();
 
@@ -41,8 +47,16 @@ export function RadioFilterPanel({ filters, onChange }: RadioFilterPanelProps) {
     onChange({ ...filters, language: lang });
   };
 
-  const setEnergy = (min: number | undefined, max: number | undefined) => {
-    onChange({ ...filters, minEnergy: min, maxEnergy: max });
+  const currentEnergyLevel = ENERGY_LEVELS.find(
+    l => l.min === filters.minEnergy && l.max === filters.maxEnergy,
+  );
+
+  const toggleEnergy = (level: (typeof ENERGY_LEVELS)[number]) => {
+    if (currentEnergyLevel === level) {
+      onChange({ ...filters, minEnergy: undefined, maxEnergy: undefined });
+    } else {
+      onChange({ ...filters, minEnergy: level.min, maxEnergy: level.max });
+    }
   };
 
   return (
@@ -92,33 +106,25 @@ export function RadioFilterPanel({ filters, onChange }: RadioFilterPanelProps) {
         </div>
       )}
 
-      {/* Energy range */}
+      {/* Energy level pills */}
       <div>
         <label className="text-text-secondary mb-1.5 block text-xs font-medium uppercase tracking-wide">
           Energy
         </label>
-        <div className="flex items-center gap-2">
-          <span className="text-text-secondary text-xs">Low</span>
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={filters.minEnergy ?? 1}
-            onChange={e => setEnergy(Number(e.target.value), filters.maxEnergy)}
-            className="accent-accent flex-1"
-          />
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={filters.maxEnergy ?? 10}
-            onChange={e => setEnergy(filters.minEnergy, Number(e.target.value))}
-            className="accent-accent flex-1"
-          />
-          <span className="text-text-secondary text-xs">High</span>
-        </div>
-        <div className="text-text-secondary mt-0.5 text-center text-xs">
-          {filters.minEnergy ?? 1} - {filters.maxEnergy ?? 10}
+        <div className="flex flex-wrap gap-1.5">
+          {ENERGY_LEVELS.map(level => (
+            <button
+              key={level.label}
+              onClick={() => toggleEnergy(level)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                currentEnergyLevel === level
+                  ? 'bg-accent text-text-on-accent'
+                  : 'bg-bg-secondary hover:bg-bg-hover text-text-primary'
+              }`}
+            >
+              {level.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

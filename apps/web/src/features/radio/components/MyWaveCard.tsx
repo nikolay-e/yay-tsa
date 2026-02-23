@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Radio, Play, Pause, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { type AudioItem, type RadioFilters } from '@yay-tsa/core';
-import { useMyWave, useRefreshRadio } from '../hooks/useRadio';
+import { useMyWave, useRadioFilters, useRefreshRadio } from '../hooks/useRadio';
 import { usePlayerStore, useCurrentTrack, useIsPlaying } from '@/features/player/stores/player.store';
 import { RadioFilterPanel } from './RadioFilterPanel';
 
@@ -9,29 +9,44 @@ export function MyWaveCard() {
   const [filters, setFilters] = useState<RadioFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const { data: tracks, isLoading } = useMyWave(filters, 20);
+  const { data: availableFilters } = useRadioFilters();
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
-  const resume = usePlayerStore(state => state.resume);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const refreshRadio = useRefreshRadio();
 
   const isRadioPlaying = isPlaying && tracks?.some((t: AudioItem) => t.Id === currentTrack?.Id);
-  const hasAnalyzedTracks = tracks && tracks.length > 0;
+  const hasFilteredTracks = tracks && tracks.length > 0;
+  const hasActiveFilters = filters.mood || filters.language || filters.minEnergy || filters.maxEnergy;
+  const hasAnalyzedTracks = availableFilters?.moods && availableFilters.moods.length > 0;
+
+  // Auto-update playback when filters change and radio is playing
+  const wasRadioPlaying = useRef(false);
+  useEffect(() => {
+    if (isRadioPlaying) {
+      wasRadioPlaying.current = true;
+    }
+  }, [isRadioPlaying]);
+
+  useEffect(() => {
+    if (wasRadioPlaying.current && tracks && tracks.length > 0 && !isLoading) {
+      void playTracks(tracks);
+    }
+  }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePlay = () => {
     if (isRadioPlaying) {
       pause();
+      wasRadioPlaying.current = false;
     } else if (tracks && tracks.length > 0) {
+      wasRadioPlaying.current = true;
       void playTracks(tracks);
     }
   };
 
-  const handleRefresh = () => {
-    refreshRadio();
-  };
-
-  if (!hasAnalyzedTracks && !isLoading) return null;
+  // Don't show the card at all if no tracks have been analyzed
+  if (!hasAnalyzedTracks && !hasFilteredTracks && !isLoading) return null;
 
   return (
     <section className="mb-8">
@@ -44,14 +59,20 @@ export function MyWaveCard() {
             <div>
               <h2 className="text-lg font-bold">My Wave</h2>
               <p className="text-text-secondary text-xs">
-                {tracks?.length ?? 0} tracks selected for you
+                {isLoading
+                  ? 'Loading...'
+                  : hasFilteredTracks
+                    ? `${tracks.length} tracks selected for you`
+                    : hasActiveFilters
+                      ? 'No tracks match filters'
+                      : '0 tracks'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleRefresh}
+              onClick={() => void refreshRadio()}
               className="hover:bg-bg-hover rounded-full p-2 transition-colors"
               title="Refresh recommendations"
             >
@@ -68,7 +89,7 @@ export function MyWaveCard() {
             </button>
             <button
               onClick={handlePlay}
-              disabled={isLoading || !hasAnalyzedTracks}
+              disabled={isLoading || !hasFilteredTracks}
               className="bg-accent text-text-on-accent hover:bg-accent-hover flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all disabled:opacity-50"
             >
               {isRadioPlaying ? (
@@ -82,12 +103,6 @@ export function MyWaveCard() {
 
         {showFilters && (
           <RadioFilterPanel filters={filters} onChange={setFilters} />
-        )}
-
-        {isLoading && (
-          <div className="text-text-secondary py-2 text-center text-sm">
-            Loading recommendations...
-          </div>
         )}
       </div>
     </section>
