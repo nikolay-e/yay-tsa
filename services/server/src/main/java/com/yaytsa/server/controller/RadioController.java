@@ -1,16 +1,24 @@
 package com.yaytsa.server.controller;
 
-import com.yaytsa.server.domain.service.AppSettingsService;
+import com.yaytsa.server.domain.service.PlayStateService;
+import com.yaytsa.server.domain.service.radio.SmartRadioService;
 import com.yaytsa.server.domain.service.radio.TrackAnalysisService;
+import com.yaytsa.server.dto.response.BaseItemResponse;
+import com.yaytsa.server.dto.response.QueryResultResponse;
 import com.yaytsa.server.dto.response.RadioFiltersResponse;
-import com.yaytsa.server.dto.response.RadioResponse;
+import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.PlayStateEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackAudioFeaturesRepository;
+import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import com.yaytsa.server.mapper.ItemMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -18,13 +26,67 @@ import org.springframework.web.bind.annotation.*;
 public class RadioController {
 
   private final TrackAnalysisService analysisService;
+  private final SmartRadioService smartRadioService;
   private final TrackAudioFeaturesRepository featuresRepository;
+  private final AudioTrackRepository audioTrackRepository;
+  private final ItemMapper itemMapper;
+  private final PlayStateService playStateService;
 
   public RadioController(
       TrackAnalysisService analysisService,
-      TrackAudioFeaturesRepository featuresRepository) {
+      SmartRadioService smartRadioService,
+      TrackAudioFeaturesRepository featuresRepository,
+      AudioTrackRepository audioTrackRepository,
+      ItemMapper itemMapper,
+      PlayStateService playStateService) {
     this.analysisService = analysisService;
+    this.smartRadioService = smartRadioService;
     this.featuresRepository = featuresRepository;
+    this.audioTrackRepository = audioTrackRepository;
+    this.itemMapper = itemMapper;
+    this.playStateService = playStateService;
+  }
+
+  @Operation(summary = "Get recommended tracks for My Wave radio")
+  @GetMapping("/Radio/MyWave")
+  public ResponseEntity<QueryResultResponse<BaseItemResponse>> getMyWave(
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @RequestParam(required = false) String mood,
+      @RequestParam(required = false) String language,
+      @RequestParam(required = false) Short minEnergy,
+      @RequestParam(required = false) Short maxEnergy,
+      @RequestParam(defaultValue = "20") int count) {
+
+    UUID userId = user.getUserEntity().getId();
+    List<UUID> trackIds =
+        smartRadioService.generateRadio(userId, mood, language, minEnergy, maxEnergy, count);
+
+    if (trackIds.isEmpty()) {
+      return ResponseEntity.ok(new QueryResultResponse<>(List.of(), 0, 0));
+    }
+
+    List<AudioTrackEntity> tracks = audioTrackRepository.findAllByIdInWithRelations(trackIds);
+
+    // Preserve order from recommendation algorithm
+    Map<UUID, AudioTrackEntity> trackMap =
+        tracks.stream().collect(Collectors.toMap(AudioTrackEntity::getItemId, t -> t));
+
+    Map<UUID, PlayStateEntity> playStates = playStateService.getPlayStatesForItems(userId, trackIds);
+
+    List<BaseItemResponse> dtos =
+        trackIds.stream()
+            .map(trackMap::get)
+            .filter(Objects::nonNull)
+            .map(
+                track ->
+                    itemMapper.toDto(
+                        track.getItem(),
+                        playStates.get(track.getItemId()),
+                        track,
+                        null))
+            .collect(Collectors.toList());
+
+    return ResponseEntity.ok(new QueryResultResponse<>(dtos, dtos.size(), 0));
   }
 
   @Operation(summary = "Get available radio filters (moods, languages)")
