@@ -379,9 +379,21 @@ public class TrackUploadService {
 
   private String getLibraryRoot(String override) {
     if (override != null && !override.isBlank()) {
-      return override;
+      // Validate override is within allowed library roots
+      Path overridePath = Paths.get(override).toAbsolutePath().normalize();
+      Path defaultRoot = Paths.get(uploadLibraryRoot).toAbsolutePath().normalize();
+      if (overridePath.startsWith(defaultRoot)) {
+        return override;
+      }
+      for (String root : libraryRootsConfig.split(",")) {
+        Path allowedRoot = Paths.get(root.trim()).toAbsolutePath().normalize();
+        if (overridePath.startsWith(allowedRoot)) {
+          return override;
+        }
+      }
+      log.warn("Library root override rejected (not in allowed paths): {}", override);
+      return uploadLibraryRoot;
     }
-    // Default to upload library root (writable), not media roots (may be read-only)
     return uploadLibraryRoot;
   }
 

@@ -7,7 +7,9 @@ import com.yaytsa.server.infrastructure.persistence.entity.TrackAudioFeaturesEnt
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackAudioFeaturesRepository;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -131,9 +133,14 @@ public class TrackAnalysisService {
         () -> {
           try {
             log.info("Starting batch analysis");
+            Set<UUID> failedIds = new HashSet<>();
             while (batchRunning.get()) {
               List<UUID> unanalyzed =
                   featuresRepository.findUnanalyzedTrackIdsNative(BATCH_SIZE);
+              // Filter out tracks that already failed in this batch run
+              unanalyzed = unanalyzed.stream()
+                  .filter(id -> !failedIds.contains(id))
+                  .toList();
               if (unanalyzed.isEmpty()) {
                 log.info("Batch analysis complete: no more unanalyzed tracks");
                 break;
@@ -142,9 +149,13 @@ public class TrackAnalysisService {
               for (UUID itemId : unanalyzed) {
                 if (!batchRunning.get()) break;
                 try {
-                  analyzeTrack(itemId);
+                  boolean success = analyzeTrack(itemId);
+                  if (!success) {
+                    failedIds.add(itemId);
+                  }
                 } catch (Exception e) {
                   log.warn("Failed to analyze track {}: {}", itemId, e.getMessage());
+                  failedIds.add(itemId);
                 }
                 Thread.sleep(BATCH_PAUSE_MS);
               }
@@ -168,8 +179,15 @@ public class TrackAnalysisService {
     Thread.startVirtualThread(
         () -> {
           try {
-            Thread.sleep(2000); // Wait for DB commit to propagate
-            analyzeTrack(itemId);
+            // Retry up to 3 times with increasing delay until the track is visible in DB
+            for (int attempt = 1; attempt <= 3; attempt++) {
+              Thread.sleep(attempt * 1000L);
+              if (audioTrackRepository.existsById(itemId)) {
+                analyzeTrack(itemId);
+                return;
+              }
+            }
+            log.warn("Track {} not found after retries, skipping async analysis", itemId);
           } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
           } catch (Exception e) {

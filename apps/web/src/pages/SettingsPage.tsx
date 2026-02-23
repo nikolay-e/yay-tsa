@@ -42,24 +42,30 @@ export function SettingsPage() {
   const [llmProvider, setLlmProvider] = useState('claude');
   const [claudeKey, setClaudeKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
+  const [claudeKeyDirty, setClaudeKeyDirty] = useState(false);
+  const [openaiKeyDirty, setOpenaiKeyDirty] = useState(false);
   const [radioSaving, setRadioSaving] = useState(false);
   const { data: analysisStats } = useAnalysisStats(isAdmin);
 
   // Load radio settings
   useEffect(() => {
     if (!client || !isAdmin) return;
+    let cancelled = false;
     void (async () => {
       try {
         const resp = await client.get<Record<string, string>>('/Admin/Settings/radio');
-        if (resp) {
+        if (!cancelled && resp) {
           setLlmProvider(resp['radio.llm.provider'] || 'claude');
           setClaudeKey(resp['radio.llm.claude.api-key'] || '');
           setOpenaiKey(resp['radio.llm.openai.api-key'] || '');
+          setClaudeKeyDirty(false);
+          setOpenaiKeyDirty(false);
         }
       } catch {
         // ignore
       }
     })();
+    return () => { cancelled = true; };
   }, [client, isAdmin]);
 
   const handleRescanLibrary = async () => {
@@ -112,10 +118,10 @@ export function SettingsPage() {
       const settings: Record<string, string> = {
         'radio.llm.provider': llmProvider,
       };
-      if (claudeKey && !claudeKey.startsWith('****')) {
+      if (claudeKeyDirty && claudeKey) {
         settings['radio.llm.claude.api-key'] = claudeKey;
       }
-      if (openaiKey && !openaiKey.startsWith('****')) {
+      if (openaiKeyDirty && openaiKey) {
         settings['radio.llm.openai.api-key'] = openaiKey;
       }
       await client.post('/Admin/Settings/radio', settings);
@@ -208,7 +214,7 @@ export function SettingsPage() {
               <input
                 type="password"
                 value={claudeKey}
-                onChange={e => setClaudeKey(e.target.value)}
+                onChange={e => { setClaudeKey(e.target.value); setClaudeKeyDirty(true); }}
                 placeholder="sk-ant-..."
                 className="bg-bg-tertiary border-border text-text-primary w-full rounded-md border px-3 py-2 text-sm"
               />
@@ -222,7 +228,7 @@ export function SettingsPage() {
               <input
                 type="password"
                 value={openaiKey}
-                onChange={e => setOpenaiKey(e.target.value)}
+                onChange={e => { setOpenaiKey(e.target.value); setOpenaiKeyDirty(true); }}
                 placeholder="sk-..."
                 className="bg-bg-tertiary border-border text-text-primary w-full rounded-md border px-3 py-2 text-sm"
               />

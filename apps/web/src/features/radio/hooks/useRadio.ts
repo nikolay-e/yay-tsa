@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RadioService, type RadioFilters } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -52,7 +53,7 @@ export function useAnalysisStats(enabled = true) {
 
 export function useRefreshRadio() {
   const queryClient = useQueryClient();
-  return () => {
+  return useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['radio', 'myWave'] });
-  };
+  }, [queryClient]);
 }

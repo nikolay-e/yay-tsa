@@ -46,7 +46,13 @@ export function TrackUploadDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeXhrRef = useRef<XMLHttpRequest | null>(null);
   const client = useAuthStore(s => s.client);
+
+  // Abort active XHR on unmount
+  useEffect(() => {
+    return () => { activeXhrRef.current?.abort(); };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -206,6 +212,7 @@ export function TrackUploadDialog({
         resolve(false);
       };
 
+      activeXhrRef.current = xhr;
       xhr.open('POST', `${client.getServerUrl()}/tracks/upload`);
       xhr.setRequestHeader('X-Emby-Authorization', client.buildAuthHeader());
       xhr.send(formData);

@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -45,6 +46,7 @@ public class SpotifyProvider implements MetadataProvider {
   private final RestTemplate restTemplate;
   private final AppSettingsService settingsService;
 
+  private final ReentrantLock authLock = new ReentrantLock();
   private volatile String accessToken;
   private volatile Instant tokenExpiry;
 
@@ -167,36 +169,46 @@ public class SpotifyProvider implements MetadataProvider {
     return 80; // Highest priority (best coverage for modern music)
   }
 
-  private synchronized void ensureAuthenticated() {
+  private void ensureAuthenticated() {
     if (accessToken != null && tokenExpiry != null && Instant.now().isBefore(tokenExpiry)) {
       return; // Token still valid
     }
 
-    log.debug("Requesting new Spotify access token");
+    authLock.lock();
+    try {
+      // Double-check after acquiring lock
+      if (accessToken != null && tokenExpiry != null && Instant.now().isBefore(tokenExpiry)) {
+        return;
+      }
 
-    String auth =
-        Base64.getEncoder()
-            .encodeToString(
-                (getClientId() + ":" + getClientSecret()).getBytes(StandardCharsets.UTF_8));
+      log.debug("Requesting new Spotify access token");
 
-    HttpHeaders headers = new HttpHeaders();
-    headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-    headers.set("Authorization", "Basic " + auth);
+      String auth =
+          Base64.getEncoder()
+              .encodeToString(
+                  (getClientId() + ":" + getClientSecret()).getBytes(StandardCharsets.UTF_8));
 
-    MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-    body.add("grant_type", "client_credentials");
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+      headers.set("Authorization", "Basic " + auth);
 
-    HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+      MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+      body.add("grant_type", "client_credentials");
 
-    SpotifyTokenResponse response =
-        restTemplate.postForObject(AUTH_URL, request, SpotifyTokenResponse.class);
+      HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
-    if (response != null && response.accessToken != null) {
-      this.accessToken = response.accessToken;
-      this.tokenExpiry = Instant.now().plusSeconds(response.expiresIn - 60); // 60s buffer
-      log.debug("Spotify access token obtained (expires in {}s)", response.expiresIn);
-    } else {
-      throw new IllegalStateException("Failed to obtain Spotify access token");
+      SpotifyTokenResponse response =
+          restTemplate.postForObject(AUTH_URL, request, SpotifyTokenResponse.class);
+
+      if (response != null && response.accessToken != null) {
+        this.accessToken = response.accessToken;
+        this.tokenExpiry = Instant.now().plusSeconds(response.expiresIn - 60); // 60s buffer
+        log.debug("Spotify access token obtained (expires in {}s)", response.expiresIn);
+      } else {
+        throw new IllegalStateException("Failed to obtain Spotify access token");
+      }
+    } finally {
+      authLock.unlock();
     }
   }
 

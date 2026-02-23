@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -69,7 +70,7 @@ public class OpenAiLlmProvider implements LlmAnalysisProvider {
           httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
       if (response.statusCode() != 200) {
-        log.warn("OpenAI API returned {}: {}", response.statusCode(), response.body());
+        log.warn("OpenAI API returned {}", response.statusCode());
         return Optional.empty();
       }
 
@@ -96,6 +97,11 @@ public class OpenAiLlmProvider implements LlmAnalysisProvider {
   @Override
   public String getModelName() {
     return getModel();
+  }
+
+  @PreDestroy
+  public void close() {
+    httpClient.close();
   }
 
   @Override

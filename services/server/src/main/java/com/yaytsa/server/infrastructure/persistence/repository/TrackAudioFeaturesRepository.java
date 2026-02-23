@@ -14,12 +14,6 @@ public interface TrackAudioFeaturesRepository
     extends JpaRepository<TrackAudioFeaturesEntity, UUID> {
 
   @Query(
-      "SELECT at.itemId FROM AudioTrackEntity at "
-          + "WHERE at.itemId NOT IN (SELECT taf.itemId FROM TrackAudioFeaturesEntity taf) "
-          + "ORDER BY at.itemId")
-  List<UUID> findUnanalyzedTrackIds(@Param("limit") int limit);
-
-  @Query(
       value =
           "SELECT at.item_id FROM audio_tracks at "
               + "WHERE at.item_id NOT IN (SELECT taf.item_id FROM track_audio_features taf) "

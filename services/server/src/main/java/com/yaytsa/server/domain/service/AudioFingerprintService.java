@@ -243,8 +243,13 @@ public class AudioFingerprintService {
    *
    * @return true if fpcalc is available
    */
+  private volatile Boolean fpcalcAvailable;
+
   public boolean isFingerprintingEnabled() {
-    return checkFpcalcAvailable();
+    if (fpcalcAvailable == null) {
+      fpcalcAvailable = checkFpcalcAvailable();
+    }
+    return fpcalcAvailable;
   }
 
   private boolean checkFpcalcAvailable() {

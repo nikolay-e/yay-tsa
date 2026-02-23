@@ -110,10 +110,10 @@ public class AggregatedMetadataService {
       log.warn("Metadata enrichment timed out or failed: {}", e.getMessage());
     }
 
-    // Collect results
+    // Collect results (use getNow to avoid blocking on timed-out futures)
     List<MetadataProvider.EnrichedMetadata> results = new ArrayList<>();
     for (CompletableFuture<Optional<MetadataProvider.EnrichedMetadata>> future : futures) {
-      future.join().ifPresent(results::add);
+      future.getNow(Optional.empty()).ifPresent(results::add);
     }
 
     if (results.isEmpty()) {

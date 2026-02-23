@@ -98,9 +98,9 @@ public class UploadController {
                   + String.join(", ", SUPPORTED_EXTENSIONS));
     }
 
-    // Validate MIME type
+    // Validate MIME type (reject unknown MIME types)
     String contentType = file.getContentType();
-    if (contentType != null && !ALLOWED_MIME_TYPES.contains(contentType)) {
+    if (contentType != null && !contentType.isBlank() && !ALLOWED_MIME_TYPES.contains(contentType)) {
       return ResponseEntity.badRequest()
           .body("Unsupported content type: " + contentType);
     }
