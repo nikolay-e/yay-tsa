@@ -144,7 +144,7 @@ export const useAuthStore = create<AuthStore>()(
 
       await clearCaches();
 
-      set(initialState);
+      set({ ...initialState, isLoading: false });
     },
 
     restoreSession: async () => {
