@@ -68,4 +68,8 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
       @Param("artistName") String artistName,
       @Param("title") String title);
 
+  @Query(
+      value = "SELECT item_id FROM audio_tracks ORDER BY RANDOM() LIMIT :limit",
+      nativeQuery = true)
+  List<UUID> findRandomTrackIds(@Param("limit") int limit);
 }

@@ -105,7 +105,10 @@ public class RadioController {
       @AuthenticationPrincipal AuthenticatedUser user) {
     return ResponseEntity.ok(
         new RadioFiltersResponse(
-            featuresRepository.findDistinctMoods(), featuresRepository.findDistinctLanguages()));
+            featuresRepository.findDistinctMoods(),
+            featuresRepository.findDistinctLanguages(),
+            featuresRepository.countTotalTracks(),
+            featuresRepository.countAnalyzed()));
   }
 
   @Operation(summary = "Start batch analysis of unanalyzed tracks")

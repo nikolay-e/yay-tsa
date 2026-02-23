@@ -29,6 +29,7 @@ export function MyWaveCard() {
     tracks?.some((t: AudioItem) => t.Id === currentTrack?.Id);
   const hasFilteredTracks = tracks && tracks.length > 0;
   const hasActiveFilters = filters.mood || filters.language || filters.minEnergy || filters.maxEnergy;
+  const hasTracks = (availableFilters?.totalTracks ?? 0) > 0;
   const hasAnalyzedTracks = availableFilters?.moods && availableFilters.moods.length > 0;
 
   // When user plays something else (not in radio tracks), deactivate radio mode
@@ -64,8 +65,8 @@ export function MyWaveCard() {
     }
   }, [isRadioPlaying, tracks, pause, playTracks]);
 
-  // Don't show the card at all if no tracks have been analyzed
-  if (!hasAnalyzedTracks && !hasFilteredTracks && !isLoading) return null;
+  // Don't show the card if there are no tracks at all
+  if (!hasTracks && !hasFilteredTracks && !isLoading) return null;
 
   return (
     <section className="mb-8">

@@ -11,6 +11,8 @@ export interface RadioFilters {
 export interface RadioFiltersResponse {
   moods: string[];
   languages: string[];
+  totalTracks: number;
+  analyzedTracks: number;
 }
 
 export interface AnalysisStats {
@@ -41,7 +43,7 @@ export class RadioService extends BaseService {
   async getAvailableFilters(): Promise<RadioFiltersResponse> {
     this.requireAuth();
     const result = await this.client.get<RadioFiltersResponse>('/Radio/MyWave/Filters');
-    return result ?? { moods: [], languages: [] };
+    return result ?? { moods: [], languages: [], totalTracks: 0, analyzedTracks: 0 };
   }
 
   async getAnalysisStats(): Promise<AnalysisStats> {

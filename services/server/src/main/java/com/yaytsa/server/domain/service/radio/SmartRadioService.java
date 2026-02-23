@@ -1,6 +1,7 @@
 package com.yaytsa.server.domain.service.radio;
 
 import com.yaytsa.server.infrastructure.persistence.entity.TrackAudioFeaturesEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayHistoryRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackAudioFeaturesRepository;
 import java.util.*;
@@ -14,12 +15,15 @@ public class SmartRadioService {
 
   private final TrackAudioFeaturesRepository featuresRepository;
   private final PlayHistoryRepository playHistoryRepository;
+  private final AudioTrackRepository audioTrackRepository;
 
   public SmartRadioService(
       TrackAudioFeaturesRepository featuresRepository,
-      PlayHistoryRepository playHistoryRepository) {
+      PlayHistoryRepository playHistoryRepository,
+      AudioTrackRepository audioTrackRepository) {
     this.featuresRepository = featuresRepository;
     this.playHistoryRepository = playHistoryRepository;
+    this.audioTrackRepository = audioTrackRepository;
   }
 
   private static final int MAX_CANDIDATES = 500;
@@ -43,7 +47,12 @@ public class SmartRadioService {
             PageRequest.of(0, MAX_CANDIDATES));
 
     if (candidates.isEmpty()) {
-      return List.of();
+      // Fallback: return random tracks when no analyzed tracks match filters
+      boolean hasFilters = mood != null || language != null || minEnergy != null || maxEnergy != null;
+      if (hasFilters) {
+        return List.of();
+      }
+      return audioTrackRepository.findRandomTrackIds(count);
     }
 
     // 3. Get last 3 played track IDs for anti-repeat

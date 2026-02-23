@@ -59,8 +59,18 @@ export function RadioFilterPanel({ filters, onChange }: RadioFilterPanelProps) {
     }
   };
 
+  const hasAnyFilters =
+    (available?.moods && available.moods.length > 0) ||
+    (available?.languages && available.languages.length > 0);
+
   return (
     <div className="border-border/50 mt-3 space-y-3 border-t pt-3">
+      {!hasAnyFilters && (
+        <p className="text-text-secondary text-xs">
+          Analyze tracks in Settings to enable mood, language, and energy filters.
+        </p>
+      )}
+
       {/* Mood pills */}
       {available?.moods && available.moods.length > 0 && (
         <div>
