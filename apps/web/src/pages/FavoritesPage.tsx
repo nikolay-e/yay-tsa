@@ -52,6 +52,10 @@ export function FavoritesPage() {
 
 function FavoriteAlbums() {
   const playAlbum = usePlayerStore(state => state.playAlbum);
+  const pause = usePlayerStore(state => state.pause);
+  const currentTrack = useCurrentTrack();
+  const isPlaying = useIsPlaying();
+  const playingAlbumId = isPlaying ? currentTrack?.AlbumId : undefined;
 
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteAlbums({
     isFavorite: true,
@@ -72,7 +76,12 @@ function FavoriteAlbums() {
 
   return (
     <>
-      <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+      <AlbumGrid
+        albums={albums}
+        playingAlbumId={playingAlbumId}
+        onPlayAlbum={album => void playAlbum(album.Id)}
+        onPause={pause}
+      />
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}

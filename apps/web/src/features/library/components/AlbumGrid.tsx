@@ -3,10 +3,12 @@ import { AlbumCard } from './AlbumCard';
 
 interface AlbumGridProps {
   albums: MusicAlbum[];
+  playingAlbumId?: string;
   onPlayAlbum?: (album: MusicAlbum) => void;
+  onPause?: () => void;
 }
 
-export function AlbumGrid({ albums, onPlayAlbum }: AlbumGridProps) {
+export function AlbumGrid({ albums, playingAlbumId, onPlayAlbum, onPause }: AlbumGridProps) {
   if (albums.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -18,7 +20,13 @@ export function AlbumGrid({ albums, onPlayAlbum }: AlbumGridProps) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {albums.map(album => (
-        <AlbumCard key={album.Id} album={album} onPlay={() => onPlayAlbum?.(album)} />
+        <AlbumCard
+          key={album.Id}
+          album={album}
+          isPlaying={playingAlbumId === album.Id}
+          onPlay={() => onPlayAlbum?.(album)}
+          onPause={onPause}
+        />
       ))}
     </div>
   );

@@ -1,17 +1,16 @@
 import { Link } from 'react-router-dom';
-import { type MusicAlbum } from '@yay-tsa/core';
 import { useRecentlyPlayedAlbums } from '@/features/library/hooks/useAlbums';
 import { AlbumCard } from '@/features/library/components/AlbumCard';
-import { usePlayerStore } from '@/features/player/stores/player.store';
+import { usePlayerStore, useCurrentTrack, useIsPlaying } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 
 export function HomePage() {
   const { data: recentlyPlayed, isLoading } = useRecentlyPlayedAlbums(10);
   const playAlbum = usePlayerStore(state => state.playAlbum);
-
-  const handlePlayAlbum = (album: MusicAlbum) => {
-    void playAlbum(album.Id);
-  };
+  const pause = usePlayerStore(state => state.pause);
+  const currentTrack = useCurrentTrack();
+  const isPlaying = useIsPlaying();
+  const playingAlbumId = isPlaying ? currentTrack?.AlbumId : undefined;
 
   const hasRecentlyPlayed = recentlyPlayed?.Items && recentlyPlayed.Items.length > 0;
 
@@ -29,7 +28,13 @@ export function HomePage() {
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {recentlyPlayed.Items.map(album => (
-              <AlbumCard key={album.Id} album={album} onPlay={() => handlePlayAlbum(album)} />
+              <AlbumCard
+                key={album.Id}
+                album={album}
+                isPlaying={playingAlbumId === album.Id}
+                onPlay={() => void playAlbum(album.Id)}
+                onPause={pause}
+              />
             ))}
           </div>
         </section>

@@ -6,12 +6,16 @@ import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { NotFound } from '@/shared/ui/NotFound';
 import { BackLink } from '@/shared/ui/BackLink';
-import { usePlayerStore } from '@/features/player/stores/player.store';
+import { usePlayerStore, useCurrentTrack, useIsPlaying } from '@/features/player/stores/player.store';
 
 export function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { getImageUrl } = useImageUrl();
   const playAlbum = usePlayerStore(state => state.playAlbum);
+  const pause = usePlayerStore(state => state.pause);
+  const currentTrack = useCurrentTrack();
+  const isPlaying = useIsPlaying();
+  const playingAlbumId = isPlaying ? currentTrack?.AlbumId : undefined;
 
   const { data: artist, isLoading: artistLoading } = useArtist(id);
   const { data: albums = [], isLoading: albumsLoading } = useArtistAlbums(id);
@@ -73,7 +77,12 @@ export function ArtistDetailPage() {
       {albums.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-semibold">Albums</h2>
-          <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+          <AlbumGrid
+            albums={albums}
+            playingAlbumId={playingAlbumId}
+            onPlayAlbum={album => void playAlbum(album.Id)}
+            onPause={pause}
+          />
         </section>
       )}
     </div>
