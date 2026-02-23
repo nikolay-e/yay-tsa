@@ -58,6 +58,15 @@ public class RadioController {
       @RequestParam(defaultValue = "20") int count) {
 
     count = Math.max(1, Math.min(count, 100));
+    // Normalize and validate filter params
+    if (mood != null) {
+      mood = mood.length() > 50 ? mood.substring(0, 50) : mood;
+      mood = mood.toLowerCase();
+    }
+    if (language != null) {
+      language = language.length() > 10 ? language.substring(0, 10) : language;
+      language = language.toLowerCase();
+    }
     UUID userId = user.getUserEntity().getId();
     List<UUID> trackIds =
         smartRadioService.generateRadio(userId, mood, language, minEnergy, maxEnergy, count);

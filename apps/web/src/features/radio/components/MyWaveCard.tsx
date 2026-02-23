@@ -33,8 +33,8 @@ export function MyWaveCard() {
 
   // When user plays something else (not in radio tracks), deactivate radio mode
   useEffect(() => {
-    if (!radioActive || !isPlaying || !currentTrack) return;
-    const inRadio = tracks?.some((t: AudioItem) => t.Id === currentTrack.Id);
+    if (!radioActive || !isPlaying || !currentTrack || !tracks) return;
+    const inRadio = tracks.some((t: AudioItem) => t.Id === currentTrack.Id);
     if (!inRadio) {
       setRadioActive(false);
     }

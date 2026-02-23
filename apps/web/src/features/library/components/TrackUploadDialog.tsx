@@ -87,8 +87,9 @@ export function TrackUploadDialog({
     if (validFiles.length === 0) return;
 
     setFiles(prev => {
-      const existingNames = new Set(prev.map(f => f.file.name));
-      const unique = validFiles.filter(f => !existingNames.has(f.name));
+      const fileKey = (f: File) => `${f.name}_${f.size}_${f.lastModified}`;
+      const existingKeys = new Set(prev.map(f => fileKey(f.file)));
+      const unique = validFiles.filter(f => !existingKeys.has(fileKey(f)));
       return [...prev, ...unique.map(file => ({ file, status: 'pending' as const, progress: 0 }))];
     });
   }, []);
@@ -382,7 +383,7 @@ export function TrackUploadDialog({
                   <div
                     className="bg-primary h-full transition-all duration-300"
                     style={{
-                      width: `${((successCount + duplicateCount + (files[uploadingIndex]?.progress ?? 0) / 100) / files.length) * 100}%`,
+                      width: `${((successCount + duplicateCount + errorCount + (files[uploadingIndex]?.progress ?? 0) / 100) / files.length) * 100}%`,
                     }}
                   />
                 </div>

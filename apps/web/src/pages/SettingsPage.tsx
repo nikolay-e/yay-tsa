@@ -118,10 +118,10 @@ export function SettingsPage() {
       const settings: Record<string, string> = {
         'radio.llm.provider': llmProvider,
       };
-      if (claudeKeyDirty && claudeKey) {
+      if (claudeKeyDirty) {
         settings['radio.llm.claude.api-key'] = claudeKey;
       }
-      if (openaiKeyDirty && openaiKey) {
+      if (openaiKeyDirty) {
         settings['radio.llm.openai.api-key'] = openaiKey;
       }
       await client.post('/Admin/Settings/radio', settings);

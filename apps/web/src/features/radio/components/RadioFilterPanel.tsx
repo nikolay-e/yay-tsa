@@ -107,26 +107,28 @@ export function RadioFilterPanel({ filters, onChange }: RadioFilterPanelProps) {
       )}
 
       {/* Energy level pills */}
-      <div>
-        <label className="text-text-secondary mb-1.5 block text-xs font-medium uppercase tracking-wide">
-          Energy
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {ENERGY_LEVELS.map(level => (
-            <button
-              key={level.label}
-              onClick={() => toggleEnergy(level)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                currentEnergyLevel === level
-                  ? 'bg-accent text-text-on-accent'
-                  : 'bg-bg-secondary hover:bg-bg-hover text-text-primary'
-              }`}
-            >
-              {level.label}
-            </button>
-          ))}
+      {available?.moods && available.moods.length > 0 && (
+        <div>
+          <label className="text-text-secondary mb-1.5 block text-xs font-medium uppercase tracking-wide">
+            Energy
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {ENERGY_LEVELS.map(level => (
+              <button
+                key={level.label}
+                onClick={() => toggleEnergy(level)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  currentEnergyLevel === level
+                    ? 'bg-accent text-text-on-accent'
+                    : 'bg-bg-secondary hover:bg-bg-hover text-text-primary'
+                }`}
+              >
+                {level.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

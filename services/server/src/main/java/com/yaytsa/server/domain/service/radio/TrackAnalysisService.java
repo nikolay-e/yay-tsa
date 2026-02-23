@@ -108,7 +108,9 @@ public class TrackAnalysisService {
               entity.setAnalyzedAt(OffsetDateTime.now());
               entity.setLlmProvider(provider.getProviderName());
               entity.setLlmModel(provider.getModelName());
-              entity.setRawResponse(analysis.rawResponse());
+              String rawResp = analysis.rawResponse();
+              entity.setRawResponse(rawResp != null && rawResp.length() > 5000
+                  ? rawResp.substring(0, 5000) : rawResp);
               featuresRepository.save(entity);
               return true;
             });
@@ -134,7 +136,12 @@ public class TrackAnalysisService {
           try {
             log.info("Starting batch analysis");
             Set<UUID> failedIds = new HashSet<>();
+            final int MAX_FAILURES = 1000;
             while (batchRunning.get()) {
+              if (failedIds.size() >= MAX_FAILURES) {
+                log.warn("Batch analysis stopped: too many failures ({})", failedIds.size());
+                break;
+              }
               List<UUID> unanalyzed =
                   featuresRepository.findUnanalyzedTrackIdsNative(BATCH_SIZE);
               // Filter out tracks that already failed in this batch run

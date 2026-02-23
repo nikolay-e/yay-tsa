@@ -16,7 +16,9 @@ final class LlmPromptBuilder {
   static String buildPrompt(LlmAnalysisProvider.TrackContext ctx) {
     String lyrics = "N/A";
     if (ctx.lyrics() != null && !ctx.lyrics().isBlank()) {
-      lyrics = ctx.lyrics().length() > 500 ? ctx.lyrics().substring(0, 500) + "..." : ctx.lyrics();
+      String raw = ctx.lyrics().length() > 500 ? ctx.lyrics().substring(0, 500) + "..." : ctx.lyrics();
+      // Sanitize lyrics to prevent prompt injection
+      lyrics = raw.replace("\"", "'").replaceAll("[\\x00-\\x1F\\x7F]", " ");
     }
 
     return "Analyze this music track. Return ONLY valid JSON, no other text.\n"
@@ -72,7 +74,13 @@ final class LlmPromptBuilder {
   }
 
   private static String safe(String s) {
-    return s != null ? s : "Unknown";
+    if (s == null) return "Unknown";
+    // Sanitize to prevent prompt injection via track metadata
+    String sanitized = s.replace("\"", "'").replace("\\", "");
+    // Remove control characters
+    sanitized = sanitized.replaceAll("[\\x00-\\x1F\\x7F]", " ");
+    // Limit length
+    return sanitized.length() > 200 ? sanitized.substring(0, 200) : sanitized;
   }
 
   private static int clamp(int value, int min, int max) {

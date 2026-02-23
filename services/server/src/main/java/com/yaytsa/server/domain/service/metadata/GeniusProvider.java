@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.domain.service.AppSettingsService;
+import jakarta.annotation.PreDestroy;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -42,6 +43,11 @@ public class GeniusProvider implements MetadataProvider {
     this.httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     this.settingsService = settingsService;
     this.objectMapper = objectMapper;
+  }
+
+  @PreDestroy
+  public void close() {
+    httpClient.close();
   }
 
   private String getAccessToken() {

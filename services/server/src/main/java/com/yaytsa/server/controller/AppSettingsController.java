@@ -136,6 +136,10 @@ public class AppSettingsController {
     for (String key : RADIO_CONFIG_KEYS) {
       String value = settings.get(key);
       if (value != null) {
+        if (value.length() > MAX_SETTING_VALUE_LENGTH) {
+          return ResponseEntity.badRequest()
+              .body(Map.of("error", "Value too long for key: " + key));
+        }
         settingsService.set(key, value);
       }
     }

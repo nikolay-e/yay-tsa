@@ -46,7 +46,7 @@ public class SmartRadioService {
       return List.of();
     }
 
-    // 3. Get last 3 played artist IDs for anti-repeat
+    // 3. Get last 3 played track IDs for anti-repeat
     Set<UUID> recentLast3 =
         new HashSet<>(
             recentItemIds.stream().limit(3).collect(Collectors.toList()));

@@ -34,7 +34,7 @@ public class AudioFingerprintService {
 
   public AudioFingerprintService(@Value("${yaytsa.media.fingerprint.fpcalc-path:fpcalc}") String fpcalcPath) {
     this.fpcalcPath = fpcalcPath;
-    checkFpcalcAvailable();
+    this.fpcalcAvailable = checkFpcalcAvailable();
   }
 
   /**
