@@ -20,6 +20,12 @@ export {
   type LibraryRescanResult,
   type ScanStatus,
 } from './api/admin.service.js';
+export {
+  RadioService,
+  type RadioFilters,
+  type RadioFiltersResponse,
+  type AnalysisStats,
+} from './api/radio.service.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
