@@ -3,6 +3,7 @@ import { useRecentlyPlayedAlbums } from '@/features/library/hooks/useAlbums';
 import { AlbumCard } from '@/features/library/components/AlbumCard';
 import { usePlayerStore, useCurrentTrack, useIsPlaying } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { MyWaveCard } from '@/features/radio/components/MyWaveCard';
 
 export function HomePage() {
   const { data: recentlyPlayed, isLoading } = useRecentlyPlayedAlbums(10);
@@ -17,6 +18,8 @@ export function HomePage() {
   return (
     <div className="space-y-8 p-6">
       <h1 className="text-2xl font-bold">Home</h1>
+
+      <MyWaveCard />
 
       {hasRecentlyPlayed && (
         <section>

@@ -63,6 +63,7 @@ interface PlayerActions {
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
   updateCurrentTrackLyrics: (lyrics: string) => void;
+  appendToQueue: (tracks: AudioItem[]) => void;
 }
 
 type PlayerStore = PlayerState & PlayerActions;
@@ -184,6 +185,7 @@ export const usePlayerStore = create<PlayerStore>()(
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
         updateCurrentTrackLyrics: () => {},
+        appendToQueue: () => {},
       };
     }
 
@@ -900,6 +902,14 @@ export const usePlayerStore = create<PlayerStore>()(
         if (currentTrack) {
           set({ currentTrack: { ...currentTrack, Lyrics: lyrics } });
         }
+      },
+
+      appendToQueue: (tracks: AudioItem[]) => {
+        if (tracks.length === 0) return;
+        const { queue } = get();
+        queue.addMultipleToQueue(tracks);
+        preloader.invalidate();
+        schedulePreload();
       },
     };
   })
