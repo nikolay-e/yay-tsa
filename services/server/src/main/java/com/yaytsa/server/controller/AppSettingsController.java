@@ -27,6 +27,15 @@ public class AppSettingsController {
     "service.lyrics-url"
   };
 
+  private static final String[] RADIO_SECRET_KEYS = {
+    "radio.llm.claude.api-key",
+    "radio.llm.openai.api-key"
+  };
+
+  private static final String[] RADIO_CONFIG_KEYS = {
+    "radio.llm.provider"
+  };
+
   private final AppSettingsService settingsService;
 
   public AppSettingsController(AppSettingsService settingsService) {
@@ -91,6 +100,42 @@ public class AppSettingsController {
           return ResponseEntity.badRequest()
               .body(Map.of("error", "Value too long for key: " + key));
         }
+        settingsService.set(key, value);
+      }
+    }
+    return ResponseEntity.ok(Map.of("status", "saved"));
+  }
+
+  @Operation(summary = "Get Smart Radio LLM settings")
+  @GetMapping("/radio")
+  public ResponseEntity<Map<String, String>> getRadioSettings() {
+    return ResponseEntity.ok(
+        Map.of(
+            "radio.llm.provider",
+                settingsService.get("radio.llm.provider"),
+            "radio.llm.claude.api-key",
+                mask(settingsService.get("radio.llm.claude.api-key", "CLAUDE_API_KEY")),
+            "radio.llm.openai.api-key",
+                mask(settingsService.get("radio.llm.openai.api-key", "OPENAI_API_KEY"))));
+  }
+
+  @Operation(summary = "Update Smart Radio LLM settings")
+  @PutMapping("/radio")
+  public ResponseEntity<Map<String, String>> updateRadioSettings(
+      @RequestBody Map<String, String> settings) {
+    for (String key : RADIO_SECRET_KEYS) {
+      String value = settings.get(key);
+      if (value != null && !value.isBlank()) {
+        if (value.length() > MAX_SETTING_VALUE_LENGTH) {
+          return ResponseEntity.badRequest()
+              .body(Map.of("error", "Value too long for key: " + key));
+        }
+        settingsService.set(key, value);
+      }
+    }
+    for (String key : RADIO_CONFIG_KEYS) {
+      String value = settings.get(key);
+      if (value != null) {
         settingsService.set(key, value);
       }
     }

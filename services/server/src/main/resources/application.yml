@@ -216,6 +216,16 @@ yaytsa:
 
     # MusicBrainz is always enabled (no API key required)
 
+  # Smart Radio / My Wave LLM configuration
+  radio:
+    llm:
+      # Provider: claude or openai (auto-detect if not set)
+      provider: ${RADIO_LLM_PROVIDER:}
+      claude:
+        api-key: ${CLAUDE_API_KEY:}
+      openai:
+        api-key: ${OPENAI_API_KEY:}
+
     # Session configuration
     sessions:
       timeout-minutes: ${SESSION_TIMEOUT:30}
