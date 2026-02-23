@@ -206,7 +206,7 @@ export function TrackUploadDialog({
         resolve(false);
       };
 
-      xhr.open('POST', '/api/tracks/upload');
+      xhr.open('POST', `${client.getServerUrl()}/tracks/upload`);
       xhr.setRequestHeader('X-Emby-Authorization', client.buildAuthHeader());
       xhr.send(formData);
     });

@@ -3,6 +3,7 @@ package com.yaytsa.server.infrastructure.persistence.repository;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackAudioFeaturesEntity;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,7 +37,8 @@ public interface TrackAudioFeaturesRepository
       @Param("mood") String mood,
       @Param("language") String language,
       @Param("minEnergy") Short minEnergy,
-      @Param("maxEnergy") Short maxEnergy);
+      @Param("maxEnergy") Short maxEnergy,
+      Pageable pageable);
 
   @Query("SELECT DISTINCT taf.mood FROM TrackAudioFeaturesEntity taf WHERE taf.mood IS NOT NULL")
   List<String> findDistinctMoods();

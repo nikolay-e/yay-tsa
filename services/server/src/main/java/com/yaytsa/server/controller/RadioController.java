@@ -57,6 +57,7 @@ public class RadioController {
       @RequestParam(required = false) Short maxEnergy,
       @RequestParam(defaultValue = "20") int count) {
 
+    count = Math.max(1, Math.min(count, 100));
     UUID userId = user.getUserEntity().getId();
     List<UUID> trackIds =
         smartRadioService.generateRadio(userId, mood, language, minEnergy, maxEnergy, count);
@@ -91,7 +92,8 @@ public class RadioController {
 
   @Operation(summary = "Get available radio filters (moods, languages)")
   @GetMapping("/Radio/MyWave/Filters")
-  public ResponseEntity<RadioFiltersResponse> getFilters() {
+  public ResponseEntity<RadioFiltersResponse> getFilters(
+      @AuthenticationPrincipal AuthenticatedUser user) {
     return ResponseEntity.ok(
         new RadioFiltersResponse(
             featuresRepository.findDistinctMoods(), featuresRepository.findDistinctLanguages()));

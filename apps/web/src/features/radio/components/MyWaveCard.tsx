@@ -1,14 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Radio, Play, Pause, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { type AudioItem, type RadioFilters } from '@yay-tsa/core';
 import { useMyWave, useRadioFilters, useRefreshRadio } from '../hooks/useRadio';
 import { usePlayerStore, useCurrentTrack, useIsPlaying } from '@/features/player/stores/player.store';
 import { RadioFilterPanel } from './RadioFilterPanel';
 
+function trackIdsKey(tracks: AudioItem[] | undefined): string {
+  if (!tracks || tracks.length === 0) return '';
+  return tracks.map(t => t.Id).join(',');
+}
+
 export function MyWaveCard() {
   const [filters, setFilters] = useState<RadioFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const { data: tracks, isLoading } = useMyWave(filters, 20);
+  const { data: tracks, isLoading, isError } = useMyWave(filters, 20);
   const { data: availableFilters } = useRadioFilters();
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
@@ -16,34 +21,49 @@ export function MyWaveCard() {
   const isPlaying = useIsPlaying();
   const refreshRadio = useRefreshRadio();
 
-  const isRadioPlaying = isPlaying && tracks?.some((t: AudioItem) => t.Id === currentTrack?.Id);
+  // Track whether radio mode is active (user explicitly started radio)
+  const radioActive = useRef(false);
+  // Track previous track IDs to detect actual data changes vs background refetches
+  const prevTrackIdsRef = useRef('');
+
+  const isRadioPlaying = isPlaying && radioActive.current &&
+    tracks?.some((t: AudioItem) => t.Id === currentTrack?.Id);
   const hasFilteredTracks = tracks && tracks.length > 0;
   const hasActiveFilters = filters.mood || filters.language || filters.minEnergy || filters.maxEnergy;
   const hasAnalyzedTracks = availableFilters?.moods && availableFilters.moods.length > 0;
 
-  // Auto-update playback when filters change and radio is playing
-  const wasRadioPlaying = useRef(false);
+  // When user plays something else (not in radio tracks), deactivate radio mode
   useEffect(() => {
-    if (isRadioPlaying) {
-      wasRadioPlaying.current = true;
+    if (!radioActive.current || !isPlaying || !currentTrack) return;
+    const inRadio = tracks?.some((t: AudioItem) => t.Id === currentTrack.Id);
+    if (!inRadio) {
+      radioActive.current = false;
     }
-  }, [isRadioPlaying]);
+  }, [currentTrack, isPlaying, tracks]);
 
+  // Auto-update playback when filters change and radio is active
+  // Only fires when track IDs actually change (not on background refetch)
   useEffect(() => {
-    if (wasRadioPlaying.current && tracks && tracks.length > 0 && !isLoading) {
+    if (!tracks || tracks.length === 0 || isLoading) return;
+    const newKey = trackIdsKey(tracks);
+    if (newKey === prevTrackIdsRef.current) return;
+    prevTrackIdsRef.current = newKey;
+
+    if (radioActive.current) {
       void playTracks(tracks);
     }
-  }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tracks, isLoading, playTracks]);
 
-  const handlePlay = () => {
+  const handlePlay = useCallback(() => {
     if (isRadioPlaying) {
       pause();
-      wasRadioPlaying.current = false;
+      radioActive.current = false;
     } else if (tracks && tracks.length > 0) {
-      wasRadioPlaying.current = true;
+      radioActive.current = true;
+      prevTrackIdsRef.current = trackIdsKey(tracks);
       void playTracks(tracks);
     }
-  };
+  }, [isRadioPlaying, tracks, pause, playTracks]);
 
   // Don't show the card at all if no tracks have been analyzed
   if (!hasAnalyzedTracks && !hasFilteredTracks && !isLoading) return null;
@@ -61,11 +81,13 @@ export function MyWaveCard() {
               <p className="text-text-secondary text-xs">
                 {isLoading
                   ? 'Loading...'
-                  : hasFilteredTracks
-                    ? `${tracks.length} tracks selected for you`
-                    : hasActiveFilters
-                      ? 'No tracks match filters'
-                      : '0 tracks'}
+                  : isError
+                    ? 'Failed to load'
+                    : hasFilteredTracks
+                      ? `${tracks.length} tracks selected for you`
+                      : hasActiveFilters
+                        ? 'No tracks match filters'
+                        : '0 tracks'}
               </p>
             </div>
           </div>

@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class TrackAnalysisService {
@@ -27,6 +27,7 @@ public class TrackAnalysisService {
   private final AppSettingsService settingsService;
   private final ClaudeLlmProvider claudeProvider;
   private final OpenAiLlmProvider openAiProvider;
+  private final TransactionTemplate transactionTemplate;
 
   private final AtomicBoolean batchRunning = new AtomicBoolean(false);
 
@@ -35,12 +36,14 @@ public class TrackAnalysisService {
       AudioTrackRepository audioTrackRepository,
       AppSettingsService settingsService,
       ClaudeLlmProvider claudeProvider,
-      OpenAiLlmProvider openAiProvider) {
+      OpenAiLlmProvider openAiProvider,
+      TransactionTemplate transactionTemplate) {
     this.featuresRepository = featuresRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.settingsService = settingsService;
     this.claudeProvider = claudeProvider;
     this.openAiProvider = openAiProvider;
+    this.transactionTemplate = transactionTemplate;
   }
 
   public record AnalysisStats(long total, long analyzed, long unanalyzed, boolean batchRunning) {}
@@ -51,7 +54,6 @@ public class TrackAnalysisService {
     return new AnalysisStats(total, analyzed, total - analyzed, batchRunning.get());
   }
 
-  @Transactional
   public boolean analyzeTrack(UUID itemId) {
     if (featuresRepository.existsById(itemId)) {
       log.debug("Track {} already analyzed, skipping", itemId);
@@ -86,20 +88,29 @@ public class TrackAnalysisService {
     }
 
     var analysis = result.get();
-    var entity = new TrackAudioFeaturesEntity();
-    entity.setItem(track.getItem());
-    entity.setMood(analysis.mood());
-    entity.setEnergy((short) analysis.energy());
-    entity.setLanguage(analysis.language());
-    entity.setThemes(analysis.themes());
-    entity.setValence((short) analysis.valence());
-    entity.setDanceability((short) analysis.danceability());
-    entity.setAnalyzedAt(OffsetDateTime.now());
-    entity.setLlmProvider(provider.getProviderName());
-    entity.setLlmModel(provider.getModelName());
-    entity.setRawResponse(analysis.rawResponse());
 
-    featuresRepository.save(entity);
+    Boolean saved =
+        transactionTemplate.execute(
+            status -> {
+              if (featuresRepository.existsById(itemId)) {
+                return true;
+              }
+              var entity = new TrackAudioFeaturesEntity();
+              entity.setItem(track.getItem());
+              entity.setMood(analysis.mood());
+              entity.setEnergy((short) analysis.energy());
+              entity.setLanguage(analysis.language());
+              entity.setThemes(analysis.themes());
+              entity.setValence((short) analysis.valence());
+              entity.setDanceability((short) analysis.danceability());
+              entity.setAnalyzedAt(OffsetDateTime.now());
+              entity.setLlmProvider(provider.getProviderName());
+              entity.setLlmModel(provider.getModelName());
+              entity.setRawResponse(analysis.rawResponse());
+              featuresRepository.save(entity);
+              return true;
+            });
+
     log.info(
         "Analyzed {} - {}: mood={}, energy={}, lang={}",
         context.artist(),
@@ -107,7 +118,7 @@ public class TrackAnalysisService {
         analysis.mood(),
         analysis.energy(),
         analysis.language());
-    return true;
+    return Boolean.TRUE.equals(saved);
   }
 
   public void startBatchAnalysis() {

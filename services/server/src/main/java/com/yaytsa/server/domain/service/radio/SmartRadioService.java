@@ -22,8 +22,12 @@ public class SmartRadioService {
     this.playHistoryRepository = playHistoryRepository;
   }
 
+  private static final int MAX_CANDIDATES = 500;
+
   public List<UUID> generateRadio(
       UUID userId, String mood, String language, Short minEnergy, Short maxEnergy, int count) {
+
+    count = Math.max(1, Math.min(count, 100));
 
     // 1. Load user taste profile from recent history
     List<UUID> recentItemIds =
@@ -33,9 +37,10 @@ public class SmartRadioService {
     // Build taste profile from recent listened features
     TasteProfile profile = buildTasteProfile(recentItemIds);
 
-    // 2. Get all analyzed tracks matching filters
+    // 2. Get analyzed tracks matching filters (capped to prevent memory issues)
     List<TrackAudioFeaturesEntity> candidates =
-        featuresRepository.findByFilters(mood, language, minEnergy, maxEnergy);
+        featuresRepository.findByFilters(mood, language, minEnergy, maxEnergy,
+            PageRequest.of(0, MAX_CANDIDATES));
 
     if (candidates.isEmpty()) {
       return List.of();
