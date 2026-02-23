@@ -3,6 +3,7 @@ package com.yaytsa.server.domain.service;
 import com.yaytsa.server.domain.service.AudioFingerprintService;
 import com.yaytsa.server.domain.service.AudioFingerprintService.AudioFingerprint;
 import com.yaytsa.server.domain.service.metadata.AcoustIdService;
+import com.yaytsa.server.domain.service.radio.TrackAnalysisService;
 import com.yaytsa.server.infrastructure.fs.AudioMetadata;
 import com.yaytsa.server.infrastructure.fs.JAudioTaggerExtractor;
 import com.yaytsa.server.infrastructure.fs.MediaScannerTransactionalService;
@@ -43,6 +44,7 @@ public class TrackUploadService {
   private final KaraokeService karaokeService;
   private final AudioFingerprintService fingerprintService;
   private final AcoustIdService acoustIdService;
+  private final TrackAnalysisService trackAnalysisService;
 
   @Value("${yaytsa.media.upload-library-root:/app/uploads}")
   private String uploadLibraryRoot;
@@ -61,7 +63,8 @@ public class TrackUploadService {
       CoverArtService coverArtService,
       KaraokeService karaokeService,
       AudioFingerprintService fingerprintService,
-      AcoustIdService acoustIdService) {
+      AcoustIdService acoustIdService,
+      TrackAnalysisService trackAnalysisService) {
     this.metadataExtractor = metadataExtractor;
     this.scannerService = scannerService;
     this.audioTrackRepository = audioTrackRepository;
@@ -73,6 +76,7 @@ public class TrackUploadService {
     this.karaokeService = karaokeService;
     this.fingerprintService = fingerprintService;
     this.acoustIdService = acoustIdService;
+    this.trackAnalysisService = trackAnalysisService;
   }
 
   public record UploadResult(
@@ -291,6 +295,9 @@ public class TrackUploadService {
       processArtwork(createdItem, targetFile, coverArtUrl);
       processArtistArtwork(createdItem, artistImageUrl);
       processKaraoke(createdItem);
+
+      // Phase 5: Auto-analyze track for Smart Radio (async, non-blocking)
+      trackAnalysisService.analyzeTrackAsync(createdItem.getId());
 
       return UploadResult.success(createdItem, artist, album, albumComplete, albumTotalTracks, albumCurrentTracks);
 
