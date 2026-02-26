@@ -113,12 +113,16 @@ public class ItemsController {
       @Parameter(description = "Fields to include in response (comma-separated)")
           @RequestParam(value = "Fields", required = false)
           String fields,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     UUID userUuid = userId != null ? parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
+    }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
     }
 
     UUID parentUuid = parentId != null ? parseUuid(parentId) : null;
@@ -220,6 +224,7 @@ public class ItemsController {
       @Parameter(description = "User ID") @RequestParam(value = "userId", required = false)
           String userId,
       @Parameter(description = "Fields to include") @RequestParam(required = false) String fields,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
@@ -231,6 +236,9 @@ public class ItemsController {
     UUID userUuid = userId != null ? parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
+    }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
     }
 
     Optional<ItemEntity> itemOpt = itemService.findById(itemUuid);
@@ -256,6 +264,7 @@ public class ItemsController {
       @RequestParam(value = "userId", required = false) String userId,
       @RequestParam(defaultValue = "0") int startIndex,
       @RequestParam(defaultValue = "100") int limit,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
@@ -267,6 +276,9 @@ public class ItemsController {
     UUID userUuid = userId != null ? parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
+    }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
     }
 
     List<AudioTrackEntity> tracks = itemService.getAlbumTracks(albumUuid);
