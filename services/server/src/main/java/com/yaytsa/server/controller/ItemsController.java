@@ -23,11 +23,13 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/Items")
 @Tag(name = "Items", description = "Media library item management")
+@Transactional(readOnly = true)
 public class ItemsController {
 
   private static final int MAX_PAGE_SIZE = 1000;
@@ -311,6 +313,7 @@ public class ItemsController {
         @ApiResponse(responseCode = "200", description = "Successfully marked as favorite"),
         @ApiResponse(responseCode = "400", description = "Invalid ID format")
       })
+  @Transactional
   @PostMapping("/{itemId}/Favorite")
   public ResponseEntity<Void> markFavorite(
       @PathVariable String itemId,
@@ -344,6 +347,7 @@ public class ItemsController {
         @ApiResponse(responseCode = "200", description = "Successfully unmarked as favorite"),
         @ApiResponse(responseCode = "400", description = "Invalid ID format")
       })
+  @Transactional
   @DeleteMapping("/{itemId}/Favorite")
   public ResponseEntity<Void> unmarkFavorite(
       @PathVariable String itemId,
@@ -385,6 +389,7 @@ public class ItemsController {
             responseCode = "403",
             description = "Forbidden - only playlists can be deleted")
       })
+  @Transactional
   @DeleteMapping("/{itemId}")
   public ResponseEntity<Void> deleteItem(
       @Parameter(description = "Item ID to delete") @PathVariable String itemId,
