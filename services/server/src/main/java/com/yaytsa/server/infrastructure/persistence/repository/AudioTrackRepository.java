@@ -72,4 +72,9 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
       value = "SELECT item_id FROM audio_tracks ORDER BY RANDOM() LIMIT :limit",
       nativeQuery = true)
   List<UUID> findRandomTrackIds(@Param("limit") int limit);
+
+  @Query(
+      "SELECT at.album.id, COUNT(at) FROM AudioTrackEntity at"
+          + " WHERE at.album.id IN :albumIds GROUP BY at.album.id")
+  List<Object[]> countByAlbumIdIn(@Param("albumIds") Collection<UUID> albumIds);
 }

@@ -6,6 +6,7 @@ import com.yaytsa.server.domain.service.PlaylistService;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.dto.response.QueryResultResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
+import com.yaytsa.server.infrastructure.persistence.entity.AlbumEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
@@ -153,11 +154,51 @@ public class ItemsController {
             isFavorite);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
+    List<ItemEntity> items = itemsPage.getContent();
 
-    List<BaseItemResponse> dtos =
-        itemsPage.getContent().stream()
-            .map(item -> convertToDto(item, userUuid, enableUserData))
-            .collect(Collectors.toList());
+    // Batch-load all secondary data to avoid N+1 queries
+    List<UUID> itemIds = items.stream().map(ItemEntity::getId).toList();
+
+    Map<UUID, PlayStateEntity> playStateMap = Collections.emptyMap();
+    if (userUuid != null && enableUserData && !itemIds.isEmpty()) {
+      playStateMap = playStateService.getPlayStatesForItems(userUuid, itemIds);
+    }
+
+    List<UUID> trackIds = items.stream()
+        .filter(i -> i.getType() == ItemType.AudioTrack).map(ItemEntity::getId).toList();
+    Map<UUID, AudioTrackEntity> audioTrackMap = trackIds.isEmpty()
+        ? Collections.emptyMap()
+        : audioTrackRepository.findAllByIdInWithRelations(trackIds).stream()
+            .collect(Collectors.toMap(at -> at.getItemId(), at -> at));
+
+    List<UUID> albumIds = items.stream()
+        .filter(i -> i.getType() == ItemType.MusicAlbum).map(ItemEntity::getId).toList();
+    Map<UUID, AlbumEntity> albumMap = albumIds.isEmpty()
+        ? Collections.emptyMap()
+        : albumRepository.findAllByIdInWithArtist(albumIds).stream()
+            .collect(Collectors.toMap(a -> a.getItemId(), a -> a));
+
+    Map<UUID, Long> trackCountByAlbum = albumIds.isEmpty()
+        ? Collections.emptyMap()
+        : audioTrackRepository.countByAlbumIdIn(albumIds).stream()
+            .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+
+    List<UUID> artistIds2 = items.stream()
+        .filter(i -> i.getType() == ItemType.MusicArtist).map(ItemEntity::getId).toList();
+    Map<UUID, Long> albumCountByArtist = artistIds2.isEmpty()
+        ? Collections.emptyMap()
+        : albumRepository.countByArtistIdIn(artistIds2).stream()
+            .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+
+    List<BaseItemResponse> dtos = items.stream()
+        .map(item -> convertToDto(
+            item,
+            playStateMap.get(item.getId()),
+            audioTrackMap.get(item.getId()),
+            albumMap.get(item.getId()),
+            trackCountByAlbum.get(item.getId()),
+            albumCountByArtist.get(item.getId())))
+        .collect(Collectors.toList());
 
     QueryResultResponse<BaseItemResponse> result =
         new QueryResultResponse<>(dtos, Math.toIntExact(itemsPage.getTotalElements()), startIndex);
@@ -406,6 +447,22 @@ public class ItemsController {
       return true;
     }
     return resourceOwnerId.equals(user.getUserEntity().getId());
+  }
+
+  private BaseItemResponse convertToDto(
+      ItemEntity item,
+      PlayStateEntity playState,
+      AudioTrackEntity audioTrack,
+      AlbumEntity album,
+      Long trackCount,
+      Long albumCount) {
+    Integer childCount = null;
+    if (item.getType() == ItemType.MusicAlbum && trackCount != null) {
+      childCount = trackCount.intValue();
+    } else if (item.getType() == ItemType.MusicArtist && albumCount != null) {
+      childCount = albumCount.intValue();
+    }
+    return itemMapper.toDto(item, playState, audioTrack, album, childCount);
   }
 
   private BaseItemResponse convertToDto(ItemEntity item, UUID userId, boolean enableUserData) {
