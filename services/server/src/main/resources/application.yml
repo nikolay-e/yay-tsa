@@ -60,22 +60,6 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
-  # Caching Configuration
-  cache:
-    type: caffeine
-    caffeine:
-      spec: maximumSize=10000,expireAfterWrite=5m
-    cache-names:
-      - tokens
-      - items
-      - images
-      - users
-      - metadata-genius
-      - metadata-lastfm
-      - metadata-spotify
-      - metadata-musicbrainz
-      - metadata-itunes
-
   # File Upload Configuration
   servlet:
     multipart:
@@ -286,7 +270,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
 
   devtools:

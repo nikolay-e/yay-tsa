@@ -40,6 +40,7 @@ Thumbs.db
 
 # Logs
 *.log
+dev.log
 npm-debug.log*
 
 # Testing
