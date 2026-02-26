@@ -19,10 +19,12 @@ import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "Radio", description = "Smart Radio / My Wave")
+@Transactional(readOnly = true)
 public class RadioController {
 
   private final TrackAnalysisService analysisService;
@@ -112,6 +114,7 @@ public class RadioController {
   }
 
   @Operation(summary = "Start batch analysis of unanalyzed tracks")
+  @Transactional
   @PostMapping("/Radio/Analysis/Start")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Map<String, String>> startBatchAnalysis() {
@@ -120,6 +123,7 @@ public class RadioController {
   }
 
   @Operation(summary = "Stop batch analysis")
+  @Transactional
   @PostMapping("/Radio/Analysis/Stop")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Map<String, String>> stopBatchAnalysis() {
@@ -135,6 +139,7 @@ public class RadioController {
   }
 
   @Operation(summary = "Analyze a single track")
+  @Transactional
   @PostMapping("/Radio/Analysis/Track/{id}")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Map<String, Object>> analyzeTrack(@PathVariable UUID id) {

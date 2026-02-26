@@ -21,11 +21,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/Playlists")
 @Tag(name = "Playlists", description = "Playlist management")
+@Transactional(readOnly = true)
 public class PlaylistsController {
 
   private static final int MAX_PAGE_SIZE = 1000;
@@ -105,6 +107,7 @@ public class PlaylistsController {
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "403", description = "Forbidden")
       })
+  @Transactional
   @PostMapping
   public ResponseEntity<Map<String, String>> createPlaylist(
       @RequestBody CreatePlaylistRequest request,
@@ -178,6 +181,7 @@ public class PlaylistsController {
   }
 
   @Operation(summary = "Update playlist", description = "Update playlist metadata")
+  @Transactional
   @PutMapping("/{playlistId}")
   public ResponseEntity<Map<String, Object>> updatePlaylist(
       @PathVariable String playlistId,
@@ -218,6 +222,7 @@ public class PlaylistsController {
   }
 
   @Operation(summary = "Delete playlist", description = "Delete a playlist")
+  @Transactional
   @DeleteMapping("/{playlistId}")
   public ResponseEntity<Void> deletePlaylist(
       @PathVariable String playlistId,
@@ -323,6 +328,7 @@ public class PlaylistsController {
       description =
           "Add one or more items to a playlist. "
               + "Item IDs are passed as comma-separated values in the Ids parameter.")
+  @Transactional
   @PostMapping("/{playlistId}/Items")
   public ResponseEntity<Void> addItemsToPlaylist(
       @PathVariable String playlistId,
@@ -363,6 +369,7 @@ public class PlaylistsController {
       description =
           "Remove specific items from a playlist by their playlist entry IDs. "
               + "Note: These are playlist entry IDs, not the original item IDs.")
+  @Transactional
   @DeleteMapping("/{playlistId}/Items")
   public ResponseEntity<Void> removeItemsFromPlaylist(
       @PathVariable String playlistId,
@@ -400,6 +407,7 @@ public class PlaylistsController {
   @Operation(
       summary = "Move playlist item",
       description = "Move an item to a new position in the playlist")
+  @Transactional
   @PostMapping("/{playlistId}/Items/{itemId}/Move/{newIndex}")
   public ResponseEntity<Void> movePlaylistItem(
       @PathVariable String playlistId,
