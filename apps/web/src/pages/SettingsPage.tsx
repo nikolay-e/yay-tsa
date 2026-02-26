@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { RefreshCw, HardDrive, Info, Server, LogOut, Upload, Radio, Play, Square } from 'lucide-react';
 import { AdminService, RadioService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
@@ -38,35 +38,7 @@ export function SettingsPage() {
   const [isReloading, setIsReloading] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
-  // Smart Radio state
-  const [llmProvider, setLlmProvider] = useState('claude');
-  const [claudeKey, setClaudeKey] = useState('');
-  const [openaiKey, setOpenaiKey] = useState('');
-  const [claudeKeyDirty, setClaudeKeyDirty] = useState(false);
-  const [openaiKeyDirty, setOpenaiKeyDirty] = useState(false);
-  const [radioSaving, setRadioSaving] = useState(false);
   const { data: analysisStats } = useAnalysisStats(isAdmin);
-
-  // Load radio settings
-  useEffect(() => {
-    if (!client || !isAdmin) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const resp = await client.get<Record<string, string>>('/Admin/Settings/radio');
-        if (!cancelled && resp) {
-          setLlmProvider(resp['radio.llm.provider'] || 'claude');
-          setClaudeKey(resp['radio.llm.claude.api-key'] || '');
-          setOpenaiKey(resp['radio.llm.openai.api-key'] || '');
-          setClaudeKeyDirty(false);
-          setOpenaiKeyDirty(false);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [client, isAdmin]);
 
   const handleRescanLibrary = async () => {
     if (!client) return;
@@ -109,28 +81,6 @@ export function SettingsPage() {
     void queryClient.invalidateQueries({ queryKey: ['album'] });
     void queryClient.invalidateQueries({ queryKey: ['artist'] });
     void handleRescanLibrary();
-  };
-
-  const handleSaveRadioSettings = async () => {
-    if (!client) return;
-    setRadioSaving(true);
-    try {
-      const settings: Record<string, string> = {
-        'radio.llm.provider': llmProvider,
-      };
-      if (claudeKeyDirty) {
-        settings['radio.llm.claude.api-key'] = claudeKey;
-      }
-      if (openaiKeyDirty) {
-        settings['radio.llm.openai.api-key'] = openaiKey;
-      }
-      await client.post('/Admin/Settings/radio', settings);
-      setStatus('Radio settings saved');
-    } catch {
-      setStatus('Failed to save radio settings');
-    } finally {
-      setRadioSaving(false);
-    }
   };
 
   const handleStartAnalysis = async () => {
@@ -191,58 +141,6 @@ export function SettingsPage() {
           </h2>
 
           <div className="bg-bg-secondary border-border space-y-4 rounded-lg border p-4">
-            {/* LLM Provider */}
-            <div>
-              <label className="text-text-secondary mb-1 block text-xs font-medium uppercase tracking-wide">
-                LLM Provider
-              </label>
-              <select
-                value={llmProvider}
-                onChange={e => setLlmProvider(e.target.value)}
-                className="bg-bg-tertiary border-border text-text-primary w-full rounded-md border px-3 py-2 text-sm"
-              >
-                <option value="claude">Claude (Anthropic)</option>
-                <option value="openai">OpenAI (GPT)</option>
-              </select>
-            </div>
-
-            {/* Claude API Key */}
-            <div>
-              <label className="text-text-secondary mb-1 block text-xs font-medium uppercase tracking-wide">
-                Claude API Key
-              </label>
-              <input
-                type="password"
-                value={claudeKey}
-                onChange={e => { setClaudeKey(e.target.value); setClaudeKeyDirty(true); }}
-                placeholder="sk-ant-..."
-                className="bg-bg-tertiary border-border text-text-primary w-full rounded-md border px-3 py-2 text-sm"
-              />
-            </div>
-
-            {/* OpenAI API Key */}
-            <div>
-              <label className="text-text-secondary mb-1 block text-xs font-medium uppercase tracking-wide">
-                OpenAI API Key
-              </label>
-              <input
-                type="password"
-                value={openaiKey}
-                onChange={e => { setOpenaiKey(e.target.value); setOpenaiKeyDirty(true); }}
-                placeholder="sk-..."
-                className="bg-bg-tertiary border-border text-text-primary w-full rounded-md border px-3 py-2 text-sm"
-              />
-            </div>
-
-            <button
-              onClick={() => void handleSaveRadioSettings()}
-              disabled={radioSaving}
-              className="bg-accent text-text-on-accent hover:bg-accent-hover rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {radioSaving ? 'Saving...' : 'Save'}
-            </button>
-
-            {/* Analysis progress */}
             {analysisStats && (
               <div className="border-border border-t pt-4">
                 <div className="mb-2 flex items-center justify-between">

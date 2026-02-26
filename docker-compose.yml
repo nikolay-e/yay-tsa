@@ -62,8 +62,7 @@ services:
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
       ACOUSTID_API_KEY: ${ACOUSTID_API_KEY:-}
-      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ESSENTIA_ANALYZER_URL: http://essentia-analyzer:8001
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:
@@ -138,6 +137,41 @@ services:
           memory: 512M
         reservations:
           memory: 256M
+
+  # Essentia Audio Analyzer (Smart Radio - ML mood/energy analysis)
+  # Usage: docker compose --profile radio up
+  essentia-analyzer:
+    build:
+      context: ./services/essentia-analyzer
+      dockerfile: Dockerfile
+    container_name: yay-tsa-essentia-analyzer
+    restart: unless-stopped
+    profiles:
+      - radio
+    volumes:
+      - ${MEDIA_PATH:-./services/server/media}:/media:ro
+      - uploads_data:/app/uploads:ro
+      - essentia_models:/app/models
+    networks:
+      - yay-tsa-network
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python3',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
   # Audio Separator (Karaoke - vocal removal)
   # Build: KARAOKE_VARIANT=cpu (default, native ARM) or KARAOKE_VARIANT=gpu (x86_64 with CUDA)
@@ -243,3 +277,5 @@ volumes:
     name: yay-tsa-karaoke-stems
   uploads_data:
     name: yay-tsa-uploads
+  essentia_models:
+    name: yay-tsa-essentia-models

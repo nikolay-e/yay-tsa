@@ -169,6 +169,10 @@ yaytsa:
       model: ${KARAOKE_MODEL:htdemucs}
       stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
 
+    # Smart Radio — Essentia audio analysis
+    radio:
+      analyzer-url: ${ESSENTIA_ANALYZER_URL:http://essentia-analyzer:8001}
+
     # Lyrics fetching configuration
     lyrics:
       fetcher-url: ${LYRICS_FETCHER_URL:http://audio-separator:8000}
