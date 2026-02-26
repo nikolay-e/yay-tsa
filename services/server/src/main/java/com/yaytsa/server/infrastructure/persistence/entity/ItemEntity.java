@@ -74,13 +74,13 @@ public class ItemEntity {
       mappedBy = "item",
       cascade = CascadeType.ALL,
       orphanRemoval = true,
-      fetch = FetchType.EAGER)
+      fetch = FetchType.LAZY)
   private List<ItemGenreEntity> itemGenres = new ArrayList<>();
 
   @OneToMany(
       mappedBy = "item",
       cascade = CascadeType.ALL,
       orphanRemoval = true,
-      fetch = FetchType.EAGER)
+      fetch = FetchType.LAZY)
   private List<ImageEntity> images = new ArrayList<>();
 }
