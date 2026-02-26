@@ -176,16 +176,16 @@ public class ItemsController {
         : audioTrackRepository.findAllByIdInWithRelations(trackIds).stream()
             .collect(Collectors.toMap(at -> at.getItemId(), at -> at));
 
-    List<UUID> albumIds = items.stream()
+    List<UUID> albumItemIds = items.stream()
         .filter(i -> i.getType() == ItemType.MusicAlbum).map(ItemEntity::getId).toList();
-    Map<UUID, AlbumEntity> albumMap = albumIds.isEmpty()
+    Map<UUID, AlbumEntity> albumMap = albumItemIds.isEmpty()
         ? Collections.emptyMap()
-        : albumRepository.findAllByIdInWithArtist(albumIds).stream()
+        : albumRepository.findAllByIdInWithArtist(albumItemIds).stream()
             .collect(Collectors.toMap(a -> a.getItemId(), a -> a));
 
-    Map<UUID, Long> trackCountByAlbum = albumIds.isEmpty()
+    Map<UUID, Long> trackCountByAlbum = albumItemIds.isEmpty()
         ? Collections.emptyMap()
-        : audioTrackRepository.countByAlbumIdIn(albumIds).stream()
+        : audioTrackRepository.countByAlbumIdIn(albumItemIds).stream()
             .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
 
     List<UUID> artistIds2 = items.stream()
