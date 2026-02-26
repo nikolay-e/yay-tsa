@@ -113,6 +113,16 @@ export function PlayerBar() {
     return () => clearInterval(interval);
   }, [sleepTimer.endTime]);
 
+  const handleVocalVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    pendingVocalCommit.current = true;
+    setLocalVocalVolume(Number(e.target.value) / 100);
+  }, []);
+
+  const commitVocalVolume = useCallback(() => {
+    pendingVocalCommit.current = false;
+    void usePlayerStore.getState().setVocalVolume(localVocalVolume);
+  }, [localVocalVolume]);
+
   if (!currentTrack) {
     return null;
   }
@@ -127,16 +137,6 @@ export function PlayerBar() {
 
   const artistName = currentTrack.Artists?.[0] ?? 'Unknown Artist';
   const artistId = currentTrack.ArtistItems?.[0]?.Id;
-
-  const handleVocalVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    pendingVocalCommit.current = true;
-    setLocalVocalVolume(Number(e.target.value) / 100);
-  }, []);
-
-  const commitVocalVolume = useCallback(() => {
-    pendingVocalCommit.current = false;
-    void usePlayerStore.getState().setVocalVolume(localVocalVolume);
-  }, [localVocalVolume]);
 
   return (
     <div

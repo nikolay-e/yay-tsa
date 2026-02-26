@@ -231,8 +231,8 @@ def health_check():
     responses={403: {"description": "Path traversal attempt"}},
 )
 def separate_audio(request: SeparationRequest):
-    input_path = Path(request.inputPath).resolve()
-    track_id = request.trackId
+    input_path = Path(_sanitize(request.inputPath)).resolve()
+    track_id = _sanitize(request.trackId)
 
     if not _is_path_allowed(input_path):
         log.error("Path not in allowed roots: %s", input_path)
@@ -1015,7 +1015,7 @@ def _select_best_candidate(
     responses={403: {"description": "Path traversal attempt"}},
 )
 def fetch_lyrics(request: LyricsRequest):
-    output_path = Path(request.outputPath).resolve()
+    output_path = Path(_sanitize(request.outputPath)).resolve()
 
     if not _is_path_allowed(output_path):
         log.error("Path not in allowed roots: %s", output_path)
@@ -1041,9 +1041,9 @@ def fetch_lyrics(request: LyricsRequest):
         log.info("Negative cache hit for: %s - %s", request.artist, request.title)
         return LyricsResponse(success=False, source="negative-cache")
 
-    artist = request.artist
-    title = request.title
-    album = request.album
+    artist = _sanitize(request.artist)
+    title = _sanitize(request.title)
+    album = _sanitize(request.album) if request.album else None
     duration_seconds = request.durationMs / 1000.0 if request.durationMs else None
 
     log.info(

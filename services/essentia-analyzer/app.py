@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from pathlib import Path
 from typing import Optional
@@ -11,6 +12,32 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 app = FastAPI(title="Essentia Audio Analyzer")
+
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def _sanitize(value) -> str:
+    return _CONTROL_CHAR_RE.sub("", str(value))
+
+
+_raw_media_paths = os.getenv("MEDIA_PATHS", os.getenv("MEDIA_PATH", "/media"))
+ALLOWED_MEDIA_ROOTS: list[Path] = [
+    Path(p.strip()).resolve()
+    for p in _raw_media_paths.split(",")
+    if p.strip()
+]
+
+
+def _is_path_allowed(path: Path) -> bool:
+    """Return True if path is inside one of the allowed media roots."""
+    for root in ALLOWED_MEDIA_ROOTS:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
 
 MODELS_DIR = Path(os.environ.get("MODELS_DIR", "/app/models"))
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -151,9 +178,14 @@ async def startup_event() -> None:
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
-    audio_path = Path(request.audioPath)
+    audio_path = Path(_sanitize(request.audioPath)).resolve()
+
+    if not _is_path_allowed(audio_path):
+        log.error("Path not in allowed roots: %s", audio_path)
+        raise HTTPException(status_code=403, detail="Invalid audio path")
+
     if not audio_path.exists():
-        raise HTTPException(status_code=404, detail=f"Audio file not found: {audio_path}")
+        raise HTTPException(status_code=404, detail="Audio file not found")
 
     try:
         _load_models()
@@ -202,7 +234,7 @@ def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     except HTTPException:
         raise
     except Exception as e:
-        log.error("Analysis failed for %s: %s", audio_path, e)
+        log.error("Analysis failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
 
 
