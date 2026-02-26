@@ -3,6 +3,8 @@ package com.yaytsa.server.controller;
 import com.yaytsa.server.domain.service.AppSettingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -91,6 +93,10 @@ public class AppSettingsController {
           return ResponseEntity.badRequest()
               .body(Map.of("error", "Value too long for key: " + key));
         }
+        if (!isValidServiceUrl(value)) {
+          return ResponseEntity.badRequest()
+              .body(Map.of("error", "Invalid URL for key: " + key + " (must be http or https)"));
+        }
         settingsService.set(key, value);
       }
     }
@@ -98,6 +104,16 @@ public class AppSettingsController {
   }
 
   private static final int MAX_SETTING_VALUE_LENGTH = 500;
+
+  private static boolean isValidServiceUrl(String value) {
+    try {
+      URI uri = new URI(value);
+      String scheme = uri.getScheme();
+      return ("http".equals(scheme) || "https".equals(scheme)) && uri.getHost() != null;
+    } catch (URISyntaxException e) {
+      return false;
+    }
+  }
 
   private String mask(String value) {
     if (value == null || value.isBlank()) return "";
