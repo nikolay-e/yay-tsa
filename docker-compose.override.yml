@@ -1,6 +1,0 @@
-# Local overrides — git-ignored, never commit this file.
-# Add API keys and secrets here; they override docker-compose.yml automatically.
-services:
-  backend:
-    environment:
-      GENIUS_ACCESS_TOKEN: "D3vUlS1ZqTULcK-Nvb8WJvlXNIvzIrI6j8km9Q2plz4xOTGf9XcG6M-NLJX7UilR"
