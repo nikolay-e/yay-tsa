@@ -12,6 +12,7 @@ import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.mapper.ItemMapper;
+import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -117,7 +118,7 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -125,15 +126,15 @@ public class ItemsController {
       return ResponseEntity.status(403).build();
     }
 
-    UUID parentUuid = parentId != null ? parseUuid(parentId) : null;
+    UUID parentUuid = parentId != null ? UuidUtils.parseUuid(parentId) : null;
     if (parentId != null && parentUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
     List<String> itemTypes = parseCommaSeparatedList(includeItemTypes);
-    List<UUID> artistUuids = parseUuidList(artistIds);
-    List<UUID> albumUuids = parseUuidList(albumIds);
-    List<UUID> genreUuids = parseUuidList(genreIds);
+    List<UUID> artistUuids = UuidUtils.parseUuidList(artistIds);
+    List<UUID> albumUuids = UuidUtils.parseUuidList(albumIds);
+    List<UUID> genreUuids = UuidUtils.parseUuidList(genreIds);
 
     if (artistUuids == null || albumUuids == null || genreUuids == null) {
       return ResponseEntity.badRequest().build();
@@ -228,12 +229,12 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -268,12 +269,12 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID albumUuid = parseUuid(albumId);
+    UUID albumUuid = UuidUtils.parseUuid(albumId);
     if (albumUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -318,12 +319,12 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -351,12 +352,12 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -391,7 +392,7 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -423,32 +424,6 @@ public class ItemsController {
         .map(String::trim)
         .filter(s -> !s.isEmpty())
         .collect(Collectors.toList());
-  }
-
-  private List<UUID> parseUuidList(String value) {
-    if (value == null || value.isBlank()) {
-      return Collections.emptyList();
-    }
-    try {
-      return Arrays.stream(value.split(","))
-          .map(String::trim)
-          .filter(s -> !s.isEmpty())
-          .map(UUID::fromString)
-          .collect(Collectors.toList());
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
-
-  private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
   }
 
   private boolean isOwnerOrAdmin(UUID resourceOwnerId, AuthenticatedUser user) {

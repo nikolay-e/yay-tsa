@@ -9,6 +9,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntryEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.mapper.ItemMapper;
+import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -59,10 +60,8 @@ public class PlaylistsController {
 
     int totalCount = 0;
     if (userId != null) {
-      UUID requestedUserId;
-      try {
-        requestedUserId = UUID.fromString(userId);
-      } catch (IllegalArgumentException e) {
+      UUID requestedUserId = UuidUtils.parseUuid(userId);
+      if (requestedUserId == null) {
         return ResponseEntity.badRequest().build();
       }
       UUID currentUserId = authenticatedUser.getUserEntity().getId();
@@ -113,10 +112,8 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID requestedUserId;
-    try {
-      requestedUserId = UUID.fromString(request.userId());
-    } catch (IllegalArgumentException e) {
+    UUID requestedUserId = UuidUtils.parseUuid(request.userId());
+    if (requestedUserId == null) {
       return ResponseEntity.badRequest().build();
     }
 
@@ -153,7 +150,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -189,7 +186,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -228,7 +225,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -267,7 +264,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -337,7 +334,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -351,15 +348,8 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    List<UUID> itemIds;
-    try {
-      itemIds =
-          Arrays.stream(ids.split(","))
-              .map(String::trim)
-              .filter(s -> !s.isEmpty())
-              .map(UUID::fromString)
-              .collect(Collectors.toList());
-    } catch (IllegalArgumentException e) {
+    List<UUID> itemIds = UuidUtils.parseUuidList(ids);
+    if (itemIds == null) {
       return ResponseEntity.badRequest().build();
     }
 
@@ -383,7 +373,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -397,15 +387,8 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    List<UUID> entryIdsList;
-    try {
-      entryIdsList =
-          Arrays.stream(entryIds.split(","))
-              .map(String::trim)
-              .filter(s -> !s.isEmpty())
-              .map(UUID::fromString)
-              .collect(Collectors.toList());
-    } catch (IllegalArgumentException e) {
+    List<UUID> entryIdsList = UuidUtils.parseUuidList(entryIds);
+    if (entryIdsList == null) {
       return ResponseEntity.badRequest().build();
     }
 
@@ -426,12 +409,12 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID entryId = parseUuid(itemId);
+    UUID entryId = UuidUtils.parseUuid(itemId);
     if (entryId == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -459,14 +442,4 @@ public class PlaylistsController {
     return playlist.getUserId().equals(currentUserId) || isAdmin;
   }
 
-  private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
 }

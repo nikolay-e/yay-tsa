@@ -13,6 +13,7 @@ import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.mapper.ItemMapper;
 import com.yaytsa.server.mapper.UserMapper;
+import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -75,7 +76,7 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -140,12 +141,12 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID parentUuid = parentId != null ? parseUuid(parentId) : null;
+    UUID parentUuid = parentId != null ? UuidUtils.parseUuid(parentId) : null;
     if (parentId != null && parentUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -202,12 +203,12 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -257,7 +258,7 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -309,7 +310,7 @@ public class UsersController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -404,14 +405,4 @@ public class UsersController {
         .toList();
   }
 
-  private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
 }
