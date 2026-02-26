@@ -164,10 +164,10 @@ public class ItemsController {
     // Batch-load all secondary data to avoid N+1 queries
     List<UUID> itemIds = items.stream().map(ItemEntity::getId).toList();
 
-    Map<UUID, PlayStateEntity> playStateMap = Collections.emptyMap();
-    if (userUuid != null && enableUserData && !itemIds.isEmpty()) {
-      playStateMap = playStateService.getPlayStatesForItems(userUuid, itemIds);
-    }
+    Map<UUID, PlayStateEntity> playStateMap =
+        (userUuid != null && enableUserData && !itemIds.isEmpty())
+            ? playStateService.getPlayStatesForItems(userUuid, itemIds)
+            : Collections.emptyMap();
 
     List<UUID> trackIds = items.stream()
         .filter(i -> i.getType() == ItemType.AudioTrack).map(ItemEntity::getId).toList();
