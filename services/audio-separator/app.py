@@ -1037,13 +1037,13 @@ def fetch_lyrics(request: LyricsRequest):
                 lyrics=content,
             )
 
-    if not request.force and _is_negative_cache_valid(output_path):
-        log.info("Negative cache hit for: %s - %s", request.artist, request.title)
-        return LyricsResponse(success=False, source="negative-cache")
-
     artist = _sanitize(request.artist)
     title = _sanitize(request.title)
     album = _sanitize(request.album) if request.album else None
+
+    if not request.force and _is_negative_cache_valid(output_path):
+        log.info("Negative cache hit for: %s - %s", artist, title)
+        return LyricsResponse(success=False, source="negative-cache")
     duration_seconds = request.durationMs / 1000.0 if request.durationMs else None
 
     log.info(
@@ -1099,4 +1099,5 @@ def fetch_lyrics(request: LyricsRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    _host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run(app, host=_host, port=int(os.getenv("PORT", "8000")))
