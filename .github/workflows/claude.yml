@@ -1,18 +1,16 @@
-name: Claude
+name: Code Review
 
 on:
   pull_request:
     branches: [main]
 
 permissions:
-  id-token: write # Required for OIDC authentication
-  contents: read # Required to read repository contents
-  pull-requests: write # Required to comment on PRs
+  contents: read
+  pull-requests: write
 
 jobs:
-  claude:
-    name: Claude
-    runs-on: ubuntu-latest
-    steps:
-      - name: Claude Code Action Official
-        uses: anthropics/claude-code-action@v1
+  review:
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    uses: nikolay-e/treemapper-claude-code-review-action/.github/workflows/claude-code-review.yml@main
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
