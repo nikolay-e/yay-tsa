@@ -4,9 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
-import com.yaytsa.server.infrastructure.persistence.entity.AdaptiveQueueEntity;
-import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
-import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
@@ -28,7 +25,7 @@ public class SignalProcessingService {
   private static final Logger log = LoggerFactory.getLogger(SignalProcessingService.class);
   private static final int QUEUE_LOW_THRESHOLD = 3;
   private static final int SKIP_PATTERN_COUNT = 2;
-  private static final int SKIP_PATTERN_WINDOW_SIGNALS = 10;
+  private static final int SKIP_PATTERN_WINDOW = 10;
 
   private final PlaybackSignalRepository signalRepository;
   private final ListeningSessionRepository sessionRepository;
@@ -60,88 +57,65 @@ public class SignalProcessingService {
       UUID trackId,
       UUID queueEntryId,
       Map<String, Object> context) {
-
-    ListeningSessionEntity session =
+    var session =
         sessionRepository
             .findById(sessionId)
             .orElseThrow(
                 () -> new ResourceNotFoundException(ResourceType.ListeningSession, sessionId));
-
-    ItemEntity item =
+    var item =
         itemRepository
             .findById(trackId)
             .orElseThrow(() -> new ResourceNotFoundException(ResourceType.Item, trackId));
 
-    AdaptiveQueueEntity queueEntry = null;
-    if (queueEntryId != null) {
-      queueEntry = queueRepository.findById(queueEntryId).orElse(null);
-    }
-
-    PlaybackSignalEntity signal = new PlaybackSignalEntity();
+    var signal = new PlaybackSignalEntity();
     signal.setSession(session);
     signal.setItem(item);
-    signal.setQueueEntry(queueEntry);
+    signal.setQueueEntry(
+        queueEntryId != null ? queueRepository.findById(queueEntryId).orElse(null) : null);
     signal.setSignalType(signalType);
     signal.setContext(serializeJson(context));
     signal = signalRepository.save(signal);
 
-    boolean triggerFired = checkTriggerConditions(sessionId);
-
-    if (triggerFired) {
-      log.info("Trigger conditions met for session {}, signal type: {}", sessionId, signalType);
-      String triggerType = isQueueLow(sessionId) ? "QUEUE_LOW" : "SKIP_SIGNAL";
-      adaptiveQueueService.triggerDjDecision(session, triggerType, signal);
-    }
-
-    return new SignalResult(signal, triggerFired);
-  }
-
-  private boolean checkTriggerConditions(UUID sessionId) {
     boolean queueLow = isQueueLow(sessionId);
     boolean skipPattern = hasSkipPattern(sessionId);
-
-    if (queueLow) {
-      log.info(
-          "Queue low trigger: session {} has {} or fewer remaining items",
-          sessionId,
-          QUEUE_LOW_THRESHOLD);
+    if (queueLow || skipPattern) {
+      if (queueLow)
+        log.info(
+            "Queue low trigger: session {} has {} or fewer remaining items",
+            sessionId,
+            QUEUE_LOW_THRESHOLD);
+      if (skipPattern)
+        log.info(
+            "Skip pattern trigger: session {} has {}+ skips in recent signals",
+            sessionId,
+            SKIP_PATTERN_COUNT);
+      adaptiveQueueService.triggerDjDecision(
+          session, queueLow ? "QUEUE_LOW" : "SKIP_SIGNAL", signal);
     }
-    if (skipPattern) {
-      log.info(
-          "Skip pattern trigger: session {} has {}+ skips in recent signals",
-          sessionId,
-          SKIP_PATTERN_COUNT);
-    }
-
-    return queueLow || skipPattern;
+    return new SignalResult(signal, queueLow || skipPattern);
   }
 
   private boolean isQueueLow(UUID sessionId) {
-    List<AdaptiveQueueEntity> remaining =
-        queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(sessionId, List.of("QUEUED"));
-    return remaining.size() <= QUEUE_LOW_THRESHOLD;
+    return queueRepository
+            .findBySessionIdAndStatusInOrderByPositionAsc(sessionId, List.of("QUEUED"))
+            .size()
+        <= QUEUE_LOW_THRESHOLD;
   }
 
   private boolean hasSkipPattern(UUID sessionId) {
-    List<PlaybackSignalEntity> recentSignals =
-        signalRepository.findBySessionIdOrderByCreatedAtDesc(
-            sessionId, PageRequest.of(0, SKIP_PATTERN_WINDOW_SIGNALS));
-
-    long skipCount =
-        recentSignals.stream()
+    return signalRepository
+            .findBySessionIdOrderByCreatedAtDesc(sessionId, PageRequest.of(0, SKIP_PATTERN_WINDOW))
+            .stream()
             .filter(
                 s ->
                     "SKIP_EARLY".equals(s.getSignalType())
                         || "SKIP_IMMEDIATE".equals(s.getSignalType()))
-            .count();
-
-    return skipCount >= SKIP_PATTERN_COUNT;
+            .count()
+        >= SKIP_PATTERN_COUNT;
   }
 
   private String serializeJson(Object value) {
-    if (value == null) {
-      return "{}";
-    }
+    if (value == null) return "{}";
     try {
       return objectMapper.writeValueAsString(value);
     } catch (JsonProcessingException e) {

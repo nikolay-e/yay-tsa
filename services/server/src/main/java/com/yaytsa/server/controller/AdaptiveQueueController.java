@@ -37,56 +37,38 @@ public class AdaptiveQueueController {
 
   @GetMapping
   public ResponseEntity<AdaptiveQueueResponse> getQueue(
-      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(sessionId, authenticatedUser);
-
-    List<AdaptiveQueueManager.QueueTrackDto> tracks = queueManager.getQueue(sessionId);
-
-    return ResponseEntity.ok(toResponse(sessionId, tracks));
+      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(sessionId, user);
+    return ResponseEntity.ok(toResponse(sessionId, queueManager.getQueue(sessionId)));
   }
 
   @PostMapping("/refresh")
   public ResponseEntity<AdaptiveQueueResponse> refreshQueue(
-      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(sessionId, authenticatedUser);
-
+      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(sessionId, user);
     queueService.refreshQueue(sessionId);
-
-    List<AdaptiveQueueManager.QueueTrackDto> tracks = queueManager.getQueue(sessionId);
-    AdaptiveQueueResponse response = toResponse(sessionId, tracks);
-
+    var response = toResponse(sessionId, queueManager.getQueue(sessionId));
     sseService.broadcast(sessionId, "queue_updated", response);
-
     return ResponseEntity.ok(response);
   }
 
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamQueueUpdates(
-      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(sessionId, authenticatedUser);
-
+      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(sessionId, user);
     return sseService.createEmitter(sessionId);
   }
 
   private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
     UUID ownerId = sessionService.getSessionOwnerId(sessionId);
-    UUID currentUserId = user.getUserEntity().getId();
-    boolean isAdmin = user.getUserEntity().isAdmin();
-
-    if (!isAdmin && !ownerId.equals(currentUserId)) {
+    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId()))
       throw new org.springframework.security.access.AccessDeniedException("Access denied");
-    }
   }
 
   private AdaptiveQueueResponse toResponse(
       UUID sessionId, List<AdaptiveQueueManager.QueueTrackDto> tracks) {
-    List<AdaptiveQueueEntryResponse> entryResponses =
-        tracks.stream().map(this::toEntryResponse).toList();
-
-    return new AdaptiveQueueResponse(sessionId.toString(), entryResponses, entryResponses.size());
+    var entries = tracks.stream().map(this::toEntryResponse).toList();
+    return new AdaptiveQueueResponse(sessionId.toString(), entries, entries.size());
   }
 
   private AdaptiveQueueEntryResponse toEntryResponse(AdaptiveQueueManager.QueueTrackDto track) {
@@ -100,7 +82,6 @@ public class AdaptiveQueueController {
               track.features().arousal(),
               track.features().danceability());
     }
-
     return new AdaptiveQueueEntryResponse(
         track.trackId().toString(),
         track.trackId().toString(),

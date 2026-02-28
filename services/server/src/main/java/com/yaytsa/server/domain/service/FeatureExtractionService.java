@@ -54,45 +54,24 @@ public class FeatureExtractionService {
   }
 
   public void enqueueExtraction(UUID trackId) {
-    if (featuresRepository.findByTrackId(trackId).isPresent()) {
-      return;
-    }
-
-    if (jobRepository.findByItemId(trackId).isPresent()) {
-      return;
-    }
-
+    if (featuresRepository.findByTrackId(trackId).isPresent()) return;
+    if (jobRepository.findByItemId(trackId).isPresent()) return;
     var item = itemRepository.findById(trackId).orElse(null);
-    if (item == null) {
-      return;
-    }
-
-    var job = new FeatureExtractionJobEntity();
-    job.setItem(item);
-    job.setStatus("PENDING");
-    jobRepository.save(job);
-
+    if (item == null) return;
+    createJob(item);
     log.debug("Enqueued feature extraction for track {}", trackId);
   }
 
   public void enqueueAllUnextracted() {
-    var tracksWithoutFeatures =
-        itemRepository.findAudioTracksWithoutFeatures(PageRequest.of(0, 10000));
-
+    var tracks = itemRepository.findAudioTracksWithoutFeatures(PageRequest.of(0, 10000));
     int enqueued = 0;
-    for (var item : tracksWithoutFeatures) {
+    for (var item : tracks) {
       if (jobRepository.findByItemId(item.getId()).isEmpty()) {
-        var job = new FeatureExtractionJobEntity();
-        job.setItem(item);
-        job.setStatus("PENDING");
-        jobRepository.save(job);
+        createJob(item);
         enqueued++;
       }
     }
-
-    if (enqueued > 0) {
-      log.info("Enqueued {} tracks for feature extraction", enqueued);
-    }
+    if (enqueued > 0) log.info("Enqueued {} tracks for feature extraction", enqueued);
   }
 
   public void processPendingJobs(int batchSize) {
@@ -100,19 +79,26 @@ public class FeatureExtractionService {
       log.debug("Feature extractor not available, skipping job processing");
       return;
     }
-
-    var pendingJobs =
+    var jobs =
         jobRepository.findByStatusOrderByCreatedAtAsc("PENDING", PageRequest.of(0, batchSize));
+    if (jobs.isEmpty()) return;
+    log.info("Processing {} pending feature extraction jobs", jobs.size());
+    for (var job : jobs) taskExecutor.execute(() -> processJob(job));
+  }
 
-    if (pendingJobs.isEmpty()) {
-      return;
-    }
+  public long getPendingCount() {
+    return jobRepository.countByStatus("PENDING");
+  }
 
-    log.info("Processing {} pending feature extraction jobs", pendingJobs.size());
+  public long getProcessingCount() {
+    return jobRepository.countByStatus("PROCESSING");
+  }
 
-    for (var job : pendingJobs) {
-      taskExecutor.execute(() -> processJob(job));
-    }
+  private void createJob(ItemEntity item) {
+    var job = new FeatureExtractionJobEntity();
+    job.setItem(item);
+    job.setStatus("PENDING");
+    jobRepository.save(job);
   }
 
   private void processJob(FeatureExtractionJobEntity job) {
@@ -122,34 +108,23 @@ public class FeatureExtractionService {
       Thread.currentThread().interrupt();
       return;
     }
-
     try {
       job.setStatus("PROCESSING");
       job.setAttempts(job.getAttempts() + 1);
       jobRepository.save(job);
-
       ItemEntity item = job.getItem();
-      String filePath = item.getPath();
-
-      ExtractionResult result = extractionClient.extract(item.getId(), filePath);
+      ExtractionResult result = extractionClient.extract(item.getId(), item.getPath());
       transactionTemplate.executeWithoutResult(status -> saveFeatures(item, result));
-
       job.setStatus("DONE");
       jobRepository.save(job);
-
       log.info(
           "Feature extraction completed for track {} in {}ms",
           item.getId(),
           result.processingTimeMs());
-
     } catch (Exception e) {
       log.error("Feature extraction failed for job {}: {}", job.getId(), e.getMessage());
       job.setErrorMessage(e.getMessage());
-      if (job.getAttempts() >= MAX_ATTEMPTS) {
-        job.setStatus("FAILED");
-      } else {
-        job.setStatus("PENDING");
-      }
+      job.setStatus(job.getAttempts() >= MAX_ATTEMPTS ? "FAILED" : "PENDING");
       jobRepository.save(job);
     } finally {
       extractionSemaphore.release();
@@ -158,9 +133,7 @@ public class FeatureExtractionService {
 
   private void saveFeatures(ItemEntity item, ExtractionResult result) {
     var entity = featuresRepository.findByTrackId(item.getId()).orElseGet(TrackFeaturesEntity::new);
-
     entity.setItem(item);
-
     Map<String, Object> f = result.features();
     entity.setBpm(floatVal(f, "bpm"));
     entity.setBpmConfidence(floatVal(f, "bpm_confidence"));
@@ -177,47 +150,26 @@ public class FeatureExtractionService {
     entity.setSpectralComplexity(floatVal(f, "spectral_complexity"));
     entity.setDissonance(floatVal(f, "dissonance"));
     entity.setOnsetRate(floatVal(f, "onset_rate"));
-
-    if (result.embeddingDiscogs() != null) {
+    if (result.embeddingDiscogs() != null)
       entity.setEmbeddingDiscogs(toFloatArray(result.embeddingDiscogs()));
-    }
-    if (result.embeddingMusicnn() != null) {
+    if (result.embeddingMusicnn() != null)
       entity.setEmbeddingMusicnn(toFloatArray(result.embeddingMusicnn()));
-    }
-
     entity.setExtractedAt(OffsetDateTime.now());
     entity.setExtractorVersion("1.0");
-
     featuresRepository.save(entity);
   }
 
-  public long getPendingCount() {
-    return jobRepository.countByStatus("PENDING");
-  }
-
-  public long getProcessingCount() {
-    return jobRepository.countByStatus("PROCESSING");
-  }
-
   private static Float floatVal(Map<String, Object> map, String key) {
-    Object val = map.get(key);
-    if (val instanceof Number n) {
-      return n.floatValue();
-    }
-    return null;
+    return map.get(key) instanceof Number n ? n.floatValue() : null;
   }
 
   private static String stringVal(Map<String, Object> map, String key) {
-    Object val = map.get(key);
-    return val != null ? val.toString() : null;
+    return map.get(key) != null ? map.get(key).toString() : null;
   }
 
   private static float[] toFloatArray(List<Float> list) {
     float[] arr = new float[list.size()];
-    for (int i = 0; i < list.size(); i++) {
-      Float v = list.get(i);
-      arr[i] = v != null ? v : 0f;
-    }
+    for (int i = 0; i < list.size(); i++) arr[i] = list.get(i) != null ? list.get(i) : 0f;
     return arr;
   }
 }

@@ -36,79 +36,53 @@ public class UserPreferencesController {
 
   @GetMapping("/preferences")
   public ResponseEntity<UserPreferencesResponse> getPreferences(
-      @PathVariable UUID userId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyAccess(userId, authenticatedUser);
-
-    UserPreferenceContractEntity entity = preferencesService.getPreferences(userId);
-
-    return ResponseEntity.ok(toPreferencesResponse(entity));
+      @PathVariable UUID userId, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyAccess(userId, user);
+    return ResponseEntity.ok(toPreferencesResponse(preferencesService.getPreferences(userId)));
   }
 
   @PutMapping("/preferences")
   public ResponseEntity<UserPreferencesResponse> updatePreferences(
       @PathVariable UUID userId,
       @RequestBody UpdateUserPreferencesRequest request,
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyAccess(userId, authenticatedUser);
-
-    UserPreferenceContractEntity entity =
+      @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyAccess(userId, user);
+    var entity =
         preferencesService.updatePreferences(
             userId,
             request.hardRules(),
             request.softPrefs(),
             request.djStyle(),
             request.redLines());
-
     return ResponseEntity.ok(toPreferencesResponse(entity));
   }
 
   @GetMapping("/taste-profile")
   public ResponseEntity<TasteProfileResponse> getTasteProfile(
-      @PathVariable UUID userId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyAccess(userId, authenticatedUser);
-
+      @PathVariable UUID userId, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyAccess(userId, user);
     TasteProfileEntity entity = tasteProfileService.getProfile(userId);
-    if (entity == null) {
-      throw new ResourceNotFoundException(ResourceType.TasteProfile, userId);
-    }
-
-    return ResponseEntity.ok(toTasteProfileResponse(entity));
+    if (entity == null) throw new ResourceNotFoundException(ResourceType.TasteProfile, userId);
+    return ResponseEntity.ok(
+        new TasteProfileResponse(
+            entity.getUserId().toString(), parseJson(entity.getProfile()),
+            entity.getSummaryText(), entity.getRebuiltAt()));
   }
 
   private void verifyAccess(UUID userId, AuthenticatedUser user) {
-    UUID currentUserId = user.getUserEntity().getId();
-    boolean isAdmin = user.getUserEntity().isAdmin();
-
-    if (!isAdmin && !userId.equals(currentUserId)) {
+    if (!user.getUserEntity().isAdmin() && !userId.equals(user.getUserEntity().getId()))
       throw new org.springframework.security.access.AccessDeniedException("Access denied");
-    }
   }
 
   private UserPreferencesResponse toPreferencesResponse(UserPreferenceContractEntity entity) {
     return new UserPreferencesResponse(
-        entity.getUserId().toString(),
-        parseJson(entity.getHardRules()),
-        parseJson(entity.getSoftPrefs()),
-        parseJson(entity.getDjStyle()),
-        parseJson(entity.getRedLines()),
-        entity.getUpdatedAt());
-  }
-
-  private TasteProfileResponse toTasteProfileResponse(TasteProfileEntity entity) {
-    return new TasteProfileResponse(
-        entity.getUserId().toString(),
-        parseJson(entity.getProfile()),
-        entity.getSummaryText(),
-        entity.getRebuiltAt());
+        entity.getUserId().toString(), parseJson(entity.getHardRules()),
+        parseJson(entity.getSoftPrefs()), parseJson(entity.getDjStyle()),
+        parseJson(entity.getRedLines()), entity.getUpdatedAt());
   }
 
   private Object parseJson(String json) {
-    if (json == null) {
-      return null;
-    }
+    if (json == null) return null;
     try {
       return objectMapper.readValue(json, Object.class);
     } catch (JsonProcessingException e) {

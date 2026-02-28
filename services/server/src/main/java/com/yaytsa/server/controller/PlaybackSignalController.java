@@ -35,41 +35,27 @@ public class PlaybackSignalController {
   public ResponseEntity<PlaybackSignalResponse> submitSignal(
       @PathVariable UUID sessionId,
       @RequestBody SubmitPlaybackSignalRequest request,
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(sessionId, authenticatedUser);
-
-    if (request.signalType() == null || request.signalType().isBlank()) {
+      @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(sessionId, user);
+    if (request.signalType() == null || request.signalType().isBlank())
       return ResponseEntity.badRequest().build();
-    }
-
     UUID trackId = parseUuid(request.trackId());
-    if (trackId == null) {
-      return ResponseEntity.badRequest().build();
-    }
-
+    if (trackId == null) return ResponseEntity.badRequest().build();
     UUID queueEntryId = request.queueEntryId() != null ? parseUuid(request.queueEntryId()) : null;
-
-    SignalProcessingService.SignalResult result =
+    var result =
         signalService.processSignal(
             sessionId, request.signalType(), trackId, queueEntryId, request.context());
-
     return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result));
   }
 
   private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
     UUID ownerId = sessionService.getSessionOwnerId(sessionId);
-    UUID currentUserId = user.getUserEntity().getId();
-    boolean isAdmin = user.getUserEntity().isAdmin();
-
-    if (!isAdmin && !ownerId.equals(currentUserId)) {
+    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId()))
       throw new org.springframework.security.access.AccessDeniedException("Access denied");
-    }
   }
 
   private PlaybackSignalResponse toResponse(SignalProcessingService.SignalResult result) {
     PlaybackSignalEntity signal = result.signal();
-
     Object parsedContext;
     try {
       parsedContext =
@@ -79,7 +65,6 @@ public class PlaybackSignalController {
     } catch (JsonProcessingException e) {
       parsedContext = signal.getContext();
     }
-
     return new PlaybackSignalResponse(
         signal.getId().toString(),
         signal.getSession().getId().toString(),
@@ -92,9 +77,7 @@ public class PlaybackSignalController {
   }
 
   private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
+    if (value == null) return null;
     try {
       return UUID.fromString(value);
     } catch (IllegalArgumentException e) {

@@ -4,11 +4,10 @@ import com.yaytsa.server.infrastructure.persistence.entity.TrackFeaturesEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayHistoryRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -58,7 +57,7 @@ public class CandidateRetrievalService {
       int limit) {}
 
   public List<TrackCandidate> searchLibrary(LibrarySearchFilters filters) {
-    List<Object[]> rows =
+    var rows =
         trackFeaturesRepository.searchLibrary(
             filters.energyMin(),
             filters.energyMax(),
@@ -70,52 +69,43 @@ public class CandidateRetrievalService {
             filters.arousalMax(),
             filters.vocalMax(),
             filters.limit());
-
-    List<TrackCandidate> candidates = rows.stream().map(this::mapLibraryRow).toList();
-
-    if (filters.excludeArtists() != null && !filters.excludeArtists().isEmpty()) {
+    var candidates = rows.stream().map(this::mapLibraryRow).toList();
+    if (filters.excludeArtists() != null && !filters.excludeArtists().isEmpty())
       return candidates.stream()
           .filter(c -> c.artistName() == null || !filters.excludeArtists().contains(c.artistName()))
           .toList();
-    }
-
     return candidates;
   }
 
   public List<TrackCandidate> findSimilarTracks(UUID referenceTrackId, int limit) {
     TrackFeaturesEntity features =
         trackFeaturesRepository.findByTrackId(referenceTrackId).orElse(null);
-
     if (features == null || features.getEmbeddingDiscogs() == null) {
       log.debug("No embedding found for track {}, falling back to empty results", referenceTrackId);
       return Collections.emptyList();
     }
-
-    String embeddingString = formatEmbedding(features.getEmbeddingDiscogs());
-
-    List<Object[]> rows =
-        trackFeaturesRepository.findSimilarTracks(referenceTrackId, embeddingString, limit);
-
+    var rows =
+        trackFeaturesRepository.findSimilarTracks(
+            referenceTrackId, formatEmbedding(features.getEmbeddingDiscogs()), limit);
     return rows.stream().map(this::mapSimilarityRow).toList();
   }
 
   public List<UUID> getRecentlyOverplayed(UUID userId, int hours) {
-    OffsetDateTime since = OffsetDateTime.now().minusHours(hours);
-    return playHistoryRepository.findOverplayedTrackIds(userId, since);
+    return playHistoryRepository.findOverplayedTrackIds(
+        userId, OffsetDateTime.now().minusHours(hours));
   }
 
   public List<TrackCandidate> getTrackDetails(List<UUID> trackIds) {
-    if (trackIds == null || trackIds.isEmpty()) {
-      return Collections.emptyList();
-    }
-
-    List<Object[]> rows = trackFeaturesRepository.findTrackDetailsById(trackIds);
-    return rows.stream().map(this::mapLibraryRow).toList();
+    if (trackIds == null || trackIds.isEmpty()) return Collections.emptyList();
+    return trackFeaturesRepository.findTrackDetailsById(trackIds).stream()
+        .map(this::mapLibraryRow)
+        .toList();
   }
 
   public List<TrackCandidate> getArtistTracks(String artistName) {
-    List<Object[]> rows = trackFeaturesRepository.findByArtistName(artistName);
-    return rows.stream().map(this::mapLibraryRow).toList();
+    return trackFeaturesRepository.findByArtistName(artistName).stream()
+        .map(this::mapLibraryRow)
+        .toList();
   }
 
   private TrackCandidate mapLibraryRow(Object[] row) {
@@ -151,30 +141,16 @@ public class CandidateRetrievalService {
   }
 
   private static String formatEmbedding(float[] embedding) {
-    return Arrays.stream(toBoxed(embedding))
-        .map(String::valueOf)
-        .collect(Collectors.joining(",", "[", "]"));
-  }
-
-  private static Float[] toBoxed(float[] arr) {
-    Float[] result = new Float[arr.length];
-    for (int i = 0; i < arr.length; i++) {
-      result[i] = arr[i];
-    }
-    return result;
+    return IntStream.range(0, embedding.length)
+        .mapToObj(i -> String.valueOf(embedding[i]))
+        .collect(java.util.stream.Collectors.joining(",", "[", "]"));
   }
 
   private static Float toFloat(Object val) {
-    if (val instanceof Number n) {
-      return n.floatValue();
-    }
-    return null;
+    return val instanceof Number n ? n.floatValue() : null;
   }
 
   private static Double toDouble(Object val) {
-    if (val instanceof Number n) {
-      return n.doubleValue();
-    }
-    return null;
+    return val instanceof Number n ? n.doubleValue() : null;
   }
 }

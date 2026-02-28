@@ -4,14 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.infrastructure.persistence.entity.TasteProfileEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackFeaturesEntity;
-import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.PlaybackSignalRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TasteProfileRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -47,32 +45,24 @@ public class TasteProfileService {
   @Transactional
   public void rebuildProfile(UUID userId) {
     OffsetDateTime since = OffsetDateTime.now().minusDays(LOOKBACK_DAYS);
-
-    List<Object[]> playCounts =
-        playbackSignalRepository.getPlayCountsByUser(userId, since, TOP_TRACKS_LIMIT);
-
+    var playCounts = playbackSignalRepository.getPlayCountsByUser(userId, since, TOP_TRACKS_LIMIT);
     if (playCounts.isEmpty()) {
       log.debug("No playback data for user {}, skipping taste profile rebuild", userId);
       return;
     }
-
-    List<UUID> topTrackIds =
-        playCounts.stream().map(row -> (UUID) row[0]).collect(Collectors.toList());
-
+    List<UUID> topTrackIds = playCounts.stream().map(row -> (UUID) row[0]).toList();
     Map<UUID, TrackFeaturesEntity> featuresMap = loadFeatures(topTrackIds);
-    FeatureAggregation aggregation = aggregateFeatures(playCounts, featuresMap);
-
-    List<Object[]> topArtists =
-        playbackSignalRepository.getTopArtistsByUser(userId, since, TOP_ARTISTS_LIMIT);
-
-    List<Object[]> sessionStats = playbackSignalRepository.getSessionStats(userId, since);
-    double avgSessionMin = extractAvgSessionMinutes(sessionStats);
-
-    Map<String, Object> profileData = buildProfileData(aggregation, topArtists, avgSessionMin);
-    String summaryText = generateSummary(aggregation, topArtists, avgSessionMin);
-
-    saveProfile(userId, profileData, summaryText);
-
+    var agg = aggregateFeatures(playCounts, featuresMap);
+    var topArtists = playbackSignalRepository.getTopArtistsByUser(userId, since, TOP_ARTISTS_LIMIT);
+    var sessionStats = playbackSignalRepository.getSessionStats(userId, since);
+    double avgSessionMin =
+        sessionStats.isEmpty() || sessionStats.getFirst()[1] == null
+            ? 0
+            : ((Number) sessionStats.getFirst()[1]).doubleValue();
+    saveProfile(
+        userId,
+        buildProfileData(agg, topArtists, avgSessionMin),
+        generateSummary(agg, topArtists, avgSessionMin));
     log.info(
         "Rebuilt taste profile for user {} with {} tracks, {} artists",
         userId,
@@ -87,9 +77,8 @@ public class TasteProfileService {
 
   @Transactional
   public void rebuildAllProfiles() {
-    List<UserEntity> users = userRepository.findAll();
     int rebuilt = 0;
-    for (UserEntity user : users) {
+    for (var user : userRepository.findAll()) {
       try {
         rebuildProfile(user.getId());
         rebuilt++;
@@ -97,126 +86,99 @@ public class TasteProfileService {
         log.warn("Failed to rebuild taste profile for user {}: {}", user.getId(), e.getMessage());
       }
     }
-    if (rebuilt > 0) {
-      log.info("Rebuilt taste profiles for {} users", rebuilt);
-    }
+    if (rebuilt > 0) log.info("Rebuilt taste profiles for {} users", rebuilt);
   }
 
   private Map<UUID, TrackFeaturesEntity> loadFeatures(List<UUID> trackIds) {
     Map<UUID, TrackFeaturesEntity> map = new HashMap<>();
-    for (UUID trackId : trackIds) {
-      trackFeaturesRepository.findByTrackId(trackId).ifPresent(f -> map.put(trackId, f));
-    }
+    for (UUID id : trackIds)
+      trackFeaturesRepository.findByTrackId(id).ifPresent(f -> map.put(id, f));
     return map;
   }
 
-  private FeatureAggregation aggregateFeatures(
+  private record Agg(
+      List<Float> bpm,
+      List<Float> energy,
+      List<Float> valence,
+      List<Float> danceability,
+      List<Float> arousal) {}
+
+  private Agg aggregateFeatures(
       List<Object[]> playCounts, Map<UUID, TrackFeaturesEntity> featuresMap) {
-    List<Float> bpmValues = new ArrayList<>();
-    List<Float> energyValues = new ArrayList<>();
-    List<Float> valenceValues = new ArrayList<>();
-    List<Float> danceabilityValues = new ArrayList<>();
-    List<Float> arousalValues = new ArrayList<>();
-
+    List<Float> bpm = new ArrayList<>(),
+        energy = new ArrayList<>(),
+        valence = new ArrayList<>(),
+        danceability = new ArrayList<>(),
+        arousal = new ArrayList<>();
     for (Object[] row : playCounts) {
-      UUID trackId = (UUID) row[0];
-      TrackFeaturesEntity features = featuresMap.get(trackId);
-      if (features == null) {
-        continue;
-      }
-
-      long playCount = ((Number) row[1]).longValue();
-      int weight = (int) Math.min(playCount, 10);
-
+      TrackFeaturesEntity f = featuresMap.get((UUID) row[0]);
+      if (f == null) continue;
+      int weight = (int) Math.min(((Number) row[1]).longValue(), 10);
       for (int i = 0; i < weight; i++) {
-        if (features.getBpm() != null) bpmValues.add(features.getBpm());
-        if (features.getEnergy() != null) energyValues.add(features.getEnergy());
-        if (features.getValence() != null) valenceValues.add(features.getValence());
-        if (features.getDanceability() != null) danceabilityValues.add(features.getDanceability());
-        if (features.getArousal() != null) arousalValues.add(features.getArousal());
+        if (f.getBpm() != null) bpm.add(f.getBpm());
+        if (f.getEnergy() != null) energy.add(f.getEnergy());
+        if (f.getValence() != null) valence.add(f.getValence());
+        if (f.getDanceability() != null) danceability.add(f.getDanceability());
+        if (f.getArousal() != null) arousal.add(f.getArousal());
       }
     }
-
-    return new FeatureAggregation(
-        bpmValues, energyValues, valenceValues, danceabilityValues, arousalValues);
+    return new Agg(bpm, energy, valence, danceability, arousal);
   }
 
   private Map<String, Object> buildProfileData(
-      FeatureAggregation agg, List<Object[]> topArtists, double avgSessionMin) {
+      Agg agg, List<Object[]> topArtists, double avgSessionMin) {
     Map<String, Object> profile = new LinkedHashMap<>();
-
-    profile.put("bpm", rangeMap(agg.bpmValues));
-    profile.put("energy", rangeMap(agg.energyValues));
-    profile.put("valence", rangeMap(agg.valenceValues));
-    profile.put("danceability", rangeMap(agg.danceabilityValues));
-    profile.put("arousal", rangeMap(agg.arousalValues));
-
-    List<Map<String, Object>> artists = new ArrayList<>();
-    for (Object[] row : topArtists) {
-      Map<String, Object> artist = new LinkedHashMap<>();
-      artist.put("name", row[0]);
-      artist.put("playCount", ((Number) row[1]).longValue());
-      artist.put("completions", ((Number) row[2]).longValue());
-      artists.add(artist);
-    }
-    profile.put("topArtists", artists);
+    profile.put("bpm", rangeMap(agg.bpm));
+    profile.put("energy", rangeMap(agg.energy));
+    profile.put("valence", rangeMap(agg.valence));
+    profile.put("danceability", rangeMap(agg.danceability));
+    profile.put("arousal", rangeMap(agg.arousal));
+    profile.put(
+        "topArtists",
+        topArtists.stream()
+            .map(
+                row -> {
+                  Map<String, Object> m = new LinkedHashMap<>();
+                  m.put("name", row[0]);
+                  m.put("playCount", ((Number) row[1]).longValue());
+                  m.put("completions", ((Number) row[2]).longValue());
+                  return m;
+                })
+            .toList());
     profile.put("avgSessionMinutes", Math.round(avgSessionMin));
     profile.put("lookbackDays", LOOKBACK_DAYS);
-
     return profile;
   }
 
-  private String generateSummary(
-      FeatureAggregation agg, List<Object[]> topArtists, double avgSessionMin) {
-    StringBuilder sb = new StringBuilder();
-
-    if (!agg.bpmValues.isEmpty()) {
-      float bpmP10 = percentile(agg.bpmValues, 10);
-      float bpmP90 = percentile(agg.bpmValues, 90);
-      sb.append(String.format("Prefers music in the %.0f-%.0f BPM range", bpmP10, bpmP90));
-    }
-
-    if (!agg.energyValues.isEmpty()) {
-      float energyMedian = percentile(agg.energyValues, 50);
-      sb.append(" with ").append(describeLevel(energyMedian)).append(" energy");
-    }
-
-    if (!agg.valenceValues.isEmpty()) {
-      float valenceMedian = percentile(agg.valenceValues, 50);
-      sb.append(" and ").append(describeValence(valenceMedian)).append(" mood");
-    }
-
+  private String generateSummary(Agg agg, List<Object[]> topArtists, double avgSessionMin) {
+    var sb = new StringBuilder();
+    if (!agg.bpm.isEmpty())
+      sb.append(
+          String.format(
+              "Prefers music in the %.0f-%.0f BPM range",
+              percentile(agg.bpm, 10), percentile(agg.bpm, 90)));
+    if (!agg.energy.isEmpty())
+      sb.append(" with ").append(describeLevel(percentile(agg.energy, 50))).append(" energy");
+    if (!agg.valence.isEmpty())
+      sb.append(" and ").append(describeValence(percentile(agg.valence, 50))).append(" mood");
     sb.append(".");
-
     if (!topArtists.isEmpty()) {
-      sb.append(" Top artists: ");
-      StringJoiner joiner = new StringJoiner(", ");
-      int limit = Math.min(topArtists.size(), 5);
-      for (int i = 0; i < limit; i++) {
-        joiner.add((String) topArtists.get(i)[0]);
-      }
-      sb.append(joiner).append(".");
+      var joiner = new StringJoiner(", ");
+      topArtists.stream().limit(5).forEach(row -> joiner.add((String) row[0]));
+      sb.append(" Top artists: ").append(joiner).append(".");
     }
-
-    if (avgSessionMin > 0) {
+    if (avgSessionMin > 0)
       sb.append(String.format(" Average session length: %.0fmin.", avgSessionMin));
-    }
-
     return sb.toString();
   }
 
   private void saveProfile(UUID userId, Map<String, Object> profileData, String summaryText) {
-    TasteProfileEntity entity =
-        tasteProfileRepository.findById(userId).orElseGet(TasteProfileEntity::new);
-
-    if (entity.getUserId() == null) {
-      UserEntity user =
+    var entity = tasteProfileRepository.findById(userId).orElseGet(TasteProfileEntity::new);
+    if (entity.getUserId() == null)
+      entity.setUser(
           userRepository
               .findById(userId)
-              .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-      entity.setUser(user);
-    }
-
+              .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId)));
     try {
       entity.setProfile(objectMapper.writeValueAsString(profileData));
     } catch (JsonProcessingException e) {
@@ -225,21 +187,11 @@ public class TasteProfileService {
     }
     entity.setSummaryText(summaryText);
     entity.setRebuiltAt(OffsetDateTime.now());
-
     tasteProfileRepository.save(entity);
   }
 
-  private double extractAvgSessionMinutes(List<Object[]> sessionStats) {
-    if (sessionStats.isEmpty() || sessionStats.getFirst()[1] == null) {
-      return 0;
-    }
-    return ((Number) sessionStats.getFirst()[1]).doubleValue();
-  }
-
   private Map<String, Object> rangeMap(List<Float> values) {
-    if (values.isEmpty()) {
-      return Map.of();
-    }
+    if (values.isEmpty()) return Map.of();
     Map<String, Object> map = new LinkedHashMap<>();
     map.put("p10", percentile(values, 10));
     map.put("p50", percentile(values, 50));
@@ -249,7 +201,7 @@ public class TasteProfileService {
   }
 
   private float percentile(List<Float> values, int p) {
-    List<Float> sorted = new ArrayList<>(values);
+    var sorted = new ArrayList<>(values);
     Collections.sort(sorted);
     int index = (int) Math.ceil(p / 100.0 * sorted.size()) - 1;
     return sorted.get(Math.max(0, Math.min(index, sorted.size() - 1)));
@@ -257,20 +209,11 @@ public class TasteProfileService {
 
   private String describeLevel(float value) {
     if (value < 0.33f) return "low";
-    if (value < 0.66f) return "moderate";
-    return "high";
+    return value < 0.66f ? "moderate" : "high";
   }
 
   private String describeValence(float value) {
     if (value < 0.33f) return "melancholic";
-    if (value < 0.66f) return "balanced";
-    return "upbeat";
+    return value < 0.66f ? "balanced" : "upbeat";
   }
-
-  private record FeatureAggregation(
-      List<Float> bpmValues,
-      List<Float> energyValues,
-      List<Float> valenceValues,
-      List<Float> danceabilityValues,
-      List<Float> arousalValues) {}
 }

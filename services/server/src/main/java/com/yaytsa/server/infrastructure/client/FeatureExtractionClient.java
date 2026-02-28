@@ -19,12 +19,10 @@ import org.springframework.web.client.RestClient;
 public class FeatureExtractionClient {
 
   private static final Logger log = LoggerFactory.getLogger(FeatureExtractionClient.class);
-
-  private static final int CONNECT_TIMEOUT_SECONDS = 10;
-  private static final int READ_TIMEOUT_SECONDS = 120;
-  private static final int HEALTH_CHECK_TIMEOUT_SECONDS = 5;
   private static final int MAX_RETRIES = 2;
   private static final long INITIAL_RETRY_DELAY_MS = 2000;
+  private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
+      new ParameterizedTypeReference<>() {};
 
   private final RestClient restClient;
   private final RestClient healthCheckClient;
@@ -33,20 +31,10 @@ public class FeatureExtractionClient {
       RestClient.Builder restClientBuilder,
       @Value("${yaytsa.media.feature-extraction.url:http://feature-extractor:8000}")
           String extractorUrl) {
-
-    var requestFactory = new SimpleClientHttpRequestFactory();
-    requestFactory.setConnectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS));
-    requestFactory.setReadTimeout(Duration.ofSeconds(READ_TIMEOUT_SECONDS));
-
     this.restClient =
-        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory).build();
-
-    var healthRequestFactory = new SimpleClientHttpRequestFactory();
-    healthRequestFactory.setConnectTimeout(Duration.ofSeconds(HEALTH_CHECK_TIMEOUT_SECONDS));
-    healthRequestFactory.setReadTimeout(Duration.ofSeconds(HEALTH_CHECK_TIMEOUT_SECONDS));
-
+        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(10, 120)).build();
     this.healthCheckClient =
-        restClientBuilder.baseUrl(extractorUrl).requestFactory(healthRequestFactory).build();
+        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(5, 5)).build();
   }
 
   public record ExtractionResult(
@@ -56,13 +44,11 @@ public class FeatureExtractionClient {
       List<Float> embeddingMusicnn,
       int processingTimeMs) {}
 
+  @SuppressWarnings("unchecked")
   public ExtractionResult extract(UUID trackId, String filePath) {
     log.info("Requesting feature extraction for track {} from {}", trackId, filePath);
-
     var request = Map.of("track_id", trackId.toString(), "file_path", filePath);
-
     Exception lastException = null;
-
     for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         var response =
@@ -72,29 +58,16 @@ public class FeatureExtractionClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .body(new ParameterizedTypeReference<Map<String, Object>>() {});
-
-        if (response == null) {
-          throw new RuntimeException("Null response from feature extractor");
-        }
-
-        @SuppressWarnings("unchecked")
-        var features = (Map<String, Object>) response.get("features");
-
-        @SuppressWarnings("unchecked")
-        var embeddingDiscogs = (List<Float>) response.get("embedding_discogs");
-
-        @SuppressWarnings("unchecked")
-        var embeddingMusicnn = (List<Float>) response.get("embedding_musicnn");
-
-        int processingTime =
-            response.get("processing_time_ms") instanceof Number n ? n.intValue() : 0;
-
-        log.info("Feature extraction completed for track {} in {}ms", trackId, processingTime);
-
+                .body(MAP_TYPE);
+        if (response == null) throw new RuntimeException("Null response from feature extractor");
+        int time = response.get("processing_time_ms") instanceof Number n ? n.intValue() : 0;
+        log.info("Feature extraction completed for track {} in {}ms", trackId, time);
         return new ExtractionResult(
-            trackId.toString(), features, embeddingDiscogs, embeddingMusicnn, processingTime);
-
+            trackId.toString(),
+            (Map<String, Object>) response.get("features"),
+            (List<Float>) response.get("embedding_discogs"),
+            (List<Float>) response.get("embedding_musicnn"),
+            time);
       } catch (ResourceAccessException e) {
         lastException = e;
         if (isRetryable(e) && attempt < MAX_RETRIES) {
@@ -116,7 +89,6 @@ public class FeatureExtractionClient {
         }
       }
     }
-
     throw new RuntimeException(
         "Feature extraction failed after " + MAX_RETRIES + " attempts", lastException);
   }
@@ -124,11 +96,7 @@ public class FeatureExtractionClient {
   public boolean isAvailable() {
     try {
       var response =
-          healthCheckClient
-              .get()
-              .uri("/api/v1/extract/status")
-              .retrieve()
-              .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+          healthCheckClient.get().uri("/api/v1/extract/status").retrieve().body(MAP_TYPE);
       return response != null && Boolean.TRUE.equals(response.get("available"));
     } catch (Exception e) {
       log.debug("Feature extractor not available: {}", e.getMessage());
@@ -146,7 +114,14 @@ public class FeatureExtractionClient {
     }
   }
 
-  private boolean isRetryable(ResourceAccessException e) {
+  private static SimpleClientHttpRequestFactory requestFactory(int connectSec, int readSec) {
+    var factory = new SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(Duration.ofSeconds(connectSec));
+    factory.setReadTimeout(Duration.ofSeconds(readSec));
+    return factory;
+  }
+
+  private static boolean isRetryable(ResourceAccessException e) {
     Throwable cause = e.getCause();
     return cause instanceof SocketTimeoutException
         || cause instanceof java.net.ConnectException

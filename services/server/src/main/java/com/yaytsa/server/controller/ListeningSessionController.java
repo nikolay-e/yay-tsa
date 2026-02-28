@@ -30,13 +30,9 @@ public class ListeningSessionController {
   @PostMapping
   public ResponseEntity<ListeningSessionResponse> createSession(
       @RequestBody(required = false) CreateListeningSessionRequest request,
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    UUID userId = authenticatedUser.getUserEntity().getId();
-    var state = request != null ? request.state() : null;
-
-    ListeningSessionEntity session = sessionService.createSession(userId, state);
-
+      @AuthenticationPrincipal AuthenticatedUser user) {
+    UUID userId = user.getUserEntity().getId();
+    var session = sessionService.createSession(userId, request != null ? request.state() : null);
     return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session));
   }
 
@@ -44,45 +40,29 @@ public class ListeningSessionController {
   public ResponseEntity<ListeningSessionResponse> updateState(
       @PathVariable UUID id,
       @RequestBody UpdateSessionStateRequest request,
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(id, authenticatedUser);
-
-    ListeningSessionEntity session = sessionService.updateState(id, request.state());
-
-    return ResponseEntity.ok(toResponse(session));
+      @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(id, user);
+    return ResponseEntity.ok(toResponse(sessionService.updateState(id, request.state())));
   }
 
   @DeleteMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> endSession(
-      @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(id, authenticatedUser);
-
-    ListeningSessionEntity session = sessionService.endSession(id);
-
-    return ResponseEntity.ok(toResponse(session));
+      @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(id, user);
+    return ResponseEntity.ok(toResponse(sessionService.endSession(id)));
   }
 
   @GetMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> getSession(
-      @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-
-    verifyOwnership(id, authenticatedUser);
-
-    ListeningSessionEntity session = sessionService.getSession(id);
-
-    return ResponseEntity.ok(toResponse(session));
+      @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
+    verifyOwnership(id, user);
+    return ResponseEntity.ok(toResponse(sessionService.getSession(id)));
   }
 
   private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
     UUID ownerId = sessionService.getSessionOwnerId(sessionId);
-    UUID currentUserId = user.getUserEntity().getId();
-    boolean isAdmin = user.getUserEntity().isAdmin();
-
-    if (!isAdmin && !ownerId.equals(currentUserId)) {
+    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId()))
       throw new org.springframework.security.access.AccessDeniedException("Access denied");
-    }
   }
 
   private ListeningSessionResponse toResponse(ListeningSessionEntity entity) {
@@ -92,7 +72,6 @@ public class ListeningSessionController {
     } catch (JsonProcessingException e) {
       parsedState = entity.getState();
     }
-
     return new ListeningSessionResponse(
         entity.getId().toString(),
         entity.getUser().getId().toString(),
