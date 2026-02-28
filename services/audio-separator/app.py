@@ -49,7 +49,6 @@ def _create_http_session() -> http_requests.Session:
     )
     adapter = HTTPAdapter(max_retries=retries)
     session.mount("https://", adapter)
-    session.mount("http://", adapter)
     return session
 
 
