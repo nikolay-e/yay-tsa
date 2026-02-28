@@ -9,7 +9,7 @@
 services:
   # PostgreSQL Database
   database:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: yay-tsa-db
     restart: unless-stopped
     environment:
@@ -60,6 +60,7 @@ services:
       ADMIN_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
+      FEATURE_EXTRACTOR_URL: http://feature-extractor:8000
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:
@@ -174,6 +175,43 @@ services:
           memory: 4G
         reservations:
           memory: 1G
+
+  # Feature Extractor (audio analysis for Adaptive DJ)
+  # Reuses audio-separator service with essentia variant (x86_64 only)
+  feature-extractor:
+    build:
+      context: ./services/audio-separator
+      dockerfile: Dockerfile
+      args:
+        VARIANT: essentia
+    container_name: yay-tsa-feature-extractor
+    restart: unless-stopped
+    environment:
+      ESSENTIA_MODELS_DIR: /app/models
+    ports:
+      - '${FEATURE_EXTRACTOR_PORT:-8082}:8000'
+    volumes:
+      - ${MEDIA_PATH:-./services/server/media}:/media:ro
+    networks:
+      - yay-tsa-network
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python3',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
 
   # Backend Integration Tests
   backend-test:

@@ -12,9 +12,10 @@ permissions:
 jobs:
   review:
     if: github.event.pull_request.user.login != 'dependabot[bot]'
-    uses: nikolay-e/treemapper-claude-code-review-action/.github/workflows/claude-code-review.yml@b9c88b1ba58a54f13d67c3e7ab56b9eba8355d9e # main
+    uses: nikolay-e/treemapper-claude-code-review-action/.github/workflows/claude-code-review.yml@f5e707592b49a2df6781d9ff36a6307b28d10a47 # main
     with:
       model: claude-opus-4-6
+      max_turns: 15
     secrets:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       treemapper_issues_token: ${{ secrets.TREEMAPPER_ISSUES_TOKEN }}
