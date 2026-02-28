@@ -3,10 +3,11 @@ import { type MusicAlbum } from '@yay-tsa/core';
 import { useRecentlyPlayedAlbums } from '@/features/library/hooks/useAlbums';
 import { AlbumCard } from '@/features/library/components/AlbumCard';
 import { usePlayerStore } from '@/features/player/stores/player.store';
-import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { AdaptiveQueueView } from '@/features/player/components/AdaptiveQueueView';
+import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
 
 export function HomePage() {
-  const { data: recentlyPlayed, isLoading } = useRecentlyPlayedAlbums(10);
+  const { data: recentlyPlayed } = useRecentlyPlayedAlbums(6);
   const playAlbum = usePlayerStore(state => state.playAlbum);
 
   const handlePlayAlbum = (album: MusicAlbum) => {
@@ -16,32 +17,30 @@ export function HomePage() {
   const hasRecentlyPlayed = recentlyPlayed?.Items && recentlyPlayed.Items.length > 0;
 
   return (
-    <div className="space-y-8 p-6">
-      <h1 className="text-2xl font-bold">Home</h1>
+    <div className="flex h-full flex-col">
+      <div className="flex-1">
+        <AdaptiveQueueView />
+      </div>
+
+      <DjPreferencesPanel />
 
       {hasRecentlyPlayed && (
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Recently Played</h2>
-            <Link to="/albums" className="text-accent text-sm hover:underline">
-              View all
+        <div className="border-border border-t px-4 py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-text-secondary text-xs font-medium tracking-wide uppercase">
+              Recently Played
+            </h3>
+            <Link to="/albums" className="text-accent text-xs hover:underline">
+              Browse
             </Link>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
             {recentlyPlayed.Items.map(album => (
               <AlbumCard key={album.Id} album={album} onPlay={() => handlePlayAlbum(album)} />
             ))}
           </div>
-        </section>
-      )}
-
-      {!isLoading && !hasRecentlyPlayed && (
-        <div className="text-text-secondary py-12 text-center">
-          <p>No recently played albums. Start listening to see your history here!</p>
         </div>
       )}
-
-      {isLoading && <LoadingSpinner />}
     </div>
   );
 }
