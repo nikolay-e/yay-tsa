@@ -17,15 +17,13 @@ export function HomePage() {
   const hasRecentlyPlayed = recentlyPlayed?.Items && recentlyPlayed.Items.length > 0;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1">
-        <AdaptiveQueueView />
-      </div>
+    <div className="space-y-4 p-4">
+      <AdaptiveQueueView />
 
       <DjPreferencesPanel />
 
       {hasRecentlyPlayed && (
-        <div className="border-border border-t px-4 py-4">
+        <div className="border-border border-t pt-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-text-secondary text-xs font-medium tracking-wide uppercase">
               Recently Played

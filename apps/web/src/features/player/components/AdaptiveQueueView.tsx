@@ -128,7 +128,7 @@ export function AdaptiveQueueView() {
 
   if (!activeSession) {
     return (
-      <div className="flex flex-col items-center gap-4 p-6">
+      <div className="flex flex-col items-center gap-4 py-6">
         <Sparkles className="text-accent h-10 w-10" />
         <div className="text-center">
           <h1 className="text-text-primary mb-1 text-base font-semibold">Adaptive DJ</h1>
