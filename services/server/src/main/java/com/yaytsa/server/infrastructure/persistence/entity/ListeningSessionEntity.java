@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "listening_session")
@@ -27,6 +29,7 @@ public class ListeningSessionEntity {
       foreignKey = @ForeignKey(name = "fk_listening_session_user"))
   private UserEntity user;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(columnDefinition = "jsonb", nullable = false)
   private String state = "{}";
 

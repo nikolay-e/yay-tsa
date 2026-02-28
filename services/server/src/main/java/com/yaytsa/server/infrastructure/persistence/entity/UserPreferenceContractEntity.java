@@ -7,7 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "user_preference_contract")
@@ -26,15 +28,19 @@ public class UserPreferenceContractEntity {
   @JoinColumn(name = "user_id", foreignKey = @ForeignKey(name = "fk_user_preference_contract_user"))
   private UserEntity user;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "hard_rules", columnDefinition = "jsonb", nullable = false)
   private String hardRules = "{}";
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "soft_prefs", columnDefinition = "jsonb", nullable = false)
   private String softPrefs = "{}";
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "dj_style", columnDefinition = "jsonb", nullable = false)
   private String djStyle = "{}";
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "red_lines", columnDefinition = "jsonb", nullable = false)
   private String redLines = "[]";
 

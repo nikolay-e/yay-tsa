@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "llm_decision_log")
@@ -52,9 +54,11 @@ public class LlmDecisionLogEntity {
   @Column(name = "latency_ms")
   private Integer latencyMs;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(columnDefinition = "jsonb")
   private String intent;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(columnDefinition = "jsonb")
   private String edits;
 
@@ -67,6 +71,7 @@ public class LlmDecisionLogEntity {
   @Column(name = "validation_result", length = 20)
   private String validationResult;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "validation_details", columnDefinition = "jsonb")
   private String validationDetails;
 

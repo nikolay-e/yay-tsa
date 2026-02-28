@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "taste_profile")
@@ -25,6 +27,7 @@ public class TasteProfileEntity {
   @JoinColumn(name = "user_id", foreignKey = @ForeignKey(name = "fk_taste_profile_user"))
   private UserEntity user;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(columnDefinition = "jsonb", nullable = false)
   private String profile = "{}";
 

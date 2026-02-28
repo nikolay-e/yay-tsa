@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "playback_signal")
@@ -44,8 +46,9 @@ public class PlaybackSignalEntity {
   @Column(name = "signal_type", length = 30, nullable = false)
   private String signalType;
 
-  @Column(columnDefinition = "jsonb")
-  private String context;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(columnDefinition = "jsonb", nullable = false)
+  private String context = "{}";
 
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
