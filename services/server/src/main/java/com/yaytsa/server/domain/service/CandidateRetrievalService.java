@@ -102,6 +102,29 @@ public class CandidateRetrievalService {
         .toList();
   }
 
+  public record NeverPlayedFilters(
+      Float energyMin,
+      Float energyMax,
+      Float bpmMin,
+      Float bpmMax,
+      Float valenceMin,
+      Float valenceMax,
+      int limit) {}
+
+  public List<TrackCandidate> findNeverPlayedTracks(UUID userId, NeverPlayedFilters filters) {
+    var rows =
+        trackFeaturesRepository.findNeverPlayedTracks(
+            userId,
+            filters.energyMin(),
+            filters.energyMax(),
+            filters.bpmMin(),
+            filters.bpmMax(),
+            filters.valenceMin(),
+            filters.valenceMax(),
+            filters.limit());
+    return rows.stream().map(this::mapLibraryRow).toList();
+  }
+
   public List<TrackCandidate> getArtistTracks(String artistName) {
     return trackFeaturesRepository.findByArtistName(artistName).stream()
         .map(this::mapLibraryRow)

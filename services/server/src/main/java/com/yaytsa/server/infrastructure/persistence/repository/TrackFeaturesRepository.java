@@ -102,4 +102,37 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
           """,
       nativeQuery = true)
   List<Object[]> findByArtistName(@Param("artistName") String artistName);
+
+  @Query(
+      value =
+          """
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
+                 tf.vocal_instrumental, tf.dissonance, tf.musical_key
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          LEFT JOIN play_history ph ON ph.item_id = i.id AND ph.user_id = :userId
+          WHERE i.type = 'AudioTrack'
+            AND ph.id IS NULL
+            AND (:energyMin IS NULL OR tf.energy >= :energyMin)
+            AND (:energyMax IS NULL OR tf.energy <= :energyMax)
+            AND (:bpmMin IS NULL OR tf.bpm >= :bpmMin)
+            AND (:bpmMax IS NULL OR tf.bpm <= :bpmMax)
+            AND (:valenceMin IS NULL OR tf.valence >= :valenceMin)
+            AND (:valenceMax IS NULL OR tf.valence <= :valenceMax)
+          ORDER BY random()
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findNeverPlayedTracks(
+      @Param("userId") UUID userId,
+      @Param("energyMin") Float energyMin,
+      @Param("energyMax") Float energyMax,
+      @Param("bpmMin") Float bpmMin,
+      @Param("bpmMax") Float bpmMax,
+      @Param("valenceMin") Float valenceMin,
+      @Param("valenceMax") Float valenceMax,
+      @Param("lim") int limit);
 }

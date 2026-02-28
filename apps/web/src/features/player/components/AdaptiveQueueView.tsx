@@ -1,7 +1,13 @@
-import { useState } from 'react';
-import { RefreshCw, Sparkles, Loader2, Music } from 'lucide-react';
-import type { SessionState, AdaptiveQueueTrack } from '@yay-tsa/core';
+import { useState, useCallback } from 'react';
+import { RefreshCw, Sparkles, Loader2, Music, Pause } from 'lucide-react';
+import {
+  ItemsService,
+  type SessionState,
+  type AdaptiveQueueTrack,
+  type AudioItem,
+} from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
+import { useAuthStore } from '@/features/auth/stores/auth.store';
 import {
   useActiveSession,
   useSessionQueue,
@@ -9,6 +15,7 @@ import {
   useIsSessionStarting,
   useSessionActions,
 } from '../stores/session-store';
+import { usePlayerStore, useCurrentTrack, useIsPlaying } from '../stores/player.store';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { SessionMoodSelector } from './SessionMoodSelector';
 
@@ -68,17 +75,38 @@ function EnergySparkline({ tracks }: { tracks: AdaptiveQueueTrack[] }) {
   );
 }
 
-function QueueTrackItem({ track }: { track: AdaptiveQueueTrack }) {
+interface QueueTrackItemProps {
+  track: AdaptiveQueueTrack;
+  isCurrentTrack: boolean;
+  isPlaying: boolean;
+  isLoading: boolean;
+  onClick: () => void;
+}
+
+function QueueTrackItem({
+  track,
+  isCurrentTrack,
+  isPlaying,
+  isLoading,
+  onClick,
+}: QueueTrackItemProps) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
-        track.status === 'PLAYING' ? 'bg-accent/10' : 'hover:bg-bg-hover'
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+        'focus-visible:ring-accent cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+        isCurrentTrack ? 'bg-accent/10' : 'hover:bg-bg-hover'
       )}
     >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-        {track.status === 'PLAYING' ? (
+      <div className="group/icon flex h-8 w-8 shrink-0 items-center justify-center">
+        {isLoading ? (
+          <Loader2 className="text-accent h-4 w-4 animate-spin" />
+        ) : isCurrentTrack && isPlaying ? (
           <Music className="text-accent h-4 w-4 animate-pulse" />
+        ) : isCurrentTrack ? (
+          <Pause className="text-accent h-4 w-4" />
         ) : (
           <span className="text-text-tertiary text-xs">{track.position}</span>
         )}
@@ -89,7 +117,7 @@ function QueueTrackItem({ track }: { track: AdaptiveQueueTrack }) {
           <span
             className={cn(
               'truncate text-sm font-medium',
-              track.status === 'PLAYING' ? 'text-accent' : 'text-text-primary'
+              isCurrentTrack ? 'text-accent' : 'text-text-primary'
             )}
           >
             {track.name}
@@ -105,7 +133,7 @@ function QueueTrackItem({ track }: { track: AdaptiveQueueTrack }) {
       <span className="text-text-tertiary shrink-0 text-xs">
         {track.durationMs ? formatDuration(track.durationMs) : ''}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -114,9 +142,63 @@ export function AdaptiveQueueView() {
   const queue = useSessionQueue();
   const isRefreshing = useIsSessionRefreshing();
   const isStarting = useIsSessionStarting();
-  const { startSession, updateMood, refreshQueue, endSession } = useSessionActions();
+  const { startSession, updateMood, refreshQueue, endSession, sendSignal } = useSessionActions();
   const [isMoodSelectorOpen, setMoodSelectorOpen] = useState(false);
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
   useSignalEmitter();
+
+  const client = useAuthStore(state => state.client);
+  const currentTrack = useCurrentTrack();
+  const isPlaying = useIsPlaying();
+  const playTrack = usePlayerStore(state => state.playTrack);
+  const pause = usePlayerStore(state => state.pause);
+  const resume = usePlayerStore(state => state.resume);
+
+  const handleTrackClick = useCallback(
+    async (track: AdaptiveQueueTrack) => {
+      const isCurrentlyPlaying = currentTrack?.Id === track.trackId;
+
+      if (isCurrentlyPlaying) {
+        if (isPlaying) {
+          pause();
+        } else {
+          void resume();
+        }
+        return;
+      }
+
+      if (!client) return;
+
+      setLoadingTrackId(track.trackId);
+      try {
+        const itemsService = new ItemsService(client);
+        const audioItem = (await itemsService.getItem(track.trackId)) as AudioItem;
+        await playTrack(audioItem);
+
+        void sendSignal({
+          signalType: 'QUEUE_JUMP',
+          trackId: track.trackId,
+          context: {
+            positionPct: 0,
+            elapsedSec: 0,
+            autoplay: false,
+            selectedByUser: true,
+            timeOfDay:
+              new Date().getHours() < 6
+                ? 'night'
+                : new Date().getHours() < 12
+                  ? 'morning'
+                  : new Date().getHours() < 18
+                    ? 'afternoon'
+                    : 'evening',
+          },
+        });
+      } finally {
+        setLoadingTrackId(null);
+      }
+    },
+    [client, currentTrack, isPlaying, playTrack, pause, resume, sendSignal]
+  );
 
   const handleStartSession = (state: SessionState) => {
     void startSession(state);
@@ -203,7 +285,14 @@ export function AdaptiveQueueView() {
           </div>
         )}
         {upcomingTracks.map(track => (
-          <QueueTrackItem key={`${track.trackId}-${track.position}`} track={track} />
+          <QueueTrackItem
+            key={`${track.trackId}-${track.position}`}
+            track={track}
+            isCurrentTrack={currentTrack?.Id === track.trackId}
+            isPlaying={isPlaying && currentTrack?.Id === track.trackId}
+            isLoading={loadingTrackId === track.trackId}
+            onClick={() => void handleTrackClick(track)}
+          />
         ))}
       </div>
 

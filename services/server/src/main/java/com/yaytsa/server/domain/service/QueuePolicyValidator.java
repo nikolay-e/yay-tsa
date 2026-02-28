@@ -141,12 +141,24 @@ public class QueuePolicyValidator {
       Map<String, Object> rules =
           objectMapper.readValue(preferences.getHardRules(), new TypeReference<>() {});
       return new HardRules(
-          intOrDefault(rules, "max_artist_consecutive", DEFAULT_MAX_ARTIST_CONSECUTIVE),
-          intOrDefault(rules, "no_repeat_track_hours", DEFAULT_NO_REPEAT_HOURS));
+          intFromEitherKey(
+              rules,
+              "maxArtistConsecutive",
+              "max_artist_consecutive",
+              DEFAULT_MAX_ARTIST_CONSECUTIVE),
+          intFromEitherKey(
+              rules, "noRepeatHours", "no_repeat_track_hours", DEFAULT_NO_REPEAT_HOURS));
     } catch (JsonProcessingException e) {
       log.warn("Failed to parse hard_rules JSONB, using defaults", e);
       return new HardRules(DEFAULT_MAX_ARTIST_CONSECUTIVE, DEFAULT_NO_REPEAT_HOURS);
     }
+  }
+
+  private static int intFromEitherKey(
+      Map<String, Object> map, String camelKey, String snakeKey, int defaultValue) {
+    Object val = map.get(camelKey);
+    if (val == null) val = map.get(snakeKey);
+    return val instanceof Number n ? n.intValue() : defaultValue;
   }
 
   private static int intOrDefault(Map<String, Object> map, String key, int defaultValue) {

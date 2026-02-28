@@ -65,21 +65,6 @@ export function useRecentAlbums(limit = 20) {
   });
 }
 
-export function useRecentlyPlayedAlbums(limit = 20) {
-  const client = useAuthStore(state => state.client);
-
-  return useQuery({
-    queryKey: ['albums', 'recentlyPlayed', limit],
-    queryFn: async () => {
-      if (!client) throw new Error('Not authenticated');
-      const itemsService = new ItemsService(client);
-      return itemsService.getRecentlyPlayedAlbums(limit);
-    },
-    enabled: !!client,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 export function useAlbumTracks(albumId: string | undefined) {
   const client = useAuthStore(state => state.client);
 

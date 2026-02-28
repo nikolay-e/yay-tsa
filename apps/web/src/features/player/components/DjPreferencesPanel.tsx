@@ -9,17 +9,12 @@ const DJ_STYLES = [
   {
     key: 'smooth',
     label: 'Smooth DJ',
-    description: 'Gradual transitions, familiar territory.',
+    description: 'Familiar favorites with smooth transitions.',
   },
   {
     key: 'adventurous',
-    label: 'Adventurous DJ',
-    description: 'Surprising picks, genre-jumping.',
-  },
-  {
-    key: 'album-focused',
-    label: 'Album-focused',
-    description: 'Respects album sequences.',
+    label: 'Discovery DJ',
+    description: 'Only plays music you have never heard before.',
   },
 ] as const;
 

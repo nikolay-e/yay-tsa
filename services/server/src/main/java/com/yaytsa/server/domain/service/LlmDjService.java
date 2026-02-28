@@ -185,6 +185,7 @@ public class LlmDjService {
               sb.append("Red lines (NEVER play): ").append(c.getRedLines()).append("\n");
               sb.append("Soft preferences: ").append(c.getSoftPrefs()).append("\n");
               sb.append("DJ style: ").append(c.getDjStyle()).append("\n\n");
+              appendDjStyleInstructions(sb, c.getDjStyle());
             });
 
     sb.append("## Current Session\n");
@@ -221,6 +222,46 @@ public class LlmDjService {
         }
         """);
     return sb.toString();
+  }
+
+  private void appendDjStyleInstructions(StringBuilder sb, String djStyleJson) {
+    if (djStyleJson == null || djStyleJson.isBlank()) return;
+    try {
+      Map<String, Object> style = objectMapper.readValue(djStyleJson, new TypeReference<>() {});
+      String preset = (String) style.get("preset");
+      if ("adventurous".equals(preset)) {
+        sb.append("## CRITICAL: Adventurous / Discovery Mode\n");
+        sb.append(
+            "The user wants to discover NEW music they have NEVER heard before. This is the"
+                + " #1 priority.\n\n");
+        sb.append("Rules for adventurous mode:\n");
+        sb.append(
+            "1. You MUST use the `get_never_played_tracks` tool to find tracks the user has"
+                + " never listened to.\n");
+        sb.append(
+            "2. ONLY add tracks the user has never played. Do NOT use `search_library` or"
+                + " `get_similar_tracks` as primary sources — those return familiar music.\n");
+        sb.append(
+            "3. Prioritize artists the user has NOT heard before. Check the taste profile — if"
+                + " an artist appears in top artists, SKIP them.\n");
+        sb.append(
+            "4. Maximize genre and style diversity. Avoid clustering too many similar-sounding"
+                + " tracks together.\n");
+        sb.append(
+            "5. Still respect energy/valence from the session mood, but within those"
+                + " constraints, always prefer the unfamiliar.\n");
+        sb.append(
+            "6. Label tracks with intentLabel 'discovery' so the UI shows them as new finds.\n\n");
+      } else if ("smooth".equals(preset)) {
+        sb.append("## Smooth DJ Mode\n");
+        sb.append(
+            "Prioritize familiar music the user already enjoys. Create gradual transitions"
+                + " between tracks with similar energy, BPM, and mood. Use `get_similar_tracks`"
+                + " to find natural progressions. Avoid jarring genre or tempo changes.\n\n");
+      }
+    } catch (JsonProcessingException e) {
+      log.debug("Could not parse djStyle for instructions: {}", e.getMessage());
+    }
   }
 
   private void appendTrackFeatures(StringBuilder sb, UUID trackId) {
@@ -305,6 +346,20 @@ public class LlmDjService {
             "get_track_details",
             "Get detailed information about specific tracks including features and metadata.",
             schema(Map.of("track_ids", arrayProp("string", "List of track UUIDs")), "track_ids")));
+    var neverPlayedProps = new HashMap<String, Object>();
+    neverPlayedProps.put("energy_min", prop("number", "Minimum energy (0-1)"));
+    neverPlayedProps.put("energy_max", prop("number", "Maximum energy (0-1)"));
+    neverPlayedProps.put("bpm_min", prop("number", "Minimum BPM"));
+    neverPlayedProps.put("bpm_max", prop("number", "Maximum BPM"));
+    neverPlayedProps.put("valence_min", prop("number", "Minimum valence (0-1)"));
+    neverPlayedProps.put("valence_max", prop("number", "Maximum valence (0-1)"));
+    neverPlayedProps.put("limit", prop("integer", "Max results (default 20)"));
+    tools.add(
+        buildTool(
+            "get_never_played_tracks",
+            "Find tracks the user has NEVER listened to. Returns only completely unheard tracks"
+                + " with optional audio feature filters. Essential for discovery/adventurous mode.",
+            schema(neverPlayedProps)));
     return tools;
   }
 
@@ -416,6 +471,18 @@ public class LlmDjService {
               List<String> idStrings = (List<String>) input.get("track_ids");
               yield candidateRetrievalService.getTrackDetails(
                   idStrings.stream().map(UUID::fromString).toList());
+            }
+            case "get_never_played_tracks" -> {
+              var filters =
+                  new CandidateRetrievalService.NeverPlayedFilters(
+                      toFloat(input.get("energy_min")),
+                      toFloat(input.get("energy_max")),
+                      toFloat(input.get("bpm_min")),
+                      toFloat(input.get("bpm_max")),
+                      toFloat(input.get("valence_min")),
+                      toFloat(input.get("valence_max")),
+                      intOrDefault(input, "limit", 20));
+              yield candidateRetrievalService.findNeverPlayedTracks(sessionUserId, filters);
             }
             default -> throw new IllegalArgumentException("Unknown tool: " + toolName);
           };
