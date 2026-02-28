@@ -131,7 +131,7 @@ export function AdaptiveQueueView() {
       <div className="flex flex-col items-center gap-4 p-6">
         <Sparkles className="text-accent h-10 w-10" />
         <div className="text-center">
-          <h3 className="text-text-primary mb-1 text-base font-semibold">Adaptive DJ</h3>
+          <h1 className="text-text-primary mb-1 text-base font-semibold">Adaptive DJ</h1>
           <p className="text-text-secondary text-sm">
             Let the DJ curate your listening experience based on your mood.
           </p>
@@ -165,7 +165,7 @@ export function AdaptiveQueueView() {
       <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <Sparkles className="text-accent h-4 w-4" />
-          <span className="text-text-primary text-sm font-semibold">DJ Queue</span>
+          <h1 className="text-text-primary text-sm font-semibold">DJ Queue</h1>
           {activeSession.state?.moodTags?.length > 0 && (
             <div className="flex gap-1">
               {activeSession.state.moodTags.map(tag => (
