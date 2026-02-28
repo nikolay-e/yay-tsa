@@ -194,7 +194,7 @@ repos:
     hooks:
       - id: sort-package-json
         name: 'Sort package.json files'
-        entry: npx --no-install sort-package-json "package.json" "packages/*/package.json" "apps/*/package.json"
+        entry: npx --yes sort-package-json "package.json" "packages/*/package.json" "apps/*/package.json"
         language: system
         types: [json]
         files: '^(package\.json|packages/.*/package\.json|apps/.*/package\.json)$'

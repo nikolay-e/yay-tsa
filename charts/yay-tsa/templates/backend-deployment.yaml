@@ -71,6 +71,13 @@ spec:
             secretKeyRef:
               name: {{ .Values.backend.database.secretName }}
               key: POSTGRES_PASSWORD
+        {{- if .Values.backend.adaptiveDj.secretName }}
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.adaptiveDj.secretName }}
+              key: anthropic-api-key
+        {{- end }}
         {{- if .Values.backend.config.karaokeSeparatorUrl }}
         - name: KARAOKE_SEPARATOR_URL
           value: {{ .Values.backend.config.karaokeSeparatorUrl | quote }}

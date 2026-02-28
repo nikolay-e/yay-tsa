@@ -143,4 +143,18 @@ public interface ItemRepository
           """,
       nativeQuery = true)
   List<Object[]> findFirstTrackPathPerArtist(@Param("artistIds") List<UUID> artistIds);
+
+  @Query(
+      """
+      SELECT i FROM ItemEntity i
+      WHERE i.type = 'AudioTrack'
+      AND i.path IS NOT NULL
+      AND i.path NOT LIKE 'artist:%'
+      AND i.path NOT LIKE 'album:%'
+      AND NOT EXISTS (
+        SELECT 1 FROM TrackFeaturesEntity tf
+        WHERE tf.trackId = i.id
+      )
+      """)
+  List<ItemEntity> findAudioTracksWithoutFeatures(Pageable pageable);
 }

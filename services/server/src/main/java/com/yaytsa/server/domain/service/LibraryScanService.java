@@ -28,6 +28,7 @@ public class LibraryScanService {
 
   private final FileSystemMediaScanner scanner;
   private final LibraryScanRepository libraryScanRepository;
+  private final FeatureExtractionService featureExtractionService;
   private final Executor taskExecutor;
   private final AtomicBoolean scanInProgress = new AtomicBoolean(false);
 
@@ -40,9 +41,11 @@ public class LibraryScanService {
   public LibraryScanService(
       FileSystemMediaScanner scanner,
       LibraryScanRepository libraryScanRepository,
+      FeatureExtractionService featureExtractionService,
       @Qualifier("applicationTaskExecutor") Executor taskExecutor) {
     this.scanner = scanner;
     this.libraryScanRepository = libraryScanRepository;
+    this.featureExtractionService = featureExtractionService;
     this.taskExecutor = taskExecutor;
   }
 
@@ -77,7 +80,8 @@ public class LibraryScanService {
                   if (ex != null) {
                     log.error("Full library scan failed", ex);
                   } else {
-                    log.info("Full library scan completed");
+                    log.info("Full library scan completed, triggering feature extraction");
+                    triggerFeatureExtraction();
                   }
                 });
 
@@ -122,5 +126,14 @@ public class LibraryScanService {
 
   public List<LibraryScanEntity> getRecentScans(int limit) {
     return libraryScanRepository.findRecentScans(limit);
+  }
+
+  private void triggerFeatureExtraction() {
+    try {
+      featureExtractionService.enqueueAllUnextracted();
+      featureExtractionService.processPendingJobs(10);
+    } catch (Exception e) {
+      log.warn("Feature extraction trigger failed (non-fatal): {}", e.getMessage());
+    }
   }
 }

@@ -18,6 +18,22 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+ESSENTIA_AVAILABLE = False
+_analyzer = None
+
+try:
+    from extractor.essentia_analyzer import EssentiaAnalyzer
+
+    _models_dir = os.getenv("ESSENTIA_MODELS_DIR", "/app/models")
+    if os.path.isdir(_models_dir):
+        _analyzer = EssentiaAnalyzer(_models_dir)
+        ESSENTIA_AVAILABLE = True
+        log.info("Essentia feature extraction available (models: %s)", _models_dir)
+    else:
+        log.warning("Essentia models dir not found: %s — feature extraction disabled", _models_dir)
+except ImportError:
+    log.warning("essentia-tensorflow not installed — feature extraction disabled")
+
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cuda") == "cuda"
@@ -121,6 +137,7 @@ class HealthResponse(BaseModel):
     status: str
     model: str
     device: str
+    feature_extraction: bool = False
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -129,6 +146,7 @@ def health_check():
         status="healthy",
         model=MODEL_NAME,
         device="cuda" if USE_CUDA else "cpu",
+        feature_extraction=ESSENTIA_AVAILABLE,
     )
 
 
@@ -261,7 +279,7 @@ def separate_audio(request: SeparationRequest):
 
     except Exception as e:
         log.exception("Separation failed for %s", _sanitize(track_id))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal processing error")
 
 
 # ===========================================================================
@@ -808,6 +826,106 @@ def fetch_lyrics(request: LyricsRequest):
         synced=is_synced,
         lyrics=chosen_lyrics,
     )
+
+
+# ===========================================================================
+# Feature extraction: audio analysis endpoints
+# ===========================================================================
+
+class ExtractionRequest(BaseModel):
+    track_id: str
+    file_path: str
+
+
+class ExtractionResponse(BaseModel):
+    track_id: str
+    features: dict
+    embedding_discogs: list[float] | None = None
+    embedding_musicnn: list[float] | None = None
+    processing_time_ms: int = 0
+
+
+class BatchExtractionRequest(BaseModel):
+    tracks: list[ExtractionRequest]
+
+
+class BatchExtractionResponse(BaseModel):
+    results: list[ExtractionResponse]
+    failed: list[dict]
+
+
+@app.post(
+    "/api/v1/extract",
+    response_model=ExtractionResponse,
+    responses={
+        403: {"description": "Path traversal attempt"},
+        503: {"description": "Feature extraction not available"},
+    },
+)
+def extract_features(request: ExtractionRequest):
+    if not ESSENTIA_AVAILABLE or _analyzer is None:
+        raise HTTPException(status_code=503, detail="Feature extraction not available")
+
+    file_path = _validate_media_path(request.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    try:
+        result = _analyzer.extract(str(file_path))
+        return ExtractionResponse(
+            track_id=request.track_id,
+            features=result["features"],
+            embedding_discogs=result["embedding_discogs"],
+            embedding_musicnn=result["embedding_musicnn"],
+            processing_time_ms=result.get("processing_time_ms", 0),
+        )
+    except Exception as e:
+        log.exception("Feature extraction failed for track %s", _sanitize(request.track_id))
+        raise HTTPException(status_code=500, detail="Internal processing error")
+
+
+@app.post(
+    "/api/v1/extract/batch",
+    response_model=BatchExtractionResponse,
+    responses={503: {"description": "Feature extraction not available"}},
+)
+def extract_features_batch(request: BatchExtractionRequest):
+    if not ESSENTIA_AVAILABLE or _analyzer is None:
+        raise HTTPException(status_code=503, detail="Feature extraction not available")
+
+    results = []
+    failed = []
+
+    for track in request.tracks:
+        try:
+            file_path = _validate_media_path(track.file_path)
+            if not file_path.exists():
+                failed.append({"track_id": track.track_id, "error": "File not found"})
+                continue
+
+            result = _analyzer.extract(str(file_path))
+            results.append(
+                ExtractionResponse(
+                    track_id=track.track_id,
+                    features=result["features"],
+                    embedding_discogs=result["embedding_discogs"],
+                    embedding_musicnn=result["embedding_musicnn"],
+                    processing_time_ms=result.get("processing_time_ms", 0),
+                )
+            )
+        except Exception as e:
+            log.exception("Feature extraction failed for track %s", _sanitize(track.track_id))
+            failed.append({"track_id": track.track_id, "error": str(e)})
+
+    return BatchExtractionResponse(results=results, failed=failed)
+
+
+@app.get("/api/v1/extract/status")
+def extraction_status():
+    return {
+        "available": ESSENTIA_AVAILABLE,
+        "models_dir": os.getenv("ESSENTIA_MODELS_DIR", "/app/models"),
+    }
 
 
 if __name__ == "__main__":

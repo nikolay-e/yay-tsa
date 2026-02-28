@@ -172,11 +172,30 @@ yaytsa:
       model: ${KARAOKE_MODEL:htdemucs}
       stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
 
+    # Feature extraction configuration (Adaptive DJ)
+    feature-extraction:
+      url: ${FEATURE_EXTRACTOR_URL:http://feature-extractor:8000}
+      max-concurrent: ${FEATURE_EXTRACTION_MAX_CONCURRENT:2}
+      batch-size: ${FEATURE_EXTRACTION_BATCH_SIZE:10}
+      timeout-seconds: ${FEATURE_EXTRACTION_TIMEOUT:120}
+      poll-interval-ms: ${FEATURE_EXTRACTION_POLL_INTERVAL_MS:30000}
+
     # Lyrics fetching configuration
     lyrics:
       fetcher-url: ${LYRICS_FETCHER_URL:http://audio-separator:8000}
       fetch-on-scan: ${LYRICS_FETCH_ON_SCAN:true}
       timeout-seconds: ${LYRICS_TIMEOUT:20}
+
+  # Adaptive DJ (LLM-powered queue curation)
+  adaptive-dj:
+    anthropic-api-key: ${ANTHROPIC_API_KEY:}
+    model: ${DJ_LLM_MODEL:claude-sonnet-4-20250514}
+    max-tokens: ${DJ_LLM_MAX_TOKENS:2000}
+    timeout-ms: ${DJ_LLM_TIMEOUT:8000}
+    queue:
+      min-size: 8
+      max-size: 15
+      trigger-threshold: 3
 
     # Session configuration
     sessions:

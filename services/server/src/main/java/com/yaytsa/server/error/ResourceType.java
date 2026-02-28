@@ -2,9 +2,13 @@ package com.yaytsa.server.error;
 
 public enum ResourceType {
   Item("Item"),
+  ListeningSession("Listening session"),
   Playlist("Playlist"),
   PlaylistEntry("Playlist entry"),
-  User("User");
+  TasteProfile("Taste profile"),
+  TrackFeatures("Track features"),
+  User("User"),
+  UserPreferences("User preferences");
 
   private final String displayName;
 

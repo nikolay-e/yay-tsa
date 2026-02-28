@@ -60,7 +60,7 @@ export const test = base.extend<AccessibilityFixtures>({
     });
   },
 
-  checkAccessibility: async (_fixtures, use) => {
+  checkAccessibility: async ({}, use) => {
     const checker = async (page: Page, options?: { excludeRules?: string[] }) => {
       let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
 
