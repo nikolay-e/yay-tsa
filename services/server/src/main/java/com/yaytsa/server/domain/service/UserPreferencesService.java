@@ -30,11 +30,8 @@ public class UserPreferencesService {
     this.objectMapper = objectMapper;
   }
 
-  @Transactional(readOnly = true)
   public UserPreferenceContractEntity getPreferences(UUID userId) {
-    return preferencesRepository
-        .findById(userId)
-        .orElseThrow(() -> new ResourceNotFoundException(ResourceType.UserPreferences, userId));
+    return preferencesRepository.findById(userId).orElseGet(() -> createDefault(userId));
   }
 
   public UserPreferenceContractEntity updatePreferences(
@@ -70,9 +67,8 @@ public class UserPreferencesService {
             .orElseThrow(() -> new ResourceNotFoundException(ResourceType.User, userId));
 
     UserPreferenceContractEntity entity = new UserPreferenceContractEntity();
-    entity.setUserId(userId);
     entity.setUser(user);
-    return entity;
+    return preferencesRepository.save(entity);
   }
 
   private String serializeJson(Object value) {
