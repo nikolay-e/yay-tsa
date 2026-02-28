@@ -49,7 +49,6 @@ def _create_http_session() -> http_requests.Session:
     )
     adapter = HTTPAdapter(max_retries=retries)
     session.mount("https://", adapter)
-    session.mount("http://", adapter)
     return session
 
 
@@ -328,9 +327,21 @@ def _split_artists(artist: str) -> list[str]:
 
 def _strip_all_parentheticals(title: str) -> str:
     title = title[:_MAX_INPUT_LENGTH]
-    title = re.sub(r"\([^)]*\)", "", title)
-    title = re.sub(r"\[[^\]]*\]", "", title)
-    return re.sub(r"  +", " ", title).strip()
+    result = []
+    depth_paren = 0
+    depth_bracket = 0
+    for ch in title:
+        if ch == "(":
+            depth_paren += 1
+        elif ch == ")" and depth_paren > 0:
+            depth_paren -= 1
+        elif ch == "[":
+            depth_bracket += 1
+        elif ch == "]" and depth_bracket > 0:
+            depth_bracket -= 1
+        elif depth_paren == 0 and depth_bracket == 0:
+            result.append(ch)
+    return re.sub(r"  +", " ", "".join(result)).strip()
 
 
 def _generate_query_variations(artist: str, title: str) -> list[tuple[str, str]]:
