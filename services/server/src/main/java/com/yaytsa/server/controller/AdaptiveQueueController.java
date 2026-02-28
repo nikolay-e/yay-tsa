@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/v1/sessions/{sessionId}/queue")
+@RequestMapping("/v1/sessions/{sessionId}/queue")
 public class AdaptiveQueueController {
 
   private final AdaptiveQueueService queueService;

@@ -18,7 +18,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/users/{userId}")
+@RequestMapping("/v1/users/{userId}")
 public class UserPreferencesController {
 
   private final UserPreferencesService preferencesService;

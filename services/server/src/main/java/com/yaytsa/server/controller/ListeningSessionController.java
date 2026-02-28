@@ -15,7 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/sessions")
+@RequestMapping("/v1/sessions")
 public class ListeningSessionController {
 
   private final ListeningSessionService sessionService;

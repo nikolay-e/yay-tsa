@@ -15,7 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/sessions/{sessionId}/signals")
+@RequestMapping("/v1/sessions/{sessionId}/signals")
 public class PlaybackSignalController {
 
   private final SignalProcessingService signalService;
