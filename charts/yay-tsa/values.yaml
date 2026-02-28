@@ -169,6 +169,8 @@ backend:
     size: '5Gi'
     storageClass: 'local-path'
     existingClaim: ''
+  adaptiveDj:
+    secretName: ''
   config:
     profile: 'production'
     logLevel: 'INFO'
