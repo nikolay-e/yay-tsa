@@ -21,6 +21,17 @@ export {
   type LibraryRescanResult,
   type ScanStatus,
 } from './api/admin.service.js';
+export { AdaptiveDjService } from './api/adaptive-dj.service.js';
+export type {
+  ListeningSession,
+  SessionState,
+  AdaptiveQueueTrack,
+  TrackFeatures,
+  PlaybackSignal,
+  SignalType,
+  SignalContext,
+  UserPreferences,
+} from './api/adaptive-dj.types.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
