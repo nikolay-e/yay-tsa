@@ -96,7 +96,7 @@ class EssentiaAnalyzer:
         features = self._extract_scalar_features(audio_44k)
 
         if duration_sec < MIN_AUDIO_DURATION_SEC:
-            log.warning("Track too short (%.1fs) for TF models: %s", duration_sec, file_path)
+            log.warning("Track too short (%.1fs) for TF models: %s", duration_sec, Path(file_path).name)
             elapsed_ms = int((time.time() - start) * 1000)
             return {
                 "features": features,
