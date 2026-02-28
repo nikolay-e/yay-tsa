@@ -43,7 +43,15 @@ export class AdaptiveDjService extends BaseService {
       signal_type: signal.signalType,
       track_id: signal.trackId,
       queue_entry_id: signal.queueEntryId,
-      context: signal.context,
+      context: signal.context
+        ? {
+            position_pct: signal.context.positionPct,
+            elapsed_sec: signal.context.elapsedSec,
+            autoplay: signal.context.autoplay,
+            selected_by_user: signal.context.selectedByUser,
+            time_of_day: signal.context.timeOfDay,
+          }
+        : undefined,
     });
   }
 

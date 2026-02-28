@@ -9,6 +9,7 @@ import {
   useIsSessionStarting,
   useSessionActions,
 } from '../stores/session-store';
+import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { SessionMoodSelector } from './SessionMoodSelector';
 
 function formatDuration(ms: number): string {
@@ -115,6 +116,7 @@ export function AdaptiveQueueView() {
   const isStarting = useIsSessionStarting();
   const { startSession, updateMood, refreshQueue, endSession } = useSessionActions();
   const [isMoodSelectorOpen, setMoodSelectorOpen] = useState(false);
+  useSignalEmitter();
 
   const handleStartSession = (state: SessionState) => {
     void startSession(state);
@@ -192,9 +194,7 @@ export function AdaptiveQueueView() {
 
       <div className="flex-1 overflow-y-auto px-1 py-1">
         {upcomingTracks.length === 0 && !isRefreshing && (
-          <div className="text-text-tertiary py-8 text-center text-sm">
-            Queue is empty. Refreshing...
-          </div>
+          <div className="text-text-tertiary py-8 text-center text-sm">Queue is empty.</div>
         )}
         {isRefreshing && upcomingTracks.length === 0 && (
           <div className="flex items-center justify-center gap-2 py-8">
