@@ -14,6 +14,7 @@ import {
   loadSessionAuto,
   clearAllSessions,
 } from '@/shared/utils/session-manager';
+import { queryClient } from '@/shared/lib/query-client';
 import { log } from '@/shared/utils/logger';
 
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
@@ -139,8 +140,9 @@ export const useAuthStore = create<AuthStore>()(
       localStorage.removeItem(VOLUME_STORAGE_KEY);
 
       await clearCaches();
+      queryClient.clear();
 
-      set(initialState);
+      set({ ...initialState, isLoading: false });
     },
 
     restoreSession: async () => {
