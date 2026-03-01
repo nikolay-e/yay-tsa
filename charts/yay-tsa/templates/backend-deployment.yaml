@@ -92,6 +92,10 @@ spec:
         {{- if .Values.featureExtractor.enabled }}
         - name: FEATURE_EXTRACTOR_URL
           value: "http://{{ include "yay-tsa.fullname" . }}-feature-extractor:{{ .Values.featureExtractor.service.port }}"
+        - name: FEATURE_EXTRACTION_MAX_CONCURRENT
+          value: {{ .Values.featureExtractor.maxConcurrent | default 2 | quote }}
+        - name: FEATURE_EXTRACTION_BATCH_SIZE
+          value: {{ .Values.featureExtractor.batchSize | default 10 | quote }}
         {{- end }}
         {{- if .Values.backend.nginxSidecar.enabled }}
         - name: X_ACCEL_REDIRECT_ENABLED

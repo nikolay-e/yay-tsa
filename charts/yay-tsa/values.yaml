@@ -263,6 +263,8 @@ audioSeparator:
 
 featureExtractor:
   enabled: false
+  maxConcurrent: 1
+  batchSize: 1
   image:
     repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
     pullPolicy: IfNotPresent
