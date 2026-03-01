@@ -275,20 +275,20 @@ featureExtractor:
       memory: '512Mi'
       cpu: '100m'
     limits:
-      memory: '1536Mi'
+      memory: '3Gi'
   probes:
     liveness:
       path: /health
       initialDelaySeconds: 60
-      periodSeconds: 30
-      timeoutSeconds: 10
-      failureThreshold: 3
+      periodSeconds: 60
+      timeoutSeconds: 30
+      failureThreshold: 5
     readiness:
       path: /api/v1/extract/status
       initialDelaySeconds: 30
-      periodSeconds: 10
-      timeoutSeconds: 5
-      failureThreshold: 3
+      periodSeconds: 30
+      timeoutSeconds: 15
+      failureThreshold: 5
   securityContext:
     runAsNonRoot: true
     runAsUser: 1000
