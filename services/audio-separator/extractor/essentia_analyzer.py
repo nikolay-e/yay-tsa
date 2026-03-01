@@ -136,7 +136,7 @@ class EssentiaAnalyzer:
         key, scale, key_conf = KeyExtractor()(audio)
 
         stereo = np.column_stack([audio, audio]).astype(np.float32)
-        integrated, _, _, range_lu = LoudnessEBUR128()(stereo)
+        _, _, integrated, range_lu = LoudnessEBUR128()(stereo)
 
         dance_val, _ = Danceability()(audio)
 
