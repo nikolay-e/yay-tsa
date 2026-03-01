@@ -28,6 +28,5 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src"],
-  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/platform" }]
+  "include": ["src"]
 }
