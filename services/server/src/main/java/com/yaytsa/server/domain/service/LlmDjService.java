@@ -1,5 +1,20 @@
 package com.yaytsa.server.domain.service;
 
+import com.anthropic.client.AnthropicClient;
+import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.core.JsonValue;
+import com.anthropic.models.messages.ContentBlock;
+import com.anthropic.models.messages.ContentBlockParam;
+import com.anthropic.models.messages.Message;
+import com.anthropic.models.messages.MessageCreateParams;
+import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.StopReason;
+import com.anthropic.models.messages.TextBlockParam;
+import com.anthropic.models.messages.Tool;
+import com.anthropic.models.messages.ToolResultBlockParam;
+import com.anthropic.models.messages.ToolUnion;
+import com.anthropic.models.messages.ToolUseBlock;
+import com.anthropic.models.messages.ToolUseBlockParam;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,25 +39,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
 @Service
 public class LlmDjService {
 
   private static final Logger log = LoggerFactory.getLogger(LlmDjService.class);
-  private static final String ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-  private static final String ANTHROPIC_VERSION = "2023-06-01";
   private static final int MAX_TOOL_ROUNDS = 5;
   private static final int RECENT_SIGNALS_LIMIT = 20;
+  private static final Pattern FENCE_PATTERN = Pattern.compile("```(?:json)?\\s*([\\s\\S]+?)```");
+  private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{[\\s\\S]*\\}");
 
-  private final RestClient restClient;
+  private final AnthropicClient client;
   private final ObjectMapper objectMapper;
   private final CandidateRetrievalService candidateRetrievalService;
   private final AdaptiveQueueRepository queueRepository;
@@ -51,12 +64,10 @@ public class LlmDjService {
   private final TasteProfileRepository tasteProfileRepository;
   private final UserPreferenceContractRepository contractRepository;
   private final LlmDecisionLogRepository decisionLogRepository;
-  private final String apiKey;
   private final String model;
-  private final int maxTokens;
+  private final long maxTokens;
 
   public LlmDjService(
-      RestClient.Builder restClientBuilder,
       ObjectMapper objectMapper,
       CandidateRetrievalService candidateRetrievalService,
       AdaptiveQueueRepository queueRepository,
@@ -66,9 +77,9 @@ public class LlmDjService {
       UserPreferenceContractRepository contractRepository,
       LlmDecisionLogRepository decisionLogRepository,
       @Value("${yaytsa.adaptive-dj.anthropic-api-key:}") String apiKey,
-      @Value("${yaytsa.adaptive-dj.model:claude-haiku-4-5-20251001}") String model,
-      @Value("${yaytsa.adaptive-dj.max-tokens:2000}") int maxTokens,
-      @Value("${yaytsa.adaptive-dj.timeout-ms:8000}") int timeoutMs) {
+      @Value("${yaytsa.adaptive-dj.model:claude-sonnet-4-5-20250929}") String model,
+      @Value("${yaytsa.adaptive-dj.max-tokens:4096}") int maxTokens,
+      @Value("${yaytsa.adaptive-dj.timeout-ms:30000}") int timeoutMs) {
     this.objectMapper = objectMapper;
     this.candidateRetrievalService = candidateRetrievalService;
     this.queueRepository = queueRepository;
@@ -77,18 +88,22 @@ public class LlmDjService {
     this.tasteProfileRepository = tasteProfileRepository;
     this.contractRepository = contractRepository;
     this.decisionLogRepository = decisionLogRepository;
-    this.apiKey = apiKey;
     this.model = model;
     this.maxTokens = maxTokens;
 
-    var requestFactory = new SimpleClientHttpRequestFactory();
-    requestFactory.setConnectTimeout(Duration.ofMillis(timeoutMs));
-    requestFactory.setReadTimeout(Duration.ofMillis(timeoutMs));
-    this.restClient = restClientBuilder.requestFactory(requestFactory).build();
+    if (apiKey != null && !apiKey.isBlank()) {
+      this.client =
+          AnthropicOkHttpClient.builder()
+              .apiKey(apiKey)
+              .timeout(Duration.ofMillis(timeoutMs))
+              .build();
+    } else {
+      this.client = null;
+    }
   }
 
   public boolean isAvailable() {
-    return apiKey != null && !apiKey.isBlank();
+    return client != null;
   }
 
   public Optional<DjDecision> generateDecision(
@@ -109,31 +124,40 @@ public class LlmDjService {
       long baseQueueVersion =
           currentQueue.stream().mapToLong(AdaptiveQueueEntity::getQueueVersion).max().orElse(0);
 
-      String systemPrompt = buildSystemPrompt(userId, session, currentQueue);
+      String systemPrompt = buildSystemPrompt(userId, session, currentQueue, baseQueueVersion);
       String userMessage = buildUserMessage(sessionId, triggerType, triggerSignal);
       String promptHash = sha256(systemPrompt + userMessage);
 
-      List<Map<String, Object>> tools = buildToolDefinitions();
-      List<Map<String, Object>> messages = new ArrayList<>();
-      messages.add(Map.of("role", "user", "content", userMessage));
+      List<ToolUnion> tools = buildTools();
+      List<MessageParam> messages = new ArrayList<>();
+      messages.add(userParam(userMessage));
 
-      Map<String, Object> apiResponse = callAnthropic(systemPrompt, messages, tools);
-      int totalPromptTokens = extractInt(apiResponse, "usage", "input_tokens");
-      int totalCompletionTokens = extractInt(apiResponse, "usage", "output_tokens");
+      Message response = callApi(systemPrompt, messages, tools);
+      int totalPromptTokens = (int) response.usage().inputTokens();
+      int totalCompletionTokens = (int) response.usage().outputTokens();
 
       int toolRounds = 0;
-      while (isToolUseResponse(apiResponse) && toolRounds < MAX_TOOL_ROUNDS) {
+      while (response.stopReason().filter(StopReason.TOOL_USE::equals).isPresent()
+          && toolRounds < MAX_TOOL_ROUNDS) {
         toolRounds++;
-        List<Map<String, Object>> contentBlocks = extractContentBlocks(apiResponse);
-        messages.add(Map.of("role", "assistant", "content", contentBlocks));
-        List<Map<String, Object>> toolResults = executeToolCalls(contentBlocks, userId);
-        messages.add(Map.of("role", "user", "content", toolResults));
-        apiResponse = callAnthropic(systemPrompt, messages, tools);
-        totalPromptTokens += extractInt(apiResponse, "usage", "input_tokens");
-        totalCompletionTokens += extractInt(apiResponse, "usage", "output_tokens");
+        messages.add(toAssistantParam(response));
+
+        List<ContentBlockParam> toolResults = executeToolCalls(response, userId);
+        messages.add(
+            MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .contentOfBlockParams(toolResults)
+                .build());
+
+        response = callApi(systemPrompt, messages, tools);
+        totalPromptTokens += (int) response.usage().inputTokens();
+        totalCompletionTokens += (int) response.usage().outputTokens();
       }
 
-      DjDecision decision = parseDecision(extractTextContent(apiResponse), baseQueueVersion);
+      String responseText = extractText(response);
+      log.debug("LLM raw response: {}", responseText);
+
+      DjDecision decision = parseDecision(responseText, baseQueueVersion);
       long latencyMs = System.currentTimeMillis() - startTime;
       logDecision(
           session,
@@ -159,13 +183,147 @@ public class LlmDjService {
     }
   }
 
+  private Message callApi(String systemPrompt, List<MessageParam> messages, List<ToolUnion> tools) {
+    return client
+        .messages()
+        .create(
+            MessageCreateParams.builder()
+                .model(model)
+                .maxTokens(maxTokens)
+                .system(systemPrompt)
+                .messages(messages)
+                .tools(tools)
+                .build());
+  }
+
+  private MessageParam toAssistantParam(Message response) {
+    List<ContentBlockParam> blocks = new ArrayList<>();
+    for (ContentBlock block : response.content()) {
+      block
+          .text()
+          .ifPresent(
+              tb ->
+                  blocks.add(
+                      ContentBlockParam.ofText(TextBlockParam.builder().text(tb.text()).build())));
+      block
+          .toolUse()
+          .ifPresent(
+              tu ->
+                  blocks.add(
+                      ContentBlockParam.ofToolUse(
+                          ToolUseBlockParam.builder()
+                              .id(tu.id())
+                              .name(tu.name())
+                              .input(tu._input())
+                              .build())));
+    }
+    return MessageParam.builder()
+        .role(MessageParam.Role.ASSISTANT)
+        .contentOfBlockParams(blocks)
+        .build();
+  }
+
+  private List<ContentBlockParam> executeToolCalls(Message response, UUID userId) {
+    List<ContentBlockParam> results = new ArrayList<>();
+    for (ContentBlock block : response.content()) {
+      block
+          .toolUse()
+          .ifPresent(
+              toolUse -> {
+                String resultJson;
+                try {
+                  resultJson = dispatchToolCall(toolUse, userId);
+                } catch (Exception e) {
+                  log.warn("Tool call {} failed: {}", toolUse.name(), e.getMessage());
+                  resultJson =
+                      toJsonSafe(
+                          Map.of(
+                              "error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
+                }
+                results.add(
+                    ContentBlockParam.ofToolResult(
+                        ToolResultBlockParam.builder()
+                            .toolUseId(toolUse.id())
+                            .content(resultJson)
+                            .build()));
+              });
+    }
+    return results;
+  }
+
+  private String dispatchToolCall(ToolUseBlock toolUse, UUID userId) {
+    Map<String, Object> input = jsonValueToMap(toolUse._input());
+    try {
+      Object result =
+          switch (toolUse.name()) {
+            case "search_library" -> {
+              var filters =
+                  new CandidateRetrievalService.LibrarySearchFilters(
+                      toFloat(input.get("energy_min")),
+                      toFloat(input.get("energy_max")),
+                      toFloat(input.get("bpm_min")),
+                      toFloat(input.get("bpm_max")),
+                      toFloat(input.get("valence_min")),
+                      toFloat(input.get("valence_max")),
+                      toFloat(input.get("arousal_min")),
+                      toFloat(input.get("arousal_max")),
+                      toFloat(input.get("vocal_max")),
+                      toStringList(input.get("exclude_artists")),
+                      toStringList(input.get("exclude_genres")),
+                      intOrDefault(input, "limit", 10));
+              yield candidateRetrievalService.searchLibrary(filters);
+            }
+            case "get_similar_tracks" ->
+                candidateRetrievalService.findSimilarTracks(
+                    UUID.fromString((String) input.get("track_id")),
+                    intOrDefault(input, "limit", 10));
+            case "get_recently_overplayed" ->
+                candidateRetrievalService.getRecentlyOverplayed(
+                    userId, intOrDefault(input, "hours", 48));
+            case "get_track_details" -> {
+              @SuppressWarnings("unchecked")
+              List<String> idStrings = (List<String>) input.get("track_ids");
+              yield candidateRetrievalService.getTrackDetails(
+                  idStrings.stream().map(UUID::fromString).toList());
+            }
+            case "get_never_played_tracks" -> {
+              var filters =
+                  new CandidateRetrievalService.NeverPlayedFilters(
+                      toFloat(input.get("energy_min")),
+                      toFloat(input.get("energy_max")),
+                      toFloat(input.get("bpm_min")),
+                      toFloat(input.get("bpm_max")),
+                      toFloat(input.get("valence_min")),
+                      toFloat(input.get("valence_max")),
+                      intOrDefault(input, "limit", 20));
+              yield candidateRetrievalService.findNeverPlayedTracks(userId, filters);
+            }
+            default -> throw new IllegalArgumentException("Unknown tool: " + toolUse.name());
+          };
+      return objectMapper.writeValueAsString(result);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException("Failed to serialize tool result", e);
+    }
+  }
+
+  private String extractText(Message response) {
+    return response.content().stream()
+        .flatMap(block -> block.text().stream())
+        .map(tb -> tb.text())
+        .findFirst()
+        .orElseThrow(() -> new RuntimeException("No text content in LLM response"));
+  }
+
   private String buildSystemPrompt(
-      UUID userId, ListeningSessionEntity session, List<AdaptiveQueueEntity> currentQueue) {
+      UUID userId,
+      ListeningSessionEntity session,
+      List<AdaptiveQueueEntity> currentQueue,
+      long queueVersion) {
     var sb = new StringBuilder();
     sb.append(
         "You are an adaptive music DJ for a personal music streaming system. Your job is to"
-            + " curate the playback queue based on the listener's taste, current mood signals, and"
-            + " session flow.\n\n");
+            + " curate the playback queue based on the listener's taste, mood signals, and session"
+            + " flow.\n\n");
 
     tasteProfileRepository
         .findById(userId)
@@ -193,34 +351,63 @@ public class LlmDjService {
     if (session.getSessionSummary() != null) {
       sb.append("Session summary: ").append(session.getSessionSummary()).append("\n");
     }
-    sb.append("\n## Current Queue\n");
-    for (var entry : currentQueue) {
-      var item = entry.getItem();
-      sb.append("- pos=").append(entry.getPosition());
-      sb.append(" id=").append(item.getId());
-      sb.append(" \"").append(item.getName()).append("\"");
-      sb.append(" status=").append(entry.getStatus());
-      if (entry.getIntentLabel() != null) sb.append(" intent=").append(entry.getIntentLabel());
-      appendTrackFeatures(sb, item.getId());
-      sb.append("\n");
+
+    int activeCount =
+        (int) currentQueue.stream().filter(e -> !"REMOVED".equals(e.getStatus())).count();
+    sb.append("\n## Current Queue (")
+        .append(activeCount)
+        .append(" tracks, version ")
+        .append(queueVersion)
+        .append(")\n");
+    if (currentQueue.isEmpty()) {
+      sb.append("(empty — the queue needs to be populated)\n");
+    } else {
+      for (var entry : currentQueue) {
+        var item = entry.getItem();
+        sb.append("- pos=").append(entry.getPosition());
+        sb.append(" id=").append(item.getId());
+        sb.append(" \"").append(item.getName()).append("\"");
+        sb.append(" status=").append(entry.getStatus());
+        if (entry.getIntentLabel() != null) sb.append(" intent=").append(entry.getIntentLabel());
+        appendTrackFeatures(sb, item.getId());
+        sb.append("\n");
+      }
     }
 
+    int tracksNeeded = Math.max(0, 10 - activeCount);
+    sb.append("\n## CRITICAL INSTRUCTIONS\n");
+    sb.append("1. Use the provided tools to search for candidate tracks.\n");
+    sb.append("2. You MUST return INSERT edits to add tracks to the queue.\n");
+    if (tracksNeeded > 0) {
+      sb.append("3. The queue needs at least ")
+          .append(tracksNeeded)
+          .append(" more tracks. Include at least ")
+          .append(tracksNeeded)
+          .append(" INSERT edits.\n");
+    } else {
+      sb.append(
+          "3. The queue is reasonably full. You may INSERT new tracks, REMOVE stale ones, or"
+              + " REORDER for better flow.\n");
+    }
+    sb.append("4. Use track IDs (UUIDs) from tool results. Do NOT invent track IDs.\n");
+    sb.append("5. Assign sequential positions starting from ")
+        .append(activeCount + 1)
+        .append(" for new INSERTs.\n");
+
     sb.append("\n## Response Format\n");
-    sb.append(
-        "Use the provided tools to search the library and find suitable tracks. Then respond"
-            + " with a JSON object (no markdown fence):\n");
+    sb.append("Respond with a JSON object (no markdown fence, no explanation outside JSON):\n");
     sb.append(
         """
         {
-          "baseQueueVersion": <current queue version>,
-          "intent": {"sessionArc": "<brief arc description>", "reasoning": "<why these changes>"},
+          "baseQueueVersion": %d,
+          "intent": {"sessionArc": "<brief arc>", "reasoning": "<why these changes>"},
           "edits": [
-            {"action": "INSERT|REMOVE|REORDER", "position": <queue position>,
-             "trackId": "<uuid>", "reason": "<why this track>", "intentLabel": "<short label>"}
+            {"action": "INSERT", "position": <number>, "trackId": "<uuid>", "reason": "<why>", "intentLabel": "<label>"}
           ],
-          "sessionSummaryUpdate": "<updated session summary or null>"
+          "sessionSummaryUpdate": "<updated summary or null>"
         }
-        """);
+        """
+            .formatted(queueVersion));
     return sb.toString();
   }
 
@@ -304,14 +491,13 @@ public class LlmDjService {
       sb.append(" \"").append(signal.getItem().getName()).append("\"");
       sb.append(" at ").append(signal.getCreatedAt()).append("\n");
     }
-    sb.append(
-        "\nReview the queue. Use tools to find tracks if you need candidates. Then return your"
-            + " decision as JSON.");
+    sb.append("\nSearch for tracks using the tools, then return your queue edits as JSON.");
     return sb.toString();
   }
 
-  private List<Map<String, Object>> buildToolDefinitions() {
-    List<Map<String, Object>> tools = new ArrayList<>();
+  private List<ToolUnion> buildTools() {
+    List<ToolUnion> tools = new ArrayList<>();
+
     var searchProps = new HashMap<String, Object>();
     searchProps.put("energy_min", prop("number", "Minimum energy (0-1)"));
     searchProps.put("energy_max", prop("number", "Maximum energy (0-1)"));
@@ -327,30 +513,35 @@ public class LlmDjService {
     searchProps.put("exclude_genres", arrayProp("string", "Genre names to exclude"));
     searchProps.put("limit", prop("integer", "Max results (default 10)"));
     tools.add(
-        buildTool(
+        sdkTool(
             "search_library",
-            "Search the music library by audio feature ranges. Returns tracks matching the"
-                + " specified criteria with metadata and features.",
-            schema(searchProps)));
+            "Search the music library by audio feature ranges. Returns tracks matching criteria.",
+            searchProps));
+
     tools.add(
-        buildTool(
+        sdkTool(
             "get_similar_tracks",
-            "Find tracks similar to a given track based on audio embeddings (Discogs).",
-            schema(
-                Map.of(
-                    "track_id", prop("string", "UUID of the reference track"),
-                    "limit", prop("integer", "Max results (default 10)")),
-                "track_id")));
+            "Find tracks similar to a given track based on audio embeddings.",
+            Map.of(
+                "track_id",
+                prop("string", "UUID of the reference track"),
+                "limit",
+                prop("integer", "Max results (default 10)")),
+            "track_id"));
+
     tools.add(
-        buildTool(
+        sdkTool(
             "get_recently_overplayed",
-            "Get track IDs that have been played too frequently in the last 48h. Avoid these.",
-            schema(Map.of("hours", prop("integer", "Lookback window in hours (default 48)")))));
+            "Get track IDs played too frequently in the last 48h. Avoid these.",
+            Map.of("hours", prop("integer", "Lookback window in hours (default 48)"))));
+
     tools.add(
-        buildTool(
+        sdkTool(
             "get_track_details",
             "Get detailed information about specific tracks including features and metadata.",
-            schema(Map.of("track_ids", arrayProp("string", "List of track UUIDs")), "track_ids")));
+            Map.of("track_ids", arrayProp("string", "List of track UUIDs")),
+            "track_ids"));
+
     var neverPlayedProps = new HashMap<String, Object>();
     neverPlayedProps.put("energy_min", prop("number", "Minimum energy (0-1)"));
     neverPlayedProps.put("energy_max", prop("number", "Maximum energy (0-1)"));
@@ -360,160 +551,31 @@ public class LlmDjService {
     neverPlayedProps.put("valence_max", prop("number", "Maximum valence (0-1)"));
     neverPlayedProps.put("limit", prop("integer", "Max results (default 20)"));
     tools.add(
-        buildTool(
+        sdkTool(
             "get_never_played_tracks",
-            "Find tracks the user has NEVER listened to. Returns only completely unheard tracks"
-                + " with optional audio feature filters. Essential for discovery/adventurous mode.",
-            schema(neverPlayedProps)));
+            "Find tracks the user has NEVER listened to. Essential for discovery mode.",
+            neverPlayedProps));
+
     return tools;
   }
 
-  private static Map<String, Object> prop(String type, String description) {
-    return Map.of("type", type, "description", description);
-  }
-
-  private static Map<String, Object> arrayProp(String itemType, String description) {
-    return Map.of("type", "array", "items", Map.of("type", itemType), "description", description);
-  }
-
-  private static Map<String, Object> schema(Map<String, Object> properties, String... required) {
-    return Map.of("type", "object", "properties", properties, "required", List.of(required));
-  }
-
-  private Map<String, Object> buildTool(
-      String name, String description, Map<String, Object> inputSchema) {
-    return Map.of("name", name, "description", description, "input_schema", inputSchema);
-  }
-
-  @SuppressWarnings("unchecked")
-  private Map<String, Object> callAnthropic(
-      String systemPrompt, List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
-    Map<String, Object> requestBody = new HashMap<>();
-    requestBody.put("model", model);
-    requestBody.put("max_tokens", maxTokens);
-    requestBody.put("system", systemPrompt);
-    requestBody.put("messages", messages);
-    if (tools != null && !tools.isEmpty()) requestBody.put("tools", tools);
-
-    String responseStr =
-        restClient
-            .post()
-            .uri(ANTHROPIC_API_URL)
-            .header("x-api-key", apiKey)
-            .header("anthropic-version", ANTHROPIC_VERSION)
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(requestBody)
-            .retrieve()
-            .body(String.class);
-    try {
-      return objectMapper.readValue(responseStr, new TypeReference<>() {});
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("Failed to parse Anthropic API response", e);
+  private ToolUnion sdkTool(
+      String name, String description, Map<String, Object> properties, String... required) {
+    var schemaBuilder = Tool.InputSchema.builder().properties(JsonValue.from(properties));
+    if (required.length > 0) {
+      schemaBuilder.putAdditionalProperty("required", JsonValue.from(List.of(required)));
     }
-  }
-
-  private boolean isToolUseResponse(Map<String, Object> response) {
-    return "tool_use".equals(response.get("stop_reason"));
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<Map<String, Object>> extractContentBlocks(Map<String, Object> response) {
-    Object content = response.get("content");
-    return content instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<Map<String, Object>> executeToolCalls(
-      List<Map<String, Object>> contentBlocks, UUID sessionUserId) {
-    List<Map<String, Object>> results = new ArrayList<>();
-    for (var block : contentBlocks) {
-      if (!"tool_use".equals(block.get("type"))) continue;
-      String toolName = (String) block.get("name");
-      String toolUseId = (String) block.get("id");
-      Map<String, Object> input = (Map<String, Object>) block.get("input");
-      String toolResult;
-      try {
-        toolResult = dispatchToolCall(toolName, input, sessionUserId);
-      } catch (Exception e) {
-        log.warn("Tool call {} failed: {}", toolName, e.getMessage());
-        toolResult =
-            toJsonSafe(Map.of("error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
-      }
-      results.add(Map.of("type", "tool_result", "tool_use_id", toolUseId, "content", toolResult));
-    }
-    return results;
-  }
-
-  private String dispatchToolCall(String toolName, Map<String, Object> input, UUID sessionUserId) {
-    try {
-      Object result =
-          switch (toolName) {
-            case "search_library" -> {
-              var filters =
-                  new CandidateRetrievalService.LibrarySearchFilters(
-                      toFloat(input.get("energy_min")),
-                      toFloat(input.get("energy_max")),
-                      toFloat(input.get("bpm_min")),
-                      toFloat(input.get("bpm_max")),
-                      toFloat(input.get("valence_min")),
-                      toFloat(input.get("valence_max")),
-                      toFloat(input.get("arousal_min")),
-                      toFloat(input.get("arousal_max")),
-                      toFloat(input.get("vocal_max")),
-                      toStringList(input.get("exclude_artists")),
-                      toStringList(input.get("exclude_genres")),
-                      intOrDefault(input, "limit", 10));
-              yield candidateRetrievalService.searchLibrary(filters);
-            }
-            case "get_similar_tracks" ->
-                candidateRetrievalService.findSimilarTracks(
-                    UUID.fromString((String) input.get("track_id")),
-                    intOrDefault(input, "limit", 10));
-            case "get_recently_overplayed" ->
-                candidateRetrievalService.getRecentlyOverplayed(
-                    sessionUserId, intOrDefault(input, "hours", 48));
-            case "get_track_details" -> {
-              @SuppressWarnings("unchecked")
-              List<String> idStrings = (List<String>) input.get("track_ids");
-              yield candidateRetrievalService.getTrackDetails(
-                  idStrings.stream().map(UUID::fromString).toList());
-            }
-            case "get_never_played_tracks" -> {
-              var filters =
-                  new CandidateRetrievalService.NeverPlayedFilters(
-                      toFloat(input.get("energy_min")),
-                      toFloat(input.get("energy_max")),
-                      toFloat(input.get("bpm_min")),
-                      toFloat(input.get("bpm_max")),
-                      toFloat(input.get("valence_min")),
-                      toFloat(input.get("valence_max")),
-                      intOrDefault(input, "limit", 20));
-              yield candidateRetrievalService.findNeverPlayedTracks(sessionUserId, filters);
-            }
-            default -> throw new IllegalArgumentException("Unknown tool: " + toolName);
-          };
-      return objectMapper.writeValueAsString(result);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("Failed to serialize tool result", e);
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private String extractTextContent(Map<String, Object> response) {
-    Object content = response.get("content");
-    if (content instanceof List<?> blocks) {
-      for (var block : blocks) {
-        if (block instanceof Map<?, ?> map && "text".equals(map.get("type")))
-          return (String) map.get("text");
-      }
-    }
-    throw new RuntimeException("No text content in Anthropic response");
+    return ToolUnion.ofTool(
+        Tool.builder()
+            .name(name)
+            .description(description)
+            .inputSchema(schemaBuilder.build())
+            .build());
   }
 
   private DjDecision parseDecision(String responseText, long fallbackQueueVersion) {
     String json = responseText.strip();
-    java.util.regex.Matcher fenceMatcher =
-        java.util.regex.Pattern.compile("```(?:json)?\\s*([\\s\\S]+?)```").matcher(json);
+    var fenceMatcher = FENCE_PATTERN.matcher(json);
     if (fenceMatcher.find()) {
       json = fenceMatcher.group(1).strip();
     }
@@ -523,8 +585,7 @@ public class LlmDjService {
           fallbackQueueVersion);
     } catch (JsonProcessingException ignored) {
     }
-    java.util.regex.Matcher jsonMatcher =
-        java.util.regex.Pattern.compile("\\{[\\s\\S]*\\}").matcher(responseText);
+    var jsonMatcher = JSON_OBJECT_PATTERN.matcher(responseText);
     if (jsonMatcher.find()) {
       try {
         return buildDecision(
@@ -535,7 +596,7 @@ public class LlmDjService {
       }
     }
     throw new RuntimeException(
-        "Failed to parse DJ decision JSON from response: "
+        "Failed to parse DJ decision JSON: "
             + responseText.substring(0, Math.min(200, responseText.length())));
   }
 
@@ -641,27 +702,30 @@ public class LlmDjService {
   }
 
   @SuppressWarnings("unchecked")
-  private int extractInt(Map<String, Object> map, String... path) {
-    Object current = map;
-    for (String key : path) {
-      if (current instanceof Map<?, ?> m) current = m.get(key);
-      else return 0;
+  private static Map<String, Object> jsonValueToMap(JsonValue value) {
+    if (value == null) return Map.of();
+    try {
+      return value.convert(new TypeReference<Map<String, Object>>() {});
+    } catch (Exception e) {
+      return Map.of();
     }
-    return current instanceof Number n ? n.intValue() : 0;
+  }
+
+  private static MessageParam userParam(String text) {
+    return MessageParam.builder().role(MessageParam.Role.USER).content(text).build();
+  }
+
+  private static Map<String, Object> prop(String type, String description) {
+    return Map.of("type", type, "description", description);
+  }
+
+  private static Map<String, Object> arrayProp(String itemType, String description) {
+    return Map.of("type", "array", "items", Map.of("type", itemType), "description", description);
   }
 
   private static int intOrDefault(Map<String, Object> input, String key, int defaultValue) {
-    return input.containsKey(key) ? ((Number) input.get(key)).intValue() : defaultValue;
-  }
-
-  private static String sha256(String input) {
-    try {
-      byte[] hash =
-          MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(hash);
-    } catch (NoSuchAlgorithmException e) {
-      throw new AssertionError("SHA-256 not available", e);
-    }
+    Object val = input.get(key);
+    return val instanceof Number n ? n.intValue() : defaultValue;
   }
 
   static Float toFloat(Object val) {
@@ -673,5 +737,15 @@ public class LlmDjService {
     if (val instanceof List<?> list)
       return list.stream().filter(String.class::isInstance).map(String.class::cast).toList();
     return null;
+  }
+
+  private static String sha256(String input) {
+    try {
+      byte[] hash =
+          MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(hash);
+    } catch (NoSuchAlgorithmException e) {
+      throw new AssertionError("SHA-256 not available", e);
+    }
   }
 }

@@ -33,6 +33,7 @@
         <commons-codec.version>1.17.1</commons-codec.version>
         <commons-io.version>2.18.0</commons-io.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
+        <anthropic-sdk.version>2.15.0</anthropic-sdk.version>
 
         <!-- Dependency Management Versions -->
         <checker-qual.version>3.42.0</checker-qual.version>
@@ -53,6 +54,11 @@
                 <groupId>org.checkerframework</groupId>
                 <artifactId>checker-qual</artifactId>
                 <version>${checker-qual.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.errorprone</groupId>
+                <artifactId>error_prone_annotations</artifactId>
+                <version>2.33.0</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -169,6 +175,13 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>${commons-lang3.version}</version>
+        </dependency>
+
+        <!-- LLM / Anthropic SDK -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>${anthropic-sdk.version}</version>
         </dependency>
 
         <!-- Lombok -->

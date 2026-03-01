@@ -189,9 +189,9 @@ yaytsa:
   # Adaptive DJ (LLM-powered queue curation)
   adaptive-dj:
     anthropic-api-key: ${ANTHROPIC_API_KEY:}
-    model: ${DJ_LLM_MODEL:claude-haiku-4-5-20251001}
-    max-tokens: ${DJ_LLM_MAX_TOKENS:2000}
-    timeout-ms: ${DJ_LLM_TIMEOUT:8000}
+    model: ${DJ_LLM_MODEL:claude-sonnet-4-5-20250929}
+    max-tokens: ${DJ_LLM_MAX_TOKENS:4096}
+    timeout-ms: ${DJ_LLM_TIMEOUT:30000}
     similarity:
       exact-search-threshold: ${DJ_EXACT_SEARCH_THRESHOLD:500}
     queue:
