@@ -207,7 +207,7 @@ class EssentiaAnalyzer:
             sampleRate=AUDIO_SAMPLE_RATE,
             maxPeaks=50,
             magnitudeThreshold=0.00001,
-            orderBy="magnitude",
+            orderBy="frequency",
         )
         dissonance_algo = Dissonance()
 
