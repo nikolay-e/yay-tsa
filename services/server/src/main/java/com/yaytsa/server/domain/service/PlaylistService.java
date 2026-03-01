@@ -30,14 +30,17 @@ public class PlaylistService {
   private final PlaylistRepository playlistRepository;
   private final PlaylistEntryRepository playlistEntryRepository;
   private final ItemRepository itemRepository;
+  private final SearchNormalizer searchNormalizer;
 
   public PlaylistService(
       PlaylistRepository playlistRepository,
       PlaylistEntryRepository playlistEntryRepository,
-      ItemRepository itemRepository) {
+      ItemRepository itemRepository,
+      SearchNormalizer searchNormalizer) {
     this.playlistRepository = playlistRepository;
     this.playlistEntryRepository = playlistEntryRepository;
     this.itemRepository = itemRepository;
+    this.searchNormalizer = searchNormalizer;
   }
 
   public PlaylistEntity createPlaylist(UUID userId, String name, List<UUID> itemIds) {
@@ -45,6 +48,7 @@ public class PlaylistService {
     itemEntity.setType(ItemType.Playlist);
     itemEntity.setName(name);
     itemEntity.setSortName(name.toLowerCase(java.util.Locale.ROOT));
+    itemEntity.setSearchText(searchNormalizer.buildSearchText(name, null, null, null));
     itemEntity.setPath("playlist:" + UUID.randomUUID());
     itemEntity = itemRepository.save(itemEntity);
 
@@ -165,6 +169,8 @@ public class PlaylistService {
                         item -> {
                           item.setName(name);
                           item.setSortName(name.toLowerCase(java.util.Locale.ROOT));
+                          item.setSearchText(
+                              searchNormalizer.buildSearchText(name, null, null, null));
                           itemRepository.save(item);
                         });
               }

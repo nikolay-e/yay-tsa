@@ -1,5 +1,6 @@
 package com.yaytsa.server.infrastructure.fs;
 
+import com.yaytsa.server.domain.service.SearchNormalizer;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.*;
 import com.yaytsa.server.infrastructure.transcoding.FfmpegTranscoder;
@@ -28,6 +29,7 @@ public class MediaScannerTransactionalService {
   private final ArtistRepository artistRepository;
   private final GenreRepository genreRepository;
   private final ImageRepository imageRepository;
+  private final SearchNormalizer searchNormalizer;
 
   private final Map<String, UUID> artistIdCache = new ConcurrentHashMap<>();
   private final Map<String, UUID> albumIdCache = new ConcurrentHashMap<>();
@@ -40,7 +42,8 @@ public class MediaScannerTransactionalService {
       AlbumRepository albumRepository,
       ArtistRepository artistRepository,
       GenreRepository genreRepository,
-      ImageRepository imageRepository) {
+      ImageRepository imageRepository,
+      SearchNormalizer searchNormalizer) {
     this.metadataExtractor = metadataExtractor;
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
@@ -48,6 +51,7 @@ public class MediaScannerTransactionalService {
     this.artistRepository = artistRepository;
     this.genreRepository = genreRepository;
     this.imageRepository = imageRepository;
+    this.searchNormalizer = searchNormalizer;
   }
 
   @Transactional
@@ -70,6 +74,9 @@ public class MediaScannerTransactionalService {
     trackItem.setMtime(mtime);
     trackItem.setLibraryRoot(libraryRoot);
     trackItem.setParent(albumItem);
+    trackItem.setSearchText(
+        searchNormalizer.buildSearchText(
+            metadata.title(), metadata.albumArtist(), metadata.album(), metadata.genres()));
 
     trackItem = itemRepository.save(trackItem);
 
@@ -115,6 +122,9 @@ public class MediaScannerTransactionalService {
     item.setMtime(mtime);
     item.setSizeBytes(fileSize);
     item.setParent(albumItem);
+    item.setSearchText(
+        searchNormalizer.buildSearchText(
+            metadata.title(), metadata.albumArtist(), metadata.album(), metadata.genres()));
     itemRepository.save(item);
 
     Optional<AudioTrackEntity> trackOpt = audioTrackRepository.findById(item.getId());
@@ -174,6 +184,8 @@ public class MediaScannerTransactionalService {
               item.setSortName(createSortName(finalArtistName));
               item.setPath("artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT));
               item.setLibraryRoot(libraryRoot);
+              item.setSearchText(
+                  searchNormalizer.buildSearchText(finalArtistName, null, null, null));
               item = itemRepository.save(item);
 
               ArtistEntity artist = new ArtistEntity();
@@ -213,6 +225,8 @@ public class MediaScannerTransactionalService {
               item.setPath(albumPath);
               item.setLibraryRoot(libraryRoot);
               item.setParent(artistItem);
+              item.setSearchText(
+                  searchNormalizer.buildSearchText(finalAlbumName, artistName, null, null));
               item = itemRepository.save(item);
 
               AlbumEntity album = new AlbumEntity();
