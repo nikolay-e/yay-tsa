@@ -95,8 +95,19 @@ public class AdaptiveQueueService {
     QueuePolicyValidator.ValidationResult validation =
         policyValidator.validate(decision.get(), currentQueue, preferences, session);
 
+    if ("NO_EDITS".equals(validation.outcome())) {
+      log.warn(
+          "LLM returned no edits for session {} despite instructions, using fallback",
+          session.getId());
+      fallbackQueueService.fillQueue(session, currentQueue.size());
+      return;
+    }
+
     if ("REJECTED".equals(validation.outcome())) {
-      log.warn("All LLM edits rejected for session {}, using fallback", session.getId());
+      log.warn(
+          "All {} LLM edits rejected by policy for session {}, using fallback",
+          decision.get().edits().size(),
+          session.getId());
       fallbackQueueService.fillQueue(session, currentQueue.size());
       return;
     }
@@ -132,9 +143,12 @@ public class AdaptiveQueueService {
       QueuePolicyValidator.ValidationResult freshValidation =
           policyValidator.validate(decision, freshQueue, preferences, session);
 
-      if ("REJECTED".equals(freshValidation.outcome())) {
+      if ("REJECTED".equals(freshValidation.outcome())
+          || "NO_EDITS".equals(freshValidation.outcome())) {
         log.info(
-            "Retry validation rejected all edits for session {}, falling back", session.getId());
+            "Retry validation outcome {} for session {}, falling back",
+            freshValidation.outcome(),
+            session.getId());
         fallbackQueueService.fillQueue(session, freshQueue.size());
         return;
       }

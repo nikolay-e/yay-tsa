@@ -154,11 +154,46 @@ public class LlmDjService {
         totalCompletionTokens += (int) response.usage().outputTokens();
       }
 
-      String responseText = extractText(response);
-      log.debug("LLM raw response: {}", responseText);
+      DjDecision decision = parseResponse(response, baseQueueVersion);
 
-      DjDecision decision = parseDecision(responseText, baseQueueVersion);
+      if (decision.edits().isEmpty()) {
+        log.info("LLM returned 0 edits on first attempt, retrying with nudge");
+        messages.add(toAssistantParam(response));
+        messages.add(
+            userParam(
+                "Your response contained no edits. You MUST return at least one INSERT edit with"
+                    + " a valid track ID from your earlier tool results. Respond with the JSON"
+                    + " object now."));
+
+        response = callApi(systemPrompt, messages, tools);
+        totalPromptTokens += (int) response.usage().inputTokens();
+        totalCompletionTokens += (int) response.usage().outputTokens();
+
+        if (response.stopReason().filter(StopReason.TOOL_USE::equals).isPresent()) {
+          toolRounds++;
+          messages.add(toAssistantParam(response));
+          List<ContentBlockParam> toolResults = executeToolCalls(response, userId);
+          messages.add(
+              MessageParam.builder()
+                  .role(MessageParam.Role.USER)
+                  .contentOfBlockParams(toolResults)
+                  .build());
+          response = callApi(systemPrompt, messages, tools);
+          totalPromptTokens += (int) response.usage().inputTokens();
+          totalCompletionTokens += (int) response.usage().outputTokens();
+        }
+
+        decision = parseResponse(response, baseQueueVersion);
+      }
+
       long latencyMs = System.currentTimeMillis() - startTime;
+      String validationResult = decision.edits().isEmpty() ? "NO_EDITS" : "VALID";
+      log.info(
+          "LLM DJ decision in {}ms ({} tool rounds, {} edits, status={})",
+          latencyMs,
+          toolRounds,
+          decision.edits().size(),
+          validationResult);
       logDecision(
           session,
           triggerType,
@@ -168,12 +203,7 @@ public class LlmDjService {
           totalCompletionTokens,
           latencyMs,
           decision,
-          "VALID");
-      log.info(
-          "LLM DJ decision generated in {}ms ({} tool rounds, {} edits)",
-          latencyMs,
-          toolRounds,
-          decision.edits().size());
+          validationResult);
       return Optional.of(decision);
     } catch (Exception e) {
       long latencyMs = System.currentTimeMillis() - startTime;
@@ -304,6 +334,12 @@ public class LlmDjService {
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize tool result", e);
     }
+  }
+
+  private DjDecision parseResponse(Message response, long baseQueueVersion) {
+    String text = extractText(response);
+    log.debug("LLM raw response: {}", text);
+    return parseDecision(text, baseQueueVersion);
   }
 
   private String extractText(Message response) {

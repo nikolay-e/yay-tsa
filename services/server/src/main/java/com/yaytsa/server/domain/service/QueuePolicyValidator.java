@@ -224,6 +224,7 @@ public class QueuePolicyValidator {
   }
 
   private String determineOutcome(int totalEdits, int approvedCount) {
+    if (totalEdits == 0) return "NO_EDITS";
     if (approvedCount == 0) return "REJECTED";
     return approvedCount == totalEdits ? "APPLIED" : "PARTIAL";
   }
