@@ -41,6 +41,16 @@ spec:
               value: /app/models
             - name: MEDIA_PATH
               value: /media
+          {{- with .Values.featureExtractor.probes.startup }}
+          startupProbe:
+            httpGet:
+              path: {{ .path }}
+              port: http
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: {{ .Values.featureExtractor.probes.liveness.path }}

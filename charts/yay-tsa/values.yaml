@@ -279,18 +279,24 @@ featureExtractor:
     limits:
       memory: '3Gi'
   probes:
+    startup:
+      path: /health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30
     liveness:
       path: /health
-      initialDelaySeconds: 60
-      periodSeconds: 60
-      timeoutSeconds: 30
-      failureThreshold: 5
+      initialDelaySeconds: 0
+      periodSeconds: 120
+      timeoutSeconds: 60
+      failureThreshold: 10
     readiness:
       path: /api/v1/extract/status
-      initialDelaySeconds: 30
-      periodSeconds: 30
-      timeoutSeconds: 15
-      failureThreshold: 5
+      initialDelaySeconds: 0
+      periodSeconds: 60
+      timeoutSeconds: 30
+      failureThreshold: 10
   securityContext:
     runAsNonRoot: true
     runAsUser: 1000
