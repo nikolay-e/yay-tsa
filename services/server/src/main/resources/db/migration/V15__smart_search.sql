@@ -29,7 +29,7 @@ LEFT JOIN LATERAL (
     SELECT string_agg(g.name, ' ') AS names
     FROM item_genres ig
     JOIN genres g ON g.id = ig.genre_id
-    WHERE ig.item_id = items.id
+    WHERE ig.item_id = at.item_id
 ) genre_agg ON true
 WHERE at.item_id = items.id AND items.type = 'AudioTrack';
 
@@ -46,7 +46,7 @@ LEFT JOIN LATERAL (
     SELECT string_agg(g.name, ' ') AS names
     FROM item_genres ig
     JOIN genres g ON g.id = ig.genre_id
-    WHERE ig.item_id = items.id
+    WHERE ig.item_id = alb.item_id
 ) genre_agg ON true
 WHERE alb.item_id = items.id AND items.type = 'MusicAlbum';
 
@@ -59,10 +59,10 @@ UPDATE items SET search_text = lower(
 FROM artists art
 LEFT JOIN LATERAL (
     SELECT string_agg(DISTINCT g.name, ' ') AS names
-    FROM audio_tracks at
-    JOIN item_genres ig ON ig.item_id = at.item_id
+    FROM audio_tracks at2
+    JOIN item_genres ig ON ig.item_id = at2.item_id
     JOIN genres g ON g.id = ig.genre_id
-    WHERE at.album_artist_id = items.id
+    WHERE at2.album_artist_id = art.item_id
 ) genre_agg ON true
 WHERE art.item_id = items.id AND items.type = 'MusicArtist';
 
