@@ -89,6 +89,10 @@ spec:
         - name: LYRICS_FETCHER_URL
           value: "http://{{ include "yay-tsa.fullname" . }}-audio-separator:{{ .Values.audioSeparator.service.port }}"
         {{- end }}
+        {{- if .Values.featureExtractor.enabled }}
+        - name: FEATURE_EXTRACTOR_URL
+          value: "http://{{ include "yay-tsa.fullname" . }}-feature-extractor:{{ .Values.featureExtractor.service.port }}"
+        {{- end }}
         {{- if .Values.backend.nginxSidecar.enabled }}
         - name: X_ACCEL_REDIRECT_ENABLED
           value: "true"

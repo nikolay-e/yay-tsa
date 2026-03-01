@@ -1,0 +1,19 @@
+{{- if .Values.featureExtractor.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: feature-extractor
+  name: {{ include "yay-tsa.fullname" . }}-feature-extractor
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.featureExtractor.service.port }}
+      protocol: TCP
+      targetPort: http
+  selector:
+    {{- include "yay-tsa.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: feature-extractor
+  type: {{ .Values.featureExtractor.service.type }}
+{{- end }}

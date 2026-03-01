@@ -260,3 +260,50 @@ audioSeparator:
   media:
     enabled: false
     hostPath: ''
+
+featureExtractor:
+  enabled: false
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    pullPolicy: IfNotPresent
+    tag: ''
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      memory: '512Mi'
+      cpu: '100m'
+    limits:
+      memory: '1536Mi'
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 3
+    readiness:
+      path: /api/v1/extract/status
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  media:
+    enabled: false
+    hostPath: ''
