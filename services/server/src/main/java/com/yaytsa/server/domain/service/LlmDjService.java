@@ -156,20 +156,35 @@ public class LlmDjService {
 
       DjDecision decision = parseResponse(response, baseQueueVersion);
 
-      if (decision.edits().isEmpty()) {
-        log.info("LLM returned 0 edits on first attempt, retrying with nudge");
+      boolean hasPendingToolUse =
+          response.stopReason().filter(StopReason.TOOL_USE::equals).isPresent();
+
+      if (decision.edits().isEmpty() && !hasPendingToolUse) {
+        log.info(
+            "LLM returned 0 edits on first attempt (toolRounds={}), retrying with nudge",
+            toolRounds);
         messages.add(toAssistantParam(response));
-        messages.add(
-            userParam(
-                "Your response contained no edits. You MUST return at least one INSERT edit with"
-                    + " a valid track ID from your earlier tool results. Respond with the JSON"
-                    + " object now."));
+
+        String nudgeMessage =
+            toolRounds > 0
+                ? "Your response contained no queue edits. You MUST return at least one INSERT"
+                    + " edit using track IDs from your earlier tool results. Respond with the"
+                    + " JSON object now."
+                : "Your response contained no queue edits. Use the search_library tool to find"
+                    + " candidate tracks, then respond with at least one INSERT edit. You MUST"
+                    + " include valid track IDs from the tool results in your edits.";
+        messages.add(userParam(nudgeMessage));
+
+        int nudgeToolRounds = 0;
+        int maxNudgeToolRounds = toolRounds > 0 ? 0 : 2;
 
         response = callApi(systemPrompt, messages, tools);
         totalPromptTokens += (int) response.usage().inputTokens();
         totalCompletionTokens += (int) response.usage().outputTokens();
 
-        if (response.stopReason().filter(StopReason.TOOL_USE::equals).isPresent()) {
+        while (response.stopReason().filter(StopReason.TOOL_USE::equals).isPresent()
+            && nudgeToolRounds < maxNudgeToolRounds) {
+          nudgeToolRounds++;
           toolRounds++;
           messages.add(toAssistantParam(response));
           List<ContentBlockParam> toolResults = executeToolCalls(response, userId);
@@ -183,7 +198,11 @@ public class LlmDjService {
           totalCompletionTokens += (int) response.usage().outputTokens();
         }
 
-        decision = parseResponse(response, baseQueueVersion);
+        try {
+          decision = parseResponse(response, baseQueueVersion);
+        } catch (Exception e) {
+          log.warn("Failed to parse nudge retry response: {}", e.getMessage());
+        }
       }
 
       long latencyMs = System.currentTimeMillis() - startTime;
@@ -338,6 +357,11 @@ public class LlmDjService {
 
   private DjDecision parseResponse(Message response, long baseQueueVersion) {
     String text = extractText(response);
+    if (text.isBlank()) {
+      log.debug("LLM response contained no text (tool_use only), treating as empty edits");
+      return new DjDecision(
+          baseQueueVersion, new DjDecision.DjIntent("none", "No text response"), List.of(), null);
+    }
     log.debug("LLM raw response: {}", text);
     return parseDecision(text, baseQueueVersion);
   }
@@ -347,7 +371,7 @@ public class LlmDjService {
         .flatMap(block -> block.text().stream())
         .map(tb -> tb.text())
         .findFirst()
-        .orElseThrow(() -> new RuntimeException("No text content in LLM response"));
+        .orElse("");
   }
 
   private String buildSystemPrompt(
