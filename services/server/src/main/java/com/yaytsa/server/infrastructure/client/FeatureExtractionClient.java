@@ -40,8 +40,8 @@ public class FeatureExtractionClient {
   public record ExtractionResult(
       String trackId,
       Map<String, Object> features,
-      List<Float> embeddingDiscogs,
-      List<Float> embeddingMusicnn,
+      List<? extends Number> embeddingDiscogs,
+      List<? extends Number> embeddingMusicnn,
       int processingTimeMs) {}
 
   @SuppressWarnings("unchecked")
@@ -65,8 +65,8 @@ public class FeatureExtractionClient {
         return new ExtractionResult(
             trackId.toString(),
             (Map<String, Object>) response.get("features"),
-            (List<Float>) response.get("embedding_discogs"),
-            (List<Float>) response.get("embedding_musicnn"),
+            (List<? extends Number>) response.get("embedding_discogs"),
+            (List<? extends Number>) response.get("embedding_musicnn"),
             time);
       } catch (ResourceAccessException e) {
         lastException = e;

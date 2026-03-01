@@ -187,9 +187,10 @@ public class FeatureExtractionService {
     return map.get(key) != null ? map.get(key).toString() : null;
   }
 
-  private static float[] toFloatArray(List<Float> list) {
+  private static float[] toFloatArray(List<?> list) {
     float[] arr = new float[list.size()];
-    for (int i = 0; i < list.size(); i++) arr[i] = list.get(i) != null ? list.get(i) : 0f;
+    for (int i = 0; i < list.size(); i++)
+      arr[i] = list.get(i) instanceof Number n ? n.floatValue() : 0f;
     return arr;
   }
 }
