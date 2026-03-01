@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -51,4 +52,29 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
 
   @Query("SELECT at FROM AudioTrackEntity at JOIN FETCH at.item WHERE at.codec IS NOT NULL")
   List<AudioTrackEntity> findAllWithCodec();
+
+  @Modifying
+  @org.springframework.transaction.annotation.Transactional
+  @Query("UPDATE AudioTrackEntity at SET at.lyrics = :lyrics WHERE at.itemId = :id")
+  void updateLyrics(@Param("id") java.util.UUID id, @Param("lyrics") String lyrics);
+
+  @Query(
+      "SELECT at FROM AudioTrackEntity at "
+          + "LEFT JOIN FETCH at.item i "
+          + "LEFT JOIN FETCH at.albumArtist aa "
+          + "WHERE LOWER(aa.name) = LOWER(:artistName) "
+          + "AND LOWER(i.name) = LOWER(:title)")
+  List<AudioTrackEntity> findByArtistNameAndTitle(
+      @Param("artistName") String artistName,
+      @Param("title") String title);
+
+  @Query(
+      value = "SELECT item_id FROM audio_tracks ORDER BY RANDOM() LIMIT :limit",
+      nativeQuery = true)
+  List<UUID> findRandomTrackIds(@Param("limit") int limit);
+
+  @Query(
+      "SELECT at.album.id, COUNT(at) FROM AudioTrackEntity at"
+          + " WHERE at.album.id IN :albumIds GROUP BY at.album.id")
+  List<Object[]> countByAlbumIdIn(@Param("albumIds") Collection<UUID> albumIds);
 }

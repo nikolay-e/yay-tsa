@@ -32,4 +32,11 @@ public interface AlbumRepository extends JpaRepository<AlbumEntity, UUID> {
           + "LEFT JOIN FETCH a.item "
           + "WHERE a.itemId IN :itemIds")
   List<AlbumEntity> findAllByIdInWithArtist(@Param("itemIds") Collection<UUID> itemIds);
+
+  @Query(
+      "SELECT a.artist.id, COUNT(a) FROM AlbumEntity a"
+          + " WHERE a.artist.id IN :artistIds"
+          + " AND EXISTS (SELECT 1 FROM AudioTrackEntity t WHERE t.album.id = a.item.id)"
+          + " GROUP BY a.artist.id")
+  List<Object[]> countByArtistIdIn(@Param("artistIds") Collection<UUID> artistIds);
 }

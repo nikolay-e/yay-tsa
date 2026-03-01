@@ -24,7 +24,7 @@
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
   --spacing-player-bar: 76px;
-  --spacing-player-bar-mobile: 64px;
+  --spacing-player-bar-mobile: 112px;
   --spacing-sidebar: 160px;
   --spacing-bottom-tab: 52px;
   --spacing-safe-t: env(safe-area-inset-top, 0);
@@ -334,6 +334,13 @@
   bottom: calc(var(--spacing-player-bar-mobile) + env(safe-area-inset-bottom, 0px));
   @media (min-width: 768px) {
     bottom: calc(var(--spacing-player-bar) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@utility bottom-above-tab-bar {
+  bottom: calc(var(--spacing-bottom-tab) + env(safe-area-inset-bottom, 0px));
+  @media (min-width: 768px) {
+    bottom: 0;
   }
 }
 

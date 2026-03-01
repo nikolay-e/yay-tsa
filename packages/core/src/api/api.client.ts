@@ -586,7 +586,7 @@ export class MediaServerClient {
   }
 
   /**
-   * Build instrumental stream URL for karaoke playback
+   * Build instrumental stream URL for karaoke playback (vocals fully removed)
    */
   getInstrumentalStreamUrl(itemId: string): string {
     if (!this.token) {
@@ -600,19 +600,41 @@ export class MediaServerClient {
     return `${this.serverUrl}/Karaoke/${itemId}/instrumental?${params}`;
   }
 
-  async fetchLyrics(trackId: string): Promise<LyricsFetchResponse> {
-    const result = await this.post<LyricsFetchResponse>(`/Lyrics/${trackId}/fetch`);
-    return result ?? { found: false, lyrics: null, source: null };
+  /**
+   * Fetch lyrics on demand for a track
+   */
+  async fetchLyrics(trackId: string): Promise<{ found: boolean; lyrics: string; source: string }> {
+    const result = await this.post<{ found: boolean; lyrics: string; source: string }>(
+      `/Lyrics/${trackId}/fetch`
+    );
+    return result ?? { found: false, lyrics: '', source: '' };
   }
+
+  /**
+   * Build karaoke stream URL with adjustable vocal volume
+   * @param itemId Track ID
+   * @param vocalVolume Vocal volume from 0.0 (no vocals) to 1.0 (full vocals)
+   */
+  getKaraokeStreamUrl(itemId: string, vocalVolume: number, startTime: number = 0): string {
+    if (!this.token) {
+      throw new AuthenticationError('Cannot build stream URL: not authenticated');
+    }
+
+    const params = new URLSearchParams({
+      api_key: this.token,
+      vocalVolume: vocalVolume.toFixed(2),
+    });
+
+    if (startTime > 0) {
+      params.set('startTime', startTime.toFixed(3));
+    }
+
+    return `${this.serverUrl}/Karaoke/${itemId}/stream?${params}`;
+  }
+
 }
 
 export interface KaraokeStatus {
   state: 'NOT_STARTED' | 'PROCESSING' | 'READY' | 'FAILED';
   message: string | null;
-}
-
-export interface LyricsFetchResponse {
-  found: boolean;
-  lyrics: string | null;
-  source: string | null;
 }

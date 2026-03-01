@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 import { type MusicAlbum } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
@@ -7,10 +7,12 @@ import { cn } from '@/shared/utils/cn';
 
 interface AlbumCardProps {
   album: MusicAlbum;
+  isPlaying?: boolean;
   onPlay?: () => void;
+  onPause?: () => void;
 }
 
-export function AlbumCard({ album, onPlay }: AlbumCardProps) {
+export function AlbumCard({ album, isPlaying, onPlay, onPause }: AlbumCardProps) {
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     album.Id,
     album.ImageTags?.Primary
@@ -26,6 +28,7 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
 
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const artistId = album.ArtistItems?.[0]?.Id;
+  const isIncomplete = album.IsComplete === false && (album.ChildCount ?? 0) > 0 && (album.TotalTracks ?? 0) > 0;
 
   return (
     <div
@@ -44,24 +47,42 @@ export function AlbumCard({ album, onPlay }: AlbumCardProps) {
           loading="lazy"
           onError={onImageError}
         />
+        {isIncomplete && (
+          <div
+            className="absolute top-1.5 right-1.5 z-[3] rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow"
+            title="Upload remaining tracks from Settings"
+          >
+            {album.ChildCount}/{album.TotalTracks}
+          </div>
+        )}
         <button
           type="button"
           onClick={e => {
             e.stopPropagation();
-            onPlay?.();
+            if (isPlaying) {
+              onPause?.();
+            } else {
+              onPlay?.();
+            }
           }}
           className={cn(
             'absolute top-1/2 left-1/2 z-[2] h-12 w-12 -translate-x-1/2 -translate-y-1/2',
             'flex items-center justify-center',
             'bg-accent text-text-on-accent rounded-full shadow-lg',
-            'scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100',
+            isPlaying
+              ? 'scale-100 opacity-100'
+              : 'scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100',
             'transition-all duration-200',
             'hover:bg-accent-hover hover:scale-110',
             'focus-visible:ring-accent focus-visible:scale-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
           )}
-          aria-label={`Play ${album.Name || 'album'}`}
+          aria-label={isPlaying ? `Pause ${album.Name || 'album'}` : `Play ${album.Name || 'album'}`}
         >
-          <Play className="ml-0.5 h-6 w-6" fill="currentColor" />
+          {isPlaying ? (
+            <Pause className="h-6 w-6" fill="currentColor" />
+          ) : (
+            <Play className="ml-0.5 h-6 w-6" fill="currentColor" />
+          )}
         </button>
       </div>
       <h3 data-testid="album-title" className="text-text-primary truncate font-medium">

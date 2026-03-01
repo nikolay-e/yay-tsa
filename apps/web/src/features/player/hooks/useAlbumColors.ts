@@ -89,6 +89,7 @@ export function useAlbumColors() {
     return () => {
       cancelled = true;
       clearTimeout(debounceRef.current);
+      lastUrlRef.current = '';
     };
   }, [currentTrack?.Id, currentTrack?.AlbumId, getImageUrl]);
 

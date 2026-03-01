@@ -89,11 +89,11 @@ export function RootLayout() {
       >
         <Outlet />
       </main>
-      {showNavigation && <BottomTabBar hasPlayer={!!showPlayer} />}
+      {showNavigation && <BottomTabBar />}
       {showPlayer && (
         <ErrorBoundary
           fallback={
-            <div className="z-player border-border bg-bg-secondary pb-safe px-safe md:left-sidebar fixed right-0 bottom-0 left-0 border-t p-4 text-center">
+            <div className="z-player border-border bg-bg-secondary px-safe md:pb-safe md:left-sidebar fixed right-0 bottom-above-tab-bar left-0 border-t p-4 text-center">
               <p className="text-text-secondary text-sm">
                 Player encountered an error. Reload the page to continue.
               </p>
@@ -146,20 +146,13 @@ function Sidebar({ hasPlayer }: SidebarProps) {
   );
 }
 
-interface BottomTabBarProps {
-  hasPlayer: boolean;
-}
-
-function BottomTabBar({ hasPlayer }: BottomTabBarProps) {
+function BottomTabBar() {
   const location = useLocation();
 
   return (
     <nav
       data-testid="bottom-tab-bar"
-      className={cn(
-        'border-border bg-bg-secondary z-bottom-tab px-safe fixed right-0 left-0 border-t md:hidden',
-        hasPlayer ? 'bottom-above-player' : 'pb-safe bottom-0'
-      )}
+      className="border-border bg-bg-secondary z-bottom-tab px-safe pb-safe fixed right-0 bottom-0 left-0 border-t md:hidden"
     >
       <div className="h-bottom-tab flex items-center justify-around">
         {NAV_ITEMS.map(item => {

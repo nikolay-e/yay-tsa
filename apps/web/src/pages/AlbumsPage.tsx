@@ -1,7 +1,7 @@
 import { useState, useMemo, useDeferredValue } from 'react';
 import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
-import { usePlayerStore } from '@/features/player/stores/player.store';
+import { usePlayerStore, useCurrentTrack, useIsPlaying } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
@@ -10,6 +10,10 @@ export function AlbumsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const playAlbum = usePlayerStore(state => state.playAlbum);
+  const pause = usePlayerStore(state => state.pause);
+  const currentTrack = useCurrentTrack();
+  const isPlaying = useIsPlaying();
+  const playingAlbumId = isPlaying ? currentTrack?.AlbumId : undefined;
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteAlbums({
@@ -44,7 +48,12 @@ export function AlbumsPage() {
         </div>
       ) : (
         <>
-          <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+          <AlbumGrid
+            albums={albums}
+            playingAlbumId={playingAlbumId}
+            onPlayAlbum={album => void playAlbum(album.Id)}
+            onPause={pause}
+          />
           <InfiniteScrollFooter
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}

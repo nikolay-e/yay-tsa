@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles } from 'lucide-react';
-import { AdminService, MediaServerError } from '@yay-tsa/core';
+import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles, Upload, Radio, Play, Square } from 'lucide-react';
+import { AdminService, RadioService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
-import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useAuthStore, useIsAdmin } from '@/features/auth/stores/auth.store';
+import { TrackUploadDialog } from '@/features/library/components';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
+import { useAnalysisStats } from '@/features/radio/hooks/useRadio';
 
 async function clearServiceWorkerCaches(): Promise<number> {
   if (!('caches' in window)) return 0;
@@ -31,9 +33,13 @@ async function forceReload(): Promise<void> {
 export function SettingsPage() {
   const client = useAuthStore(state => state.client);
   const logout = useAuthStore(state => state.logout);
+  const isAdmin = useIsAdmin();
   const [status, setStatus] = useState<string | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+
+  const { data: analysisStats } = useAnalysisStats(isAdmin);
 
   const handleRescanLibrary = async () => {
     if (!client) return;
@@ -68,9 +74,123 @@ export function SettingsPage() {
     await forceReload();
   };
 
+  const handleUploadSuccess = () => {
+    setStatus('Album uploaded successfully. Rescanning library...');
+    void queryClient.invalidateQueries({ queryKey: ['tracks'] });
+    void queryClient.invalidateQueries({ queryKey: ['albums'] });
+    void queryClient.invalidateQueries({ queryKey: ['artists'] });
+    void queryClient.invalidateQueries({ queryKey: ['album'] });
+    void queryClient.invalidateQueries({ queryKey: ['artist'] });
+    void handleRescanLibrary();
+  };
+
+  const handleStartAnalysis = async () => {
+    if (!client) return;
+    try {
+      const radioService = new RadioService(client);
+      await radioService.startBatchAnalysis();
+      setStatus('Analysis started');
+      void queryClient.invalidateQueries({ queryKey: ['radio', 'analysisStats'] });
+    } catch {
+      setStatus('Failed to start analysis');
+    }
+  };
+
+  const handleStopAnalysis = async () => {
+    if (!client) return;
+    try {
+      const radioService = new RadioService(client);
+      await radioService.stopBatchAnalysis();
+      setStatus('Analysis stopped');
+      void queryClient.invalidateQueries({ queryKey: ['radio', 'analysisStats'] });
+    } catch {
+      setStatus('Failed to stop analysis');
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl p-6">
       <h1 className="mb-6 text-2xl font-bold">Settings</h1>
+
+      {isAdmin && (
+        <section className="mb-8">
+          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+            <Upload className="h-4 w-4" />
+            Upload
+          </h2>
+
+          <button
+            onClick={() => setIsUploadOpen(true)}
+            className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
+          >
+            <Upload className="text-accent h-5 w-5 shrink-0" />
+            <div>
+              <div className="font-medium">Upload Album</div>
+              <div className="text-text-secondary text-sm">
+                Upload audio files to the library. Select all tracks of an album at once.
+              </div>
+            </div>
+          </button>
+        </section>
+      )}
+
+      {isAdmin && (
+        <section className="mb-8">
+          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+            <Radio className="h-4 w-4" />
+            Smart Radio
+          </h2>
+
+          <div className="bg-bg-secondary border-border space-y-4 rounded-lg border p-4">
+            {analysisStats && (
+              <div className="border-border border-t pt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-text-secondary text-sm">Track Analysis</span>
+                  <span className="text-text-primary text-sm font-medium">
+                    {analysisStats.analyzed} / {analysisStats.total} analyzed
+                  </span>
+                </div>
+
+                <div className="bg-bg-tertiary mb-3 h-2 overflow-hidden rounded-full">
+                  <div
+                    className="bg-accent h-full rounded-full transition-all"
+                    style={{
+                      width: `${analysisStats.total > 0 ? (analysisStats.analyzed / analysisStats.total) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  {analysisStats.batchRunning ? (
+                    <button
+                      onClick={() => void handleStopAnalysis()}
+                      className="bg-error/10 text-error hover:bg-error/20 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors"
+                    >
+                      <Square className="h-3 w-3" fill="currentColor" />
+                      Stop Analysis
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void handleStartAnalysis()}
+                      disabled={analysisStats.unanalyzed === 0}
+                      className="bg-accent/10 text-accent hover:bg-accent/20 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
+                    >
+                      <Play className="h-3 w-3" fill="currentColor" />
+                      Start Analysis ({analysisStats.unanalyzed} remaining)
+                    </button>
+                  )}
+                </div>
+
+                {analysisStats.batchRunning && (
+                  <p className="text-text-secondary mt-2 text-xs animate-pulse">
+                    Analyzing tracks... This may take a while.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
@@ -158,6 +278,12 @@ export function SettingsPage() {
           </div>
         </button>
       </section>
+
+      <TrackUploadDialog
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUploadSuccess={handleUploadSuccess}
+      />
     </div>
   );
 }

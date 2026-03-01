@@ -9,6 +9,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntryEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.mapper.ItemMapper;
+import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -20,11 +21,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/Playlists")
 @Tag(name = "Playlists", description = "Playlist management")
+@Transactional(readOnly = true)
 public class PlaylistsController {
 
   private static final int MAX_PAGE_SIZE = 1000;
@@ -59,10 +62,8 @@ public class PlaylistsController {
 
     int totalCount = 0;
     if (userId != null) {
-      UUID requestedUserId;
-      try {
-        requestedUserId = UUID.fromString(userId);
-      } catch (IllegalArgumentException e) {
+      UUID requestedUserId = UuidUtils.parseUuid(userId);
+      if (requestedUserId == null) {
         return ResponseEntity.badRequest().build();
       }
       UUID currentUserId = authenticatedUser.getUserEntity().getId();
@@ -106,6 +107,7 @@ public class PlaylistsController {
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "403", description = "Forbidden")
       })
+  @Transactional
   @PostMapping
   public ResponseEntity<Map<String, String>> createPlaylist(
       @RequestBody CreatePlaylistRequest request,
@@ -113,10 +115,8 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID requestedUserId;
-    try {
-      requestedUserId = UUID.fromString(request.userId());
-    } catch (IllegalArgumentException e) {
+    UUID requestedUserId = UuidUtils.parseUuid(request.userId());
+    if (requestedUserId == null) {
       return ResponseEntity.badRequest().build();
     }
 
@@ -153,7 +153,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -181,6 +181,7 @@ public class PlaylistsController {
   }
 
   @Operation(summary = "Update playlist", description = "Update playlist metadata")
+  @Transactional
   @PutMapping("/{playlistId}")
   public ResponseEntity<Map<String, Object>> updatePlaylist(
       @PathVariable String playlistId,
@@ -189,7 +190,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -221,6 +222,7 @@ public class PlaylistsController {
   }
 
   @Operation(summary = "Delete playlist", description = "Delete a playlist")
+  @Transactional
   @DeleteMapping("/{playlistId}")
   public ResponseEntity<Void> deletePlaylist(
       @PathVariable String playlistId,
@@ -228,7 +230,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -267,7 +269,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -326,6 +328,7 @@ public class PlaylistsController {
       description =
           "Add one or more items to a playlist. "
               + "Item IDs are passed as comma-separated values in the Ids parameter.")
+  @Transactional
   @PostMapping("/{playlistId}/Items")
   public ResponseEntity<Void> addItemsToPlaylist(
       @PathVariable String playlistId,
@@ -337,7 +340,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -351,15 +354,8 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    List<UUID> itemIds;
-    try {
-      itemIds =
-          Arrays.stream(ids.split(","))
-              .map(String::trim)
-              .filter(s -> !s.isEmpty())
-              .map(UUID::fromString)
-              .collect(Collectors.toList());
-    } catch (IllegalArgumentException e) {
+    List<UUID> itemIds = UuidUtils.parseUuidList(ids);
+    if (itemIds == null) {
       return ResponseEntity.badRequest().build();
     }
 
@@ -373,6 +369,7 @@ public class PlaylistsController {
       description =
           "Remove specific items from a playlist by their playlist entry IDs. "
               + "Note: These are playlist entry IDs, not the original item IDs.")
+  @Transactional
   @DeleteMapping("/{playlistId}/Items")
   public ResponseEntity<Void> removeItemsFromPlaylist(
       @PathVariable String playlistId,
@@ -383,7 +380,7 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -397,15 +394,8 @@ public class PlaylistsController {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
-    List<UUID> entryIdsList;
-    try {
-      entryIdsList =
-          Arrays.stream(entryIds.split(","))
-              .map(String::trim)
-              .filter(s -> !s.isEmpty())
-              .map(UUID::fromString)
-              .collect(Collectors.toList());
-    } catch (IllegalArgumentException e) {
+    List<UUID> entryIdsList = UuidUtils.parseUuidList(entryIds);
+    if (entryIdsList == null) {
       return ResponseEntity.badRequest().build();
     }
 
@@ -417,6 +407,7 @@ public class PlaylistsController {
   @Operation(
       summary = "Move playlist item",
       description = "Move an item to a new position in the playlist")
+  @Transactional
   @PostMapping("/{playlistId}/Items/{itemId}/Move/{newIndex}")
   public ResponseEntity<Void> movePlaylistItem(
       @PathVariable String playlistId,
@@ -426,12 +417,12 @@ public class PlaylistsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID playlistUuid = parseUuid(playlistId);
+    UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID entryId = parseUuid(itemId);
+    UUID entryId = UuidUtils.parseUuid(itemId);
     if (entryId == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -459,14 +450,4 @@ public class PlaylistsController {
     return playlist.getUserId().equals(currentUserId) || isAdmin;
   }
 
-  private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
 }

@@ -7,7 +7,6 @@
 export {
   MediaServerClient,
   type KaraokeStatus,
-  type LyricsFetchResponse,
 } from './api/api.client.js';
 export { BaseService } from './api/base-api.service.js';
 export { AuthService, validateServerUrl } from './api/auth.service.js';
@@ -32,6 +31,12 @@ export type {
   SignalContext,
   UserPreferences,
 } from './api/adaptive-dj.types.js';
+export {
+  RadioService,
+  type RadioFilters,
+  type RadioFiltersResponse,
+  type AnalysisStats,
+} from './api/radio.service.js';
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';

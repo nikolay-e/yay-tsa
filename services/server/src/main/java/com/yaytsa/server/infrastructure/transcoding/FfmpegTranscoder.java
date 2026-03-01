@@ -1,6 +1,6 @@
 package com.yaytsa.server.infrastructure.transcoding;
 
-import com.yaytsa.server.infrastructure.fs.PathUtils;
+import com.yaytsa.server.util.PathUtils;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

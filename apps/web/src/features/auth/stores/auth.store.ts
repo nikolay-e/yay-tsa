@@ -7,6 +7,7 @@ import {
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   type ClientInfo,
+  type MediaServerUser,
 } from '@yay-tsa/core';
 import {
   saveSession,
@@ -29,6 +30,7 @@ interface AuthState {
   authService: AuthService | null;
   token: string | null;
   userId: string | null;
+  isAdmin: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: Error | null;
@@ -47,6 +49,7 @@ const initialState: AuthState = {
   authService: null,
   token: null,
   userId: null,
+  isAdmin: false,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -108,6 +111,7 @@ export const useAuthStore = create<AuthStore>()(
           authService,
           token: response.AccessToken,
           userId: response.User.Id,
+          isAdmin: response.User.Policy?.IsAdministrator ?? false,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -140,7 +144,7 @@ export const useAuthStore = create<AuthStore>()(
 
       await clearCaches();
 
-      set(initialState);
+      set({ ...initialState, isLoading: false });
     },
 
     restoreSession: async () => {
@@ -163,11 +167,20 @@ export const useAuthStore = create<AuthStore>()(
 
         const authService = new AuthService(client);
 
+        let isAdmin = false;
+        try {
+          const user = await client.get<MediaServerUser>('/Users/Me');
+          isAdmin = user?.Policy?.IsAdministrator ?? false;
+        } catch {
+          // Non-critical — default to non-admin
+        }
+
         set({
           client,
           authService,
           token: session.token,
           userId: session.userId,
+          isAdmin,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -189,6 +202,7 @@ export const useAuthStore = create<AuthStore>()(
 );
 
 export const useIsAuthenticated = () => useAuthStore(state => state.isAuthenticated);
+export const useIsAdmin = () => useAuthStore(state => state.isAdmin);
 export const useClient = () => useAuthStore(state => state.client);
 export const useIsLoading = () => useAuthStore(state => state.isLoading);
 export const useAuthError = () => useAuthStore(state => state.error);

@@ -46,6 +46,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: 0
+    out-of-order: true
 
   # Security Configuration
   security:
@@ -58,17 +59,6 @@ spring:
       fail-on-unknown-properties: false
     serialization:
       write-dates-as-timestamps: false
-
-  # Caching Configuration
-  cache:
-    type: caffeine
-    caffeine:
-      spec: maximumSize=10000,expireAfterWrite=5m
-    cache-names:
-      - tokens
-      - items
-      - images
-      - users
 
   # File Upload Configuration
   servlet:
@@ -132,6 +122,9 @@ yaytsa:
   public-url: ${PUBLIC_URL:}
 
   media:
+    # Upload library root (writable, for user-uploaded tracks)
+    upload-library-root: ${UPLOAD_LIBRARY_ROOT:/app/uploads}
+
     # Library scanning configuration
     library:
       roots: ${LIBRARY_ROOTS:/media}
@@ -158,6 +151,10 @@ yaytsa:
       max-concurrent: ${MAX_CONCURRENT_TRANSCODES:4}
       timeout-seconds: ${TRANSCODE_TIMEOUT:600}
 
+    # Audio fingerprinting (duplicate detection)
+    fingerprint:
+      fpcalc-path: ${FPCALC_PATH:fpcalc}
+
     # Image processing configuration
     images:
       cache-directory: ${IMAGE_CACHE_DIR:./temp/images}
@@ -180,6 +177,10 @@ yaytsa:
       timeout-seconds: ${FEATURE_EXTRACTION_TIMEOUT:120}
       poll-interval-ms: ${FEATURE_EXTRACTION_POLL_INTERVAL_MS:30000}
 
+    # Smart Radio — Essentia audio analysis
+    radio:
+      analyzer-url: ${ESSENTIA_ANALYZER_URL:http://essentia-analyzer:8001}
+
     # Lyrics fetching configuration
     lyrics:
       fetcher-url: ${LYRICS_FETCHER_URL:http://audio-separator:8000}
@@ -198,6 +199,41 @@ yaytsa:
       min-size: 8
       max-size: 15
       trigger-threshold: 3
+
+  # Metadata enrichment configuration
+  metadata:
+    # Genius API (https://genius.com/api-clients)
+    # Excellent for modern music and Russian artists
+    genius:
+      access-token: ${GENIUS_ACCESS_TOKEN:}
+
+    # Last.fm API (https://www.last.fm/api)
+    # Free API key: https://www.last.fm/api/account/create
+    lastfm:
+      api-key: ${LASTFM_API_KEY:}
+
+    # Spotify API (https://developer.spotify.com)
+    # Create app at: https://developer.spotify.com/dashboard
+    spotify:
+      client-id: ${SPOTIFY_CLIENT_ID:}
+      client-secret: ${SPOTIFY_CLIENT_SECRET:}
+
+    # AcoustID API (https://acoustid.org/)
+    # Register at: https://acoustid.org/new-application
+    acoustid:
+      api-key: ${ACOUSTID_API_KEY:}
+
+    # MusicBrainz is always enabled (no API key required)
+
+  # Smart Radio / My Wave LLM configuration
+  radio:
+    llm:
+      # Provider: claude or openai (auto-detect if not set)
+      provider: ${RADIO_LLM_PROVIDER:}
+      claude:
+        api-key: ${CLAUDE_API_KEY:}
+      openai:
+        api-key: ${OPENAI_API_KEY:}
 
     # Session configuration
     sessions:
@@ -259,7 +295,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
 
   devtools:
