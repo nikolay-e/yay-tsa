@@ -18,6 +18,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class QueuePolicyValidator {
@@ -42,6 +43,7 @@ public class QueuePolicyValidator {
     this.objectMapper = objectMapper;
   }
 
+  @Transactional(readOnly = true)
   public ValidationResult validate(
       DjDecision decision,
       List<AdaptiveQueueEntity> currentQueue,
