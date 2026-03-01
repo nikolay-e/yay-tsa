@@ -379,3 +379,81 @@ jobs:
           echo "Audio Separator image pushed with tags: ${{ steps.tags.outputs.tags }}"
           echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
           echo "Digest: ${{ steps.build.outputs.digest }}"
+
+  docker-build-feature-extractor:
+    name: Build Feature Extractor Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${GIT_SHA:0:7}"
+          PRIMARY_TAG="main-${SHORT_SHA}"
+          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:${PRIMARY_TAG}"
+
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:${GIT_REF_NAME}"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:latest"
+          fi
+
+          {
+            echo "tags=${TAGS}"
+            echo "primary_tag=${PRIMARY_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ./services/audio-separator
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VARIANT=essentia
+          cache-from: type=gha,scope=feature-extractor
+          cache-to: type=gha,mode=max,scope=feature-extractor
+          platforms: linux/amd64
+
+      - name: Image digest
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Feature Extractor image pushed with tags: ${{ steps.tags.outputs.tags }}"
+          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"

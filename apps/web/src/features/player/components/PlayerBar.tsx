@@ -22,6 +22,8 @@ import {
   useSleepTimer,
 } from '../stores/player.store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
+import { useSignalEmitter } from '../hooks/useSignalEmitter';
+import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
 import { SleepTimerModal } from './SleepTimerModal';
@@ -43,6 +45,8 @@ export function PlayerBar() {
   const karaokeStatus = useKaraokeStatus();
   const sleepTimer = useSleepTimer();
   useAlbumColors();
+  useSignalEmitter();
+  useDjAutoRefill();
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     currentTrack?.Id ?? '',
     currentTrack?.AlbumPrimaryImageTag,

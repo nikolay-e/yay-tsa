@@ -78,6 +78,15 @@ public class FallbackQueueService {
           existingTrackIds,
           overplayed);
     }
+    if (selectedTrackIds.size() < needed) {
+      var randomTracks = findRandomTracks(existingTrackIds, overplayed, needed);
+      addUniqueUpTo(
+          selectedTrackIds,
+          randomTracks,
+          needed - selectedTrackIds.size(),
+          existingTrackIds,
+          overplayed);
+    }
     if (selectedTrackIds.isEmpty()) {
       log.debug("Fallback queue: no candidates found for session {}", sessionId);
       return List.of();
@@ -119,6 +128,14 @@ public class FallbackQueueService {
     }
     Collections.shuffle(candidates);
     return candidates;
+  }
+
+  private List<UUID> findRandomTracks(
+      Set<UUID> existingTrackIds, Set<UUID> overplayed, int needed) {
+    var candidateIds = itemRepository.findRandomAudioTrackIds(Math.max(needed, 20));
+    return candidateIds.stream()
+        .filter(id -> !existingTrackIds.contains(id) && !overplayed.contains(id))
+        .collect(Collectors.toCollection(ArrayList::new));
   }
 
   private List<UUID> findRandomFavorites(

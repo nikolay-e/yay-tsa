@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { RefreshCw, HardDrive, Info, Server, LogOut } from 'lucide-react';
+import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { VersionInfo } from '@/shared/components/VersionInfo';
+import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
 
 async function clearServiceWorkerCaches(): Promise<number> {
   if (!('caches' in window)) return 0;
@@ -118,6 +119,16 @@ export function SettingsPage() {
       </section>
 
       {status && <div className="bg-bg-tertiary mb-8 rounded-lg p-3 text-sm">{status}</div>}
+
+      <section className="mb-8">
+        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+          <Sparkles className="h-4 w-4" />
+          DJ Preferences
+        </h2>
+        <div className="bg-bg-secondary border-border rounded-lg border">
+          <DjPreferencesPanel />
+        </div>
+      </section>
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">

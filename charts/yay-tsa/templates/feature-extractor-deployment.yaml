@@ -1,0 +1,82 @@
+{{- if .Values.featureExtractor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: feature-extractor
+  name: {{ include "yay-tsa.fullname" . }}-feature-extractor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: feature-extractor
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "yay-tsa.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: feature-extractor
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.featureExtractor.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: feature-extractor
+          image: "{{ .Values.featureExtractor.image.repository }}:{{ .Values.featureExtractor.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.featureExtractor.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.featureExtractor.service.port }}
+              name: http
+              protocol: TCP
+          env:
+            - name: ESSENTIA_MODELS_DIR
+              value: /app/models
+            - name: MEDIA_PATH
+              value: /media
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.featureExtractor.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.featureExtractor.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.featureExtractor.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.featureExtractor.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.featureExtractor.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.featureExtractor.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.featureExtractor.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.featureExtractor.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.featureExtractor.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.featureExtractor.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.featureExtractor.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.featureExtractor.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+            {{- if .Values.featureExtractor.media.enabled }}
+            - name: media
+              mountPath: /media
+              readOnly: true
+            {{- end }}
+      restartPolicy: Always
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+        {{- if .Values.featureExtractor.media.enabled }}
+        - name: media
+          hostPath:
+            path: {{ .Values.featureExtractor.media.hostPath }}
+            type: Directory
+        {{- end }}
+{{- end }}

@@ -70,28 +70,6 @@ public interface ItemRepository
   Page<ItemEntity> findRecentlyPlayedAlbumsByUser(@Param("userId") UUID userId, Pageable pageable);
 
   @Query(
-      value =
-          """
-          SELECT * FROM items
-          WHERE search_vector @@ plainto_tsquery('english', :searchTerm)
-          ORDER BY ts_rank(search_vector, plainto_tsquery('english', :searchTerm)) DESC
-          """,
-      nativeQuery = true)
-  List<ItemEntity> searchFullText(@Param("searchTerm") String searchTerm);
-
-  @Query(
-      value =
-          """
-          SELECT * FROM items
-          WHERE search_vector @@ plainto_tsquery('english', :searchTerm)
-          AND type = :itemType
-          ORDER BY ts_rank(search_vector, plainto_tsquery('english', :searchTerm)) DESC
-          """,
-      nativeQuery = true)
-  List<ItemEntity> searchFullTextByType(
-      @Param("searchTerm") String searchTerm, @Param("itemType") String itemType);
-
-  @Query(
       """
       SELECT i FROM ItemEntity i
       WHERE i.type = 'MusicAlbum'
@@ -157,4 +135,9 @@ public interface ItemRepository
       )
       """)
   List<ItemEntity> findAudioTracksWithoutFeatures(Pageable pageable);
+
+  @Query(
+      value = "SELECT id FROM items WHERE type = 'AudioTrack' ORDER BY RANDOM() LIMIT :limit",
+      nativeQuery = true)
+  List<UUID> findRandomAudioTrackIds(@Param("limit") int limit);
 }

@@ -26,18 +26,25 @@ public class ItemService {
   private final ItemRepository itemRepository;
   private final AudioTrackRepository audioTrackRepository;
   private final AlbumRepository albumRepository;
+  private final SearchNormalizer searchNormalizer;
 
   public ItemService(
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
-      AlbumRepository albumRepository) {
+      AlbumRepository albumRepository,
+      SearchNormalizer searchNormalizer) {
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.albumRepository = albumRepository;
+    this.searchNormalizer = searchNormalizer;
   }
 
   public Optional<ItemEntity> findById(UUID itemId) {
     return itemRepository.findById(itemId);
+  }
+
+  public List<ItemEntity> findAllByIds(List<UUID> itemIds) {
+    return itemRepository.findAllById(itemIds);
   }
 
   public Page<ItemEntity> queryItems(ItemsQueryParams params) {
@@ -79,7 +86,8 @@ public class ItemService {
     }
 
     if (params.searchTerm() != null && !params.searchTerm().isBlank()) {
-      spec = spec.and(ItemSpecifications.searchByName(params.searchTerm()));
+      List<String> variants = searchNormalizer.generateSearchVariants(params.searchTerm());
+      spec = spec.and(ItemSpecifications.searchByText(variants));
     }
 
     if (params.isFavorite() != null && params.userId() != null) {

@@ -6,7 +6,7 @@ Java-based Jellyfin-compatible media server implementation.
 
 ## Design Overview
 
-A single Java 21 Spring Boot modular monolith with a ports/adapters design, PostgreSQL-backed metadata, filesystem scanning via jaudiotagger, and HTTP byte-range streaming that complies with RFC 9110 solves the two core hard problems: fast, flexible queries over large libraries and correct, efficient streaming with seek support. Use opaque, revocable device-bound tokens and Java 21 virtual threads to keep the code simple while scaling blocking I/O.
+A single Java 21 Spring Boot modular monolith with a layered architecture (controllers → domain services → infrastructure), PostgreSQL-backed metadata, filesystem scanning via jaudiotagger, and HTTP byte-range streaming that complies with RFC 9110 solves the two core hard problems: fast, flexible queries over large libraries and correct, efficient streaming with seek support. Use opaque, revocable device-bound tokens and Java 21 virtual threads to keep the code simple while scaling blocking I/O.
 
 Expected folder structure
 server/
@@ -42,9 +42,7 @@ server/
     - request/… (AuthenticateByNameRequest, ItemsQuery, PlaylistRequests, SessionRequests)
     - response/… (AuthenticateResponse, ItemDto, UserDto, PlaylistDto, PlaylistItemDto, SystemInfoDto)
   - domain/
-    - model/… (Item, ItemType, AudioTrack, MusicAlbum, MusicArtist, Genre, ImageAsset, Playlist, PlaylistEntry, User, ApiToken, Session, PlayState)
-    - service/… (ItemService, StreamingService, TranscodeService, ImageService, UserService, AuthService, PlaylistService, SessionService, LibraryScanService, SearchService)
-    - ports/… (ItemRepositoryPort, UserRepositoryPort, PlaylistRepositoryPort, SessionRepositoryPort, PlayStateRepositoryPort, MediaScanner, Transcoder, ImageScaler)
+    - service/… (ItemService, StreamingService, ImageService, UserService, AuthService, PlaylistService, SessionService, LibraryScanService, ListeningSessionService, AdaptiveQueueService, LlmDjService, CandidateRetrievalService, and others — services depend directly on JPA repositories and entities)
   - infrastructure/
     - persistence/
       - entity/… (ItemEntity, AudioTrackEntity, AlbumEntity, ArtistEntity, GenreEntity, ItemGenreEntity, ImageEntity, PlaylistEntity, PlaylistEntryEntity, UserEntity, ApiTokenEntity, SessionEntity, PlayStateEntity)
@@ -79,7 +77,7 @@ server/
 Tools and frameworks (with evidence-based rationale)
 
 - Java 21 virtual threads (JEP 444): thread-per-request scales for blocking I/O (filesystem, JDBC, FFmpeg). Keeps code imperative with high concurrency.
-- Spring Boot 3.3 (Web MVC, Security, Data JPA): mature HTTP, auth, and persistence stack that benefits from virtual threads without reactive complexity.
+- Spring Boot 3.4 (Web MVC, Security, Data JPA): mature HTTP, auth, and persistence stack that benefits from virtual threads without reactive complexity.
 - PostgreSQL 15+: strong indexing, recursive CTEs for hierarchies, trigram or full-text for search; predictable ACID semantics.
 - Spring Data JPA + Specifications: type-safe dynamic filters for /Items; pagination, sorting in DB.
 - Flyway: repeatable, deterministic schema migrations.

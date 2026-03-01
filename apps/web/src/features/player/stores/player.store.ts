@@ -26,6 +26,8 @@ export type RepeatMode = 'off' | 'one' | 'all';
 
 interface PlayerState {
   queue: PlaybackQueue;
+  queueItems: AudioItem[];
+  queueIndex: number;
   currentTrack: AudioItem | null;
   isPlaying: boolean;
   isLoading: boolean;
@@ -60,6 +62,8 @@ interface PlayerActions {
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
   updateCurrentTrackLyrics: (lyrics: string) => void;
+  appendToQueue: (tracks: AudioItem[]) => void;
+  jumpToQueueTrack: (trackId: string) => Promise<void>;
 }
 
 type PlayerStore = PlayerState & PlayerActions;
@@ -135,6 +139,8 @@ function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioIte
 
 const initialState: PlayerState = {
   queue: new PlaybackQueue(),
+  queueItems: [],
+  queueIndex: -1,
   currentTrack: null,
   isPlaying: false,
   isLoading: false,
@@ -178,6 +184,8 @@ export const usePlayerStore = create<PlayerStore>()(
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
         updateCurrentTrackLyrics: () => {},
+        appendToQueue: () => {},
+        jumpToQueueTrack: async () => {},
       };
     }
 
@@ -191,6 +199,11 @@ export const usePlayerStore = create<PlayerStore>()(
     let suppressNextEnded = false;
 
     // --- Helpers ---
+
+    function syncQueueState(): void {
+      const { queue } = get();
+      set({ queueItems: queue.getAllItems(), queueIndex: queue.getCurrentIndex() });
+    }
 
     function reportStopped(): void {
       if (playbackReporter && currentItemId) {
@@ -335,6 +348,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         // --- Side effects ---
         get().queue.advanceTo(track.Id);
+        syncQueueState();
         updateSessionMetadata(track);
         startPlaybackReporter(track.Id);
         preloader.invalidate();
@@ -388,6 +402,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
       // --- Side effects ---
       get().queue.advanceTo(track.Id);
+      syncQueueState();
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);
 
@@ -618,6 +633,7 @@ export const usePlayerStore = create<PlayerStore>()(
         const newShuffle = !isShuffle;
         queue.setShuffleMode(newShuffle ? 'on' : 'off');
         set({ isShuffle: newShuffle });
+        syncQueueState();
         preloader.invalidate();
         schedulePreload();
       },
@@ -627,6 +643,7 @@ export const usePlayerStore = create<PlayerStore>()(
         if (isShuffle === enabled) return;
         queue.setShuffleMode(enabled ? 'on' : 'off');
         set({ isShuffle: enabled });
+        syncQueueState();
         preloader.invalidate();
         schedulePreload();
       },
@@ -850,6 +867,26 @@ export const usePlayerStore = create<PlayerStore>()(
           set({ currentTrack: { ...currentTrack, Lyrics: lyrics } });
         }
       },
+
+      appendToQueue: (tracks: AudioItem[]) => {
+        if (tracks.length === 0) return;
+        const { queue } = get();
+        queue.addMultipleToQueue(tracks);
+        syncQueueState();
+        preloader.invalidate();
+        schedulePreload();
+      },
+
+      jumpToQueueTrack: async (trackId: string) => {
+        await controller.interrupt(async signal => {
+          const { queue } = get();
+          const items = queue.getAllItems();
+          const target = items.find(item => item.Id === trackId);
+          if (!target) return;
+          queue.advanceTo(trackId);
+          await loadAndPlay(target, signal);
+        });
+      },
     };
   })
 );
@@ -1029,3 +1066,5 @@ export const useSleepTimer = () =>
       endTime: state.sleepTimerEndTime,
     }))
   );
+export const useQueueItems = () => usePlayerStore(state => state.queueItems);
+export const useQueueIndex = () => usePlayerStore(state => state.queueIndex);

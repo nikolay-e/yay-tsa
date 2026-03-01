@@ -49,6 +49,10 @@ public class AdaptiveQueueEntity {
   @Column(name = "queue_version", nullable = false)
   private long queueVersion = 1;
 
+  @Version
+  @Column(name = "entity_version")
+  private long entityVersion;
+
   @Column(name = "added_at", nullable = false)
   private OffsetDateTime addedAt;
 

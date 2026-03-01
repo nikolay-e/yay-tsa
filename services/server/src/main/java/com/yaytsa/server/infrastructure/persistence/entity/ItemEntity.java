@@ -62,6 +62,9 @@ public class ItemEntity {
   @Column(columnDefinition = "TEXT")
   private String overview;
 
+  @Column(name = "search_text", columnDefinition = "TEXT")
+  private String searchText;
+
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
   private OffsetDateTime createdAt;

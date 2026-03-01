@@ -3,6 +3,7 @@ package com.yaytsa.server.infrastructure.persistence.repository;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackFeaturesEntity;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -73,6 +74,28 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
   @Query(
       value =
           """
+          SELECT i.id, i.name, ar.name AS artist_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal,
+                 1 - (tf.embedding_discogs <=> CAST(:refEmbedding AS vector)) AS similarity
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          WHERE i.type = 'AudioTrack'
+            AND i.id != :refTrackId
+            AND tf.embedding_discogs IS NOT NULL
+          ORDER BY tf.embedding_discogs <=> CAST(:refEmbedding AS vector)
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findSimilarTracksExact(
+      @Param("refTrackId") UUID refTrackId,
+      @Param("refEmbedding") String refEmbedding,
+      @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
           SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
                  tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
                  tf.vocal_instrumental, tf.musical_key
@@ -102,6 +125,17 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
           """,
       nativeQuery = true)
   List<Object[]> findByArtistName(@Param("artistName") String artistName);
+
+  @Query(
+      value =
+          """
+          SELECT DISTINCT i.id FROM items i
+          JOIN item_genres ig ON ig.item_id = i.id
+          JOIN genres g ON g.id = ig.genre_id
+          WHERE LOWER(g.name) IN :genreNames
+          """,
+      nativeQuery = true)
+  Set<UUID> findTrackIdsByGenreNames(@Param("genreNames") List<String> genreNames);
 
   @Query(
       value =

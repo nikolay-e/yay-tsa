@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -53,7 +54,7 @@ public class AdaptiveQueueService {
         sessionId, List.of("QUEUED", "PLAYING"));
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public List<AdaptiveQueueEntity> refreshQueue(UUID sessionId) {
     ListeningSessionEntity session =
         sessionRepository
@@ -69,7 +70,7 @@ public class AdaptiveQueueService {
         sessionId, List.of("QUEUED", "PLAYING"));
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void triggerDjDecision(
       ListeningSessionEntity session,
       String triggerType,
@@ -94,13 +95,76 @@ public class AdaptiveQueueService {
     QueuePolicyValidator.ValidationResult validation =
         policyValidator.validate(decision.get(), currentQueue, preferences, session);
 
-    if ("REJECTED".equals(validation.outcome())) {
-      log.warn("All LLM edits rejected for session {}, using fallback", session.getId());
+    if ("NO_EDITS".equals(validation.outcome())) {
+      log.warn(
+          "LLM returned no edits for session {} despite instructions, using fallback",
+          session.getId());
       fallbackQueueService.fillQueue(session, currentQueue.size());
       return;
     }
 
-    queueManager.applyDecision(session.getId(), decision.get().baseQueueVersion(), validation);
+    if ("REJECTED".equals(validation.outcome())) {
+      log.warn(
+          "All {} LLM edits rejected by policy for session {}, using fallback",
+          decision.get().edits().size(),
+          session.getId());
+      fallbackQueueService.fillQueue(session, currentQueue.size());
+      return;
+    }
+
+    try {
+      var result =
+          queueManager.applyDecision(
+              session.getId(), decision.get().baseQueueVersion(), validation);
+      if (!result.success()) {
+        log.info(
+            "LLM decision failed for session {}: {}, retrying with fresh state",
+            session.getId(),
+            result.error());
+        retryOrFallback(session, decision.get(), preferences);
+      }
+    } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+      log.info(
+          "Optimistic lock conflict for session {}, retrying with fresh state", session.getId());
+      retryOrFallback(session, decision.get(), preferences);
+    }
+  }
+
+  private void retryOrFallback(
+      ListeningSessionEntity session,
+      DjDecision decision,
+      UserPreferenceContractEntity preferences) {
+    try {
+      List<AdaptiveQueueEntity> freshQueue =
+          queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
+              session.getId(), List.of("QUEUED", "PLAYING"));
+      long freshVersion = queueManager.getCurrentVersion(session.getId());
+
+      QueuePolicyValidator.ValidationResult freshValidation =
+          policyValidator.validate(decision, freshQueue, preferences, session);
+
+      if ("REJECTED".equals(freshValidation.outcome())
+          || "NO_EDITS".equals(freshValidation.outcome())) {
+        log.info(
+            "Retry validation outcome {} for session {}, falling back",
+            freshValidation.outcome(),
+            session.getId());
+        fallbackQueueService.fillQueue(session, freshQueue.size());
+        return;
+      }
+
+      var retryResult = queueManager.applyDecision(session.getId(), freshVersion, freshValidation);
+      if (!retryResult.success()) {
+        log.info(
+            "Retry also failed for session {}: {}, falling back",
+            session.getId(),
+            retryResult.error());
+        fallbackQueueService.fillQueue(session, freshQueue.size());
+      }
+    } catch (Exception e) {
+      log.warn("Retry failed with exception for session {}, falling back", session.getId(), e);
+      fallbackQueueService.fillQueue(session, 0);
+    }
   }
 
   private void validateSessionExists(UUID sessionId) {

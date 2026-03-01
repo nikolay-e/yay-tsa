@@ -143,6 +143,17 @@ spec:
     - protocol: TCP
       port: 8000
   {{- end }}
+  {{- if .Values.featureExtractor.enabled }}
+  # Allow connection to feature-extractor for audio feature extraction
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: feature-extractor
+    ports:
+    - protocol: TCP
+      port: 8000
+  {{- end }}
   {{- if .Values.backend.config.karaokeSeparatorUrl }}
   # Allow connection to audio-separator in shared namespace
   - to:
@@ -210,4 +221,47 @@ spec:
     ports:
     - protocol: TCP
       port: 443
+{{- end }}
+{{- if .Values.featureExtractor.enabled }}
+---
+# =============================================================================
+# FEATURE-EXTRACTOR NETWORK POLICY
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-feature-extractor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: feature-extractor
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: feature-extractor
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from backend pods for feature extraction requests
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: backend
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
 {{- end }}

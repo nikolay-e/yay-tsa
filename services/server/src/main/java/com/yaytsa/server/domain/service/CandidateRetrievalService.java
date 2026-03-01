@@ -6,10 +6,12 @@ import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepo
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,9 +20,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class CandidateRetrievalService {
 
   private static final Logger log = LoggerFactory.getLogger(CandidateRetrievalService.class);
+  private static final long FEATURE_COUNT_TTL_MS = 300_000;
 
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final PlayHistoryRepository playHistoryRepository;
+
+  @Value("${yaytsa.adaptive-dj.similarity.exact-search-threshold:500}")
+  private int exactSearchThreshold;
+
+  private volatile long cachedFeatureCount = -1;
+  private volatile long featureCountTimestamp = 0;
 
   public CandidateRetrievalService(
       TrackFeaturesRepository trackFeaturesRepository,
@@ -54,6 +63,7 @@ public class CandidateRetrievalService {
       Float arousalMax,
       Float vocalMax,
       List<String> excludeArtists,
+      List<String> excludeGenres,
       int limit) {}
 
   public List<TrackCandidate> searchLibrary(LibrarySearchFilters filters) {
@@ -70,10 +80,20 @@ public class CandidateRetrievalService {
             filters.vocalMax(),
             filters.limit());
     var candidates = rows.stream().map(this::mapLibraryRow).toList();
-    if (filters.excludeArtists() != null && !filters.excludeArtists().isEmpty())
-      return candidates.stream()
-          .filter(c -> c.artistName() == null || !filters.excludeArtists().contains(c.artistName()))
-          .toList();
+    if (filters.excludeArtists() != null && !filters.excludeArtists().isEmpty()) {
+      candidates =
+          candidates.stream()
+              .filter(
+                  c -> c.artistName() == null || !filters.excludeArtists().contains(c.artistName()))
+              .toList();
+    }
+    if (filters.excludeGenres() != null && !filters.excludeGenres().isEmpty()) {
+      List<String> lowercasedGenres =
+          filters.excludeGenres().stream().map(String::toLowerCase).toList();
+      Set<UUID> genreExcludedIds =
+          trackFeaturesRepository.findTrackIdsByGenreNames(lowercasedGenres);
+      candidates = candidates.stream().filter(c -> !genreExcludedIds.contains(c.id())).toList();
+    }
     return candidates;
   }
 
@@ -84,9 +104,22 @@ public class CandidateRetrievalService {
       log.debug("No embedding found for track {}, falling back to empty results", referenceTrackId);
       return Collections.emptyList();
     }
+
+    long featureCount = getFeatureCount();
+    boolean useExact = featureCount < exactSearchThreshold;
+    String embedding = formatEmbedding(features.getEmbeddingDiscogs());
+
+    if (useExact) {
+      log.debug(
+          "Using exact vector search ({} tracks < {} threshold)",
+          featureCount,
+          exactSearchThreshold);
+    }
+
     var rows =
-        trackFeaturesRepository.findSimilarTracks(
-            referenceTrackId, formatEmbedding(features.getEmbeddingDiscogs()), limit);
+        useExact
+            ? trackFeaturesRepository.findSimilarTracksExact(referenceTrackId, embedding, limit)
+            : trackFeaturesRepository.findSimilarTracks(referenceTrackId, embedding, limit);
     return rows.stream().map(this::mapSimilarityRow).toList();
   }
 
@@ -161,6 +194,15 @@ public class CandidateRetrievalService {
         null,
         null,
         toDouble(row[7]));
+  }
+
+  private long getFeatureCount() {
+    long now = System.currentTimeMillis();
+    if (cachedFeatureCount < 0 || now - featureCountTimestamp > FEATURE_COUNT_TTL_MS) {
+      cachedFeatureCount = trackFeaturesRepository.count();
+      featureCountTimestamp = now;
+    }
+    return cachedFeatureCount;
   }
 
   private static String formatEmbedding(float[] embedding) {

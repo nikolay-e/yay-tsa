@@ -8,7 +8,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserPreferenceContractEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
-import com.yaytsa.server.infrastructure.persistence.repository.PlaybackSignalRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.PlayHistoryRepository;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class QueuePolicyValidator {
@@ -31,18 +31,19 @@ public class QueuePolicyValidator {
       Comparator.comparingInt(AdaptiveQueueEntity::getPosition);
 
   private final ItemRepository itemRepository;
-  private final PlaybackSignalRepository playbackSignalRepository;
+  private final PlayHistoryRepository playHistoryRepository;
   private final ObjectMapper objectMapper;
 
   public QueuePolicyValidator(
       ItemRepository itemRepository,
-      PlaybackSignalRepository playbackSignalRepository,
+      PlayHistoryRepository playHistoryRepository,
       ObjectMapper objectMapper) {
     this.itemRepository = itemRepository;
-    this.playbackSignalRepository = playbackSignalRepository;
+    this.playHistoryRepository = playHistoryRepository;
     this.objectMapper = objectMapper;
   }
 
+  @Transactional(readOnly = true)
   public ValidationResult validate(
       DjDecision decision,
       List<AdaptiveQueueEntity> currentQueue,
@@ -220,19 +221,12 @@ public class QueuePolicyValidator {
 
   private boolean violatesNoRepeatHours(
       UUID trackId, ListeningSessionEntity session, int noRepeatHours) {
-    var recentSignals =
-        playbackSignalRepository.findBySessionIdOrderByCreatedAtDesc(
-            session.getId(), PageRequest.of(0, 200));
-    OffsetDateTime cutoff = OffsetDateTime.now().minusHours(noRepeatHours);
-    return recentSignals.stream()
-        .anyMatch(
-            s ->
-                s.getItem().getId().equals(trackId)
-                    && "PLAY_START".equals(s.getSignalType())
-                    && s.getCreatedAt().isAfter(cutoff));
+    return playHistoryRepository.existsByTrackIdAndUserIdSince(
+        trackId, session.getUser().getId(), OffsetDateTime.now().minusHours(noRepeatHours));
   }
 
   private String determineOutcome(int totalEdits, int approvedCount) {
+    if (totalEdits == 0) return "NO_EDITS";
     if (approvedCount == 0) return "REJECTED";
     return approvedCount == totalEdits ? "APPLIED" : "PARTIAL";
   }

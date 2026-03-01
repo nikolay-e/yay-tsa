@@ -89,9 +89,9 @@ Jellyfin is a monolithic media server supporting video, TV, movies, music, and b
 - **Virtual threads**: Java 21 virtual threads (JEP 444) enable thread-per-request that scales blocking I/O (filesystem, JDBC, FFmpeg) without reactive complexity. Imperative code with real stack traces, comparable throughput to async for I/O-bound workloads.
 - **Full code ownership**: No external upgrade dependencies, no plugin compatibility concerns, no inherited technical debt.
 
-### Backend Design: Ports and Adapters
+### Backend Design: Layered Architecture
 
-The server follows hexagonal architecture: controllers handle HTTP, domain services contain business logic, and infrastructure adapters handle persistence, filesystem, transcoding, and image processing. Ports (interfaces) define boundaries between domain and infrastructure.
+The server follows a layered architecture: controllers handle HTTP, domain services contain business logic, and infrastructure adapters handle persistence, filesystem, transcoding, and image processing. Domain services depend directly on Spring Data JPA repositories and JPA entities — there are no abstract port interfaces between layers. This is a pragmatic choice for a single-developer project where the indirection of hexagonal architecture adds ceremony without payoff.
 
 **Key architectural decisions**:
 
