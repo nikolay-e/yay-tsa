@@ -107,14 +107,49 @@ public class AdaptiveQueueService {
               session.getId(), decision.get().baseQueueVersion(), validation);
       if (!result.success()) {
         log.info(
-            "LLM decision failed to apply for session {}: {}, falling back",
+            "LLM decision failed for session {}: {}, retrying with fresh state",
             session.getId(),
             result.error());
-        fallbackQueueService.fillQueue(session, currentQueue.size());
+        retryOrFallback(session, decision.get(), preferences);
       }
     } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-      log.info("Optimistic lock conflict for session {}, falling back", session.getId());
-      fallbackQueueService.fillQueue(session, currentQueue.size());
+      log.info(
+          "Optimistic lock conflict for session {}, retrying with fresh state", session.getId());
+      retryOrFallback(session, decision.get(), preferences);
+    }
+  }
+
+  private void retryOrFallback(
+      ListeningSessionEntity session,
+      DjDecision decision,
+      UserPreferenceContractEntity preferences) {
+    try {
+      List<AdaptiveQueueEntity> freshQueue =
+          queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
+              session.getId(), List.of("QUEUED", "PLAYING"));
+      long freshVersion = queueManager.getCurrentVersion(session.getId());
+
+      QueuePolicyValidator.ValidationResult freshValidation =
+          policyValidator.validate(decision, freshQueue, preferences, session);
+
+      if ("REJECTED".equals(freshValidation.outcome())) {
+        log.info(
+            "Retry validation rejected all edits for session {}, falling back", session.getId());
+        fallbackQueueService.fillQueue(session, freshQueue.size());
+        return;
+      }
+
+      var retryResult = queueManager.applyDecision(session.getId(), freshVersion, freshValidation);
+      if (!retryResult.success()) {
+        log.info(
+            "Retry also failed for session {}: {}, falling back",
+            session.getId(),
+            retryResult.error());
+        fallbackQueueService.fillQueue(session, freshQueue.size());
+      }
+    } catch (Exception e) {
+      log.warn("Retry failed with exception for session {}, falling back", session.getId(), e);
+      fallbackQueueService.fillQueue(session, 0);
     }
   }
 

@@ -119,7 +119,9 @@ public class StreamingService {
                 () ->
                     new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));
 
-    if (item.getPath() == null) {
+    if (item.getPath() == null
+        || item.getPath().startsWith("album:")
+        || item.getPath().startsWith("artist:")) {
       throw new ResponseStatusException(
           HttpStatus.NOT_FOUND, "File path not available for item: " + itemId);
     }
