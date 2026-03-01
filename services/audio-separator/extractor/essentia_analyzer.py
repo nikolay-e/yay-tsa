@@ -130,7 +130,15 @@ class EssentiaAnalyzer:
             "processing_time_ms": elapsed_ms,
         }
 
+    @staticmethod
+    def _to_scalar(val) -> float:
+        if isinstance(val, np.ndarray):
+            return float(val.mean()) if val.size > 0 else 0.0
+        return float(val)
+
     def _extract_scalar_features(self, audio: np.ndarray) -> dict:
+        s = self._to_scalar
+
         bpm, _, beats_conf, _, _ = RhythmExtractor2013()(audio)
 
         key, scale, key_conf = KeyExtractor()(audio)
@@ -148,18 +156,18 @@ class EssentiaAnalyzer:
         dissonance_val = self._compute_dissonance(audio)
 
         return {
-            "bpm": round(float(bpm), 1),
-            "bpm_confidence": round(float(beats_conf), 3),
+            "bpm": round(s(bpm), 1),
+            "bpm_confidence": round(s(beats_conf), 3),
             "key": f"{key} {scale}",
-            "key_confidence": round(float(key_conf), 3),
-            "energy": round(float(avg_loudness), 3),
-            "loudness_integrated": round(float(integrated), 1),
-            "loudness_range": round(float(range_lu), 1),
-            "danceability": round(float(dance_val), 3),
-            "onset_rate": round(float(onset_rate_val), 2),
-            "average_loudness": round(float(avg_loudness), 3),
-            "spectral_complexity": round(float(spec_complexity), 2),
-            "dissonance": round(float(dissonance_val), 3),
+            "key_confidence": round(s(key_conf), 3),
+            "energy": round(s(avg_loudness), 3),
+            "loudness_integrated": round(s(integrated), 1),
+            "loudness_range": round(s(range_lu), 1),
+            "danceability": round(s(dance_val), 3),
+            "onset_rate": round(s(onset_rate_val), 2),
+            "average_loudness": round(s(avg_loudness), 3),
+            "spectral_complexity": round(s(spec_complexity), 2),
+            "dissonance": round(s(dissonance_val), 3),
         }
 
     def _classify_with_embeddings(
