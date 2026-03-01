@@ -66,6 +66,7 @@ public class AdaptiveQueueManager {
         case REMOVE -> applyEdit(edit, activeQueue, newVersion, true);
         case REORDER -> applyEdit(edit, activeQueue, newVersion, false);
       }
+      adaptiveQueueRepository.flush();
     }
     compactPositions(sessionId);
     return new QueueMutationResult(true, newVersion, null);
@@ -136,6 +137,7 @@ public class AdaptiveQueueManager {
         adaptiveQueueRepository.save(entry);
       }
     }
+    adaptiveQueueRepository.flush();
   }
 
   private void compactPositions(UUID sessionId) {
