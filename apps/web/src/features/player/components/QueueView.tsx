@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Music, Pause } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -8,6 +9,7 @@ import {
   useQueueItems,
   useQueueIndex,
 } from '../stores/player.store';
+import { useSessionStore, useActiveSession, useIsSessionStarting } from '../stores/session-store';
 import { DjModeControl } from './DjModeControl';
 
 function formatDuration(ticks: number): string {
@@ -81,6 +83,15 @@ export function QueueView() {
   const jumpToQueueTrack = usePlayerStore(state => state.jumpToQueueTrack);
   const pause = usePlayerStore(state => state.pause);
   const resume = usePlayerStore(state => state.resume);
+  const activeSession = useActiveSession();
+  const isStarting = useIsSessionStarting();
+
+  useEffect(() => {
+    if (!activeSession && !isStarting && queueItems.length === 0) {
+      void useSessionStore.getState().startSession();
+    }
+  }, [activeSession, isStarting, queueItems.length]);
+
   if (queueItems.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-8">

@@ -106,13 +106,15 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     set({ isStarting: true, error: null });
     try {
       const session = await service.startSession(sessionState);
-      set({ activeSession: session, isStarting: false });
+      set({ activeSession: session });
 
+      await service.refreshQueue(session.id);
       const djQueue = await service.getQueue(session.id);
       const audioItems = await resolveAudioItems(djQueue);
       if (audioItems.length > 0) {
         await usePlayerStore.getState().playTracks(audioItems);
       }
+      set({ isStarting: false });
     } catch (error) {
       log.player.error('Failed to start DJ session', error);
       set({

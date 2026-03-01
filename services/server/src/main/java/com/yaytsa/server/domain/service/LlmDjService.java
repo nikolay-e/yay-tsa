@@ -66,7 +66,7 @@ public class LlmDjService {
       UserPreferenceContractRepository contractRepository,
       LlmDecisionLogRepository decisionLogRepository,
       @Value("${yaytsa.adaptive-dj.anthropic-api-key:}") String apiKey,
-      @Value("${yaytsa.adaptive-dj.model:claude-sonnet-4-20250514}") String model,
+      @Value("${yaytsa.adaptive-dj.model:claude-haiku-4-5-20251001}") String model,
       @Value("${yaytsa.adaptive-dj.max-tokens:2000}") int maxTokens,
       @Value("${yaytsa.adaptive-dj.timeout-ms:8000}") int timeoutMs) {
     this.objectMapper = objectMapper;
@@ -512,25 +512,43 @@ public class LlmDjService {
 
   private DjDecision parseDecision(String responseText, long fallbackQueueVersion) {
     String json = responseText.strip();
-    java.util.regex.Matcher matcher =
+    java.util.regex.Matcher fenceMatcher =
         java.util.regex.Pattern.compile("```(?:json)?\\s*([\\s\\S]+?)```").matcher(json);
-    if (matcher.find()) {
-      json = matcher.group(1).strip();
+    if (fenceMatcher.find()) {
+      json = fenceMatcher.group(1).strip();
     }
     try {
-      Map<String, Object> raw = objectMapper.readValue(json, new TypeReference<>() {});
-      long baseQueueVersion =
-          raw.containsKey("baseQueueVersion")
-              ? ((Number) raw.get("baseQueueVersion")).longValue()
-              : fallbackQueueVersion;
-      return new DjDecision(
-          baseQueueVersion,
-          parseIntent(raw.get("intent")),
-          parseEdits(raw.get("edits")),
-          (String) raw.get("sessionSummaryUpdate"));
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("Failed to parse DJ decision JSON: " + e.getMessage(), e);
+      return buildDecision(
+          objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {}),
+          fallbackQueueVersion);
+    } catch (JsonProcessingException ignored) {
     }
+    java.util.regex.Matcher jsonMatcher =
+        java.util.regex.Pattern.compile("\\{[\\s\\S]*\\}").matcher(responseText);
+    if (jsonMatcher.find()) {
+      try {
+        return buildDecision(
+            objectMapper.readValue(
+                jsonMatcher.group().strip(), new TypeReference<Map<String, Object>>() {}),
+            fallbackQueueVersion);
+      } catch (JsonProcessingException ignored) {
+      }
+    }
+    throw new RuntimeException(
+        "Failed to parse DJ decision JSON from response: "
+            + responseText.substring(0, Math.min(200, responseText.length())));
+  }
+
+  private DjDecision buildDecision(Map<String, Object> raw, long fallbackQueueVersion) {
+    long baseQueueVersion =
+        raw.containsKey("baseQueueVersion")
+            ? ((Number) raw.get("baseQueueVersion")).longValue()
+            : fallbackQueueVersion;
+    return new DjDecision(
+        baseQueueVersion,
+        parseIntent(raw.get("intent")),
+        parseEdits(raw.get("edits")),
+        (String) raw.get("sessionSummaryUpdate"));
   }
 
   private DjDecision.DjIntent parseIntent(Object intentObj) {
