@@ -79,11 +79,15 @@ public class FeatureExtractionService {
       log.debug("Feature extractor not available, skipping job processing");
       return;
     }
-    var jobs =
-        jobRepository.findByStatusOrderByCreatedAtAsc("PENDING", PageRequest.of(0, batchSize));
+    var jobs = jobRepository.findByStatusWithItem("PENDING", PageRequest.of(0, batchSize));
     if (jobs.isEmpty()) return;
     log.info("Processing {} pending feature extraction jobs", jobs.size());
-    for (var job : jobs) taskExecutor.execute(() -> processJob(job));
+    for (var job : jobs) {
+      UUID jobId = job.getId();
+      UUID trackId = job.getItem().getId();
+      String trackPath = job.getItem().getPath();
+      taskExecutor.execute(() -> processJob(jobId, trackId, trackPath));
+    }
   }
 
   public long getPendingCount() {
@@ -101,7 +105,7 @@ public class FeatureExtractionService {
     jobRepository.save(job);
   }
 
-  private void processJob(FeatureExtractionJobEntity job) {
+  private void processJob(UUID jobId, UUID trackId, String trackPath) {
     try {
       extractionSemaphore.acquire();
     } catch (InterruptedException e) {
@@ -109,23 +113,39 @@ public class FeatureExtractionService {
       return;
     }
     try {
-      job.setStatus("PROCESSING");
-      job.setAttempts(job.getAttempts() + 1);
-      jobRepository.save(job);
-      ItemEntity item = job.getItem();
-      ExtractionResult result = extractionClient.extract(item.getId(), item.getPath());
-      transactionTemplate.executeWithoutResult(status -> saveFeatures(item, result));
-      job.setStatus("DONE");
-      jobRepository.save(job);
+      transactionTemplate.executeWithoutResult(
+          status -> {
+            var job = jobRepository.findById(jobId).orElse(null);
+            if (job == null) return;
+            job.setStatus("PROCESSING");
+            job.setAttempts(job.getAttempts() + 1);
+            jobRepository.save(job);
+          });
+      ExtractionResult result = extractionClient.extract(trackId, trackPath);
+      transactionTemplate.executeWithoutResult(
+          status -> {
+            var item = itemRepository.findById(trackId).orElse(null);
+            if (item == null) return;
+            saveFeatures(item, result);
+            var job = jobRepository.findById(jobId).orElse(null);
+            if (job != null) {
+              job.setStatus("DONE");
+              jobRepository.save(job);
+            }
+          });
       log.info(
-          "Feature extraction completed for track {} in {}ms",
-          item.getId(),
-          result.processingTimeMs());
+          "Feature extraction completed for track {} in {}ms", trackId, result.processingTimeMs());
     } catch (Exception e) {
-      log.error("Feature extraction failed for job {}: {}", job.getId(), e.getMessage());
-      job.setErrorMessage(e.getMessage());
-      job.setStatus(job.getAttempts() >= MAX_ATTEMPTS ? "FAILED" : "PENDING");
-      jobRepository.save(job);
+      log.error("Feature extraction failed for job {}: {}", jobId, e.getMessage());
+      transactionTemplate.executeWithoutResult(
+          status -> {
+            var job = jobRepository.findById(jobId).orElse(null);
+            if (job != null) {
+              job.setErrorMessage(e.getMessage());
+              job.setStatus(job.getAttempts() >= MAX_ATTEMPTS ? "FAILED" : "PENDING");
+              jobRepository.save(job);
+            }
+          });
     } finally {
       extractionSemaphore.release();
     }
