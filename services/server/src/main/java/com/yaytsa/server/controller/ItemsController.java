@@ -103,6 +103,9 @@ public class ItemsController {
       @Parameter(description = "Filter for favorites only")
           @RequestParam(value = "IsFavorite", required = false)
           Boolean isFavorite,
+      @Parameter(description = "Comma-separated item IDs for batch fetch")
+          @RequestParam(value = "Ids", required = false)
+          String ids,
       @Parameter(description = "Additional filters (e.g., IsPlayed)")
           @RequestParam(value = "Filters", required = false)
           String filters,
@@ -118,6 +121,26 @@ public class ItemsController {
     UUID userUuid = userId != null ? parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
+    }
+
+    if (ids != null && !ids.isBlank()) {
+      List<UUID> idList = parseUuidList(ids);
+      if (idList == null) {
+        return ResponseEntity.badRequest().build();
+      }
+      if (idList.size() > MAX_PAGE_SIZE) {
+        return ResponseEntity.badRequest().build();
+      }
+      List<ItemEntity> items = itemService.findAllByIds(idList);
+      Map<UUID, ItemEntity> itemMap =
+          items.stream().collect(Collectors.toMap(ItemEntity::getId, i -> i));
+      List<BaseItemResponse> dtos =
+          idList.stream()
+              .map(itemMap::get)
+              .filter(Objects::nonNull)
+              .map(item -> convertToDto(item, userUuid, enableUserData))
+              .collect(Collectors.toList());
+      return ResponseEntity.ok(new QueryResultResponse<>(dtos, dtos.size(), 0));
     }
 
     UUID parentUuid = parentId != null ? parseUuid(parentId) : null;

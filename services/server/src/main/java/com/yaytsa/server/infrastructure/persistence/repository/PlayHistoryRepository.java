@@ -26,4 +26,17 @@ public interface PlayHistoryRepository extends JpaRepository<PlayHistoryEntity, 
       nativeQuery = true)
   List<UUID> findOverplayedTrackIds(
       @Param("userId") UUID userId, @Param("since") OffsetDateTime since);
+
+  @Query(
+      value =
+          """
+          SELECT CASE WHEN COUNT(*) > 0 THEN true ELSE false END
+          FROM play_history
+          WHERE item_id = :trackId AND user_id = :userId AND started_at > :since
+          """,
+      nativeQuery = true)
+  boolean existsByTrackIdAndUserIdSince(
+      @Param("trackId") UUID trackId,
+      @Param("userId") UUID userId,
+      @Param("since") OffsetDateTime since);
 }

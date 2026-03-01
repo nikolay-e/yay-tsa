@@ -17,7 +17,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build:core && npm run build:platform && cd apps/web && npm run build",
+    "build": "tsc -b packages/core packages/platform && cd apps/web && npm run build",
     "build:core": "cd packages/core && npm run build",
     "build:platform": "cd packages/platform && npm run build",
     "check:bundle": "bundlewatch",
@@ -26,14 +26,14 @@
     "check:lighthouse": "npm run build && lhci autorun",
     "check:types": "type-coverage --at-least 90 --ignore-catch",
     "check:unused": "knip --no-progress",
-    "dev": "npm run build:core && npm run build:platform && cd apps/web && npm run dev",
+    "dev": "tsc -b packages/core packages/platform && cd apps/web && npm run dev",
     "format": "prettier --write .",
     "generate:splash": "node scripts/generate-splash-screens.js",
     "lint": "prettier --check .",
     "pre-commit": "pre-commit run --all-files",
     "prepare": "command -v pre-commit >/dev/null 2>&1 && (pre-commit install && pre-commit install --hook-type commit-msg) || true",
     "sync:version": "node scripts/sync-version.js",
-    "type-check": "cd packages/core && npx tsc --noEmit",
+    "type-check": "tsc -b && cd apps/web && npx tsc --noEmit",
     "postversion": "npm run sync:version && git add -A"
   },
   "overrides": {

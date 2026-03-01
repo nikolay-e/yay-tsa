@@ -340,6 +340,7 @@ export interface ItemsQuery {
   AlbumIds?: string[];
   GenreIds?: string[];
   IsFavorite?: boolean;
+  Ids?: string[];
 }
 
 export interface ItemsResult<T = BaseItem> {

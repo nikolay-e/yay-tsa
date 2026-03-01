@@ -2,6 +2,7 @@ package com.yaytsa.server.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yaytsa.server.domain.service.AdaptiveQueueService;
 import com.yaytsa.server.domain.service.ListeningSessionService;
 import com.yaytsa.server.dto.request.CreateListeningSessionRequest;
 import com.yaytsa.server.dto.request.UpdateSessionStateRequest;
@@ -9,6 +10,7 @@ import com.yaytsa.server.dto.response.ListeningSessionResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,11 +21,15 @@ import org.springframework.web.bind.annotation.*;
 public class ListeningSessionController {
 
   private final ListeningSessionService sessionService;
+  private final AdaptiveQueueService adaptiveQueueService;
   private final ObjectMapper objectMapper;
 
   public ListeningSessionController(
-      ListeningSessionService sessionService, ObjectMapper objectMapper) {
+      ListeningSessionService sessionService,
+      AdaptiveQueueService adaptiveQueueService,
+      ObjectMapper objectMapper) {
     this.sessionService = sessionService;
+    this.adaptiveQueueService = adaptiveQueueService;
     this.objectMapper = objectMapper;
   }
 
@@ -42,7 +48,10 @@ public class ListeningSessionController {
       @RequestBody UpdateSessionStateRequest request,
       @AuthenticationPrincipal AuthenticatedUser user) {
     verifyOwnership(id, user);
-    return ResponseEntity.ok(toResponse(sessionService.updateState(id, request.state())));
+    var session = sessionService.updateState(id, request.state());
+    CompletableFuture.runAsync(
+        () -> adaptiveQueueService.triggerDjDecision(session, "MOOD_CHANGE", null));
+    return ResponseEntity.ok(toResponse(session));
   }
 
   @DeleteMapping("/{id}")

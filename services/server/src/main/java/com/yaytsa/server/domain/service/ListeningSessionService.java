@@ -9,6 +9,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.ListeningSessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -37,9 +38,12 @@ public class ListeningSessionService {
             .findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException(ResourceType.User, userId));
 
+    Map<String, Object> stateMap = initialState != null ? initialState : Map.of();
+
     ListeningSessionEntity session = new ListeningSessionEntity();
     session.setUser(user);
-    session.setState(serializeJson(initialState != null ? initialState : Map.of()));
+    session.setState(serializeJson(stateMap));
+    applyTypedFields(session, stateMap);
     session.setStartedAt(OffsetDateTime.now());
     session.setLastActivityAt(OffsetDateTime.now());
 
@@ -57,7 +61,9 @@ public class ListeningSessionService {
       throw new IllegalStateException("Cannot update an ended session");
     }
 
-    session.setState(serializeJson(newState != null ? newState : Map.of()));
+    Map<String, Object> stateMap = newState != null ? newState : Map.of();
+    session.setState(serializeJson(stateMap));
+    applyTypedFields(session, stateMap);
     session.setLastActivityAt(OffsetDateTime.now());
 
     return sessionRepository.save(session);
@@ -90,6 +96,31 @@ public class ListeningSessionService {
             .orElseThrow(
                 () -> new ResourceNotFoundException(ResourceType.ListeningSession, sessionId));
     return session.getUser().getId();
+  }
+
+  private void applyTypedFields(ListeningSessionEntity session, Map<String, Object> stateMap) {
+    session.setEnergy(extractFloat(stateMap, "energy"));
+    session.setIntensity(extractFloat(stateMap, "intensity"));
+    session.setMoodTags(extractStringArray(stateMap, "moodTags"));
+    session.setAttentionMode(extractString(stateMap, "attentionMode", "active"));
+  }
+
+  private Float extractFloat(Map<String, Object> map, String key) {
+    Object val = map.get(key);
+    return val instanceof Number n ? n.floatValue() : null;
+  }
+
+  private String[] extractStringArray(Map<String, Object> map, String key) {
+    Object val = map.get(key);
+    if (val instanceof List<?> list) {
+      return list.stream().map(Object::toString).toArray(String[]::new);
+    }
+    return null;
+  }
+
+  private String extractString(Map<String, Object> map, String key, String defaultVal) {
+    Object val = map.get(key);
+    return val instanceof String s ? s : defaultVal;
   }
 
   private String serializeJson(Object value) {

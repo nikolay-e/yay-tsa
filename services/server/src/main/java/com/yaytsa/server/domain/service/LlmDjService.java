@@ -295,7 +295,11 @@ public class LlmDjService {
     var recentSignals =
         signalRepository.findBySessionIdOrderByCreatedAtDesc(
             sessionId, PageRequest.of(0, RECENT_SIGNALS_LIMIT));
+    int volumeCount = 0;
     for (var signal : recentSignals) {
+      if ("VOLUME_CHANGE".equals(signal.getSignalType())) {
+        if (++volumeCount > 2) continue;
+      }
       sb.append("- ").append(signal.getSignalType());
       sb.append(" \"").append(signal.getItem().getName()).append("\"");
       sb.append(" at ").append(signal.getCreatedAt()).append("\n");
@@ -320,6 +324,7 @@ public class LlmDjService {
     searchProps.put(
         "vocal_max", prop("number", "Max vocal/instrumental ratio (0=instrumental, 1=vocal)"));
     searchProps.put("exclude_artists", arrayProp("string", "Artist names to exclude"));
+    searchProps.put("exclude_genres", arrayProp("string", "Genre names to exclude"));
     searchProps.put("limit", prop("integer", "Max results (default 10)"));
     tools.add(
         buildTool(
@@ -456,6 +461,7 @@ public class LlmDjService {
                       toFloat(input.get("arousal_max")),
                       toFloat(input.get("vocal_max")),
                       toStringList(input.get("exclude_artists")),
+                      toStringList(input.get("exclude_genres")),
                       intOrDefault(input, "limit", 10));
               yield candidateRetrievalService.searchLibrary(filters);
             }
@@ -506,10 +512,10 @@ public class LlmDjService {
 
   private DjDecision parseDecision(String responseText, long fallbackQueueVersion) {
     String json = responseText.strip();
-    if (json.startsWith("```")) {
-      int start = json.indexOf('\n') + 1;
-      int end = json.lastIndexOf("```");
-      if (start > 0 && end > start) json = json.substring(start, end).strip();
+    java.util.regex.Matcher matcher =
+        java.util.regex.Pattern.compile("```(?:json)?\\s*([\\s\\S]+?)```").matcher(json);
+    if (matcher.find()) {
+      json = matcher.group(1).strip();
     }
     try {
       Map<String, Object> raw = objectMapper.readValue(json, new TypeReference<>() {});

@@ -192,6 +192,8 @@ yaytsa:
     model: ${DJ_LLM_MODEL:claude-sonnet-4-20250514}
     max-tokens: ${DJ_LLM_MAX_TOKENS:2000}
     timeout-ms: ${DJ_LLM_TIMEOUT:8000}
+    similarity:
+      exact-search-threshold: ${DJ_EXACT_SEARCH_THRESHOLD:500}
     queue:
       min-size: 8
       max-size: 15

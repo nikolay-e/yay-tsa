@@ -157,4 +157,9 @@ public interface ItemRepository
       )
       """)
   List<ItemEntity> findAudioTracksWithoutFeatures(Pageable pageable);
+
+  @Query(
+      value = "SELECT id FROM items WHERE type = 'AudioTrack' ORDER BY RANDOM() LIMIT :limit",
+      nativeQuery = true)
+  List<UUID> findRandomAudioTrackIds(@Param("limit") int limit);
 }

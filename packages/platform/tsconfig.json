@@ -4,7 +4,10 @@
     "module": "ES2022",
     "lib": ["ES2021", "DOM", "DOM.Iterable"],
     "moduleResolution": "node",
+    "composite": true,
     "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -17,5 +20,6 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "exclude": ["node_modules", "dist", "tests"],
+  "references": [{ "path": "../core" }]
 }

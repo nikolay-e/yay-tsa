@@ -38,6 +38,7 @@ export class ItemsService extends BaseService {
     if (query.AlbumIds) params.AlbumIds = query.AlbumIds.join(',');
     if (query.GenreIds) params.GenreIds = query.GenreIds.join(',');
     if (query.IsFavorite !== undefined) params.IsFavorite = query.IsFavorite;
+    if (query.Ids?.length) params.Ids = query.Ids.join(',');
 
     // Fields to include in response
     if (query.Fields && query.Fields.length > 0) {
@@ -176,6 +177,15 @@ export class ItemsService extends BaseService {
   /**
    * Get single item by ID
    */
+  async getItemsByIds(ids: string[]): Promise<AudioItem[]> {
+    if (ids.length === 0) return [];
+    const result = await this.queryItems<AudioItem>({
+      Ids: ids,
+      Fields: ['Genres'],
+    });
+    return result.Items ?? [];
+  }
+
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {
     const result = await this.client.get<AudioItem | MusicAlbum | MusicArtist>(
       this.buildUserUrl(`/Items/${itemId}`)

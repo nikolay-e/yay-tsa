@@ -40,6 +40,10 @@ public class ItemService {
     return itemRepository.findById(itemId);
   }
 
+  public List<ItemEntity> findAllByIds(List<UUID> itemIds) {
+    return itemRepository.findAllById(itemIds);
+  }
+
   public Page<ItemEntity> queryItems(ItemsQueryParams params) {
     if ("DatePlayed".equals(params.sortBy()) && params.userId() != null) {
       return queryRecentlyPlayed(params);

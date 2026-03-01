@@ -33,6 +33,17 @@ public class ListeningSessionEntity {
   @Column(columnDefinition = "jsonb", nullable = false)
   private String state = "{}";
 
+  private Float energy;
+
+  private Float intensity;
+
+  @Column(name = "mood_tags")
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  private String[] moodTags;
+
+  @Column(name = "attention_mode", length = 20)
+  private String attentionMode = "active";
+
   @Column(name = "started_at", nullable = false)
   private OffsetDateTime startedAt;
 

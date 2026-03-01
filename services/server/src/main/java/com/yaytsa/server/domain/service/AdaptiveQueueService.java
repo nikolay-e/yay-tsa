@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -53,7 +54,7 @@ public class AdaptiveQueueService {
         sessionId, List.of("QUEUED", "PLAYING"));
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public List<AdaptiveQueueEntity> refreshQueue(UUID sessionId) {
     ListeningSessionEntity session =
         sessionRepository
@@ -69,7 +70,7 @@ public class AdaptiveQueueService {
         sessionId, List.of("QUEUED", "PLAYING"));
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void triggerDjDecision(
       ListeningSessionEntity session,
       String triggerType,
@@ -100,7 +101,21 @@ public class AdaptiveQueueService {
       return;
     }
 
-    queueManager.applyDecision(session.getId(), decision.get().baseQueueVersion(), validation);
+    try {
+      var result =
+          queueManager.applyDecision(
+              session.getId(), decision.get().baseQueueVersion(), validation);
+      if (!result.success()) {
+        log.info(
+            "LLM decision failed to apply for session {}: {}, falling back",
+            session.getId(),
+            result.error());
+        fallbackQueueService.fillQueue(session, currentQueue.size());
+      }
+    } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+      log.info("Optimistic lock conflict for session {}, falling back", session.getId());
+      fallbackQueueService.fillQueue(session, currentQueue.size());
+    }
   }
 
   private void validateSessionExists(UUID sessionId) {
