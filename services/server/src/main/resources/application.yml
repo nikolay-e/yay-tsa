@@ -46,6 +46,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: 0
+    out-of-order: true
 
   # Security Configuration
   security:
@@ -132,6 +133,13 @@ yaytsa:
   public-url: ${PUBLIC_URL:}
 
   media:
+    # Upload library root (where uploaded tracks are stored)
+    upload-library-root: ${UPLOAD_LIBRARY_ROOT:/app/uploads}
+
+    # Audio fingerprinting configuration
+    fingerprint:
+      fpcalc-path: ${FPCALC_PATH:fpcalc}
+
     # Library scanning configuration
     library:
       roots: ${LIBRARY_ROOTS:/media}

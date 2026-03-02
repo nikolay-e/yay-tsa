@@ -2,10 +2,15 @@ package com.yaytsa.server.util;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 
 public final class PathUtils {
 
   private PathUtils() {}
+
+  public static String getFilenameWithoutExtension(Path filePath) {
+    return filePath.getFileName().toString().replaceFirst("\\.[^.]+$", "");
+  }
 
   public static String encodePathForHeader(String path) {
     StringBuilder encoded = new StringBuilder();
