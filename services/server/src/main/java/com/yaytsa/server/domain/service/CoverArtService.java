@@ -44,6 +44,7 @@ public class CoverArtService {
       Set.of(
           "images.genius.com",
           "coverartarchive.org",
+          "archive.org",
           "i.scdn.co",
           "lastfm.freetls.fastly.net",
           "upload.wikimedia.org",

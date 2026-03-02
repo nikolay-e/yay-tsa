@@ -52,7 +52,7 @@ services:
       SERVER_PORT: 8096
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-DEBUG}
-      LIBRARY_ROOTS: /media
+      LIBRARY_ROOTS: /media,/app/uploads
       SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
       CORS_ENABLED: true
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:*,http://frontend:5173'
@@ -61,10 +61,17 @@ services:
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
       KARAOKE_STEMS_PATH: /app/stems
       FEATURE_EXTRACTOR_URL: http://feature-extractor:8000
+      # Metadata providers (optional - set in .env or shell)
+      GENIUS_ACCESS_TOKEN: ${GENIUS_ACCESS_TOKEN:-}
+      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      ACOUSTID_API_KEY: ${ACOUSTID_API_KEY:-}
     ports:
       - '${SERVER_PORT:-8096}:8096'
     volumes:
       - ${MEDIA_PATH:-./services/server/media}:/media:ro
+      - uploads_data:/app/uploads
       - ./services/server/logs:/app/logs
       - karaoke_stems:/app/stems
     networks:
@@ -268,5 +275,7 @@ networks:
 volumes:
   postgres_data:
     name: yay-tsa-postgres-data
+  uploads_data:
+    name: yay-tsa-uploads-data
   karaoke_stems:
     name: yay-tsa-karaoke-stems
