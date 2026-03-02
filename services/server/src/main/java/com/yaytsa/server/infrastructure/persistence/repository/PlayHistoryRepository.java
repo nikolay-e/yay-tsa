@@ -4,6 +4,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.PlayHistoryEntity;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -39,4 +40,10 @@ public interface PlayHistoryRepository extends JpaRepository<PlayHistoryEntity, 
       @Param("trackId") UUID trackId,
       @Param("userId") UUID userId,
       @Param("since") OffsetDateTime since);
+
+  @Query(
+      "SELECT ph.item.id FROM PlayHistoryEntity ph "
+          + "WHERE ph.user.id = :userId "
+          + "ORDER BY ph.startedAt DESC")
+  List<UUID> findRecentItemIdsByUser(@Param("userId") UUID userId, Pageable pageable);
 }

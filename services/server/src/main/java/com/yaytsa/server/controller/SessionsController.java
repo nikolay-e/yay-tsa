@@ -6,6 +6,7 @@ import com.yaytsa.server.dto.request.PlaybackStartInfo;
 import com.yaytsa.server.dto.request.PlaybackStopInfo;
 import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -44,7 +45,7 @@ public class SessionsController {
       @RequestBody PlaybackStartInfo playbackInfo,
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-    UUID itemId = parseUuid(playbackInfo.getItemId());
+    UUID itemId = UuidUtils.parseUuid(playbackInfo.getItemId());
     if (itemId == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -69,7 +70,7 @@ public class SessionsController {
       @RequestBody PlaybackProgressInfo progressInfo,
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-    UUID itemId = parseUuid(progressInfo.getItemId());
+    UUID itemId = UuidUtils.parseUuid(progressInfo.getItemId());
     if (itemId == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -100,7 +101,7 @@ public class SessionsController {
       @RequestBody PlaybackStopInfo stopInfo,
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-    UUID itemId = parseUuid(stopInfo.getItemId());
+    UUID itemId = UuidUtils.parseUuid(stopInfo.getItemId());
     if (itemId == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -144,7 +145,7 @@ public class SessionsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID sessionUuid = parseUuid(sessionId);
+    UUID sessionUuid = UuidUtils.parseUuid(sessionId);
     if (sessionUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -233,16 +234,5 @@ public class SessionsController {
     }
 
     return ResponseEntity.noContent().build();
-  }
-
-  private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
   }
 }
