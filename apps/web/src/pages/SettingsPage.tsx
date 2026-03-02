@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles } from 'lucide-react';
+import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles, Upload } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { TrackUploadDialog } from '@/features/library/components';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
 
@@ -34,6 +35,7 @@ export function SettingsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const handleRescanLibrary = async () => {
     if (!client) return;
@@ -68,9 +70,39 @@ export function SettingsPage() {
     await forceReload();
   };
 
+  const handleUploadSuccess = () => {
+    setStatus('Album uploaded successfully. Rescanning library...');
+    void queryClient.invalidateQueries({ queryKey: ['tracks'] });
+    void queryClient.invalidateQueries({ queryKey: ['albums'] });
+    void queryClient.invalidateQueries({ queryKey: ['artists'] });
+    void queryClient.invalidateQueries({ queryKey: ['album'] });
+    void queryClient.invalidateQueries({ queryKey: ['artist'] });
+    void handleRescanLibrary();
+  };
+
   return (
     <div className="mx-auto max-w-2xl p-6">
       <h1 className="mb-6 text-2xl font-bold">Settings</h1>
+
+      <section className="mb-8">
+        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+          <Upload className="h-4 w-4" />
+          Upload
+        </h2>
+
+        <button
+          onClick={() => setIsUploadOpen(true)}
+          className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
+        >
+          <Upload className="text-accent h-5 w-5 shrink-0" />
+          <div>
+            <div className="font-medium">Upload Album</div>
+            <div className="text-text-secondary text-sm">
+              Upload audio files to the library. Select all tracks of an album at once.
+            </div>
+          </div>
+        </button>
+      </section>
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
@@ -158,6 +190,12 @@ export function SettingsPage() {
           </div>
         </button>
       </section>
+
+      <TrackUploadDialog
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUploadSuccess={handleUploadSuccess}
+      />
     </div>
   );
 }
