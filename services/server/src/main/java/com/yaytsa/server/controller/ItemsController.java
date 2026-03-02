@@ -6,11 +6,13 @@ import com.yaytsa.server.domain.service.PlaylistService;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.dto.response.QueryResultResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
+import com.yaytsa.server.infrastructure.persistence.entity.AlbumEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.mapper.ItemMapper;
+import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -21,11 +23,13 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/Items")
 @Tag(name = "Items", description = "Media library item management")
+@Transactional(readOnly = true)
 public class ItemsController {
 
   private static final int MAX_PAGE_SIZE = 1000;
@@ -115,16 +119,20 @@ public class ItemsController {
       @Parameter(description = "Fields to include in response (comma-separated)")
           @RequestParam(value = "Fields", required = false)
           String fields,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
+    }
 
     if (ids != null && !ids.isBlank()) {
-      List<UUID> idList = parseUuidList(ids);
+      List<UUID> idList = UuidUtils.parseUuidList(ids);
       if (idList == null) {
         return ResponseEntity.badRequest().build();
       }
@@ -143,15 +151,15 @@ public class ItemsController {
       return ResponseEntity.ok(new QueryResultResponse<>(dtos, dtos.size(), 0));
     }
 
-    UUID parentUuid = parentId != null ? parseUuid(parentId) : null;
+    UUID parentUuid = parentId != null ? UuidUtils.parseUuid(parentId) : null;
     if (parentId != null && parentUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
     List<String> itemTypes = parseCommaSeparatedList(includeItemTypes);
-    List<UUID> artistUuids = parseUuidList(artistIds);
-    List<UUID> albumUuids = parseUuidList(albumIds);
-    List<UUID> genreUuids = parseUuidList(genreIds);
+    List<UUID> artistUuids = UuidUtils.parseUuidList(artistIds);
+    List<UUID> albumUuids = UuidUtils.parseUuidList(albumIds);
+    List<UUID> genreUuids = UuidUtils.parseUuidList(genreIds);
 
     if (artistUuids == null || albumUuids == null || genreUuids == null) {
       return ResponseEntity.badRequest().build();
@@ -176,10 +184,66 @@ public class ItemsController {
             isFavorite);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
+    List<ItemEntity> items = itemsPage.getContent();
+
+    // Batch-load all secondary data to avoid N+1 queries
+    List<UUID> itemIds = items.stream().map(ItemEntity::getId).toList();
+
+    Map<UUID, PlayStateEntity> playStateMap =
+        (userUuid != null && enableUserData && !itemIds.isEmpty())
+            ? playStateService.getPlayStatesForItems(userUuid, itemIds)
+            : Collections.emptyMap();
+
+    List<UUID> trackIds =
+        items.stream()
+            .filter(i -> i.getType() == ItemType.AudioTrack)
+            .map(ItemEntity::getId)
+            .toList();
+    Map<UUID, AudioTrackEntity> audioTrackMap =
+        trackIds.isEmpty()
+            ? Collections.emptyMap()
+            : audioTrackRepository.findAllByIdInWithRelations(trackIds).stream()
+                .collect(Collectors.toMap(at -> at.getItemId(), at -> at));
+
+    List<UUID> albumItemIds =
+        items.stream()
+            .filter(i -> i.getType() == ItemType.MusicAlbum)
+            .map(ItemEntity::getId)
+            .toList();
+    Map<UUID, AlbumEntity> albumMap =
+        albumItemIds.isEmpty()
+            ? Collections.emptyMap()
+            : albumRepository.findAllByIdInWithArtist(albumItemIds).stream()
+                .collect(Collectors.toMap(a -> a.getItemId(), a -> a));
+
+    Map<UUID, Long> trackCountByAlbum =
+        albumItemIds.isEmpty()
+            ? Collections.emptyMap()
+            : audioTrackRepository.countByAlbumIdIn(albumItemIds).stream()
+                .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+
+    List<UUID> artistIds2 =
+        items.stream()
+            .filter(i -> i.getType() == ItemType.MusicArtist)
+            .map(ItemEntity::getId)
+            .toList();
+    Map<UUID, Long> albumCountByArtist =
+        artistIds2.isEmpty()
+            ? Collections.emptyMap()
+            : albumRepository.countByArtistIdIn(artistIds2).stream()
+                .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
 
     List<BaseItemResponse> dtos =
-        itemsPage.getContent().stream()
-            .map(item -> convertToDto(item, userUuid, enableUserData))
+        items.stream()
+            .map(
+                item ->
+                    convertToDto(
+                        item,
+                        playStateMap.get(item.getId()),
+                        audioTrackMap.get(item.getId()),
+                        albumMap.get(item.getId()),
+                        trackCountByAlbum.get(item.getId()),
+                        albumCountByArtist.get(item.getId())))
             .collect(Collectors.toList());
 
     QueryResultResponse<BaseItemResponse> result =
@@ -202,17 +266,21 @@ public class ItemsController {
       @Parameter(description = "User ID") @RequestParam(value = "userId", required = false)
           String userId,
       @Parameter(description = "Fields to include") @RequestParam(required = false) String fields,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
+    }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
     }
 
     Optional<ItemEntity> itemOpt = itemService.findById(itemUuid);
@@ -238,17 +306,21 @@ public class ItemsController {
       @RequestParam(value = "userId", required = false) String userId,
       @RequestParam(defaultValue = "0") int startIndex,
       @RequestParam(defaultValue = "100") int limit,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID albumUuid = parseUuid(albumId);
+    UUID albumUuid = UuidUtils.parseUuid(albumId);
     if (albumUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = userId != null ? parseUuid(userId) : null;
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
       return ResponseEntity.badRequest().build();
+    }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
     }
 
     List<AudioTrackEntity> tracks = itemService.getAlbumTracks(albumUuid);
@@ -280,6 +352,7 @@ public class ItemsController {
         @ApiResponse(responseCode = "200", description = "Successfully marked as favorite"),
         @ApiResponse(responseCode = "400", description = "Invalid ID format")
       })
+  @Transactional
   @PostMapping("/{itemId}/Favorite")
   public ResponseEntity<Void> markFavorite(
       @PathVariable String itemId,
@@ -288,12 +361,12 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -313,6 +386,7 @@ public class ItemsController {
         @ApiResponse(responseCode = "200", description = "Successfully unmarked as favorite"),
         @ApiResponse(responseCode = "400", description = "Invalid ID format")
       })
+  @Transactional
   @DeleteMapping("/{itemId}/Favorite")
   public ResponseEntity<Void> unmarkFavorite(
       @PathVariable String itemId,
@@ -321,12 +395,12 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
 
-    UUID userUuid = parseUuid(userId);
+    UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -354,6 +428,7 @@ public class ItemsController {
             responseCode = "403",
             description = "Forbidden - only playlists can be deleted")
       })
+  @Transactional
   @DeleteMapping("/{itemId}")
   public ResponseEntity<Void> deleteItem(
       @Parameter(description = "Item ID to delete") @PathVariable String itemId,
@@ -361,7 +436,7 @@ public class ItemsController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    UUID itemUuid = parseUuid(itemId);
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
       return ResponseEntity.badRequest().build();
     }
@@ -395,32 +470,6 @@ public class ItemsController {
         .collect(Collectors.toList());
   }
 
-  private List<UUID> parseUuidList(String value) {
-    if (value == null || value.isBlank()) {
-      return Collections.emptyList();
-    }
-    try {
-      return Arrays.stream(value.split(","))
-          .map(String::trim)
-          .filter(s -> !s.isEmpty())
-          .map(UUID::fromString)
-          .collect(Collectors.toList());
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
-
-  private UUID parseUuid(String value) {
-    if (value == null) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
-
   private boolean isOwnerOrAdmin(UUID resourceOwnerId, AuthenticatedUser user) {
     if (user == null) {
       return false;
@@ -429,6 +478,22 @@ public class ItemsController {
       return true;
     }
     return resourceOwnerId.equals(user.getUserEntity().getId());
+  }
+
+  private BaseItemResponse convertToDto(
+      ItemEntity item,
+      PlayStateEntity playState,
+      AudioTrackEntity audioTrack,
+      AlbumEntity album,
+      Long trackCount,
+      Long albumCount) {
+    Integer childCount = null;
+    if (item.getType() == ItemType.MusicAlbum && trackCount != null) {
+      childCount = trackCount.intValue();
+    } else if (item.getType() == ItemType.MusicArtist && albumCount != null) {
+      childCount = albumCount.intValue();
+    }
+    return itemMapper.toDto(item, playState, audioTrack, album, childCount);
   }
 
   private BaseItemResponse convertToDto(ItemEntity item, UUID userId, boolean enableUserData) {

@@ -26,17 +26,14 @@ public class ItemService {
   private final ItemRepository itemRepository;
   private final AudioTrackRepository audioTrackRepository;
   private final AlbumRepository albumRepository;
-  private final SearchNormalizer searchNormalizer;
 
   public ItemService(
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
-      AlbumRepository albumRepository,
-      SearchNormalizer searchNormalizer) {
+      AlbumRepository albumRepository) {
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.albumRepository = albumRepository;
-    this.searchNormalizer = searchNormalizer;
   }
 
   public Optional<ItemEntity> findById(UUID itemId) {
@@ -86,8 +83,7 @@ public class ItemService {
     }
 
     if (params.searchTerm() != null && !params.searchTerm().isBlank()) {
-      List<String> variants = searchNormalizer.generateSearchVariants(params.searchTerm());
-      spec = spec.and(ItemSpecifications.searchByText(variants));
+      spec = spec.and(ItemSpecifications.searchByName(params.searchTerm()));
     }
 
     if (params.isFavorite() != null && params.userId() != null) {

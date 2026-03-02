@@ -62,9 +62,6 @@ public class ItemEntity {
   @Column(columnDefinition = "TEXT")
   private String overview;
 
-  @Column(name = "search_text", columnDefinition = "TEXT")
-  private String searchText;
-
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
   private OffsetDateTime createdAt;
@@ -77,13 +74,13 @@ public class ItemEntity {
       mappedBy = "item",
       cascade = CascadeType.ALL,
       orphanRemoval = true,
-      fetch = FetchType.EAGER)
+      fetch = FetchType.LAZY)
   private List<ItemGenreEntity> itemGenres = new ArrayList<>();
 
   @OneToMany(
       mappedBy = "item",
       cascade = CascadeType.ALL,
       orphanRemoval = true,
-      fetch = FetchType.EAGER)
+      fetch = FetchType.LAZY)
   private List<ImageEntity> images = new ArrayList<>();
 }

@@ -2,7 +2,6 @@ package com.yaytsa.server.infrastructure.persistence.query;
 
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import jakarta.persistence.criteria.*;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
@@ -132,25 +131,16 @@ public final class ItemSpecifications {
     };
   }
 
-  public static Specification<ItemEntity> searchByText(List<String> searchVariants) {
+  public static Specification<ItemEntity> searchByName(String searchTerm) {
     return (root, query, cb) -> {
-      if (searchVariants == null || searchVariants.isEmpty()) {
+      if (searchTerm == null || searchTerm.isBlank()) {
         return cb.conjunction();
       }
-
-      List<Predicate> predicates = new ArrayList<>();
-      for (String variant : searchVariants) {
-        String escaped = escapeLikePattern(variant);
-        String pattern = "%" + escaped + "%";
-        predicates.add(cb.like(root.get("searchText"), pattern, '\\'));
-      }
-
-      return cb.or(predicates.toArray(new Predicate[0]));
+      String pattern = "%" + searchTerm.toLowerCase(java.util.Locale.ROOT) + "%";
+      return cb.or(
+          cb.like(cb.lower(root.get("name")), pattern),
+          cb.like(cb.lower(root.get("sortName")), pattern));
     };
-  }
-
-  private static String escapeLikePattern(String input) {
-    return input.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
   }
 
   public static Specification<ItemEntity> isFavoriteForUser(UUID userId, Boolean isFavorite) {
