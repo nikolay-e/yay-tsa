@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.config.LibraryRootsConfig;
 import com.yaytsa.server.infrastructure.client.AudioSeparatorClient;
 import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
@@ -40,9 +41,8 @@ public class KaraokeService {
   private final ItemRepository itemRepository;
   private final AudioTrackRepository audioTrackRepository;
   private final AudioSeparatorClient separatorClient;
-  private final Path mediaRootPath;
+  private final LibraryRootsConfig libraryRootsConfig;
   private final Path stemsRootPath;
-  private volatile Path realMediaRoot;
   private volatile Path realStemsRoot;
 
   private final Map<UUID, JobEntry> processingJobs = new ConcurrentHashMap<>();
@@ -85,45 +85,25 @@ public class KaraokeService {
       ItemRepository itemRepository,
       AudioTrackRepository audioTrackRepository,
       AudioSeparatorClient separatorClient,
-      @Value("${yaytsa.media.library.roots:/media}") String mediaRoot,
+      LibraryRootsConfig libraryRootsConfig,
       @Value("${yaytsa.media.karaoke.stems-path:/app/stems}") String stemsPath) {
     this.itemRepository = itemRepository;
     this.audioTrackRepository = audioTrackRepository;
     this.separatorClient = separatorClient;
-    this.mediaRootPath = Paths.get(mediaRoot).toAbsolutePath().normalize();
+    this.libraryRootsConfig = libraryRootsConfig;
     this.stemsRootPath = Paths.get(stemsPath).toAbsolutePath().normalize();
-    initRealPaths();
+    initStemsRoot();
 
     cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
   }
 
-  private void initRealPaths() {
-    try {
-      this.realMediaRoot = mediaRootPath.toRealPath();
-      log.info("Initialized media root path: {}", realMediaRoot);
-    } catch (IOException e) {
-      log.warn("Media root path not accessible at startup: {}", mediaRootPath);
-      this.realMediaRoot = null;
-    }
+  private void initStemsRoot() {
     try {
       this.realStemsRoot = stemsRootPath.toRealPath();
       log.info("Initialized stems root path: {}", realStemsRoot);
     } catch (IOException e) {
       log.warn("Stems root path not accessible at startup: {}", stemsRootPath);
       this.realStemsRoot = null;
-    }
-  }
-
-  private synchronized Path getRealMediaRoot() {
-    if (realMediaRoot != null) {
-      return realMediaRoot;
-    }
-    try {
-      realMediaRoot = mediaRootPath.toRealPath();
-      return realMediaRoot;
-    } catch (IOException e) {
-      log.warn("Failed to resolve media root path: {}", e.getMessage());
-      return null;
     }
   }
 
@@ -358,30 +338,25 @@ public class KaraokeService {
   }
 
   private boolean isStemPathSafe(Path path) {
+    if (libraryRootsConfig.isPathSafe(path)) {
+      return true;
+    }
+    // Also allow the stems directory
+    Path stemsRoot = getRealStemsRoot();
+    if (stemsRoot == null) {
+      return false;
+    }
     try {
-      Path mediaRoot = getRealMediaRoot();
-      Path stemsRoot = getRealStemsRoot();
-      if (mediaRoot == null && stemsRoot == null) {
-        return false;
-      }
-
       Path absolutePath = path.toAbsolutePath().normalize();
-
       if (Files.exists(absolutePath)) {
-        Path realPath = absolutePath.toRealPath();
-        return (mediaRoot != null && realPath.startsWith(mediaRoot))
-            || (stemsRoot != null && realPath.startsWith(stemsRoot));
+        return absolutePath.toRealPath().startsWith(stemsRoot);
       }
-
       Path parent = absolutePath.getParent();
       if (parent == null || !Files.exists(parent)) {
         log.debug("Parent directory does not exist for stem path: {}", path);
         return false;
       }
-      Path realParent = parent.toRealPath();
-      return (mediaRoot != null && realParent.startsWith(mediaRoot))
-          || (stemsRoot != null && realParent.startsWith(stemsRoot));
-
+      return parent.toRealPath().startsWith(stemsRoot);
     } catch (IOException e) {
       log.warn("Stem path validation failed for {}: {}", path, e.getMessage());
       return false;
@@ -389,31 +364,7 @@ public class KaraokeService {
   }
 
   private boolean isMediaPathSafe(Path path) {
-    try {
-      Path root = getRealMediaRoot();
-      if (root == null) {
-        return false;
-      }
-
-      Path absolutePath = path.toAbsolutePath().normalize();
-
-      if (Files.exists(absolutePath)) {
-        Path realPath = absolutePath.toRealPath();
-        return realPath.startsWith(root);
-      }
-
-      Path parent = absolutePath.getParent();
-      if (parent == null || !Files.exists(parent)) {
-        log.debug("Parent directory does not exist for media path: {}", path);
-        return false;
-      }
-      Path realParent = parent.toRealPath();
-      return realParent.startsWith(root);
-
-    } catch (IOException e) {
-      log.warn("Media path validation failed for {}: {}", path, e.getMessage());
-      return false;
-    }
+    return libraryRootsConfig.isPathSafe(path);
   }
 
   public Path getInstrumentalPath(UUID trackId) {
