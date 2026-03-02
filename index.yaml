@@ -3,7 +3,7 @@ entries:
   yay-tsa:
   - apiVersion: v2
     appVersion: main-e626b3c
-    created: "2026-03-02T16:45:16.917727879Z"
+    created: "2026-03-02T16:45:34.207007219Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: bf4dd527e5b2ee580d4fc4dddc4eb4445d751836c708b5286f611ab6a74052e2
     home: https://github.com/nikolay-e/yay-tsa
@@ -23,7 +23,7 @@ entries:
     version: 0.4.3-main.e626b3c
   - apiVersion: v2
     appVersion: main-da64081
-    created: "2026-03-02T16:45:16.916664339Z"
+    created: "2026-03-02T16:45:34.205941366Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: f8cf1fbf7969ae1ac5e475b2a973e8337f24d00bc9f4443bed2506c2576eb349
     home: https://github.com/nikolay-e/yay-tsa
@@ -42,8 +42,28 @@ entries:
     - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.4.3-main.da64081.tgz
     version: 0.4.3-main.da64081
   - apiVersion: v2
+    appVersion: main-b25f7db
+    created: "2026-03-02T16:45:34.204886363Z"
+    description: A portable, minimal Jellyfin-inspired music server and client
+    digest: e0b0475909b9bc08af0d03a5ab694a358ccecf6af8a3ad766aaa6339998339f8
+    home: https://github.com/nikolay-e/yay-tsa
+    keywords:
+    - jellyfin
+    - music
+    - client
+    - media
+    maintainers:
+    - name: Nikolay Eremeev
+    name: yay-tsa
+    sources:
+    - https://github.com/nikolay-e/yay-tsa
+    type: application
+    urls:
+    - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.4.3-main.b25f7db.tgz
+    version: 0.4.3-main.b25f7db
+  - apiVersion: v2
     appVersion: main-aa19bfe
-    created: "2026-03-02T16:45:16.915631348Z"
+    created: "2026-03-02T16:45:34.20383092Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: b2f813afc6e8f03e24c4c52ca53874a9598628223150e0cc7e633cb324699699
     home: https://github.com/nikolay-e/yay-tsa
@@ -63,7 +83,7 @@ entries:
     version: 0.4.3-main.aa19bfe
   - apiVersion: v2
     appVersion: main-5ece42b
-    created: "2026-03-02T16:45:16.914597384Z"
+    created: "2026-03-02T16:45:34.202096967Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: f9e0d766c66e67b8553f9f87812732f6cb83f44e92867dd2e328ee16652c78f0
     home: https://github.com/nikolay-e/yay-tsa
@@ -83,7 +103,7 @@ entries:
     version: 0.4.3-main.5ece42b
   - apiVersion: v2
     appVersion: main-435c305
-    created: "2026-03-02T16:45:16.913461057Z"
+    created: "2026-03-02T16:45:34.200807654Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: 1253b95caaa019e23097ba64975aad2d131e0a7c4ba18fb827f072efd021ccc9
     home: https://github.com/nikolay-e/yay-tsa
@@ -103,7 +123,7 @@ entries:
     version: 0.4.3-main.435c305
   - apiVersion: v2
     appVersion: main-19ebb87
-    created: "2026-03-02T16:45:16.911601057Z"
+    created: "2026-03-02T16:45:34.199747952Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: bca4af375c0710c38e3381087ccb03bf7d432eb9c5e8237fa054fb146a4db175
     home: https://github.com/nikolay-e/yay-tsa
@@ -123,7 +143,7 @@ entries:
     version: 0.4.3-main.19ebb87
   - apiVersion: v2
     appVersion: main-0e8b36e
-    created: "2026-03-02T16:45:16.910510436Z"
+    created: "2026-03-02T16:45:34.198612528Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: 8ac5492309e76caa75aff3fee5951f00281835489bf88fb9797606c043f4a240
     home: https://github.com/nikolay-e/yay-tsa
@@ -143,7 +163,7 @@ entries:
     version: 0.4.3-main.0e8b36e
   - apiVersion: v2
     appVersion: main-021d0dd
-    created: "2026-03-02T16:45:16.909471112Z"
+    created: "2026-03-02T16:45:34.197526898Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: 34de8578b65265146a521a3fe8addf26958617e5466b2d8d7233bf64a5d20c9b
     home: https://github.com/nikolay-e/yay-tsa
@@ -163,7 +183,7 @@ entries:
     version: 0.4.3-main.021d0dd
   - apiVersion: v2
     appVersion: main-e68812a
-    created: "2026-03-02T16:45:16.908380422Z"
+    created: "2026-03-02T16:45:34.196376546Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: 4f09409224fb87f328d7257c3c60c46dad426199409f7148df3d3ca27d058a9f
     home: https://github.com/nikolay-e/yay-tsa
@@ -181,24 +201,4 @@ entries:
     urls:
     - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.4.2-main.e68812a.tgz
     version: 0.4.2-main.e68812a
-  - apiVersion: v2
-    appVersion: main-e60c756
-    created: "2026-03-02T16:45:16.907277558Z"
-    description: A portable, minimal Jellyfin-inspired music server and client
-    digest: 54c11679025edb13632634e32f010c96849ede9cd36b64b9a461117db4845a9f
-    home: https://github.com/nikolay-e/yay-tsa
-    keywords:
-    - jellyfin
-    - music
-    - client
-    - media
-    maintainers:
-    - name: Nikolay Eremeev
-    name: yay-tsa
-    sources:
-    - https://github.com/nikolay-e/yay-tsa
-    type: application
-    urls:
-    - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.4.2-main.e60c756.tgz
-    version: 0.4.2-main.e60c756
-generated: "2026-03-02T16:45:16.905026552Z"
+generated: "2026-03-02T16:45:34.195166051Z"
