@@ -1,7 +1,7 @@
 minimum_pre_commit_version: '3.7.0'
 default_stages: [pre-commit]
 default_language_version:
-  node: system
+  node: 22.22.0
 fail_fast: false # Run all hooks to get complete feedback
 
 repos:
