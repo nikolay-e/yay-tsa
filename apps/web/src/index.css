@@ -337,6 +337,13 @@
   }
 }
 
+@utility bottom-above-tab-bar {
+  bottom: calc(var(--spacing-bottom-tab) + env(safe-area-inset-bottom, 0px));
+  @media (min-width: 768px) {
+    bottom: 0;
+  }
+}
+
 /* Tailwind CSS Animate compatible utilities */
 @utility animate-in {
   animation-name: enter;
