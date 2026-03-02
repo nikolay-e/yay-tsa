@@ -206,6 +206,15 @@ yaytsa:
       scrobble-threshold-percent: 50
       scrobble-minimum-seconds: 240
 
+  # Metadata enrichment configuration
+  metadata:
+    # AcoustID API (https://acoustid.org/)
+    # Register at: https://acoustid.org/new-application
+    acoustid:
+      api-key: ${ACOUSTID_API_KEY:}
+
+    # MusicBrainz is always enabled (no API key required)
+
   # Security configuration
   security:
     token-length: 64
