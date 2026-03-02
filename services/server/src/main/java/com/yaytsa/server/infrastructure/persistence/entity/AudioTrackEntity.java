@@ -68,4 +68,13 @@ public class AudioTrackEntity {
 
   @Column(name = "vocal_path", columnDefinition = "TEXT")
   private String vocalPath;
+
+  @Column(columnDefinition = "TEXT")
+  private String fingerprint;
+
+  @Column(name = "fingerprint_duration")
+  private Double fingerprintDuration;
+
+  @Column(name = "fingerprint_sample_rate")
+  private Integer fingerprintSampleRate;
 }
