@@ -35,7 +35,7 @@ export function AlbumCard({ album, isPlaying, onPlay, onPause }: AlbumCardProps)
     <div
       data-testid="album-card"
       className={cn(
-        'group relative rounded-md p-2',
+        'group relative isolate rounded-md p-2',
         'bg-bg-secondary hover:bg-bg-tertiary transition-colors'
       )}
     >
