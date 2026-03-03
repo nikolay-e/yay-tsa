@@ -55,6 +55,11 @@ export class AdaptiveDjService extends BaseService {
     });
   }
 
+  async getActiveSession(): Promise<ListeningSession | null> {
+    const result = await this.client.get<ListeningSession>('/v1/sessions/active');
+    return result ?? null;
+  }
+
   async getPreferences(userId: string): Promise<UserPreferences> {
     return this.client.getRequired<UserPreferences>(`/v1/users/${userId}/preferences`);
   }

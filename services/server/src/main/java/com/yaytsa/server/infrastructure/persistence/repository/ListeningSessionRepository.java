@@ -8,5 +8,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ListeningSessionRepository extends JpaRepository<ListeningSessionEntity, UUID> {
-  Optional<ListeningSessionEntity> findByUserIdAndEndedAtIsNull(UUID userId);
+  Optional<ListeningSessionEntity> findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(
+      UUID userId);
 }

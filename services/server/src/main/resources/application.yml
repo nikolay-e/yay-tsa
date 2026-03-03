@@ -204,8 +204,8 @@ yaytsa:
       exact-search-threshold: ${DJ_EXACT_SEARCH_THRESHOLD:500}
     queue:
       min-size: 8
-      max-size: 15
-      trigger-threshold: 3
+      max-size: 50
+      trigger-threshold: 8
 
     # Session configuration
     sessions:

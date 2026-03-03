@@ -3,6 +3,7 @@ export interface ListeningSession {
   userId: string;
   state: SessionState;
   startedAt: string;
+  lastActivityAt?: string;
   sessionSummary?: string;
 }
 

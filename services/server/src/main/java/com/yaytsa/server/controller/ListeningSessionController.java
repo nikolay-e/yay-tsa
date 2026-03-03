@@ -61,6 +61,17 @@ public class ListeningSessionController {
     return ResponseEntity.ok(toResponse(sessionService.endSession(id)));
   }
 
+  @GetMapping("/active")
+  public ResponseEntity<ListeningSessionResponse> getActiveSession(
+      @AuthenticationPrincipal AuthenticatedUser user) {
+    UUID userId = user.getUserEntity().getId();
+    var session = sessionService.findActiveSession(userId);
+    if (session == null) {
+      return ResponseEntity.noContent().build();
+    }
+    return ResponseEntity.ok(toResponse(session));
+  }
+
   @GetMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> getSession(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {

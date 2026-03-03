@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class SignalProcessingService {
 
   private static final Logger log = LoggerFactory.getLogger(SignalProcessingService.class);
-  private static final int QUEUE_LOW_THRESHOLD = 3;
   private static final int SKIP_PATTERN_COUNT = 2;
   private static final int SKIP_PATTERN_WINDOW = 10;
 
@@ -33,6 +33,7 @@ public class SignalProcessingService {
   private final AdaptiveQueueRepository queueRepository;
   private final AdaptiveQueueService adaptiveQueueService;
   private final ObjectMapper objectMapper;
+  private final int queueLowThreshold;
 
   public SignalProcessingService(
       PlaybackSignalRepository signalRepository,
@@ -40,13 +41,15 @@ public class SignalProcessingService {
       ItemRepository itemRepository,
       AdaptiveQueueRepository queueRepository,
       AdaptiveQueueService adaptiveQueueService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      @Value("${yaytsa.adaptive-dj.queue.trigger-threshold:8}") int queueLowThreshold) {
     this.signalRepository = signalRepository;
     this.sessionRepository = sessionRepository;
     this.itemRepository = itemRepository;
     this.queueRepository = queueRepository;
     this.adaptiveQueueService = adaptiveQueueService;
     this.objectMapper = objectMapper;
+    this.queueLowThreshold = queueLowThreshold;
   }
 
   public record SignalResult(PlaybackSignalEntity signal, boolean triggerFired) {}
@@ -83,7 +86,7 @@ public class SignalProcessingService {
         log.info(
             "Queue low trigger: session {} has {} or fewer remaining items",
             sessionId,
-            QUEUE_LOW_THRESHOLD);
+            queueLowThreshold);
       if (skipPattern)
         log.info(
             "Skip pattern trigger: session {} has {}+ skips in recent signals",
@@ -99,7 +102,7 @@ public class SignalProcessingService {
     return queueRepository
             .findBySessionIdAndStatusInOrderByPositionAsc(sessionId, List.of("QUEUED"))
             .size()
-        <= QUEUE_LOW_THRESHOLD;
+        < queueLowThreshold;
   }
 
   private boolean hasSkipPattern(UUID sessionId) {

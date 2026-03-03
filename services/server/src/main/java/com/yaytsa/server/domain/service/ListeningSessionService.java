@@ -89,6 +89,13 @@ public class ListeningSessionService {
         .orElseThrow(() -> new ResourceNotFoundException(ResourceType.ListeningSession, sessionId));
   }
 
+  @Transactional(readOnly = true)
+  public ListeningSessionEntity findActiveSession(UUID userId) {
+    return sessionRepository
+        .findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(userId)
+        .orElse(null);
+  }
+
   public UUID getSessionOwnerId(UUID sessionId) {
     ListeningSessionEntity session =
         sessionRepository

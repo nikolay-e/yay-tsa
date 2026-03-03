@@ -883,8 +883,35 @@ export const usePlayerStore = create<PlayerStore>()(
           const items = queue.getAllItems();
           const target = items.find(item => item.Id === trackId);
           if (!target) return;
+          const targetIndex = items.indexOf(target);
+          const { currentTime } = useTimingStore.getState();
           queue.advanceTo(trackId);
           await loadAndPlay(target, signal);
+
+          if (signal.aborted) return;
+
+          const { useSessionStore } = await import('./session-store');
+          const sessionState = useSessionStore.getState();
+          if (sessionState.activeSession) {
+            const remaining = items.length - targetIndex - 1;
+            const hour = new Date().getHours();
+            const timeOfDay =
+              hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+            void sessionState.sendSignal({
+              signalType: 'QUEUE_JUMP',
+              trackId,
+              context: {
+                positionPct: 0,
+                elapsedSec: currentTime,
+                autoplay: false,
+                selectedByUser: true,
+                timeOfDay,
+              },
+            });
+            if (remaining < 8) {
+              void sessionState.refreshQueue();
+            }
+          }
         });
       },
     };

@@ -14,12 +14,10 @@ import { log } from '@/shared/utils/logger';
 import { toast } from '@/shared/ui/Toast';
 import { usePlayerStore } from './player.store';
 
-export type DjMode = 'conservative' | 'explorer' | 'adventurer';
+const DJ_SESSION_KEY = 'yaytsa_dj_session';
 
 interface SessionStoreState {
   activeSession: ListeningSession | null;
-  djMode: DjMode;
-  energyLevel: number;
   isRefreshing: boolean;
   isStarting: boolean;
   error: Error | null;
@@ -27,20 +25,16 @@ interface SessionStoreState {
 
 interface SessionStoreActions {
   startSession: () => Promise<void>;
-  updateMood: () => Promise<void>;
   endSession: () => Promise<void>;
+  restoreSession: () => Promise<void>;
   refreshQueue: () => Promise<void>;
   sendSignal: (signal: PlaybackSignal) => Promise<void>;
-  setDjMode: (mode: DjMode) => void;
-  setEnergyLevel: (level: number) => void;
 }
 
 type SessionStore = SessionStoreState & SessionStoreActions;
 
 const initialState: SessionStoreState = {
   activeSession: null,
-  djMode: 'conservative',
-  energyLevel: 3,
   isRefreshing: false,
   isStarting: false,
   error: null,
@@ -58,22 +52,26 @@ function getItemsService(): ItemsService | null {
   return new ItemsService(client);
 }
 
-function buildSessionState(mode: DjMode, energyLevel: number): SessionState {
-  const energy = energyLevel * 2;
-  const intensity =
-    mode === 'adventurer'
-      ? 6 + (energyLevel - 1) * 0.5
-      : mode === 'explorer'
-        ? 5 + (energyLevel - 1) * 0.25
-        : energy;
-  const moodTags = mode === 'adventurer' ? ['discovery'] : mode === 'explorer' ? ['explore'] : [];
+function buildSessionState(): SessionState {
   return {
-    energy,
-    intensity,
-    moodTags,
+    energy: 5,
+    intensity: 5,
+    moodTags: [],
     attentionMode: 'active',
     constraints: [],
   };
+}
+
+function saveSession(sessionId: string | null) {
+  if (sessionId) {
+    localStorage.setItem(DJ_SESSION_KEY, sessionId);
+  } else {
+    localStorage.removeItem(DJ_SESSION_KEY);
+  }
+}
+
+export function getSavedSessionId(): string | null {
+  return localStorage.getItem(DJ_SESSION_KEY);
 }
 
 async function resolveAudioItems(tracks: AdaptiveQueueTrack[]): Promise<AudioItem[]> {
@@ -89,30 +87,28 @@ async function resolveAudioItems(tracks: AdaptiveQueueTrack[]): Promise<AudioIte
 }
 
 let refreshDebounce = false;
+let restoreInProgress = false;
 
 export const useSessionStore = create<SessionStore>()((set, get) => ({
   ...initialState,
-
-  setDjMode: (mode: DjMode) => set({ djMode: mode }),
-  setEnergyLevel: (level: number) => set({ energyLevel: Math.max(1, Math.min(5, level)) }),
 
   startSession: async () => {
     const service = getDjService();
     if (!service) return;
 
-    const { djMode, energyLevel } = get();
-    const sessionState = buildSessionState(djMode, energyLevel);
+    const sessionState = buildSessionState();
 
     set({ isStarting: true, error: null });
     try {
       const session = await service.startSession(sessionState);
       set({ activeSession: session });
+      saveSession(session.id);
 
       await service.refreshQueue(session.id);
       const djQueue = await service.getQueue(session.id);
       const audioItems = await resolveAudioItems(djQueue);
       if (audioItems.length > 0) {
-        await usePlayerStore.getState().playTracks(audioItems);
+        usePlayerStore.getState().appendToQueue(audioItems);
       }
       set({ isStarting: false });
     } catch (error) {
@@ -125,21 +121,37 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     }
   },
 
-  updateMood: async () => {
-    const { activeSession, djMode, energyLevel } = get();
+  restoreSession: async () => {
     const service = getDjService();
-    if (!service || !activeSession) return;
+    if (!service || restoreInProgress) return;
 
-    const sessionState = buildSessionState(djMode, energyLevel);
-
+    restoreInProgress = true;
+    set({ isStarting: true, error: null });
     try {
-      await service.updateSessionState(activeSession.id, sessionState);
-      set({ activeSession: { ...activeSession, state: sessionState } });
-      await get().refreshQueue();
+      const session = await service.getActiveSession();
+      if (!session) {
+        saveSession(null);
+        set({ isStarting: false });
+        return;
+      }
+
+      set({ activeSession: session });
+      saveSession(session.id);
+
+      const djQueue = await service.getQueue(session.id);
+      const audioItems = await resolveAudioItems(djQueue);
+      if (audioItems.length > 0) {
+        usePlayerStore.getState().appendToQueue(audioItems);
+      }
+      set({ isStarting: false });
     } catch (error) {
-      log.player.error('Failed to update mood', error);
-      set({ error: error instanceof Error ? error : new Error(String(error)) });
-      toast.add('error', 'Failed to update DJ mood');
+      log.player.error('Failed to restore DJ session', error);
+      set({
+        isStarting: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    } finally {
+      restoreInProgress = false;
     }
   },
 
@@ -155,6 +167,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
         error: String(error),
       });
     }
+    saveSession(null);
     set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
     toast.add('info', 'DJ off, queue kept');
   },
@@ -207,8 +220,6 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 }));
 
 export const useActiveSession = () => useSessionStore(state => state.activeSession);
-export const useDjMode = () => useSessionStore(state => state.djMode);
-export const useEnergyLevel = () => useSessionStore(state => state.energyLevel);
 export const useIsSessionRefreshing = () => useSessionStore(state => state.isRefreshing);
 export const useIsSessionStarting = () => useSessionStore(state => state.isStarting);
 export const useSessionError = () => useSessionStore(state => state.error);
@@ -216,11 +227,9 @@ export const useSessionActions = () =>
   useSessionStore(
     useShallow(state => ({
       startSession: state.startSession,
-      updateMood: state.updateMood,
       endSession: state.endSession,
+      restoreSession: state.restoreSession,
       refreshQueue: state.refreshQueue,
       sendSignal: state.sendSignal,
-      setDjMode: state.setDjMode,
-      setEnergyLevel: state.setEnergyLevel,
     }))
   );

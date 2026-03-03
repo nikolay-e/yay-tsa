@@ -3,8 +3,8 @@ import { usePlayerStore } from '../stores/player.store';
 import { useSessionStore } from '../stores/session-store';
 import { useTimingStore } from '../stores/playback-timing.store';
 
-const REFILL_THRESHOLD_SEC = 300;
-const CHECK_INTERVAL_MS = 30_000;
+const REFILL_THRESHOLD_SEC = 600;
+const CHECK_INTERVAL_MS = 15_000;
 
 export function useDjAutoRefill() {
   const refillPendingRef = useRef(false);

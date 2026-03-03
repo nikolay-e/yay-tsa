@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Music, Pause } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -9,8 +9,12 @@ import {
   useQueueItems,
   useQueueIndex,
 } from '../stores/player.store';
-import { useSessionStore, useActiveSession, useIsSessionStarting } from '../stores/session-store';
-import { DjModeControl } from './DjModeControl';
+import {
+  useSessionStore,
+  useActiveSession,
+  useIsSessionStarting,
+  getSavedSessionId,
+} from '../stores/session-store';
 
 function formatDuration(ticks: number): string {
   const totalSeconds = Math.floor(ticks / 10_000_000);
@@ -85,9 +89,15 @@ export function QueueView() {
   const resume = usePlayerStore(state => state.resume);
   const activeSession = useActiveSession();
   const isStarting = useIsSessionStarting();
+  const initAttemptedRef = useRef(false);
 
   useEffect(() => {
-    if (!activeSession && !isStarting && queueItems.length === 0) {
+    if (activeSession || isStarting) return;
+    if (initAttemptedRef.current) return;
+    initAttemptedRef.current = true;
+    if (getSavedSessionId()) {
+      void useSessionStore.getState().restoreSession();
+    } else if (queueItems.length === 0) {
       void useSessionStore.getState().startSession();
     }
   }, [activeSession, isStarting, queueItems.length]);
@@ -95,7 +105,6 @@ export function QueueView() {
   if (queueItems.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-8">
-        <DjModeControl />
         <p className="text-text-tertiary text-sm">No tracks in queue</p>
       </div>
     );
@@ -112,8 +121,6 @@ export function QueueView() {
 
   return (
     <div className="flex flex-col">
-      <DjModeControl />
-
       <div className="flex-1 overflow-y-auto px-1 py-1">
         {queueItems.map((track, index) => (
           <QueueTrackItem
