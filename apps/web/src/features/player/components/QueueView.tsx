@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Loader2, Music, Play } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
+import { useInView } from '@/shared/hooks/useInView';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -82,30 +83,6 @@ function QueueTrackItem({
   );
 }
 
-function LoadMoreSentinel({ onVisible }: { onVisible: () => void }) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const callbackRef = useRef(onVisible);
-  callbackRef.current = onVisible;
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0]?.isIntersecting) {
-          callbackRef.current();
-        }
-      },
-      { rootMargin: '200px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return <div ref={sentinelRef} className="h-1" />;
-}
-
 export function QueueView() {
   const queueItems = useQueueItems();
   const queueIndex = useQueueIndex();
@@ -130,12 +107,19 @@ export function QueueView() {
     }
   }, [activeSession, isStarting, queueItems.length]);
 
-  const handleLoadMore = useCallback(() => {
+  const canLoadMore = activeSession != null && queueIndex >= 0 && !isRefreshing;
+  const { ref: sentinelRef, isInView } = useInView({
+    rootMargin: '200px',
+    enabled: canLoadMore,
+  });
+
+  useEffect(() => {
+    if (!isInView || !canLoadMore) return;
     const remaining = queueItems.length - queueIndex - 1;
-    if (remaining < SCROLL_LOAD_THRESHOLD && !useSessionStore.getState().isRefreshing) {
+    if (remaining < SCROLL_LOAD_THRESHOLD) {
       void useSessionStore.getState().refreshQueue();
     }
-  }, [queueItems.length, queueIndex]);
+  }, [isInView, canLoadMore, queueItems.length, queueIndex]);
 
   if (queueItems.length === 0) {
     return (
@@ -167,7 +151,7 @@ export function QueueView() {
             onPlay={() => handleTrackClick(track)}
           />
         ))}
-        {activeSession && <LoadMoreSentinel onVisible={handleLoadMore} />}
+        <div ref={sentinelRef} className="h-1" />
         {isRefreshing && (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="text-text-tertiary h-5 w-5 animate-spin" />
