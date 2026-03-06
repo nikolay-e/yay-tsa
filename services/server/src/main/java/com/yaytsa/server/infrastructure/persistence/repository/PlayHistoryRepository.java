@@ -46,4 +46,16 @@ public interface PlayHistoryRepository extends JpaRepository<PlayHistoryEntity, 
           + "WHERE ph.user.id = :userId "
           + "ORDER BY ph.startedAt DESC")
   List<UUID> findRecentItemIdsByUser(@Param("userId") UUID userId, Pageable pageable);
+
+  @Query(
+      value =
+          """
+          SELECT DISTINCT ph.item_id
+          FROM play_history ph
+          WHERE ph.user_id = :userId
+            AND ph.started_at >= :since
+          """,
+      nativeQuery = true)
+  List<UUID> findDistinctTrackIdsPlayedSince(
+      @Param("userId") UUID userId, @Param("since") OffsetDateTime since);
 }

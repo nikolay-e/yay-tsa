@@ -206,6 +206,7 @@ yaytsa:
       min-size: 8
       max-size: 50
       trigger-threshold: 8
+      no-repeat-hours: ${DJ_NO_REPEAT_HOURS:6}
 
     # Session configuration
     sessions:

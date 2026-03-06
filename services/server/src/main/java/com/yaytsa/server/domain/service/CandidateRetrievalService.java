@@ -128,6 +128,11 @@ public class CandidateRetrievalService {
         userId, OffsetDateTime.now().minusHours(hours));
   }
 
+  public List<UUID> getRecentlyPlayedTrackIds(UUID userId, int hours) {
+    return playHistoryRepository.findDistinctTrackIdsPlayedSince(
+        userId, OffsetDateTime.now().minusHours(hours));
+  }
+
   public List<TrackCandidate> getTrackDetails(List<UUID> trackIds) {
     if (trackIds == null || trackIds.isEmpty()) return Collections.emptyList();
     return trackFeaturesRepository.findTrackDetailsById(trackIds).stream()

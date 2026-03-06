@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -28,24 +29,29 @@ public class FallbackQueueService {
   private static final int SIMILARITY_CANDIDATES = 20;
   private static final float ENERGY_BAND = 0.15f;
   private static final float POST_FILTER_ENERGY_BAND = 0.25f;
+  private static final float MAX_FAVORITES_RATIO = 0.3f;
+  private static final int RANDOM_OVERSAMPLE_FACTOR = 4;
 
   private final CandidateRetrievalService candidateRetrievalService;
   private final AdaptiveQueueRepository queueRepository;
   private final ItemRepository itemRepository;
   private final PlayStateRepository playStateRepository;
   private final int targetQueueSize;
+  private final int noRepeatHours;
 
   public FallbackQueueService(
       CandidateRetrievalService candidateRetrievalService,
       AdaptiveQueueRepository queueRepository,
       ItemRepository itemRepository,
       PlayStateRepository playStateRepository,
-      @Value("${yaytsa.adaptive-dj.queue.max-size:50}") int targetQueueSize) {
+      @Value("${yaytsa.adaptive-dj.queue.max-size:50}") int targetQueueSize,
+      @Value("${yaytsa.adaptive-dj.queue.no-repeat-hours:6}") int noRepeatHours) {
     this.candidateRetrievalService = candidateRetrievalService;
     this.queueRepository = queueRepository;
     this.itemRepository = itemRepository;
     this.playStateRepository = playStateRepository;
     this.targetQueueSize = targetQueueSize;
+    this.noRepeatHours = noRepeatHours;
   }
 
   @Transactional
@@ -67,11 +73,16 @@ public class FallbackQueueService {
         activeQueue.stream().mapToInt(AdaptiveQueueEntity::getPosition).max().orElse(0);
 
     Set<UUID> overplayed = Set.copyOf(candidateRetrievalService.getRecentlyOverplayed(userId, 48));
+    Set<UUID> recentlyPlayed =
+        new HashSet<>(candidateRetrievalService.getRecentlyPlayedTrackIds(userId, noRepeatHours));
+    Set<UUID> excluded = new HashSet<>(overplayed);
+    excluded.addAll(recentlyPlayed);
+
     List<UUID> selectedTrackIds = new ArrayList<>();
 
     List<UUID> similarTracks =
-        findSimilarToRecentlyPlayed(userId, session, existingTrackIds, overplayed);
-    addUniqueUpTo(selectedTrackIds, similarTracks, needed, existingTrackIds, overplayed);
+        findSimilarToRecentlyPlayed(userId, session, existingTrackIds, excluded);
+    addUniqueUpTo(selectedTrackIds, similarTracks, needed, existingTrackIds, excluded);
 
     if (selectedTrackIds.size() < needed) {
       boolean discovery = hasDiscoveryTag(session);
@@ -84,29 +95,36 @@ public class FallbackQueueService {
           featureTracks,
           needed - selectedTrackIds.size(),
           existingTrackIds,
-          overplayed);
+          excluded);
     }
 
     if (selectedTrackIds.size() < needed) {
-      var randomFavorites = findRandomFavorites(userId, existingTrackIds, overplayed);
-      addUniqueUpTo(
-          selectedTrackIds,
-          randomFavorites,
-          needed - selectedTrackIds.size(),
-          existingTrackIds,
-          overplayed);
+      int maxFavorites = Math.max(1, (int) (needed * MAX_FAVORITES_RATIO));
+      int favoritesToAdd = Math.min(maxFavorites, needed - selectedTrackIds.size());
+      var randomFavorites = findRandomFavorites(userId, existingTrackIds, excluded);
+      addUniqueUpTo(selectedTrackIds, randomFavorites, favoritesToAdd, existingTrackIds, excluded);
     }
+
     if (selectedTrackIds.size() < needed) {
-      var randomTracks = findRandomTracks(existingTrackIds, overplayed, needed);
-      addUniqueUpTo(
-          selectedTrackIds,
-          randomTracks,
-          needed - selectedTrackIds.size(),
-          existingTrackIds,
-          overplayed);
+      int remaining = needed - selectedTrackIds.size();
+      var randomTracks =
+          findRandomTracks(existingTrackIds, excluded, remaining * RANDOM_OVERSAMPLE_FACTOR);
+      addUniqueUpTo(selectedTrackIds, randomTracks, remaining, existingTrackIds, excluded);
     }
+
+    if (selectedTrackIds.size() < needed) {
+      int remaining = needed - selectedTrackIds.size();
+      log.warn(
+          "All tiers exhausted with exclusions for session {}, filling {} tracks without repeat"
+              + " filter",
+          sessionId,
+          remaining);
+      var lastResort = itemRepository.findRandomAudioTrackIds(remaining * RANDOM_OVERSAMPLE_FACTOR);
+      addUniqueUpTo(selectedTrackIds, lastResort, remaining, existingTrackIds, Set.of());
+    }
+
     if (selectedTrackIds.isEmpty()) {
-      log.debug("Fallback queue: no candidates found for session {}", sessionId);
+      log.warn("Fallback queue: no candidates found for session {}", sessionId);
       return List.of();
     }
 
@@ -126,15 +144,16 @@ public class FallbackQueueService {
       entry.setAddedAt(OffsetDateTime.now());
       addedEntries.add(queueRepository.save(entry));
     }
-    log.info("Fallback queue filled {} tracks for session {}", addedEntries.size(), sessionId);
+    log.info(
+        "Fallback queue filled {} tracks for session {} (excluded {} recently played)",
+        addedEntries.size(),
+        sessionId,
+        recentlyPlayed.size());
     return addedEntries;
   }
 
   private List<UUID> findSimilarToRecentlyPlayed(
-      UUID userId,
-      ListeningSessionEntity session,
-      Set<UUID> existingTrackIds,
-      Set<UUID> overplayed) {
+      UUID userId, ListeningSessionEntity session, Set<UUID> existingTrackIds, Set<UUID> excluded) {
     var recentlyPlayed = itemRepository.findRecentlyPlayedByUser(userId, PageRequest.of(0, 5));
     if (recentlyPlayed.isEmpty()) return List.of();
     List<UUID> candidates = new ArrayList<>();
@@ -143,7 +162,7 @@ public class FallbackQueueService {
           candidateRetrievalService.findSimilarTracks(recentItem.getId(), SIMILARITY_CANDIDATES);
       for (var track : similar) {
         UUID trackId = track.id();
-        if (!existingTrackIds.contains(trackId) && !overplayed.contains(trackId))
+        if (!existingTrackIds.contains(trackId) && !excluded.contains(trackId))
           candidates.add(trackId);
       }
     }
@@ -223,19 +242,19 @@ public class FallbackQueueService {
   }
 
   private List<UUID> findRandomTracks(
-      Set<UUID> existingTrackIds, Set<UUID> overplayed, int needed) {
-    var candidateIds = itemRepository.findRandomAudioTrackIds(Math.max(needed, 20));
+      Set<UUID> existingTrackIds, Set<UUID> excluded, int sampleSize) {
+    var candidateIds = itemRepository.findRandomAudioTrackIds(Math.max(sampleSize, 20));
     return candidateIds.stream()
-        .filter(id -> !existingTrackIds.contains(id) && !overplayed.contains(id))
+        .filter(id -> !existingTrackIds.contains(id) && !excluded.contains(id))
         .collect(Collectors.toCollection(ArrayList::new));
   }
 
   private List<UUID> findRandomFavorites(
-      UUID userId, Set<UUID> existingTrackIds, Set<UUID> overplayed) {
+      UUID userId, Set<UUID> existingTrackIds, Set<UUID> excluded) {
     var candidateIds =
         playStateRepository.findAllByUserIdAndIsFavoriteTrue(userId).stream()
             .map(ps -> ps.getItem().getId())
-            .filter(id -> !existingTrackIds.contains(id) && !overplayed.contains(id))
+            .filter(id -> !existingTrackIds.contains(id) && !excluded.contains(id))
             .collect(Collectors.toCollection(ArrayList::new));
     Collections.shuffle(candidateIds);
     return candidateIds;
@@ -246,11 +265,11 @@ public class FallbackQueueService {
       List<UUID> source,
       int maxToAdd,
       Set<UUID> existingTrackIds,
-      Set<UUID> overplayed) {
+      Set<UUID> excluded) {
     int added = 0;
     for (UUID id : source) {
       if (added >= maxToAdd) break;
-      if (!target.contains(id) && !existingTrackIds.contains(id) && !overplayed.contains(id)) {
+      if (!target.contains(id) && !existingTrackIds.contains(id) && !excluded.contains(id)) {
         target.add(id);
         added++;
       }
