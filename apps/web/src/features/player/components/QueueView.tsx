@@ -107,7 +107,7 @@ export function QueueView() {
     }
   }, [activeSession, isStarting, queueItems.length]);
 
-  const canLoadMore = activeSession != null && queueIndex >= 0 && !isRefreshing;
+  const canLoadMore = activeSession != null && !isRefreshing;
   const { ref: sentinelRef, isInView } = useInView({
     rootMargin: '200px',
     enabled: canLoadMore,
@@ -115,7 +115,8 @@ export function QueueView() {
 
   useEffect(() => {
     if (!isInView || !canLoadMore) return;
-    const remaining = queueItems.length - queueIndex - 1;
+    const baseIndex = queueIndex >= 0 ? queueIndex : queueItems.length;
+    const remaining = queueItems.length - baseIndex - 1;
     if (remaining < SCROLL_LOAD_THRESHOLD) {
       void useSessionStore.getState().refreshQueue();
     }

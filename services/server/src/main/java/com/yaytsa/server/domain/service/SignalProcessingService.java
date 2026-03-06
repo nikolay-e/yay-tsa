@@ -4,13 +4,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
+import com.yaytsa.server.infrastructure.persistence.entity.AdaptiveQueueEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ListeningSessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlaybackSignalRepository;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +29,8 @@ public class SignalProcessingService {
   private static final Logger log = LoggerFactory.getLogger(SignalProcessingService.class);
   private static final int SKIP_PATTERN_COUNT = 2;
   private static final int SKIP_PATTERN_WINDOW = 10;
+  private static final Set<String> CONSUMED_SIGNALS =
+      Set.of("PLAY_COMPLETE", "SKIP_EARLY", "SKIP_MID", "SKIP_LATE");
 
   private final PlaybackSignalRepository signalRepository;
   private final ListeningSessionRepository sessionRepository;
@@ -79,6 +84,10 @@ public class SignalProcessingService {
     signal.setContext(serializeJson(context));
     signal = signalRepository.save(signal);
 
+    if (CONSUMED_SIGNALS.contains(signalType)) {
+      markQueueEntryConsumed(sessionId, trackId, signalType);
+    }
+
     boolean queueLow = isQueueLow(sessionId);
     boolean skipPattern = hasSkipPattern(sessionId);
     if (queueLow || skipPattern) {
@@ -96,6 +105,21 @@ public class SignalProcessingService {
           session, queueLow ? "QUEUE_LOW" : "SKIP_SIGNAL", signal);
     }
     return new SignalResult(signal, queueLow || skipPattern);
+  }
+
+  private void markQueueEntryConsumed(UUID sessionId, UUID trackId, String signalType) {
+    var activeEntries =
+        queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
+            sessionId, List.of("QUEUED", "PLAYING"));
+    String newStatus = "PLAY_COMPLETE".equals(signalType) ? "PLAYED" : "SKIPPED";
+    for (AdaptiveQueueEntity entry : activeEntries) {
+      if (entry.getItem().getId().equals(trackId)) {
+        entry.setStatus(newStatus);
+        entry.setPlayedAt(OffsetDateTime.now());
+        queueRepository.save(entry);
+        break;
+      }
+    }
   }
 
   private boolean isQueueLow(UUID sessionId) {

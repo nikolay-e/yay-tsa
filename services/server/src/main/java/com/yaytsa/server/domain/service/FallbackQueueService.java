@@ -37,6 +37,7 @@ public class FallbackQueueService {
   private final ItemRepository itemRepository;
   private final PlayStateRepository playStateRepository;
   private final int targetQueueSize;
+  private final int minQueueSize;
   private final int noRepeatHours;
 
   public FallbackQueueService(
@@ -45,19 +46,20 @@ public class FallbackQueueService {
       ItemRepository itemRepository,
       PlayStateRepository playStateRepository,
       @Value("${yaytsa.adaptive-dj.queue.max-size:50}") int targetQueueSize,
+      @Value("${yaytsa.adaptive-dj.queue.min-size:8}") int minQueueSize,
       @Value("${yaytsa.adaptive-dj.queue.no-repeat-hours:6}") int noRepeatHours) {
     this.candidateRetrievalService = candidateRetrievalService;
     this.queueRepository = queueRepository;
     this.itemRepository = itemRepository;
     this.playStateRepository = playStateRepository;
     this.targetQueueSize = targetQueueSize;
+    this.minQueueSize = minQueueSize;
     this.noRepeatHours = noRepeatHours;
   }
 
   @Transactional
   public List<AdaptiveQueueEntity> fillQueue(ListeningSessionEntity session, int currentQueueSize) {
-    int needed = targetQueueSize - currentQueueSize;
-    if (needed <= 0) return List.of();
+    int needed = Math.max(minQueueSize, targetQueueSize - currentQueueSize);
 
     UUID userId = session.getUser().getId();
     UUID sessionId = session.getId();
