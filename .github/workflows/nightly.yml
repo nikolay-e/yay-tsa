@@ -1,0 +1,73 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: '33 2 * * *' # 02:33 UTC = 05:33 MSK
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integration-tests:
+    name: Integration & E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Generate test media files
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          bash scripts/generate-test-media.sh services/server/media
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Build and run tests
+        run: |
+          docker compose --profile test up --build -d
+          docker compose --profile test logs -f backend-test test &
+          LOGS_PID=$!
+          BACKEND_EXIT=$(docker wait yay-tsa-backend-test)
+          TEST_EXIT=$(docker wait yay-tsa-test)
+          kill $LOGS_PID 2>/dev/null || true
+          echo "Backend tests exit code: $BACKEND_EXIT"
+          echo "Frontend tests exit code: $TEST_EXIT"
+          if [ "$BACKEND_EXIT" -ne 0 ]; then
+            echo "::group::Backend test runner logs"
+            docker logs yay-tsa-backend-test
+            echo "::endgroup::"
+          fi
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::group::Frontend test runner logs"
+            docker logs yay-tsa-test
+            echo "::endgroup::"
+          fi
+          if [ "$BACKEND_EXIT" -ne 0 ] || [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::group::Backend application logs"
+            docker logs yay-tsa-backend
+            echo "::endgroup::"
+            exit 1
+          fi
+        env:
+          YAYTSA_TEST_USERNAME: admin
+          YAYTSA_TEST_PASSWORD: admin123
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: test-results
+          path: |
+            test-results/
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: docker compose --profile test down -v
