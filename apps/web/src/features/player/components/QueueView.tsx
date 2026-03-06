@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Music, Pause } from 'lucide-react';
+import { useCallback, useEffect, useRef } from 'react';
+import { Loader2, Music, Play } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import {
@@ -13,8 +13,11 @@ import {
   useSessionStore,
   useActiveSession,
   useIsSessionStarting,
+  useIsSessionRefreshing,
   getSavedSessionId,
 } from '../stores/session-store';
+
+const SCROLL_LOAD_THRESHOLD = 10;
 
 function formatDuration(ticks: number): string {
   const totalSeconds = Math.floor(ticks / 10_000_000);
@@ -50,7 +53,7 @@ function QueueTrackItem({
         {isCurrent && isPlaying ? (
           <Music className="text-accent h-3.5 w-3.5 animate-pulse" />
         ) : isCurrent ? (
-          <Pause className="text-accent h-3.5 w-3.5" />
+          <Play className="text-accent h-3.5 w-3.5" />
         ) : (
           <span className="text-text-tertiary text-xs">{index + 1}</span>
         )}
@@ -79,6 +82,30 @@ function QueueTrackItem({
   );
 }
 
+function LoadMoreSentinel({ onVisible }: { onVisible: () => void }) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const callbackRef = useRef(onVisible);
+  callbackRef.current = onVisible;
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting) {
+          callbackRef.current();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={sentinelRef} className="h-1" />;
+}
+
 export function QueueView() {
   const queueItems = useQueueItems();
   const queueIndex = useQueueIndex();
@@ -89,6 +116,7 @@ export function QueueView() {
   const resume = usePlayerStore(state => state.resume);
   const activeSession = useActiveSession();
   const isStarting = useIsSessionStarting();
+  const isRefreshing = useIsSessionRefreshing();
   const initAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -101,6 +129,13 @@ export function QueueView() {
       void useSessionStore.getState().startSession();
     }
   }, [activeSession, isStarting, queueItems.length]);
+
+  const handleLoadMore = useCallback(() => {
+    const remaining = queueItems.length - queueIndex - 1;
+    if (remaining < SCROLL_LOAD_THRESHOLD && !useSessionStore.getState().isRefreshing) {
+      void useSessionStore.getState().refreshQueue();
+    }
+  }, [queueItems.length, queueIndex]);
 
   if (queueItems.length === 0) {
     return (
@@ -132,6 +167,12 @@ export function QueueView() {
             onPlay={() => handleTrackClick(track)}
           />
         ))}
+        {activeSession && <LoadMoreSentinel onVisible={handleLoadMore} />}
+        {isRefreshing && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="text-text-tertiary h-5 w-5 animate-spin" />
+          </div>
+        )}
       </div>
     </div>
   );
