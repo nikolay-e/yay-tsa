@@ -2,6 +2,7 @@ package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.infrastructure.persistence.entity.AdaptiveQueueEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
@@ -157,9 +158,11 @@ public class FallbackQueueService {
   private List<UUID> findSimilarToRecentlyPlayed(
       UUID userId, ListeningSessionEntity session, Set<UUID> existingTrackIds, Set<UUID> excluded) {
     var recentlyPlayed = itemRepository.findRecentlyPlayedByUser(userId, PageRequest.of(0, 5));
-    if (recentlyPlayed.isEmpty()) return List.of();
+    var audioTracks =
+        recentlyPlayed.stream().filter(i -> i.getType() == ItemType.AudioTrack).toList();
+    if (audioTracks.isEmpty()) return List.of();
     List<UUID> candidates = new ArrayList<>();
-    for (var recentItem : recentlyPlayed) {
+    for (var recentItem : audioTracks) {
       var similar =
           candidateRetrievalService.findSimilarTracks(recentItem.getId(), SIMILARITY_CANDIDATES);
       for (var track : similar) {
@@ -255,6 +258,7 @@ public class FallbackQueueService {
       UUID userId, Set<UUID> existingTrackIds, Set<UUID> excluded) {
     var candidateIds =
         playStateRepository.findAllByUserIdAndIsFavoriteTrue(userId).stream()
+            .filter(ps -> ps.getItem().getType() == ItemType.AudioTrack)
             .map(ps -> ps.getItem().getId())
             .filter(id -> !existingTrackIds.contains(id) && !excluded.contains(id))
             .collect(Collectors.toCollection(ArrayList::new));
