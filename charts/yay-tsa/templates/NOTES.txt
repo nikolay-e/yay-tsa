@@ -1,0 +1,34 @@
+Yay-Tsa has been deployed successfully!
+
+{{- if .Values.ingress.enabled }}
+Access the application at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+Access the application via port-forward:
+  kubectl port-forward svc/{{ include "yay-tsa.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  Then open http://localhost:8080
+{{- end }}
+
+{{- if not .Values.backend.enabled }}
+
+WARNING: Backend is disabled. Enable it in your values:
+  backend:
+    enabled: true
+    database:
+      secretName: <your-postgres-secret>
+{{- end }}
+
+{{- if .Values.backend.enabled }}
+{{- if not .Values.backend.media.enabled }}
+
+NOTE: No media volume is configured. Mount your music library:
+  backend:
+    media:
+      enabled: true
+      hostPath: /path/to/your/music
+{{- end }}
+{{- end }}
+
+For more information, visit: https://github.com/nikolay-e/yay-tsa

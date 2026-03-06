@@ -1,4 +1,4 @@
-FROM node:25-alpine AS base
+FROM --platform=$BUILDPLATFORM node:24-alpine AS base
 
 RUN apk add --no-cache bash git curl wget
 
@@ -31,7 +31,7 @@ RUN apk add --no-cache brotli gzip && \
     find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
         -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
 
-FROM mcr.microsoft.com/playwright:v1.58.0-noble AS test
+FROM --platform=linux/amd64 mcr.microsoft.com/playwright:v1.58.0-noble AS test
 
 WORKDIR /app
 
@@ -53,7 +53,7 @@ ENV NO_COLOR=1
 
 CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/web && npm run test:e2e"]
 
-FROM nginx:1.29.4-alpine AS production
+FROM nginx:1.28-alpine AS production
 
 COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html

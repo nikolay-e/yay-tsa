@@ -1,7 +1,7 @@
 # Multi-stage Docker build for Yay-Tsa Media Server
 
 # Stage 1: Build stage
-FROM maven:3.9-eclipse-temurin-21 AS builder
+FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-21-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests -B
 
 # Stage 2: Test stage
-FROM maven:3.9-eclipse-temurin-21 AS test
+FROM maven:3.9-eclipse-temurin-21-alpine AS test
 
 WORKDIR /app
 

@@ -244,17 +244,17 @@ audioSeparator:
       failureThreshold: 3
   securityContext:
     runAsNonRoot: true
-    runAsUser: 999
-    runAsGroup: 999
+    runAsUser: 1000
+    runAsGroup: 1000
     allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 999
-    runAsGroup: 999
-    fsGroup: 999
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
     seccompProfile:
       type: RuntimeDefault
   media:

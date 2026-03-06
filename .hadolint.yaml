@@ -4,6 +4,10 @@ ignored:
   # We allow these for Alpine base images where pinning can break easily
   - DL3008
   - DL3018
+  # DL3029: --platform flag required for multi-arch builds
+  - DL3029
+  # DL3006: Dynamic stage names use ARG interpolation (no literal tag)
+  - DL3006
 
 trustedRegistries:
   - docker.io

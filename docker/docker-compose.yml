@@ -1,0 +1,137 @@
+# Yay-Tsa - Self-Hosted Music Streaming
+#
+# Quick start:
+#   1. Copy example.env to .env and configure MEDIA_PATH
+#   2. docker compose up -d
+#
+# Optional services:
+#   docker compose --profile karaoke up -d           # Enable vocal separation (GPU recommended)
+#   docker compose --profile feature-extractor up -d  # Enable audio feature extraction
+#
+# Upgrade:
+#   docker compose pull && docker compose up -d
+
+services:
+  database:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-yaytsa}
+      POSTGRES_USER: ${DB_USER:-yaytsa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-yaytsa} -d ${DB_NAME:-yaytsa}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    image: ghcr.io/nikolay-e/yay-tsa/backend:${APP_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-yaytsa}
+      DB_USER: ${DB_USER:-yaytsa}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      SERVER_PORT: 8096
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      LIBRARY_ROOTS: /media,/app/uploads
+      SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
+      CORS_ENABLED: true
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      KARAOKE_SEPARATOR_URL: http://audio-separator:8000
+      KARAOKE_STEMS_PATH: /app/stems
+      FEATURE_EXTRACTOR_URL: http://feature-extractor:8000
+      GENIUS_ACCESS_TOKEN: ${GENIUS_ACCESS_TOKEN:-}
+      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+    volumes:
+      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
+      - uploads_data:/app/uploads
+      - karaoke_stems:/app/stems
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8096/manage/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    image: ghcr.io/nikolay-e/yay-tsa/frontend:${APP_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - '${PORT:-3000}:80'
+    environment:
+      YAYTSA_BACKEND_URL: http://backend:8096
+      YAYTSA_SERVER_URL: /api
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost/health']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  audio-separator:
+    image: ghcr.io/nikolay-e/yay-tsa/audio-separator:${APP_VERSION:-latest}
+    restart: unless-stopped
+    profiles:
+      - karaoke
+    environment:
+      MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
+      OUTPUT_FORMAT: wav
+      DEVICE: ${KARAOKE_DEVICE:-cpu}
+    volumes:
+      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
+      - karaoke_stems:/app/stems
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python3',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  feature-extractor:
+    image: ghcr.io/nikolay-e/yay-tsa/feature-extractor:${APP_VERSION:-latest}
+    restart: unless-stopped
+    profiles:
+      - feature-extractor
+    volumes:
+      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python3',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  postgres_data:
+  uploads_data:
+  karaoke_stems:

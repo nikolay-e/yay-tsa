@@ -1,11 +1,21 @@
 ARG VARIANT=gpu
+ARG TARGETARCH
 
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 AS gpu
-FROM python:3.11-slim AS cpu
-# hadolint ignore=DL3029
-FROM --platform=linux/amd64 python:3.11-slim AS essentia
+# --- Base image selection per variant + architecture ---
+# GPU: CUDA on amd64, CPU-only fallback on arm64
+FROM --platform=linux/amd64 nvidia/cuda:12.8.0-runtime-ubuntu24.04 AS base-gpu-amd64
+FROM python:3.13-slim AS base-gpu-arm64
 
-FROM ${VARIANT} AS final
+# CPU: plain Python on both architectures
+FROM python:3.13-slim AS base-cpu-amd64
+FROM python:3.13-slim AS base-cpu-arm64
+
+# Essentia: plain Python on both (essentia-tensorflow available only on amd64)
+FROM python:3.13-slim AS base-essentia-amd64
+FROM python:3.13-slim AS base-essentia-arm64
+
+# --- Select the appropriate base ---
+FROM base-${VARIANT}-${TARGETARCH} AS final
 
 WORKDIR /app
 
@@ -20,11 +30,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG VARIANT=gpu
-COPY requirements/${VARIANT}.txt requirements.txt
-RUN pip3 install --no-cache-dir -r requirements.txt
+ARG TARGETARCH
+
+COPY requirements/ requirements/
+RUN set -ex; \
+    if [ "$VARIANT" = "gpu" ] && [ "$TARGETARCH" = "arm64" ]; then \
+      pip3 install --no-cache-dir -r requirements/cpu.txt; \
+    elif [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" = "arm64" ]; then \
+      pip3 install --no-cache-dir -r requirements/essentia-base.txt; \
+    else \
+      pip3 install --no-cache-dir -r requirements/${VARIANT}.txt; \
+    fi
 
 COPY scripts/ scripts/
-RUN if [ "$VARIANT" = "essentia" ]; then bash scripts/download_models.sh /app/models; fi
+RUN if [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" != "arm64" ]; then \
+      bash scripts/download_models.sh /app/models; \
+    fi
 
 COPY extractor/ extractor/
 COPY app.py .
