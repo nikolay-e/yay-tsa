@@ -13,9 +13,6 @@ metadata:
     {{- if .Values.ingress.className }}
     kubernetes.io/ingress.class: {{ .Values.ingress.className }}
     {{- end }}
-    {{- if and .Values.ingress.annotations (hasKey .Values.ingress.annotations "cert-manager.io/cluster-issuer") }}
-    cert-manager.io/cluster-issuer: {{ index .Values.ingress.annotations "cert-manager.io/cluster-issuer" }}
-    {{- end }}
     traefik.ingress.kubernetes.io/router.priority: "100"
     {{- $namespace := .Release.Namespace }}
     {{- $middlewares := list (printf "%s-%s-strip-api@kubernetescrd" $namespace (include "yay-tsa.fullname" .)) }}
