@@ -4,6 +4,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.PlayStateEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayStateRepository;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,7 +38,17 @@ public class PlayStateService {
   }
 
   public void setFavorite(UUID userId, UUID itemId, boolean isFavorite) {
-    playStateRepository.upsertFavorite(userId, itemId, isFavorite);
+    if (isFavorite) {
+      playStateRepository.upsertMarkFavorite(userId, itemId);
+    } else {
+      playStateRepository.upsertUnmarkFavorite(userId, itemId);
+    }
+  }
+
+  public void reorderFavorites(UUID userId, List<UUID> orderedItemIds) {
+    UUID[] itemIds = orderedItemIds.toArray(UUID[]::new);
+    playStateRepository.batchUpdateFavoritePositions(userId, itemIds);
+    playStateRepository.renumberRemainingFavorites(userId, itemIds, orderedItemIds.size());
   }
 
   public void incrementPlayCount(UUID userId, UUID itemId) {

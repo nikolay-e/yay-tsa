@@ -8,6 +8,7 @@ interface UseArtistsOptions {
   limit?: number;
   searchTerm?: string;
   sortBy?: string;
+  sortOrder?: 'Ascending' | 'Descending';
   isFavorite?: boolean;
   enabled?: boolean;
 }
@@ -32,6 +33,7 @@ interface UseInfiniteArtistsOptions {
   limit?: number;
   searchTerm?: string;
   sortBy?: string;
+  sortOrder?: 'Ascending' | 'Descending';
   isFavorite?: boolean;
 }
 

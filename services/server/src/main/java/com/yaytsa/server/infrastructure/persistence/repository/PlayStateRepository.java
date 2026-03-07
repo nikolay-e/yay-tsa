@@ -26,14 +26,56 @@ public interface PlayStateRepository extends JpaRepository<PlayStateEntity, UUID
   @Query(
       value =
           "INSERT INTO play_state (id, user_id, item_id, is_favorite, play_count,"
-              + " playback_position_ms, created_at, updated_at) VALUES (gen_random_uuid(), :userId,"
-              + " :itemId, :isFavorite, 0, 0, NOW(), NOW()) ON CONFLICT (user_id, item_id) DO"
-              + " UPDATE SET is_favorite = :isFavorite, updated_at = NOW()",
+              + " playback_position_ms, favorited_at, favorite_position, created_at, updated_at)"
+              + " VALUES (gen_random_uuid(), :userId, :itemId, true, 0, 0, NOW(),"
+              + " (SELECT COALESCE(MAX(favorite_position), 0) + 1 FROM play_state"
+              + " WHERE user_id = :userId AND is_favorite = true),"
+              + " NOW(), NOW()) ON CONFLICT (user_id, item_id) DO UPDATE SET is_favorite = true,"
+              + " favorited_at = COALESCE(play_state.favorited_at, NOW()),"
+              + " favorite_position = COALESCE(play_state.favorite_position,"
+              + " (SELECT COALESCE(MAX(ps2.favorite_position), 0) + 1 FROM play_state ps2"
+              + " WHERE ps2.user_id = :userId AND ps2.is_favorite = true)),"
+              + " updated_at = NOW()",
       nativeQuery = true)
-  void upsertFavorite(
+  void upsertMarkFavorite(@Param("userId") UUID userId, @Param("itemId") UUID itemId);
+
+  @Modifying
+  @Query(
+      value =
+          "INSERT INTO play_state (id, user_id, item_id, is_favorite, play_count,"
+              + " playback_position_ms, created_at, updated_at) VALUES (gen_random_uuid(),"
+              + " :userId, :itemId, false, 0, 0, NOW(), NOW()) ON CONFLICT (user_id, item_id) DO"
+              + " UPDATE SET is_favorite = false, favorited_at = NULL, favorite_position = NULL,"
+              + " updated_at = NOW()",
+      nativeQuery = true)
+  void upsertUnmarkFavorite(@Param("userId") UUID userId, @Param("itemId") UUID itemId);
+
+  @Modifying
+  @Query(
+      value =
+          "UPDATE play_state ps SET favorite_position = v.pos, updated_at = NOW()"
+              + " FROM (SELECT unnest(:itemIds\\:\\:uuid[]) AS item_id,"
+              + " generate_series(1, array_length(:itemIds\\:\\:uuid[], 1)) AS pos) v"
+              + " WHERE ps.user_id = :userId AND ps.item_id = v.item_id AND ps.is_favorite = true",
+      nativeQuery = true)
+  void batchUpdateFavoritePositions(@Param("userId") UUID userId, @Param("itemIds") UUID[] itemIds);
+
+  @Modifying
+  @Query(
+      value =
+          "UPDATE play_state ps SET favorite_position = sub.new_pos, updated_at = NOW()"
+              + " FROM (SELECT item_id, ROW_NUMBER() OVER ("
+              + " ORDER BY favorite_position ASC NULLS LAST, favorited_at ASC NULLS LAST)"
+              + " + :offset AS new_pos FROM play_state"
+              + " WHERE user_id = :userId AND is_favorite = true"
+              + " AND item_id != ALL(:excludeIds\\:\\:uuid[])) sub"
+              + " WHERE ps.user_id = :userId AND ps.item_id = sub.item_id"
+              + " AND ps.is_favorite = true",
+      nativeQuery = true)
+  void renumberRemainingFavorites(
       @Param("userId") UUID userId,
-      @Param("itemId") UUID itemId,
-      @Param("isFavorite") boolean isFavorite);
+      @Param("excludeIds") UUID[] excludeIds,
+      @Param("offset") int offset);
 
   @Modifying
   @Query(

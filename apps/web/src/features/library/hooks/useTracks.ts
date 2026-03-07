@@ -5,6 +5,7 @@ interface UseInfiniteTracksOptions {
   limit?: number;
   searchTerm?: string;
   sortBy?: string;
+  sortOrder?: 'Ascending' | 'Descending';
   artistId?: string;
   albumId?: string;
   isFavorite?: boolean;

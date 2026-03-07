@@ -8,6 +8,7 @@ interface UseAlbumsOptions {
   limit?: number;
   searchTerm?: string;
   sortBy?: string;
+  sortOrder?: 'Ascending' | 'Descending';
   artistId?: string;
   isFavorite?: boolean;
   enabled?: boolean;
@@ -33,6 +34,7 @@ interface UseInfiniteAlbumsOptions {
   limit?: number;
   searchTerm?: string;
   sortBy?: string;
+  sortOrder?: 'Ascending' | 'Descending';
   artistId?: string;
   isFavorite?: boolean;
 }

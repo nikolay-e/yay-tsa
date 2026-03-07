@@ -4,6 +4,7 @@ import { TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
+import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -17,11 +18,13 @@ export function SongsPage() {
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
+  const { selectedId, activeOption, select } = useSortPreference('songs');
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteTracks({
       searchTerm: deferredSearchTerm.trim() || undefined,
-      sortBy: 'SortName',
+      sortBy: activeOption.sortBy,
+      sortOrder: activeOption.sortOrder,
     });
 
   const tracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
@@ -39,7 +42,10 @@ export function SongsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Songs</h1>
-        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search songs..." />
+        <div className="flex items-center gap-2">
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search songs..." />
+          <SortMenu selectedId={selectedId} onSelect={select} />
+        </div>
       </div>
 
       {error && (

@@ -71,6 +71,25 @@ public interface ItemRepository
 
   @Query(
       """
+      SELECT a FROM ItemEntity a
+      WHERE a.type = 'MusicArtist'
+      AND a.id IN (
+        SELECT DISTINCT at.albumArtist.id FROM AudioTrackEntity at
+        JOIN PlayStateEntity ps ON ps.item.id = at.item.id
+        WHERE ps.user.id = :userId
+        AND ps.lastPlayedAt IS NOT NULL
+        AND at.albumArtist IS NOT NULL
+      )
+      ORDER BY (
+        SELECT MAX(ps2.lastPlayedAt) FROM AudioTrackEntity at2
+        JOIN PlayStateEntity ps2 ON ps2.item.id = at2.item.id
+        WHERE at2.albumArtist.id = a.id AND ps2.user.id = :userId
+      ) DESC
+      """)
+  Page<ItemEntity> findRecentlyPlayedArtistsByUser(@Param("userId") UUID userId, Pageable pageable);
+
+  @Query(
+      """
       SELECT i FROM ItemEntity i
       WHERE i.type = 'MusicAlbum'
       AND NOT EXISTS (
@@ -121,6 +140,30 @@ public interface ItemRepository
           """,
       nativeQuery = true)
   List<Object[]> findFirstTrackPathPerArtist(@Param("artistIds") List<UUID> artistIds);
+
+  @Query(
+      """
+      SELECT i FROM ItemEntity i
+      JOIN PlayStateEntity ps ON ps.item = i
+      WHERE ps.user.id = :userId
+      AND ps.isFavorite = true
+      AND i.type = :type
+      ORDER BY ps.favoritedAt DESC
+      """)
+  Page<ItemEntity> findFavoritesByDateAndType(
+      @Param("userId") UUID userId, @Param("type") ItemType type, Pageable pageable);
+
+  @Query(
+      """
+      SELECT i FROM ItemEntity i
+      JOIN PlayStateEntity ps ON ps.item = i
+      WHERE ps.user.id = :userId
+      AND ps.isFavorite = true
+      AND i.type = :type
+      ORDER BY ps.favoritePosition ASC
+      """)
+  Page<ItemEntity> findFavoritesByPositionAndType(
+      @Param("userId") UUID userId, @Param("type") ItemType type, Pageable pageable);
 
   @Query(
       """

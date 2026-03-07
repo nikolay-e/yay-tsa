@@ -57,6 +57,12 @@ public class PlayStateEntity {
   @Column(name = "playback_position_ms", nullable = false)
   private Long playbackPositionMs = 0L;
 
+  @Column(name = "favorited_at")
+  private OffsetDateTime favoritedAt;
+
+  @Column(name = "favorite_position")
+  private Integer favoritePosition;
+
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
   private OffsetDateTime createdAt;

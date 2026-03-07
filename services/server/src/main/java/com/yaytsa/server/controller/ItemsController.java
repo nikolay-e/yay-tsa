@@ -3,6 +3,7 @@ package com.yaytsa.server.controller;
 import com.yaytsa.server.domain.service.ItemService;
 import com.yaytsa.server.domain.service.PlayStateService;
 import com.yaytsa.server.domain.service.PlaylistService;
+import com.yaytsa.server.dto.request.ReorderFavoritesRequest;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.dto.response.QueryResultResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
@@ -411,6 +412,51 @@ public class ItemsController {
 
     playStateService.setFavorite(userUuid, itemUuid, false);
 
+    return ResponseEntity.ok().build();
+  }
+
+  @Operation(
+      summary = "Reorder favorite items",
+      description = "Update the custom order of a user's favorite items")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully reordered favorites"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
+  @Transactional
+  @PostMapping("/FavoriteOrder")
+  public ResponseEntity<Void> reorderFavorites(
+      @RequestBody ReorderFavoritesRequest request,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
+
+    if (request.userId() == null || request.itemIds() == null || request.itemIds().isEmpty()) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    if (request.itemIds().size() > MAX_PAGE_SIZE) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    UUID userUuid = UuidUtils.parseUuid(request.userId());
+    if (userUuid == null) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      return ResponseEntity.status(403).build();
+    }
+
+    List<UUID> itemUuids =
+        request.itemIds().stream().map(UuidUtils::parseUuid).filter(Objects::nonNull).toList();
+
+    if (itemUuids.size() != request.itemIds().size()) {
+      return ResponseEntity.badRequest().build();
+    }
+
+    playStateService.reorderFavorites(userUuid, itemUuids);
     return ResponseEntity.ok().build();
   }
 

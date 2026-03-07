@@ -1,25 +1,30 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { type AudioItem, type MusicAlbum, type MusicArtist } from '@yay-tsa/core';
 import { useInfiniteAlbums, useInfiniteArtists, useInfiniteTracks } from '@/features/library/hooks';
-import { AlbumGrid, ArtistCard, TrackList } from '@/features/library/components';
+import { AlbumGrid, ArtistCard, TrackList, TrackListRow } from '@/features/library/components';
+import { useReorderFavorites } from '@/features/library/hooks/useReorderFavorites';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
+import { SortMenu, FAVORITES_SORT_OPTIONS, useSortPreference } from '@/shared/ui/SortMenu';
+import { SortableList } from '@/shared/ui/SortableList';
 import {
   usePlayerStore,
   useCurrentTrack,
   useIsPlaying,
 } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
+import { AlbumCard } from '@/features/library/components/AlbumCard';
 
 type FavoriteTab = 'albums' | 'artists' | 'tracks';
 
 const TABS: { key: FavoriteTab; label: string }[] = [
+  { key: 'tracks', label: 'Tracks' },
   { key: 'albums', label: 'Albums' },
   { key: 'artists', label: 'Artists' },
-  { key: 'tracks', label: 'Tracks' },
 ];
 
 export function FavoritesPage() {
-  const [activeTab, setActiveTab] = useState<FavoriteTab>('albums');
+  const [activeTab, setActiveTab] = useState<FavoriteTab>('tracks');
 
   return (
     <div className="space-y-6 p-6">
@@ -52,13 +57,29 @@ export function FavoritesPage() {
 
 function FavoriteAlbums() {
   const playAlbum = usePlayerStore(state => state.playAlbum);
+  const { selectedId, activeOption, select } = useSortPreference(
+    'albums',
+    FAVORITES_SORT_OPTIONS,
+    'favorites'
+  );
+  const reorderMutation = useReorderFavorites();
+  const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteAlbums({
     isFavorite: true,
+    sortBy: activeOption.sortBy,
+    sortOrder: activeOption.sortOrder,
   });
 
   const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
+
+  const handleReorder = useCallback(
+    (reordered: MusicAlbum[]) => {
+      reorderMutation.mutate(reordered.map(a => a.Id));
+    },
+    [reorderMutation]
+  );
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -72,7 +93,22 @@ function FavoriteAlbums() {
 
   return (
     <>
-      <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+      <div className="flex justify-end">
+        <SortMenu selectedId={selectedId} onSelect={select} options={FAVORITES_SORT_OPTIONS} />
+      </div>
+      {isCustomOrder ? (
+        <SortableList
+          items={albums}
+          onReorder={handleReorder}
+          layout="grid"
+          gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+          renderItem={album => (
+            <AlbumCard album={album} isPlaying={false} onPlay={() => void playAlbum(album.Id)} />
+          )}
+        />
+      ) : (
+        <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+      )}
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
@@ -86,12 +122,29 @@ function FavoriteAlbums() {
 }
 
 function FavoriteArtists() {
+  const { selectedId, activeOption, select } = useSortPreference(
+    'artists',
+    FAVORITES_SORT_OPTIONS,
+    'favorites'
+  );
+  const reorderMutation = useReorderFavorites();
+  const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
+
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteArtists({
     isFavorite: true,
+    sortBy: activeOption.sortBy,
+    sortOrder: activeOption.sortOrder,
   });
 
   const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
+
+  const handleReorder = useCallback(
+    (reordered: MusicArtist[]) => {
+      reorderMutation.mutate(reordered.map(a => a.Id));
+    },
+    [reorderMutation]
+  );
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -105,11 +158,24 @@ function FavoriteArtists() {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        {artists.map(artist => (
-          <ArtistCard key={artist.Id} artist={artist} />
-        ))}
+      <div className="flex justify-end">
+        <SortMenu selectedId={selectedId} onSelect={select} options={FAVORITES_SORT_OPTIONS} />
       </div>
+      {isCustomOrder ? (
+        <SortableList
+          items={artists}
+          onReorder={handleReorder}
+          layout="grid"
+          gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+          renderItem={artist => <ArtistCard artist={artist} />}
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {artists.map(artist => (
+            <ArtistCard key={artist.Id} artist={artist} />
+          ))}
+        </div>
+      )}
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
@@ -127,14 +193,29 @@ function FavoriteTracks() {
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
+  const { selectedId, activeOption, select } = useSortPreference(
+    'songs',
+    FAVORITES_SORT_OPTIONS,
+    'favorites'
+  );
+  const reorderMutation = useReorderFavorites();
+  const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteTracks({
     isFavorite: true,
-    sortBy: 'SortName',
+    sortBy: activeOption.sortBy,
+    sortOrder: activeOption.sortOrder,
   });
 
   const tracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
+
+  const handleReorder = useCallback(
+    (reordered: AudioItem[]) => {
+      reorderMutation.mutate(reordered.map(t => t.Id));
+    },
+    [reorderMutation]
+  );
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -148,16 +229,39 @@ function FavoriteTracks() {
 
   return (
     <>
-      <TrackList
-        tracks={tracks}
-        currentTrackId={currentTrack?.Id}
-        isPlaying={isPlaying}
-        onPlayTrack={(_, index) => void playTracks(tracks, index)}
-        onPauseTrack={pause}
-        showAlbum
-        showArtist
-        showImage
-      />
+      <div className="flex justify-end">
+        <SortMenu selectedId={selectedId} onSelect={select} options={FAVORITES_SORT_OPTIONS} />
+      </div>
+      {isCustomOrder ? (
+        <SortableList
+          items={tracks}
+          onReorder={handleReorder}
+          renderItem={(track, index) => (
+            <TrackListRow
+              track={track}
+              index={index}
+              isCurrentTrack={track.Id === currentTrack?.Id}
+              isPlaying={isPlaying}
+              onPlay={() => void playTracks(tracks, index)}
+              onPause={pause}
+              showAlbum
+              showArtist
+              showImage
+            />
+          )}
+        />
+      ) : (
+        <TrackList
+          tracks={tracks}
+          currentTrackId={currentTrack?.Id}
+          isPlaying={isPlaying}
+          onPlayTrack={(_, index) => void playTracks(tracks, index)}
+          onPauseTrack={pause}
+          showAlbum
+          showArtist
+          showImage
+        />
+      )}
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}

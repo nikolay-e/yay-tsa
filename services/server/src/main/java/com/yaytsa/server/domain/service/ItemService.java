@@ -3,6 +3,7 @@ package com.yaytsa.server.domain.service;
 import com.yaytsa.server.infrastructure.persistence.entity.AlbumEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.query.ItemSpecifications;
 import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
@@ -47,6 +48,18 @@ public class ItemService {
   public Page<ItemEntity> queryItems(ItemsQueryParams params) {
     if ("DatePlayed".equals(params.sortBy()) && params.userId() != null) {
       return queryRecentlyPlayed(params);
+    }
+
+    if ("DateFavorited".equals(params.sortBy())
+        && params.userId() != null
+        && Boolean.TRUE.equals(params.isFavorite())) {
+      return queryFavoritesByDate(params);
+    }
+
+    if ("FavoritePosition".equals(params.sortBy())
+        && params.userId() != null
+        && Boolean.TRUE.equals(params.isFavorite())) {
+      return queryFavoritesByPosition(params);
     }
 
     Specification<ItemEntity> spec = Specification.where(null);
@@ -107,7 +120,44 @@ public class ItemService {
       return itemRepository.findRecentlyPlayedAlbumsByUser(params.userId(), pageable);
     }
 
+    if (params.includeItemTypes() != null && params.includeItemTypes().contains("MusicArtist")) {
+      return itemRepository.findRecentlyPlayedArtistsByUser(params.userId(), pageable);
+    }
+
     return itemRepository.findRecentlyPlayedByUser(params.userId(), pageable);
+  }
+
+  private Page<ItemEntity> queryFavoritesByDate(ItemsQueryParams params) {
+    Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit());
+    ItemType type = resolveItemType(params.includeItemTypes());
+    if (type != null) {
+      return itemRepository.findFavoritesByDateAndType(params.userId(), type, pageable);
+    }
+    return itemRepository.findFavoritesByDateAndType(
+        params.userId(), ItemType.AudioTrack, pageable);
+  }
+
+  private Page<ItemEntity> queryFavoritesByPosition(ItemsQueryParams params) {
+    Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit());
+    ItemType type = resolveItemType(params.includeItemTypes());
+    if (type != null) {
+      return itemRepository.findFavoritesByPositionAndType(params.userId(), type, pageable);
+    }
+    return itemRepository.findFavoritesByPositionAndType(
+        params.userId(), ItemType.AudioTrack, pageable);
+  }
+
+  private ItemType resolveItemType(List<String> includeItemTypes) {
+    if (includeItemTypes == null || includeItemTypes.isEmpty()) {
+      return null;
+    }
+    String first = includeItemTypes.get(0);
+    return switch (first) {
+      case "Audio" -> ItemType.AudioTrack;
+      case "MusicAlbum" -> ItemType.MusicAlbum;
+      case "MusicArtist" -> ItemType.MusicArtist;
+      default -> null;
+    };
   }
 
   public List<AudioTrackEntity> getAlbumTracks(UUID albumId) {

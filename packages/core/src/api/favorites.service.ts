@@ -10,4 +10,9 @@ export class FavoritesService extends BaseService {
     const userId = this.requireAuth();
     await this.client.delete(`/Items/${itemId}/Favorite`, { userId });
   }
+
+  async reorderFavorites(itemIds: string[]): Promise<void> {
+    const userId = this.requireAuth();
+    await this.client.post('/Items/FavoriteOrder', { UserId: userId, ItemIds: itemIds });
+  }
 }

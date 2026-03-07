@@ -4,14 +4,18 @@ import { ArtistCard } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
+import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
 
 export function ArtistsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
+  const { selectedId, activeOption, select } = useSortPreference('artists');
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteArtists({
       searchTerm: deferredSearchTerm.trim() || undefined,
+      sortBy: activeOption.sortBy,
+      sortOrder: activeOption.sortOrder,
     });
 
   const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
@@ -25,7 +29,14 @@ export function ArtistsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Artists</h1>
-        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search artists..." />
+        <div className="flex items-center gap-2">
+          <SearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search artists..."
+          />
+          <SortMenu selectedId={selectedId} onSelect={select} />
+        </div>
       </div>
 
       {error && (

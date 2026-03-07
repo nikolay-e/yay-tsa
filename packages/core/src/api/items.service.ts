@@ -60,6 +60,7 @@ export class ItemsService extends BaseService {
     artistId?: string;
     genreId?: string;
     sortBy?: string;
+    sortOrder?: 'Ascending' | 'Descending';
     startIndex?: number;
     limit?: number;
     searchTerm?: string;
@@ -70,7 +71,7 @@ export class ItemsService extends BaseService {
       Recursive: true,
       Fields: ['PrimaryImageAspectRatio', 'Genres', 'DateCreated', 'Artists', 'ImageTags'],
       SortBy: options?.sortBy ?? 'SortName',
-      SortOrder: 'Ascending',
+      SortOrder: options?.sortOrder ?? 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
       SearchTerm: options?.searchTerm,
@@ -101,6 +102,7 @@ export class ItemsService extends BaseService {
     searchTerm?: string;
     isFavorite?: boolean;
     sortBy?: string;
+    sortOrder?: 'Ascending' | 'Descending';
   }): Promise<ItemsResult<MusicArtist>> {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicArtist',
@@ -114,7 +116,7 @@ export class ItemsService extends BaseService {
         'ImageTags',
       ],
       SortBy: options?.sortBy ?? 'SortName',
-      SortOrder: 'Ascending',
+      SortOrder: options?.sortOrder ?? 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
       SearchTerm: options?.searchTerm,
@@ -132,6 +134,7 @@ export class ItemsService extends BaseService {
     albumId?: string;
     artistId?: string;
     sortBy?: string;
+    sortOrder?: 'Ascending' | 'Descending';
     startIndex?: number;
     limit?: number;
     searchTerm?: string;
@@ -152,7 +155,7 @@ export class ItemsService extends BaseService {
         'PrimaryImageAspectRatio',
       ],
       SortBy: options?.sortBy ?? 'ParentIndexNumber,IndexNumber,SortName',
-      SortOrder: 'Ascending',
+      SortOrder: options?.sortOrder ?? 'Ascending',
       StartIndex: options?.startIndex,
       Limit: options?.limit,
       SearchTerm: options?.searchTerm,

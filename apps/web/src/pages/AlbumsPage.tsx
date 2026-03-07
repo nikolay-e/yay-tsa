@@ -5,15 +5,19 @@ import { usePlayerStore } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
+import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
 
 export function AlbumsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const playAlbum = usePlayerStore(state => state.playAlbum);
+  const { selectedId, activeOption, select } = useSortPreference('albums');
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteAlbums({
       searchTerm: deferredSearchTerm.trim() || undefined,
+      sortBy: activeOption.sortBy,
+      sortOrder: activeOption.sortOrder,
     });
 
   const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
@@ -27,7 +31,10 @@ export function AlbumsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Albums</h1>
-        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search albums..." />
+        <div className="flex items-center gap-2">
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search albums..." />
+          <SortMenu selectedId={selectedId} onSelect={select} />
+        </div>
       </div>
 
       {error && (
