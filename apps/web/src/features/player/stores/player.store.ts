@@ -370,6 +370,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         // --- Side effects ---
         get().queue.advanceTo(track.Id);
+        get().queue.trimBeforeCurrent();
         syncQueueState();
         updateSessionMetadata(track);
         startPlaybackReporter(track.Id);
@@ -424,6 +425,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
       // --- Side effects ---
       get().queue.advanceTo(track.Id);
+      get().queue.trimBeforeCurrent();
       syncQueueState();
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);
@@ -941,6 +943,8 @@ export const usePlayerStore = create<PlayerStore>()(
           const targetIndex = items.indexOf(target);
           const { currentTime, duration } = useTimingStore.getState();
           queue.advanceTo(trackId);
+          queue.trimBeforeCurrent();
+          syncQueueState();
           try {
             await loadAndPlay(target, signal);
           } catch {

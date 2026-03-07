@@ -295,6 +295,16 @@ export class PlaybackQueue {
     return true;
   }
 
+  trimBeforeCurrent(): void {
+    if (this.currentIndex <= 0) return;
+    const removed = this.items.splice(0, this.currentIndex);
+    for (const item of removed) {
+      const idx = this.originalOrder.findIndex(o => o.Id === item.Id);
+      if (idx !== -1) this.originalOrder.splice(idx, 1);
+    }
+    this.currentIndex = 0;
+  }
+
   jumpTo(index: number): AudioItem | null {
     if (index < 0 || index >= this.items.length) {
       return null;
