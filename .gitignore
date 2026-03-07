@@ -68,3 +68,4 @@ CURRENT.md
 services/server/logs/
 services/server/media/
 __pycache__/
+.treemapper/

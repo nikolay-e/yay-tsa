@@ -221,7 +221,8 @@ spec:
         configMap:
           name: {{ include "yay-tsa.fullname" . }}-backend-nginx
       - name: nginx-tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 256Mi
       {{- end }}
       {{- if .Values.backend.media.enabled }}
       - name: media-volume
