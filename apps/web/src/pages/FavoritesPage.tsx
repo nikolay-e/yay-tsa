@@ -260,6 +260,7 @@ function FavoriteTracks() {
           showAlbum
           showArtist
           showImage
+          virtualized
         />
       )}
       <InfiniteScrollFooter

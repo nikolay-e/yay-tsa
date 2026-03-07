@@ -63,23 +63,35 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
-function extractDominantColor(img: HTMLImageElement): RGB {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return { r: 26, g: 26, b: 26 };
+function relativeLuminance(hex: string): number {
+  const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const r = Number.parseInt(hex.slice(1, 3), 16) / 255;
+  const g = Number.parseInt(hex.slice(3, 5), 16) / 255;
+  const b = Number.parseInt(hex.slice(5, 7), 16) / 255;
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
 
-  const scale = Math.min(1, 50 / Math.max(img.naturalWidth, img.naturalHeight));
-  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+function buildPalette(hue: number, sat: number): ThemePalette {
+  const bgSat = Math.min(0.3, sat * 0.5);
+  const accentSat = Math.max(0.5, Math.min(0.85, sat));
+  const accentHex = hslToHex(hue, accentSat, 0.48);
 
-  let pixels: Uint8Array;
-  try {
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    pixels = new Uint8Array(data.buffer);
-  } catch {
-    return { r: 26, g: 26, b: 26 };
-  }
+  return {
+    bgPrimary: hslToHex(hue, bgSat, 0.06),
+    bgSecondary: hslToHex(hue, bgSat, 0.1),
+    bgTertiary: hslToHex(hue, bgSat, 0.145),
+    bgHover: hslToHex(hue, bgSat, 0.17),
+    accent: accentHex,
+    accentHover: hslToHex(hue, accentSat, 0.55),
+    border: hslToHex(hue, bgSat * 0.8, 0.2),
+    textPrimary: hslToHex(hue, 0.06, 0.95),
+    textSecondary: hslToHex(hue, 0.08, 0.73),
+    textTertiary: hslToHex(hue, 0.06, 0.565),
+    textOnAccent: relativeLuminance(accentHex) > 0.179 ? '#000000' : '#ffffff',
+  };
+}
+
+function extractDominantColorFromPixels(pixels: Uint8ClampedArray): RGB {
   const buckets = new Uint32Array(32768);
   let maxCount = 0;
   let maxKey = 0;
@@ -112,34 +124,6 @@ function extractDominantColor(img: HTMLImageElement): RGB {
   };
 }
 
-function relativeLuminance(hex: string): number {
-  const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  const r = Number.parseInt(hex.slice(1, 3), 16) / 255;
-  const g = Number.parseInt(hex.slice(3, 5), 16) / 255;
-  const b = Number.parseInt(hex.slice(5, 7), 16) / 255;
-  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
-}
-
-function buildPalette(hue: number, sat: number): ThemePalette {
-  const bgSat = Math.min(0.3, sat * 0.5);
-  const accentSat = Math.max(0.5, Math.min(0.85, sat));
-  const accentHex = hslToHex(hue, accentSat, 0.48);
-
-  return {
-    bgPrimary: hslToHex(hue, bgSat, 0.06),
-    bgSecondary: hslToHex(hue, bgSat, 0.1),
-    bgTertiary: hslToHex(hue, bgSat, 0.145),
-    bgHover: hslToHex(hue, bgSat, 0.17),
-    accent: accentHex,
-    accentHover: hslToHex(hue, accentSat, 0.55),
-    border: hslToHex(hue, bgSat * 0.8, 0.2),
-    textPrimary: hslToHex(hue, 0.06, 0.95),
-    textSecondary: hslToHex(hue, 0.08, 0.73),
-    textTertiary: hslToHex(hue, 0.06, 0.565),
-    textOnAccent: relativeLuminance(accentHex) > 0.179 ? '#000000' : '#ffffff',
-  };
-}
-
 const DEFAULT_PALETTE: ThemePalette = {
   bgPrimary: '#0f0f0f',
   bgSecondary: '#1a1a1a',
@@ -166,26 +150,89 @@ function cacheSet(key: string, value: ThemePalette) {
   colorCache.set(key, value);
 }
 
+let worker: Worker | null = null;
+let workerFailed = false;
+let requestId = 0;
+
+function getWorker(): Worker | null {
+  if (workerFailed) return null;
+  if (!worker) {
+    try {
+      worker = new Worker(new URL('./color-extraction.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+      worker.onerror = () => {
+        workerFailed = true;
+        worker = null;
+      };
+    } catch {
+      workerFailed = true;
+      return null;
+    }
+  }
+  return worker;
+}
+
+function getPixelData(img: HTMLImageElement): Uint8ClampedArray | null {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+
+  const scale = Math.min(1, 50 / Math.max(img.naturalWidth, img.naturalHeight));
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  try {
+    return ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  } catch {
+    return null;
+  }
+}
+
+function processPixelsSync(pixels: Uint8ClampedArray): ThemePalette {
+  const rgb = extractDominantColorFromPixels(pixels);
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  if (hsl.s < 0.08) return DEFAULT_PALETTE;
+  return buildPalette(hsl.h, hsl.s);
+}
+
+async function processPixelsInWorker(pixels: Uint8ClampedArray): Promise<ThemePalette> {
+  const w = getWorker();
+  if (!w) return Promise.resolve(processPixelsSync(pixels));
+
+  const id = ++requestId;
+  return new Promise(resolve => {
+    const handleMessage = (e: MessageEvent<{ id: number; palette: ThemePalette | null }>) => {
+      if (e.data.id !== id) return;
+      w.removeEventListener('message', handleMessage);
+      resolve(e.data.palette ?? DEFAULT_PALETTE);
+    };
+    w.addEventListener('message', handleMessage);
+
+    const copy = new Uint8ClampedArray(pixels);
+    w.postMessage({ id, pixels: copy }, [copy.buffer]);
+  });
+}
+
 export async function extractAlbumPalette(imageUrl: string): Promise<ThemePalette> {
   const cached = colorCache.get(imageUrl);
-  if (cached) return Promise.resolve(cached);
+  if (cached) return cached;
 
   return new Promise(resolve => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const rgb = extractDominantColor(img);
-      const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-
-      if (hsl.s < 0.08) {
-        cacheSet(imageUrl, DEFAULT_PALETTE);
+      const pixels = getPixelData(img);
+      if (!pixels) {
         resolve(DEFAULT_PALETTE);
         return;
       }
 
-      const palette = buildPalette(hsl.h, hsl.s);
-      cacheSet(imageUrl, palette);
-      resolve(palette);
+      void processPixelsInWorker(pixels).then(palette => {
+        cacheSet(imageUrl, palette);
+        resolve(palette);
+      });
     };
     img.onerror = () => resolve(DEFAULT_PALETTE);
     img.src = imageUrl;

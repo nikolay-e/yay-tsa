@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, X, CheckCircle2, AlertCircle, Music } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
-import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { Modal } from '@/shared/ui/Modal';
 
 const SUPPORTED_FORMATS = [
   'audio/mpeg',
@@ -49,7 +49,6 @@ export function TrackUploadDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeXhrRef = useRef<XMLHttpRequest | null>(null);
   const client = useAuthStore(s => s.client);
-  const dialogRef = useFocusTrap<HTMLDivElement>(isOpen);
 
   const handleReset = useCallback(() => {
     setFiles([]);
@@ -67,25 +66,6 @@ export function TrackUploadDialog({
       activeXhrRef.current?.abort();
     };
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isUploading) {
-        handleClose();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isUploading, handleClose]);
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const audioFiles = Array.from(newFiles).filter(isAudioFile);
@@ -264,8 +244,6 @@ export function TrackUploadDialog({
     }
   };
 
-  if (!isOpen) return null;
-
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const successCount = files.filter(f => f.status === 'success').length;
   const duplicateCount = files.filter(f => f.status === 'duplicate').length;
@@ -275,190 +253,179 @@ export function TrackUploadDialog({
   const totalSize = files.reduce((acc, f) => acc + f.file.size, 0);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="none"
-      onClick={e => {
-        if (e.target === e.currentTarget && !isUploading) handleClose();
-      }}
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      ariaLabelledBy="upload-dialog-title"
+      preventClose={isUploading}
+      backdropClassName="flex items-center justify-center bg-black/50 p-4"
+      className="bg-bg-secondary w-full max-w-lg rounded-lg shadow-xl"
     >
-      <div
-        ref={dialogRef}
-        className="bg-bg-secondary w-full max-w-lg rounded-lg shadow-xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="upload-dialog-title"
-      >
-        <div className="border-border flex items-center justify-between border-b p-4">
-          <h2 id="upload-dialog-title" className="text-xl font-semibold">
-            Upload Album
-          </h2>
-          <button
-            onClick={handleClose}
-            disabled={isUploading}
-            className="text-text-secondary hover:text-text-primary disabled:opacity-50"
+      <div className="border-border flex items-center justify-between border-b p-4">
+        <h2 id="upload-dialog-title" className="text-xl font-semibold">
+          Upload Album
+        </h2>
+        <button
+          onClick={handleClose}
+          disabled={isUploading}
+          className="text-text-secondary hover:text-text-primary disabled:opacity-50"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+      <div className="space-y-4 p-6">
+        {!isUploading && !allDone && (
+          <div
+            role="button"
+            tabIndex={0}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+              isDragging
+                ? 'border-accent bg-accent/10'
+                : 'hover:border-accent/50 border-border hover:bg-bg-hover'
+            }`}
           >
-            <X size={24} />
-          </button>
-        </div>
+            <Upload size={36} className="text-text-secondary mx-auto mb-3" />
+            <p className="text-text-primary mb-1 font-medium">
+              Drop audio files here or click to browse
+            </p>
+            <p className="text-text-secondary text-sm">
+              MP3, FLAC, M4A, OGG, WAV — select multiple files
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="audio/*,.mp3,.flac,.m4a,.aac,.ogg,.opus,.wav,.wma"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        )}
 
-        <div className="space-y-4 p-6">
-          {/* Drop zone — always visible when not uploading */}
-          {!isUploading && !allDone && (
-            <div
-              role="button"
-              tabIndex={0}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  fileInputRef.current?.click();
-                }
-              }}
-              className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-                isDragging
-                  ? 'border-accent bg-accent/10'
-                  : 'hover:border-accent/50 border-border hover:bg-bg-hover'
-              }`}
-            >
-              <Upload size={36} className="text-text-secondary mx-auto mb-3" />
-              <p className="text-text-primary mb-1 font-medium">
-                Drop audio files here or click to browse
-              </p>
-              <p className="text-text-secondary text-sm">
-                MP3, FLAC, M4A, OGG, WAV — select multiple files
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="audio/*,.mp3,.flac,.m4a,.aac,.ogg,.opus,.wav,.wma"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-          )}
-
-          {/* File list */}
-          {files.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-text-secondary flex items-center justify-between text-sm">
-                <span>
-                  {files.length} file{files.length !== 1 ? 's' : ''} (
-                  {(totalSize / 1024 / 1024).toFixed(1)} MB)
-                </span>
-                {isUploading && uploadingIndex >= 0 && (
-                  <span className="text-text-primary font-medium">
-                    {successCount + 1} of {files.length}
-                  </span>
-                )}
-                {allDone && (
-                  <span className="text-success font-medium">
-                    {successCount} uploaded
-                    {duplicateCount > 0 ? `, ${duplicateCount} skipped` : ''}
-                    {errorCount > 0 ? `, ${errorCount} failed` : ''}
-                  </span>
-                )}
-              </div>
-
-              <div className="max-h-60 space-y-1 overflow-y-auto">
-                {files.map((f, i) => (
-                  <div
-                    key={`${f.file.name}_${f.file.size}_${f.file.lastModified}`}
-                    className="bg-bg-tertiary flex items-center gap-2 rounded px-3 py-2"
-                  >
-                    <Music size={14} className="text-text-tertiary shrink-0" />
-                    <span className="text-text-primary min-w-0 flex-1 truncate text-sm">
-                      {f.file.name}
-                    </span>
-                    {f.status === 'pending' && !isUploading && (
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          removeFile(i);
-                        }}
-                        className="text-text-tertiary hover:text-text-primary shrink-0"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                    {f.status === 'uploading' && (
-                      <span className="text-text-secondary shrink-0 text-xs tabular-nums">
-                        {f.progress}%
-                      </span>
-                    )}
-                    {f.status === 'success' && (
-                      <span className="flex shrink-0 items-center gap-1">
-                        {f.albumComplete === false ? (
-                          <span title="Album incomplete — upload more tracks">
-                            <AlertCircle size={14} className="text-warning" />
-                          </span>
-                        ) : (
-                          <CheckCircle2 size={14} className="text-success" />
-                        )}
-                      </span>
-                    )}
-                    {f.status === 'duplicate' && (
-                      <span className="text-text-tertiary shrink-0 text-xs" title={f.message}>
-                        skip
-                      </span>
-                    )}
-                    {f.status === 'error' && (
-                      <span className="flex shrink-0 items-center gap-1" title={f.message}>
-                        <AlertCircle size={14} className="text-error" />
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Upload progress bar */}
+        {files.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-text-secondary flex items-center justify-between text-sm">
+              <span>
+                {files.length} file{files.length !== 1 ? 's' : ''} (
+                {(totalSize / 1024 / 1024).toFixed(1)} MB)
+              </span>
               {isUploading && uploadingIndex >= 0 && (
-                <div className="bg-bg-tertiary h-1.5 overflow-hidden rounded-full">
-                  <div
-                    className="bg-accent h-full transition-all duration-300"
-                    style={{
-                      width: `${((successCount + duplicateCount + errorCount + (files[uploadingIndex]?.progress ?? 0) / 100) / files.length) * 100}%`,
-                    }}
-                  />
-                </div>
+                <span className="text-text-primary font-medium">
+                  {successCount + 1} of {files.length}
+                </span>
+              )}
+              {allDone && (
+                <span className="text-success font-medium">
+                  {successCount} uploaded
+                  {duplicateCount > 0 ? `, ${duplicateCount} skipped` : ''}
+                  {errorCount > 0 ? `, ${errorCount} failed` : ''}
+                </span>
               )}
             </div>
-          )}
 
-          {/* Actions */}
-          <div className="flex gap-3">
-            {!isUploading && !allDone && files.length > 0 && (
-              <>
-                <button
-                  onClick={handleReset}
-                  className="text-text-primary border-border hover:bg-bg-hover flex-1 rounded-lg border px-4 py-2 transition-colors"
+            <div className="max-h-60 space-y-1 overflow-y-auto">
+              {files.map((f, i) => (
+                <div
+                  key={`${f.file.name}_${f.file.size}_${f.file.lastModified}`}
+                  className="bg-bg-tertiary flex items-center gap-2 rounded px-3 py-2"
                 >
-                  Clear
-                </button>
-                <button
-                  onClick={handleUpload}
-                  disabled={pendingCount === 0}
-                  className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors disabled:opacity-50"
-                >
-                  Upload {pendingCount} track{pendingCount !== 1 ? 's' : ''}
-                </button>
-              </>
-            )}
-            {allDone && (
-              <button
-                onClick={handleClose}
-                className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors"
-              >
-                Done
-              </button>
+                  <Music size={14} className="text-text-tertiary shrink-0" />
+                  <span className="text-text-primary min-w-0 flex-1 truncate text-sm">
+                    {f.file.name}
+                  </span>
+                  {f.status === 'pending' && !isUploading && (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        removeFile(i);
+                      }}
+                      className="text-text-tertiary hover:text-text-primary shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                  {f.status === 'uploading' && (
+                    <span className="text-text-secondary shrink-0 text-xs tabular-nums">
+                      {f.progress}%
+                    </span>
+                  )}
+                  {f.status === 'success' && (
+                    <span className="flex shrink-0 items-center gap-1">
+                      {f.albumComplete === false ? (
+                        <span title="Album incomplete — upload more tracks">
+                          <AlertCircle size={14} className="text-warning" />
+                        </span>
+                      ) : (
+                        <CheckCircle2 size={14} className="text-success" />
+                      )}
+                    </span>
+                  )}
+                  {f.status === 'duplicate' && (
+                    <span className="text-text-tertiary shrink-0 text-xs" title={f.message}>
+                      skip
+                    </span>
+                  )}
+                  {f.status === 'error' && (
+                    <span className="flex shrink-0 items-center gap-1" title={f.message}>
+                      <AlertCircle size={14} className="text-error" />
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {isUploading && uploadingIndex >= 0 && (
+              <div className="bg-bg-tertiary h-1.5 overflow-hidden rounded-full">
+                <div
+                  className="bg-accent h-full transition-all duration-300"
+                  style={{
+                    width: `${((successCount + duplicateCount + errorCount + (files[uploadingIndex]?.progress ?? 0) / 100) / files.length) * 100}%`,
+                  }}
+                />
+              </div>
             )}
           </div>
+        )}
+
+        <div className="flex gap-3">
+          {!isUploading && !allDone && files.length > 0 && (
+            <>
+              <button
+                onClick={handleReset}
+                className="text-text-primary border-border hover:bg-bg-hover flex-1 rounded-lg border px-4 py-2 transition-colors"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleUpload}
+                disabled={pendingCount === 0}
+                className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors disabled:opacity-50"
+              >
+                Upload {pendingCount} track{pendingCount !== 1 ? 's' : ''}
+              </button>
+            </>
+          )}
+          {allDone && (
+            <button
+              onClick={handleClose}
+              className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors"
+            >
+              Done
+            </button>
+          )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

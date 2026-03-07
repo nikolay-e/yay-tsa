@@ -173,17 +173,17 @@
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0);
   --safe-area-inset-left: env(safe-area-inset-left, 0);
   transition:
-    --color-bg-primary 600ms ease-in-out,
-    --color-bg-secondary 600ms ease-in-out,
-    --color-bg-tertiary 600ms ease-in-out,
-    --color-bg-hover 600ms ease-in-out,
-    --color-accent 600ms ease-in-out,
-    --color-accent-hover 600ms ease-in-out,
-    --color-border 600ms ease-in-out,
-    --color-text-primary 600ms ease-in-out,
-    --color-text-secondary 600ms ease-in-out,
-    --color-text-tertiary 600ms ease-in-out,
-    --color-text-on-accent 600ms ease-in-out;
+    --color-bg-primary 400ms ease-in-out,
+    --color-bg-secondary 400ms ease-in-out,
+    --color-bg-tertiary 400ms ease-in-out,
+    --color-bg-hover 400ms ease-in-out,
+    --color-accent 400ms ease-in-out,
+    --color-accent-hover 400ms ease-in-out,
+    --color-border 400ms ease-in-out,
+    --color-text-primary 400ms ease-in-out,
+    --color-text-secondary 400ms ease-in-out,
+    --color-text-tertiary 400ms ease-in-out,
+    --color-text-on-accent 400ms ease-in-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

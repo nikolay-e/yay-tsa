@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { type AudioItem } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -20,6 +21,7 @@ interface TrackListProps {
   showAlbum?: boolean;
   showArtist?: boolean;
   showImage?: boolean;
+  virtualized?: boolean;
 }
 
 export interface TrackListRowProps {
@@ -204,6 +206,58 @@ export function TrackListRow({
   );
 }
 
+const ROW_HEIGHT = 60;
+const OVERSCAN = 10;
+
+function VirtualizedTrackList({
+  tracks,
+  currentTrackId,
+  isPlaying = false,
+  onPlayTrack,
+  onPauseTrack,
+  showAlbum = false,
+  showArtist = true,
+  showImage = true,
+}: Omit<TrackListProps, 'virtualized'>) {
+  const virtualizer = useWindowVirtualizer({
+    count: tracks.length,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  return (
+    <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+      {virtualizer.getVirtualItems().map(virtualItem => {
+        const track = tracks[virtualItem.index]!;
+        return (
+          <div
+            key={track.Id}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <TrackListRow
+              track={track}
+              index={virtualItem.index}
+              isCurrentTrack={track.Id === currentTrackId}
+              isPlaying={isPlaying}
+              onPlay={() => onPlayTrack?.(track, virtualItem.index)}
+              onPause={() => onPauseTrack?.()}
+              showAlbum={showAlbum}
+              showArtist={showArtist}
+              showImage={showImage}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TrackList({
   tracks,
   currentTrackId,
@@ -213,12 +267,28 @@ export function TrackList({
   showAlbum = false,
   showArtist = true,
   showImage = true,
+  virtualized = false,
 }: TrackListProps) {
   if (tracks.length === 0) {
     return (
       <div className="flex h-32 items-center justify-center">
         <p className="text-text-secondary">No tracks found</p>
       </div>
+    );
+  }
+
+  if (virtualized) {
+    return (
+      <VirtualizedTrackList
+        tracks={tracks}
+        currentTrackId={currentTrackId}
+        isPlaying={isPlaying}
+        onPlayTrack={onPlayTrack}
+        onPauseTrack={onPauseTrack}
+        showAlbum={showAlbum}
+        showArtist={showArtist}
+        showImage={showImage}
+      />
     );
   }
 

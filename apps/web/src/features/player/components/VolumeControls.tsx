@@ -49,7 +49,7 @@ export const VolumeControls = memo(function VolumeControls({
         step="0.01"
         value={volume}
         onChange={handleVolumeChange}
-        className="bg-bg-tertiary accent-accent h-1 w-24 cursor-pointer appearance-none rounded-full"
+        className="bg-bg-tertiary accent-accent hidden h-1 w-24 cursor-pointer appearance-none rounded-full md:block"
         aria-label="Volume"
       />
     </div>

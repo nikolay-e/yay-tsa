@@ -73,6 +73,7 @@ export function SongsPage() {
             showAlbum={true}
             showArtist={true}
             showImage={true}
+            virtualized
           />
           <InfiniteScrollFooter
             hasNextPage={hasNextPage}

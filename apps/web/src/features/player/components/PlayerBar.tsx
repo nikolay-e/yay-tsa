@@ -254,9 +254,7 @@ export function PlayerBar() {
             )}
           </button>
 
-          <div className="hidden md:block">
-            <VolumeControls volume={volume} onVolumeChange={handleSetVolume} />
-          </div>
+          <VolumeControls volume={volume} onVolumeChange={handleSetVolume} />
         </div>
       </div>
 
@@ -269,7 +267,7 @@ export function PlayerBar() {
         onClearTimer={handleClearSleepTimer}
       />
 
-      {showLyricsView && <LyricsView onClose={() => setShowLyricsView(false)} />}
+      <LyricsView isOpen={showLyricsView} onClose={() => setShowLyricsView(false)} />
     </div>
   );
 }
