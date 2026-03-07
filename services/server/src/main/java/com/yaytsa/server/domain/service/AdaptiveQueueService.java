@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,7 +86,7 @@ public class AdaptiveQueueService {
 
     if (decision.isEmpty()) {
       log.info("LLM unavailable, using fallback for session {}", session.getId());
-      fallbackQueueService.fillQueue(session, currentQueue.size());
+      fillQueueWithRetry(session, currentQueue.size());
       return;
     }
 
@@ -99,7 +100,7 @@ public class AdaptiveQueueService {
       log.warn(
           "LLM returned no edits for session {} despite instructions, using fallback",
           session.getId());
-      fallbackQueueService.fillQueue(session, currentQueue.size());
+      fillQueueWithRetry(session, currentQueue.size());
       return;
     }
 
@@ -108,7 +109,7 @@ public class AdaptiveQueueService {
           "All {} LLM edits rejected by policy for session {}, using fallback",
           decision.get().edits().size(),
           session.getId());
-      fallbackQueueService.fillQueue(session, currentQueue.size());
+      fillQueueWithRetry(session, currentQueue.size());
       return;
     }
 
@@ -149,7 +150,7 @@ public class AdaptiveQueueService {
             "Retry validation outcome {} for session {}, falling back",
             freshValidation.outcome(),
             session.getId());
-        fallbackQueueService.fillQueue(session, freshQueue.size());
+        fillQueueWithRetry(session, freshQueue.size());
         return;
       }
 
@@ -159,12 +160,28 @@ public class AdaptiveQueueService {
             "Retry also failed for session {}: {}, falling back",
             session.getId(),
             retryResult.error());
-        fallbackQueueService.fillQueue(session, freshQueue.size());
+        fillQueueWithRetry(session, freshQueue.size());
       }
     } catch (Exception e) {
       log.warn("Retry failed with exception for session {}, falling back", session.getId(), e);
-      fallbackQueueService.fillQueue(session, 0);
+      fillQueueWithRetry(session, 0);
     }
+  }
+
+  private List<AdaptiveQueueEntity> fillQueueWithRetry(
+      ListeningSessionEntity session, int currentQueueSize) {
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        return fallbackQueueService.fillQueue(session, currentQueueSize);
+      } catch (DataIntegrityViolationException e) {
+        log.warn(
+            "Queue fill version conflict attempt {} for session {}",
+            attempt + 1,
+            session.getId());
+      }
+    }
+    log.error("Queue fill failed after 3 retries for session {}", session.getId());
+    return List.of();
   }
 
   private void validateSessionExists(UUID sessionId) {

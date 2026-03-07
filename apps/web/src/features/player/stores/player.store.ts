@@ -130,11 +130,32 @@ function saveVolume(volume: number): void {
   }
 }
 
+let consecutiveLoadFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioItem | null {
   const next = queue.peekNext();
   if (next) return next;
   if (repeatMode === 'all' && !queue.isEmpty()) return queue.getItemAt(0);
   return null;
+}
+
+function autoAdvanceOnError(get: () => PlayerStore): void {
+  consecutiveLoadFailures++;
+  log.player.warn(`Track load failure ${consecutiveLoadFailures}/${MAX_CONSECUTIVE_FAILURES}`);
+
+  if (consecutiveLoadFailures >= MAX_CONSECUTIVE_FAILURES) {
+    consecutiveLoadFailures = 0;
+    log.player.error('Max consecutive load failures reached, stopping playback');
+    return;
+  }
+
+  const { queue, repeatMode } = get();
+  const next = resolveNextItem(queue, repeatMode);
+  if (next) {
+    get().queue.advanceTo(next.Id);
+    setTimeout(() => void get().next(), 0);
+  }
 }
 
 const initialState: PlayerState = {
@@ -344,6 +365,7 @@ export const usePlayerStore = create<PlayerStore>()(
         // --- Commit: identity + playing state ---
         currentItemId = track.Id;
         set({ isPlaying: true });
+        consecutiveLoadFailures = 0;
         void wakeLock.acquire();
 
         // --- Side effects ---
@@ -479,7 +501,11 @@ export const usePlayerStore = create<PlayerStore>()(
           await gaplessTransition(next, true, signal);
         } else {
           get().queue.advanceTo(next.Id);
-          await loadAndPlay(next, signal);
+          try {
+            await loadAndPlay(next, signal);
+          } catch {
+            if (!signal.aborted) autoAdvanceOnError(get);
+          }
         }
       });
     });
@@ -606,7 +632,11 @@ export const usePlayerStore = create<PlayerStore>()(
             return Promise.resolve();
           }
           get().queue.advanceTo(next.Id);
-          await loadAndPlay(next, signal);
+          try {
+            await loadAndPlay(next, signal);
+          } catch {
+            if (!signal.aborted) autoAdvanceOnError(get);
+          }
         });
       },
 
@@ -911,7 +941,12 @@ export const usePlayerStore = create<PlayerStore>()(
           const targetIndex = items.indexOf(target);
           const { currentTime, duration } = useTimingStore.getState();
           queue.advanceTo(trackId);
-          await loadAndPlay(target, signal);
+          try {
+            await loadAndPlay(target, signal);
+          } catch {
+            if (!signal.aborted) autoAdvanceOnError(get);
+            return;
+          }
 
           if (signal.aborted) return;
 

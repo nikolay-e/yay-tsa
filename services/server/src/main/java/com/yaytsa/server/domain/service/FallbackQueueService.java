@@ -147,6 +147,7 @@ public class FallbackQueueService {
       entry.setAddedAt(OffsetDateTime.now());
       addedEntries.add(queueRepository.save(entry));
     }
+    queueRepository.flush();
     log.info(
         "Fallback queue filled {} tracks for session {} (excluded {} recently played)",
         addedEntries.size(),

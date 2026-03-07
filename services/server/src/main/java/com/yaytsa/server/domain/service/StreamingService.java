@@ -2,6 +2,7 @@ package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.config.LibraryRootsConfig;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.util.PathUtils;
 import jakarta.servlet.http.HttpServletResponse;
@@ -92,6 +93,11 @@ public class StreamingService {
             .orElseThrow(
                 () ->
                     new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));
+
+    if (item.getType() != ItemType.AudioTrack) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Item is not a streamable audio track");
+    }
 
     if (item.getPath() == null) {
       throw new ResponseStatusException(

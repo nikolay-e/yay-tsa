@@ -216,7 +216,6 @@ public class LlmDjService {
       logDecision(
           session,
           triggerType,
-          triggerSignal,
           promptHash,
           totalPromptTokens,
           totalCompletionTokens,
@@ -227,7 +226,7 @@ public class LlmDjService {
     } catch (Exception e) {
       long latencyMs = System.currentTimeMillis() - startTime;
       log.error("LLM DJ decision failed after {}ms: {}", latencyMs, e.getMessage(), e);
-      logFailure(session, triggerType, triggerSignal, latencyMs, e.getMessage());
+      logFailure(session, triggerType, latencyMs, e.getMessage());
       return Optional.empty();
     }
   }
@@ -700,7 +699,6 @@ public class LlmDjService {
   private void logDecision(
       ListeningSessionEntity session,
       String triggerType,
-      PlaybackSignalEntity triggerSignal,
       String promptHash,
       int promptTokens,
       int completionTokens,
@@ -708,7 +706,7 @@ public class LlmDjService {
       DjDecision decision,
       String validationResult) {
     try {
-      var entry = createBaseLogEntry(session, triggerType, triggerSignal, latencyMs);
+      var entry = createBaseLogEntry(session, triggerType, latencyMs);
       entry.setPromptHash(promptHash);
       entry.setPromptTokens(promptTokens);
       entry.setCompletionTokens(completionTokens);
@@ -725,11 +723,10 @@ public class LlmDjService {
   private void logFailure(
       ListeningSessionEntity session,
       String triggerType,
-      PlaybackSignalEntity triggerSignal,
       long latencyMs,
       String errorMessage) {
     try {
-      var entry = createBaseLogEntry(session, triggerType, triggerSignal, latencyMs);
+      var entry = createBaseLogEntry(session, triggerType, latencyMs);
       entry.setValidationResult("ERROR");
       entry.setValidationDetails(
           toJsonSafe(Map.of("error", errorMessage != null ? errorMessage : "Unknown error")));
@@ -740,14 +737,10 @@ public class LlmDjService {
   }
 
   private LlmDecisionLogEntity createBaseLogEntry(
-      ListeningSessionEntity session,
-      String triggerType,
-      PlaybackSignalEntity triggerSignal,
-      long latencyMs) {
+      ListeningSessionEntity session, String triggerType, long latencyMs) {
     var entry = new LlmDecisionLogEntity();
     entry.setSession(session);
     entry.setTriggerType(triggerType);
-    entry.setTriggerSignal(triggerSignal);
     entry.setModelId(model);
     entry.setLatencyMs((int) latencyMs);
     return entry;
