@@ -123,28 +123,25 @@ export default defineConfig(({ mode }) => {
               const parts = id.split('node_modules/').pop()!.split('/');
               const packageName = parts[0].startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
 
-              if (packageName === 'lucide-react') {
-                return 'vendor-icons';
-              }
+              if (packageName === 'lucide-react') return 'vendor-icons';
 
-              if (['react', 'react-dom', 'react-router'].some(pkg => packageName.startsWith(pkg))) {
+              if (
+                ['react', 'react-dom', 'react-router', 'scheduler'].some(pkg =>
+                  packageName.startsWith(pkg)
+                )
+              )
                 return 'vendor-react';
-              }
 
-              if (packageName === 'zustand' || packageName.startsWith('@tanstack')) {
+              if (
+                packageName === 'zustand' ||
+                packageName === 'use-sync-external-store' ||
+                packageName.startsWith('@tanstack')
+              )
                 return 'vendor-state';
-              }
-
-              return 'vendor-utils';
             }
 
-            if (id.includes('@yay-tsa/core')) {
-              return 'vendor-core';
-            }
-
-            if (id.includes('@yay-tsa/platform')) {
-              return 'vendor-platform';
-            }
+            if (id.includes('@yay-tsa/core')) return 'vendor-core';
+            if (id.includes('@yay-tsa/platform')) return 'vendor-platform';
           },
         },
       },
