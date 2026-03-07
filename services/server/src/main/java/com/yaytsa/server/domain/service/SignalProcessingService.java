@@ -86,6 +86,8 @@ public class SignalProcessingService {
 
     if (CONSUMED_SIGNALS.contains(signalType)) {
       markQueueEntryConsumed(sessionId, trackId, signalType);
+    } else if ("PLAY_START".equals(signalType) || "QUEUE_JUMP".equals(signalType)) {
+      skipPrecedingEntries(sessionId, trackId);
     }
 
     boolean queueLow = isQueueLow(sessionId);
@@ -112,13 +114,32 @@ public class SignalProcessingService {
         queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
             sessionId, List.of("QUEUED", "PLAYING"));
     String newStatus = "PLAY_COMPLETE".equals(signalType) ? "PLAYED" : "SKIPPED";
+    OffsetDateTime now = OffsetDateTime.now();
     for (AdaptiveQueueEntity entry : activeEntries) {
       if (entry.getItem().getId().equals(trackId)) {
         entry.setStatus(newStatus);
-        entry.setPlayedAt(OffsetDateTime.now());
+        entry.setPlayedAt(now);
         queueRepository.save(entry);
         break;
       }
+      entry.setStatus("SKIPPED");
+      entry.setPlayedAt(now);
+      queueRepository.save(entry);
+    }
+  }
+
+  private void skipPrecedingEntries(UUID sessionId, UUID trackId) {
+    var activeEntries =
+        queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
+            sessionId, List.of("QUEUED", "PLAYING"));
+    OffsetDateTime now = OffsetDateTime.now();
+    for (AdaptiveQueueEntity entry : activeEntries) {
+      if (entry.getItem().getId().equals(trackId)) {
+        break;
+      }
+      entry.setStatus("SKIPPED");
+      entry.setPlayedAt(now);
+      queueRepository.save(entry);
     }
   }
 
