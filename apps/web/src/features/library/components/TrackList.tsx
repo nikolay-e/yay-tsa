@@ -1,7 +1,7 @@
-import { memo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { type AudioItem } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -219,14 +219,35 @@ function VirtualizedTrackList({
   showArtist = true,
   showImage = true,
 }: Omit<TrackListProps, 'virtualized'>) {
-  const virtualizer = useWindowVirtualizer({
+  const [listNode, setListNode] = useState<HTMLDivElement | null>(null);
+
+  const scrollParent = useMemo(
+    () => (listNode?.closest('main') as HTMLElement | null) ?? null,
+    [listNode]
+  );
+
+  const scrollMargin = useMemo(() => {
+    if (!listNode || !scrollParent) return 0;
+    return (
+      listNode.getBoundingClientRect().top -
+      scrollParent.getBoundingClientRect().top +
+      scrollParent.scrollTop
+    );
+  }, [listNode, scrollParent]);
+
+  const virtualizer = useVirtualizer({
     count: tracks.length,
+    getScrollElement: () => scrollParent,
     estimateSize: () => ROW_HEIGHT,
     overscan: OVERSCAN,
+    scrollMargin,
   });
 
   return (
-    <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+    <div
+      ref={setListNode}
+      style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
+    >
       {virtualizer.getVirtualItems().map(virtualItem => {
         const track = tracks[virtualItem.index]!;
         return (
@@ -237,7 +258,7 @@ function VirtualizedTrackList({
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${virtualItem.start}px)`,
+              transform: `translateY(${virtualItem.start - scrollMargin}px)`,
             }}
           >
             <TrackListRow
