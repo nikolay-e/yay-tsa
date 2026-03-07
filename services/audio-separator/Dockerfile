@@ -44,23 +44,24 @@ RUN set -ex; \
 
 COPY scripts/ scripts/
 RUN if [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" != "arm64" ]; then \
-      bash scripts/download_models.sh /app/models; \
+      bash scripts/download_models.sh /app/models || \
+        echo "WARNING: Model download failed. Models must be volume-mounted at runtime."; \
     fi
 
 COPY extractor/ extractor/
 COPY app.py .
 
-RUN groupadd --gid 1000 appuser && \
-    useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash appuser && \
+RUN getent group 1000 >/dev/null || groupadd --gid 1000 appuser && \
+    id -u 1000 >/dev/null 2>&1 || useradd --uid 1000 --gid 1000 --no-log-init --create-home --shell /bin/bash appuser && \
     mkdir -p /app/models /app/output && \
-    chown -R appuser:appuser /app
+    chown -R 1000:1000 /app
 
 ENV MODEL_NAME=htdemucs.yaml
 ENV OUTPUT_FORMAT=wav
 ENV DEVICE=cpu
 ENV ESSENTIA_MODELS_DIR=/app/models
 
-USER appuser
+USER 1000
 
 EXPOSE 8000
 

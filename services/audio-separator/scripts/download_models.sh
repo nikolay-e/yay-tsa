@@ -15,6 +15,29 @@ MODELS=(
   "classification-heads/danceability/danceability-discogs-effnet-1.pb"
 )
 
+download_with_backoff() {
+  local url="$1"
+  local target="$2"
+  local max_retries=5
+  local wait=5
+
+  for attempt in $(seq 1 "$max_retries"); do
+    echo "  Attempt $attempt/$max_retries..."
+    if wget --timeout=120 --tries=1 -q -O "$target" "$url" && [ -s "$target" ]; then
+      return 0
+    fi
+    rm -f "$target"
+    if [ "$attempt" -lt "$max_retries" ]; then
+      echo "  Retrying in ${wait}s..."
+      sleep "$wait"
+      wait=$((wait * 2))
+    fi
+  done
+
+  return 1
+}
+
+FAILED=0
 for model_path in "${MODELS[@]}"; do
   filename=$(basename "$model_path")
   target="$MODELS_DIR/$filename"
@@ -25,14 +48,16 @@ for model_path in "${MODELS[@]}"; do
   fi
 
   echo "Downloading: $filename"
-  wget --timeout=60 --tries=3 --waitretry=5 -q --show-progress -O "$target" "$BASE_URL/$model_path"
-
-  if [ ! -s "$target" ]; then
-    echo "ERROR: Downloaded file is empty: $filename" >&2
-    rm -f "$target"
-    exit 1
+  if ! download_with_backoff "$BASE_URL/$model_path" "$target"; then
+    echo "WARNING: Failed to download $filename after retries" >&2
+    FAILED=$((FAILED + 1))
   fi
 done
+
+if [ "$FAILED" -gt 0 ]; then
+  echo "WARNING: $FAILED model(s) failed to download. Models must be provided at runtime." >&2
+  exit 1
+fi
 
 echo "All models downloaded to $MODELS_DIR"
 ls -lh "$MODELS_DIR"
