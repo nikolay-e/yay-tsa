@@ -19,13 +19,19 @@ for model_path in "${MODELS[@]}"; do
   filename=$(basename "$model_path")
   target="$MODELS_DIR/$filename"
 
-  if [ -f "$target" ]; then
+  if [ -f "$target" ] && [ -s "$target" ]; then
     echo "Already exists: $filename"
     continue
   fi
 
   echo "Downloading: $filename"
-  wget -q --show-progress -O "$target" "$BASE_URL/$model_path"
+  wget --timeout=60 --tries=3 --waitretry=5 -q --show-progress -O "$target" "$BASE_URL/$model_path"
+
+  if [ ! -s "$target" ]; then
+    echo "ERROR: Downloaded file is empty: $filename" >&2
+    rm -f "$target"
+    exit 1
+  fi
 done
 
 echo "All models downloaded to $MODELS_DIR"

@@ -96,7 +96,7 @@ services:
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
     volumes:
-      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
+      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media
       - karaoke_stems:/app/stems
     healthcheck:
       test:
