@@ -44,12 +44,12 @@
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 50%);
 
   /* Z-Index */
-  --z-dropdown: 40;
-  --z-bottom-tab: 50;
-  --z-player: 100;
-  --z-modal-backdrop: 150;
-  --z-modal: 200;
-  --z-toast: 300;
+  --z-index-dropdown: 40;
+  --z-index-bottom-tab: 50;
+  --z-index-player: 100;
+  --z-index-modal-backdrop: 150;
+  --z-index-modal: 200;
+  --z-index-toast: 300;
 
   /* Font Families */
   --font-sans:
