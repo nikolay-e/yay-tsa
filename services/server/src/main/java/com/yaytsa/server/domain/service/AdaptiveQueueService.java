@@ -175,9 +175,7 @@ public class AdaptiveQueueService {
         return fallbackQueueService.fillQueue(session, currentQueueSize);
       } catch (DataIntegrityViolationException e) {
         log.warn(
-            "Queue fill version conflict attempt {} for session {}",
-            attempt + 1,
-            session.getId());
+            "Queue fill version conflict attempt {} for session {}", attempt + 1, session.getId());
       }
     }
     log.error("Queue fill failed after 3 retries for session {}", session.getId());

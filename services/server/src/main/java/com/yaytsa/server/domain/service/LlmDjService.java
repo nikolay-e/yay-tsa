@@ -721,10 +721,7 @@ public class LlmDjService {
   }
 
   private void logFailure(
-      ListeningSessionEntity session,
-      String triggerType,
-      long latencyMs,
-      String errorMessage) {
+      ListeningSessionEntity session, String triggerType, long latencyMs, String errorMessage) {
     try {
       var entry = createBaseLogEntry(session, triggerType, latencyMs);
       entry.setValidationResult("ERROR");
