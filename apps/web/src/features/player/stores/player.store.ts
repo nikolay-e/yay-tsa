@@ -461,6 +461,16 @@ export const usePlayerStore = create<PlayerStore>()(
 
         const next = resolveNextItem(get().queue, repeatMode);
         if (!next) {
+          engine.pause();
+          wakeLock.release();
+          if (playbackReporter && currentItemId) {
+            playbackReporter.reportStopped(currentItemId, engine.getCurrentTime()).catch(err => {
+              log.player.warn('Failed to report stop on natural end', { error: String(err) });
+            });
+            playbackReporter = null;
+            currentItemId = null;
+          }
+          useTimingStore.getState().reset();
           set({ isPlaying: false });
           return;
         }
@@ -582,8 +592,18 @@ export const usePlayerStore = create<PlayerStore>()(
           const { queue, repeatMode } = get();
           const next = resolveNextItem(queue, repeatMode);
           if (!next) {
+            engine.pause();
+            wakeLock.release();
+            if (playbackReporter && currentItemId) {
+              playbackReporter.reportStopped(currentItemId, engine.getCurrentTime()).catch(err => {
+                log.player.warn('Failed to report stop on queue end', { error: String(err) });
+              });
+              playbackReporter = null;
+              currentItemId = null;
+            }
+            useTimingStore.getState().reset();
             set({ isPlaying: false });
-            return;
+            return Promise.resolve();
           }
           get().queue.advanceTo(next.Id);
           await loadAndPlay(next, signal);
@@ -680,6 +700,9 @@ export const usePlayerStore = create<PlayerStore>()(
             sleepTimerId = null;
           }
 
+          const { queue: currentQueue } = get();
+          currentQueue.setQueue([], 0);
+
           set({
             currentTrack: null,
             isPlaying: false,
@@ -690,6 +713,8 @@ export const usePlayerStore = create<PlayerStore>()(
             karaokeStatus: null,
             sleepTimerMinutes: null,
             sleepTimerEndTime: null,
+            queueItems: [],
+            queueIndex: -1,
           });
 
           return Promise.resolve();

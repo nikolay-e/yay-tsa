@@ -67,6 +67,35 @@ export function LyricsView({ onClose }: LyricsViewProps) {
     setFetchError(null);
   }, [currentTrack?.Id]);
 
+  useEffect(() => {
+    if (!currentTrack || !client || hasLyrics || currentTrack.Lyrics) return;
+
+    const trackId = currentTrack.Id;
+    const debounceTimer = setTimeout(async () => {
+      setIsFetching(true);
+      setFetchError(null);
+      try {
+        const result = await client.fetchLyrics(trackId);
+        if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
+        if (result.found && result.lyrics) {
+          usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
+        } else {
+          setFetchError('not_found');
+        }
+      } catch {
+        if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
+        setFetchError('Lyrics service unavailable');
+      } finally {
+        if (usePlayerStore.getState().currentTrack?.Id === trackId) {
+          setIsFetching(false);
+        }
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack?.Id, client, hasLyrics, currentTrack?.Lyrics]);
+
   const handleFetchLyrics = async () => {
     if (!client || !currentTrack) return;
     const trackId = currentTrack.Id;

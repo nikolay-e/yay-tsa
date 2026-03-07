@@ -70,7 +70,9 @@ const TrackImage = memo(
         <div
           className={cn(
             'absolute inset-0 flex items-center justify-center bg-black/50',
-            isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            isCurrentTrack
+              ? 'opacity-100'
+              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
           )}
         >
           {isCurrentTrack && isPlaying ? (
@@ -151,7 +153,7 @@ export function TrackListRow({
         <button
           type="button"
           data-testid="track-title"
-          onClick={onPlay}
+          onClick={isCurrentTrack && isPlaying ? onPause : onPlay}
           className={cn(
             'block w-full cursor-pointer truncate text-left font-medium hover:underline',
             isCurrentTrack ? 'text-accent' : 'text-text-primary'
@@ -193,7 +195,8 @@ export function TrackListRow({
         isFavorite={track.UserData?.IsFavorite ?? false}
         className={cn(
           'shrink-0',
-          !track.UserData?.IsFavorite && 'opacity-0 group-hover:opacity-100'
+          !track.UserData?.IsFavorite &&
+            'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60'
         )}
       />
       <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>

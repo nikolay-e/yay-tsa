@@ -5,10 +5,12 @@ import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
+import { cn } from '@/shared/utils/cn';
 
 export function ArtistsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
+  const isSearchPending = searchTerm !== deferredSearchTerm;
   const { selectedId, activeOption, select } = useSortPreference('artists');
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
@@ -52,7 +54,7 @@ export function ArtistsPage() {
           <p className="text-text-secondary">No artists found</p>
         </div>
       ) : (
-        <>
+        <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {artists.map(artist => (
               <ArtistCard key={artist.Id} artist={artist} />
@@ -66,7 +68,7 @@ export function ArtistsPage() {
             totalCount={totalCount}
             itemLabel="artists"
           />
-        </>
+        </div>
       )}
     </div>
   );

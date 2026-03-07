@@ -12,6 +12,11 @@ export function useReorderFavorites() {
       const service = new FavoritesService(client);
       await service.reorderFavorites(itemIds);
     },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['albums'] });
+      await queryClient.cancelQueries({ queryKey: ['artists'] });
+      await queryClient.cancelQueries({ queryKey: ['tracks'] });
+    },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['albums'] });
       void queryClient.invalidateQueries({ queryKey: ['artists'] });

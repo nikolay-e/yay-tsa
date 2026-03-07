@@ -141,6 +141,9 @@ export const useAuthStore = create<AuthStore>()(
 
       await clearCaches();
       queryClient.clear();
+      import('@/features/player/stores/session-store')
+        .then(m => m.useSessionStore.getState().reset())
+        .catch(() => {});
 
       set({ ...initialState, isLoading: false });
     },

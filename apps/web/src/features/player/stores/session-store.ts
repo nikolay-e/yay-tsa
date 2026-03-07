@@ -26,6 +26,7 @@ interface SessionStoreState {
 interface SessionStoreActions {
   startSession: () => Promise<void>;
   endSession: () => Promise<void>;
+  reset: () => void;
   restoreSession: () => Promise<void>;
   refreshQueue: () => Promise<void>;
   sendSignal: (signal: PlaybackSignal) => Promise<void>;
@@ -172,6 +173,11 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     toast.add('info', 'DJ off, queue kept');
   },
 
+  reset: () => {
+    saveSession(null);
+    set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
+  },
+
   refreshQueue: async () => {
     const { activeSession, isRefreshing } = get();
     const service = getDjService();
@@ -228,6 +234,7 @@ export const useSessionActions = () =>
     useShallow(state => ({
       startSession: state.startSession,
       endSession: state.endSession,
+      reset: state.reset,
       restoreSession: state.restoreSession,
       refreshQueue: state.refreshQueue,
       sendSignal: state.sendSignal,

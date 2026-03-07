@@ -65,10 +65,6 @@ export function RootLayout() {
     );
   }
 
-  if (authState === 'unauthenticated' && !isLoginPage) {
-    return <Navigate to="/login" replace />;
-  }
-
   if (authState === 'authenticated' && isLoginPage) {
     return <Navigate to="/" replace />;
   }
@@ -134,7 +130,9 @@ function Sidebar({ hasPlayer }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 rounded-md px-3 py-2 transition-colors',
               'hover:bg-bg-hover',
-              location.pathname === item.href && 'bg-bg-tertiary text-accent'
+              (item.href === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.href)) && 'bg-bg-tertiary text-accent'
             )}
           >
             <item.icon className="h-5 w-5 shrink-0" />
@@ -146,6 +144,8 @@ function Sidebar({ hasPlayer }: SidebarProps) {
   );
 }
 
+const BOTTOM_TAB_ITEMS = NAV_ITEMS.filter(item => item.href !== '/settings');
+
 function BottomTabBar() {
   const location = useLocation();
 
@@ -155,8 +155,9 @@ function BottomTabBar() {
       className="border-border bg-bg-secondary z-bottom-tab px-safe pb-safe fixed right-0 bottom-0 left-0 border-t md:hidden"
     >
       <div className="h-bottom-tab flex items-center justify-around">
-        {NAV_ITEMS.map(item => {
-          const isActive = location.pathname === item.href;
+        {BOTTOM_TAB_ITEMS.map(item => {
+          const isActive =
+            item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

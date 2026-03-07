@@ -7,7 +7,7 @@ const environment = ((import.meta.env.VITE_APP_ENVIRONMENT as string | undefined
 const version = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
 
 const envStyles: Record<Environment, string> = {
-  production: 'bg-success text-black',
+  production: 'bg-success text-text-on-accent',
   staging: 'bg-warning text-bg-primary',
   development: 'bg-bg-tertiary text-text-primary',
 };

@@ -4,6 +4,7 @@ import { RootLayout } from '@/pages/RootLayout';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { NotFound } from '@/shared/ui/NotFound';
 import { ProtectedRoute } from './routing/ProtectedRoute';
 
 const AlbumsPage = lazy(() => import('@/pages/AlbumsPage').then(m => ({ default: m.AlbumsPage })));
@@ -112,6 +113,14 @@ const router = createBrowserRouter([
             <LazyRoute>
               <SettingsPage />
             </LazyRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '*',
+        element: (
+          <ProtectedRoute>
+            <NotFound message="Page not found" />
           </ProtectedRoute>
         ),
       },

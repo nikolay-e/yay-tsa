@@ -27,6 +27,7 @@ export function AlbumDetailPage() {
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const setShuffle = usePlayerStore(state => state.setShuffle);
+  const isShuffle = usePlayerStore(state => state.isShuffle);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
@@ -102,6 +103,7 @@ export function AlbumDetailPage() {
                 if (isPlaying && currentTrack?.AlbumId === id) {
                   pause();
                 } else if (id) {
+                  setShuffle(false);
                   void playAlbum(id);
                 }
               }}
@@ -119,7 +121,7 @@ export function AlbumDetailPage() {
               ) : (
                 <>
                   <Play className="h-5 w-5" fill="currentColor" />
-                  Play
+                  {isShuffle ? 'Play in order' : 'Play'}
                 </>
               )}
             </button>

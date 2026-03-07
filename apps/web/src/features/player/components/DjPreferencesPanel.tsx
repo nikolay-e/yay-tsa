@@ -177,6 +177,14 @@ export function DjPreferencesPanel() {
                         maxArtistConsecutive: Number(e.target.value),
                       }))
                     }
+                    onBlur={e => {
+                      const val = Number(e.target.value);
+                      if (Number.isNaN(val)) return;
+                      setForm(prev => ({
+                        ...prev,
+                        maxArtistConsecutive: Math.max(1, Math.min(10, val)),
+                      }));
+                    }}
                     className="bg-bg-tertiary border-border text-text-primary w-full rounded-lg border px-3 py-2 text-sm"
                   />
                 </div>
@@ -196,6 +204,11 @@ export function DjPreferencesPanel() {
                     onChange={e =>
                       setForm(prev => ({ ...prev, noRepeatHours: Number(e.target.value) }))
                     }
+                    onBlur={e => {
+                      const val = Number(e.target.value);
+                      if (Number.isNaN(val)) return;
+                      setForm(prev => ({ ...prev, noRepeatHours: Math.max(0, Math.min(72, val)) }));
+                    }}
                     className="bg-bg-tertiary border-border text-text-primary w-full rounded-lg border px-3 py-2 text-sm"
                   />
                 </div>

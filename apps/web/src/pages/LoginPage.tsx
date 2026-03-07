@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { cn } from '@/shared/utils/cn';
@@ -13,6 +13,7 @@ export function LoginPage() {
   const login = useAuthStore(state => state.login);
   const isLoading = useAuthStore(state => state.isLoading);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,7 +26,13 @@ export function LoginPage() {
 
     try {
       await login(username, password, { rememberMe });
-      navigate('/', { replace: true });
+      const fromLocation = (
+        location.state as { from?: { pathname: string; search?: string; hash?: string } }
+      )?.from;
+      const from = fromLocation
+        ? `${fromLocation.pathname}${fromLocation.search || ''}${fromLocation.hash || ''}`
+        : '/';
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }

@@ -5,6 +5,7 @@ import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
+import { cn } from '@/shared/utils/cn';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -14,6 +15,7 @@ import {
 export function SongsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
+  const isSearchPending = searchTerm !== deferredSearchTerm;
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
@@ -61,7 +63,7 @@ export function SongsPage() {
           <p className="text-text-secondary">No songs found</p>
         </div>
       ) : (
-        <>
+        <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
           <TrackList
             tracks={tracks}
             currentTrackId={currentTrack?.Id}
@@ -80,7 +82,7 @@ export function SongsPage() {
             totalCount={totalCount}
             itemLabel="songs"
           />
-        </>
+        </div>
       )}
     </div>
   );

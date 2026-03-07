@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, X, CheckCircle2, AlertCircle, Music } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
 const SUPPORTED_FORMATS = [
   'audio/mpeg',
@@ -48,8 +49,19 @@ export function TrackUploadDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeXhrRef = useRef<XMLHttpRequest | null>(null);
   const client = useAuthStore(s => s.client);
+  const dialogRef = useFocusTrap<HTMLDivElement>(isOpen);
 
-  // Abort active XHR on unmount
+  const handleReset = useCallback(() => {
+    setFiles([]);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    if (!isUploading) {
+      handleReset();
+      onClose();
+    }
+  }, [isUploading, handleReset, onClose]);
+
   useEffect(() => {
     return () => {
       activeXhrRef.current?.abort();
@@ -58,14 +70,22 @@ export function TrackUploadDialog({
 
   useEffect(() => {
     if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isUploading) {
-        onClose();
+        handleClose();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isUploading, onClose]);
+  }, [isOpen, isUploading, handleClose]);
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const audioFiles = Array.from(newFiles).filter(isAudioFile);
@@ -244,17 +264,6 @@ export function TrackUploadDialog({
     }
   };
 
-  const handleReset = () => {
-    setFiles([]);
-  };
-
-  const handleClose = () => {
-    if (!isUploading) {
-      handleReset();
-      onClose();
-    }
-  };
-
   if (!isOpen) return null;
 
   const pendingCount = files.filter(f => f.status === 'pending').length;
@@ -268,15 +277,19 @@ export function TrackUploadDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="presentation"
+      role="none"
+      onClick={e => {
+        if (e.target === e.currentTarget && !isUploading) handleClose();
+      }}
     >
       <div
+        ref={dialogRef}
         className="bg-bg-secondary w-full max-w-lg rounded-lg shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="upload-dialog-title"
       >
-        <div className="flex items-center justify-between border-b border-white/10 p-4">
+        <div className="border-border flex items-center justify-between border-b p-4">
           <h2 id="upload-dialog-title" className="text-xl font-semibold">
             Upload Album
           </h2>
@@ -307,8 +320,8 @@ export function TrackUploadDialog({
               }}
               className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
                 isDragging
-                  ? 'border-primary bg-primary/10'
-                  : 'hover:border-primary/50 border-white/20 hover:bg-white/5'
+                  ? 'border-accent bg-accent/10'
+                  : 'hover:border-accent/50 border-border hover:bg-bg-hover'
               }`}
             >
               <Upload size={36} className="text-text-secondary mx-auto mb-3" />
@@ -343,7 +356,7 @@ export function TrackUploadDialog({
                   </span>
                 )}
                 {allDone && (
-                  <span className="font-medium text-green-400">
+                  <span className="text-success font-medium">
                     {successCount} uploaded
                     {duplicateCount > 0 ? `, ${duplicateCount} skipped` : ''}
                     {errorCount > 0 ? `, ${errorCount} failed` : ''}
@@ -354,8 +367,8 @@ export function TrackUploadDialog({
               <div className="max-h-60 space-y-1 overflow-y-auto">
                 {files.map((f, i) => (
                   <div
-                    key={f.file.name}
-                    className="flex items-center gap-2 rounded bg-white/5 px-3 py-2"
+                    key={`${f.file.name}_${f.file.size}_${f.file.lastModified}`}
+                    className="bg-bg-tertiary flex items-center gap-2 rounded px-3 py-2"
                   >
                     <Music size={14} className="text-text-tertiary shrink-0" />
                     <span className="text-text-primary min-w-0 flex-1 truncate text-sm">
@@ -380,12 +393,11 @@ export function TrackUploadDialog({
                     {f.status === 'success' && (
                       <span className="flex shrink-0 items-center gap-1">
                         {f.albumComplete === false ? (
-                          <span
-                            className="text-xs text-amber-400"
-                            title="Album incomplete — upload more tracks"
-                          />
+                          <span title="Album incomplete — upload more tracks">
+                            <AlertCircle size={14} className="text-warning" />
+                          </span>
                         ) : (
-                          <CheckCircle2 size={14} className="text-green-400" />
+                          <CheckCircle2 size={14} className="text-success" />
                         )}
                       </span>
                     )}
@@ -396,7 +408,7 @@ export function TrackUploadDialog({
                     )}
                     {f.status === 'error' && (
                       <span className="flex shrink-0 items-center gap-1" title={f.message}>
-                        <AlertCircle size={14} className="text-red-400" />
+                        <AlertCircle size={14} className="text-error" />
                       </span>
                     )}
                   </div>
@@ -405,9 +417,9 @@ export function TrackUploadDialog({
 
               {/* Upload progress bar */}
               {isUploading && uploadingIndex >= 0 && (
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className="bg-bg-tertiary h-1.5 overflow-hidden rounded-full">
                   <div
-                    className="bg-primary h-full transition-all duration-300"
+                    className="bg-accent h-full transition-all duration-300"
                     style={{
                       width: `${((successCount + duplicateCount + errorCount + (files[uploadingIndex]?.progress ?? 0) / 100) / files.length) * 100}%`,
                     }}
@@ -423,14 +435,14 @@ export function TrackUploadDialog({
               <>
                 <button
                   onClick={handleReset}
-                  className="text-text-primary flex-1 rounded-lg border border-white/20 px-4 py-2 transition-colors hover:bg-white/5"
+                  className="text-text-primary border-border hover:bg-bg-hover flex-1 rounded-lg border px-4 py-2 transition-colors"
                 >
                   Clear
                 </button>
                 <button
                   onClick={handleUpload}
                   disabled={pendingCount === 0}
-                  className="bg-primary hover:bg-primary/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors disabled:opacity-50"
+                  className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors disabled:opacity-50"
                 >
                   Upload {pendingCount} track{pendingCount !== 1 ? 's' : ''}
                 </button>
@@ -439,7 +451,7 @@ export function TrackUploadDialog({
             {allDone && (
               <button
                 onClick={handleClose}
-                className="bg-primary hover:bg-primary/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors"
+                className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors"
               >
                 Done
               </button>

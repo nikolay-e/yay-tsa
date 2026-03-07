@@ -6,10 +6,12 @@ import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
+import { cn } from '@/shared/utils/cn';
 
 export function AlbumsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
+  const isSearchPending = searchTerm !== deferredSearchTerm;
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { selectedId, activeOption, select } = useSortPreference('albums');
 
@@ -50,7 +52,7 @@ export function AlbumsPage() {
           <p className="text-text-secondary">No albums found</p>
         </div>
       ) : (
-        <>
+        <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
           <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
           <InfiniteScrollFooter
             hasNextPage={hasNextPage}
@@ -60,7 +62,7 @@ export function AlbumsPage() {
             totalCount={totalCount}
             itemLabel="albums"
           />
-        </>
+        </div>
       )}
     </div>
   );

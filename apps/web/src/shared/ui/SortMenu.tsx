@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowUpDown, Check } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
@@ -112,18 +112,56 @@ export function SortMenu({
   className,
 }: SortMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const menuRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    function handleClickOutside(e: MouseEvent) {
+    function handleClickOutside(e: PointerEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const currentIndex = options.findIndex(o => o.id === selectedId);
+      setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
+      requestAnimationFrame(() => listboxRef.current?.focus());
+    }
+  }, [isOpen, options, selectedId]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          e.preventDefault();
+          setIsOpen(false);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setActiveIndex(prev => (prev + 1) % options.length);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setActiveIndex(prev => (prev <= 0 ? options.length - 1 : prev - 1));
+          break;
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          if (activeIndex >= 0 && activeIndex < options.length) {
+            onSelect(options[activeIndex]!.id);
+            setIsOpen(false);
+          }
+          break;
+      }
+    },
+    [activeIndex, options, onSelect]
+  );
 
   const activeOption = options.find(o => o.id === selectedId) ?? options[0]!;
 
@@ -147,15 +185,25 @@ export function SortMenu({
 
       {isOpen && (
         <div
+          ref={listboxRef}
           role="listbox"
+          tabIndex={0}
+          aria-activedescendant={
+            activeIndex >= 0 && activeIndex < options.length
+              ? `sort-option-${options[activeIndex]!.id}`
+              : undefined
+          }
+          onKeyDown={handleKeyDown}
           className={cn(
             'z-dropdown absolute top-full right-0 mt-1 min-w-48',
-            'border-border bg-bg-secondary rounded-md border shadow-lg'
+            'border-border bg-bg-secondary rounded-md border shadow-lg',
+            'focus:outline-none'
           )}
         >
-          {options.map(option => (
+          {options.map((option, index) => (
             <button
               key={option.id}
+              id={`sort-option-${option.id}`}
               type="button"
               role="option"
               aria-selected={option.id === selectedId}
@@ -166,6 +214,7 @@ export function SortMenu({
               className={cn(
                 'flex w-full items-center justify-between gap-3 px-3 py-2.5 text-sm',
                 'transition-colors first:rounded-t-md last:rounded-b-md',
+                index === activeIndex && 'bg-bg-tertiary',
                 option.id === selectedId
                   ? 'text-accent bg-accent/10'
                   : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
