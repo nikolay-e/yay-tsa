@@ -60,7 +60,10 @@ public class FallbackQueueService {
 
   @Transactional
   public List<AdaptiveQueueEntity> fillQueue(ListeningSessionEntity session, int currentQueueSize) {
-    int needed = Math.max(minQueueSize, targetQueueSize - currentQueueSize);
+    if (currentQueueSize >= targetQueueSize) {
+      return List.of();
+    }
+    int needed = targetQueueSize - currentQueueSize;
 
     UUID userId = session.getUser().getId();
     UUID sessionId = session.getId();

@@ -182,11 +182,22 @@ export class ItemsService extends BaseService {
    */
   async getItemsByIds(ids: string[]): Promise<AudioItem[]> {
     if (ids.length === 0) return [];
-    const result = await this.queryItems<AudioItem>({
-      Ids: ids,
-      Fields: ['Genres'],
-    });
-    return result.Items ?? [];
+    const BATCH_SIZE = 200;
+    if (ids.length <= BATCH_SIZE) {
+      const result = await this.queryItems<AudioItem>({
+        Ids: ids,
+        Fields: ['Genres'],
+      });
+      return result.Items ?? [];
+    }
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      batches.push(ids.slice(i, i + BATCH_SIZE));
+    }
+    const results = await Promise.all(
+      batches.map(async batch => this.queryItems<AudioItem>({ Ids: batch, Fields: ['Genres'] }))
+    );
+    return results.flatMap(r => r.Items ?? []);
   }
 
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {

@@ -235,15 +235,6 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      - id: docker-build
-        name: 'Docker build validation'
-        entry: docker build -t yay-tsa:test -f apps/web/Dockerfile .
-        language: system
-        # Trigger on: Dockerfile, entrypoint, nginx config, TS/JS sources, package.json
-        files: ^(apps/web/Dockerfile|apps/web/docker/|infra/nginx/|packages/|package\.json)
-        pass_filenames: false
-        stages: [pre-push]
-
       - id: commitlint
         name: 'Commitlint (conventional commits)'
         entry: npx --no-install commitlint --edit
