@@ -35,11 +35,11 @@ ARG TARGETARCH
 COPY requirements/ requirements/
 RUN set -ex; \
     if [ "$VARIANT" = "gpu" ] && [ "$TARGETARCH" = "arm64" ]; then \
-      pip3 install --no-cache-dir -r requirements/cpu.txt; \
+      pip3 install --no-cache-dir --break-system-packages -r requirements/cpu.txt; \
     elif [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" = "arm64" ]; then \
-      pip3 install --no-cache-dir -r requirements/essentia-base.txt; \
+      pip3 install --no-cache-dir --break-system-packages -r requirements/essentia-base.txt; \
     else \
-      pip3 install --no-cache-dir -r requirements/${VARIANT}.txt; \
+      pip3 install --no-cache-dir --break-system-packages -r requirements/${VARIANT}.txt; \
     fi
 
 COPY scripts/ scripts/
