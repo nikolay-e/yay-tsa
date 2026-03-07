@@ -36,7 +36,7 @@ except ImportError:
 
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
-USE_CUDA = os.getenv("DEVICE", "cuda") == "cuda"
+USE_CUDA = os.getenv("DEVICE", "cpu") == "cuda"
 ALLOWED_MEDIA_ROOT = os.path.realpath(os.getenv("MEDIA_PATH", "/media"))
 FFMPEG_TIMEOUT_SECONDS = 300
 

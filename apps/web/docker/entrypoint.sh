@@ -217,7 +217,7 @@ if [ -z "$YAYTSA_BACKEND_URL" ]; then
     ;;
   "kubernetes")
     K8S_NAMESPACE="${KUBERNETES_NAMESPACE:-yay-tsa-production}"
-    YAYTSA_BACKEND_URL="http://yay-tsa-server.${K8S_NAMESPACE}.svc.cluster.local:8080"
+    YAYTSA_BACKEND_URL="http://yay-tsa-backend.${K8S_NAMESPACE}.svc.cluster.local:8096"
     echo "INFO: Using default Kubernetes backend URL: $YAYTSA_BACKEND_URL"
     ;;
   *)

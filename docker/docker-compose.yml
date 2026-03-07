@@ -54,6 +54,7 @@ services:
       LASTFM_API_KEY: ${LASTFM_API_KEY:-}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      ACOUSTID_API_KEY: ${ACOUSTID_API_KEY:-}
     volumes:
       - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
       - uploads_data:/app/uploads

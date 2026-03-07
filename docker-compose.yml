@@ -83,7 +83,7 @@ services:
       database:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8096/manage/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:8096/manage/health']
       interval: 10s
       timeout: 5s
       retries: 5
