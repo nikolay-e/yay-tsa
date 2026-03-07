@@ -67,21 +67,19 @@ export function useFavoriteToggle() {
         queryClient.cancelQueries({ queryKey: ['artist'] }),
       ]);
 
-      const queryCache = queryClient.getQueryCache();
-      const queries = queryCache.getAll();
-
+      const targetKeys = [['albums'], ['artists'], ['tracks'], ['album'], ['artist']] as const;
       const previousData = new Map<string, unknown>();
 
-      for (const query of queries) {
-        const key = query.queryKey;
-        const keyStr = JSON.stringify(key);
-        const data = query.state.data;
-        if (!data) continue;
-
-        const cloned = structuredClone(data);
-        if (patchFavoriteInData(cloned, itemId, newValue)) {
-          previousData.set(keyStr, data);
-          queryClient.setQueryData(key, cloned);
+      for (const key of targetKeys) {
+        const queries = queryClient.getQueriesData({ queryKey: key });
+        for (const [queryKey, data] of queries) {
+          if (!data) continue;
+          const keyStr = JSON.stringify(queryKey);
+          const cloned = structuredClone(data);
+          if (patchFavoriteInData(cloned, itemId, newValue)) {
+            previousData.set(keyStr, data);
+            queryClient.setQueryData(queryKey, cloned);
+          }
         }
       }
 
@@ -108,13 +106,9 @@ export function useFavoriteToggle() {
     },
     onError: (_error, variables, context) => {
       if (!context?.previousData) return;
-      const queryCache = queryClient.getQueryCache();
-      for (const query of queryCache.getAll()) {
-        const keyStr = JSON.stringify(query.queryKey);
-        const prev = context.previousData.get(keyStr);
-        if (prev !== undefined) {
-          queryClient.setQueryData(query.queryKey, prev);
-        }
+      for (const [keyStr, prev] of context.previousData) {
+        const queryKey = JSON.parse(keyStr) as unknown[];
+        queryClient.setQueryData(queryKey, prev);
       }
 
       if (context.previousTrackFavorite !== null && context.previousTrackFavorite !== undefined) {
