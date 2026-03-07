@@ -107,6 +107,12 @@ export function QueueView() {
     }
   }, [activeSession, isStarting, queueItems.length]);
 
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0 });
+  }, [currentTrack?.Id]);
+
   const canLoadMore = activeSession != null && !isRefreshing;
   const { ref: sentinelRef, isInView } = useInView({
     rootMargin: '200px',
@@ -141,7 +147,7 @@ export function QueueView() {
 
   return (
     <div className="flex flex-col">
-      <div className="flex-1 overflow-y-auto px-1 py-1">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-1 py-1">
         {queueItems.map((track, index) => (
           <QueueTrackItem
             key={`${track.Id}-${index}`}
