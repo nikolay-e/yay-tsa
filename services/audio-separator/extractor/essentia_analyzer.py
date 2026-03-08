@@ -93,17 +93,17 @@ class EssentiaAnalyzer:
         audio_44k = MonoLoader(filename=file_path, sampleRate=AUDIO_SAMPLE_RATE)()
         duration_sec = len(audio_44k) / AUDIO_SAMPLE_RATE
 
-        features = self._extract_scalar_features(audio_44k)
-
         if duration_sec < MIN_AUDIO_DURATION_SEC:
             log.warning("Track too short (%.1fs) for TF models: %s", duration_sec, Path(file_path).name)
             elapsed_ms = int((time.time() - start) * 1000)
             return {
-                "features": features,
+                "features": None,
                 "embedding_discogs": None,
                 "embedding_musicnn": None,
                 "processing_time_ms": elapsed_ms,
             }
+
+        features = self._extract_scalar_features(audio_44k)
 
         self._ensure_models()
 
