@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { Loader2, Music, Play } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { useInView } from '@/shared/hooks/useInView';
@@ -27,18 +28,85 @@ function formatDuration(ticks: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function DjFeedbackButtons({
+  trackId,
+  onThumbsDown,
+}: {
+  trackId: string;
+  onThumbsDown: (trackId: string) => void;
+}) {
+  const [liked, setLiked] = useState(false);
+
+  const sendFeedback = (type: 'THUMBS_UP' | 'THUMBS_DOWN') => {
+    const hour = new Date().getHours();
+    const timeOfDay =
+      hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    void useSessionStore.getState().sendSignal({
+      signalType: type,
+      trackId,
+      context: {
+        positionPct: 0,
+        elapsedSec: 0,
+        autoplay: false,
+        selectedByUser: true,
+        timeOfDay,
+      },
+    });
+  };
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <button
+        type="button"
+        aria-label="Good pick"
+        aria-pressed={liked}
+        onClick={e => {
+          e.stopPropagation();
+          if (liked) return;
+          setLiked(true);
+          sendFeedback('THUMBS_UP');
+        }}
+        className={cn(
+          'cursor-pointer rounded p-1.5 transition-colors',
+          'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
+          liked ? 'text-accent' : 'text-text-tertiary hover:text-text-primary'
+        )}
+      >
+        <ThumbsUp className="h-3.5 w-3.5" fill={liked ? 'currentColor' : 'none'} />
+      </button>
+      <button
+        type="button"
+        aria-label="Bad pick"
+        onClick={e => {
+          e.stopPropagation();
+          sendFeedback('THUMBS_DOWN');
+          onThumbsDown(trackId);
+        }}
+        className={cn(
+          'text-text-tertiary cursor-pointer rounded p-1.5 transition-colors hover:text-red-400',
+          'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none'
+        )}
+      >
+        <ThumbsDown className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function QueueTrackItem({
   track,
   index,
   isCurrent,
   isPlaying,
   onPlay,
+  feedbackSlot,
 }: {
   track: AudioItem;
   index: number;
   isCurrent: boolean;
   isPlaying: boolean;
   onPlay: () => void;
+  feedbackSlot?: ReactNode;
 }) {
   return (
     <button
@@ -74,6 +142,8 @@ function QueueTrackItem({
         </div>
       </div>
 
+      {feedbackSlot}
+
       {track.RunTimeTicks && (
         <span className="text-text-tertiary shrink-0 text-xs">
           {formatDuration(track.RunTimeTicks)}
@@ -91,6 +161,7 @@ export function QueueView() {
   const jumpToQueueTrack = usePlayerStore(state => state.jumpToQueueTrack);
   const pause = usePlayerStore(state => state.pause);
   const resume = usePlayerStore(state => state.resume);
+  const next = usePlayerStore(state => state.next);
   const activeSession = useActiveSession();
   const isStarting = useIsSessionStarting();
   const isRefreshing = useIsSessionRefreshing();
@@ -145,6 +216,12 @@ export function QueueView() {
     void jumpToQueueTrack(track.Id);
   };
 
+  const handleThumbsDown = (trackId: string) => {
+    if (trackId === currentTrack?.Id) {
+      void next();
+    }
+  };
+
   return (
     <div className="flex flex-col">
       <div ref={listRef} className="flex-1 overflow-y-auto px-1 py-1">
@@ -156,6 +233,11 @@ export function QueueView() {
             isCurrent={index === queueIndex}
             isPlaying={isPlaying && index === queueIndex}
             onPlay={() => handleTrackClick(track)}
+            feedbackSlot={
+              activeSession ? (
+                <DjFeedbackButtons trackId={track.Id} onThumbsDown={handleThumbsDown} />
+              ) : undefined
+            }
           />
         ))}
         <div ref={sentinelRef} className="h-1" />

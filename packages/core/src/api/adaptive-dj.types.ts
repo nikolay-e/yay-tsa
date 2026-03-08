@@ -58,7 +58,9 @@ export type SignalType =
   | 'FAVORITE_TOGGLE'
   | 'MANUAL_ADD'
   | 'MANUAL_REMOVE'
-  | 'SESSION_MOOD_CHANGE';
+  | 'SESSION_MOOD_CHANGE'
+  | 'THUMBS_UP'
+  | 'THUMBS_DOWN';
 
 export interface SignalContext {
   positionPct: number;

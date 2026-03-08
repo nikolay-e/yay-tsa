@@ -30,7 +30,7 @@ public class SignalProcessingService {
   private static final int SKIP_PATTERN_COUNT = 2;
   private static final int SKIP_PATTERN_WINDOW = 10;
   private static final Set<String> CONSUMED_SIGNALS =
-      Set.of("PLAY_COMPLETE", "SKIP_EARLY", "SKIP_MID", "SKIP_LATE");
+      Set.of("PLAY_COMPLETE", "SKIP_EARLY", "SKIP_MID", "SKIP_LATE", "THUMBS_DOWN");
 
   private final PlaybackSignalRepository signalRepository;
   private final ListeningSessionRepository sessionRepository;
@@ -157,7 +157,7 @@ public class SignalProcessingService {
             .filter(
                 s ->
                     "SKIP_EARLY".equals(s.getSignalType())
-                        || "SKIP_IMMEDIATE".equals(s.getSignalType()))
+                        || "THUMBS_DOWN".equals(s.getSignalType()))
             .count()
         >= SKIP_PATTERN_COUNT;
   }
