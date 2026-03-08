@@ -42,50 +42,89 @@ public interface ItemRepository
   List<ItemEntity> findAudioTracksByLibraryRoot(@Param("libraryRoot") String libraryRoot);
 
   @Query(
-      """
-      SELECT i FROM ItemEntity i
-      JOIN PlayStateEntity ps ON ps.item = i
-      WHERE ps.user.id = :userId
-      AND ps.lastPlayedAt IS NOT NULL
-      ORDER BY ps.lastPlayedAt DESC
-      """)
+      value =
+          """
+          SELECT i.* FROM items i
+          LEFT JOIN play_state ps ON ps.item_id = i.id AND ps.user_id = :userId
+          WHERE i.type = 'AudioTrack'
+            AND i.path IS NOT NULL
+            AND i.path NOT LIKE 'artist:%'
+            AND i.path NOT LIKE 'album:%'
+          ORDER BY
+            CASE WHEN ps.last_played_at IS NOT NULL THEN 0 ELSE 1 END,
+            ps.last_played_at DESC NULLS LAST,
+            RANDOM()
+          """,
+      countQuery =
+          """
+          SELECT COUNT(*) FROM items
+          WHERE type = 'AudioTrack'
+            AND path IS NOT NULL
+            AND path NOT LIKE 'artist:%'
+            AND path NOT LIKE 'album:%'
+          """,
+      nativeQuery = true)
   Page<ItemEntity> findRecentlyPlayedByUser(@Param("userId") UUID userId, Pageable pageable);
 
   @Query(
-      """
-      SELECT a FROM ItemEntity a
-      WHERE a.type = 'MusicAlbum'
-      AND a.id IN (
-        SELECT at.album.id FROM AudioTrackEntity at
-        JOIN PlayStateEntity ps ON ps.item.id = at.item.id
-        WHERE ps.user.id = :userId
-        AND ps.lastPlayedAt IS NOT NULL
-      )
-      ORDER BY (
-        SELECT MAX(ps2.lastPlayedAt) FROM AudioTrackEntity at2
-        JOIN PlayStateEntity ps2 ON ps2.item.id = at2.item.id
-        WHERE at2.album.id = a.id AND ps2.user.id = :userId
-      ) DESC
-      """)
+      value =
+          """
+          SELECT a.* FROM items a
+          LEFT JOIN (
+            SELECT at2.album_id, MAX(ps2.last_played_at) AS max_played_at
+            FROM audio_tracks at2
+            LEFT JOIN play_state ps2 ON ps2.item_id = at2.item_id AND ps2.user_id = :userId
+            GROUP BY at2.album_id
+          ) agg ON agg.album_id = a.id
+          WHERE a.type = 'MusicAlbum'
+            AND EXISTS (SELECT 1 FROM audio_tracks WHERE album_id = a.id)
+          ORDER BY
+            CASE WHEN agg.max_played_at IS NOT NULL THEN 0 ELSE 1 END,
+            agg.max_played_at DESC NULLS LAST,
+            RANDOM()
+          """,
+      countQuery =
+          """
+          SELECT COUNT(*) FROM items a
+          WHERE a.type = 'MusicAlbum'
+            AND EXISTS (SELECT 1 FROM audio_tracks WHERE album_id = a.id)
+          """,
+      nativeQuery = true)
   Page<ItemEntity> findRecentlyPlayedAlbumsByUser(@Param("userId") UUID userId, Pageable pageable);
 
   @Query(
-      """
-      SELECT a FROM ItemEntity a
-      WHERE a.type = 'MusicArtist'
-      AND a.id IN (
-        SELECT DISTINCT at.albumArtist.id FROM AudioTrackEntity at
-        JOIN PlayStateEntity ps ON ps.item.id = at.item.id
-        WHERE ps.user.id = :userId
-        AND ps.lastPlayedAt IS NOT NULL
-        AND at.albumArtist IS NOT NULL
-      )
-      ORDER BY (
-        SELECT MAX(ps2.lastPlayedAt) FROM AudioTrackEntity at2
-        JOIN PlayStateEntity ps2 ON ps2.item.id = at2.item.id
-        WHERE at2.albumArtist.id = a.id AND ps2.user.id = :userId
-      ) DESC
-      """)
+      value =
+          """
+          SELECT a.* FROM items a
+          LEFT JOIN (
+            SELECT at2.album_artist_id, MAX(ps2.last_played_at) AS max_played_at
+            FROM audio_tracks at2
+            LEFT JOIN play_state ps2 ON ps2.item_id = at2.item_id AND ps2.user_id = :userId
+            WHERE at2.album_artist_id IS NOT NULL
+            GROUP BY at2.album_artist_id
+          ) agg ON agg.album_artist_id = a.id
+          WHERE a.type = 'MusicArtist'
+            AND EXISTS (
+              SELECT 1 FROM items album
+              JOIN audio_tracks at3 ON at3.album_id = album.id
+              WHERE album.parent_id = a.id
+            )
+          ORDER BY
+            CASE WHEN agg.max_played_at IS NOT NULL THEN 0 ELSE 1 END,
+            agg.max_played_at DESC NULLS LAST,
+            RANDOM()
+          """,
+      countQuery =
+          """
+          SELECT COUNT(*) FROM items a
+          WHERE a.type = 'MusicArtist'
+            AND EXISTS (
+              SELECT 1 FROM items album
+              JOIN audio_tracks at3 ON at3.album_id = album.id
+              WHERE album.parent_id = a.id
+            )
+          """,
+      nativeQuery = true)
   Page<ItemEntity> findRecentlyPlayedArtistsByUser(@Param("userId") UUID userId, Pageable pageable);
 
   @Query(
