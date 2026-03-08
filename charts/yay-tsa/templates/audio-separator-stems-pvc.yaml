@@ -1,0 +1,18 @@
+{{- if and .Values.audioSeparator.enabled .Values.audioSeparator.stemsStorage.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-audio-separator-stems
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audio-separator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.audioSeparator.stemsStorage.storageClass }}
+  storageClassName: {{ .Values.audioSeparator.stemsStorage.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.audioSeparator.stemsStorage.size }}
+{{- end }}

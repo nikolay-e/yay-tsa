@@ -227,6 +227,11 @@ audioSeparator:
     modelName: 'htdemucs.yaml'
     outputFormat: 'wav'
     device: 'cuda'
+    stemsOutputRoot: '/app/stems'
+  stemsStorage:
+    enabled: true
+    size: '10Gi'
+    storageClass: 'local-path'
   probes:
     liveness:
       path: /health

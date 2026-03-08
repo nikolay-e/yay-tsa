@@ -43,6 +43,8 @@ spec:
               value: {{ .Values.audioSeparator.config.modelName | quote }}
             - name: OUTPUT_FORMAT
               value: {{ .Values.audioSeparator.config.outputFormat | quote }}
+            - name: STEMS_OUTPUT_ROOT
+              value: {{ .Values.audioSeparator.config.stemsOutputRoot | quote }}
             - name: NUMBA_CACHE_DIR
               value: /tmp
             - name: XDG_CACHE_HOME
@@ -76,6 +78,10 @@ spec:
             - name: media
               mountPath: /media
             {{- end }}
+            {{- if .Values.audioSeparator.stemsStorage.enabled }}
+            - name: stems
+              mountPath: /app/stems
+            {{- end }}
       restartPolicy: Always
       tolerations:
         - effect: NoSchedule
@@ -89,5 +95,10 @@ spec:
           hostPath:
             path: {{ .Values.audioSeparator.media.hostPath }}
             type: Directory
+        {{- end }}
+        {{- if .Values.audioSeparator.stemsStorage.enabled }}
+        - name: stems
+          persistentVolumeClaim:
+            claimName: {{ include "yay-tsa.fullname" . }}-audio-separator-stems
         {{- end }}
 {{- end }}

@@ -159,6 +159,7 @@ services:
       MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
+      STEMS_OUTPUT_ROOT: /app/stems
     volumes:
       - ${MEDIA_PATH:-./services/server/media}:/media:rw
       - karaoke_stems:/app/stems

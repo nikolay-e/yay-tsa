@@ -38,6 +38,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cpu") == "cuda"
 ALLOWED_MEDIA_ROOT = os.path.realpath(os.getenv("MEDIA_PATH", "/media"))
+STEMS_OUTPUT_ROOT = os.getenv("STEMS_OUTPUT_ROOT", "")
 FFMPEG_TIMEOUT_SECONDS = 300
 
 LRCLIB_BASE_URL = "https://lrclib.net/api"
@@ -162,7 +163,10 @@ def separate_audio(request: SeparationRequest):
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Input file not found: {input_path}")
 
-    karaoke_dir = input_path.parent / ".karaoke"
+    if STEMS_OUTPUT_ROOT:
+        karaoke_dir = Path(STEMS_OUTPUT_ROOT) / track_id
+    else:
+        karaoke_dir = input_path.parent / ".karaoke"
     karaoke_path = karaoke_dir / f"{input_path.stem}_instrumental.{OUTPUT_FORMAT}"
     vocal_path = karaoke_dir / f"{input_path.stem}_vocals.{OUTPUT_FORMAT}"
 
@@ -178,7 +182,7 @@ def separate_audio(request: SeparationRequest):
     song_name = input_path.stem
 
     try:
-        karaoke_dir.mkdir(exist_ok=True)
+        karaoke_dir.mkdir(parents=True, exist_ok=True)
         sep = create_separator(str(karaoke_dir))
 
         log.info("Starting separation for track %s", _sanitize(track_id))
