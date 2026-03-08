@@ -19,8 +19,6 @@ import {
   getSavedSessionId,
 } from '../stores/session-store';
 
-const SCROLL_LOAD_THRESHOLD = 10;
-
 function formatDuration(ticks: number): string {
   const totalSeconds = Math.floor(ticks / 10_000_000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -192,12 +190,8 @@ export function QueueView() {
 
   useEffect(() => {
     if (!isInView || !canLoadMore) return;
-    const baseIndex = queueIndex >= 0 ? queueIndex : queueItems.length;
-    const remaining = queueItems.length - baseIndex - 1;
-    if (remaining < SCROLL_LOAD_THRESHOLD) {
-      void useSessionStore.getState().refreshQueue();
-    }
-  }, [isInView, canLoadMore, queueItems.length, queueIndex]);
+    void useSessionStore.getState().refreshQueue();
+  }, [isInView, canLoadMore, queueItems.length]);
 
   if (queueItems.length === 0) {
     return (

@@ -204,7 +204,7 @@ yaytsa:
       exact-search-threshold: ${DJ_EXACT_SEARCH_THRESHOLD:500}
     queue:
       min-size: 8
-      max-size: 50
+      max-size: 200
       trigger-threshold: 8
       no-repeat-hours: ${DJ_NO_REPEAT_HOURS:6}
 
