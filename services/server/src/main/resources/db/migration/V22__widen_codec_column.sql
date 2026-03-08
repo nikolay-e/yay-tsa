@@ -1,0 +1,1 @@
+ALTER TABLE audio_tracks ALTER COLUMN codec TYPE VARCHAR(255);

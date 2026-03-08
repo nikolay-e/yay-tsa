@@ -51,7 +51,7 @@ public class AudioTrackEntity {
 
   @Column private Integer year;
 
-  @Column(length = 50)
+  @Column(length = 255)
   private String codec;
 
   @Column(columnDefinition = "TEXT")
