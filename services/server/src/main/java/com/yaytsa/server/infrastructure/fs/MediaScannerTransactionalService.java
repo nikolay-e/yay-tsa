@@ -100,13 +100,28 @@ public class MediaScannerTransactionalService {
 
   @Transactional
   public void updateExistingTrack(
-      ItemEntity item, Path filePath, OffsetDateTime mtime, long fileSize, String libraryRoot)
+      ItemEntity detachedItem,
+      Path filePath,
+      OffsetDateTime mtime,
+      long fileSize,
+      String libraryRoot)
       throws IOException {
     Optional<AudioMetadata> metadataOpt = metadataExtractor.extract(filePath);
     if (metadataOpt.isEmpty()) {
-      log.warn("Failed to extract metadata for existing track: {} at {}", item.getId(), filePath);
+      log.warn(
+          "Failed to extract metadata for existing track: {} at {}",
+          detachedItem.getId(),
+          filePath);
       return;
     }
+
+    ItemEntity item =
+        itemRepository
+            .findById(detachedItem.getId())
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        "Track disappeared during update: " + detachedItem.getId()));
 
     AudioMetadata metadata = metadataOpt.get();
 
