@@ -17,6 +17,8 @@ import { AlbumCard } from '@/features/library/components/AlbumCard';
 
 type FavoriteTab = 'albums' | 'artists' | 'tracks';
 
+type SortState = ReturnType<typeof useSortPreference>;
+
 const TABS: { key: FavoriteTab; label: string }[] = [
   { key: 'tracks', label: 'Tracks' },
   { key: 'albums', label: 'Albums' },
@@ -26,42 +28,53 @@ const TABS: { key: FavoriteTab; label: string }[] = [
 export function FavoritesPage() {
   const [activeTab, setActiveTab] = useState<FavoriteTab>('tracks');
 
+  const trackSort = useSortPreference('songs', FAVORITES_SORT_OPTIONS, 'favorites');
+  const albumSort = useSortPreference('albums', FAVORITES_SORT_OPTIONS, 'favorites');
+  const artistSort = useSortPreference('artists', FAVORITES_SORT_OPTIONS, 'favorites');
+
+  const activeSort =
+    activeTab === 'tracks' ? trackSort : activeTab === 'albums' ? albumSort : artistSort;
+
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold">Favorites</h1>
 
-      <div className="border-border flex gap-1 border-b">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === tab.key
-                ? 'text-accent border-accent border-b-2'
-                : 'text-text-secondary hover:text-text-primary'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="border-border flex items-end justify-between border-b">
+        <div className="flex gap-1">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                '-mb-px px-4 py-2 text-sm font-medium transition-colors',
+                activeTab === tab.key
+                  ? 'text-accent border-accent border-b-2'
+                  : 'text-text-secondary hover:text-text-primary'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <SortMenu
+          selectedId={activeSort.selectedId}
+          onSelect={activeSort.select}
+          options={FAVORITES_SORT_OPTIONS}
+          className="mb-1"
+        />
       </div>
 
-      {activeTab === 'albums' && <FavoriteAlbums />}
-      {activeTab === 'artists' && <FavoriteArtists />}
-      {activeTab === 'tracks' && <FavoriteTracks />}
+      {activeTab === 'albums' && <FavoriteAlbums sortState={albumSort} />}
+      {activeTab === 'artists' && <FavoriteArtists sortState={artistSort} />}
+      {activeTab === 'tracks' && <FavoriteTracks sortState={trackSort} />}
     </div>
   );
 }
 
-function FavoriteAlbums() {
+function FavoriteAlbums({ sortState }: { sortState: SortState }) {
   const playAlbum = usePlayerStore(state => state.playAlbum);
-  const { selectedId, activeOption, select } = useSortPreference(
-    'albums',
-    FAVORITES_SORT_OPTIONS,
-    'favorites'
-  );
+  const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
@@ -93,9 +106,6 @@ function FavoriteAlbums() {
 
   return (
     <>
-      <div className="flex justify-end">
-        <SortMenu selectedId={selectedId} onSelect={select} options={FAVORITES_SORT_OPTIONS} />
-      </div>
       {isCustomOrder ? (
         <SortableList
           items={albums}
@@ -121,12 +131,8 @@ function FavoriteAlbums() {
   );
 }
 
-function FavoriteArtists() {
-  const { selectedId, activeOption, select } = useSortPreference(
-    'artists',
-    FAVORITES_SORT_OPTIONS,
-    'favorites'
-  );
+function FavoriteArtists({ sortState }: { sortState: SortState }) {
+  const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
@@ -158,9 +164,6 @@ function FavoriteArtists() {
 
   return (
     <>
-      <div className="flex justify-end">
-        <SortMenu selectedId={selectedId} onSelect={select} options={FAVORITES_SORT_OPTIONS} />
-      </div>
       {isCustomOrder ? (
         <SortableList
           items={artists}
@@ -188,16 +191,12 @@ function FavoriteArtists() {
   );
 }
 
-function FavoriteTracks() {
+function FavoriteTracks({ sortState }: { sortState: SortState }) {
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
-  const { selectedId, activeOption, select } = useSortPreference(
-    'songs',
-    FAVORITES_SORT_OPTIONS,
-    'favorites'
-  );
+  const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
@@ -229,9 +228,6 @@ function FavoriteTracks() {
 
   return (
     <>
-      <div className="flex justify-end">
-        <SortMenu selectedId={selectedId} onSelect={select} options={FAVORITES_SORT_OPTIONS} />
-      </div>
       {isCustomOrder ? (
         <SortableList
           items={tracks}
