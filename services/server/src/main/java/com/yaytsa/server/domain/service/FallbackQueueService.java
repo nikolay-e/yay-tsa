@@ -73,8 +73,7 @@ public class FallbackQueueService {
             sessionId, List.of("QUEUED", "PLAYING"));
     Set<UUID> existingTrackIds =
         activeQueue.stream().map(q -> q.getItem().getId()).collect(Collectors.toSet());
-    long maxVersion =
-        activeQueue.stream().mapToLong(AdaptiveQueueEntity::getQueueVersion).max().orElse(0);
+    long maxVersion = queueRepository.findMaxQueueVersionBySessionId(sessionId).orElse(0L);
     int maxPosition =
         activeQueue.stream().mapToInt(AdaptiveQueueEntity::getPosition).max().orElse(0);
 
