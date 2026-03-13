@@ -27,7 +27,7 @@ public interface PlayStateRepository extends JpaRepository<PlayStateEntity, UUID
       value =
           "WITH shift AS ( UPDATE play_state SET favorite_position = favorite_position + 1,"
               + " updated_at = NOW() WHERE user_id = :userId AND is_favorite = true AND item_id !="
-              + " :itemId::uuid ) INSERT INTO play_state (id, user_id, item_id, is_favorite,"
+              + " :itemId\\:\\:uuid ) INSERT INTO play_state (id, user_id, item_id, is_favorite,"
               + " play_count, playback_position_ms, favorited_at, favorite_position, created_at,"
               + " updated_at) VALUES (gen_random_uuid(), :userId, :itemId, true, 0, 0, NOW(), 1,"
               + " NOW(), NOW()) ON CONFLICT (user_id, item_id) DO UPDATE SET is_favorite = true,"
