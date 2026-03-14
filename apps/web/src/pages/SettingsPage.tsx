@@ -106,30 +106,32 @@ export function SettingsPage() {
         </button>
       </section>
 
-      <section className="mb-8">
-        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
-          <Server className="h-4 w-4" />
-          Library
-        </h2>
+      {isAdmin && (
+        <section className="mb-8">
+          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+            <Server className="h-4 w-4" />
+            Library
+          </h2>
 
-        <button
-          onClick={() => {
-            handleRescanLibrary();
-          }}
-          disabled={isRescanning || !client}
-          className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
-        >
-          <HardDrive
-            className={`text-accent h-5 w-5 shrink-0 ${isRescanning ? 'animate-pulse' : ''}`}
-          />
-          <div>
-            <div className="font-medium">Reload Media</div>
-            <div className="text-text-secondary text-sm">
-              Rescan library from disk. Discovers new files and removes deleted ones.
+          <button
+            onClick={() => {
+              handleRescanLibrary();
+            }}
+            disabled={isRescanning || !client}
+            className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
+          >
+            <HardDrive
+              className={`text-accent h-5 w-5 shrink-0 ${isRescanning ? 'animate-pulse' : ''}`}
+            />
+            <div>
+              <div className="font-medium">Reload Media</div>
+              <div className="text-text-secondary text-sm">
+                Rescan library from disk. Discovers new files and removes deleted ones.
+              </div>
             </div>
-          </div>
-        </button>
-      </section>
+          </button>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
