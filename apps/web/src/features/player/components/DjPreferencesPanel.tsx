@@ -126,7 +126,7 @@ export function DjPreferencesPanel() {
     if (!client || !userId) return;
 
     const service = new AdaptiveDjService(client);
-    void service
+    service
       .getPreferences(userId)
       .then(prefs => {
         setForm(prefsToForm(prefs));

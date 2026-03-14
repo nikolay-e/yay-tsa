@@ -95,6 +95,50 @@ const TrackImage = memo(
     prev.isPlaying === next.isPlaying
 );
 
+function TrackMetadata({
+  showArtist,
+  showAlbum,
+  artistName,
+  artistId,
+  album,
+  albumId,
+}: {
+  showArtist: boolean;
+  showAlbum: boolean;
+  artistName: string;
+  artistId?: string;
+  album?: string;
+  albumId?: string;
+}) {
+  return (
+    <p className="text-text-secondary truncate text-sm">
+      {showArtist && artistId ? (
+        <Link
+          to={`/artists/${artistId}`}
+          onClick={e => e.stopPropagation()}
+          className="hover:text-text-primary hover:underline"
+        >
+          {artistName}
+        </Link>
+      ) : (
+        showArtist && artistName
+      )}
+      {showArtist && showAlbum && album && ' • '}
+      {showAlbum && albumId && album ? (
+        <Link
+          to={`/albums/${albumId}`}
+          onClick={e => e.stopPropagation()}
+          className="hover:text-text-primary hover:underline"
+        >
+          {album}
+        </Link>
+      ) : (
+        showAlbum && album
+      )}
+    </p>
+  );
+}
+
 export function TrackListRow({
   track,
   index,
@@ -153,31 +197,14 @@ export function TrackListRow({
           {track.Name}
         </button>
         {(showArtist || showAlbum) && (
-          <p className="text-text-secondary truncate text-sm">
-            {showArtist && artistId ? (
-              <Link
-                to={`/artists/${artistId}`}
-                onClick={e => e.stopPropagation()}
-                className="hover:text-text-primary hover:underline"
-              >
-                {artistName}
-              </Link>
-            ) : (
-              showArtist && artistName
-            )}
-            {showArtist && showAlbum && track.Album && ' • '}
-            {showAlbum && track.AlbumId && track.Album ? (
-              <Link
-                to={`/albums/${track.AlbumId}`}
-                onClick={e => e.stopPropagation()}
-                className="hover:text-text-primary hover:underline"
-              >
-                {track.Album}
-              </Link>
-            ) : (
-              showAlbum && track.Album
-            )}
-          </p>
+          <TrackMetadata
+            showArtist={showArtist}
+            showAlbum={showAlbum}
+            artistName={artistName}
+            artistId={artistId}
+            album={track.Album}
+            albumId={track.AlbumId}
+          />
         )}
       </div>
 

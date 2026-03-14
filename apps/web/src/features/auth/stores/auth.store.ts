@@ -92,7 +92,9 @@ export const useAuthStore = create<AuthStore>()(
         const response = await authService.login(username, password);
 
         client.setAuthErrorCallback(() => {
-          void get().logout();
+          get()
+            .logout()
+            .catch(() => {});
         });
 
         const sessionData = {
@@ -164,7 +166,9 @@ export const useAuthStore = create<AuthStore>()(
         client.setToken(session.token, session.userId);
 
         client.setAuthErrorCallback(() => {
-          void get().logout();
+          get()
+            .logout()
+            .catch(() => {});
         });
 
         await client.getServerInfo();

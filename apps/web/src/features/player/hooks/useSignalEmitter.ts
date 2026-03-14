@@ -70,22 +70,22 @@ export function useSignalEmitter() {
             skipType = 'PLAY_COMPLETE';
           }
 
-          void sendSignal(
+          sendSignal(
             createSignal(
               skipType,
               previousTrackIdRef.current,
               buildContext(positionPct, currentTime, true, false)
             )
-          );
+          ).catch(() => {});
         }
 
         if (currentTrack) {
           previousTrackIdRef.current = currentTrack.Id;
           previousTrackStartRef.current = Date.now();
 
-          void sendSignal(
+          sendSignal(
             createSignal('PLAY_START', currentTrack.Id, buildContext(0, 0, true, false))
-          );
+          ).catch(() => {});
         } else {
           previousTrackIdRef.current = null;
         }
@@ -105,13 +105,13 @@ export function useSignalEmitter() {
         volumeTimerRef.current = setTimeout(() => {
           const { currentTime, duration } = useTimingStore.getState();
           const positionPct = duration > 0 ? currentTime / duration : 0;
-          void sendSignal(
+          sendSignal(
             createSignal(
               'VOLUME_CHANGE',
               trackId,
               buildContext(positionPct, currentTime, false, true)
             )
-          );
+          ).catch(() => {});
         }, VOLUME_DEBOUNCE_MS);
       }
     );
@@ -127,13 +127,13 @@ export function useSignalEmitter() {
             if (!trackId) return;
             const { currentTime, duration } = useTimingStore.getState();
             const positionPct = duration > 0 ? currentTime / duration : 0;
-            void sendSignal(
+            sendSignal(
               createSignal(
                 'PAUSE_LONG',
                 trackId,
                 buildContext(positionPct, currentTime, false, true)
               )
-            );
+            ).catch(() => {});
           }, PAUSE_LONG_THRESHOLD_MS);
         } else if (isPlaying && pauseTimerRef.current) {
           clearTimeout(pauseTimerRef.current);

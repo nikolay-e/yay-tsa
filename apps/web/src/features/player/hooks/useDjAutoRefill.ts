@@ -28,9 +28,10 @@ export function useDjAutoRefill() {
 
       if (totalRemainingSec < REFILL_THRESHOLD_SEC) {
         refillPendingRef.current = true;
-        void useSessionStore
+        useSessionStore
           .getState()
           .refreshQueue()
+          .catch(() => {})
           .finally(() => {
             refillPendingRef.current = false;
           });

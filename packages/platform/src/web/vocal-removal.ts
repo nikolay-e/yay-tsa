@@ -82,62 +82,27 @@ export class VocalRemovalProcessor {
     this.outputGain.gain.value = 1;
   }
 
+  private safeDisconnect(node: AudioNode | null): void {
+    if (!node) return;
+    try {
+      node.disconnect();
+    } catch {
+      // Already disconnected
+    }
+  }
+
   private disconnectAll(): void {
-    if (this.inputNode) {
-      try {
-        this.inputNode.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.splitter) {
-      try {
-        this.splitter.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.merger) {
-      try {
-        this.merger.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.highPassFilter) {
-      try {
-        this.highPassFilter.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.lowPassFilter) {
-      try {
-        this.lowPassFilter.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.invertGainRight) {
-      try {
-        this.invertGainRight.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.invertGainLeft) {
-      try {
-        this.invertGainLeft.disconnect();
-      } catch {
-        // Already disconnected
-      }
-    }
-    if (this.outputGain) {
-      try {
-        this.outputGain.disconnect();
-      } catch {
-        // Already disconnected
-      }
+    for (const node of [
+      this.inputNode,
+      this.splitter,
+      this.merger,
+      this.highPassFilter,
+      this.lowPassFilter,
+      this.invertGainRight,
+      this.invertGainLeft,
+      this.outputGain,
+    ]) {
+      this.safeDisconnect(node);
     }
   }
 

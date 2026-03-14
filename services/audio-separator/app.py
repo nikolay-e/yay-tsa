@@ -61,6 +61,10 @@ NEGATIVE_CACHE_MAX_AGE_DAYS = 30
 
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
+ERR_INTERNAL = "Internal processing error"
+ERR_FEATURE_EXTRACTION_UNAVAILABLE = "Feature extraction not available"
+ERR_EMBEDDING_UNAVAILABLE = "Embedding extraction not available"
+
 
 def _sanitize(value) -> str:
     return _CONTROL_CHAR_RE.sub("", str(value))
@@ -260,7 +264,7 @@ def _cleanup_leftover_stems(karaoke_dir: Path, keep_names: list[str]):
     responses={
         403: {"description": "Path traversal attempt"},
         404: {"description": "Input file not found"},
-        500: {"description": "Internal processing error"},
+        500: {"description": ERR_INTERNAL},
     },
 )
 def separate_audio(request: SeparationRequest):
@@ -328,7 +332,7 @@ def separate_audio(request: SeparationRequest):
 
     except Exception:
         log.exception("Separation failed for %s", _sanitize(track_id))
-        raise HTTPException(status_code=500, detail="Internal processing error")
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
 
 
 # ===========================================================================
@@ -677,6 +681,26 @@ def _entry_matches_query(
     return True
 
 
+def _find_best_lyrics(
+    results: list,
+    artist: str,
+    title: str,
+    duration_seconds: float | None,
+) -> tuple[str | None, str | None]:
+    best_synced = None
+    best_plain = None
+    for entry in results:
+        if not _entry_matches_query(entry, artist, title, duration_seconds):
+            continue
+        if entry.get("syncedLyrics") and not best_synced:
+            best_synced = entry["syncedLyrics"]
+        if entry.get("plainLyrics") and not best_plain:
+            best_plain = entry["plainLyrics"]
+        if best_synced:
+            break
+    return best_synced, best_plain
+
+
 def _fetch_lrclib_search(
     artist: str,
     title: str,
@@ -698,17 +722,7 @@ def _fetch_lrclib_search(
         if not results:
             return None, "not_found"
 
-        best_synced = None
-        best_plain = None
-        for entry in results:
-            if not _entry_matches_query(entry, artist, title, duration_seconds):
-                continue
-            if entry.get("syncedLyrics") and not best_synced:
-                best_synced = entry["syncedLyrics"]
-            if entry.get("plainLyrics") and not best_plain:
-                best_plain = entry["plainLyrics"]
-            if best_synced:
-                break
+        best_synced, best_plain = _find_best_lyrics(results, artist, title, duration_seconds)
 
         if best_synced:
             return best_synced, "lrclib-search-synced"
@@ -780,6 +794,17 @@ def _search_all_sources(
     return candidates, False
 
 
+def _find_verified_synced(
+    lyrics_a: str, source_a: str, synced_a: bool,
+    lyrics_b: str, source_b: str, synced_b: bool,
+) -> tuple[str, str] | None:
+    if synced_a:
+        return (lyrics_a, source_a)
+    if synced_b:
+        return (lyrics_b, source_b)
+    return None
+
+
 def _cross_validate_candidates(
     candidates: list[tuple[str, str, bool]],
 ) -> tuple[str, str] | None:
@@ -794,10 +819,9 @@ def _cross_validate_candidates(
             log.info(f"Cross-validation {source_a} vs {source_b}: similarity={sim:.2f}")
             if sim >= 0.35:
                 if not verified_synced:
-                    if synced_a:
-                        verified_synced = (lyrics_a, source_a)
-                    elif synced_b:
-                        verified_synced = (lyrics_b, source_b)
+                    verified_synced = _find_verified_synced(
+                        lyrics_a, source_a, synced_a, lyrics_b, source_b, synced_b
+                    )
                 if not verified_plain:
                     verified_plain = (lyrics_a, source_a)
 
@@ -948,13 +972,13 @@ class BatchExtractionResponse(BaseModel):
     responses={
         403: {"description": "Path traversal attempt"},
         404: {"description": "File not found"},
-        500: {"description": "Internal processing error"},
-        503: {"description": "Feature extraction not available"},
+        500: {"description": ERR_INTERNAL},
+        503: {"description": ERR_FEATURE_EXTRACTION_UNAVAILABLE},
     },
 )
 def extract_features(request: ExtractionRequest):
     if not ESSENTIA_AVAILABLE or _analyzer is None:
-        raise HTTPException(status_code=503, detail="Feature extraction not available")
+        raise HTTPException(status_code=503, detail=ERR_FEATURE_EXTRACTION_UNAVAILABLE)
 
     file_path = _validate_media_path(request.file_path)
     if not file_path.exists():
@@ -971,17 +995,21 @@ def extract_features(request: ExtractionRequest):
         )
     except Exception:
         log.exception("Feature extraction failed for track %s", _sanitize(request.track_id))
-        raise HTTPException(status_code=500, detail="Internal processing error")
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
 
 
 @app.post(
     "/api/v1/extract/batch",
     response_model=BatchExtractionResponse,
-    responses={503: {"description": "Feature extraction not available"}},
+    responses={
+        403: {"description": "Path traversal attempt"},
+        500: {"description": ERR_INTERNAL},
+        503: {"description": ERR_FEATURE_EXTRACTION_UNAVAILABLE},
+    },
 )
 def extract_features_batch(request: BatchExtractionRequest):
     if not ESSENTIA_AVAILABLE or _analyzer is None:
-        raise HTTPException(status_code=503, detail="Feature extraction not available")
+        raise HTTPException(status_code=503, detail=ERR_FEATURE_EXTRACTION_UNAVAILABLE)
 
     results = []
     failed = []
@@ -1059,13 +1087,13 @@ class TextEmbedResponse(BaseModel):
     responses={
         403: {"description": "Path traversal attempt"},
         404: {"description": "File not found"},
-        500: {"description": "Internal processing error"},
-        503: {"description": "Embedding extraction not available"},
+        500: {"description": ERR_INTERNAL},
+        503: {"description": ERR_EMBEDDING_UNAVAILABLE},
     },
 )
 def extract_embeddings(request: EmbedRequest):
     if not EMBEDDING_AVAILABLE or _embedding_extractor is None:
-        raise HTTPException(status_code=503, detail="Embedding extraction not available")
+        raise HTTPException(status_code=503, detail=ERR_EMBEDDING_UNAVAILABLE)
 
     file_path = _validate_media_path(request.file_path)
     if not file_path.exists():
@@ -1081,17 +1109,21 @@ def extract_embeddings(request: EmbedRequest):
         )
     except Exception:
         log.exception("Embedding extraction failed for track %s", _sanitize(request.track_id))
-        raise HTTPException(status_code=500, detail="Internal processing error")
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
 
 
 @app.post(
     "/api/v1/embed/batch",
     response_model=BatchEmbedResponse,
-    responses={503: {"description": "Embedding extraction not available"}},
+    responses={
+        403: {"description": "Path traversal attempt"},
+        500: {"description": ERR_INTERNAL},
+        503: {"description": ERR_EMBEDDING_UNAVAILABLE},
+    },
 )
 def extract_embeddings_batch(request: BatchEmbedRequest):
     if not EMBEDDING_AVAILABLE or _embedding_extractor is None:
-        raise HTTPException(status_code=503, detail="Embedding extraction not available")
+        raise HTTPException(status_code=503, detail=ERR_EMBEDDING_UNAVAILABLE)
 
     results = []
     failed = []
@@ -1122,18 +1154,21 @@ def extract_embeddings_batch(request: BatchEmbedRequest):
 @app.post(
     "/api/v1/embed/text",
     response_model=TextEmbedResponse,
-    responses={503: {"description": "Embedding extraction not available"}},
+    responses={
+        500: {"description": ERR_INTERNAL},
+        503: {"description": ERR_EMBEDDING_UNAVAILABLE},
+    },
 )
 def encode_text_embedding(request: TextEmbedRequest):
     if not EMBEDDING_AVAILABLE or _embedding_extractor is None:
-        raise HTTPException(status_code=503, detail="Embedding extraction not available")
+        raise HTTPException(status_code=503, detail=ERR_EMBEDDING_UNAVAILABLE)
 
     try:
         embedding = _embedding_extractor.encode_text(request.text)
         return TextEmbedResponse(embedding=embedding, dimensions=len(embedding))
     except Exception:
         log.exception("Text embedding failed for: %s", _sanitize(request.text[:100]))
-        raise HTTPException(status_code=500, detail="Internal processing error")
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
 
 
 @app.get("/api/v1/embed/status")

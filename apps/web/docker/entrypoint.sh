@@ -47,13 +47,13 @@ validate_backend_url() {
 # Detect runtime environment
 detect_environment() {
   # Check for Kubernetes
-  if [ -f /run/secrets/kubernetes.io/serviceaccount/token ] || [ -n "$KUBERNETES_SERVICE_HOST" ]; then
+  if [[ -f /run/secrets/kubernetes.io/serviceaccount/token ]] || [[ -n "$KUBERNETES_SERVICE_HOST" ]]; then
     echo "kubernetes"
     return
   fi
 
   # Check for Docker Compose
-  if [ -n "$COMPOSE_PROJECT_NAME" ] || [ -f /.dockerenv ]; then
+  if [[ -n "$COMPOSE_PROJECT_NAME" ]] || [[ -f /.dockerenv ]]; then
     echo "docker-compose"
     return
   fi
@@ -67,7 +67,7 @@ detect_environment() {
 ENVIRONMENT=$(detect_environment)
 echo "Detected environment: $ENVIRONMENT"
 
-if [ -n "$YAYTSA_SERVER_URL" ]; then
+if [[ -n "$YAYTSA_SERVER_URL" ]]; then
   # Explicitly configured server URL
   echo "INFO: Using configured server: $YAYTSA_SERVER_URL"
 else
@@ -144,13 +144,13 @@ printf '%s\n' "$CONFIG_JSON"
 # Vite plugin computes hashes during build and stores them in .csp-hashes.json
 CSP_HASHES_FILE="/usr/share/nginx/html/.csp-hashes.json"
 
-if [ -f "$CSP_HASHES_FILE" ]; then
+if [[ -f "$CSP_HASHES_FILE" ]]; then
   echo "Loading CSP hashes from build artifacts: $CSP_HASHES_FILE"
 
   # Extract hashes from JSON and format for CSP directive
   SCRIPT_HASHES=$(jq -r '.scriptHashes | map("'"'"'" + . + "'"'"'") | join(" ")' "$CSP_HASHES_FILE")
 
-  if [ -n "$SCRIPT_HASHES" ]; then
+  if [[ -n "$SCRIPT_HASHES" ]]; then
     CSP_SCRIPT_HASHES="'self' $SCRIPT_HASHES"
     echo "Loaded CSP script hashes: $CSP_SCRIPT_HASHES"
   else
@@ -171,11 +171,11 @@ fi
 #   - "auto" (default): strict if YAYTSA_SERVER_URL is set, otherwise relaxed
 CSP_MODE="${CSP_MODE:-auto}"
 
-if [ "$CSP_MODE" = "relaxed" ]; then
+if [[ "$CSP_MODE" = "relaxed" ]]; then
   CSP_CONNECT_SRC_DOMAINS="*"
   echo "CSP Mode: RELAXED - connect-src allows all domains (private deployment mode)"
-elif [ "$CSP_MODE" = "strict" ]; then
-  if [ -n "${YAYTSA_SERVER_URL}" ]; then
+elif [[ "$CSP_MODE" = "strict" ]]; then
+  if [[ -n "${YAYTSA_SERVER_URL}" ]]; then
     SERVER_DOMAIN=$(echo "${YAYTSA_SERVER_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')
     CSP_CONNECT_SRC_DOMAINS="$SERVER_DOMAIN"
     echo "CSP Mode: STRICT - connect-src restricted to: $SERVER_DOMAIN"
@@ -183,8 +183,8 @@ elif [ "$CSP_MODE" = "strict" ]; then
     echo "ERROR: CSP_MODE=strict requires YAYTSA_SERVER_URL to be set" >&2
     exit 1
   fi
-elif [ "$CSP_MODE" = "auto" ]; then
-  if [ -n "${YAYTSA_SERVER_URL}" ]; then
+elif [[ "$CSP_MODE" = "auto" ]]; then
+  if [[ -n "${YAYTSA_SERVER_URL}" ]]; then
     # Check if it's a relative path or absolute URL
     if echo "${YAYTSA_SERVER_URL}" | grep -qE '^https?://'; then
       SERVER_DOMAIN=$(echo "${YAYTSA_SERVER_URL}" | sed -E 's#^(https?://[^/]+).*#\1#')
@@ -212,7 +212,7 @@ echo "INFO: Media path for X-Accel-Redirect: $YAYTSA_MEDIA_PATH"
 # In docker-compose: defaults to http://backend:8096 (yay-tsa-backend service)
 # In Kubernetes: use internal service discovery URL
 # NEVER falls back to YAYTSA_SERVER_URL (which can be relative /api)
-if [ -z "$YAYTSA_BACKEND_URL" ]; then
+if [[ -z "$YAYTSA_BACKEND_URL" ]]; then
   case "$ENVIRONMENT" in
   "docker-compose")
     YAYTSA_BACKEND_URL="http://backend:8096"

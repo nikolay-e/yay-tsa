@@ -8,17 +8,18 @@ interface FavoriteToggleParams {
   isFavorite: boolean;
 }
 
+function patchArrayItems(items: unknown[], itemId: string, isFavorite: boolean): boolean {
+  let patched = false;
+  for (const item of items) {
+    if (patchFavoriteInData(item, itemId, isFavorite)) patched = true;
+  }
+  return patched;
+}
+
 function patchFavoriteInData(data: unknown, itemId: string, isFavorite: boolean): boolean {
   if (!data || typeof data !== 'object') return false;
 
-  let patched = false;
-
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (patchFavoriteInData(item, itemId, isFavorite)) patched = true;
-    }
-    return patched;
-  }
+  if (Array.isArray(data)) return patchArrayItems(data, itemId, isFavorite);
 
   const record = data as Record<string, unknown>;
 
@@ -27,18 +28,12 @@ function patchFavoriteInData(data: unknown, itemId: string, isFavorite: boolean)
     return true;
   }
 
-  if (record.Items && Array.isArray(record.Items)) {
-    for (const item of record.Items) {
-      if (patchFavoriteInData(item, itemId, isFavorite)) patched = true;
+  let patched = false;
+  for (const key of ['Items', 'pages'] as const) {
+    if (Array.isArray(record[key])) {
+      if (patchArrayItems(record[key] as unknown[], itemId, isFavorite)) patched = true;
     }
   }
-
-  if (record.pages && Array.isArray(record.pages)) {
-    for (const page of record.pages) {
-      if (patchFavoriteInData(page, itemId, isFavorite)) patched = true;
-    }
-  }
-
   return patched;
 }
 
@@ -135,11 +130,13 @@ export function useFavoriteToggle() {
       }
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['albums'] });
-      void queryClient.invalidateQueries({ queryKey: ['artists'] });
-      void queryClient.invalidateQueries({ queryKey: ['tracks'] });
-      void queryClient.invalidateQueries({ queryKey: ['album'] });
-      void queryClient.invalidateQueries({ queryKey: ['artist'] });
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['albums'] }),
+        queryClient.invalidateQueries({ queryKey: ['artists'] }),
+        queryClient.invalidateQueries({ queryKey: ['tracks'] }),
+        queryClient.invalidateQueries({ queryKey: ['album'] }),
+        queryClient.invalidateQueries({ queryKey: ['artist'] }),
+      ]).catch(() => {});
     },
   });
 }

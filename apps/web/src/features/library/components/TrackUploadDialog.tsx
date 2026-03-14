@@ -129,13 +129,13 @@ export function TrackUploadDialog({
     setFiles(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  const updateFileAt = (index: number, patch: Partial<FileUploadStatus>) => {
+    setFiles(prev => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
+  };
+
   const uploadSingleFile = (fileStatus: FileUploadStatus, index: number): Promise<boolean> => {
     if (!client) {
-      setFiles(prev =>
-        prev.map((f, i) =>
-          i === index ? { ...f, status: 'error', message: 'Not authenticated' } : f
-        )
-      );
+      updateFileAt(index, { status: 'error', message: 'Not authenticated' });
       return Promise.resolve(false);
     }
 
@@ -147,9 +147,7 @@ export function TrackUploadDialog({
     function handleProgress(event: ProgressEvent) {
       if (event.lengthComputable) {
         const progress = Math.round((event.loaded / event.total) * 100);
-        setFiles(prev =>
-          prev.map((f, i) => (i === index ? { ...f, progress, status: 'uploading' } : f))
-        );
+        updateFileAt(index, { progress, status: 'uploading' });
       }
     }
 
@@ -163,56 +161,31 @@ export function TrackUploadDialog({
           } catch {
             /* ignore parse errors */
           }
-          setFiles(prev =>
-            prev.map((f, i) =>
-              i === index
-                ? {
-                    ...f,
-                    status: 'success',
-                    progress: 100,
-                    message: albumComplete === false ? 'Waiting for more tracks' : 'Uploaded',
-                    albumComplete,
-                  }
-                : f
-            )
-          );
+          updateFileAt(index, {
+            status: 'success',
+            progress: 100,
+            message: albumComplete === false ? 'Waiting for more tracks' : 'Uploaded',
+            albumComplete,
+          });
           resolve(true);
         } else if (xhr.status === 409) {
-          setFiles(prev =>
-            prev.map((f, i) =>
-              i === index
-                ? {
-                    ...f,
-                    status: 'duplicate',
-                    progress: 100,
-                    message: xhr.responseText || 'Duplicate track',
-                  }
-                : f
-            )
-          );
+          updateFileAt(index, {
+            status: 'duplicate',
+            progress: 100,
+            message: xhr.responseText || 'Duplicate track',
+          });
           resolve(true);
         } else {
-          setFiles(prev =>
-            prev.map((f, i) =>
-              i === index
-                ? {
-                    ...f,
-                    status: 'error',
-                    message: xhr.responseText || `Failed (${xhr.status})`,
-                  }
-                : f
-            )
-          );
+          updateFileAt(index, {
+            status: 'error',
+            message: xhr.responseText || `Failed (${xhr.status})`,
+          });
           resolve(false);
         }
       }
 
       function handleError() {
-        setFiles(prev =>
-          prev.map((f, i) =>
-            i === index ? { ...f, status: 'error', message: 'Network error' } : f
-          )
-        );
+        updateFileAt(index, { status: 'error', message: 'Network error' });
         resolve(false);
       }
 

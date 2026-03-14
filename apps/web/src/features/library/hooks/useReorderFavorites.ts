@@ -68,9 +68,11 @@ export function useReorderFavorites() {
       }
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['albums'] });
-      void queryClient.invalidateQueries({ queryKey: ['artists'] });
-      void queryClient.invalidateQueries({ queryKey: ['tracks'] });
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['albums'] }),
+        queryClient.invalidateQueries({ queryKey: ['artists'] }),
+        queryClient.invalidateQueries({ queryKey: ['tracks'] }),
+      ]).catch(() => {});
     },
   });
 }

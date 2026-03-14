@@ -368,7 +368,7 @@ export const usePlayerStore = create<PlayerStore>()(
         currentItemId = track.Id;
         set({ isPlaying: true });
         consecutiveLoadFailures = 0;
-        void wakeLock.acquire();
+        wakeLock.acquire().catch(() => {});
 
         // --- Side effects ---
         engine.setNormalizationGain?.(track.NormalizationGain ?? null);
@@ -527,15 +527,21 @@ export const usePlayerStore = create<PlayerStore>()(
 
     session?.setActionHandlers({
       onPlay: () => {
-        void get().resume();
+        get()
+          .resume()
+          .catch(() => {});
       },
       onPause: () => get().pause(),
       onSeek: seconds => get().seek(seconds),
       onNext: () => {
-        void get().next();
+        get()
+          .next()
+          .catch(() => {});
       },
       onPrevious: () => {
-        void get().previous();
+        get()
+          .previous()
+          .catch(() => {});
       },
     });
 
@@ -587,6 +593,7 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       pause: () => {
+        // eslint-disable-next-line @typescript-eslint/require-await
         void controller.interrupt(async () => {
           engine.pause();
           set({ isPlaying: false });
@@ -599,8 +606,6 @@ export const usePlayerStore = create<PlayerStore>()(
                 log.player.warn('Failed to report pause', { error: String(err) });
               });
           }
-
-          return Promise.resolve();
         });
       },
 
@@ -609,7 +614,7 @@ export const usePlayerStore = create<PlayerStore>()(
           try {
             await engine.play();
             set({ isPlaying: true });
-            void wakeLock.acquire();
+            wakeLock.acquire().catch(() => {});
 
             if (playbackReporter && currentItemId) {
               playbackReporter
@@ -641,7 +646,7 @@ export const usePlayerStore = create<PlayerStore>()(
             }
             useTimingStore.getState().reset();
             set({ isPlaying: false });
-            return Promise.resolve();
+            return;
           }
           get().queue.advanceTo(next.Id);
           try {
@@ -722,6 +727,7 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       stop: () => {
+        // eslint-disable-next-line @typescript-eslint/require-await
         void controller.interrupt(async () => {
           engine.pause();
           engine.seek(0);
@@ -758,8 +764,6 @@ export const usePlayerStore = create<PlayerStore>()(
             queueItems: [],
             queueIndex: -1,
           });
-
-          return Promise.resolve();
         });
       },
 
@@ -971,19 +975,21 @@ export const usePlayerStore = create<PlayerStore>()(
             const hour = new Date().getHours();
             const timeOfDay =
               hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
-            void sessionState.sendSignal({
-              signalType: 'QUEUE_JUMP',
-              trackId,
-              context: {
-                positionPct: duration > 0 ? currentTime / duration : 0,
-                elapsedSec: currentTime,
-                autoplay: false,
-                selectedByUser: true,
-                timeOfDay,
-              },
-            });
+            sessionState
+              .sendSignal({
+                signalType: 'QUEUE_JUMP',
+                trackId,
+                context: {
+                  positionPct: duration > 0 ? currentTime / duration : 0,
+                  elapsedSec: currentTime,
+                  autoplay: false,
+                  selectedByUser: true,
+                  timeOfDay,
+                },
+              })
+              .catch(() => {});
             if (remaining < 8) {
-              void sessionState.refreshQueue();
+              sessionState.refreshQueue().catch(() => {});
             }
           }
         });
@@ -1124,17 +1130,19 @@ if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
         if (audioEngine?.fadeVolume) {
           const { promise, cancel } = audioEngine.fadeVolume(startVolume, 0, crossfadeDurationMs);
           sleepTimerFadeCancel = cancel;
-          void promise.then(() => {
-            sleepTimerFadeCancel = null;
-            if (noiseDurationMs > 0) {
-              sleepTimerPhase = 'noise';
-              setTimeout(() => {
+          promise
+            .then(() => {
+              sleepTimerFadeCancel = null;
+              if (noiseDurationMs > 0) {
+                sleepTimerPhase = 'noise';
+                setTimeout(() => {
+                  completeSleepTimer();
+                }, noiseDurationMs);
+              } else {
                 completeSleepTimer();
-              }, noiseDurationMs);
-            } else {
-              completeSleepTimer();
-            }
-          });
+              }
+            })
+            .catch(() => {});
         } else {
           completeSleepTimer();
         }

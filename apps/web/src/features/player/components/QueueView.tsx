@@ -39,17 +39,20 @@ function DjFeedbackButtons({
     const hour = new Date().getHours();
     const timeOfDay =
       hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
-    void useSessionStore.getState().sendSignal({
-      signalType: type,
-      trackId,
-      context: {
-        positionPct: 0,
-        elapsedSec: 0,
-        autoplay: false,
-        selectedByUser: true,
-        timeOfDay,
-      },
-    });
+    useSessionStore
+      .getState()
+      .sendSignal({
+        signalType: type,
+        trackId,
+        context: {
+          positionPct: 0,
+          elapsedSec: 0,
+          autoplay: false,
+          selectedByUser: true,
+          timeOfDay,
+        },
+      })
+      .catch(() => {});
   };
 
   return (
