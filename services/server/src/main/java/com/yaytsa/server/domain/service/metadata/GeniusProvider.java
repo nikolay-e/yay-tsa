@@ -299,9 +299,9 @@ public class GeniusProvider implements MetadataProvider {
     // Remove common annotations that hurt search accuracy
     String cleaned =
         title
-            .replaceAll("(?i)\\s*\\(feat\\.?\\s+[^)]*\\)", "") // (feat. Artist)
-            .replaceAll("(?i)\\s*\\[feat\\.?\\s+[^\\]]*\\]", "") // [feat. Artist]
-            .replaceAll("(?i)\\s*\\(with\\s+[^)]*\\)", "") // (with Artist)
+            .replaceAll("(?i)\\s*\\(feat\\.?[^)]*\\)", "") // (feat. Artist)
+            .replaceAll("(?i)\\s*\\[feat\\.?[^\\]]*\\]", "") // [feat. Artist]
+            .replaceAll("(?i)\\s*\\(with[^)]*\\)", "") // (with Artist)
             .replaceAll("(?i)\\s*\\(remix[^)]*\\)", "") // (Remix)
             .replaceAll("(?i)\\s*\\[remix[^\\]]*\\]", "") // [Remix]
             .replaceAll("(?i)\\s*\\(remaster(ed)?[^)]*\\)", "") // (Remastered)
