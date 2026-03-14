@@ -27,6 +27,7 @@ public class TasteProfileService {
   private final PlaybackSignalRepository playbackSignalRepository;
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final UserRepository userRepository;
+  private final UserEmbeddingService userEmbeddingService;
   private final ObjectMapper objectMapper;
 
   public TasteProfileService(
@@ -34,11 +35,13 @@ public class TasteProfileService {
       PlaybackSignalRepository playbackSignalRepository,
       TrackFeaturesRepository trackFeaturesRepository,
       UserRepository userRepository,
+      UserEmbeddingService userEmbeddingService,
       ObjectMapper objectMapper) {
     this.tasteProfileRepository = tasteProfileRepository;
     this.playbackSignalRepository = playbackSignalRepository;
     this.trackFeaturesRepository = trackFeaturesRepository;
     this.userRepository = userRepository;
+    this.userEmbeddingService = userEmbeddingService;
     this.objectMapper = objectMapper;
   }
 
@@ -186,6 +189,16 @@ public class TasteProfileService {
       entity.setProfile("{}");
     }
     entity.setSummaryText(summaryText);
+    try {
+      var embeddings = userEmbeddingService.computeUserEmbeddings(userId);
+      if (embeddings != null) {
+        entity.setEmbeddingMert(embeddings.mert());
+        entity.setEmbeddingClap(embeddings.clap());
+        entity.setTrackCount(embeddings.trackCount());
+      }
+    } catch (Exception e) {
+      log.warn("Failed to compute user embeddings for user {}: {}", userId, e.getMessage());
+    }
     entity.setRebuiltAt(OffsetDateTime.now());
     tasteProfileRepository.save(entity);
   }

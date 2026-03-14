@@ -169,4 +169,97 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
       @Param("valenceMin") Float valenceMin,
       @Param("valenceMax") Float valenceMax,
       @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
+                 1 - (tf.embedding_mert <=> CAST(:refEmbedding AS vector)) AS similarity
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          WHERE i.type = 'AudioTrack'
+            AND i.id != :refTrackId
+            AND tf.embedding_mert IS NOT NULL
+          ORDER BY tf.embedding_mert <=> CAST(:refEmbedding AS vector)
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findSimilarTracksByMert(
+      @Param("refTrackId") UUID refTrackId,
+      @Param("refEmbedding") String refEmbedding,
+      @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
+                 1 - (tf.embedding_clap <=> CAST(:queryEmbedding AS vector)) AS similarity
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          WHERE i.type = 'AudioTrack'
+            AND tf.embedding_clap IS NOT NULL
+          ORDER BY tf.embedding_clap <=> CAST(:queryEmbedding AS vector)
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findTracksByTextEmbedding(
+      @Param("queryEmbedding") String queryEmbedding, @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
+                 1 - (tf.embedding_mert <=> CAST(:userEmbedding AS vector)) AS similarity
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          WHERE i.type = 'AudioTrack'
+            AND tf.embedding_mert IS NOT NULL
+            AND i.id NOT IN (:excludeIds)
+          ORDER BY tf.embedding_mert <=> CAST(:userEmbedding AS vector)
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findTracksByUserEmbedding(
+      @Param("userEmbedding") String userEmbedding,
+      @Param("excludeIds") List<UUID> excludeIds,
+      @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT COUNT(*) FROM track_features
+          WHERE embedding_mert IS NOT NULL
+          """,
+      nativeQuery = true)
+  long countWithEmbeddings();
+
+  @Query(
+      value =
+          """
+          SELECT tf.track_id FROM track_features tf
+          WHERE tf.embedding_discogs IS NOT NULL
+            AND tf.embedding_mert IS NULL
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<UUID> findTrackIdsWithoutEmbeddings(@Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT COUNT(*) FROM track_features
+          WHERE embedding_discogs IS NOT NULL
+            AND embedding_mert IS NULL
+          """,
+      nativeQuery = true)
+  long countTracksWithoutEmbeddings();
 }

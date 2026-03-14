@@ -216,6 +216,22 @@ public class CandidateRetrievalService {
         .collect(java.util.stream.Collectors.joining(",", "[", "]"));
   }
 
+  static TrackCandidate mapEmbeddingSimilarityRow(Object[] row) {
+    return new TrackCandidate(
+        (UUID) row[0],
+        (String) row[1],
+        (String) row[2],
+        (String) row[3],
+        toFloat(row[4]),
+        toFloat(row[5]),
+        toFloat(row[6]),
+        toFloat(row[7]),
+        toFloat(row[8]),
+        null,
+        null,
+        toDouble(row[9]));
+  }
+
   private static Float toFloat(Object val) {
     return val instanceof Number n ? n.floatValue() : null;
   }

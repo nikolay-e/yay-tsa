@@ -37,6 +37,7 @@ public class SignalProcessingService {
   private final ItemRepository itemRepository;
   private final AdaptiveQueueRepository queueRepository;
   private final AdaptiveQueueService adaptiveQueueService;
+  private final AffinityAggregationService affinityAggregationService;
   private final ObjectMapper objectMapper;
   private final int queueLowThreshold;
 
@@ -46,6 +47,7 @@ public class SignalProcessingService {
       ItemRepository itemRepository,
       AdaptiveQueueRepository queueRepository,
       AdaptiveQueueService adaptiveQueueService,
+      AffinityAggregationService affinityAggregationService,
       ObjectMapper objectMapper,
       @Value("${yaytsa.adaptive-dj.queue.trigger-threshold:8}") int queueLowThreshold) {
     this.signalRepository = signalRepository;
@@ -53,6 +55,7 @@ public class SignalProcessingService {
     this.itemRepository = itemRepository;
     this.queueRepository = queueRepository;
     this.adaptiveQueueService = adaptiveQueueService;
+    this.affinityAggregationService = affinityAggregationService;
     this.objectMapper = objectMapper;
     this.queueLowThreshold = queueLowThreshold;
   }
@@ -83,6 +86,17 @@ public class SignalProcessingService {
     signal.setSignalType(signalType);
     signal.setContext(serializeJson(context));
     signal = signalRepository.save(signal);
+
+    try {
+      affinityAggregationService.updateAffinityFromSignal(
+          session.getUser().getId(), trackId, signalType);
+    } catch (Exception e) {
+      log.warn(
+          "Affinity update failed for user {} track {}: {}",
+          session.getUser().getId(),
+          trackId,
+          e.getMessage());
+    }
 
     if (CONSUMED_SIGNALS.contains(signalType)) {
       markQueueEntryConsumed(sessionId, trackId, signalType);

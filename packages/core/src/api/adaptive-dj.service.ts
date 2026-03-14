@@ -4,6 +4,7 @@ import type {
   AdaptiveQueueTrack,
   PlaybackSignal,
   UserPreferences,
+  RecommendedTrack,
 } from './adaptive-dj.types.js';
 import { BaseService } from './base-api.service.js';
 
@@ -69,5 +70,13 @@ export class AdaptiveDjService extends BaseService {
       method: 'PUT',
       body: JSON.stringify(prefs),
     });
+  }
+
+  async searchByText(query: string, limit = 20): Promise<RecommendedTrack[]> {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const result = await this.client.get<RecommendedTrack[]>(
+      `/v1/recommend/search?${params.toString()}`
+    );
+    return result ?? [];
   }
 }

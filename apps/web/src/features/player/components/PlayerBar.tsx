@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AudioItem } from '@yay-tsa/core';
-import { Mic, MicOff, Timer, AlignLeft } from 'lucide-react';
+import { Mic, MicOff, Timer, AlignLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -22,6 +22,7 @@ import {
   useKaraokeStatus,
   useSleepTimer,
 } from '../stores/player.store';
+import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
@@ -102,6 +103,8 @@ export function PlayerBar() {
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [showLyricsView, setShowLyricsView] = useState(false);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
+  const activeSession = useActiveSession();
+  const { sendSignal } = useSessionActions();
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const volume = useVolume();
@@ -148,6 +151,37 @@ export function PlayerBar() {
     []
   );
   const handleClearSleepTimer = useCallback(() => usePlayerStore.getState().clearSleepTimer(), []);
+  const handleThumbsUp = useCallback(() => {
+    if (!currentTrack) return;
+    sendSignal({
+      signalType: 'THUMBS_UP',
+      trackId: currentTrack.Id,
+      context: {
+        positionPct: 0,
+        elapsedSec: 0,
+        autoplay: false,
+        selectedByUser: true,
+        timeOfDay: new Date().toISOString(),
+      },
+    });
+    toast.add('success', 'Liked');
+  }, [currentTrack, sendSignal]);
+  const handleThumbsDown = useCallback(() => {
+    if (!currentTrack) return;
+    sendSignal({
+      signalType: 'THUMBS_DOWN',
+      trackId: currentTrack.Id,
+      context: {
+        positionPct: 0,
+        elapsedSec: 0,
+        autoplay: false,
+        selectedByUser: true,
+        timeOfDay: new Date().toISOString(),
+      },
+    });
+    usePlayerStore.getState().next();
+    toast.add('info', 'Skipping...');
+  }, [currentTrack, sendSignal]);
 
   useEffect(() => {
     if (playerError) {
@@ -221,6 +255,29 @@ export function PlayerBar() {
 
         <div className="flex shrink-0 items-center justify-end gap-1 md:flex-1 md:gap-2">
           <TimeDisplay />
+
+          {activeSession && (
+            <>
+              <button
+                type="button"
+                onClick={handleThumbsUp}
+                className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                aria-label="Thumbs up"
+                title="Like this track"
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleThumbsDown}
+                className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                aria-label="Thumbs down"
+                title="Skip and avoid"
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </button>
+            </>
+          )}
 
           <button
             type="button"

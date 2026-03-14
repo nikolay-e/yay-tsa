@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.infrastructure.client.EmbeddingExtractionClient;
 import com.yaytsa.server.infrastructure.client.FeatureExtractionClient;
 import com.yaytsa.server.infrastructure.client.FeatureExtractionClient.ExtractionResult;
 import com.yaytsa.server.infrastructure.persistence.entity.FeatureExtractionJobEntity;
@@ -29,6 +30,7 @@ public class FeatureExtractionService {
   private static final int MAX_ATTEMPTS = 3;
 
   private final FeatureExtractionClient extractionClient;
+  private final EmbeddingExtractionClient embeddingClient;
   private final FeatureExtractionJobRepository jobRepository;
   private final TrackFeaturesRepository featuresRepository;
   private final ItemRepository itemRepository;
@@ -38,6 +40,7 @@ public class FeatureExtractionService {
 
   public FeatureExtractionService(
       FeatureExtractionClient extractionClient,
+      EmbeddingExtractionClient embeddingClient,
       FeatureExtractionJobRepository jobRepository,
       TrackFeaturesRepository featuresRepository,
       ItemRepository itemRepository,
@@ -45,6 +48,7 @@ public class FeatureExtractionService {
       TransactionTemplate transactionTemplate,
       @Value("${yaytsa.media.feature-extraction.max-concurrent:2}") int maxConcurrent) {
     this.extractionClient = extractionClient;
+    this.embeddingClient = embeddingClient;
     this.jobRepository = jobRepository;
     this.featuresRepository = featuresRepository;
     this.itemRepository = itemRepository;
@@ -135,6 +139,7 @@ public class FeatureExtractionService {
           });
       log.info(
           "Feature extraction completed for track {} in {}ms", trackId, result.processingTimeMs());
+      chainEmbeddingExtraction(trackId, trackPath);
     } catch (Exception e) {
       log.error("Feature extraction failed for job {}: {}", jobId, e.getMessage());
       transactionTemplate.executeWithoutResult(
@@ -148,6 +153,36 @@ public class FeatureExtractionService {
           });
     } finally {
       extractionSemaphore.release();
+    }
+  }
+
+  public void extractEmbeddingsForTrack(UUID trackId, String trackPath) {
+    chainEmbeddingExtraction(trackId, trackPath);
+  }
+
+  private void chainEmbeddingExtraction(UUID trackId, String trackPath) {
+    if (!embeddingClient.isAvailable()) {
+      log.debug("Embedding extractor not available, skipping CLAP/MERT for track {}", trackId);
+      return;
+    }
+    try {
+      var embResult = embeddingClient.extract(trackId, trackPath);
+      transactionTemplate.executeWithoutResult(
+          status -> {
+            var entity = featuresRepository.findByTrackId(trackId).orElse(null);
+            if (entity == null) return;
+            if (embResult.embeddingClap() != null)
+              entity.setEmbeddingClap(toFloatArray(embResult.embeddingClap()));
+            if (embResult.embeddingMert() != null)
+              entity.setEmbeddingMert(toFloatArray(embResult.embeddingMert()));
+            featuresRepository.save(entity);
+          });
+      log.info(
+          "Embedding extraction completed for track {} in {}ms",
+          trackId,
+          embResult.processingTimeMs());
+    } catch (Exception e) {
+      log.warn("Embedding extraction failed for track {} (non-fatal): {}", trackId, e.getMessage());
     }
   }
 

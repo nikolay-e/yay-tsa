@@ -76,3 +76,14 @@ export interface UserPreferences {
   djStyle: Record<string, unknown>;
   redLines: string[];
 }
+
+export interface RecommendedTrack {
+  trackId: string;
+  name: string;
+  artistName: string;
+  albumName: string;
+  durationMs: number;
+  score: number;
+  source: string;
+  features: TrackFeatures | null;
+}

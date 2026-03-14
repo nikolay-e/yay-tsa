@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -33,6 +34,19 @@ public class TasteProfileEntity {
 
   @Column(name = "summary_text", columnDefinition = "TEXT")
   private String summaryText;
+
+  @JdbcTypeCode(SqlTypes.VECTOR)
+  @Array(length = 768)
+  @Column(name = "embedding_mert", columnDefinition = "vector(768)")
+  private float[] embeddingMert;
+
+  @JdbcTypeCode(SqlTypes.VECTOR)
+  @Array(length = 512)
+  @Column(name = "embedding_clap", columnDefinition = "vector(512)")
+  private float[] embeddingClap;
+
+  @Column(name = "track_count", nullable = false)
+  private int trackCount;
 
   @Column(name = "rebuilt_at")
   private OffsetDateTime rebuiltAt;

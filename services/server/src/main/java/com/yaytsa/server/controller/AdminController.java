@@ -1,6 +1,7 @@
 package com.yaytsa.server.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.yaytsa.server.domain.service.EmbeddingBackfillService;
 import com.yaytsa.server.domain.service.ImageService;
 import com.yaytsa.server.domain.service.LibraryScanService;
 import com.yaytsa.server.domain.service.UserManagementService;
@@ -30,18 +31,21 @@ public class AdminController {
   private final LibraryScanService libraryScanService;
   private final UserManagementService userManagementService;
   private final UserService userService;
+  private final EmbeddingBackfillService embeddingBackfillService;
 
   public AdminController(
       ImageService imageService,
       MediaScannerTransactionalService mediaScannerService,
       LibraryScanService libraryScanService,
       UserManagementService userManagementService,
-      UserService userService) {
+      UserService userService,
+      EmbeddingBackfillService embeddingBackfillService) {
     this.imageService = imageService;
     this.mediaScannerService = mediaScannerService;
     this.libraryScanService = libraryScanService;
     this.userManagementService = userManagementService;
     this.userService = userService;
+    this.embeddingBackfillService = embeddingBackfillService;
   }
 
   record UserSummary(
@@ -206,5 +210,43 @@ public class AdminController {
   @GetMapping("/Library/ScanStatus")
   public ResponseEntity<Map<String, Object>> getScanStatus() {
     return ResponseEntity.ok(Map.of("scanInProgress", libraryScanService.isScanInProgress()));
+  }
+
+  @PostMapping("/Embeddings/Backfill")
+  public ResponseEntity<Map<String, Object>> startEmbeddingBackfill() {
+    if (embeddingBackfillService.isRunning()) {
+      return ResponseEntity.status(409)
+          .body(
+              Map.of(
+                  "success",
+                  false,
+                  "message",
+                  "Backfill already in progress",
+                  "processed",
+                  embeddingBackfillService.getProcessedCount()));
+    }
+    embeddingBackfillService.startBackfill();
+    return ResponseEntity.ok(Map.of("success", true, "message", "Embedding backfill started"));
+  }
+
+  @GetMapping("/Embeddings/Backfill/Status")
+  public ResponseEntity<Map<String, Object>> getBackfillStatus() {
+    return ResponseEntity.ok(
+        Map.of(
+            "running", embeddingBackfillService.isRunning(),
+            "processed", embeddingBackfillService.getProcessedCount()));
+  }
+
+  @DeleteMapping("/Embeddings/Backfill")
+  public ResponseEntity<Map<String, Object>> stopEmbeddingBackfill() {
+    embeddingBackfillService.stopBackfill();
+    return ResponseEntity.ok(
+        Map.of(
+            "success",
+            true,
+            "message",
+            "Backfill stop requested",
+            "processed",
+            embeddingBackfillService.getProcessedCount()));
   }
 }

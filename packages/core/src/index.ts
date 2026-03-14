@@ -30,6 +30,7 @@ export type {
   SignalType,
   SignalContext,
   UserPreferences,
+  RecommendedTrack,
 } from './api/adaptive-dj.types.js';
 
 // Player modules

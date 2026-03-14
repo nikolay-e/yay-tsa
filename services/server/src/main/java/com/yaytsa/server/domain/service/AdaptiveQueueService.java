@@ -1,15 +1,19 @@
 package com.yaytsa.server.domain.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yaytsa.server.domain.service.LlmSessionParamService.DjSessionParams;
 import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.AdaptiveQueueEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
-import com.yaytsa.server.infrastructure.persistence.entity.UserPreferenceContractEntity;
+import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ListeningSessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserPreferenceContractRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,26 +31,23 @@ public class AdaptiveQueueService {
   private final AdaptiveQueueRepository queueRepository;
   private final ListeningSessionRepository sessionRepository;
   private final UserPreferenceContractRepository contractRepository;
-  private final LlmDjService llmDjService;
-  private final QueuePolicyValidator policyValidator;
-  private final AdaptiveQueueManager queueManager;
+  private final LlmSessionParamService llmSessionParamService;
   private final FallbackQueueService fallbackQueueService;
+  private final ObjectMapper objectMapper;
 
   public AdaptiveQueueService(
       AdaptiveQueueRepository queueRepository,
       ListeningSessionRepository sessionRepository,
       UserPreferenceContractRepository contractRepository,
-      LlmDjService llmDjService,
-      QueuePolicyValidator policyValidator,
-      AdaptiveQueueManager queueManager,
-      FallbackQueueService fallbackQueueService) {
+      LlmSessionParamService llmSessionParamService,
+      FallbackQueueService fallbackQueueService,
+      ObjectMapper objectMapper) {
     this.queueRepository = queueRepository;
     this.sessionRepository = sessionRepository;
     this.contractRepository = contractRepository;
-    this.llmDjService = llmDjService;
-    this.policyValidator = policyValidator;
-    this.queueManager = queueManager;
+    this.llmSessionParamService = llmSessionParamService;
     this.fallbackQueueService = fallbackQueueService;
+    this.objectMapper = objectMapper;
   }
 
   public List<AdaptiveQueueEntity> getQueue(UUID sessionId) {
@@ -73,106 +74,58 @@ public class AdaptiveQueueService {
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void triggerDjDecision(
-      ListeningSessionEntity session,
-      String triggerType,
-      com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity triggerSignal) {
-
-    Optional<DjDecision> decision =
-        llmDjService.generateDecision(session, triggerType, triggerSignal);
+      ListeningSessionEntity session, String triggerType, PlaybackSignalEntity triggerSignal) {
 
     List<AdaptiveQueueEntity> currentQueue =
         queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
             session.getId(), List.of("QUEUED", "PLAYING"));
 
-    if (decision.isEmpty()) {
-      log.info("LLM unavailable, using fallback for session {}", session.getId());
-      fillQueueWithRetry(session, currentQueue.size());
-      return;
-    }
+    Optional<DjSessionParams> params =
+        llmSessionParamService.generateSessionParams(session, triggerType, triggerSignal);
 
-    UserPreferenceContractEntity preferences =
-        contractRepository.findById(session.getUser().getId()).orElse(null);
-
-    QueuePolicyValidator.ValidationResult validation =
-        policyValidator.validate(decision.get(), currentQueue, preferences, session);
-
-    if ("NO_EDITS".equals(validation.outcome())) {
-      log.warn(
-          "LLM returned no edits for session {} despite instructions, using fallback",
-          session.getId());
-      fillQueueWithRetry(session, currentQueue.size());
-      return;
-    }
-
-    if ("REJECTED".equals(validation.outcome())) {
-      log.warn(
-          "All {} LLM edits rejected by policy for session {}, using fallback",
-          decision.get().edits().size(),
-          session.getId());
-      fillQueueWithRetry(session, currentQueue.size());
-      return;
-    }
-
-    try {
-      var result =
-          queueManager.applyDecision(
-              session.getId(), decision.get().baseQueueVersion(), validation);
-      if (!result.success()) {
-        log.info(
-            "LLM decision failed for session {}: {}, retrying with fresh state",
-            session.getId(),
-            result.error());
-        retryOrFallback(session, decision.get(), preferences);
-      }
-    } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+    if (params.isPresent()) {
+      var p = params.get();
       log.info(
-          "Optimistic lock conflict for session {}, retrying with fresh state", session.getId());
-      retryOrFallback(session, decision.get(), preferences);
-    }
-  }
-
-  private void retryOrFallback(
-      ListeningSessionEntity session,
-      DjDecision decision,
-      UserPreferenceContractEntity preferences) {
-    try {
-      List<AdaptiveQueueEntity> freshQueue =
-          queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
-              session.getId(), List.of("QUEUED", "PLAYING"));
-      long freshVersion = queueManager.getCurrentVersion(session.getId());
-
-      QueuePolicyValidator.ValidationResult freshValidation =
-          policyValidator.validate(decision, freshQueue, preferences, session);
-
-      if ("REJECTED".equals(freshValidation.outcome())
-          || "NO_EDITS".equals(freshValidation.outcome())) {
-        log.info(
-            "Retry validation outcome {} for session {}, falling back",
-            freshValidation.outcome(),
-            session.getId());
-        fillQueueWithRetry(session, freshQueue.size());
-        return;
-      }
-
-      var retryResult = queueManager.applyDecision(session.getId(), freshVersion, freshValidation);
-      if (!retryResult.success()) {
-        log.info(
-            "Retry also failed for session {}: {}, falling back",
-            session.getId(),
-            retryResult.error());
-        fillQueueWithRetry(session, freshQueue.size());
-      }
-    } catch (Exception e) {
-      log.warn("Retry failed with exception for session {}, falling back", session.getId(), e);
-      fillQueueWithRetry(session, 0);
+          "LLM session params for session {}: energy={}, valence={}, exploration={}, arc={}",
+          session.getId(),
+          p.targetEnergy(),
+          p.targetValence(),
+          p.explorationWeight(),
+          p.arc());
+      persistSessionSummary(session.getId(), p.sessionSummaryUpdate());
+      fillQueueWithRetry(
+          session,
+          currentQueue.size(),
+          p.targetEnergy(),
+          p.targetValence(),
+          p.explorationWeight(),
+          Set.copyOf(p.avoidArtists()));
+    } else {
+      float exploration = resolveExplorationWeight(session.getUser().getId());
+      log.info(
+          "LLM unavailable, using djStyle-derived exploration={} for session {}",
+          exploration,
+          session.getId());
+      fillQueueWithRetry(session, currentQueue.size(), 0.5f, 0.5f, exploration, Set.of());
     }
   }
 
   private List<AdaptiveQueueEntity> fillQueueWithRetry(
-      ListeningSessionEntity session, int currentQueueSize) {
+      ListeningSessionEntity session,
+      int currentQueueSize,
+      float targetEnergy,
+      float targetValence,
+      float explorationWeight,
+      Set<String> avoidArtists) {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
-        return fallbackQueueService.fillQueue(session, currentQueueSize);
+        return fallbackQueueService.fillQueue(
+            session,
+            currentQueueSize,
+            targetEnergy,
+            targetValence,
+            explorationWeight,
+            avoidArtists);
       } catch (DataIntegrityViolationException e) {
         log.warn(
             "Queue fill version conflict attempt {} for session {}", attempt + 1, session.getId());
@@ -180,6 +133,29 @@ public class AdaptiveQueueService {
     }
     log.error("Queue fill failed after 3 retries for session {}", session.getId());
     return List.of();
+  }
+
+  @SuppressWarnings("unchecked")
+  private float resolveExplorationWeight(UUID userId) {
+    try {
+      var prefs = contractRepository.findById(userId).orElse(null);
+      if (prefs != null && prefs.getDjStyle() != null && !prefs.getDjStyle().isBlank()) {
+        Map<String, Object> style = objectMapper.readValue(prefs.getDjStyle(), Map.class);
+        String preset = (String) style.get("preset");
+        if ("adventurous".equals(preset)) return 0.6f;
+        if ("smooth".equals(preset)) return 0.15f;
+      }
+    } catch (Exception e) {
+      log.debug("Could not resolve djStyle exploration weight: {}", e.getMessage());
+    }
+    return 0.3f;
+  }
+
+  @Transactional
+  void persistSessionSummary(UUID sessionId, String summary) {
+    if (summary != null && !summary.isBlank()) {
+      sessionRepository.findById(sessionId).ifPresent(s -> s.setSessionSummary(summary));
+    }
   }
 
   private void validateSessionExists(UUID sessionId) {

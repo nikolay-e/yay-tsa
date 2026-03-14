@@ -83,6 +83,16 @@ public class TrackFeaturesEntity {
   @Column(name = "embedding_musicnn", columnDefinition = "vector(200)")
   private float[] embeddingMusicnn;
 
+  @JdbcTypeCode(SqlTypes.VECTOR)
+  @Array(length = 512)
+  @Column(name = "embedding_clap", columnDefinition = "vector(512)")
+  private float[] embeddingClap;
+
+  @JdbcTypeCode(SqlTypes.VECTOR)
+  @Array(length = 768)
+  @Column(name = "embedding_mert", columnDefinition = "vector(768)")
+  private float[] embeddingMert;
+
   @Column(name = "extracted_at")
   private OffsetDateTime extractedAt;
 

@@ -34,6 +34,18 @@ try:
 except ImportError:
     log.warning("essentia-tensorflow not installed — feature extraction disabled")
 
+EMBEDDING_AVAILABLE = False
+_embedding_extractor = None
+
+try:
+    from extractor.embedding_extractor import DualEmbeddingExtractor
+
+    _embedding_extractor = DualEmbeddingExtractor()
+    EMBEDDING_AVAILABLE = True
+    log.info("CLAP/MERT embedding extraction available")
+except ImportError:
+    log.warning("transformers/torch not installed — embedding extraction disabled")
+
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cpu") == "cuda"
@@ -139,6 +151,7 @@ class HealthResponse(BaseModel):
     model: str
     device: str
     feature_extraction: bool = False
+    embedding_extraction: bool = False
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -148,6 +161,7 @@ def health_check():
         model=MODEL_NAME,
         device="cuda" if USE_CUDA else "cpu",
         feature_extraction=ESSENTIA_AVAILABLE,
+        embedding_extraction=EMBEDDING_AVAILABLE,
     )
 
 
@@ -1001,6 +1015,131 @@ def extraction_status():
     return {
         "available": ESSENTIA_AVAILABLE,
         "models_dir": os.getenv("ESSENTIA_MODELS_DIR", "/app/models"),
+    }
+
+
+# ===========================================================================
+# Embedding extraction: CLAP + MERT endpoints
+# ===========================================================================
+
+
+class EmbedRequest(BaseModel):
+    track_id: str
+    file_path: str
+
+
+class EmbedResponse(BaseModel):
+    track_id: str
+    embedding_clap: list[float] | None = None
+    embedding_mert: list[float] | None = None
+    processing_time_ms: int = 0
+
+
+class BatchEmbedRequest(BaseModel):
+    tracks: list[EmbedRequest]
+
+
+class BatchEmbedResponse(BaseModel):
+    results: list[EmbedResponse]
+    failed: list[dict]
+
+
+class TextEmbedRequest(BaseModel):
+    text: str
+
+
+class TextEmbedResponse(BaseModel):
+    embedding: list[float]
+    dimensions: int
+
+
+@app.post(
+    "/api/v1/embed",
+    response_model=EmbedResponse,
+    responses={
+        403: {"description": "Path traversal attempt"},
+        404: {"description": "File not found"},
+        500: {"description": "Internal processing error"},
+        503: {"description": "Embedding extraction not available"},
+    },
+)
+def extract_embeddings(request: EmbedRequest):
+    if not EMBEDDING_AVAILABLE or _embedding_extractor is None:
+        raise HTTPException(status_code=503, detail="Embedding extraction not available")
+
+    file_path = _validate_media_path(request.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    try:
+        result = _embedding_extractor.extract(str(file_path))
+        return EmbedResponse(
+            track_id=request.track_id,
+            embedding_clap=result["embedding_clap"],
+            embedding_mert=result["embedding_mert"],
+            processing_time_ms=result.get("processing_time_ms", 0),
+        )
+    except Exception:
+        log.exception("Embedding extraction failed for track %s", _sanitize(request.track_id))
+        raise HTTPException(status_code=500, detail="Internal processing error")
+
+
+@app.post(
+    "/api/v1/embed/batch",
+    response_model=BatchEmbedResponse,
+    responses={503: {"description": "Embedding extraction not available"}},
+)
+def extract_embeddings_batch(request: BatchEmbedRequest):
+    if not EMBEDDING_AVAILABLE or _embedding_extractor is None:
+        raise HTTPException(status_code=503, detail="Embedding extraction not available")
+
+    results = []
+    failed = []
+
+    for track in request.tracks:
+        try:
+            file_path = _validate_media_path(track.file_path)
+            if not file_path.exists():
+                failed.append({"track_id": track.track_id, "error": "File not found"})
+                continue
+
+            result = _embedding_extractor.extract(str(file_path))
+            results.append(
+                EmbedResponse(
+                    track_id=track.track_id,
+                    embedding_clap=result["embedding_clap"],
+                    embedding_mert=result["embedding_mert"],
+                    processing_time_ms=result.get("processing_time_ms", 0),
+                )
+            )
+        except Exception as e:
+            log.exception("Embedding extraction failed for track %s", _sanitize(track.track_id))
+            failed.append({"track_id": track.track_id, "error": str(e)})
+
+    return BatchEmbedResponse(results=results, failed=failed)
+
+
+@app.post(
+    "/api/v1/embed/text",
+    response_model=TextEmbedResponse,
+    responses={503: {"description": "Embedding extraction not available"}},
+)
+def encode_text_embedding(request: TextEmbedRequest):
+    if not EMBEDDING_AVAILABLE or _embedding_extractor is None:
+        raise HTTPException(status_code=503, detail="Embedding extraction not available")
+
+    try:
+        embedding = _embedding_extractor.encode_text(request.text)
+        return TextEmbedResponse(embedding=embedding, dimensions=len(embedding))
+    except Exception:
+        log.exception("Text embedding failed for: %s", _sanitize(request.text[:100]))
+        raise HTTPException(status_code=500, detail="Internal processing error")
+
+
+@app.get("/api/v1/embed/status")
+def embedding_status():
+    return {
+        "available": EMBEDDING_AVAILABLE,
     }
 
 
