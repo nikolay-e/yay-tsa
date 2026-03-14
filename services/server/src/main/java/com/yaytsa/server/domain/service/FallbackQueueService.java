@@ -13,6 +13,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,8 @@ public class FallbackQueueService {
   private final ItemRepository itemRepository;
   private final int targetQueueSize;
   private final int noRepeatHours;
+
+  private final ConcurrentHashMap<UUID, ReentrantLock> sessionFillLocks = new ConcurrentHashMap<>();
 
   public FallbackQueueService(
       RecommendationService recommendationService,
@@ -58,22 +62,37 @@ public class FallbackQueueService {
       float targetValence,
       float explorationWeight,
       Set<String> avoidArtists) {
-    if (currentQueueSize >= targetQueueSize) {
-      return List.of();
+    UUID sessionId = session.getId();
+    ReentrantLock lock = sessionFillLocks.computeIfAbsent(sessionId, k -> new ReentrantLock());
+    lock.lock();
+    try {
+      return fillQueueUnderLock(
+          session, targetEnergy, targetValence, explorationWeight, avoidArtists);
+    } finally {
+      lock.unlock();
     }
-    int needed = targetQueueSize - currentQueueSize;
+  }
 
+  private List<AdaptiveQueueEntity> fillQueueUnderLock(
+      ListeningSessionEntity session,
+      float targetEnergy,
+      float targetValence,
+      float explorationWeight,
+      Set<String> avoidArtists) {
     UUID userId = session.getUser().getId();
     UUID sessionId = session.getId();
 
     var activeQueue =
         queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
             sessionId, List.of("QUEUED", "PLAYING"));
+
+    if (activeQueue.size() >= targetQueueSize) {
+      return List.of();
+    }
+    int needed = targetQueueSize - activeQueue.size();
+
     Set<UUID> existingTrackIds =
         activeQueue.stream().map(q -> q.getItem().getId()).collect(Collectors.toSet());
-    long maxVersion = queueRepository.findMaxQueueVersionBySessionId(sessionId).orElse(0L);
-    int maxPosition =
-        activeQueue.stream().mapToInt(AdaptiveQueueEntity::getPosition).max().orElse(0);
 
     Set<UUID> overplayed = Set.copyOf(candidateRetrievalService.getRecentlyOverplayed(userId, 48));
     Set<UUID> recentlyPlayed =
@@ -106,6 +125,10 @@ public class FallbackQueueService {
       log.warn("Recommendation pipeline returned no results for session {}", sessionId);
       return List.of();
     }
+
+    long maxVersion = queueRepository.findMaxQueueVersionBySessionId(sessionId).orElse(0L);
+    int maxPosition =
+        activeQueue.stream().mapToInt(AdaptiveQueueEntity::getPosition).max().orElse(0);
 
     List<AdaptiveQueueEntity> addedEntries =
         insertQueueEntries(session, recommendations, maxPosition, maxVersion);
