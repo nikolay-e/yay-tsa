@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
@@ -24,7 +25,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Spotify metadata provider.
@@ -81,20 +81,18 @@ public class SpotifyProvider implements MetadataProvider {
       log.debug("Querying Spotify for: {} - {}", artist, title);
 
       String query = String.format("artist:%s track:%s", artist, title);
-      String url =
-          UriComponentsBuilder.fromHttpUrl(API_BASE + "/search")
-              .queryParam("q", query)
-              .queryParam("type", "track")
-              .queryParam("limit", "5")
-              .build()
-              .toUriString();
 
       HttpHeaders headers = new HttpHeaders();
       headers.setBearerAuth(accessToken);
       HttpEntity<String> entity = new HttpEntity<>(headers);
 
       ResponseEntity<SpotifySearchResponse> responseEntity =
-          restTemplate.exchange(url, HttpMethod.GET, entity, SpotifySearchResponse.class);
+          restTemplate.exchange(
+              API_BASE + "/search?q={q}&type=track&limit=5",
+              HttpMethod.GET,
+              entity,
+              SpotifySearchResponse.class,
+              Map.of("q", query));
       SpotifySearchResponse response = responseEntity.getBody();
 
       if (response == null

@@ -13,7 +13,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * MusicBrainz metadata provider.
@@ -58,15 +57,12 @@ public class MusicBrainzProvider implements MetadataProvider {
 
       String query =
           String.format("artist:\"%s\" AND recording:\"%s\"", escape(artist), escape(title));
-      String url =
-          UriComponentsBuilder.fromHttpUrl(API_BASE + "/recording")
-              .queryParam("query", query)
-              .queryParam("fmt", "json")
-              .queryParam("limit", "5")
-              .build()
-              .toUriString();
 
-      MusicBrainzResponse response = restTemplate.getForObject(url, MusicBrainzResponse.class);
+      MusicBrainzResponse response =
+          restTemplate.getForObject(
+              API_BASE + "/recording?query={query}&fmt=json&limit=5",
+              MusicBrainzResponse.class,
+              query);
 
       if (response == null || response.recordings == null || response.recordings.isEmpty()) {
         log.debug("No results from MusicBrainz for: {} - {}", artist, title);

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +14,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Last.fm metadata provider.
@@ -53,17 +53,12 @@ public class LastFmProvider implements MetadataProvider {
     try {
       log.debug("Querying Last.fm for: {} - {}", artist, title);
 
-      String url =
-          UriComponentsBuilder.fromHttpUrl(API_BASE)
-              .queryParam("method", "track.getInfo")
-              .queryParam("api_key", getApiKey())
-              .queryParam("artist", artist)
-              .queryParam("track", title)
-              .queryParam("format", "json")
-              .build()
-              .toUriString();
-
-      LastFmResponse response = restTemplate.getForObject(url, LastFmResponse.class);
+      LastFmResponse response =
+          restTemplate.getForObject(
+              API_BASE
+                  + "?method=track.getInfo&api_key={apiKey}&artist={artist}&track={track}&format=json",
+              LastFmResponse.class,
+              Map.of("apiKey", getApiKey(), "artist", artist, "track", title));
 
       if (response == null || response.track == null) {
         log.debug("No results from Last.fm for: {} - {}", artist, title);
