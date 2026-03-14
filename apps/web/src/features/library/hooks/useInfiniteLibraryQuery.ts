@@ -29,14 +29,20 @@ export function useInfiniteLibraryQuery<TData>({
   const client = useAuthStore(state => state.client);
   const { limit = 50, ...otherOptions } = options;
 
-  return useInfiniteQuery<ItemsResult<TData>, Error, InfiniteData<ItemsResult<TData>>>({
+  return useInfiniteQuery<
+    ItemsResult<TData>,
+    Error,
+    InfiniteData<ItemsResult<TData>>,
+    unknown[],
+    number
+  >({
     queryKey: [...queryKey, { limit, ...otherOptions }],
     queryFn: async ({ pageParam = 0 }) => {
       if (!client) throw new Error('Not authenticated');
 
       return fetcher(client, {
         ...otherOptions,
-        startIndex: pageParam as number,
+        startIndex: pageParam,
         limit,
       });
     },

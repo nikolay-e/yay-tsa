@@ -20,23 +20,23 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
-interface SortableListProps<T extends { Id: string }> {
+type SortableListProps<T extends { Id: string }> = Readonly<{
   items: T[];
   onReorder: (reorderedItems: T[]) => void;
   renderItem: (item: T, index: number) => ReactNode;
   layout?: 'vertical' | 'grid';
   gridClassName?: string;
-}
+}>;
 
 function SortableItem({
   id,
   children,
   layout,
-}: {
+}: Readonly<{
   id: string;
   children: ReactNode;
   layout: 'vertical' | 'grid';
-}) {
+}>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });

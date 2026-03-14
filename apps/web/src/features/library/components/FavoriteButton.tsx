@@ -2,12 +2,12 @@ import { Heart } from 'lucide-react';
 import { useFavoriteToggle } from '@/features/library/hooks/useFavorites';
 import { cn } from '@/shared/utils/cn';
 
-interface FavoriteButtonProps {
+type FavoriteButtonProps = Readonly<{
   itemId: string;
   isFavorite: boolean;
   size?: 'sm' | 'md';
   className?: string;
-}
+}>;
 
 export function FavoriteButton({
   itemId,

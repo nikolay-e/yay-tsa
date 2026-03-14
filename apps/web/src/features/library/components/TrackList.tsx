@@ -12,7 +12,7 @@ import { FavoriteButton } from './FavoriteButton';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
 
-interface TrackListProps {
+type TrackListProps = Readonly<{
   tracks: AudioItem[];
   currentTrackId?: string;
   isPlaying?: boolean;
@@ -22,9 +22,9 @@ interface TrackListProps {
   showArtist?: boolean;
   showImage?: boolean;
   virtualized?: boolean;
-}
+}>;
 
-export interface TrackListRowProps {
+export type TrackListRowProps = Readonly<{
   track: AudioItem;
   index: number;
   isCurrentTrack: boolean;
@@ -34,18 +34,18 @@ export interface TrackListRowProps {
   showAlbum?: boolean;
   showArtist?: boolean;
   showImage?: boolean;
-}
+}>;
 
 const TrackImage = memo(
   function TrackImage({
     track,
     isCurrentTrack,
     isPlaying,
-  }: {
+  }: Readonly<{
     track: AudioItem;
     isCurrentTrack: boolean;
     isPlaying: boolean;
-  }) {
+  }>) {
     const { hasError, onError } = useImageErrorTracking(
       track.Id,
       track.AlbumPrimaryImageTag,
@@ -130,23 +130,12 @@ export function TrackListRow({
           <TrackImage track={track} isCurrentTrack={isCurrentTrack} isPlaying={isPlaying} />
         ) : (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-            {isCurrentTrack ? (
-              isPlaying ? (
-                <Pause className="text-accent h-4 w-4" fill="currentColor" />
-              ) : (
-                <Play className="text-accent h-4 w-4" fill="currentColor" />
-              )
-            ) : (
-              <>
-                <span className="text-text-tertiary text-sm group-focus-within:hidden group-hover:hidden">
-                  {track.IndexNumber ?? index + 1}
-                </span>
-                <Play
-                  className="text-text-primary hidden h-4 w-4 group-focus-within:block group-hover:block"
-                  fill="currentColor"
-                />
-              </>
-            )}
+            <TrackIndexIcon
+              isCurrentTrack={isCurrentTrack}
+              isPlaying={isPlaying}
+              index={index}
+              track={track}
+            />
           </div>
         )}
       </button>
@@ -204,6 +193,34 @@ export function TrackListRow({
       <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>
     </div>
   );
+}
+
+function TrackIndexIcon({
+  isCurrentTrack,
+  isPlaying,
+  index,
+  track,
+}: Readonly<{
+  isCurrentTrack: boolean;
+  isPlaying: boolean;
+  index: number;
+  track: AudioItem;
+}>) {
+  if (!isCurrentTrack) {
+    return (
+      <>
+        <span className="text-text-tertiary text-sm group-focus-within:hidden group-hover:hidden">
+          {track.IndexNumber ?? index + 1}
+        </span>
+        <Play
+          className="text-text-primary hidden h-4 w-4 group-focus-within:block group-hover:block"
+          fill="currentColor"
+        />
+      </>
+    );
+  }
+  const CurrentIcon = isPlaying ? Pause : Play;
+  return <CurrentIcon className="text-accent h-4 w-4" fill="currentColor" />;
 }
 
 const ROW_HEIGHT = 60;

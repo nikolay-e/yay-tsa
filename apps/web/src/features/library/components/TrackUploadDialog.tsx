@@ -3,7 +3,7 @@ import { Upload, X, CheckCircle2, AlertCircle, Music } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { Modal } from '@/shared/ui/Modal';
 
-const SUPPORTED_FORMATS = [
+const SUPPORTED_FORMATS = new Set([
   'audio/mpeg',
   'audio/flac',
   'audio/x-flac',
@@ -13,7 +13,7 @@ const SUPPORTED_FORMATS = [
   'audio/opus',
   'audio/wav',
   'audio/x-wav',
-];
+]);
 
 const SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.wma'];
 
@@ -21,7 +21,7 @@ const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
 
 function isAudioFile(file: File): boolean {
   return (
-    SUPPORTED_FORMATS.includes(file.type) ||
+    SUPPORTED_FORMATS.has(file.type) ||
     SUPPORTED_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext))
   );
 }
@@ -38,11 +38,11 @@ export function TrackUploadDialog({
   isOpen,
   onClose,
   onUploadSuccess,
-}: {
+}: Readonly<{
   isOpen: boolean;
   onClose: () => void;
   onUploadSuccess?: () => void;
-}) {
+}>) {
   const [files, setFiles] = useState<FileUploadStatus[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -130,32 +130,31 @@ export function TrackUploadDialog({
   }, []);
 
   const uploadSingleFile = (fileStatus: FileUploadStatus, index: number): Promise<boolean> => {
-    return new Promise(resolve => {
-      if (!client) {
+    if (!client) {
+      setFiles(prev =>
+        prev.map((f, i) =>
+          i === index ? { ...f, status: 'error', message: 'Not authenticated' } : f
+        )
+      );
+      return Promise.resolve(false);
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileStatus.file);
+
+    const xhr = new XMLHttpRequest();
+
+    function handleProgress(event: ProgressEvent) {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
         setFiles(prev =>
-          prev.map((f, i) =>
-            i === index ? { ...f, status: 'error', message: 'Not authenticated' } : f
-          )
+          prev.map((f, i) => (i === index ? { ...f, progress, status: 'uploading' } : f))
         );
-        resolve(false);
-        return;
       }
+    }
 
-      const formData = new FormData();
-      formData.append('file', fileStatus.file);
-
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.onprogress = event => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          setFiles(prev =>
-            prev.map((f, i) => (i === index ? { ...f, progress, status: 'uploading' } : f))
-          );
-        }
-      };
-
-      xhr.onload = () => {
+    return new Promise(resolve => {
+      function handleLoad() {
         if (xhr.status === 201) {
           let albumComplete: boolean | undefined;
           try {
@@ -206,16 +205,20 @@ export function TrackUploadDialog({
           );
           resolve(false);
         }
-      };
+      }
 
-      xhr.onerror = () => {
+      function handleError() {
         setFiles(prev =>
           prev.map((f, i) =>
             i === index ? { ...f, status: 'error', message: 'Network error' } : f
           )
         );
         resolve(false);
-      };
+      }
+
+      xhr.upload.onprogress = handleProgress;
+      xhr.onload = handleLoad;
+      xhr.onerror = handleError;
 
       activeXhrRef.current = xhr;
       xhr.open('POST', `${client.getServerUrl()}/tracks/upload`);
@@ -276,20 +279,13 @@ export function TrackUploadDialog({
 
       <div className="space-y-4 p-6">
         {!isUploading && !allDone && (
-          <div
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                fileInputRef.current?.click();
-              }
-            }}
-            className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+            className={`w-full cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
               isDragging
                 ? 'border-accent bg-accent/10'
                 : 'hover:border-accent/50 border-border hover:bg-bg-hover'
@@ -310,14 +306,14 @@ export function TrackUploadDialog({
               onChange={handleFileSelect}
               className="hidden"
             />
-          </div>
+          </button>
         )}
 
         {files.length > 0 && (
           <div className="space-y-2">
             <div className="text-text-secondary flex items-center justify-between text-sm">
               <span>
-                {files.length} file{files.length !== 1 ? 's' : ''} (
+                {files.length} file{files.length === 1 ? '' : 's'} (
                 {(totalSize / 1024 / 1024).toFixed(1)} MB)
               </span>
               {isUploading && uploadingIndex >= 0 && (
@@ -412,7 +408,7 @@ export function TrackUploadDialog({
                 disabled={pendingCount === 0}
                 className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors disabled:opacity-50"
               >
-                Upload {pendingCount} track{pendingCount !== 1 ? 's' : ''}
+                Upload {pendingCount} track{pendingCount === 1 ? '' : 's'}
               </button>
             </>
           )}

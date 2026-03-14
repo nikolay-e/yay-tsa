@@ -24,4 +24,4 @@ export function useInfiniteTracks(options: UseInfiniteTracksOptions = {}) {
   });
 }
 
-export type { AudioItem };
+export type { AudioItem } from '@yay-tsa/core';

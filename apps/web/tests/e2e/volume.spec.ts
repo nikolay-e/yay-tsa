@@ -41,10 +41,10 @@ test.describe('Volume Control', () => {
     await playerBar.waitForAudioReady();
 
     await playerBar.setVolume(100);
-    await playerBar.waitForVolume(1.0);
+    await playerBar.waitForVolume(1);
 
     const volume = await playerBar.getVolume();
-    expect(volume).toBe(1.0);
+    expect(volume).toBe(1);
   });
 
   test('Given: User sets volume, When: Volume changes, Then: Player store syncs with audio element', async ({

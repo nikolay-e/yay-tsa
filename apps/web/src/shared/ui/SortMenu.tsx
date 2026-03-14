@@ -98,12 +98,12 @@ export function useSortPreference(
   return { selectedId, activeOption, select };
 }
 
-interface SortMenuProps {
+type SortMenuProps = Readonly<{
   selectedId: string;
   onSelect: (optionId: string) => void;
   options?: SortOption[];
   className?: string;
-}
+}>;
 
 export function SortMenu({
   selectedId,

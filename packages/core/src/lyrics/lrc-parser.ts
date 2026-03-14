@@ -19,6 +19,42 @@ function parseTimestamp(minutes: string, seconds: string, centiseconds?: string)
   return mins * 60 + secs + cs;
 }
 
+function extractTimestampsFromLine(trimmed: string): { timestamps: number[]; lastIndex: number } {
+  const timestamps: number[] = [];
+  let lastIndex = 0;
+  LRC_TIME_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = LRC_TIME_REGEX.exec(trimmed)) !== null) {
+    timestamps.push(parseTimestamp(match[1], match[2], match[3]));
+    lastIndex = LRC_TIME_REGEX.lastIndex;
+  }
+
+  return { timestamps, lastIndex };
+}
+
+function processLrcLine(trimmed: string, lines: LyricLine[], hasTimestamps: boolean): boolean {
+  if (LRC_METADATA_REGEX.test(trimmed)) return hasTimestamps;
+
+  const { timestamps, lastIndex } = extractTimestampsFromLine(trimmed);
+
+  if (timestamps.length > 0) {
+    const text = trimmed.slice(lastIndex).trim();
+    if (text) {
+      for (const time of timestamps) {
+        lines.push({ time, text });
+      }
+    }
+    return true;
+  }
+
+  if (!trimmed.startsWith('[')) {
+    lines.push({ time: -1, text: trimmed });
+  }
+
+  return hasTimestamps;
+}
+
 export function parseLyrics(content: string | null | undefined): ParsedLyrics | null {
   if (!content || content.trim() === '') {
     return null;
@@ -35,30 +71,7 @@ export function parseLyrics(content: string | null | undefined): ParsedLyrics | 
   for (const line of rawLines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-
-    if (LRC_METADATA_REGEX.test(trimmed)) continue;
-
-    const timestamps: number[] = [];
-    let lastIndex = 0;
-    LRC_TIME_REGEX.lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = LRC_TIME_REGEX.exec(trimmed)) !== null) {
-      timestamps.push(parseTimestamp(match[1], match[2], match[3]));
-      lastIndex = LRC_TIME_REGEX.lastIndex;
-    }
-
-    if (timestamps.length > 0) {
-      hasTimestamps = true;
-      const text = trimmed.slice(lastIndex).trim();
-      if (text) {
-        for (const time of timestamps) {
-          lines.push({ time, text });
-        }
-      }
-    } else if (!trimmed.startsWith('[')) {
-      lines.push({ time: -1, text: trimmed });
-    }
+    hasTimestamps = processLrcLine(trimmed, lines, hasTimestamps);
   }
 
   if (lines.length === 0) {

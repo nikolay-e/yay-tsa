@@ -9,7 +9,7 @@ export class PreloadManager {
 
   private generation = 0;
 
-  constructor(private engine: AudioEngine) {}
+  constructor(private readonly engine: AudioEngine) {}
 
   prepare(trackId: string, streamUrl: string): void {
     if (this.state?.trackId === trackId) return;

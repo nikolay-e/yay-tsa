@@ -31,14 +31,14 @@ export interface TestFixtures {
 }
 
 export class TestDataFactory {
-  private client: MediaServerClient;
-  private authService: AuthService;
-  private itemsService: ItemsService;
-  private playlistsService: PlaylistsService;
+  private readonly client: MediaServerClient;
+  private readonly authService: AuthService;
+  private readonly itemsService: ItemsService;
+  private readonly playlistsService: PlaylistsService;
 
   private createdPlaylistIds: string[] = [];
 
-  constructor(private config: TestConfig) {
+  constructor(private readonly config: TestConfig) {
     this.client = new MediaServerClient(config.serverUrl, {
       name: 'Media Server Client Integration Tests',
       device: 'Integration Test Runner',

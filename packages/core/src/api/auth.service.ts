@@ -11,7 +11,7 @@ import {
 import { type MediaServerClient } from './api.client.js';
 
 export class AuthService {
-  constructor(private client: MediaServerClient) {}
+  constructor(private readonly client: MediaServerClient) {}
 
   /**
    * Authenticate user with username and password

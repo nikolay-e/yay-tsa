@@ -17,7 +17,6 @@ describe('Integration: Playlists Management', () => {
   let authService: AuthService;
   let itemsService: ItemsService;
   let playlistsService: PlaylistsService;
-  let userId: string;
   let testTrackIds: string[] = [];
   let testPlaylistId: string | null = null;
 
@@ -35,11 +34,10 @@ describe('Integration: Playlists Management', () => {
     client = new MediaServerClient(config.serverUrl, clientInfo);
     authService = new AuthService(client);
 
-    const authResponse = await retryableLogin(
+    await retryableLogin(
       () => authService.login(config.username, config.password),
       'Playlists tests authentication'
     );
-    userId = authResponse.User.Id;
 
     // Verify token is set
     if (!client.isAuthenticated()) {
@@ -66,8 +64,8 @@ describe('Integration: Playlists Management', () => {
     if (testPlaylistId && playlistsService) {
       try {
         await playlistsService.deletePlaylist(testPlaylistId);
-      } catch (error) {
-        // Ignore cleanup errors
+      } catch {
+        // intentionally ignored
       }
     }
 

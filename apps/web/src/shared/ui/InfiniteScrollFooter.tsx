@@ -3,14 +3,14 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useInView } from '@/shared/hooks/useInView';
 
-interface InfiniteScrollFooterProps {
+type InfiniteScrollFooterProps = Readonly<{
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
   currentCount: number;
   totalCount: number;
   itemLabel: string;
-}
+}>;
 
 export function InfiniteScrollFooter({
   hasNextPage,

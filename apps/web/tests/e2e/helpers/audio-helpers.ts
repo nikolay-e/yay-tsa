@@ -34,7 +34,7 @@ export async function getAudioElementState(page: Page): Promise<AudioState> {
 
 export async function getAudioContextState(page: Page): Promise<AudioContextState | null> {
   return page.evaluate(() => {
-    const player = (window as any).__playerStore__;
+    const player = (globalThis as any).__playerStore__;
     const audioEngine = player?.audioEngine;
     const audioContext = audioEngine?.getAudioContext?.();
 
@@ -52,7 +52,7 @@ export async function getAudioContextState(page: Page): Promise<AudioContextStat
 
 export async function getRMSLevel(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const player = (window as any).__playerStore__;
+    const player = (globalThis as any).__playerStore__;
     const audioEngine = player?.audioEngine;
 
     audioEngine?.getAudioContext?.();
@@ -208,7 +208,7 @@ export async function setVolumeInLocalStorage(page: Page, volume: number): Promi
 
 export async function getVolumeFromPlayerStore(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const player = (window as any).__playerStore__;
+    const player = (globalThis as any).__playerStore__;
     return player?.volume ?? 0;
   });
 }

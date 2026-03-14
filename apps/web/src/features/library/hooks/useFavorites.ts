@@ -42,6 +42,29 @@ function patchFavoriteInData(data: unknown, itemId: string, isFavorite: boolean)
   return patched;
 }
 
+const FAVORITE_QUERY_KEYS = [['albums'], ['artists'], ['tracks'], ['album'], ['artist']] as const;
+
+function patchFavoriteInQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  itemId: string,
+  newValue: boolean
+): Map<string, unknown> {
+  const previousData = new Map<string, unknown>();
+  for (const key of FAVORITE_QUERY_KEYS) {
+    const queries = queryClient.getQueriesData({ queryKey: key });
+    for (const [queryKey, data] of queries) {
+      if (!data) continue;
+      const keyStr = JSON.stringify(queryKey);
+      const cloned = structuredClone(data);
+      if (patchFavoriteInData(cloned, itemId, newValue)) {
+        previousData.set(keyStr, data);
+        queryClient.setQueryData(queryKey, cloned);
+      }
+    }
+  }
+  return previousData;
+}
+
 export function useFavoriteToggle() {
   const client = useAuthStore(state => state.client);
   const queryClient = useQueryClient();
@@ -59,29 +82,11 @@ export function useFavoriteToggle() {
     onMutate: async ({ itemId, isFavorite }: FavoriteToggleParams) => {
       const newValue = !isFavorite;
 
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: ['albums'] }),
-        queryClient.cancelQueries({ queryKey: ['artists'] }),
-        queryClient.cancelQueries({ queryKey: ['tracks'] }),
-        queryClient.cancelQueries({ queryKey: ['album'] }),
-        queryClient.cancelQueries({ queryKey: ['artist'] }),
-      ]);
+      await Promise.all(
+        FAVORITE_QUERY_KEYS.map(async key => queryClient.cancelQueries({ queryKey: key }))
+      );
 
-      const targetKeys = [['albums'], ['artists'], ['tracks'], ['album'], ['artist']] as const;
-      const previousData = new Map<string, unknown>();
-
-      for (const key of targetKeys) {
-        const queries = queryClient.getQueriesData({ queryKey: key });
-        for (const [queryKey, data] of queries) {
-          if (!data) continue;
-          const keyStr = JSON.stringify(queryKey);
-          const cloned = structuredClone(data);
-          if (patchFavoriteInData(cloned, itemId, newValue)) {
-            previousData.set(keyStr, data);
-            queryClient.setQueryData(queryKey, cloned);
-          }
-        }
-      }
+      const previousData = patchFavoriteInQueries(queryClient, itemId, newValue);
 
       const currentTrack = usePlayerStore.getState().currentTrack;
       if (currentTrack?.Id === itemId) {

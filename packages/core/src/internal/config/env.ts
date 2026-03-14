@@ -28,7 +28,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   const hasImportMetaEnv = typeof import.meta?.env !== 'undefined';
 
   // Check for runtime config (injected by Docker entrypoint)
-  const hasRuntimeConfig = typeof window !== 'undefined' && window.__YAYTSA_CONFIG__ !== undefined;
+  const hasRuntimeConfig = globalThis.window?.__YAYTSA_CONFIG__ !== undefined;
 
   let env: Record<string, string | undefined>;
 
@@ -44,7 +44,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   }
 
   // Runtime config takes precedence over build-time config
-  const runtimeConfig = hasRuntimeConfig ? window.__YAYTSA_CONFIG__ : undefined;
+  const runtimeConfig = hasRuntimeConfig ? globalThis.window.__YAYTSA_CONFIG__ : undefined;
 
   return {
     yaytsaServerUrl:

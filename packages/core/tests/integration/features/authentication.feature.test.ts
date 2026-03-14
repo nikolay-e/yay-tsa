@@ -154,12 +154,11 @@ describe('Feature: User Authentication', () => {
       const client = new MediaServerClient(config.serverUrl, clientInfo);
       const authService = new AuthService(client);
 
-      const firstLogin = await retryableLogin(
+      await retryableLogin(
         () => authService.login(config.username, config.password),
         'First session login'
       );
 
-      const firstToken = client.getToken();
       const firstUserId = client.getUserId();
 
       // When: User logs out

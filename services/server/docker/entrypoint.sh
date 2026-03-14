@@ -26,15 +26,15 @@ if [ -n "$DB_HOST" ]; then
   done
 
   if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "ERROR: PostgreSQL is not available after $MAX_RETRIES attempts"
+    echo "ERROR: PostgreSQL is not available after $MAX_RETRIES attempts" >&2
     exit 1
   fi
 fi
 
 # Validate required environment variables
 if [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-  echo "ERROR: Required database environment variables are not set"
-  echo "Please set: DB_HOST, DB_USER, DB_PASSWORD"
+  echo "ERROR: Required database environment variables are not set" >&2
+  echo "Please set: DB_HOST, DB_USER, DB_PASSWORD" >&2
   exit 1
 fi
 
@@ -48,10 +48,11 @@ if [ -n "$LIBRARY_ROOTS" ]; then
     # Reject paths containing .. (path traversal attempt)
     case "$path" in
     *..*)
-      echo "ERROR: Invalid path containing '..': $path"
-      echo "Path traversal sequences are not allowed for security reasons"
+      echo "ERROR: Invalid path containing '..': $path" >&2
+      echo "Path traversal sequences are not allowed for security reasons" >&2
       exit 1
       ;;
+    *) ;;
     esac
 
     # Ensure path is absolute (starts with /)
@@ -60,8 +61,8 @@ if [ -n "$LIBRARY_ROOTS" ]; then
       # Path is absolute, continue
       ;;
     *)
-      echo "ERROR: LIBRARY_ROOTS must contain absolute paths: $path"
-      echo "Relative paths like './' or '../' are not allowed"
+      echo "ERROR: LIBRARY_ROOTS must contain absolute paths: $path" >&2
+      echo "Relative paths like './' or '../' are not allowed" >&2
       exit 1
       ;;
     esac

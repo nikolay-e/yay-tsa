@@ -81,7 +81,7 @@ function buildPalette(hue: number, sat: number): ThemePalette {
   };
 }
 
-const workerSelf = self as unknown as WorkerSelf;
+const workerSelf = globalThis as unknown as WorkerSelf;
 
 workerSelf.onmessage = (e: MessageEvent<{ id: number; pixels: Uint8ClampedArray }>) => {
   const { id, pixels } = e.data;

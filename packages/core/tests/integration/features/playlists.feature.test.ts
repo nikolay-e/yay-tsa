@@ -30,8 +30,8 @@ describe('Feature: Playlist Management', () => {
     for (const playlistId of createdPlaylistIds) {
       try {
         await fixtures.playlistsService.deletePlaylist(playlistId);
-      } catch (error) {
-        // Ignore cleanup errors
+      } catch {
+        // intentionally ignored
       }
     }
 

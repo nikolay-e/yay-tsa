@@ -28,8 +28,8 @@ export class SleepTimerModal {
 
   async selectPreset(minutes: 15 | 30 | 60): Promise<void> {
     await this.open();
-    const presetButton =
-      minutes === 15 ? this.preset15min : minutes === 30 ? this.preset30min : this.preset60min;
+    const nonSixtyPreset = minutes === 15 ? this.preset15min : this.preset30min;
+    const presetButton = minutes === 60 ? this.preset60min : nonSixtyPreset;
     await presetButton.click();
   }
 

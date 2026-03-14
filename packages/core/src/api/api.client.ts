@@ -16,8 +16,8 @@ import { createLogger } from '../internal/utils/logger.js';
 const log = createLogger('API');
 
 export class MediaServerClient {
-  private serverUrl: string;
-  private clientInfo: ClientInfo;
+  private readonly serverUrl: string;
+  private readonly clientInfo: ClientInfo;
   private token: string | null = null;
   private userId: string | null = null;
 

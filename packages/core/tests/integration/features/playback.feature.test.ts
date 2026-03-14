@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { loadTestConfig, setupTestFixtures, cleanupTestFixtures, delay } from '../setup.js';
+import { loadTestConfig, setupTestFixtures, cleanupTestFixtures } from '../setup.js';
 import { TestFixtures } from '../fixtures/data-factory.js';
 import { PlaybackReporter } from '../../../src/player/playback-state.js';
 import { PlaybackQueue } from '../../../src/player/queue.js';
@@ -30,8 +30,8 @@ describe('Feature: Playback Reporting', () => {
     if (testTrackId) {
       try {
         await reporter.reportStopped(testTrackId, 0);
-      } catch (error) {
-        // Ignore cleanup errors
+      } catch {
+        // intentionally ignored
       }
     }
     await cleanupTestFixtures(fixtures);

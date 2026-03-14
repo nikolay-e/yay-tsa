@@ -2,9 +2,9 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 
-interface ProtectedRouteProps {
+type ProtectedRouteProps = Readonly<{
   children: React.ReactNode;
-}
+}>;
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);

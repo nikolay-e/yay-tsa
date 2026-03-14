@@ -283,8 +283,8 @@ describe('Feature: Library Browsing', () => {
 
       // And: Albums are different from first page
       const firstPageIds = firstPage.Items.map(a => a.Id);
-      const secondPageIds = secondPage.Items.map(a => a.Id);
-      const hasOverlap = firstPageIds.some(id => secondPageIds.includes(id));
+      const secondPageIds = new Set(secondPage.Items.map(a => a.Id));
+      const hasOverlap = firstPageIds.some(id => secondPageIds.has(id));
       expect(hasOverlap).toBe(false);
     });
 

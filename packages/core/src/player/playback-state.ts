@@ -25,7 +25,7 @@ const log = createLogger('Player');
  * Useful for testing and standalone reporting scenarios
  */
 export class PlaybackReporter {
-  constructor(private client: MediaServerClient) {}
+  constructor(private readonly client: MediaServerClient) {}
 
   /**
    * Report playback start
@@ -101,7 +101,7 @@ export class PlaybackState {
   private progressReportTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly PROGRESS_REPORT_INTERVAL = 10000; // 10 seconds
 
-  constructor(private client: MediaServerClient) {}
+  constructor(private readonly client: MediaServerClient) {}
 
   /**
    * Get current state

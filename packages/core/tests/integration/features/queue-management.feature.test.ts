@@ -6,13 +6,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PlaybackQueue } from '../../../src/player/queue.js';
-import type { AudioItem } from '../../../src/index.js';
-import {
-  mockAlbumTracks,
-  mockLargeAlbum,
-  mockMixedTracks,
-  createMockTrack,
-} from '../fixtures/mock-tracks.js';
+import { mockAlbumTracks, mockLargeAlbum, createMockTrack } from '../fixtures/mock-tracks.js';
 import { GivenQueue, WhenQueue, ThenQueue } from '../fixtures/scenarios.js';
 
 describe('Feature: Queue Management', () => {

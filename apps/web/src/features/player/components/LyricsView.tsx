@@ -7,10 +7,10 @@ import { useLyrics } from '../hooks/useLyrics';
 import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
 import { LyricLine } from './LyricLine';
 
-interface LyricsViewProps {
+type LyricsViewProps = Readonly<{
   isOpen: boolean;
   onClose: () => void;
-}
+}>;
 
 export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
   const currentTrack = useCurrentTrack();
@@ -135,39 +135,7 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto py-8">
-        {!hasLyrics ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4">
-            {isFetching ? (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="text-accent h-8 w-8 animate-spin" />
-                <span className="text-text-secondary text-sm">Searching for lyrics...</span>
-              </div>
-            ) : fetchError === 'not_found' ? (
-              <span className="text-text-tertiary text-sm">No lyrics found</span>
-            ) : fetchError ? (
-              <div className="flex flex-col items-center gap-3">
-                <span className="text-text-tertiary text-sm">{fetchError}</span>
-                <button
-                  type="button"
-                  onClick={() => void handleFetchLyrics()}
-                  className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
-                >
-                  <Search className="h-4 w-4" />
-                  Try Again
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleFetchLyrics()}
-                className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
-              >
-                <Search className="h-4 w-4" />
-                Search Lyrics
-              </button>
-            )}
-          </div>
-        ) : (
+        {hasLyrics ? (
           <>
             {!isTimeSynced && (
               <div className="text-text-tertiary mb-4 text-center text-sm">
@@ -185,6 +153,48 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
               ))}
             </div>
           </>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-4">
+            {isFetching ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="text-accent h-8 w-8 animate-spin" />
+                <span className="text-text-secondary text-sm">Searching for lyrics...</span>
+              </div>
+            ) : (
+              (() => {
+                const notFoundContent = (
+                  <span className="text-text-tertiary text-sm">No lyrics found</span>
+                );
+                const errorContent = fetchError ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <span className="text-text-tertiary text-sm">{fetchError}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleFetchLyrics();
+                      }}
+                      className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
+                    >
+                      <Search className="h-4 w-4" />
+                      Try Again
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleFetchLyrics();
+                    }}
+                    className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
+                  >
+                    <Search className="h-4 w-4" />
+                    Search Lyrics
+                  </button>
+                );
+                return fetchError === 'not_found' ? notFoundContent : errorContent;
+              })()
+            )}
+          </div>
         )}
       </div>
     </Modal>

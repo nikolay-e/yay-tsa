@@ -25,7 +25,7 @@ const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage }))
 );
 
-function LazyRoute({ children }: { children: React.ReactNode }) {
+function LazyRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   return <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>;
 }
 

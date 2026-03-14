@@ -4,7 +4,7 @@ import { AdminService, type UserSummary } from '@yay-tsa/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/auth.store';
 
-function PasswordReveal({ password, label }: { password: string; label: string }) {
+function PasswordReveal({ password, label }: Readonly<{ password: string; label: string }>) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -38,10 +38,10 @@ function PasswordReveal({ password, label }: { password: string; label: string }
 function AddUserModal({
   onClose,
   onCreated,
-}: {
+}: Readonly<{
   onClose: () => void;
   onCreated: (password: string) => void;
-}) {
+}>) {
   const client = useAuthStore(state => state.client);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -137,12 +137,12 @@ function UserRow({
   currentUserId,
   onDeleted,
   onPasswordReset,
-}: {
+}: Readonly<{
   user: UserSummary;
   currentUserId: string | null;
   onDeleted: () => void;
   onPasswordReset: (password: string) => void;
-}) {
+}>) {
   const client = useAuthStore(state => state.client);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -255,7 +255,7 @@ export function UsersPanel() {
   });
 
   const invalidate = useCallback(() => {
-    void qc.invalidateQueries({ queryKey: ['admin', 'users'] });
+    qc.invalidateQueries({ queryKey: ['admin', 'users'] });
   }, [qc]);
 
   const handleCreated = useCallback(
@@ -275,7 +275,7 @@ export function UsersPanel() {
     <div className="p-4">
       <div className="mb-4 flex items-center justify-between">
         <span className="text-text-secondary text-sm">
-          {users ? `${users.length} user${users.length !== 1 ? 's' : ''}` : ''}
+          {users ? `${users.length} user${users.length === 1 ? '' : 's'}` : ''}
         </span>
         <button
           onClick={() => {

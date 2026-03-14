@@ -117,13 +117,12 @@ function QueueTrackItem({
       )}
     >
       <div className="flex h-7 w-7 shrink-0 items-center justify-center">
-        {isCurrent && isPlaying ? (
-          <Music className="text-accent h-3.5 w-3.5 animate-pulse" />
-        ) : isCurrent ? (
-          <Play className="text-accent h-3.5 w-3.5" />
-        ) : (
-          <span className="text-text-tertiary text-xs">{index + 1}</span>
-        )}
+        {(() => {
+          if (isCurrent && isPlaying)
+            return <Music className="text-accent h-3.5 w-3.5 animate-pulse" />;
+          if (isCurrent) return <Play className="text-accent h-3.5 w-3.5" />;
+          return <span className="text-text-tertiary text-xs">{index + 1}</span>;
+        })()}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -170,9 +169,9 @@ export function QueueView() {
     if (initAttemptedRef.current) return;
     initAttemptedRef.current = true;
     if (getSavedSessionId()) {
-      void useSessionStore.getState().restoreSession();
+      useSessionStore.getState().restoreSession();
     } else if (queueItems.length === 0) {
-      void useSessionStore.getState().startSession();
+      useSessionStore.getState().startSession();
     }
   }, [activeSession, isStarting, queueItems.length]);
 
@@ -190,7 +189,7 @@ export function QueueView() {
 
   useEffect(() => {
     if (!isInView || !canLoadMore) return;
-    void useSessionStore.getState().refreshQueue();
+    useSessionStore.getState().refreshQueue();
   }, [isInView, canLoadMore, queueItems.length]);
 
   if (queueItems.length === 0) {
@@ -204,15 +203,15 @@ export function QueueView() {
   const handleTrackClick = (track: AudioItem) => {
     if (currentTrack?.Id === track.Id) {
       if (isPlaying) pause();
-      else void resume();
+      else resume();
       return;
     }
-    void jumpToQueueTrack(track.Id);
+    jumpToQueueTrack(track.Id);
   };
 
   const handleThumbsDown = (trackId: string) => {
     if (trackId === currentTrack?.Id) {
-      void next();
+      next();
     }
   };
 

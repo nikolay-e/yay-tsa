@@ -262,7 +262,9 @@ export function DjPreferencesPanel() {
               </div>
 
               <button
-                onClick={() => void handleSave()}
+                onClick={() => {
+                  handleSave();
+                }}
                 disabled={isSaving}
                 className="bg-accent text-text-on-accent hover:bg-accent-hover flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
               >

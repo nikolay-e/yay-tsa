@@ -27,7 +27,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     expect(await playerBar.isPlaying()).toBe(true);
 
     const hasAnalyser = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       const audioEngine = player?.audioEngine;
       const audioContext = audioEngine?.getAudioContext?.();
       return audioContext !== null && audioContext !== undefined;
@@ -49,7 +49,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await playerBar.waitForPlayerToLoad();
 
     const audioContextCount = await authenticatedPage.evaluate(() => {
-      const contexts = (window as any).__audioContexts__ || [];
+      const contexts = (globalThis as any).__audioContexts__ || [];
       return contexts.length;
     });
 
@@ -116,7 +116,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Wait for timer to become active (polling)
     await expect(async () => {
       const isTimerActive = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.isActive === true;
       });
       expect(isTimerActive).toBe(true);
@@ -145,7 +145,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Wait for timer to become active with remaining time (polling)
     await expect(async () => {
       const timerState = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return {
           isActive: sleepTimer?.isActive,
           remainingMs: sleepTimer?.remainingMs,
@@ -177,7 +177,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Wait for timer to become active
     await expect(async () => {
       const isActive = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.isActive === true;
       });
       expect(isActive).toBe(true);
@@ -193,7 +193,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Wait for timer to become inactive
     await expect(async () => {
       const isTimerActive = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.isActive === true;
       });
       expect(isTimerActive).toBe(false);
@@ -222,7 +222,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Wait for timer to be in music phase with playback active
     await expect(async () => {
       const phase = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.phase;
       });
       expect(phase).toBe('music');
@@ -242,7 +242,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Poll for RMS value to be available
     await expect(async () => {
       const rmsValue = await authenticatedPage.evaluate(() => {
-        const player = (window as any).__playerStore__;
+        const player = (globalThis as any).__playerStore__;
         const audioEngine = player?.audioEngine;
         audioEngine?.getAudioContext?.();
         return audioEngine?.getRMS?.() ?? -1;
@@ -260,7 +260,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await playerBar.waitForPlayerToLoad();
 
     const audioContextStateBefore = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       const audioEngine = player?.audioEngine;
       const audioContext = audioEngine?.getAudioContext?.();
       return audioContext?.state;
@@ -271,7 +271,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await playerBar.pause();
 
     const audioContextStateAfter = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       const audioEngine = player?.audioEngine;
       const audioContext = audioEngine?.getAudioContext?.();
       return audioContext?.state;
@@ -292,7 +292,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await playerBar.waitForAudioPlaying();
 
     const audioGraphStructure = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       const audioEngine = player?.audioEngine;
       const audioContext = audioEngine?.getAudioContext?.();
 
@@ -323,7 +323,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await playerBar.waitForPlayerToLoad();
 
     const initialVolume = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       return player?.volume ?? 0;
     });
 
@@ -331,7 +331,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await playerBar.play();
 
     const volumeAfterResume = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       return player?.volume ?? 0;
     });
 
@@ -356,7 +356,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     await authenticatedPage.evaluate(() => {
-      const sleepTimer = (window as any).__sleepTimerStore__;
+      const sleepTimer = (globalThis as any).__sleepTimerStore__;
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
           musicDurationMs: 500,
@@ -368,7 +368,7 @@ test.describe('Sleep Timer and Background Playback', () => {
 
     await expect(async () => {
       const phase = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.phase;
       });
       expect(phase).toBe('crossfade-to-noise');
@@ -401,7 +401,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     await authenticatedPage.evaluate(() => {
-      const sleepTimer = (window as any).__sleepTimerStore__;
+      const sleepTimer = (globalThis as any).__sleepTimerStore__;
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
           musicDurationMs: 500,
@@ -413,7 +413,7 @@ test.describe('Sleep Timer and Background Playback', () => {
 
     await expect(async () => {
       const phase = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.phase;
       });
       expect(phase).toBe('crossfade-to-noise');
@@ -464,7 +464,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     await authenticatedPage.evaluate(() => {
-      const sleepTimer = (window as any).__sleepTimerStore__;
+      const sleepTimer = (globalThis as any).__sleepTimerStore__;
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
           musicDurationMs: 500,
@@ -476,7 +476,7 @@ test.describe('Sleep Timer and Background Playback', () => {
 
     await expect(async () => {
       const phase = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.phase;
       });
       expect(['idle', 'stopped'].includes(phase)).toBe(true);
@@ -507,7 +507,7 @@ test.describe('Sleep Timer and Background Playback', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     await authenticatedPage.evaluate(() => {
-      const sleepTimer = (window as any).__sleepTimerStore__;
+      const sleepTimer = (globalThis as any).__sleepTimerStore__;
       if (sleepTimer?.startCustomTimer) {
         sleepTimer.startCustomTimer({
           musicDurationMs: 500,
@@ -523,7 +523,7 @@ test.describe('Sleep Timer and Background Playback', () => {
 
     await expect(async () => {
       const phase = await authenticatedPage.evaluate(() => {
-        const sleepTimer = (window as any).__sleepTimerStore__;
+        const sleepTimer = (globalThis as any).__sleepTimerStore__;
         return sleepTimer?.phase;
       });
       expect(phase).toBe('crossfade-to-noise');

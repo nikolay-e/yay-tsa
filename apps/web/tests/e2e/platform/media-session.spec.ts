@@ -5,7 +5,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       const isSupported = manager.supported();
@@ -21,7 +21,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const metadata = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
@@ -52,7 +52,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const metadata = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
@@ -78,7 +78,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const states = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
@@ -108,28 +108,17 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(async () => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
         return { supported: false };
       }
 
-      let playHandlerCalled = false;
-      let pauseHandlerCalled = false;
-
       manager.setActionHandlers({
-        onPlay: () => {
-          playHandlerCalled = true;
-        },
-        onPause: () => {
-          pauseHandlerCalled = true;
-        },
+        onPlay: () => {},
+        onPause: () => {},
       });
-
-      // Trigger the handlers via MediaSession API
-      const playHandler = (navigator.mediaSession as any).getActionHandler?.('play');
-      const pauseHandler = (navigator.mediaSession as any).getActionHandler?.('pause');
 
       // If getActionHandler is not available, we can at least verify handlers were set without error
       // The actual invocation happens via OS media controls which we can't simulate in tests
@@ -149,7 +138,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
@@ -186,7 +175,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
@@ -219,7 +208,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(() => {
-      const { MediaSessionManager } = (window as any).__platformClasses__;
+      const { MediaSessionManager } = (globalThis as any).__platformClasses__;
       const manager = new MediaSessionManager();
 
       if (!manager.supported()) {
@@ -227,7 +216,7 @@ test.describe('@yay-tsa/platform: MediaSessionManager', () => {
       }
 
       try {
-        manager.updatePositionState(180, 60, 1.0);
+        manager.updatePositionState(180, 60, 1);
         return { supported: true, success: true };
       } catch (error) {
         return { supported: true, success: false, error: String(error) };

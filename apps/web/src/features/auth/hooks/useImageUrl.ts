@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { getImagePlaceholder } from '@/shared/utils/image-placeholder';
 
-export { getImagePlaceholder };
+export { getImagePlaceholder } from '@/shared/utils/image-placeholder';
 
 export function useImageUrl() {
   const client = useAuthStore(state => state.client);

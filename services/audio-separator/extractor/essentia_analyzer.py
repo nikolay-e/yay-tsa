@@ -32,6 +32,9 @@ AUDIO_SAMPLE_RATE = 44100
 TF_SAMPLE_RATE = 16000
 MIN_AUDIO_DURATION_SEC = 5
 
+TF_INPUT_PLACEHOLDER = "model/Placeholder"
+TF_OUTPUT_SOFTMAX = "model/Softmax"
+
 
 class EssentiaAnalyzer:
 
@@ -65,23 +68,23 @@ class EssentiaAnalyzer:
             )
             self._mood_happy_clf = TensorflowPredict2D(
                 graphFilename=os.path.join(self._models_dir, "mood_happy-discogs-effnet-1.pb"),
-                input="model/Placeholder",
-                output="model/Softmax",
+                input=TF_INPUT_PLACEHOLDER,
+                output=TF_OUTPUT_SOFTMAX,
             )
             self._mood_aggressive_clf = TensorflowPredict2D(
                 graphFilename=os.path.join(self._models_dir, "mood_aggressive-discogs-effnet-1.pb"),
-                input="model/Placeholder",
-                output="model/Softmax",
+                input=TF_INPUT_PLACEHOLDER,
+                output=TF_OUTPUT_SOFTMAX,
             )
             self._voice_instrumental_clf = TensorflowPredict2D(
                 graphFilename=os.path.join(self._models_dir, "voice_instrumental-msd-musicnn-1.pb"),
-                input="model/Placeholder",
-                output="model/Softmax",
+                input=TF_INPUT_PLACEHOLDER,
+                output=TF_OUTPUT_SOFTMAX,
             )
             self._danceability_clf = TensorflowPredict2D(
                 graphFilename=os.path.join(self._models_dir, "danceability-discogs-effnet-1.pb"),
-                input="model/Placeholder",
-                output="model/Softmax",
+                input=TF_INPUT_PLACEHOLDER,
+                output=TF_OUTPUT_SOFTMAX,
             )
 
             self._initialized = True

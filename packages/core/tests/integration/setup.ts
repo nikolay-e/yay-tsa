@@ -58,7 +58,7 @@ export async function setupTestFixtures(config: TestConfig): Promise<TestFixture
  * Call this in afterAll() of test suites
  */
 export async function cleanupTestFixtures(fixtures: TestFixtures): Promise<void> {
-  if (!fixtures || !fixtures.config?.serverUrl) {
+  if (!fixtures?.config?.serverUrl) {
     // Skip cleanup if fixtures were not initialized (e.g., missing env variables)
     return;
   }

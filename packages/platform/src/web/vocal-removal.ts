@@ -8,7 +8,7 @@ export interface VocalRemovalConfig {
 }
 
 export class VocalRemovalProcessor {
-  private audioContext: AudioContext;
+  private readonly audioContext: AudioContext;
   private inputNode: AudioNode | null = null;
   private outputNode: AudioNode | null = null;
   private splitter: ChannelSplitterNode | null = null;
@@ -188,41 +188,48 @@ export class VocalRemovalProcessor {
     this.outputGain.connect(this.outputNode);
   }
 
-  setEnabled(enabled: boolean): void {
-    if (this._enabled === enabled) return;
+  private applyToggleAfterFade(targetEnabled: boolean): void {
+    this.pendingToggleTimer = null;
+    if (this._enabled !== targetEnabled) return;
 
-    this._enabled = enabled;
-    const targetEnabled = enabled;
+    if (targetEnabled) {
+      this.connectEffectChain();
+    } else {
+      this.connectBypass();
+    }
 
-    if (!this.isConnected) return;
+    if (this.outputGain) {
+      const time = this.audioContext.currentTime;
+      this.outputGain.gain.setValueAtTime(0.001, time);
+      this.outputGain.gain.exponentialRampToValueAtTime(1, time + 0.05);
+    }
+  }
+
+  private scheduleToggle(targetEnabled: boolean): void {
+    if (!this.outputGain) return;
 
     if (this.pendingToggleTimer) {
       clearTimeout(this.pendingToggleTimer);
       this.pendingToggleTimer = null;
     }
 
-    if (this.outputGain) {
-      const currentTime = this.audioContext.currentTime;
-      this.outputGain.gain.setValueAtTime(this.outputGain.gain.value, currentTime);
-      this.outputGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.05);
+    const currentTime = this.audioContext.currentTime;
+    this.outputGain.gain.setValueAtTime(this.outputGain.gain.value, currentTime);
+    this.outputGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.05);
 
-      this.pendingToggleTimer = setTimeout(() => {
-        this.pendingToggleTimer = null;
-        if (this._enabled !== targetEnabled) return;
+    this.pendingToggleTimer = setTimeout(() => {
+      this.applyToggleAfterFade(targetEnabled);
+    }, 50);
+  }
 
-        if (targetEnabled) {
-          this.connectEffectChain();
-        } else {
-          this.connectBypass();
-        }
+  setEnabled(enabled: boolean): void {
+    if (this._enabled === enabled) return;
 
-        if (this.outputGain) {
-          const time = this.audioContext.currentTime;
-          this.outputGain.gain.setValueAtTime(0.001, time);
-          this.outputGain.gain.exponentialRampToValueAtTime(1, time + 0.05);
-        }
-      }, 50);
-    }
+    this._enabled = enabled;
+
+    if (!this.isConnected) return;
+
+    this.scheduleToggle(enabled);
 
     log.info(`Vocal removal ${enabled ? 'enabled' : 'disabled'}`);
   }

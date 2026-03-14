@@ -73,7 +73,12 @@ export function ArtistDetailPage() {
       {albums.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-semibold">Albums</h2>
-          <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+          <AlbumGrid
+            albums={albums}
+            onPlayAlbum={album => {
+              playAlbum(album.Id);
+            }}
+          />
         </section>
       )}
     </div>

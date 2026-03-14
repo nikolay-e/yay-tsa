@@ -23,11 +23,11 @@ download_with_backoff() {
 
   for attempt in $(seq 1 "$max_retries"); do
     echo "  Attempt $attempt/$max_retries..."
-    if wget --timeout=120 --tries=1 -q -O "$target" "$url" && [ -s "$target" ]; then
+    if wget --timeout=120 --tries=1 -q -O "$target" "$url" && [[ -s "$target" ]]; then
       return 0
     fi
     rm -f "$target"
-    if [ "$attempt" -lt "$max_retries" ]; then
+    if [[ "$attempt" -lt "$max_retries" ]]; then
       echo "  Retrying in ${wait}s..."
       sleep "$wait"
       wait=$((wait * 2))
@@ -42,7 +42,7 @@ for model_path in "${MODELS[@]}"; do
   filename=$(basename "$model_path")
   target="$MODELS_DIR/$filename"
 
-  if [ -f "$target" ] && [ -s "$target" ]; then
+  if [[ -f "$target" ]] && [[ -s "$target" ]]; then
     echo "Already exists: $filename"
     continue
   fi
@@ -54,7 +54,7 @@ for model_path in "${MODELS[@]}"; do
   fi
 done
 
-if [ "$FAILED" -gt 0 ]; then
+if [[ "$FAILED" -gt 0 ]]; then
   echo "WARNING: $FAILED model(s) failed to download. Models must be provided at runtime." >&2
   exit 1
 fi

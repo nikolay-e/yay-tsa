@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { AudioItem } from '@yay-tsa/core';
 import { Mic, MicOff, Timer, AlignLeft } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -30,6 +31,73 @@ import { SleepTimerModal } from './SleepTimerModal';
 import { VolumeControls } from './VolumeControls';
 import { PlaybackControls } from './PlaybackControls';
 
+function TrackInfo({
+  track,
+  hasImageError,
+  onImageError,
+  imageUrl,
+}: Readonly<{
+  track: AudioItem;
+  hasImageError: boolean;
+  onImageError: () => void;
+  imageUrl: string;
+}>) {
+  const artistName = track.Artists?.[0] ?? 'Unknown Artist';
+  const artistId = track.ArtistItems?.[0]?.Id;
+  const imgSrc = hasImageError ? getImagePlaceholder() : imageUrl;
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      {track.AlbumId ? (
+        <Link to={`/albums/${track.AlbumId}`}>
+          <img
+            src={imgSrc}
+            alt={track.Name}
+            className="h-12 w-12 shrink-0 rounded-sm object-cover transition-opacity hover:opacity-80"
+            onError={onImageError}
+          />
+        </Link>
+      ) : (
+        <img
+          src={imgSrc}
+          alt={track.Name}
+          className="h-12 w-12 shrink-0 rounded-sm object-cover"
+          onError={onImageError}
+        />
+      )}
+      <div className="min-w-0">
+        {track.AlbumId ? (
+          <Link
+            to={`/albums/${track.AlbumId}`}
+            data-testid="current-track-title"
+            className="text-text-primary block truncate font-medium hover:underline"
+          >
+            {track.Name}
+          </Link>
+        ) : (
+          <p data-testid="current-track-title" className="text-text-primary truncate font-medium">
+            {track.Name}
+          </p>
+        )}
+        {artistId ? (
+          <Link
+            to={`/artists/${artistId}`}
+            data-testid="current-track-artist"
+            className="text-text-secondary hover:text-text-primary block truncate text-sm hover:underline"
+          >
+            {artistName}
+          </Link>
+        ) : (
+          <p data-testid="current-track-artist" className="text-text-secondary truncate text-sm">
+            {artistName}
+          </p>
+        )}
+      </div>
+      <FavoriteButton itemId={track.Id} isFavorite={track.UserData?.IsFavorite ?? false} />
+    </div>
+  );
+}
+
 export function PlayerBar() {
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [showLyricsView, setShowLyricsView] = useState(false);
@@ -59,16 +127,22 @@ export function PlayerBar() {
   const handleSetVolume = useCallback((v: number) => usePlayerStore.getState().setVolume(v), []);
   const handleToggleShuffle = useCallback(() => usePlayerStore.getState().toggleShuffle(), []);
   const handleToggleRepeat = useCallback(() => usePlayerStore.getState().toggleRepeat(), []);
-  const handlePlayPause = useCallback(
-    () =>
-      usePlayerStore.getState().isPlaying
-        ? usePlayerStore.getState().pause()
-        : void usePlayerStore.getState().resume(),
-    []
-  );
-  const handleNext = useCallback(() => void usePlayerStore.getState().next(), []);
-  const handlePrevious = useCallback(() => void usePlayerStore.getState().previous(), []);
-  const handleToggleKaraoke = useCallback(() => void usePlayerStore.getState().toggleKaraoke(), []);
+  const handlePlayPause = useCallback(() => {
+    if (usePlayerStore.getState().isPlaying) {
+      usePlayerStore.getState().pause();
+    } else {
+      usePlayerStore.getState().resume();
+    }
+  }, []);
+  const handleNext = useCallback(() => {
+    usePlayerStore.getState().next();
+  }, []);
+  const handlePrevious = useCallback(() => {
+    usePlayerStore.getState().previous();
+  }, []);
+  const handleToggleKaraoke = useCallback(() => {
+    usePlayerStore.getState().toggleKaraoke();
+  }, []);
   const handleSetSleepTimer = useCallback(
     (m: number) => usePlayerStore.getState().setSleepTimer(m),
     []
@@ -85,7 +159,7 @@ export function PlayerBar() {
     if (karaokeStatus?.state !== 'PROCESSING') return;
 
     const interval = setInterval(() => {
-      void usePlayerStore.getState().refreshKaraokeStatus();
+      usePlayerStore.getState().refreshKaraokeStatus();
     }, 3000);
 
     return () => clearInterval(interval);
@@ -119,9 +193,6 @@ export function PlayerBar() {
     maxHeight: 64,
   });
 
-  const artistName = currentTrack.Artists?.[0] ?? 'Unknown Artist';
-  const artistId = currentTrack.ArtistItems?.[0]?.Id;
-
   return (
     <div
       data-testid="player-bar"
@@ -130,63 +201,12 @@ export function PlayerBar() {
       <SeekBar onSeek={handleSeek} />
 
       <div className="mx-auto flex max-w-7xl items-center gap-4 p-2 px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {currentTrack.AlbumId ? (
-            <Link to={`/albums/${currentTrack.AlbumId}`}>
-              <img
-                src={hasImageError ? getImagePlaceholder() : imageUrl}
-                alt={currentTrack.Name}
-                className="h-12 w-12 shrink-0 rounded-sm object-cover transition-opacity hover:opacity-80"
-                onError={onImageError}
-              />
-            </Link>
-          ) : (
-            <img
-              src={hasImageError ? getImagePlaceholder() : imageUrl}
-              alt={currentTrack.Name}
-              className="h-12 w-12 shrink-0 rounded-sm object-cover"
-              onError={onImageError}
-            />
-          )}
-          <div className="min-w-0">
-            {currentTrack.AlbumId ? (
-              <Link
-                to={`/albums/${currentTrack.AlbumId}`}
-                data-testid="current-track-title"
-                className="text-text-primary block truncate font-medium hover:underline"
-              >
-                {currentTrack.Name}
-              </Link>
-            ) : (
-              <p
-                data-testid="current-track-title"
-                className="text-text-primary truncate font-medium"
-              >
-                {currentTrack.Name}
-              </p>
-            )}
-            {artistId ? (
-              <Link
-                to={`/artists/${artistId}`}
-                data-testid="current-track-artist"
-                className="text-text-secondary hover:text-text-primary block truncate text-sm hover:underline"
-              >
-                {artistName}
-              </Link>
-            ) : (
-              <p
-                data-testid="current-track-artist"
-                className="text-text-secondary truncate text-sm"
-              >
-                {artistName}
-              </p>
-            )}
-          </div>
-          <FavoriteButton
-            itemId={currentTrack.Id}
-            isFavorite={currentTrack.UserData?.IsFavorite ?? false}
-          />
-        </div>
+        <TrackInfo
+          track={currentTrack}
+          hasImageError={hasImageError}
+          onImageError={onImageError}
+          imageUrl={imageUrl}
+        />
 
         <PlaybackControls
           isPlaying={isPlaying}
@@ -214,13 +234,10 @@ export function PlayerBar() {
             )}
             aria-label={isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode'}
             aria-pressed={isKaraokeMode}
-            title={
-              karaokeStatus?.state === 'PROCESSING'
-                ? 'Processing karaoke...'
-                : isKaraokeMode
-                  ? 'Karaoke mode on'
-                  : 'Karaoke mode'
-            }
+            title={(() => {
+              if (karaokeStatus?.state === 'PROCESSING') return 'Processing karaoke...';
+              return isKaraokeMode ? 'Karaoke mode on' : 'Karaoke mode';
+            })()}
           >
             {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </button>

@@ -40,28 +40,28 @@ export class HTML5AudioEngine implements AudioEngine {
   private preloadEventCleanup: (() => void) | null = null;
 
   // Callback registries for external subscribers
-  private timeUpdateCallbacks = new Set<(seconds: number) => void>();
-  private endedCallbacks = new Set<() => void>();
-  private errorCallbacks = new Set<(error: Error) => void>();
-  private loadingCallbacks = new Set<(isLoading: boolean) => void>();
+  private readonly timeUpdateCallbacks = new Set<(seconds: number) => void>();
+  private readonly endedCallbacks = new Set<() => void>();
+  private readonly errorCallbacks = new Set<(error: Error) => void>();
+  private readonly loadingCallbacks = new Set<(isLoading: boolean) => void>();
 
   // Approaching-end detection
-  private approachingEndCallbacks = new Set<() => void>();
+  private readonly approachingEndCallbacks = new Set<() => void>();
   private approachingEndThresholdMs: number = 500;
   private approachingEndFired: boolean = false;
 
   // Dispatch handlers — single handler per event type, iterates registered callbacks
-  private dispatchPlay = () => {
+  private readonly dispatchPlay = () => {
     this._isPlaying = true;
   };
-  private dispatchPause = () => {
+  private readonly dispatchPause = () => {
     this._isPlaying = false;
   };
-  private dispatchEnded = () => {
+  private readonly dispatchEnded = () => {
     this._isPlaying = false;
     for (const cb of this.endedCallbacks) cb();
   };
-  private dispatchTimeUpdate = () => {
+  private readonly dispatchTimeUpdate = () => {
     const time = this.audio.currentTime;
     for (const cb of this.timeUpdateCallbacks) cb(time);
 
@@ -77,20 +77,20 @@ export class HTML5AudioEngine implements AudioEngine {
       }
     }
   };
-  private dispatchError = () => {
+  private readonly dispatchError = () => {
     const mediaError = this.audio.error;
     const errorMessage = mediaError?.message ?? 'Unknown error';
     const sanitized = this.sanitizeError(errorMessage);
     const error = new Error(`Audio error: ${sanitized}`);
     for (const cb of this.errorCallbacks) cb(error);
   };
-  private dispatchWaiting = () => {
+  private readonly dispatchWaiting = () => {
     for (const cb of this.loadingCallbacks) cb(true);
   };
-  private dispatchCanPlay = () => {
+  private readonly dispatchCanPlay = () => {
     for (const cb of this.loadingCallbacks) cb(false);
   };
-  private dispatchPlaying = () => {
+  private readonly dispatchPlaying = () => {
     for (const cb of this.loadingCallbacks) cb(false);
   };
 
@@ -107,7 +107,7 @@ export class HTML5AudioEngine implements AudioEngine {
   private currentFadeCancel: (() => void) | null = null;
 
   // Track element fades for crossfade cancellation (fallback path only)
-  private activeElementFades: Set<() => void> = new Set();
+  private readonly activeElementFades: Set<() => void> = new Set();
 
   // Vocal removal processor for karaoke mode
   private vocalRemovalProcessor: VocalRemovalProcessor | null = null;
@@ -165,11 +165,11 @@ export class HTML5AudioEngine implements AudioEngine {
     }
 
     if (
-      typeof window !== 'undefined' &&
-      ('AudioContext' in window || 'webkitAudioContext' in window)
+      typeof globalThis.window !== 'undefined' &&
+      ('AudioContext' in globalThis.window || 'webkitAudioContext' in globalThis.window)
     ) {
       try {
-        const windowWithAudio = window as typeof window & {
+        const windowWithAudio = globalThis.window as typeof window & {
           AudioContext?: typeof AudioContext;
           webkitAudioContext?: typeof AudioContext;
         };
@@ -325,7 +325,7 @@ export class HTML5AudioEngine implements AudioEngine {
           // Note: this.audio.src is always absolute, url may be relative
           let absoluteUrl: string;
           try {
-            absoluteUrl = new URL(url, window.location.href).href;
+            absoluteUrl = new URL(url, globalThis.window.location.href).href;
           } catch {
             this.currentLoadReject = null;
             reject(new Error(`Invalid audio URL: ${this.sanitizeError(url)}`));
@@ -456,7 +456,7 @@ export class HTML5AudioEngine implements AudioEngine {
     this.ensureNotDisposed();
 
     if (!Number.isFinite(seconds)) {
-      throw new Error(`Invalid seek position: ${seconds} (must be a finite number)`);
+      throw new TypeError(`Invalid seek position: ${seconds} (must be a finite number)`);
     }
     if (seconds < 0) {
       throw new Error(`Invalid seek position: ${seconds} (cannot be negative)`);
@@ -481,7 +481,7 @@ export class HTML5AudioEngine implements AudioEngine {
   }
 
   setNormalizationGain(gainDb: number | null): void {
-    this.normalizationFactor = gainDb != null ? Math.pow(10, gainDb / 20) : 1;
+    this.normalizationFactor = gainDb === null ? 1 : Math.pow(10, gainDb / 20);
     if (this.inputBus && this.audioContext) {
       this.inputBus.gain.setValueAtTime(this.normalizationFactor, this.audioContext.currentTime);
     }
@@ -612,8 +612,8 @@ export class HTML5AudioEngine implements AudioEngine {
       for (const node of nodes) {
         try {
           node?.disconnect();
-        } catch (_) {
-          // Node already disconnected
+        } catch {
+          // intentionally ignored
         }
       }
     }
@@ -729,8 +729,8 @@ export class HTML5AudioEngine implements AudioEngine {
     const dataArray = new Float32Array(this._analyser.fftSize);
     this._analyser.getFloatTimeDomainData(dataArray);
     let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      sum += dataArray[i] * dataArray[i];
+    for (const sample of dataArray) {
+      sum += sample * sample;
     }
     return Math.sqrt(sum / dataArray.length);
   }
@@ -768,8 +768,8 @@ export class HTML5AudioEngine implements AudioEngine {
         // Restore direct connection on failure
         try {
           this.inputBus.connect(this.masterGain);
-        } catch (_) {
-          // Best-effort reconnect
+        } catch {
+          // intentionally ignored
         }
         this.karaokeEnabled = false;
       }

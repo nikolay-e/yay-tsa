@@ -133,6 +133,15 @@ function saveVolume(volume: number): void {
 let consecutiveLoadFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
+function startPlaybackReporter(trackId: string): void {
+  if (!currentClient) return;
+  lastProgressReportTime = 0;
+  playbackReporter = new PlaybackReporter(currentClient);
+  playbackReporter.reportStart(trackId).catch(err => {
+    log.player.warn('Failed to report start', { error: String(err) });
+  });
+}
+
 function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioItem | null {
   const next = queue.peekNext();
   if (next) return next;
@@ -154,7 +163,9 @@ function autoAdvanceOnError(get: () => PlayerStore): void {
   const next = resolveNextItem(queue, repeatMode);
   if (next) {
     get().queue.advanceTo(next.Id);
-    setTimeout(() => void get().next(), 0);
+    setTimeout(() => {
+      void get().next();
+    }, 0);
   }
 }
 
@@ -257,15 +268,6 @@ export const usePlayerStore = create<PlayerStore>()(
         artist: track.Artists?.join(', ') ?? 'Unknown Artist',
         album: track.Album ?? 'Unknown Album',
         artwork: imageUrl,
-      });
-    }
-
-    function startPlaybackReporter(trackId: string): void {
-      if (!currentClient) return;
-      lastProgressReportTime = 0;
-      playbackReporter = new PlaybackReporter(currentClient);
-      playbackReporter.reportStart(trackId).catch(err => {
-        log.player.warn('Failed to report start', { error: String(err) });
       });
     }
 
@@ -524,11 +526,17 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     session?.setActionHandlers({
-      onPlay: () => void get().resume(),
+      onPlay: () => {
+        void get().resume();
+      },
       onPause: () => get().pause(),
       onSeek: seconds => get().seek(seconds),
-      onNext: () => void get().next(),
-      onPrevious: () => void get().previous(),
+      onNext: () => {
+        void get().next();
+      },
+      onPrevious: () => {
+        void get().previous();
+      },
     });
 
     return {

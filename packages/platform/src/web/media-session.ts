@@ -23,7 +23,7 @@ export interface MediaSessionHandlers {
 }
 
 export class MediaSessionManager {
-  private isSupported: boolean;
+  private readonly isSupported: boolean;
 
   constructor() {
     this.isSupported = typeof navigator !== 'undefined' && 'mediaSession' in navigator;
@@ -133,7 +133,7 @@ export class MediaSessionManager {
   /**
    * Update position state (for seek bar on lock screen)
    */
-  public updatePositionState(duration: number, position: number, playbackRate: number = 1.0): void {
+  public updatePositionState(duration: number, position: number, playbackRate: number = 1): void {
     if (!this.isSupported || !navigator.mediaSession) {
       return;
     }

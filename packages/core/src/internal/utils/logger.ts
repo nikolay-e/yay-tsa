@@ -8,7 +8,7 @@ interface Logger {
   debug(message: string, context?: LogContext): void;
   info(message: string, context?: LogContext): void;
   warn(message: string, context?: LogContext): void;
-  error(message: string, error?: Error | unknown, context?: LogContext): void;
+  error(message: string, error?: unknown, context?: LogContext): void;
 }
 
 declare global {
@@ -31,16 +31,16 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   silent: 4,
 };
 
-const VALID_LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error', 'silent'];
+const VALID_LOG_LEVELS = new Set<LogLevel>(['debug', 'info', 'warn', 'error', 'silent']);
 
 function isValidLogLevel(level: unknown): level is LogLevel {
-  return typeof level === 'string' && VALID_LOG_LEVELS.includes(level as LogLevel);
+  return typeof level === 'string' && VALID_LOG_LEVELS.has(level as LogLevel);
 }
 
 function detectEnvironment(): { isDev: boolean; logLevel: LogLevel } {
   // Priority 1: Runtime config (injected by Docker entrypoint in production)
-  if (typeof window !== 'undefined' && window.__YAYTSA_CONFIG__?.logLevel) {
-    const runtimeLevel = window.__YAYTSA_CONFIG__.logLevel;
+  if (globalThis.window?.__YAYTSA_CONFIG__?.logLevel) {
+    const runtimeLevel = globalThis.window.__YAYTSA_CONFIG__.logLevel;
     if (isValidLogLevel(runtimeLevel)) {
       return { isDev: runtimeLevel === 'debug', logLevel: runtimeLevel };
     }
@@ -151,7 +151,7 @@ export function createLogger(namespace: string): Logger {
       }
     },
 
-    error(message: string, error?: Error | unknown, context?: LogContext): void {
+    error(message: string, error?: unknown, context?: LogContext): void {
       if (shouldLog('error')) {
         const formatted = formatMessage(namespace, message);
         const errorMsg = error ? formatErrorMessage(error) : undefined;

@@ -28,7 +28,9 @@ ARG APP_ENVIRONMENT=development
 
 RUN apk add --no-cache brotli gzip && \
     VITE_APP_VERSION=${GIT_SHA} VITE_APP_ENVIRONMENT=${APP_ENVIRONMENT} npm run build && \
-    find /app/apps/web/dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
+    find /app/apps/web/dist -type f \
+        \( -name '*.js' -o -name '*.css' -o -name '*.html' \
+        -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
         -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
 
 FROM --platform=linux/amd64 mcr.microsoft.com/playwright:v1.58.0-noble AS test

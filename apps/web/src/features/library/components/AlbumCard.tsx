@@ -5,12 +5,12 @@ import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImage
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { cn } from '@/shared/utils/cn';
 
-interface AlbumCardProps {
+type AlbumCardProps = Readonly<{
   album: MusicAlbum;
   isPlaying?: boolean;
   onPlay?: () => void;
   onPause?: () => void;
-}
+}>;
 
 export function AlbumCard({ album, isPlaying, onPlay, onPause }: AlbumCardProps) {
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(

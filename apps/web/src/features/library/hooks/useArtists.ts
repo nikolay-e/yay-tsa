@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ItemsService, type MusicArtist, type MusicAlbum, type AudioItem } from '@yay-tsa/core';
+import { ItemsService, type MusicArtist } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
@@ -98,4 +98,4 @@ export function useArtistTracks(artistId: string | undefined) {
   });
 }
 
-export type { MusicArtist, MusicAlbum, AudioItem };
+export type { MusicArtist, MusicAlbum, AudioItem } from '@yay-tsa/core';

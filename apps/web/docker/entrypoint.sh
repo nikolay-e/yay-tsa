@@ -1,13 +1,14 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 # Reject unsafe characters that could enable nginx config injection
 # Returns 0 if safe, 1 if unsafe characters detected
 is_safe_for_config() {
+  local value="$1"
   # Reject newlines, control characters, quotes, semicolons, and other dangerous chars
   # Also reject # and & which break sed substitution (# is delimiter, & expands to matched text)
-  if printf '%s\n' "$1" | grep -qE '[[:cntrl:]]|[[:space:]]|[";'\''`\\$#&]'; then
-    printf 'ERROR: Unsafe characters detected in value: %s\n' "$1" >&2
+  if printf '%s\n' "$value" | grep -qE '[[:cntrl:]]|[[:space:]]|[";'\''`\\$#&]'; then
+    printf 'ERROR: Unsafe characters detected in value: %s\n' "$value" >&2
     return 1
   fi
   return 0
@@ -15,28 +16,30 @@ is_safe_for_config() {
 
 # Validate URL for browser use (allows relative paths like /api)
 validate_browser_url() {
-  is_safe_for_config "$1" || return 1
+  local url="$1"
+  is_safe_for_config "$url" || return 1
 
   # Allow absolute URLs (http/https) OR relative paths (/path)
-  if echo "$1" | grep -qE '^https?://[A-Za-z0-9._:-]+'; then
+  if echo "$url" | grep -qE '^https?://[A-Za-z0-9._:-]+'; then
     return 0
-  elif echo "$1" | grep -qE '^/[A-Za-z0-9._~/%+-]*$'; then
-    echo "INFO: Using relative path for browser: $1"
+  elif echo "$url" | grep -qE '^/[A-Za-z0-9._~/%+-]*$'; then
+    echo "INFO: Using relative path for browser: $url"
     return 0
   else
-    echo "ERROR: Invalid browser URL format: $1 (must be http(s):// or /path)" >&2
+    echo "ERROR: Invalid browser URL format: $url (must be http(s):// or /path)" >&2
     return 1
   fi
 }
 
 # Validate URL for nginx proxy_pass (MUST be absolute http/https URL)
 validate_backend_url() {
-  is_safe_for_config "$1" || return 1
+  local url="$1"
+  is_safe_for_config "$url" || return 1
 
-  if echo "$1" | grep -qE '^https?://[A-Za-z0-9._:-]+'; then
+  if echo "$url" | grep -qE '^https?://[A-Za-z0-9._:-]+'; then
     return 0
   else
-    echo "ERROR: Backend URL must be absolute http(s):// URL, got: $1" >&2
+    echo "ERROR: Backend URL must be absolute http(s):// URL, got: $url" >&2
     return 1
   fi
 }
@@ -87,8 +90,8 @@ else
     echo "INFO: Nginx will proxy to backend (configure YAYTSA_BACKEND_URL for nginx)"
     ;;
   *)
-    echo "ERROR: Cannot determine backend configuration"
-    echo "Please set YAYTSA_SERVER_URL for external server"
+    echo "ERROR: Cannot determine backend configuration" >&2
+    echo "Please set YAYTSA_SERVER_URL for external server" >&2
     exit 1
     ;;
   esac
@@ -105,7 +108,7 @@ YAYTSA_LOG_LEVEL="${YAYTSA_LOG_LEVEL:-error}"
 case "$YAYTSA_LOG_LEVEL" in
 debug | info | warn | error | silent) ;;
 *)
-  echo "WARNING: Invalid YAYTSA_LOG_LEVEL='$YAYTSA_LOG_LEVEL', using 'error'"
+  echo "WARNING: Invalid YAYTSA_LOG_LEVEL='$YAYTSA_LOG_LEVEL', using 'error'" >&2
   YAYTSA_LOG_LEVEL="error"
   ;;
 esac
@@ -156,8 +159,8 @@ if [ -f "$CSP_HASHES_FILE" ]; then
     echo "No inline scripts found - using 'self' only for script-src"
   fi
 else
-  echo "ERROR: $CSP_HASHES_FILE not found"
-  echo "CSP hashes must be generated during build - this is a build configuration error"
+  echo "ERROR: $CSP_HASHES_FILE not found" >&2
+  echo "CSP hashes must be generated during build - this is a build configuration error" >&2
   exit 1
 fi
 
@@ -177,7 +180,7 @@ elif [ "$CSP_MODE" = "strict" ]; then
     CSP_CONNECT_SRC_DOMAINS="$SERVER_DOMAIN"
     echo "CSP Mode: STRICT - connect-src restricted to: $SERVER_DOMAIN"
   else
-    echo "ERROR: CSP_MODE=strict requires YAYTSA_SERVER_URL to be set"
+    echo "ERROR: CSP_MODE=strict requires YAYTSA_SERVER_URL to be set" >&2
     exit 1
   fi
 elif [ "$CSP_MODE" = "auto" ]; then
@@ -197,7 +200,7 @@ elif [ "$CSP_MODE" = "auto" ]; then
     echo "CSP Mode: AUTO → RELAXED - connect-src allows all domains (YAYTSA_SERVER_URL not set)"
   fi
 else
-  echo "ERROR: Invalid CSP_MODE='$CSP_MODE'. Must be 'strict', 'relaxed', or 'auto'"
+  echo "ERROR: Invalid CSP_MODE='$CSP_MODE'. Must be 'strict', 'relaxed', or 'auto'" >&2
   exit 1
 fi
 
@@ -221,7 +224,7 @@ if [ -z "$YAYTSA_BACKEND_URL" ]; then
     echo "INFO: Using default Kubernetes backend URL: $YAYTSA_BACKEND_URL"
     ;;
   *)
-    echo "ERROR: YAYTSA_BACKEND_URL is required for nginx proxy configuration"
+    echo "ERROR: YAYTSA_BACKEND_URL is required for nginx proxy configuration" >&2
     exit 1
     ;;
   esac

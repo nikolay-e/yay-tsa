@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { cn } from '@/shared/utils/cn';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
-interface ModalProps {
+type ModalProps = Readonly<{
   isOpen: boolean;
   onClose: () => void;
   ariaLabelledBy: string;
@@ -10,7 +10,7 @@ interface ModalProps {
   backdropClassName?: string;
   preventClose?: boolean;
   children: ReactNode;
-}
+}>;
 
 const DEFAULT_BACKDROP = 'flex items-center justify-center bg-black/50';
 

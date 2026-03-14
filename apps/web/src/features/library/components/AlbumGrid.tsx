@@ -1,12 +1,12 @@
 import { type MusicAlbum } from '@yay-tsa/core';
 import { AlbumCard } from './AlbumCard';
 
-interface AlbumGridProps {
+type AlbumGridProps = Readonly<{
   albums: MusicAlbum[];
   playingAlbumId?: string;
   onPlayAlbum?: (album: MusicAlbum) => void;
   onPause?: () => void;
-}
+}>;
 
 export function AlbumGrid({ albums, playingAlbumId, onPlayAlbum, onPause }: AlbumGridProps) {
   if (albums.length === 0) {

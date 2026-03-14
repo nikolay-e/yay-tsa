@@ -141,20 +141,20 @@ test.describe('Playback and Player Controls', () => {
 
     // Try to seek to an invalid position (beyond duration)
     const duration = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       return player?.audioEngine?.getDuration() ?? 0;
     });
 
     // Seek beyond end - should be clamped or handled gracefully
     await authenticatedPage.evaluate(dur => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       player?.audioEngine?.seek(dur + 100);
     }, duration);
 
     // Player should still be functional after invalid seek
     expect(await playerBar.isVisible()).toBe(true);
     const currentTime = await authenticatedPage.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       return player?.audioEngine?.getCurrentTime() ?? -1;
     });
 

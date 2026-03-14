@@ -104,7 +104,7 @@ export function AlbumDetailPage() {
                   pause();
                 } else if (id) {
                   setShuffle(false);
-                  void playAlbum(id);
+                  playAlbum(id);
                 }
               }}
               className={cn(
@@ -129,7 +129,9 @@ export function AlbumDetailPage() {
               data-testid="album-shuffle-button"
               onClick={() => {
                 setShuffle(true);
-                if (id) void playAlbum(id);
+                if (id) {
+                  playAlbum(id);
+                }
               }}
               className={cn(
                 'flex items-center gap-2 px-6 py-2',
@@ -157,7 +159,9 @@ export function AlbumDetailPage() {
         showImage={false}
         currentTrackId={currentTrack?.Id}
         isPlaying={isPlaying}
-        onPlayTrack={(_, index) => void playTracks(tracks, index)}
+        onPlayTrack={(_, index) => {
+          playTracks(tracks, index);
+        }}
         onPauseTrack={pause}
       />
     </div>

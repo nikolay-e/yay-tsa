@@ -1,8 +1,8 @@
 import { Loader2 } from 'lucide-react';
 
-interface LoadingSpinnerProps {
+type LoadingSpinnerProps = Readonly<{
   className?: string;
-}
+}>;
 
 export function LoadingSpinner({ className = 'h-64' }: LoadingSpinnerProps) {
   return (

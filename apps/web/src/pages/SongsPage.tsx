@@ -33,11 +33,11 @@ export function SongsPage() {
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleLoadMore = () => {
-    void fetchNextPage();
+    fetchNextPage();
   };
 
   const handlePlayTrack = (_track: unknown, index: number) => {
-    void playTracks(tracks, index);
+    playTracks(tracks, index);
   };
 
   return (

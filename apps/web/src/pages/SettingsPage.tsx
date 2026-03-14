@@ -9,7 +9,7 @@ import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPa
 import { UsersPanel } from '@/features/auth/components/UsersPanel';
 
 async function clearServiceWorkerCaches(): Promise<number> {
-  if (!('caches' in window)) return 0;
+  if (!('caches' in globalThis)) return 0;
   const cacheNames = await caches.keys();
   const yaytsCaches = cacheNames.filter(name => name.startsWith('yaytsa-'));
   await Promise.all(yaytsCaches.map(name => caches.delete(name)));
@@ -27,7 +27,7 @@ async function forceReload(): Promise<void> {
     const registrations = await navigator.serviceWorker.getRegistrations();
     await Promise.all(registrations.map(reg => reg.unregister()));
   }
-  window.location.reload();
+  globalThis.location.reload();
 }
 
 export function SettingsPage() {
@@ -74,12 +74,12 @@ export function SettingsPage() {
 
   const handleUploadSuccess = () => {
     setStatus('Album uploaded successfully. Rescanning library...');
-    void queryClient.invalidateQueries({ queryKey: ['tracks'] });
-    void queryClient.invalidateQueries({ queryKey: ['albums'] });
-    void queryClient.invalidateQueries({ queryKey: ['artists'] });
-    void queryClient.invalidateQueries({ queryKey: ['album'] });
-    void queryClient.invalidateQueries({ queryKey: ['artist'] });
-    void handleRescanLibrary();
+    queryClient.invalidateQueries({ queryKey: ['tracks'] });
+    queryClient.invalidateQueries({ queryKey: ['albums'] });
+    queryClient.invalidateQueries({ queryKey: ['artists'] });
+    queryClient.invalidateQueries({ queryKey: ['album'] });
+    queryClient.invalidateQueries({ queryKey: ['artist'] });
+    handleRescanLibrary();
   };
 
   return (
@@ -113,7 +113,9 @@ export function SettingsPage() {
         </h2>
 
         <button
-          onClick={() => void handleRescanLibrary()}
+          onClick={() => {
+            handleRescanLibrary();
+          }}
           disabled={isRescanning || !client}
           className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
         >
@@ -136,7 +138,9 @@ export function SettingsPage() {
         </h2>
 
         <button
-          onClick={() => void handleForceReload()}
+          onClick={() => {
+            handleForceReload();
+          }}
           disabled={isReloading}
           className="bg-error/10 hover:bg-error/20 border-error/30 flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
         >
@@ -194,7 +198,9 @@ export function SettingsPage() {
         </h2>
 
         <button
-          onClick={() => void logout()}
+          onClick={() => {
+            logout();
+          }}
           className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
         >
           <LogOut className="text-error h-5 w-5 shrink-0" />

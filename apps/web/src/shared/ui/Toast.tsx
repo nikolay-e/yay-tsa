@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer } from 'react';
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
@@ -46,10 +46,10 @@ export const toast: ToastStore = {
 };
 
 function useToasts(): ToastMessage[] {
-  const [, forceUpdate] = useState({});
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
-    const listener = () => forceUpdate({});
+    const listener = () => forceUpdate();
     toastListeners.add(listener);
     return () => {
       toastListeners.delete(listener);
@@ -73,7 +73,7 @@ const styles = {
   warning: 'bg-warning/10 border-warning/30 text-warning',
 };
 
-function ToastItem({ item }: { item: ToastMessage }) {
+function ToastItem({ item }: Readonly<{ item: ToastMessage }>) {
   const Icon = icons[item.type];
 
   return (

@@ -4,9 +4,9 @@ import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImage
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { cn } from '@/shared/utils/cn';
 
-interface ArtistCardProps {
+type ArtistCardProps = Readonly<{
   artist: MusicArtist;
-}
+}>;
 
 export function ArtistCard({ artist }: ArtistCardProps) {
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(

@@ -52,7 +52,8 @@ COPY extractor/ extractor/
 COPY app.py .
 
 RUN getent group 1000 >/dev/null || groupadd --gid 1000 appuser && \
-    id -u 1000 >/dev/null 2>&1 || useradd --uid 1000 --gid 1000 --no-log-init --create-home --shell /bin/bash appuser && \
+    id -u 1000 >/dev/null 2>&1 || \
+        useradd --uid 1000 --gid 1000 --no-log-init --create-home --shell /bin/bash appuser && \
     mkdir -p /app/models /app/output && \
     chown -R 1000:1000 /app
 

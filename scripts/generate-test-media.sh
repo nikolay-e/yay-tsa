@@ -32,6 +32,7 @@ generate_track() {
     -metadata genre="Electronic" \
     -codec:a libmp3lame -b:a 128k \
     "$dir/$(printf '%02d' "$track_num") - $title.mp3" 2>/dev/null
+  return 0
 }
 
 generate_track "$ALBUM1_DIR" 1 "Morning Light" "$ALBUM1" 440 15

@@ -81,7 +81,7 @@ export class PlayerBar {
     const normalizedVolume = percentage / 100;
     await this.page.evaluate((vol: number) => {
       const player = (
-        window as unknown as { __playerStore__?: { setVolume?: (v: number) => void } }
+        globalThis as unknown as { __playerStore__?: { setVolume?: (v: number) => void } }
       ).__playerStore__;
       player?.setVolume?.(vol);
     }, normalizedVolume);
@@ -137,16 +137,18 @@ export class PlayerBar {
     }).toPass({ timeout: 10000 });
   }
 
-  async clickNextAndWait(): Promise<void> {
+  private async clickAndWaitForTrackChange(button: Locator): Promise<void> {
     const previousTitle = await this.getCurrentTrackTitle();
-    await this.nextButton.click();
+    await button.click();
     await this.waitForTrackChange(previousTitle);
   }
 
+  async clickNextAndWait(): Promise<void> {
+    await this.clickAndWaitForTrackChange(this.nextButton);
+  }
+
   async clickPreviousAndWait(): Promise<void> {
-    const previousTitle = await this.getCurrentTrackTitle();
-    await this.previousButton.click();
-    await this.waitForTrackChange(previousTitle);
+    await this.clickAndWaitForTrackChange(this.previousButton);
   }
 
   async expectTrackTitle(title: string): Promise<void> {
@@ -156,7 +158,7 @@ export class PlayerBar {
   async waitForAudioReady(): Promise<void> {
     await expect(async () => {
       const duration = await this.page.evaluate(() => {
-        const player = (window as any).__playerStore__;
+        const player = (globalThis as any).__playerStore__;
         const audioEngine = player?.audioEngine;
         return audioEngine?.getDuration?.() ?? 0;
       });
@@ -171,7 +173,7 @@ export class PlayerBar {
   async waitForAudioPlaying(): Promise<void> {
     await expect(async () => {
       const isPlaying = await this.page.evaluate(() => {
-        const player = (window as any).__playerStore__;
+        const player = (globalThis as any).__playerStore__;
         return player?.isPlaying === true;
       });
       expect(isPlaying).toBe(true);
@@ -194,7 +196,7 @@ export class PlayerBar {
 
   async getVolumeFromStore(): Promise<number> {
     return await this.page.evaluate(() => {
-      const player = (window as any).__playerStore__;
+      const player = (globalThis as any).__playerStore__;
       return player?.volume ?? 0;
     });
   }

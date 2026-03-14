@@ -1,6 +1,6 @@
-interface NotFoundProps {
+type NotFoundProps = Readonly<{
   message: string;
-}
+}>;
 
 export function NotFound({ message }: NotFoundProps) {
   return (

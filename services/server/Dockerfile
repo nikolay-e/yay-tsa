@@ -39,18 +39,16 @@ FROM eclipse-temurin:21-jre-alpine
 ARG GIT_SHA=0.0.0-dev
 ENV APP_VERSION=${GIT_SHA}
 
-# Install FFmpeg for transcoding, libwebp for WebP image processing
+# Install FFmpeg for transcoding, libwebp for WebP image processing, and create non-root user
 RUN apk update && \
     apk add --no-cache \
     ffmpeg \
     libwebp-tools \
     tzdata \
     curl \
-    && rm -rf /var/cache/apk/*
-
-# Create non-root user
-RUN addgroup -g 1000 yay-tsa && \
-    adduser -D -u 1000 -G yay-tsa yay-tsa
+    && rm -rf /var/cache/apk/* \
+    && addgroup -g 1000 yay-tsa \
+    && adduser -D -u 1000 -G yay-tsa yay-tsa
 
 # Set working directory
 WORKDIR /app

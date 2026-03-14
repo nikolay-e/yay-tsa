@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
-interface BackLinkProps {
+type BackLinkProps = Readonly<{
   to: string;
   label: string;
   'data-testid'?: string;
-}
+}>;
 
 export function BackLink({ to, label, 'data-testid': testId }: BackLinkProps) {
   return (

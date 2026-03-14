@@ -6,9 +6,9 @@
 import { type ICache, type CacheConfig, type CacheEntry } from './cache.interface.js';
 
 export class IndexedDBCache implements ICache {
-  private dbName: string;
-  private storeName: string;
-  private version: string;
+  private readonly dbName: string;
+  private readonly storeName: string;
+  private readonly version: string;
   private db: IDBDatabase | null = null;
   private initPromise: Promise<void> | null = null;
   private isClosing = false;
@@ -102,6 +102,33 @@ export class IndexedDBCache implements ICache {
     }
   }
 
+  private resolveGetEntry<T>(
+    key: string,
+    entry: CacheEntry<T> | undefined,
+    resolve: (value: T | null) => void
+  ): void {
+    if (!entry) {
+      resolve(null);
+      return;
+    }
+
+    const now = Date.now();
+    const expiresAt = entry.timestamp + entry.ttl;
+    if (now > expiresAt) {
+      void this.delete(key).catch(() => {});
+      resolve(null);
+      return;
+    }
+
+    if (entry.version !== this.version) {
+      void this.delete(key).catch(() => {});
+      resolve(null);
+      return;
+    }
+
+    resolve(entry.data);
+  }
+
   async get<T>(key: string): Promise<T | null> {
     return this.withRetry(async () => {
       await this.init();
@@ -117,28 +144,7 @@ export class IndexedDBCache implements ICache {
         const request = store.get(key);
 
         request.onsuccess = () => {
-          const entry = request.result as CacheEntry<T> | undefined;
-
-          if (!entry) {
-            resolve(null);
-            return;
-          }
-
-          const now = Date.now();
-          const expiresAt = entry.timestamp + entry.ttl;
-          if (now > expiresAt) {
-            void this.delete(key).catch(() => {});
-            resolve(null);
-            return;
-          }
-
-          if (entry.version !== this.version) {
-            void this.delete(key).catch(() => {});
-            resolve(null);
-            return;
-          }
-
-          resolve(entry.data);
+          this.resolveGetEntry<T>(key, request.result as CacheEntry<T> | undefined, resolve);
         };
 
         request.onerror = () => {

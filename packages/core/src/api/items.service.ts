@@ -18,13 +18,11 @@ export class ItemsService extends BaseService {
    * Query items from library
    * Generic method for all item types
    */
-  async queryItems<T = unknown>(query: ItemsQuery): Promise<ItemsResult<T>> {
-    const userId = this.requireAuth();
-
-    // Build query parameters (userId is required for /Items endpoint)
-    const params: Record<string, string | number | boolean | string[]> = {
-      userId,
-    };
+  private buildItemsParams(
+    userId: string,
+    query: ItemsQuery
+  ): Record<string, string | number | boolean | string[]> {
+    const params: Record<string, string | number | boolean | string[]> = { userId };
 
     if (query.ParentId) params.ParentId = query.ParentId;
     if (query.IncludeItemTypes) params.IncludeItemTypes = query.IncludeItemTypes;
@@ -39,11 +37,14 @@ export class ItemsService extends BaseService {
     if (query.GenreIds) params.GenreIds = query.GenreIds.join(',');
     if (query.IsFavorite !== undefined) params.IsFavorite = query.IsFavorite;
     if (query.Ids?.length) params.Ids = query.Ids.join(',');
+    if (query.Fields && query.Fields.length > 0) params.Fields = query.Fields.join(',');
 
-    // Fields to include in response
-    if (query.Fields && query.Fields.length > 0) {
-      params.Fields = query.Fields.join(',');
-    }
+    return params;
+  }
+
+  async queryItems<T = unknown>(query: ItemsQuery): Promise<ItemsResult<T>> {
+    const userId = this.requireAuth();
+    const params = this.buildItemsParams(userId, query);
 
     const result = await this.client.get<ItemsResult<T>>('/Items', params);
     if (!result) {

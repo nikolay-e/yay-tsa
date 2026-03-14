@@ -3,10 +3,10 @@ import { cn } from '@/shared/utils/cn';
 
 type LineState = 'active' | 'past' | 'future';
 
-interface LyricLineProps {
+type LyricLineProps = Readonly<{
   text: string;
   state: LineState;
-}
+}>;
 
 export const LyricLine = memo(
   forwardRef<HTMLDivElement, LyricLineProps>(function LyricLine({ text, state }, ref) {

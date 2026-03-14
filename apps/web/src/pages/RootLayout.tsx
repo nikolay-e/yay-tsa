@@ -7,12 +7,12 @@ import { useCurrentTrack } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
 
-interface NavItem {
+type NavItem = Readonly<{
   href: string;
   label: string;
   icon: LucideIcon;
   testId?: string;
-}
+}>;
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home, testId: 'nav-home' },
@@ -47,7 +47,7 @@ export function RootLayout() {
       setAuthState(restored ? 'authenticated' : 'unauthenticated');
       sessionRestoreComplete.current = true;
     };
-    void init();
+    init();
   }, [restoreSession]);
 
   useEffect(() => {
@@ -103,9 +103,9 @@ export function RootLayout() {
   );
 }
 
-interface SidebarProps {
+type SidebarProps = Readonly<{
   hasPlayer: boolean;
-}
+}>;
 
 function Sidebar({ hasPlayer }: SidebarProps) {
   const location = useLocation();

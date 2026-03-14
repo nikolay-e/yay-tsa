@@ -83,4 +83,4 @@ export function useAlbumTracks(albumId: string | undefined) {
   });
 }
 
-export type { MusicAlbum };
+export type { MusicAlbum } from '@yay-tsa/core';

@@ -245,15 +245,12 @@ export class PlaybackQueue {
     // Move to next item
     if (this.currentIndex < this.items.length - 1) {
       this.currentIndex++;
+    } else if (this.repeatMode === 'all') {
+      // Loop back to start
+      this.currentIndex = 0;
     } else {
-      // At end of queue
-      if (this.repeatMode === 'all') {
-        // Loop back to start
-        this.currentIndex = 0;
-      } else {
-        // No repeat: stay at last item (caller should stop playback)
-        return null;
-      }
+      // No repeat: stay at last item (caller should stop playback)
+      return null;
     }
 
     return this.getCurrentItem();
@@ -274,15 +271,12 @@ export class PlaybackQueue {
     // Move to previous item
     if (this.currentIndex > 0) {
       this.currentIndex--;
+    } else if (this.repeatMode === 'all') {
+      // Loop to end
+      this.currentIndex = this.items.length - 1;
     } else {
-      // At start of queue
-      if (this.repeatMode === 'all') {
-        // Loop to end
-        this.currentIndex = this.items.length - 1;
-      } else {
-        // No repeat: stay at first item
-        return null;
-      }
+      // No repeat: stay at first item
+      return null;
     }
 
     return this.getCurrentItem();

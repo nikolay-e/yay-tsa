@@ -107,7 +107,7 @@ export class PlaylistsService extends BaseService {
     const idsParam = itemIds.join(',');
     const url = `/Playlists/${playlistId}/Items?Ids=${encodeURIComponent(idsParam)}&UserId=${userId}`;
 
-    await this.client.post(url, undefined);
+    await this.client.post(url);
   }
 
   /**

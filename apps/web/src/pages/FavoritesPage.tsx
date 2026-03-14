@@ -32,8 +32,10 @@ export function FavoritesPage() {
   const albumSort = useSortPreference('albums', FAVORITES_SORT_OPTIONS, 'favorites');
   const artistSort = useSortPreference('artists', FAVORITES_SORT_OPTIONS, 'favorites');
 
-  const activeSort =
-    activeTab === 'tracks' ? trackSort : activeTab === 'albums' ? albumSort : artistSort;
+  let activeSort: SortState;
+  if (activeTab === 'tracks') activeSort = trackSort;
+  else if (activeTab === 'albums') activeSort = albumSort;
+  else activeSort = artistSort;
 
   return (
     <div className="space-y-6 p-6">
@@ -113,16 +115,29 @@ function FavoriteAlbums({ sortState }: { sortState: SortState }) {
           layout="grid"
           gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
           renderItem={album => (
-            <AlbumCard album={album} isPlaying={false} onPlay={() => void playAlbum(album.Id)} />
+            <AlbumCard
+              album={album}
+              isPlaying={false}
+              onPlay={() => {
+                playAlbum(album.Id);
+              }}
+            />
           )}
         />
       ) : (
-        <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+        <AlbumGrid
+          albums={albums}
+          onPlayAlbum={album => {
+            playAlbum(album.Id);
+          }}
+        />
       )}
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        onLoadMore={() => void fetchNextPage()}
+        onLoadMore={() => {
+          fetchNextPage();
+        }}
         currentCount={albums.length}
         totalCount={totalCount}
         itemLabel="albums"
@@ -182,7 +197,9 @@ function FavoriteArtists({ sortState }: { sortState: SortState }) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        onLoadMore={() => void fetchNextPage()}
+        onLoadMore={() => {
+          fetchNextPage();
+        }}
         currentCount={artists.length}
         totalCount={totalCount}
         itemLabel="artists"
@@ -238,7 +255,9 @@ function FavoriteTracks({ sortState }: { sortState: SortState }) {
               index={index}
               isCurrentTrack={track.Id === currentTrack?.Id}
               isPlaying={isPlaying}
-              onPlay={() => void playTracks(tracks, index)}
+              onPlay={() => {
+                playTracks(tracks, index);
+              }}
               onPause={pause}
               showAlbum
               showArtist
@@ -251,7 +270,9 @@ function FavoriteTracks({ sortState }: { sortState: SortState }) {
           tracks={tracks}
           currentTrackId={currentTrack?.Id}
           isPlaying={isPlaying}
-          onPlayTrack={(_, index) => void playTracks(tracks, index)}
+          onPlayTrack={(_, index) => {
+            playTracks(tracks, index);
+          }}
           onPauseTrack={pause}
           showAlbum
           showArtist
@@ -262,7 +283,9 @@ function FavoriteTracks({ sortState }: { sortState: SortState }) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        onLoadMore={() => void fetchNextPage()}
+        onLoadMore={() => {
+          fetchNextPage();
+        }}
         currentCount={tracks.length}
         totalCount={totalCount}
         itemLabel="tracks"

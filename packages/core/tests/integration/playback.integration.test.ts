@@ -17,7 +17,6 @@ describe('Integration: Playback Reporting', () => {
   let authService: AuthService;
   let itemsService: ItemsService;
   let reporter: PlaybackReporter;
-  let userId: string;
   let testTrackId: string | null = null;
 
   const clientInfo: ClientInfo = {
@@ -34,11 +33,10 @@ describe('Integration: Playback Reporting', () => {
     client = new MediaServerClient(config.serverUrl, clientInfo);
     authService = new AuthService(client);
 
-    const authResponse = await retryableLogin(
+    await retryableLogin(
       () => authService.login(config.username, config.password),
       'Playback tests authentication'
     );
-    userId = authResponse.User.Id;
 
     if (!client.isAuthenticated()) {
       throw new Error('Authentication failed - token not set on client');
@@ -65,8 +63,8 @@ describe('Integration: Playback Reporting', () => {
     if (testTrackId) {
       try {
         await reporter.reportStopped(testTrackId, 0);
-      } catch (error) {
-        // Ignore cleanup errors
+      } catch {
+        // intentionally ignored
       }
     }
   });

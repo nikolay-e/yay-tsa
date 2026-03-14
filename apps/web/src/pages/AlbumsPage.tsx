@@ -26,7 +26,7 @@ export function AlbumsPage() {
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleLoadMore = () => {
-    void fetchNextPage();
+    fetchNextPage();
   };
 
   return (
@@ -53,7 +53,12 @@ export function AlbumsPage() {
         </div>
       ) : (
         <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
-          <AlbumGrid albums={albums} onPlayAlbum={album => void playAlbum(album.Id)} />
+          <AlbumGrid
+            albums={albums}
+            onPlayAlbum={album => {
+              playAlbum(album.Id);
+            }}
+          />
           <InfiniteScrollFooter
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}

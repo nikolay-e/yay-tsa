@@ -199,7 +199,7 @@ function processPixelsSync(pixels: Uint8ClampedArray): ThemePalette {
 
 async function processPixelsInWorker(pixels: Uint8ClampedArray): Promise<ThemePalette> {
   const w = getWorker();
-  if (!w) return Promise.resolve(processPixelsSync(pixels));
+  if (!w) return processPixelsSync(pixels);
 
   const id = ++requestId;
   return new Promise(resolve => {

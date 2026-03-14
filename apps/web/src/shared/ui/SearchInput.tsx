@@ -1,13 +1,13 @@
 import { Search } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
-interface SearchInputProps {
+type SearchInputProps = Readonly<{
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   maxLength?: number;
   className?: string;
-}
+}>;
 
 export function SearchInput({
   value,

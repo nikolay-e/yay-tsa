@@ -87,7 +87,7 @@ def create_separator(output_dir: str):
     from audio_separator.separator import Separator
 
     with _separator_lock:
-        log.info(f"Creating Separator with model {MODEL_NAME}, output_dir={output_dir}")
+        log.info("Creating Separator with model %s, output_dir=%s", MODEL_NAME, repr(output_dir))
         sep = Separator(
             output_dir=output_dir,
             output_format=OUTPUT_FORMAT,
@@ -151,10 +151,103 @@ def health_check():
     )
 
 
+def _resolve_stem_files(output_files: list, karaoke_dir: Path, start_time: float) -> list[Path]:
+    stem_files = []
+    for f in output_files:
+        file_path = Path(f)
+        if not file_path.is_absolute():
+            file_path = karaoke_dir / file_path.name
+        if file_path.exists():
+            stem_files.append(file_path)
+            log.info(f"Found stem: {file_path}")
+        else:
+            log.warning(f"Stem file not found: {f} -> {file_path}")
+
+    if not stem_files:
+        found_files = list(karaoke_dir.glob(f"*.{OUTPUT_FORMAT}"))
+        log.info("Fallback: scanning %s, found: %s", repr(str(karaoke_dir)), [repr(str(f)) for f in found_files])
+        stem_files = [f for f in found_files if f.stat().st_mtime >= start_time]
+
+    return stem_files
+
+
+def _classify_stems(stem_files: list[Path]) -> tuple[Path | None, list[Path]]:
+    vocal_stem = None
+    instrumental_stems: list[Path] = []
+    for stem in stem_files:
+        name_lower = stem.name.lower()
+        if "vocals" in name_lower:
+            vocal_stem = stem
+        elif "instrumental" in name_lower or "no_vocals" in name_lower:
+            instrumental_stems = [stem]
+            break
+        else:
+            instrumental_stems.append(stem)
+    return vocal_stem, instrumental_stems
+
+
+def _mix_stems_with_ffmpeg(instrumental_stems: list[Path], final_karaoke_path: Path):
+    cmd = ["ffmpeg", "-y"]
+    for stem in instrumental_stems:
+        cmd.extend(["-i", str(stem)])
+    filter_complex = f"amix=inputs={len(instrumental_stems)}:normalize=0"
+    cmd.extend(["-filter_complex", filter_complex, str(final_karaoke_path)])
+    log.info(f"Mixing {len(instrumental_stems)} stems: {cmd}")
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg failed: {result.stderr}")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"FFmpeg timeout after {FFMPEG_TIMEOUT_SECONDS}s")
+    finally:
+        for stem in instrumental_stems:
+            if stem != final_karaoke_path and stem.exists():
+                stem.unlink(missing_ok=True)
+
+
+def _finalize_instrumental(
+    instrumental_stems: list[Path], song_name: str, karaoke_dir: Path
+) -> tuple[Path, str]:
+    instrumental_filename = f"{song_name}_instrumental.{OUTPUT_FORMAT}"
+    final_karaoke_path = karaoke_dir / instrumental_filename
+    if len(instrumental_stems) == 1:
+        if instrumental_stems[0] != final_karaoke_path:
+            shutil.move(str(instrumental_stems[0]), str(final_karaoke_path))
+    else:
+        _mix_stems_with_ffmpeg(instrumental_stems, final_karaoke_path)
+    return final_karaoke_path, instrumental_filename
+
+
+def _finalize_vocal(vocal_stem: Path | None, song_name: str, karaoke_dir: Path) -> str:
+    if not vocal_stem:
+        return ""
+    vocal_filename = f"{song_name}_vocals.{OUTPUT_FORMAT}"
+    vocal_dest = karaoke_dir / vocal_filename
+    if vocal_stem != vocal_dest:
+        shutil.move(str(vocal_stem), str(vocal_dest))
+    return str(vocal_dest)
+
+
+def _cleanup_leftover_stems(karaoke_dir: Path, keep_names: list[str]):
+    for leftover in karaoke_dir.glob(f"*_{MODEL_NAME}.{OUTPUT_FORMAT}"):
+        if leftover.name not in keep_names:
+            leftover.unlink(missing_ok=True)
+            log.info(f"Cleaned up leftover stem: {leftover}")
+
+
 @app.post(
     "/api/separate",
     response_model=SeparationResponse,
-    responses={403: {"description": "Path traversal attempt"}},
+    responses={
+        403: {"description": "Path traversal attempt"},
+        404: {"description": "Input file not found"},
+        500: {"description": "Internal processing error"},
+    },
 )
 def separate_audio(request: SeparationRequest):
     input_path = _validate_media_path(request.inputPath)
@@ -189,85 +282,23 @@ def separate_audio(request: SeparationRequest):
         output_files = sep.separate(str(input_path))
         log.info(f"Separation returned: {output_files}")
 
-        stem_files = []
-        for f in output_files:
-            file_path = Path(f)
-            if not file_path.is_absolute():
-                file_path = karaoke_dir / file_path.name
-            if file_path.exists():
-                stem_files.append(file_path)
-                log.info(f"Found stem: {file_path}")
-            else:
-                log.warning(f"Stem file not found: {f} -> {file_path}")
-
+        stem_files = _resolve_stem_files(output_files, karaoke_dir, start_time)
         if not stem_files:
-            found_files = list(karaoke_dir.glob(f"*.{OUTPUT_FORMAT}"))
-            log.info(f"Fallback: scanning {karaoke_dir}, found: {found_files}")
-            stem_files = [f for f in found_files if f.stat().st_mtime >= start_time]
+            raise RuntimeError(f"No output files found in {karaoke_dir}")
 
-        if not stem_files:
-            raise Exception(f"No output files found in {karaoke_dir}")
-
-        vocal_stem = None
-        instrumental_stems = []
-
-        for stem in stem_files:
-            name_lower = stem.name.lower()
-            if "vocals" in name_lower:
-                vocal_stem = stem
-            elif "instrumental" in name_lower or "no_vocals" in name_lower:
-                instrumental_stems = [stem]
-                break
-            else:
-                instrumental_stems.append(stem)
-
+        vocal_stem, instrumental_stems = _classify_stems(stem_files)
         if not instrumental_stems:
-            raise Exception("No instrumental stems found in output")
+            raise RuntimeError("No instrumental stems found in output")
 
-        instrumental_filename = f"{song_name}_instrumental.{OUTPUT_FORMAT}"
-        final_karaoke_path = karaoke_dir / instrumental_filename
+        final_karaoke_path, instrumental_filename = _finalize_instrumental(
+            instrumental_stems, song_name, karaoke_dir
+        )
+        final_vocal_path = _finalize_vocal(vocal_stem, song_name, karaoke_dir)
 
-        if len(instrumental_stems) == 1:
-            if instrumental_stems[0] != final_karaoke_path:
-                shutil.move(str(instrumental_stems[0]), str(final_karaoke_path))
-        else:
-            try:
-                cmd = ["ffmpeg", "-y"]
-                for stem in instrumental_stems:
-                    cmd.extend(["-i", str(stem)])
-                filter_complex = f"amix=inputs={len(instrumental_stems)}:normalize=0"
-                cmd.extend(["-filter_complex", filter_complex, str(final_karaoke_path)])
-                log.info(f"Mixing {len(instrumental_stems)} stems: {cmd}")
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=FFMPEG_TIMEOUT_SECONDS,
-                )
-                if result.returncode != 0:
-                    raise Exception(f"FFmpeg failed: {result.stderr}")
-            except subprocess.TimeoutExpired:
-                raise Exception(f"FFmpeg timeout after {FFMPEG_TIMEOUT_SECONDS}s")
-            finally:
-                for stem in instrumental_stems:
-                    if stem != final_karaoke_path and stem.exists():
-                        stem.unlink(missing_ok=True)
-
-        final_vocal_path = ""
-        if vocal_stem:
-            vocal_filename = f"{song_name}_vocals.{OUTPUT_FORMAT}"
-            vocal_dest = karaoke_dir / vocal_filename
-            if vocal_stem != vocal_dest:
-                shutil.move(str(vocal_stem), str(vocal_dest))
-            final_vocal_path = str(vocal_dest)
-
-        for leftover in karaoke_dir.glob(f"*_{MODEL_NAME}.{OUTPUT_FORMAT}"):
-            if leftover.name not in [
-                instrumental_filename,
-                f"{song_name}_vocals.{OUTPUT_FORMAT}",
-            ]:
-                leftover.unlink(missing_ok=True)
-                log.info(f"Cleaned up leftover stem: {leftover}")
+        _cleanup_leftover_stems(
+            karaoke_dir,
+            [instrumental_filename, f"{song_name}_vocals.{OUTPUT_FORMAT}"],
+        )
 
         elapsed_ms = int((time.time() - start_time) * 1000)
         log.info(
@@ -281,7 +312,7 @@ def separate_audio(request: SeparationRequest):
             processing_time_ms=elapsed_ms,
         )
 
-    except Exception as e:
+    except Exception:
         log.exception("Separation failed for %s", _sanitize(track_id))
         raise HTTPException(status_code=500, detail="Internal processing error")
 
@@ -477,9 +508,10 @@ def _validate_lyrics(
                 )
                 return False
             if last_ts < duration_seconds * 0.15:
+                coverage_pct = int(last_ts / duration_seconds * 100)
                 log.info(
-                    f"Rejected lyrics for '{artist} - {title}': "
-                    f"last timestamp {last_ts:.0f}s covers <15% of duration {duration_seconds:.0f}s"
+                    "Rejected lyrics for '%s - %s': last timestamp %.0fs covers %d%% of duration %.0fs",
+                    artist, title, last_ts, coverage_pct, duration_seconds,
                 )
                 return False
 
@@ -572,14 +604,13 @@ def _fuzzy_match_artist_title(
     return True
 
 
-def _fetch_from_lrclib(
+def _fetch_lrclib_direct(
     artist: str,
     title: str,
     album: str | None,
     duration_seconds: float | None,
-) -> tuple[str | None, str]:
-    headers = {"User-Agent": LRCLIB_USER_AGENT}
-
+    headers: dict,
+) -> tuple[str | None, str] | None:
     params: dict[str, str] = {"artist_name": artist, "track_name": title}
     if album:
         params["album_name"] = album
@@ -609,55 +640,85 @@ def _fetch_from_lrclib(
     except Exception as e:
         log.warning(f"LRCLIB /get failed for '{artist} - {title}': {e}")
 
+    return None
+
+
+def _entry_matches_query(
+    entry: dict, artist: str, title: str, duration_seconds: float | None
+) -> bool:
+    if entry.get("instrumental"):
+        return False
+    entry_artist = entry.get("artistName", "")
+    entry_title = entry.get("trackName", "")
+    if not _fuzzy_match_artist_title(entry_artist, entry_title, artist, title):
+        log.debug(
+            f"LRCLIB search: skipping '{entry_artist} - {entry_title}' "
+            f"(no match for '{artist} - {title}')"
+        )
+        return False
+    if duration_seconds:
+        entry_dur = entry.get("duration", 0)
+        if entry_dur and abs(entry_dur - duration_seconds) > 15:
+            return False
+    return True
+
+
+def _fetch_lrclib_search(
+    artist: str,
+    title: str,
+    duration_seconds: float | None,
+    headers: dict,
+) -> tuple[str | None, str]:
+    search_params: dict[str, str] = {"track_name": title, "artist_name": artist}
     try:
-        search_params: dict[str, str] = {"track_name": title, "artist_name": artist}
         resp = _http_session.get(
             f"{LRCLIB_BASE_URL}/search",
             params=search_params,
             headers=headers,
             timeout=LRCLIB_TIMEOUT_SECONDS,
         )
-        if resp.status_code == 200:
-            results = resp.json()
-            if not results:
-                return None, "not_found"
+        if resp.status_code != 200:
+            return None, "not_found"
 
-            best_synced = None
-            best_plain = None
-            for entry in results:
-                if entry.get("instrumental"):
-                    continue
+        results = resp.json()
+        if not results:
+            return None, "not_found"
 
-                entry_artist = entry.get("artistName", "")
-                entry_title = entry.get("trackName", "")
-                if not _fuzzy_match_artist_title(entry_artist, entry_title, artist, title):
-                    log.debug(
-                        f"LRCLIB search: skipping '{entry_artist} - {entry_title}' "
-                        f"(no match for '{artist} - {title}')"
-                    )
-                    continue
-
-                if duration_seconds:
-                    entry_dur = entry.get("duration", 0)
-                    if entry_dur and abs(entry_dur - duration_seconds) > 15:
-                        continue
-
-                if entry.get("syncedLyrics") and not best_synced:
-                    best_synced = entry["syncedLyrics"]
-                if entry.get("plainLyrics") and not best_plain:
-                    best_plain = entry["plainLyrics"]
-
-                if best_synced:
-                    break
-
+        best_synced = None
+        best_plain = None
+        for entry in results:
+            if not _entry_matches_query(entry, artist, title, duration_seconds):
+                continue
+            if entry.get("syncedLyrics") and not best_synced:
+                best_synced = entry["syncedLyrics"]
+            if entry.get("plainLyrics") and not best_plain:
+                best_plain = entry["plainLyrics"]
             if best_synced:
-                return best_synced, "lrclib-search-synced"
-            if best_plain:
-                return best_plain, "lrclib-search-plain"
+                break
+
+        if best_synced:
+            return best_synced, "lrclib-search-synced"
+        if best_plain:
+            return best_plain, "lrclib-search-plain"
     except Exception as e:
         log.warning(f"LRCLIB /search failed for '{artist} - {title}': {e}")
 
     return None, "not_found"
+
+
+def _fetch_from_lrclib(
+    artist: str,
+    title: str,
+    album: str | None,
+    duration_seconds: float | None,
+) -> tuple[str | None, str]:
+    headers = {"User-Agent": LRCLIB_USER_AGENT}
+
+    direct_result = _fetch_lrclib_direct(artist, title, album, duration_seconds, headers)
+    if direct_result is not None:
+        return direct_result
+
+    return _fetch_lrclib_search(artist, title, duration_seconds, headers)
 
 
 # ===========================================================================
@@ -705,6 +766,36 @@ def _search_all_sources(
     return candidates, False
 
 
+def _cross_validate_candidates(
+    candidates: list[tuple[str, str, bool]],
+) -> tuple[str, str] | None:
+    verified_synced: tuple[str, str] | None = None
+    verified_plain: tuple[str, str] | None = None
+
+    for i, (lyrics_a, source_a, synced_a) in enumerate(candidates):
+        for j, (lyrics_b, source_b, synced_b) in enumerate(candidates):
+            if i >= j:
+                continue
+            sim = _lyrics_similarity(lyrics_a, lyrics_b)
+            log.info(f"Cross-validation {source_a} vs {source_b}: similarity={sim:.2f}")
+            if sim >= 0.35:
+                if not verified_synced:
+                    if synced_a:
+                        verified_synced = (lyrics_a, source_a)
+                    elif synced_b:
+                        verified_synced = (lyrics_b, source_b)
+                if not verified_plain:
+                    verified_plain = (lyrics_a, source_a)
+
+    if verified_synced:
+        log.info(f"Cross-validated synced lyrics from {verified_synced[1]}")
+        return verified_synced
+    if verified_plain:
+        log.info(f"Cross-validated plain lyrics from {verified_plain[1]}")
+        return verified_plain
+    return None
+
+
 def _select_best_candidate(
     candidates: list[tuple[str, str, bool]],
 ) -> tuple[str, str] | None:
@@ -712,32 +803,11 @@ def _select_best_candidate(
         return None
 
     if len(candidates) >= 2:
-        verified_synced: tuple[str, str] | None = None
-        verified_plain: tuple[str, str] | None = None
+        cross_validated = _cross_validate_candidates(candidates)
+        if cross_validated:
+            return cross_validated
 
-        for i, (lyrics_a, source_a, synced_a) in enumerate(candidates):
-            for j, (lyrics_b, source_b, synced_b) in enumerate(candidates):
-                if i >= j:
-                    continue
-                sim = _lyrics_similarity(lyrics_a, lyrics_b)
-                log.info(f"Cross-validation {source_a} vs {source_b}: similarity={sim:.2f}")
-                if sim >= 0.35:
-                    if not verified_synced:
-                        if synced_a:
-                            verified_synced = (lyrics_a, source_a)
-                        elif synced_b:
-                            verified_synced = (lyrics_b, source_b)
-                    if not verified_plain:
-                        verified_plain = (lyrics_a, source_a)
-
-        if verified_synced:
-            log.info(f"Cross-validated synced lyrics from {verified_synced[1]}")
-            return verified_synced
-        if verified_plain:
-            log.info(f"Cross-validated plain lyrics from {verified_plain[1]}")
-            return verified_plain
-
-    synced = [(l, s) for l, s, sync in candidates if sync]
+    synced = [(lyr, src) for lyr, src, sync in candidates if sync]
     if synced:
         log.info(f"Using best single-source synced lyrics from {synced[0][1]}")
         return synced[0]
@@ -863,6 +933,8 @@ class BatchExtractionResponse(BaseModel):
     response_model=ExtractionResponse,
     responses={
         403: {"description": "Path traversal attempt"},
+        404: {"description": "File not found"},
+        500: {"description": "Internal processing error"},
         503: {"description": "Feature extraction not available"},
     },
 )
@@ -883,7 +955,7 @@ def extract_features(request: ExtractionRequest):
             embedding_musicnn=result["embedding_musicnn"],
             processing_time_ms=result.get("processing_time_ms", 0),
         )
-    except Exception as e:
+    except Exception:
         log.exception("Feature extraction failed for track %s", _sanitize(request.track_id))
         raise HTTPException(status_code=500, detail="Internal processing error")
 

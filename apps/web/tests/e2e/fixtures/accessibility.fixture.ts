@@ -51,7 +51,7 @@ export const test = base.extend<AccessibilityFixtures>({
     await use(page);
 
     await page.evaluate(() => {
-      const audio = document.querySelector('audio') as HTMLAudioElement | null;
+      const audio = document.querySelector('audio');
       if (audio) {
         audio.pause();
         audio.src = '';
@@ -82,4 +82,4 @@ export const test = base.extend<AccessibilityFixtures>({
   },
 });
 
-export { expect };
+export { expect } from '@playwright/test';

@@ -65,7 +65,7 @@ function createClientInfo(): ClientInfo {
 }
 
 async function clearCaches(): Promise<void> {
-  if ('caches' in window) {
+  if ('caches' in globalThis) {
     try {
       const cacheNames = await caches.keys();
       await Promise.all(

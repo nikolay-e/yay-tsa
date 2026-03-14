@@ -2,7 +2,7 @@ import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1 } from 'lu
 import type { RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 
-interface PlaybackControlsProps {
+type PlaybackControlsProps = Readonly<{
   isPlaying: boolean;
   isShuffle: boolean;
   repeatMode: RepeatMode;
@@ -11,7 +11,7 @@ interface PlaybackControlsProps {
   onPrevious: () => void;
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
-}
+}>;
 
 export function PlaybackControls({
   isPlaying,
@@ -81,7 +81,7 @@ export function PlaybackControls({
         onClick={onToggleRepeat}
         className={cn(
           'focus-visible:ring-accent flex rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-          repeatMode !== 'off' ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+          repeatMode === 'off' ? 'text-text-secondary hover:text-text-primary' : 'text-accent'
         )}
         aria-label={`Repeat: ${repeatMode}`}
         aria-pressed={repeatMode !== 'off'}

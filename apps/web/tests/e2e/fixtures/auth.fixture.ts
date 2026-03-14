@@ -106,7 +106,7 @@ export const test = base.extend<AuthFixtures>({
 
     // Cleanup
     await page.evaluate(() => {
-      const audio = document.querySelector('audio') as HTMLAudioElement | null;
+      const audio = document.querySelector('audio');
       if (audio) {
         audio.pause();
         audio.src = '';
@@ -116,4 +116,4 @@ export const test = base.extend<AuthFixtures>({
   },
 });
 
-export { expect };
+export { expect } from '@playwright/test';

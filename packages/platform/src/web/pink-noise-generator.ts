@@ -28,8 +28,12 @@ export class PinkNoiseGenerator {
       this.ownsAudioContext = false;
     } else if (!this.audioContext || this.audioContext.state === 'closed') {
       const AudioContextClass =
-        window.AudioContext ||
-        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        globalThis.window.AudioContext ||
+        (
+          globalThis.window as typeof window & {
+            webkitAudioContext?: typeof AudioContext;
+          }
+        ).webkitAudioContext;
       if (!AudioContextClass) {
         throw new Error('Web Audio API not supported');
       }

@@ -24,7 +24,7 @@ export function ArtistsPage() {
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleLoadMore = () => {
-    void fetchNextPage();
+    fetchNextPage();
   };
 
   return (

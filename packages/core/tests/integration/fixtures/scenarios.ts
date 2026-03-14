@@ -11,7 +11,7 @@ import type { AudioItem, MusicAlbum, MusicArtist } from '../../../src/index.js';
  * Given: User authentication scenarios
  */
 export class GivenUser {
-  constructor(private fixtures: TestFixtures) {}
+  constructor(private readonly fixtures: TestFixtures) {}
 
   /**
    * Given: User is authenticated
@@ -32,7 +32,7 @@ export class GivenUser {
  * Given: Library state scenarios
  */
 export class GivenLibrary {
-  constructor(private fixtures: TestFixtures) {}
+  constructor(private readonly fixtures: TestFixtures) {}
 
   /**
    * Given: Library has albums
@@ -124,7 +124,7 @@ export class GivenQueue {
  * When: User actions
  */
 export class WhenUser {
-  constructor(private fixtures: TestFixtures) {}
+  constructor(private readonly fixtures: TestFixtures) {}
 
   /**
    * When: User logs in
@@ -476,7 +476,7 @@ export class ScenarioContext {
   givenLibrary: GivenLibrary;
   whenUser: WhenUser;
 
-  constructor(private fixtures: TestFixtures) {
+  constructor(private readonly fixtures: TestFixtures) {
     this.givenUser = new GivenUser(fixtures);
     this.givenLibrary = new GivenLibrary(fixtures);
     this.whenUser = new WhenUser(fixtures);

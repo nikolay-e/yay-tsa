@@ -5,7 +5,7 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     authenticatedPage,
   }) => {
     const isPlaying = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
       const generator = new PinkNoiseGenerator();
       await generator.start({ initialVolume: 0.5 });
 
@@ -21,7 +21,7 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     authenticatedPage,
   }) => {
     const isPlaying = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
       const generator = new PinkNoiseGenerator();
       await generator.start({ initialVolume: 0.5 });
 
@@ -38,7 +38,7 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     authenticatedPage,
   }) => {
     const volume = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
       const generator = new PinkNoiseGenerator();
       await generator.start({ initialVolume: 0.3 });
 
@@ -55,12 +55,12 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
       const generator = new PinkNoiseGenerator();
-      await generator.start({ initialVolume: 1.0 });
+      await generator.start({ initialVolume: 1 });
 
       const samples: number[] = [];
-      const fade = generator.fadeVolume(1.0, 0.2, 400);
+      const fade = generator.fadeVolume(1, 0.2, 400);
 
       for (let i = 0; i < 5; i++) {
         await new Promise(r => setTimeout(r, 100));
@@ -74,7 +74,7 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
       return { samples, finalVolume };
     });
 
-    expect(result.samples[0]).toBeLessThan(1.0);
+    expect(result.samples[0]).toBeLessThan(1);
     expect(result.finalVolume).toBeCloseTo(0.2, 1);
   });
 
@@ -82,11 +82,11 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     authenticatedPage,
   }) => {
     const cancelledVolume = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
       const generator = new PinkNoiseGenerator();
-      await generator.start({ initialVolume: 1.0 });
+      await generator.start({ initialVolume: 1 });
 
-      const fade = generator.fadeVolume(1.0, 0.0, 2000);
+      const fade = generator.fadeVolume(1, 0, 2000);
       await new Promise(r => setTimeout(r, 200));
       fade.cancel();
 
@@ -96,14 +96,14 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     });
 
     expect(cancelledVolume).toBeGreaterThan(0.5);
-    expect(cancelledVolume).toBeLessThan(1.0);
+    expect(cancelledVolume).toBeLessThan(1);
   });
 
   test('Given: PinkNoiseGenerator, When: dispose called, Then: Resources cleaned up', async ({
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
       const generator = new PinkNoiseGenerator();
       await generator.start({ initialVolume: 0.5 });
 
@@ -118,8 +118,8 @@ test.describe('@yay-tsa/platform: PinkNoiseGenerator', () => {
     authenticatedPage,
   }) => {
     const result = await authenticatedPage.evaluate(async () => {
-      const { PinkNoiseGenerator } = (window as any).__platformClasses__;
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const { PinkNoiseGenerator } = (globalThis as any).__platformClasses__;
+      const AudioContextClass = globalThis.AudioContext || (globalThis as any).webkitAudioContext;
       const sharedContext = new AudioContextClass();
 
       const generator = new PinkNoiseGenerator();
