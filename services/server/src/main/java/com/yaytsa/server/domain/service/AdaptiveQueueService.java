@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdaptiveQueueService {
 
   private static final Logger log = LoggerFactory.getLogger(AdaptiveQueueService.class);
+  private static final long LLM_COOLDOWN_MS = 120_000L;
+
+  private final ConcurrentHashMap<UUID, Long> lastLlmAttemptMs = new ConcurrentHashMap<>();
 
   private final AdaptiveQueueRepository queueRepository;
   private final ListeningSessionRepository sessionRepository;
@@ -80,8 +84,22 @@ public class AdaptiveQueueService {
         queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
             session.getId(), List.of("QUEUED", "PLAYING"));
 
-    Optional<DjSessionParams> params =
-        llmSessionParamService.generateSessionParams(session, triggerType, triggerSignal);
+    boolean manualRefresh = "MANUAL_REFRESH".equals(triggerType);
+    long now = System.currentTimeMillis();
+    Long lastAttempt = lastLlmAttemptMs.get(session.getId());
+    boolean coolingDown =
+        !manualRefresh && lastAttempt != null && (now - lastAttempt) < LLM_COOLDOWN_MS;
+
+    Optional<DjSessionParams> params = Optional.empty();
+    if (!coolingDown) {
+      lastLlmAttemptMs.put(session.getId(), now);
+      params = llmSessionParamService.generateSessionParams(session, triggerType, triggerSignal);
+    } else {
+      log.debug(
+          "LLM cooldown active for session {}, {}s remaining",
+          session.getId(),
+          (LLM_COOLDOWN_MS - (now - lastAttempt)) / 1000);
+    }
 
     if (params.isPresent()) {
       var p = params.get();
