@@ -94,7 +94,7 @@ class DualEmbeddingExtractor:
         mert_embedding = self._extract_mert(file_path, librosa)
 
         elapsed_ms = int((time.time() - start) * 1000)
-        log.info("Embedding extraction for %s in %dms", os.path.basename(file_path), elapsed_ms)
+        log.info("Embedding extraction completed in %dms", elapsed_ms)
 
         return {
             "embedding_clap": clap_embedding,
@@ -141,7 +141,7 @@ class DualEmbeddingExtractor:
             mean_embedding = mean_embedding / (np.linalg.norm(mean_embedding) + 1e-9)
             return mean_embedding.tolist()
         except Exception:
-            log.exception("CLAP extraction failed for %s", os.path.basename(file_path))
+            log.exception("CLAP extraction failed")
             return None
 
     def _extract_mert(self, file_path: str, librosa) -> list[float] | None:
@@ -172,5 +172,5 @@ class DualEmbeddingExtractor:
             mean_embedding = mean_embedding / (np.linalg.norm(mean_embedding) + 1e-9)
             return mean_embedding.tolist()
         except Exception:
-            log.exception("MERT extraction failed for %s", os.path.basename(file_path))
+            log.exception("MERT extraction failed")
             return None
