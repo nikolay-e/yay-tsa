@@ -196,9 +196,26 @@ export function QueueView() {
   }, [isInView, canLoadMore, queueItems.length]);
 
   if (queueItems.length === 0) {
+    if (isStarting) {
+      return (
+        <div className="flex flex-col items-center gap-3 py-8">
+          <Loader2 className="text-accent h-6 w-6 animate-spin" />
+          <p className="text-text-tertiary text-sm">Starting DJ mode…</p>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center gap-3 py-8">
         <p className="text-text-tertiary text-sm">No tracks in queue</p>
+        {!activeSession && (
+          <button
+            type="button"
+            onClick={() => useSessionStore.getState().startSession()}
+            className="bg-accent text-text-on-accent hover:bg-accent-hover rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            Start DJ Mode
+          </button>
+        )}
       </div>
     );
   }

@@ -163,7 +163,7 @@ class EssentiaAnalyzer:
             "bpm_confidence": round(s(beats_conf), 3),
             "key": f"{key} {scale}",
             "key_confidence": round(s(key_conf), 3),
-            "energy": round(s(avg_loudness), 3),
+            "energy": round(max(0.0, min(1.0, (s(avg_loudness) + 25.0) / 15.0)), 3),
             "loudness_integrated": round(s(integrated), 1),
             "loudness_range": round(s(range_lu), 1),
             "danceability": round(s(dance_val), 3),
