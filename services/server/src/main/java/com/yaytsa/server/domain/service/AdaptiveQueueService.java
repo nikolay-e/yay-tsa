@@ -113,7 +113,6 @@ public class AdaptiveQueueService {
       persistSessionSummary(session.getId(), p.sessionSummaryUpdate());
       fillQueueWithRetry(
           session,
-          currentQueue.size(),
           p.targetEnergy(),
           p.targetValence(),
           p.explorationWeight(),
@@ -124,13 +123,12 @@ public class AdaptiveQueueService {
           "LLM unavailable, using djStyle-derived exploration={} for session {}",
           exploration,
           session.getId());
-      fillQueueWithRetry(session, currentQueue.size(), 0.5f, 0.5f, exploration, Set.of());
+      fillQueueWithRetry(session, 0.5f, 0.5f, exploration, Set.of());
     }
   }
 
   private List<AdaptiveQueueEntity> fillQueueWithRetry(
       ListeningSessionEntity session,
-      int currentQueueSize,
       float targetEnergy,
       float targetValence,
       float explorationWeight,
@@ -138,12 +136,7 @@ public class AdaptiveQueueService {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
         return fallbackQueueService.fillQueue(
-            session,
-            currentQueueSize,
-            targetEnergy,
-            targetValence,
-            explorationWeight,
-            avoidArtists);
+            session, targetEnergy, targetValence, explorationWeight, avoidArtists);
       } catch (DataIntegrityViolationException e) {
         log.warn(
             "Queue fill version conflict attempt {} for session {}", attempt + 1, session.getId());

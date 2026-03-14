@@ -51,13 +51,12 @@ public class FallbackQueueService {
     this.noRepeatHours = noRepeatHours;
   }
 
-  public List<AdaptiveQueueEntity> fillQueue(ListeningSessionEntity session, int currentQueueSize) {
-    return fillQueue(session, currentQueueSize, 0.5f, 0.5f, 0.3f, Set.of());
+  public List<AdaptiveQueueEntity> fillQueue(ListeningSessionEntity session) {
+    return fillQueue(session, 0.5f, 0.5f, 0.3f, Set.of());
   }
 
   public List<AdaptiveQueueEntity> fillQueue(
       ListeningSessionEntity session,
-      int currentQueueSize,
       float targetEnergy,
       float targetValence,
       float explorationWeight,
