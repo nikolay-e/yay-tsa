@@ -1,4 +1,4 @@
-import { useState, useMemo, useDeferredValue } from 'react';
+import { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
@@ -25,9 +25,16 @@ export function AlbumsPage() {
   const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     fetchNextPage();
-  };
+  }, [fetchNextPage]);
+
+  const handlePlayAlbum = useCallback(
+    (album: { Id: string }) => {
+      playAlbum(album.Id);
+    },
+    [playAlbum]
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -53,12 +60,7 @@ export function AlbumsPage() {
         </div>
       ) : (
         <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
-          <AlbumGrid
-            albums={albums}
-            onPlayAlbum={album => {
-              playAlbum(album.Id);
-            }}
-          />
+          <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
           <InfiniteScrollFooter
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}

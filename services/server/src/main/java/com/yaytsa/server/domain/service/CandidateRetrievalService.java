@@ -129,8 +129,8 @@ public class CandidateRetrievalService {
   }
 
   public List<UUID> getRecentlyPlayedTrackIds(UUID userId, int hours) {
-    return playHistoryRepository.findDistinctTrackIdsPlayedSince(
-        userId, OffsetDateTime.now().minusHours(hours));
+    long windowMs = (long) hours * 3_600_000L;
+    return playHistoryRepository.findDistinctTrackIdsWithinPlaybackWindow(userId, windowMs);
   }
 
   public List<TrackCandidate> getTrackDetails(List<UUID> trackIds) {

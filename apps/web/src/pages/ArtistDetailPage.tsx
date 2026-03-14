@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { useCallback } from 'react';
 import { useArtist, useArtistAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -18,6 +19,13 @@ export function ArtistDetailPage() {
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     artist?.Id ?? '',
     artist?.ImageTags?.Primary
+  );
+
+  const handlePlayAlbum = useCallback(
+    (album: { Id: string }) => {
+      playAlbum(album.Id);
+    },
+    [playAlbum]
   );
 
   const isLoading = artistLoading || albumsLoading;
@@ -73,12 +81,7 @@ export function ArtistDetailPage() {
       {albums.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-semibold">Albums</h2>
-          <AlbumGrid
-            albums={albums}
-            onPlayAlbum={album => {
-              playAlbum(album.Id);
-            }}
-          />
+          <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
         </section>
       )}
     </div>

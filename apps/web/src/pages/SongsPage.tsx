@@ -1,4 +1,4 @@
-import { useState, useMemo, useDeferredValue } from 'react';
+import { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { useInfiniteTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
@@ -32,13 +32,16 @@ export function SongsPage() {
   const tracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     fetchNextPage();
-  };
+  }, [fetchNextPage]);
 
-  const handlePlayTrack = (_track: unknown, index: number) => {
-    playTracks(tracks, index);
-  };
+  const handlePlayTrack = useCallback(
+    (_track: unknown, index: number) => {
+      playTracks(tracks, index);
+    },
+    [playTracks, tracks]
+  );
 
   return (
     <div className="space-y-6 p-6">

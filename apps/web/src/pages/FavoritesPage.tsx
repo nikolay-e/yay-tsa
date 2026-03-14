@@ -96,6 +96,17 @@ function FavoriteAlbums({ sortState }: { sortState: SortState }) {
     [reorderMutation]
   );
 
+  const handlePlayAlbum = useCallback(
+    (album: { Id: string }) => {
+      playAlbum(album.Id);
+    },
+    [playAlbum]
+  );
+
+  const handleLoadMore = useCallback(() => {
+    fetchNextPage();
+  }, [fetchNextPage]);
+
   if (isLoading) return <LoadingSpinner />;
 
   if (albums.length === 0) {
@@ -125,19 +136,12 @@ function FavoriteAlbums({ sortState }: { sortState: SortState }) {
           )}
         />
       ) : (
-        <AlbumGrid
-          albums={albums}
-          onPlayAlbum={album => {
-            playAlbum(album.Id);
-          }}
-        />
+        <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
       )}
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        onLoadMore={() => {
-          fetchNextPage();
-        }}
+        onLoadMore={handleLoadMore}
         currentCount={albums.length}
         totalCount={totalCount}
         itemLabel="albums"
@@ -166,6 +170,10 @@ function FavoriteArtists({ sortState }: { sortState: SortState }) {
     },
     [reorderMutation]
   );
+
+  const handleLoadMore = useCallback(() => {
+    fetchNextPage();
+  }, [fetchNextPage]);
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -197,9 +205,7 @@ function FavoriteArtists({ sortState }: { sortState: SortState }) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        onLoadMore={() => {
-          fetchNextPage();
-        }}
+        onLoadMore={handleLoadMore}
         currentCount={artists.length}
         totalCount={totalCount}
         itemLabel="artists"
@@ -232,6 +238,17 @@ function FavoriteTracks({ sortState }: { sortState: SortState }) {
     },
     [reorderMutation]
   );
+
+  const handlePlayTrack = useCallback(
+    (_: unknown, index: number) => {
+      playTracks(tracks, index);
+    },
+    [playTracks, tracks]
+  );
+
+  const handleLoadMore = useCallback(() => {
+    fetchNextPage();
+  }, [fetchNextPage]);
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -270,9 +287,7 @@ function FavoriteTracks({ sortState }: { sortState: SortState }) {
           tracks={tracks}
           currentTrackId={currentTrack?.Id}
           isPlaying={isPlaying}
-          onPlayTrack={(_, index) => {
-            playTracks(tracks, index);
-          }}
+          onPlayTrack={handlePlayTrack}
           onPauseTrack={pause}
           showAlbum
           showArtist
@@ -283,9 +298,7 @@ function FavoriteTracks({ sortState }: { sortState: SortState }) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        onLoadMore={() => {
-          fetchNextPage();
-        }}
+        onLoadMore={handleLoadMore}
         currentCount={tracks.length}
         totalCount={totalCount}
         itemLabel="tracks"

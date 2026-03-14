@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Home, Disc3, Users, Music, Heart, Settings, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
-import { useCurrentTrack } from '@/features/player/stores/player.store';
+import { usePlayerStore } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
 
@@ -32,7 +32,7 @@ export function RootLayout() {
   const location = useLocation();
   const sessionRestored = useRef(false);
   const sessionRestoreComplete = useRef(false);
-  const currentTrack = useCurrentTrack();
+  const hasCurrentTrack = usePlayerStore(state => state.currentTrack !== null);
 
   const isLoginPage = location.pathname === '/login';
 
@@ -70,7 +70,7 @@ export function RootLayout() {
   }
 
   const showNavigation = authState === 'authenticated' && !isLoginPage;
-  const showPlayer = authState === 'authenticated' && !isLoginPage && currentTrack;
+  const showPlayer = authState === 'authenticated' && !isLoginPage && hasCurrentTrack;
 
   return (
     <div className="flex h-full min-h-screen">

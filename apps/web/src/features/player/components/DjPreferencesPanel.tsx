@@ -9,34 +9,18 @@ import {
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { toast } from '@/shared/ui/Toast';
-import { cn } from '@/shared/utils/cn';
-
-const DJ_STYLES = [
-  {
-    key: 'smooth',
-    label: 'Smooth DJ',
-    description: 'Familiar favorites with smooth transitions.',
-  },
-  {
-    key: 'adventurous',
-    label: 'Discovery DJ',
-    description: 'Only plays music you have never heard before.',
-  },
-] as const;
-
-type DjStyleKey = (typeof DJ_STYLES)[number]['key'];
 
 interface FormState {
   maxArtistConsecutive: number;
   noRepeatHours: number;
-  djStyle: DjStyleKey;
+  discoveryPct: number;
   redLines: string[];
 }
 
 const DEFAULT_FORM: FormState = {
   maxArtistConsecutive: 2,
   noRepeatHours: 4,
-  djStyle: 'smooth',
+  discoveryPct: 30,
   redLines: [],
 };
 
@@ -45,7 +29,7 @@ function prefsToForm(prefs: UserPreferences): FormState {
     maxArtistConsecutive:
       (prefs.hardRules['maxArtistConsecutive'] as number) ?? DEFAULT_FORM.maxArtistConsecutive,
     noRepeatHours: (prefs.hardRules['noRepeatHours'] as number) ?? DEFAULT_FORM.noRepeatHours,
-    djStyle: ((prefs.djStyle['preset'] as string) ?? DEFAULT_FORM.djStyle) as DjStyleKey,
+    discoveryPct: (prefs.djStyle['discoveryPct'] as number) ?? DEFAULT_FORM.discoveryPct,
     redLines: prefs.redLines ?? [],
   };
 }
@@ -57,9 +41,17 @@ function formToPrefs(form: FormState): UserPreferences {
       noRepeatHours: form.noRepeatHours,
     },
     softPrefs: {},
-    djStyle: { preset: form.djStyle },
+    djStyle: { discoveryPct: form.discoveryPct },
     redLines: form.redLines,
   };
+}
+
+function discoveryLabel(pct: number): string {
+  if (pct <= 10) return 'Conservative';
+  if (pct <= 30) return 'Mostly familiar';
+  if (pct <= 60) return 'Balanced';
+  if (pct <= 85) return 'Adventurous';
+  return 'Full discovery';
 }
 
 export function DjPreferencesPanel() {
@@ -185,32 +177,30 @@ export function DjPreferencesPanel() {
           ) : (
             <div className="space-y-5">
               <div>
-                <span className="text-text-secondary mb-2 block text-xs font-medium tracking-wide uppercase">
-                  DJ Style
-                </span>
-                <div className="space-y-1.5">
-                  {DJ_STYLES.map(style => (
-                    <button
-                      key={style.key}
-                      onClick={() => setForm(prev => ({ ...prev, djStyle: style.key }))}
-                      className={cn(
-                        'w-full rounded-lg border px-3 py-2.5 text-left transition-colors',
-                        form.djStyle === style.key
-                          ? 'border-accent bg-accent/5'
-                          : 'bg-bg-tertiary border-border hover:bg-bg-hover'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'text-sm font-medium',
-                          form.djStyle === style.key ? 'text-accent' : 'text-text-primary'
-                        )}
-                      >
-                        {style.label}
-                      </div>
-                      <div className="text-text-secondary text-xs">{style.description}</div>
-                    </button>
-                  ))}
+                <label
+                  htmlFor="discovery-slider"
+                  className="text-text-secondary mb-1 block text-xs font-medium tracking-wide uppercase"
+                >
+                  New music — {form.discoveryPct}%
+                </label>
+                <input
+                  id="discovery-slider"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={form.discoveryPct}
+                  onChange={e =>
+                    setForm(prev => ({ ...prev, discoveryPct: Number(e.target.value) }))
+                  }
+                  className="accent-accent w-full"
+                />
+                <div className="text-text-tertiary mt-0.5 flex justify-between text-[10px]">
+                  <span>Familiar</span>
+                  <span className="text-text-secondary text-xs">
+                    {discoveryLabel(form.discoveryPct)}
+                  </span>
+                  <span>Discovery</span>
                 </div>
               </div>
 
@@ -250,7 +240,7 @@ export function DjPreferencesPanel() {
                     htmlFor="no-repeat-inline"
                     className="text-text-secondary mb-1 block text-xs"
                   >
-                    No-repeat window (hours)
+                    No-repeat (listening hours)
                   </label>
                   <input
                     id="no-repeat-inline"

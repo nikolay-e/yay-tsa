@@ -141,6 +141,10 @@ public class AdaptiveQueueService {
       var prefs = contractRepository.findById(userId).orElse(null);
       if (prefs != null && prefs.getDjStyle() != null && !prefs.getDjStyle().isBlank()) {
         Map<String, Object> style = objectMapper.readValue(prefs.getDjStyle(), Map.class);
+        Object pctObj = style.get("discoveryPct");
+        if (pctObj instanceof Number n) {
+          return Math.max(0f, Math.min(1f, n.floatValue() / 100f));
+        }
         String preset = (String) style.get("preset");
         if ("adventurous".equals(preset)) return 0.6f;
         if ("smooth".equals(preset)) return 0.15f;

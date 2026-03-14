@@ -58,4 +58,22 @@ public interface PlayHistoryRepository extends JpaRepository<PlayHistoryEntity, 
       nativeQuery = true)
   List<UUID> findDistinctTrackIdsPlayedSince(
       @Param("userId") UUID userId, @Param("since") OffsetDateTime since);
+
+  @Query(
+      value =
+          """
+          WITH plays_ordered AS (
+              SELECT item_id,
+                     played_ms,
+                     SUM(played_ms) OVER (ORDER BY started_at DESC ROWS UNBOUNDED PRECEDING) AS cum_ms
+              FROM play_history
+              WHERE user_id = :userId
+          )
+          SELECT DISTINCT item_id
+          FROM plays_ordered
+          WHERE cum_ms - played_ms < :windowMs
+          """,
+      nativeQuery = true)
+  List<UUID> findDistinctTrackIdsWithinPlaybackWindow(
+      @Param("userId") UUID userId, @Param("windowMs") long windowMs);
 }

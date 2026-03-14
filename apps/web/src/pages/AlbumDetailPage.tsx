@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Pause, Play, Shuffle } from 'lucide-react';
 import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
@@ -42,6 +43,13 @@ export function AlbumDetailPage() {
   });
 
   const { data: tracks = [], isLoading: tracksLoading } = useAlbumTracks(id);
+
+  const handlePlayTrack = useCallback(
+    (_: unknown, index: number) => {
+      playTracks(tracks, index);
+    },
+    [playTracks, tracks]
+  );
 
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     album?.Id ?? '',
@@ -159,9 +167,7 @@ export function AlbumDetailPage() {
         showImage={false}
         currentTrackId={currentTrack?.Id}
         isPlaying={isPlaying}
-        onPlayTrack={(_, index) => {
-          playTracks(tracks, index);
-        }}
+        onPlayTrack={handlePlayTrack}
         onPauseTrack={pause}
       />
     </div>
