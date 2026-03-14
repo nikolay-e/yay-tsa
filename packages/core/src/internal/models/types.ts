@@ -183,6 +183,7 @@ export interface AudioItem extends BaseItem {
   MediaSources?: MediaSourceInfo[];
   PlaylistItemId?: string;
   Lyrics?: string;
+  NormalizationGain?: number | null;
 }
 
 export interface MusicAlbum extends BaseItem {

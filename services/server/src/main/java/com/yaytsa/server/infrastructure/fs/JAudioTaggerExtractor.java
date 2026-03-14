@@ -58,6 +58,13 @@ public class JAudioTaggerExtractor {
       int channels = parseChannels(header.getChannels());
       String codec = header.getEncodingType();
 
+      Double replaygainTrackGain =
+          parseReplayGainGain(getRawTagValue(tag, "REPLAYGAIN_TRACK_GAIN"));
+      Double replaygainAlbumGain =
+          parseReplayGainGain(getRawTagValue(tag, "REPLAYGAIN_ALBUM_GAIN"));
+      Double replaygainTrackPeak =
+          parseReplayGainPeak(getRawTagValue(tag, "REPLAYGAIN_TRACK_PEAK"));
+
       byte[] artworkData = null;
       String artworkMimeType = null;
       if (tag != null) {
@@ -86,7 +93,10 @@ public class JAudioTaggerExtractor {
               lyrics,
               genres,
               artworkData,
-              artworkMimeType));
+              artworkMimeType,
+              replaygainTrackGain,
+              replaygainAlbumGain,
+              replaygainTrackPeak));
 
     } catch (Exception e) {
       log.warn("Failed to extract metadata from {}: {}", filePath, e.getMessage());
@@ -137,6 +147,35 @@ public class JAudioTaggerExtractor {
     } catch (Exception e) {
       log.trace("Could not parse channels '{}', defaulting to stereo", channels);
       return DEFAULT_CHANNELS;
+    }
+  }
+
+  private String getRawTagValue(Tag tag, String fieldId) {
+    if (tag == null) return null;
+    try {
+      String value = tag.getFirst(fieldId);
+      return (value != null && !value.isBlank()) ? value.trim() : null;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  private Double parseReplayGainGain(String value) {
+    if (value == null || value.isBlank()) return null;
+    try {
+      String cleaned = value.replaceAll("[^0-9.+\\-]", "").trim();
+      return cleaned.isEmpty() ? null : Double.parseDouble(cleaned);
+    } catch (NumberFormatException e) {
+      return null;
+    }
+  }
+
+  private Double parseReplayGainPeak(String value) {
+    if (value == null || value.isBlank()) return null;
+    try {
+      return Double.parseDouble(value.trim());
+    } catch (NumberFormatException e) {
+      return null;
     }
   }
 

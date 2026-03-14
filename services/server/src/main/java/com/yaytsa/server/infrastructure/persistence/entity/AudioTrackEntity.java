@@ -77,4 +77,13 @@ public class AudioTrackEntity {
 
   @Column(name = "fingerprint_sample_rate")
   private Integer fingerprintSampleRate;
+
+  @Column(name = "replaygain_track_gain")
+  private Double replaygainTrackGain;
+
+  @Column(name = "replaygain_album_gain")
+  private Double replaygainAlbumGain;
+
+  @Column(name = "replaygain_track_peak")
+  private Double replaygainTrackPeak;
 }

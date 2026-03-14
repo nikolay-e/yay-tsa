@@ -30,6 +30,7 @@ interface AuthState {
   authService: AuthService | null;
   token: string | null;
   userId: string | null;
+  isAdmin: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: Error | null;
@@ -48,6 +49,7 @@ const initialState: AuthState = {
   authService: null,
   token: null,
   userId: null,
+  isAdmin: false,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -109,6 +111,7 @@ export const useAuthStore = create<AuthStore>()(
           authService,
           token: response.AccessToken,
           userId: response.User.Id,
+          isAdmin: response.User.Policy?.IsAdministrator ?? false,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -167,12 +170,20 @@ export const useAuthStore = create<AuthStore>()(
         await client.getServerInfo();
 
         const authService = new AuthService(client);
+        let isAdmin = false;
+        try {
+          const me = await client.get<{ Policy?: { IsAdministrator?: boolean } }>('/Users/Me');
+          isAdmin = me?.Policy?.IsAdministrator ?? false;
+        } catch {
+          // non-critical — defaults to false
+        }
 
         set({
           client,
           authService,
           token: session.token,
           userId: session.userId,
+          isAdmin,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -197,3 +208,4 @@ export const useIsAuthenticated = () => useAuthStore(state => state.isAuthentica
 export const useClient = () => useAuthStore(state => state.client);
 export const useIsLoading = () => useAuthStore(state => state.isLoading);
 export const useAuthError = () => useAuthStore(state => state.error);
+export const useIsAdmin = () => useAuthStore(state => state.isAdmin);

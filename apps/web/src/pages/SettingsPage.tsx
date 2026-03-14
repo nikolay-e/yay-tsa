@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles, Upload } from 'lucide-react';
+import { RefreshCw, HardDrive, Info, Server, LogOut, Sparkles, Upload, Users } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
-import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useAuthStore, useIsAdmin } from '@/features/auth/stores/auth.store';
 import { TrackUploadDialog } from '@/features/library/components';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
+import { UsersPanel } from '@/features/auth/components/UsersPanel';
 
 async function clearServiceWorkerCaches(): Promise<number> {
   if (!('caches' in window)) return 0;
@@ -32,6 +33,7 @@ async function forceReload(): Promise<void> {
 export function SettingsPage() {
   const client = useAuthStore(state => state.client);
   const logout = useAuthStore(state => state.logout);
+  const isAdmin = useIsAdmin();
   const [status, setStatus] = useState<string | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
@@ -151,6 +153,18 @@ export function SettingsPage() {
       </section>
 
       {status && <div className="bg-bg-tertiary mb-8 rounded-lg p-3 text-sm">{status}</div>}
+
+      {isAdmin && (
+        <section className="mb-8">
+          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+            <Users className="h-4 w-4" />
+            Users
+          </h2>
+          <div className="bg-bg-secondary border-border rounded-lg border">
+            <UsersPanel />
+          </div>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">

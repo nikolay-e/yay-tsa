@@ -133,4 +133,9 @@ export interface AudioEngine {
    * Check if karaoke mode is currently enabled
    */
   isKaraokeModeEnabled?(): boolean;
+
+  /**
+   * Apply ReplayGain normalization (null = reset to 0 dB)
+   */
+  setNormalizationGain?(gainDb: number | null): void;
 }

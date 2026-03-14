@@ -19,7 +19,10 @@ public record AudioMetadata(
     String lyrics,
     List<String> genres,
     byte[] embeddedArtwork,
-    String artworkMimeType) {
+    String artworkMimeType,
+    Double replaygainTrackGain,
+    Double replaygainAlbumGain,
+    Double replaygainTrackPeak) {
 
   private static final int DEFAULT_CHANNELS = 2;
   private static final String UNKNOWN_CODEC = "unknown";
@@ -41,6 +44,9 @@ public record AudioMetadata(
         null,
         null,
         List.of(),
+        null,
+        null,
+        null,
         null,
         null);
   }

@@ -29,6 +29,7 @@ export class HTML5AudioEngine implements AudioEngine {
   private _analyser: AnalyserNode | null = null;
   private webAudioInitialized: boolean = false;
   private storedVolume: number = 1;
+  private normalizationFactor: number = 1;
 
   // Stable duration captured at load time — immune to browser fluctuations during stalls
   private stableDuration: number = 0;
@@ -230,7 +231,7 @@ export class HTML5AudioEngine implements AudioEngine {
       this.masterGain.gain.value = this.storedVolume;
 
       this.inputBus = this.audioContext.createGain();
-      this.inputBus.gain.value = 1;
+      this.inputBus.gain.value = this.normalizationFactor;
 
       // Create source nodes AFTER masterGain so volume is correct immediately
       this.sourceNodePrimary = this.audioContext.createMediaElementSource(this.audio);
@@ -476,6 +477,13 @@ export class HTML5AudioEngine implements AudioEngine {
       this.masterGain.gain.setValueAtTime(clamped, this.audioContext.currentTime);
     } else {
       this.audio.volume = clamped;
+    }
+  }
+
+  setNormalizationGain(gainDb: number | null): void {
+    this.normalizationFactor = gainDb != null ? Math.pow(10, gainDb / 20) : 1;
+    if (this.inputBus && this.audioContext) {
+      this.inputBus.gain.setValueAtTime(this.normalizationFactor, this.audioContext.currentTime);
     }
   }
 

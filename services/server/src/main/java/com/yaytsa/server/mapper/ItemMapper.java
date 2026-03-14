@@ -80,7 +80,8 @@ public class ItemMapper {
       builder
           .indexNumber(audioTrack.getTrackNumber())
           .parentIndexNumber(audioTrack.getDiscNumber())
-          .lyrics(lyricsService.getLyrics(audioTrack));
+          .lyrics(lyricsService.getLyrics(audioTrack))
+          .normalizationGain(audioTrack.getReplaygainTrackGain());
 
       if (audioTrack.getAlbum() != null) {
         builder.albumId(audioTrack.getAlbum().getId().toString());

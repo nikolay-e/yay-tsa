@@ -88,6 +88,9 @@ public class MediaScannerTransactionalService {
     audioTrack.setCodec(metadata.codec());
     audioTrack.setComment(metadata.comment());
     audioTrack.setLyrics(metadata.lyrics());
+    audioTrack.setReplaygainTrackGain(metadata.replaygainTrackGain());
+    audioTrack.setReplaygainAlbumGain(metadata.replaygainAlbumGain());
+    audioTrack.setReplaygainTrackPeak(metadata.replaygainTrackPeak());
 
     audioTrackRepository.save(audioTrack);
 
@@ -150,6 +153,9 @@ public class MediaScannerTransactionalService {
       track.setCodec(metadata.codec());
       track.setComment(metadata.comment());
       track.setLyrics(metadata.lyrics());
+      track.setReplaygainTrackGain(metadata.replaygainTrackGain());
+      track.setReplaygainAlbumGain(metadata.replaygainAlbumGain());
+      track.setReplaygainTrackPeak(metadata.replaygainTrackPeak());
       audioTrackRepository.save(track);
     }
 

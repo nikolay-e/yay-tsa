@@ -369,6 +369,7 @@ export const usePlayerStore = create<PlayerStore>()(
         void wakeLock.acquire();
 
         // --- Side effects ---
+        engine.setNormalizationGain?.(track.NormalizationGain ?? null);
         get().queue.advanceTo(track.Id);
         get().queue.trimBeforeCurrent();
         syncQueueState();
@@ -424,6 +425,7 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(0, result.duration);
 
       // --- Side effects ---
+      engine.setNormalizationGain?.(track.NormalizationGain ?? null);
       get().queue.advanceTo(track.Id);
       get().queue.trimBeforeCurrent();
       syncQueueState();

@@ -1,5 +1,26 @@
 import { BaseService } from './base-api.service.js';
 
+export interface UserSummary {
+  Id: string;
+  Username: string;
+  DisplayName: string | null;
+  IsAdmin: boolean;
+  IsActive: boolean;
+  CreatedAt: string;
+  LastLoginAt: string | null;
+}
+
+export interface CreateUserRequest {
+  Username: string;
+  DisplayName?: string;
+  IsAdmin: boolean;
+}
+
+export interface CreateUserResult {
+  user: UserSummary;
+  initialPassword: string;
+}
+
 export interface CacheStats {
   imageCache: {
     size: number;
@@ -74,5 +95,33 @@ export class AdminService extends BaseService {
       throw new Error('Failed to get scan status');
     }
     return result;
+  }
+
+  async listUsers(): Promise<UserSummary[]> {
+    this.requireAuth();
+    const result = await this.client.get<UserSummary[]>('/Admin/Users');
+    return result ?? [];
+  }
+
+  async createUser(request: CreateUserRequest): Promise<CreateUserResult> {
+    this.requireAuth();
+    const result = await this.client.post<CreateUserResult>('/Admin/Users', request);
+    if (!result) throw new Error('Failed to create user');
+    return result;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    this.requireAuth();
+    await this.client.delete<void>(`/Admin/Users/${userId}`);
+  }
+
+  async resetPassword(userId: string): Promise<string> {
+    this.requireAuth();
+    const result = await this.client.post<{ newPassword: string }>(
+      `/Admin/Users/${userId}/ResetPassword`,
+      {}
+    );
+    if (!result) throw new Error('Failed to reset password');
+    return result.newPassword;
   }
 }

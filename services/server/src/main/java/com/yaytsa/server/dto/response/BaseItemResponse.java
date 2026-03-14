@@ -129,7 +129,10 @@ public record BaseItemResponse(
     @JsonProperty("IsComplete") Boolean isComplete,
 
     // Total tracks on the album (from metadata provider, for completion badge)
-    @JsonProperty("TotalTracks") Integer totalTracks) {
+    @JsonProperty("TotalTracks") Integer totalTracks,
+
+    // ReplayGain normalization gain in dB (track gain, null if not available)
+    @JsonProperty("NormalizationGain") Double normalizationGain) {
 
   /** Name-GUID pair for artists, genres, etc. */
   public record NameGuidPair(@JsonProperty("Name") String name, @JsonProperty("Id") String id) {}
@@ -280,6 +283,7 @@ public record BaseItemResponse(
     private Integer childCount;
     private Boolean isComplete;
     private Integer totalTracks;
+    private Double normalizationGain;
 
     public Builder name(String name) {
       this.name = name;
@@ -441,6 +445,11 @@ public record BaseItemResponse(
       return this;
     }
 
+    public Builder normalizationGain(Double normalizationGain) {
+      this.normalizationGain = normalizationGain;
+      return this;
+    }
+
     public BaseItemResponse build() {
       return new BaseItemResponse(
           name,
@@ -516,7 +525,8 @@ public record BaseItemResponse(
           channelPrimaryImageTag,
           childCount,
           isComplete,
-          totalTracks);
+          totalTracks,
+          normalizationGain);
     }
   }
 
@@ -610,7 +620,8 @@ public record BaseItemResponse(
         null, // channelPrimaryImageTag
         null, // childCount
         null, // isComplete
-        null // totalTracks
+        null, // totalTracks
+        null // normalizationGain
         );
   }
 
@@ -699,7 +710,8 @@ public record BaseItemResponse(
         null,
         null, // childCount
         isComplete, // isComplete
-        totalTracks // totalTracks
+        totalTracks, // totalTracks
+        null // normalizationGain
         );
   }
 }

@@ -16,6 +16,9 @@ export {
   type CacheClearResult,
   type LibraryRescanResult,
   type ScanStatus,
+  type UserSummary,
+  type CreateUserRequest,
+  type CreateUserResult,
 } from './api/admin.service.js';
 export { AdaptiveDjService } from './api/adaptive-dj.service.js';
 export type {
