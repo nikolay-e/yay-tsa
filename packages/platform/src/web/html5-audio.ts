@@ -125,7 +125,7 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audioSecondary = new Audio();
     this.audioSecondary.crossOrigin = 'anonymous';
     this.audioSecondary.preload = 'auto';
-    this.audioSecondary.volume = 0;
+    this.audioSecondary.muted = true;
 
     if (typeof document !== 'undefined') {
       this.audio.style.display = 'none';
@@ -868,6 +868,10 @@ export class HTML5AudioEngine implements AudioEngine {
     this.detachDispatchHandlers(oldElement);
     this.attachDispatchHandlers(newElement);
 
+    // New secondary starts muted so next play() won't be blocked by Chrome's
+    // "video-only background media" power-saving policy.
+    this.audioSecondary.muted = true;
+
     this.preloadedUrl = null;
     this.preloadPromise = null;
   }
@@ -898,10 +902,16 @@ export class HTML5AudioEngine implements AudioEngine {
     if (!this.webAudioInitialized) {
       nextElement.volume = 0;
     }
+    // Keep secondary muted during play() — Chrome blocks play() on volume=0 elements
+    // as "video-only background media". muted=true is not subject to this policy.
+    nextElement.muted = true;
 
     // Start muted playback to prime the decode pipeline.
     // Secondary gain node is already at 0 — no audible output yet.
     await nextElement.play();
+    // Unmute immediately after play() — muted=true would silence the MediaElementAudioSourceNode.
+    // Chrome's power-saving check only runs at play() call time, not after.
+    nextElement.muted = false;
 
     // CRITICAL: For mid-track switches (karaoke), snap to the live position
     // AFTER play() resolved so all async work is done. The only operations
@@ -978,6 +988,7 @@ export class HTML5AudioEngine implements AudioEngine {
     } else {
       nextElement.volume = this.storedVolume;
     }
+    nextElement.muted = false;
 
     await nextElement.play();
 
