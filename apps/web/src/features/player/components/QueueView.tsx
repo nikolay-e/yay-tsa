@@ -193,12 +193,7 @@ export function QueueView() {
   useEffect(() => {
     if (!isInView || !canLoadMore) return;
     useSessionStore.getState().refreshQueue();
-  }, [isInView, canLoadMore, queueItems.length]);
-
-  useEffect(() => {
-    if (!activeSession || isRefreshing || queueItems.length > 0) return;
-    useSessionStore.getState().refreshQueue();
-  }, [activeSession, isRefreshing, queueItems.length]);
+  }, [isInView, canLoadMore]);
 
   if (queueItems.length === 0) {
     if (isStarting) {
