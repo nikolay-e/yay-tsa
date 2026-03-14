@@ -33,7 +33,7 @@ RUN apk add --no-cache brotli gzip && \
         -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
         -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
 
-FROM --platform=linux/amd64 mcr.microsoft.com/playwright:v1.58.0-noble AS test
+FROM mcr.microsoft.com/playwright:v1.58.0-noble AS test
 
 WORKDIR /app
 
