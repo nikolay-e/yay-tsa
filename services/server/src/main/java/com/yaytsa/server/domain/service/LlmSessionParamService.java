@@ -45,7 +45,7 @@ public class LlmSessionParamService {
       PlaybackSignalRepository signalRepository,
       ObjectMapper objectMapper,
       @Value("${yaytsa.adaptive-dj.anthropic-api-key:}") String apiKey,
-      @Value("${yaytsa.adaptive-dj.model:claude-sonnet-4-5-20250929}") String model,
+      @Value("${yaytsa.adaptive-dj.model:claude-haiku-4-5-20251001}") String model,
       @Value("${yaytsa.adaptive-dj.timeout-ms:30000}") long timeoutMs) {
     this.tasteProfileService = tasteProfileService;
     this.signalRepository = signalRepository;
