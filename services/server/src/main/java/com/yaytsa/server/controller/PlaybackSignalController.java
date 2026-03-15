@@ -10,6 +10,8 @@ import com.yaytsa.server.dto.response.PlaybackSignalResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -23,7 +25,8 @@ import org.springframework.web.bind.annotation.*;
 public class PlaybackSignalController {
 
   private static final Logger log = LoggerFactory.getLogger(PlaybackSignalController.class);
-  private static final int MAX_SIGNAL_RETRIES = 3;
+
+  private final ConcurrentHashMap<UUID, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
 
   private final SignalProcessingService signalService;
   private final ListeningSessionService sessionService;
@@ -53,31 +56,27 @@ public class PlaybackSignalController {
     if (trackId == null) return ResponseEntity.badRequest().build();
     UUID queueEntryId = request.queueEntryId() != null ? parseUuid(request.queueEntryId()) : null;
 
-    for (int attempt = 0; attempt < MAX_SIGNAL_RETRIES; attempt++) {
-      try {
-        var result =
-            signalService.processSignal(
-                sessionId, request.signalType(), trackId, queueEntryId, request.context());
-        if (result.triggerFired()) {
-          Thread.ofVirtual()
-              .start(
-                  () ->
-                      adaptiveQueueService.triggerDjDecision(
-                          result.sessionId(), result.triggerType()));
-        }
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result));
-      } catch (ObjectOptimisticLockingFailureException e) {
-        log.warn(
-            "Signal concurrent conflict attempt {}/{} for session {}: {}",
-            attempt + 1,
-            MAX_SIGNAL_RETRIES,
-            sessionId,
-            e.getMessage());
+    ReentrantLock lock = sessionLocks.computeIfAbsent(sessionId, id -> new ReentrantLock());
+    lock.lock();
+    try {
+      var result =
+          signalService.processSignal(
+              sessionId, request.signalType(), trackId, queueEntryId, request.context());
+      if (result.triggerFired()) {
+        Thread.ofVirtual()
+            .start(
+                () ->
+                    adaptiveQueueService.triggerDjDecision(
+                        result.sessionId(), result.triggerType()));
       }
+      return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result));
+    } catch (ObjectOptimisticLockingFailureException e) {
+      log.error(
+          "Unexpected optimistic lock conflict for session {}: {}", sessionId, e.getMessage());
+      return ResponseEntity.status(HttpStatus.CREATED).build();
+    } finally {
+      lock.unlock();
     }
-    log.error(
-        "Signal processing failed after {} retries for session {}", MAX_SIGNAL_RETRIES, sessionId);
-    return ResponseEntity.status(HttpStatus.CREATED).build();
   }
 
   private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {

@@ -119,7 +119,7 @@ public class LyricsFetchService {
         Files.writeString(lrcPath, lyrics);
         log.debug("Saved lyrics to disk: {}", lrcPath);
       } catch (IOException e) {
-        log.warn(
+        log.debug(
             "Failed to save lyrics to disk for track {}: {}", track.getItemId(), e.getMessage());
       }
     }
