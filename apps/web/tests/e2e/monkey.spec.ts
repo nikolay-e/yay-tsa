@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { test as authTest, expect } from './fixtures/auth.fixture';
+import { TEST_CREDENTIALS } from './helpers/test-config';
 
 authTest.setTimeout(15 * 60 * 1000);
 
@@ -425,8 +426,15 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
     if (iteration % 100 === 0) console.log(`[iter ${iteration}/${MAX}] errors=${jsErrors.length}`);
 
     if (page.url().includes('/login')) {
-      console.log(`[iter ${iteration}] landed on /login (session lost) — re-navigating to /`);
-      await recoverPage(page);
+      console.log(`[iter ${iteration}] landed on /login (session lost) — re-authenticating`);
+      try {
+        await page.getByLabel('Username').fill(TEST_CREDENTIALS.USERNAME);
+        await page.locator('input[type="password"]').fill(TEST_CREDENTIALS.PASSWORD);
+        await page.getByRole('button', { name: 'Sign In' }).click();
+        await page.waitForURL('/', { timeout: 10000 });
+      } catch {
+        await recoverPage(page);
+      }
       consecutiveFails = 0;
       iteration++;
       continue;
