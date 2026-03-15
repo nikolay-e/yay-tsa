@@ -414,7 +414,7 @@ export const usePlayerStore = create<PlayerStore>()(
       } catch (error) {
         if (signal.aborted) return;
         const isEngineTimeout = error instanceof Error && error.message.includes('Engine timeout');
-        if (isEngineTimeout && consecutiveLoadFailures < 2) {
+        if (isEngineTimeout && consecutiveLoadFailures < 2 && !signal.aborted) {
           log.player.warn('Engine timeout on load, retrying once after delay', {
             trackId: track.Id,
           });
