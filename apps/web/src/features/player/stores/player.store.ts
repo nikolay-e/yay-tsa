@@ -378,7 +378,6 @@ export const usePlayerStore = create<PlayerStore>()(
     async function loadAndPlay(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) throw new Error('Not authenticated');
 
-      const wasInKaraokeMode = get().isKaraokeMode;
       set({
         currentTrack: track,
         isLoading: true,
@@ -416,10 +415,8 @@ export const usePlayerStore = create<PlayerStore>()(
         preloader.invalidate();
         schedulePreload();
 
-        if (wasInKaraokeMode) {
+        if (get().karaokeEnabled) {
           void syncKaraokeForTrack(track, signal);
-        } else if (!signal.aborted) {
-          set({ karaokeEnabled: false, karaokeStatus: null });
         }
       } catch (error) {
         if (signal.aborted) return;
@@ -476,10 +473,10 @@ export const usePlayerStore = create<PlayerStore>()(
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);
 
-      if (get().isKaraokeMode) {
+      if (get().isKaraokeMode || get().karaokeEnabled) {
         await syncKaraokeForTrack(track, signal);
       } else if (!signal.aborted) {
-        set({ karaokeEnabled: false, karaokeStatus: null });
+        set({ karaokeStatus: null });
       }
 
       schedulePreload();
