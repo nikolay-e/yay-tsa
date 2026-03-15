@@ -38,8 +38,6 @@ repos:
     hooks:
       - id: no-emoji
         files: ^(packages|apps|services)/.*\.(ts|tsx|js|jsx|py|java)$
-      - id: shift-commit-time
-        stages: [post-commit]
 
   # ------------------------------------------------------------------------------
   # PRETTIER CODE FORMATTER (Autofixing)
