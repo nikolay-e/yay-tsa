@@ -1,0 +1,50 @@
+[project]
+name = "audio-separator"
+version = "0.1.0"
+requires-python = ">=3.13"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes (unused imports, undefined names)
+  "I",   # isort (import ordering)
+  "UP",  # pyupgrade (modern Python syntax)
+  "B",   # flake8-bugbear (common bug patterns)
+  "C4",  # flake8-comprehensions
+  "SIM", # flake8-simplify
+  "RUF", # ruff-specific rules
+]
+ignore = [
+  "E501", # line too long — enforced by ruff-format
+  "B008", # function calls in defaults — FastAPI Depends() pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+"extractor/**" = ["B006"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "extractor.*"
+ignore_errors = true
+
+[tool.bandit]
+exclude_dirs = [".venv", "__pycache__"]
+skips = [
+  "B404", # subprocess import — legitimate for FFmpeg orchestration
+  "B603", # subprocess without shell=True — legitimate FFmpeg invocations
+  "B607", # start process with partial path — ffmpeg expected in PATH
+  "B110", # try/except/pass — used for optional model/feature loading
+  "B615", # HuggingFace unpinned from_pretrained — acceptable for ML sidecar
+]

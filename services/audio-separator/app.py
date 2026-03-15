@@ -1,19 +1,19 @@
+import logging
 import os
 import re
-import time
-import threading
-import logging
-import subprocess
 import shutil
+import subprocess
+import threading
+import time
 import unicodedata
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import requests as http_requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ ERR_EMBEDDING_UNAVAILABLE = "Embedding extraction not available"
 
 def _sanitize(value) -> str:
     return _CONTROL_CHAR_RE.sub("", str(value))
+
 
 # ---------------------------------------------------------------------------
 # Retry-capable HTTP session
@@ -135,7 +136,9 @@ class LyricsRequest(BaseModel):
 
 def _validate_media_path(user_path: str) -> Path:
     resolved = os.path.realpath(user_path)
-    root_prefix = ALLOWED_MEDIA_ROOT if ALLOWED_MEDIA_ROOT.endswith(os.sep) else ALLOWED_MEDIA_ROOT + os.sep
+    root_prefix = (
+        ALLOWED_MEDIA_ROOT if ALLOWED_MEDIA_ROOT.endswith(os.sep) else ALLOWED_MEDIA_ROOT + os.sep
+    )
     if not resolved.startswith(root_prefix):
         log.error("Path traversal attempt: %s", _sanitize(resolved))
         raise HTTPException(status_code=403, detail="Invalid path")
@@ -183,7 +186,11 @@ def _resolve_stem_files(output_files: list, karaoke_dir: Path, start_time: float
 
     if not stem_files:
         found_files = list(karaoke_dir.glob(f"*.{OUTPUT_FORMAT}"))
-        log.info("Fallback: scanning %s, found: %s", repr(str(karaoke_dir)), [repr(str(f)) for f in found_files])
+        log.info(
+            "Fallback: scanning %s, found: %s",
+            repr(str(karaoke_dir)),
+            [repr(str(f)) for f in found_files],
+        )
         stem_files = [f for f in found_files if f.stat().st_mtime >= start_time]
 
     return stem_files
@@ -221,7 +228,7 @@ def _mix_stems_with_ffmpeg(instrumental_stems: list[Path], final_karaoke_path: P
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg failed: {result.stderr}")
     except subprocess.TimeoutExpired:
-        raise RuntimeError(f"FFmpeg timeout after {FFMPEG_TIMEOUT_SECONDS}s")
+        raise RuntimeError(f"FFmpeg timeout after {FFMPEG_TIMEOUT_SECONDS}s") from None
     finally:
         for stem in instrumental_stems:
             if stem != final_karaoke_path and stem.exists():
@@ -321,7 +328,10 @@ def separate_audio(request: SeparationRequest):
         elapsed_ms = int((time.time() - start_time) * 1000)
         log.info(
             "Karaoke complete for %s: instrumental=%s, vocals=%s, time=%dms",
-            _sanitize(track_id), final_karaoke_path, final_vocal_path, elapsed_ms,
+            _sanitize(track_id),
+            final_karaoke_path,
+            final_vocal_path,
+            elapsed_ms,
         )
 
         return SeparationResponse(
@@ -332,7 +342,7 @@ def separate_audio(request: SeparationRequest):
 
     except Exception:
         log.exception("Separation failed for %s", _sanitize(track_id))
-        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL) from None
 
 
 # ===========================================================================
@@ -364,7 +374,7 @@ _TITLE_STRIP_PATTERNS = [
 
 _COMMA_SPLIT_RE = re.compile(r",\s*")
 _WORD_SPLIT_RE = re.compile(
-    r"\s(?:&|and|feat\.?|ft\.?|vs\.?|[x×])\s",
+    r"\s(?:&|and|feat\.?|ft\.?|vs\.?|[x×])\s",  # noqa: RUF001
     re.IGNORECASE,
 )
 _MAX_INPUT_LENGTH = 500
@@ -465,6 +475,7 @@ def _generate_query_variations(artist: str, title: str) -> list[tuple[str, str]]
 # Lyrics: LRC parsing & validation helpers
 # ===========================================================================
 
+
 def _extract_lrc_timestamps(lrc_content: str) -> list[float]:
     timestamps = []
     for line in lrc_content.split("\n"):
@@ -529,7 +540,11 @@ def _validate_lyrics(
                 coverage_pct = int(last_ts / duration_seconds * 100)
                 log.info(
                     "Rejected lyrics for '%s - %s': last timestamp %.0fs covers %d%% of duration %.0fs",
-                    artist, title, last_ts, coverage_pct, duration_seconds,
+                    artist,
+                    title,
+                    last_ts,
+                    coverage_pct,
+                    duration_seconds,
                 )
                 return False
 
@@ -569,6 +584,7 @@ def _lyrics_similarity(a: str, b: str) -> float:
 # Lyrics: negative cache
 # ===========================================================================
 
+
 def _is_negative_cache_valid(path: Path) -> bool:
     if not path.exists():
         return False
@@ -594,6 +610,7 @@ def _write_negative_cache(path: Path):
 # Lyrics: source fetchers
 # ===========================================================================
 
+
 def _fuzzy_match_artist_title(
     result_artist: str,
     result_title: str,
@@ -616,10 +633,7 @@ def _fuzzy_match_artist_title(
     qa_words = set(qa.split())
     ra_words = set(ra.split())
     artist_overlap = len(qa_words & ra_words)
-    if artist_overlap == 0 and qa not in ra and ra not in qa:
-        return False
-
-    return True
+    return not (artist_overlap == 0 and qa not in ra and ra not in qa)
 
 
 def _fetch_lrclib_direct(
@@ -753,6 +767,7 @@ def _fetch_from_lrclib(
 # Lyrics: orchestrator with multi-variation search
 # ===========================================================================
 
+
 def _search_all_sources(
     _artist: str,
     _title: str,
@@ -795,8 +810,12 @@ def _search_all_sources(
 
 
 def _find_verified_synced(
-    lyrics_a: str, source_a: str, synced_a: bool,
-    lyrics_b: str, source_b: str, synced_b: bool,
+    lyrics_a: str,
+    source_a: str,
+    synced_a: bool,
+    lyrics_b: str,
+    source_b: str,
+    synced_b: bool,
 ) -> tuple[str, str] | None:
     if synced_a:
         return (lyrics_a, source_a)
@@ -858,6 +877,7 @@ def _select_best_candidate(
 # Lyrics: API endpoint
 # ===========================================================================
 
+
 @app.post(
     "/api/fetch-lyrics",
     response_model=LyricsResponse,
@@ -883,7 +903,9 @@ def fetch_lyrics(request: LyricsRequest):
             )
 
     if not request.force and _is_negative_cache_valid(output_path):
-        log.info("Negative cache hit for: %s - %s", _sanitize(request.artist), _sanitize(request.title))
+        log.info(
+            "Negative cache hit for: %s - %s", _sanitize(request.artist), _sanitize(request.title)
+        )
         return LyricsResponse(success=False, source="negative-cache")
 
     artist = request.artist
@@ -893,23 +915,35 @@ def fetch_lyrics(request: LyricsRequest):
 
     log.info(
         "Searching lyrics for: '%s - %s'%s%s",
-        _sanitize(artist), _sanitize(title),
+        _sanitize(artist),
+        _sanitize(title),
         f" album='{_sanitize(album)}'" if album else "",
         f" duration={duration_seconds:.0f}s" if duration_seconds else "",
     )
 
     variations = _generate_query_variations(artist, title)
-    log.info("Generated %d query variations for '%s - %s'", len(variations), _sanitize(artist), _sanitize(title))
+    log.info(
+        "Generated %d query variations for '%s - %s'",
+        len(variations),
+        _sanitize(artist),
+        _sanitize(title),
+    )
 
-    candidates, is_instrumental = _search_all_sources(artist, title, album, duration_seconds, variations)
+    candidates, is_instrumental = _search_all_sources(
+        artist, title, album, duration_seconds, variations
+    )
 
     if is_instrumental:
-        log.info("Track '%s - %s' is instrumental, skipping lyrics", _sanitize(artist), _sanitize(title))
+        log.info(
+            "Track '%s - %s' is instrumental, skipping lyrics", _sanitize(artist), _sanitize(title)
+        )
         _write_negative_cache(output_path)
         return LyricsResponse(success=False, source="instrumental")
 
     if not candidates:
-        log.info("No lyrics found for: '%s - %s' from any source", _sanitize(artist), _sanitize(title))
+        log.info(
+            "No lyrics found for: '%s - %s' from any source", _sanitize(artist), _sanitize(title)
+        )
         _write_negative_cache(output_path)
         return LyricsResponse(success=False, source="exhausted")
 
@@ -927,8 +961,10 @@ def fetch_lyrics(request: LyricsRequest):
     is_synced = _has_lrc_timestamps(chosen_lyrics)
     log.info(
         "Wrote %s lyrics to: %s (source: %s, candidates: %d)",
-        "synced" if is_synced else "plain", _sanitize(output_path),
-        chosen_source, len(candidates),
+        "synced" if is_synced else "plain",
+        _sanitize(output_path),
+        chosen_source,
+        len(candidates),
     )
 
     return LyricsResponse(
@@ -943,6 +979,7 @@ def fetch_lyrics(request: LyricsRequest):
 # ===========================================================================
 # Feature extraction: audio analysis endpoints
 # ===========================================================================
+
 
 class ExtractionRequest(BaseModel):
     track_id: str
@@ -995,7 +1032,7 @@ def extract_features(request: ExtractionRequest):
         )
     except Exception:
         log.exception("Feature extraction failed for track %s", _sanitize(request.track_id))
-        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL) from None
 
 
 @app.post(
@@ -1109,7 +1146,7 @@ def extract_embeddings(request: EmbedRequest):
         )
     except Exception:
         log.exception("Embedding extraction failed for track %s", _sanitize(request.track_id))
-        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL) from None
 
 
 @app.post(
@@ -1168,7 +1205,7 @@ def encode_text_embedding(request: TextEmbedRequest):
         return TextEmbedResponse(embedding=embedding, dimensions=len(embedding))
     except Exception:
         log.exception("Text embedding failed for: %s", _sanitize(request.text[:100]))
-        raise HTTPException(status_code=500, detail=ERR_INTERNAL)
+        raise HTTPException(status_code=500, detail=ERR_INTERNAL) from None
 
 
 @app.get("/api/v1/embed/status")

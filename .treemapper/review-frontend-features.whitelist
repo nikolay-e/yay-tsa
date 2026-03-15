@@ -1,0 +1,5 @@
+# Frontend Features Review
+# Feature modules: auth, library, player
+
+apps/web/src/features/**/*.tsx
+apps/web/src/features/**/*.ts

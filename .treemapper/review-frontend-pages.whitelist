@@ -1,0 +1,8 @@
+# Frontend Pages Review
+# All page components + shared UI + routing
+
+apps/web/src/pages/**/*.tsx
+apps/web/src/shared/**/*.tsx
+apps/web/src/shared/**/*.ts
+apps/web/src/app/**/*.tsx
+apps/web/src/app/**/*.ts

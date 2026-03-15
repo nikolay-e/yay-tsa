@@ -1,29 +1,27 @@
-import os
-import time
 import logging
+import os
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
 from essentia.standard import (
-    MonoLoader,
-    RhythmExtractor2013,
+    Danceability,
+    Dissonance,
+    DynamicComplexity,
+    FrameGenerator,
     KeyExtractor,
     LoudnessEBUR128,
-    Danceability,
+    MonoLoader,
     OnsetRate,
-    DynamicComplexity,
-    Spectrum,
-    Windowing,
-    FrameGenerator,
+    RhythmExtractor2013,
     SpectralComplexity,
-    Dissonance,
     SpectralPeaks,
-)
-from essentia.standard import (
+    Spectrum,
+    TensorflowPredict2D,
     TensorflowPredictEffnetDiscogs,
     TensorflowPredictMusiCNN,
-    TensorflowPredict2D,
+    Windowing,
 )
 
 log = logging.getLogger(__name__)
@@ -37,7 +35,6 @@ TF_OUTPUT_SOFTMAX = "model/Softmax"
 
 
 class EssentiaAnalyzer:
-
     def __init__(self, models_dir: str):
         self._models_dir = models_dir
         self._lock = threading.Lock()
@@ -97,7 +94,9 @@ class EssentiaAnalyzer:
         duration_sec = len(audio_44k) / AUDIO_SAMPLE_RATE
 
         if duration_sec < MIN_AUDIO_DURATION_SEC:
-            log.warning("Track too short (%.1fs) for TF models: %s", duration_sec, Path(file_path).name)
+            log.warning(
+                "Track too short (%.1fs) for TF models: %s", duration_sec, Path(file_path).name
+            )
             elapsed_ms = int((time.time() - start) * 1000)
             return {
                 "features": None,
@@ -110,9 +109,7 @@ class EssentiaAnalyzer:
 
         self._ensure_models()
 
-        audio_16k = MonoLoader(
-            filename=file_path, sampleRate=TF_SAMPLE_RATE, resampleQuality=4
-        )()
+        audio_16k = MonoLoader(filename=file_path, sampleRate=TF_SAMPLE_RATE, resampleQuality=4)()
 
         effnet_embeddings = self._effnet(audio_16k)
         musicnn_embeddings = self._musicnn(audio_16k)
@@ -173,9 +170,7 @@ class EssentiaAnalyzer:
             "dissonance": round(s(dissonance_val), 3),
         }
 
-    def _classify_with_embeddings(
-        self, effnet_emb: np.ndarray, musicnn_emb: np.ndarray
-    ) -> dict:
+    def _classify_with_embeddings(self, effnet_emb: np.ndarray, musicnn_emb: np.ndarray) -> dict:
         happy_preds = self._mood_happy_clf(effnet_emb)
         valence = float(happy_preds.mean(axis=0)[0])
 

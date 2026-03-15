@@ -1,0 +1,12 @@
+# CI/CD Pipeline Review
+# Workflows, Dockerfiles, Docker Compose, Helm charts, nginx configs
+
+.github/workflows/*.yml
+**/Dockerfile
+docker-compose*.yml
+docker/example.env
+charts/**/*.yaml
+infra/nginx/*.conf*
+scripts/*.js
+.pre-commit-config.yaml
+renovate.json

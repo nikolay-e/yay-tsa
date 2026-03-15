@@ -1,0 +1,31 @@
+# React Frontend Review
+# All TSX/TS source files in web app
+
+apps/web/src/**/*.tsx
+apps/web/src/**/*.ts
+apps/web/src/**/*.css
+apps/web/vite.config.ts
+apps/web/index.html
+
+# Config & dependencies
+apps/web/package.json
+apps/web/tsconfig*.json
+apps/web/postcss.config.*
+apps/web/eslint.config.*
+apps/web/.bundlewatchrc.json
+
+# Public assets & PWA
+apps/web/public/**/*
+
+# Build scripts
+apps/web/scripts/**/*
+
+# Docker & deployment
+apps/web/Dockerfile
+apps/web/docker/**/*
+infra/nginx/**/*
+
+# CI & quality gates
+.github/workflows/ci.yml
+lighthouserc.json
+.pre-commit-config.yaml

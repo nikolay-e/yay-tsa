@@ -1,7 +1,7 @@
-import os
-import time
 import logging
+import os
 import threading
+import time
 
 import numpy as np
 
@@ -20,7 +20,6 @@ TEXT_MAX_CHARS = 300
 
 
 class DualEmbeddingExtractor:
-
     def __init__(self, cache_dir: str | None = None):
         self._cache_dir = cache_dir or os.getenv("HF_HOME", "/app/hf_cache")
         self._clap_lock = threading.Lock()
@@ -37,6 +36,7 @@ class DualEmbeddingExtractor:
     def _ensure_torch(self):
         if self._torch is None:
             import torch
+
             self._torch = torch
 
     def _ensure_clap(self):
@@ -51,9 +51,7 @@ class DualEmbeddingExtractor:
 
             from transformers import ClapModel, ClapProcessor
 
-            self._clap_model = ClapModel.from_pretrained(
-                CLAP_MODEL_ID, cache_dir=self._cache_dir
-            )
+            self._clap_model = ClapModel.from_pretrained(CLAP_MODEL_ID, cache_dir=self._cache_dir)
             self._clap_model.eval()
             self._clap_processor = ClapProcessor.from_pretrained(
                 CLAP_MODEL_ID, cache_dir=self._cache_dir
@@ -106,7 +104,11 @@ class DualEmbeddingExtractor:
         self._ensure_clap()
 
         if len(text) > TEXT_MAX_CHARS:
-            log.warning("Text input truncated from %d to %d chars (CLAP 77-token limit)", len(text), TEXT_MAX_CHARS)
+            log.warning(
+                "Text input truncated from %d to %d chars (CLAP 77-token limit)",
+                len(text),
+                TEXT_MAX_CHARS,
+            )
             text = text[:TEXT_MAX_CHARS]
 
         inputs = self._clap_processor(text=[text], return_tensors="pt", padding=True)
@@ -122,7 +124,7 @@ class DualEmbeddingExtractor:
             self._ensure_clap()
             audio, _ = librosa.load(file_path, sr=CLAP_SAMPLE_RATE, mono=True)
             chunk_size = CLAP_CHUNK_SEC * CLAP_SAMPLE_RATE
-            chunks = [audio[i:i + chunk_size] for i in range(0, len(audio), chunk_size)]
+            chunks = [audio[i : i + chunk_size] for i in range(0, len(audio), chunk_size)]
             chunks = [c for c in chunks if len(c) >= CLAP_SAMPLE_RATE]
 
             if not chunks:
@@ -149,7 +151,7 @@ class DualEmbeddingExtractor:
             self._ensure_mert()
             audio, _ = librosa.load(file_path, sr=MERT_SAMPLE_RATE, mono=True)
             chunk_size = MERT_CHUNK_SEC * MERT_SAMPLE_RATE
-            chunks = [audio[i:i + chunk_size] for i in range(0, len(audio), chunk_size)]
+            chunks = [audio[i : i + chunk_size] for i in range(0, len(audio), chunk_size)]
             chunks = [c for c in chunks if len(c) >= MERT_SAMPLE_RATE]
 
             if not chunks:

@@ -1,0 +1,9 @@
+# Java Backend Review (Spring Boot)
+# All Java source files + Maven config
+
+services/server/**/*.java
+services/server/pom.xml
+services/server/src/main/resources/**/*.yml
+services/server/src/main/resources/**/*.yaml
+services/server/src/main/resources/**/*.properties
+services/server/src/main/resources/**/*.sql

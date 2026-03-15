@@ -1,0 +1,7 @@
+# API Layer Review
+# REST controllers, DTOs, mappers, error handling
+
+services/server/**/controller/**/*.java
+services/server/**/dto/**/*.java
+services/server/**/mapper/**/*.java
+services/server/**/error/**/*.java
