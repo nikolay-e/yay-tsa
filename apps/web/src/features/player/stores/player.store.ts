@@ -313,25 +313,33 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
+    async function applyKaraokeStatus(
+      trackId: string,
+      status: KaraokeStatus,
+      signal: AbortSignal
+    ): Promise<void> {
+      if (status.state === 'READY') {
+        await applyReadyKaraokeState(trackId, status, signal);
+      } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled) {
+        await applyNotStartedKaraokeState(trackId, signal);
+      } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
+        if (!signal.aborted) set({ isKaraokeMode: false, karaokeStatus: status });
+      } else if (!signal.aborted) {
+        if (status.state === 'FAILED') {
+          set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
+        } else {
+          set({ isKaraokeMode: false, karaokeStatus: null });
+        }
+      }
+    }
+
     async function syncKaraokeForTrack(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) return;
       const trackId = track.Id;
       try {
         const status = await currentClient.getKaraokeStatus(trackId);
         if (signal.aborted) return;
-        if (status.state === 'READY') {
-          await applyReadyKaraokeState(trackId, status, signal);
-        } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled) {
-          await applyNotStartedKaraokeState(trackId, signal);
-        } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
-          if (!signal.aborted) set({ isKaraokeMode: false, karaokeStatus: status });
-        } else if (!signal.aborted) {
-          if (status.state === 'FAILED') {
-            set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
-          } else {
-            set({ isKaraokeMode: false, karaokeStatus: null });
-          }
-        }
+        await applyKaraokeStatus(trackId, status, signal);
       } catch (error) {
         if (signal.aborted) return;
         const isAbort = error instanceof DOMException && error.name === 'AbortError';
@@ -414,7 +422,7 @@ export const usePlayerStore = create<PlayerStore>()(
       } catch (error) {
         if (signal.aborted) return;
         const isEngineTimeout = error instanceof Error && error.message.includes('Engine timeout');
-        if (isEngineTimeout && consecutiveLoadFailures < 2 && !signal.aborted) {
+        if (isEngineTimeout && consecutiveLoadFailures < 2) {
           log.player.warn('Engine timeout on load, retrying once after delay', {
             trackId: track.Id,
           });

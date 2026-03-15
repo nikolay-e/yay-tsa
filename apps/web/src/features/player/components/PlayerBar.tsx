@@ -249,17 +249,18 @@ export function PlayerBar() {
     };
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
+    const pollKaraokeStatus = () => {
+      usePlayerStore
+        .getState()
+        .refreshKaraokeStatus()
+        .catch(() => {});
+    };
 
     const onError = () => {
       es.close();
       if (closed) return;
       if (reconnectAttempts >= MAX_RECONNECTS) {
-        pollInterval = setInterval(() => {
-          usePlayerStore
-            .getState()
-            .refreshKaraokeStatus()
-            .catch(() => {});
-        }, 5000);
+        pollInterval = setInterval(pollKaraokeStatus, 5000);
         return;
       }
       reconnectAttempts++;

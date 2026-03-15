@@ -288,6 +288,10 @@ async function parallelClicks(page: Page): Promise<void> {
   }
 }
 
+function isTextInput(tag: string, type: string): boolean {
+  return tag === 'INPUT' && (!type || type === 'text' || type === 'search' || type === 'email');
+}
+
 function interactWithElement(
   page: Page,
   el: Locator,
@@ -298,10 +302,7 @@ function interactWithElement(
 ): void {
   if (tag === 'INPUT' && type === 'range') {
     el.fill(String(Math.floor(Math.random() * 100))).catch(() => {});
-  } else if (
-    tag === 'INPUT' &&
-    (type === 'text' || type === 'search' || type === 'email' || !type)
-  ) {
+  } else if (isTextInput(tag, type)) {
     el.click({ timeout: 150, force: true }).catch(() => {});
     if (Math.random() < 0.5) el.fill('').catch(() => {});
     el.pressSequentially(pick(TEXTS), { delay: 0 }).catch(() => {});
@@ -321,6 +322,82 @@ function interactWithElement(
     el.click({ timeout: 150, force: true }).catch(() => {});
     if (actionIdx === 3) page.keyboard.type(pick(TEXTS), { delay: 0 }).catch(() => {});
   }
+}
+
+function dispatchSimpleAction(page: Page, actionIdx: number): boolean {
+  if (actionIdx === 1) {
+    scrollAllContainers(page);
+    return true;
+  }
+  if (actionIdx === 2) {
+    burstKeyboard(page);
+    return true;
+  }
+  if (actionIdx === 4) {
+    navigateBackForward(page);
+    return true;
+  }
+  if (actionIdx === 5) {
+    randomResize(page);
+    return true;
+  }
+  if (actionIdx === 9) {
+    coordClick(page);
+    return true;
+  }
+  if (actionIdx === 10) {
+    dragSliders(page);
+    return true;
+  }
+  if (actionIdx === 11) {
+    injectDomEvents(page);
+    return true;
+  }
+  if (actionIdx === 12) {
+    storageChaos(page);
+    return true;
+  }
+  if (actionIdx === 13) {
+    keyBurst(page);
+    return true;
+  }
+  return false;
+}
+
+async function processBatch(
+  page: Page,
+  els: Locator[],
+  actionIdx: number,
+  startIteration: number
+): Promise<number> {
+  let added = 0;
+  const shuffled = [...els].sort(() => Math.random() - 0.5);
+  const batchSize = Math.random() < 0.1 ? shuffled.length : Math.ceil(Math.random() * 20);
+  for (const el of shuffled.slice(0, batchSize)) {
+    try {
+      const infoResult = await withTimeout(
+        el
+          .evaluate(e => ({
+            tag: e.tagName,
+            type: (e as HTMLInputElement).type || '',
+            opts:
+              e.tagName === 'SELECT'
+                ? Array.from((e as HTMLSelectElement).options).map(o => o.value)
+                : [],
+          }))
+          .catch(() => ({ tag: '', type: '', opts: [] as string[] })),
+        3000
+      );
+      if (infoResult) {
+        interactWithElement(page, el, infoResult.tag, infoResult.type, infoResult.opts, actionIdx);
+      }
+      added++;
+      if ((startIteration + added) % 200 === 0) break;
+    } catch {
+      added++;
+    }
+  }
+  return added;
 }
 
 authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
@@ -369,56 +446,7 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
     //          coord-click, drag-slider, inject-events, storage-chaos, key-burst, parallel-clicks
     const actionIdx = weighted([30, 15, 12, 8, 4, 3, 4, 3, 2, 3, 4, 5, 2, 3, 2]);
 
-    if (actionIdx === 1) {
-      scrollAllContainers(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 2) {
-      burstKeyboard(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 4) {
-      navigateBackForward(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 5) {
-      randomResize(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 9) {
-      coordClick(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 10) {
-      dragSliders(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 11) {
-      injectDomEvents(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 12) {
-      storageChaos(page);
-      iteration++;
-      consecutiveFails = 0;
-      continue;
-    }
-    if (actionIdx === 13) {
-      keyBurst(page);
+    if (dispatchSimpleAction(page, actionIdx)) {
       iteration++;
       consecutiveFails = 0;
       continue;
@@ -426,8 +454,7 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
 
     if (actionIdx === 14) {
       const result = await withTimeout(parallelClicks(page), ACTION_TIMEOUT_MS);
-      if (result === null) consecutiveFails++;
-      else consecutiveFails = 0;
+      consecutiveFails = result === null ? consecutiveFails + 1 : 0;
       iteration++;
       continue;
     }
@@ -445,42 +472,7 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
     }
 
     consecutiveFails = 0;
-    const shuffled = [...els].sort(() => Math.random() - 0.5);
-    const batchSize = Math.random() < 0.1 ? shuffled.length : Math.ceil(Math.random() * 20);
-
-    for (const el of shuffled.slice(0, batchSize)) {
-      try {
-        const infoResult = await withTimeout(
-          el
-            .evaluate(e => ({
-              tag: e.tagName,
-              type: (e as HTMLInputElement).type || '',
-              opts:
-                e.tagName === 'SELECT'
-                  ? Array.from((e as HTMLSelectElement).options).map(o => o.value)
-                  : [],
-            }))
-            .catch(() => ({ tag: '', type: '', opts: [] as string[] })),
-          ACTION_TIMEOUT_MS
-        );
-
-        if (infoResult) {
-          interactWithElement(
-            page,
-            el,
-            infoResult.tag,
-            infoResult.type,
-            infoResult.opts,
-            actionIdx
-          );
-        }
-
-        iteration++;
-        if (iteration % 200 === 0) break;
-      } catch {
-        iteration++;
-      }
-    }
+    iteration += await processBatch(page, els, actionIdx, iteration);
   }
 
   console.log(`\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors ===`);
