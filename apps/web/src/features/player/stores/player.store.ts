@@ -84,6 +84,7 @@ let lastProgressReportTime = 0;
 const wakeLock = new WakeLockManager();
 
 let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
+const karaokeFailedTrackIds = new Set<string>();
 
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
@@ -283,18 +284,18 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
-    async function handleKaraokeTransition(track: AudioItem, signal: AbortSignal): Promise<void> {
+    async function syncKaraokeForTrack(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) return;
 
-      const client = currentClient;
       const trackId = track.Id;
 
       try {
-        const status = await client.getKaraokeStatus(trackId);
+        const status = await currentClient.getKaraokeStatus(trackId);
         if (signal.aborted) return;
 
         if (status.state === 'READY') {
-          const url = client.getInstrumentalStreamUrl(trackId);
+          set({ isKaraokeTransitioning: true });
+          const url = currentClient.getInstrumentalStreamUrl(trackId);
           if (engine.preload && engine.seamlessSwitch) {
             const hint = engine.getCurrentTime();
             await withTimeout(engine.preload(url), ENGINE_TIMEOUT_MS);
@@ -312,16 +313,43 @@ export const usePlayerStore = create<PlayerStore>()(
             if (get().isPlaying) await engine.play();
           }
           if (!signal.aborted) {
-            set({ karaokeStatus: status });
+            set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
+            preloader.invalidate();
+            schedulePreload();
+          }
+        } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled) {
+          if (karaokeFailedTrackIds.has(trackId)) {
+            set({ isKaraokeMode: false, karaokeEnabled: false });
+            return;
+          }
+          await currentClient.requestKaraokeProcessing(trackId);
+          if (!signal.aborted) {
+            set({ isKaraokeMode: false, karaokeStatus: { state: 'PROCESSING', message: null } });
+          }
+        } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
+          if (!signal.aborted) {
+            set({ isKaraokeMode: false, karaokeStatus: status });
           }
         } else {
           if (!signal.aborted) {
-            set({ isKaraokeMode: false, karaokeStatus: null });
+            if (status.state === 'FAILED') {
+              set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
+            } else {
+              set({ isKaraokeMode: false, karaokeStatus: null });
+            }
           }
         }
-      } catch {
-        if (!signal.aborted) {
-          set({ isKaraokeMode: false, karaokeStatus: null });
+      } catch (error) {
+        if (signal.aborted) return;
+        const isAbort = error instanceof DOMException && error.name === 'AbortError';
+        if (!isAbort) {
+          log.player.warn('Failed to sync karaoke for track', { error: String(error) });
+          set({
+            isKaraokeMode: false,
+            isKaraokeTransitioning: false,
+            karaokeEnabled: false,
+            karaokeStatus: null,
+          });
         }
       }
     }
@@ -350,7 +378,14 @@ export const usePlayerStore = create<PlayerStore>()(
     async function loadAndPlay(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) throw new Error('Not authenticated');
 
-      set({ currentTrack: track, isLoading: true, error: null });
+      set({
+        currentTrack: track,
+        isLoading: true,
+        error: null,
+        isKaraokeMode: false,
+        isKaraokeTransitioning: false,
+        karaokeStatus: null,
+      });
       reportStopped();
 
       try {
@@ -379,6 +414,10 @@ export const usePlayerStore = create<PlayerStore>()(
         startPlaybackReporter(track.Id);
         preloader.invalidate();
         schedulePreload();
+
+        if (get().karaokeEnabled) {
+          void syncKaraokeForTrack(track, signal);
+        }
       } catch (error) {
         if (signal.aborted) return;
         log.player.error('Failed to load and play track', error, {
@@ -434,8 +473,10 @@ export const usePlayerStore = create<PlayerStore>()(
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);
 
-      if (get().isKaraokeMode) {
-        await handleKaraokeTransition(track, signal);
+      if (get().isKaraokeMode || get().karaokeEnabled) {
+        await syncKaraokeForTrack(track, signal);
+      } else if (!signal.aborted) {
+        set({ karaokeStatus: null });
       }
 
       schedulePreload();
@@ -758,42 +799,45 @@ export const usePlayerStore = create<PlayerStore>()(
             error: null,
             isKaraokeMode: false,
             isKaraokeTransitioning: false,
+            karaokeEnabled: false,
             karaokeStatus: null,
             sleepTimerMinutes: null,
             sleepTimerEndTime: null,
             queueItems: [],
             queueIndex: -1,
           });
+          karaokeFailedTrackIds.clear();
         });
       },
 
       toggleKaraoke: async () => {
-        const {
-          currentTrack,
-          isKaraokeMode,
-          isKaraokeTransitioning,
-          karaokeStatus: cachedStatus,
-        } = get();
+        const { currentTrack, isKaraokeMode, isKaraokeTransitioning } = get();
         if (!currentTrack || !currentClient || isKaraokeTransitioning) return;
+
+        if (get().karaokeStatus?.state === 'PROCESSING') {
+          set({ karaokeEnabled: false, karaokeStatus: null });
+          return;
+        }
 
         await controller.ifIdle(async signal => {
           const newKaraokeMode = !isKaraokeMode;
 
           if (newKaraokeMode) {
-            set({ isKaraokeTransitioning: true });
+            set({ karaokeEnabled: true, isKaraokeTransitioning: true });
 
             try {
-              const status =
-                cachedStatus?.state === 'READY'
-                  ? cachedStatus
-                  : await currentClient!.getKaraokeStatus(currentTrack.Id);
+              const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
 
               if (signal.aborted) return;
 
               if (status.state === 'NOT_STARTED') {
+                if (karaokeFailedTrackIds.has(currentTrack.Id)) {
+                  set({ karaokeEnabled: false, isKaraokeTransitioning: false });
+                  return;
+                }
                 await currentClient!.requestKaraokeProcessing(currentTrack.Id);
                 set({
-                  karaokeStatus: { ...status, state: 'PROCESSING' },
+                  karaokeStatus: { state: 'PROCESSING', message: null },
                   isKaraokeTransitioning: false,
                 });
                 return;
@@ -815,7 +859,9 @@ export const usePlayerStore = create<PlayerStore>()(
                 return;
               }
 
-              set({ karaokeStatus: status, isKaraokeTransitioning: false });
+              // FAILED
+              karaokeFailedTrackIds.add(currentTrack.Id);
+              set({ karaokeEnabled: false, karaokeStatus: status, isKaraokeTransitioning: false });
             } catch (error) {
               if (signal.aborted) return;
               const isAbort = error instanceof DOMException && error.name === 'AbortError';
@@ -824,19 +870,19 @@ export const usePlayerStore = create<PlayerStore>()(
               } else {
                 log.player.error('Failed to enable karaoke', error);
               }
-              let karaokeError: Error | null = null;
-              if (!isAbort) {
-                karaokeError = error instanceof Error ? error : new Error(String(error));
-              }
               set({
                 isKaraokeMode: false,
                 isKaraokeTransitioning: false,
+                karaokeEnabled: isAbort ? get().karaokeEnabled : false,
                 karaokeStatus: null,
-                error: karaokeError,
+                error:
+                  !isAbort && error instanceof Error
+                    ? new Error(`Couldn't load instrumental track — karaoke unavailable`)
+                    : null,
               });
             }
           } else {
-            set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeStatus: null });
+            set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
 
             try {
               const itemsService = new ItemsService(currentClient!);
@@ -845,24 +891,18 @@ export const usePlayerStore = create<PlayerStore>()(
               if (signal.aborted) return;
               preloader.invalidate();
               schedulePreload();
-              set({ isKaraokeTransitioning: false });
+              set({ isKaraokeTransitioning: false, karaokeStatus: null });
             } catch (error) {
               if (signal.aborted) return;
               const isAbort = error instanceof DOMException && error.name === 'AbortError';
-              if (isAbort) {
-                log.player.warn('Karaoke disable interrupted by track change');
-              } else {
-                log.player.error('Failed to disable karaoke', error);
-              }
-              let karaokeError: Error | null = null;
               if (!isAbort) {
-                karaokeError = error instanceof Error ? error : new Error(String(error));
+                log.player.error('Failed to disable karaoke', error);
               }
               set({
                 isKaraokeMode: false,
                 isKaraokeTransitioning: false,
                 karaokeStatus: null,
-                error: karaokeError,
+                error: !isAbort && error instanceof Error ? error : null,
               });
             }
           }
@@ -874,27 +914,40 @@ export const usePlayerStore = create<PlayerStore>()(
         if (!currentTrack || !currentClient) return;
         if (karaokeStatus?.state !== 'PROCESSING') return;
 
-        await controller.ifIdle(async signal => {
-          try {
-            const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
-            if (signal.aborted) return;
+        let status: KaraokeStatus;
+        try {
+          status = await currentClient.getKaraokeStatus(currentTrack.Id);
+        } catch {
+          return;
+        }
 
-            if (status.state === 'READY') {
-              set({ isKaraokeTransitioning: true, karaokeStatus: status, isKaraokeMode: true });
-              const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
-              await karaokeSwitchUrl(instrumentalUrl, signal);
-              if (signal.aborted) return;
-              preloader.invalidate();
-              schedulePreload();
-              set({ isKaraokeTransitioning: false });
-            } else {
-              set({ karaokeStatus: status });
-            }
-          } catch (error) {
-            if (signal.aborted) return;
-            log.player.warn('Failed to load karaoke instrumental', { error: String(error) });
-            set({ karaokeStatus: null, isKaraokeMode: false });
-          }
+        const { currentTrack: ct, karaokeStatus: ks } = get();
+        if (ct?.Id !== currentTrack.Id || ks?.state !== 'PROCESSING') return;
+        if (!get().karaokeEnabled) return;
+
+        if (status.state === 'FAILED') {
+          set({ karaokeEnabled: false, karaokeStatus: status, isKaraokeMode: false });
+          return;
+        }
+
+        if (status.state !== 'READY') {
+          set({ karaokeStatus: status });
+          return;
+        }
+
+        set({ karaokeStatus: status });
+
+        await controller.ifIdle(async signal => {
+          const { currentTrack: ct2, karaokeStatus: ks2 } = get();
+          if (ct2?.Id !== currentTrack.Id || ks2?.state !== 'READY') return;
+
+          set({ isKaraokeTransitioning: true, isKaraokeMode: true });
+          const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(ct2.Id);
+          await karaokeSwitchUrl(instrumentalUrl, signal);
+          if (signal.aborted) return;
+          preloader.invalidate();
+          schedulePreload();
+          set({ isKaraokeTransitioning: false });
         });
       },
 
@@ -1167,6 +1220,7 @@ export const usePlayerError = () => usePlayerStore(state => state.error);
 export const useIsKaraokeMode = () => usePlayerStore(state => state.isKaraokeMode);
 export const useIsKaraokeTransitioning = () =>
   usePlayerStore(state => state.isKaraokeTransitioning);
+export const useKaraokeEnabled = () => usePlayerStore(state => state.karaokeEnabled);
 export const useKaraokeStatus = () => usePlayerStore(state => state.karaokeStatus);
 export const useSleepTimer = () =>
   usePlayerStore(

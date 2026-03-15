@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AudioItem } from '@yay-tsa/core';
-import { Mic, MicOff, Timer, AlignLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -9,6 +9,7 @@ import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { PLAYER_TEST_IDS } from '@/shared/testing/test-ids';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
+import { useAuthStore } from '@/features/auth/stores/auth.store';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -19,6 +20,8 @@ import {
   usePlayerError,
   useIsKaraokeMode,
   useIsKaraokeTransitioning,
+  useIsLoading,
+  useKaraokeEnabled,
   useKaraokeStatus,
   useSleepTimer,
 } from '../stores/player.store';
@@ -111,7 +114,9 @@ export function PlayerBar() {
   const isShuffle = useIsShuffle();
   const repeatMode = useRepeatMode();
   const playerError = usePlayerError();
+  const isLoading = useIsLoading();
   const isKaraokeMode = useIsKaraokeMode();
+  const karaokeEnabled = useKaraokeEnabled();
   const isKaraokeTransitioning = useIsKaraokeTransitioning();
   const karaokeStatus = useKaraokeStatus();
   const sleepTimer = useSleepTimer();
@@ -189,15 +194,87 @@ export function PlayerBar() {
     }
   }, [playerError]);
 
+  const prevKaraokeStateRef = useRef(karaokeStatus?.state);
+  const lastProcessingToastRef = useRef(0);
   useEffect(() => {
-    if (karaokeStatus?.state !== 'PROCESSING') return;
+    const prev = prevKaraokeStateRef.current;
+    const curr = karaokeStatus?.state;
+    prevKaraokeStateRef.current = curr;
 
-    const interval = setInterval(() => {
-      usePlayerStore.getState().refreshKaraokeStatus();
-    }, 3000);
+    if (curr === 'PROCESSING' && prev !== 'PROCESSING') {
+      const now = Date.now();
+      if (now - lastProcessingToastRef.current > 3000) {
+        lastProcessingToastRef.current = now;
+        toast.add('info', 'Processing vocals...');
+      }
+    } else if (curr === 'FAILED') {
+      const msg = karaokeStatus?.message;
+      toast.add('error', msg ? `Vocal separation failed: ${msg}` : 'Vocal separation failed');
+    }
+  }, [karaokeStatus?.state, karaokeStatus?.message]);
 
-    return () => clearInterval(interval);
-  }, [karaokeStatus?.state]);
+  useEffect(() => {
+    if (karaokeStatus?.state !== 'PROCESSING' || !currentTrack) return;
+
+    const client = useAuthStore.getState().client;
+    if (!client) return;
+
+    let sseUrl: string;
+    try {
+      sseUrl = client.getKaraokeStatusStreamUrl(currentTrack.Id);
+    } catch {
+      return;
+    }
+
+    let es = new EventSource(sseUrl);
+    let closed = false;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECTS = 3;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as { state: string };
+        void usePlayerStore.getState().refreshKaraokeStatus();
+        if (data.state === 'READY' || data.state === 'FAILED') {
+          closed = true;
+          es.close();
+        }
+      } catch {
+        // ignore malformed events
+      }
+    };
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    const onError = () => {
+      es.close();
+      if (closed) return;
+      if (reconnectAttempts >= MAX_RECONNECTS) {
+        pollInterval = setInterval(() => {
+          void usePlayerStore.getState().refreshKaraokeStatus();
+        }, 5000);
+        return;
+      }
+      reconnectAttempts++;
+      reconnectTimer = setTimeout(() => {
+        if (closed) return;
+        es = new EventSource(sseUrl);
+        es.onmessage = onMessage;
+        es.onerror = onError;
+      }, 2000 * reconnectAttempts);
+    };
+
+    es.onmessage = onMessage;
+    es.onerror = onError;
+
+    return () => {
+      closed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pollInterval) clearInterval(pollInterval);
+      es.close();
+    };
+  }, [karaokeStatus?.state, currentTrack?.Id]);
 
   useEffect(() => {
     if (!sleepTimer.endTime) {
@@ -282,21 +359,32 @@ export function PlayerBar() {
           <button
             type="button"
             onClick={handleToggleKaraoke}
+            disabled={isLoading || isKaraokeTransitioning}
             className={cn(
-              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-              isKaraokeMode || karaokeStatus?.state === 'PROCESSING'
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+              isKaraokeMode
                 ? 'text-accent'
-                : 'text-text-secondary hover:text-text-primary',
-              (isKaraokeTransitioning || karaokeStatus?.state === 'PROCESSING') && 'animate-pulse'
+                : karaokeEnabled && karaokeStatus?.state === 'PROCESSING'
+                  ? 'text-accent animate-pulse'
+                  : 'text-text-secondary hover:text-text-primary'
             )}
-            aria-label={isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode'}
-            aria-pressed={isKaraokeMode}
+            aria-label={
+              karaokeStatus?.state === 'PROCESSING'
+                ? 'Cancel karaoke processing'
+                : isKaraokeMode
+                  ? 'Disable karaoke mode'
+                  : 'Enable karaoke mode'
+            }
+            aria-pressed={isKaraokeMode ? true : karaokeEnabled ? 'mixed' : false}
             title={(() => {
-              if (karaokeStatus?.state === 'PROCESSING') return 'Processing karaoke...';
-              return isKaraokeMode ? 'Karaoke mode on' : 'Karaoke mode';
+              if (isLoading) return 'Wait for track to load';
+              if (karaokeStatus?.state === 'PROCESSING')
+                return 'Processing karaoke... Click to cancel';
+              if (isKaraokeTransitioning) return 'Switching...';
+              return isKaraokeMode ? 'Karaoke on' : 'Karaoke';
             })()}
           >
-            {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            <Mic className="h-4 w-4" />
           </button>
 
           <button

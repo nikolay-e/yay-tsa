@@ -24,6 +24,7 @@ repos:
       - id: check-case-conflict # [CHECK] Catches file path case inconsistencies.
       - id: detect-private-key # [CHECK] Prevents leaking private keys.
       - id: check-json # [CHECK] Validates JSON syntax.
+      - id: check-toml # [CHECK] Validates TOML syntax (pyproject.toml).
       - id: check-yaml # [CHECK] Validates YAML syntax.
         args: [--unsafe] # Specific to this project: Allows custom Docker Compose tags.
         exclude: ^charts/.*/templates/.*\.yaml$
@@ -59,7 +60,7 @@ repos:
   # Lints and fixes Markdown files using your existing .markdownlint.yaml config.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.48.0
     hooks:
       - id: markdownlint
         args: [--fix, --config, .markdownlint.yaml]
@@ -95,7 +96,7 @@ repos:
   # Prevents committing secrets, API keys, tokens, and credentials.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.0
+    rev: v8.30.1
     hooks:
       - id: gitleaks # [CHECK] Scans for hardcoded secrets and credentials.
 
@@ -123,7 +124,7 @@ repos:
   # Reduces typos in code, comments, and documentation.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
+    rev: v2.4.2
     hooks:
       - id: codespell
         name: codespell (spell checker)
@@ -155,7 +156,7 @@ repos:
   # Validates GitHub Actions workflow syntax and best practices.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.10
+    rev: v1.7.11
     hooks:
       - id: actionlint-docker # [CHECK] Lints GitHub Actions workflow files.
 
@@ -164,7 +165,7 @@ repos:
   # Validates CSS in .css files.
   # ------------------------------------------------------------------------------
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
-    rev: v17.0.0
+    rev: v17.4.0
     hooks:
       - id: stylelint # [CHECK/AUTOFIX] CSS quality and consistency.
         args: [--fix, --config, .stylelintrc.json]
@@ -172,6 +173,39 @@ repos:
           - stylelint@16.12.0
           - stylelint-config-standard@29.0.0
           - stylelint-config-recommended@13.0.0
+
+  # ------------------------------------------------------------------------------
+  # PYTHON LINTING, FORMATTING & SECURITY (services/audio-separator)
+  # Ruff replaces flake8 + isort + black. Mypy for type safety. Bandit for security.
+  # Configured via services/audio-separator/pyproject.toml.
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.6
+    hooks:
+      - id: ruff
+        name: 'ruff (Python linting + isort)'
+        args: [--fix]
+        files: ^services/audio-separator/.*\.py$
+      - id: ruff-format
+        name: 'ruff-format (Python formatting)'
+        files: ^services/audio-separator/.*\.py$
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        name: 'mypy (Python type checking)'
+        files: ^services/audio-separator/.*\.py$
+        args: [--config-file, services/audio-separator/pyproject.toml]
+        additional_dependencies: [types-requests]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        name: 'bandit (Python security scanning)'
+        files: ^services/audio-separator/.*\.py$
+        args: [-c, services/audio-separator/pyproject.toml]
 
   # ------------------------------------------------------------------------------
   # JAVA CODE FORMATTING (Google Java Format)
@@ -306,7 +340,7 @@ repos:
 
       - id: maven-pmd
         name: 'PMD (Java code quality)'
-        entry: bash -c 'cd services/server && mvn pmd:check -B -q'
+        entry: bash -c 'cd services/server && mvn pmd:check -B -q -Dpmd.failOnViolation=true'
         language: system
         files: ^services/server/src/main/.*\.java$
         pass_filenames: false

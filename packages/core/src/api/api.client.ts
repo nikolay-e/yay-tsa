@@ -600,6 +600,15 @@ export class MediaServerClient {
     return `${this.serverUrl}/Karaoke/${itemId}/instrumental?${params}`;
   }
 
+  getKaraokeStatusStreamUrl(trackId: string): string {
+    if (!this.token) {
+      throw new AuthenticationError('Cannot build stream URL: not authenticated');
+    }
+
+    const params = new URLSearchParams({ api_key: this.token });
+    return `${this.serverUrl}/Karaoke/${trackId}/status/stream?${params}`;
+  }
+
   /**
    * Fetch lyrics on demand for a track
    */
