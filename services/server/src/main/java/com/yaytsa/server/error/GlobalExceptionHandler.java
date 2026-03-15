@@ -14,6 +14,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -138,6 +139,12 @@ public class GlobalExceptionHandler {
   public void handleAsyncRequestNotUsable(
       AsyncRequestNotUsableException ex, HttpServletRequest request) {
     log.debug("Client disconnected during streaming: path={}", request.getRequestURI());
+  }
+
+  @ExceptionHandler(AsyncRequestTimeoutException.class)
+  public void handleAsyncRequestTimeout(
+      AsyncRequestTimeoutException ex, HttpServletRequest request) {
+    log.debug("SSE connection timed out: path={}", request.getRequestURI());
   }
 
   @ExceptionHandler(Exception.class)
