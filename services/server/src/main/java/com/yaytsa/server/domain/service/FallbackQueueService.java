@@ -11,10 +11,12 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,23 +149,29 @@ public class FallbackQueueService {
       int maxPosition,
       long maxVersion) {
     long newVersion = maxVersion + 1;
-    List<AdaptiveQueueEntity> addedEntries = new ArrayList<>();
-    for (int i = 0; i < recommendations.size(); i++) {
-      var rec = recommendations.get(i);
-      ItemEntity item = itemRepository.findById(rec.candidate().id()).orElse(null);
+    List<UUID> itemIds =
+        recommendations.stream().map(r -> r.candidate().id()).collect(Collectors.toList());
+    Map<UUID, ItemEntity> itemsById =
+        itemRepository.findAllById(itemIds).stream()
+            .collect(Collectors.toMap(ItemEntity::getId, Function.identity()));
+
+    List<AdaptiveQueueEntity> toSave = new ArrayList<>();
+    int positionOffset = 0;
+    for (ScoredTrack rec : recommendations) {
+      ItemEntity item = itemsById.get(rec.candidate().id());
       if (item == null) continue;
       var entry = new AdaptiveQueueEntity();
       entry.setSession(session);
       entry.setItem(item);
-      entry.setPosition(maxPosition + i + 1);
+      entry.setPosition(maxPosition + positionOffset + 1);
       entry.setAddedReason(rec.source());
       entry.setIntentLabel("recommendation");
       entry.setStatus("QUEUED");
       entry.setQueueVersion(newVersion);
       entry.setAddedAt(OffsetDateTime.now());
-      addedEntries.add(queueRepository.save(entry));
+      toSave.add(entry);
+      positionOffset++;
     }
-    queueRepository.flush();
-    return addedEntries;
+    return queueRepository.saveAll(toSave);
   }
 }

@@ -114,7 +114,6 @@ public class CoverArtService {
    * @param source source identifier (e.g., "genius", "musicbrainz")
    * @return true if image was downloaded and saved
    */
-  @Transactional
   public boolean downloadAndSaveArtwork(
       ItemEntity item, String imageUrl, ImageType imageType, String source) {
     try {

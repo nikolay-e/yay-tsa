@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
-import com.yaytsa.server.infrastructure.persistence.entity.AdaptiveQueueEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
@@ -119,43 +118,18 @@ public class SignalProcessingService {
   }
 
   private void markQueueEntryConsumed(UUID sessionId, UUID trackId, String signalType) {
-    var activeEntries =
-        queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
-            sessionId, List.of("QUEUED", "PLAYING"));
     String newStatus = "PLAY_COMPLETE".equals(signalType) ? "PLAYED" : "SKIPPED";
     OffsetDateTime now = OffsetDateTime.now();
-    for (AdaptiveQueueEntity entry : activeEntries) {
-      if (entry.getItem().getId().equals(trackId)) {
-        entry.setStatus(newStatus);
-        entry.setPlayedAt(now);
-        queueRepository.save(entry);
-        break;
-      }
-      entry.setStatus("SKIPPED");
-      entry.setPlayedAt(now);
-      queueRepository.save(entry);
-    }
+    queueRepository.skipEntriesBeforeTrack(sessionId, trackId, now);
+    queueRepository.markTrackConsumed(sessionId, trackId, newStatus, now);
   }
 
   private void skipPrecedingEntries(UUID sessionId, UUID trackId) {
-    var activeEntries =
-        queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
-            sessionId, List.of("QUEUED", "PLAYING"));
-    OffsetDateTime now = OffsetDateTime.now();
-    for (AdaptiveQueueEntity entry : activeEntries) {
-      if (entry.getItem().getId().equals(trackId)) {
-        break;
-      }
-      entry.setStatus("SKIPPED");
-      entry.setPlayedAt(now);
-      queueRepository.save(entry);
-    }
+    queueRepository.skipEntriesBeforeTrack(sessionId, trackId, OffsetDateTime.now());
   }
 
   private boolean isQueueLow(UUID sessionId) {
-    return queueRepository
-            .findBySessionIdAndStatusInOrderByPositionAsc(sessionId, List.of("QUEUED"))
-            .size()
+    return queueRepository.countBySessionIdAndStatusIn(sessionId, List.of("QUEUED"))
         < queueLowThreshold;
   }
 
