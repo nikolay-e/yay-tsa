@@ -428,10 +428,11 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
     if (page.url().includes('/login')) {
       console.log(`[iter ${iteration}] landed on /login (session lost) — re-authenticating`);
       try {
+        await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 10000 });
         await page.getByLabel('Username').fill(TEST_CREDENTIALS.USERNAME);
         await page.locator('input[type="password"]').fill(TEST_CREDENTIALS.PASSWORD);
         await page.getByRole('button', { name: 'Sign In' }).click();
-        await page.waitForURL('/', { timeout: 10000 });
+        await page.waitForURL('/', { timeout: 15000 });
       } catch {
         await recoverPage(page);
       }
