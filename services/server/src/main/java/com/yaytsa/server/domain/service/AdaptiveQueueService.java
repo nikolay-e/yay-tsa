@@ -77,6 +77,13 @@ public class AdaptiveQueueService {
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void triggerDjDecision(UUID sessionId, String triggerType) {
+    ListeningSessionEntity session = sessionRepository.findById(sessionId).orElse(null);
+    if (session == null) return;
+    triggerDjDecision(session, triggerType, null);
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void triggerDjDecision(
       ListeningSessionEntity session, String triggerType, PlaybackSignalEntity triggerSignal) {
 

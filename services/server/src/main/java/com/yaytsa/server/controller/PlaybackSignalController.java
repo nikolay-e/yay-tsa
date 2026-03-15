@@ -2,6 +2,7 @@ package com.yaytsa.server.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yaytsa.server.domain.service.AdaptiveQueueService;
 import com.yaytsa.server.domain.service.ListeningSessionService;
 import com.yaytsa.server.domain.service.SignalProcessingService;
 import com.yaytsa.server.dto.request.SubmitPlaybackSignalRequest;
@@ -26,14 +27,17 @@ public class PlaybackSignalController {
 
   private final SignalProcessingService signalService;
   private final ListeningSessionService sessionService;
+  private final AdaptiveQueueService adaptiveQueueService;
   private final ObjectMapper objectMapper;
 
   public PlaybackSignalController(
       SignalProcessingService signalService,
       ListeningSessionService sessionService,
+      AdaptiveQueueService adaptiveQueueService,
       ObjectMapper objectMapper) {
     this.signalService = signalService;
     this.sessionService = sessionService;
+    this.adaptiveQueueService = adaptiveQueueService;
     this.objectMapper = objectMapper;
   }
 
@@ -54,6 +58,13 @@ public class PlaybackSignalController {
         var result =
             signalService.processSignal(
                 sessionId, request.signalType(), trackId, queueEntryId, request.context());
+        if (result.triggerFired()) {
+          Thread.ofVirtual()
+              .start(
+                  () ->
+                      adaptiveQueueService.triggerDjDecision(
+                          result.sessionId(), result.triggerType()));
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result));
       } catch (ObjectOptimisticLockingFailureException e) {
         log.warn(

@@ -36,7 +36,6 @@ public class SignalProcessingService {
   private final ListeningSessionRepository sessionRepository;
   private final ItemRepository itemRepository;
   private final AdaptiveQueueRepository queueRepository;
-  private final AdaptiveQueueService adaptiveQueueService;
   private final AffinityAggregationService affinityAggregationService;
   private final ObjectMapper objectMapper;
   private final int queueLowThreshold;
@@ -46,7 +45,6 @@ public class SignalProcessingService {
       ListeningSessionRepository sessionRepository,
       ItemRepository itemRepository,
       AdaptiveQueueRepository queueRepository,
-      AdaptiveQueueService adaptiveQueueService,
       AffinityAggregationService affinityAggregationService,
       ObjectMapper objectMapper,
       @Value("${yaytsa.adaptive-dj.queue.trigger-threshold:8}") int queueLowThreshold) {
@@ -54,13 +52,13 @@ public class SignalProcessingService {
     this.sessionRepository = sessionRepository;
     this.itemRepository = itemRepository;
     this.queueRepository = queueRepository;
-    this.adaptiveQueueService = adaptiveQueueService;
     this.affinityAggregationService = affinityAggregationService;
     this.objectMapper = objectMapper;
     this.queueLowThreshold = queueLowThreshold;
   }
 
-  public record SignalResult(PlaybackSignalEntity signal, boolean triggerFired) {}
+  public record SignalResult(
+      PlaybackSignalEntity signal, boolean triggerFired, UUID sessionId, String triggerType) {}
 
   public SignalResult processSignal(
       UUID sessionId,
@@ -106,21 +104,18 @@ public class SignalProcessingService {
 
     boolean queueLow = isQueueLow(sessionId);
     boolean skipPattern = hasSkipPattern(sessionId);
-    if (queueLow || skipPattern) {
-      if (queueLow)
-        log.info(
-            "Queue low trigger: session {} has {} or fewer remaining items",
-            sessionId,
-            queueLowThreshold);
-      if (skipPattern)
-        log.info(
-            "Skip pattern trigger: session {} has {}+ skips in recent signals",
-            sessionId,
-            SKIP_PATTERN_COUNT);
-      adaptiveQueueService.triggerDjDecision(
-          session, queueLow ? "QUEUE_LOW" : "SKIP_SIGNAL", signal);
-    }
-    return new SignalResult(signal, queueLow || skipPattern);
+    if (queueLow)
+      log.info(
+          "Queue low trigger: session {} has {} or fewer remaining items",
+          sessionId,
+          queueLowThreshold);
+    if (skipPattern)
+      log.info(
+          "Skip pattern trigger: session {} has {}+ skips in recent signals",
+          sessionId,
+          SKIP_PATTERN_COUNT);
+    String triggerType = queueLow ? "QUEUE_LOW" : skipPattern ? "SKIP_SIGNAL" : null;
+    return new SignalResult(signal, queueLow || skipPattern, sessionId, triggerType);
   }
 
   private void markQueueEntryConsumed(UUID sessionId, UUID trackId, String signalType) {
