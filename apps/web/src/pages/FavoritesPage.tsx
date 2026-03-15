@@ -74,7 +74,7 @@ export function FavoritesPage() {
   );
 }
 
-function FavoriteAlbums({ sortState }: { sortState: SortState }) {
+function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
@@ -150,7 +150,7 @@ function FavoriteAlbums({ sortState }: { sortState: SortState }) {
   );
 }
 
-function FavoriteArtists({ sortState }: { sortState: SortState }) {
+function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
   const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
@@ -214,7 +214,7 @@ function FavoriteArtists({ sortState }: { sortState: SortState }) {
   );
 }
 
-function FavoriteTracks({ sortState }: { sortState: SortState }) {
+function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();

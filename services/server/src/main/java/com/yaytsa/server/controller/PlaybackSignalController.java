@@ -27,6 +27,7 @@ public class PlaybackSignalController {
   private static final Logger log = LoggerFactory.getLogger(PlaybackSignalController.class);
 
   private final ConcurrentHashMap<UUID, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<UUID, Long> lastSignalMs = new ConcurrentHashMap<>();
 
   private final SignalProcessingService signalService;
   private final ListeningSessionService sessionService;
@@ -55,6 +56,11 @@ public class PlaybackSignalController {
     UUID trackId = parseUuid(request.trackId());
     if (trackId == null) return ResponseEntity.badRequest().build();
     UUID queueEntryId = request.queueEntryId() != null ? parseUuid(request.queueEntryId()) : null;
+
+    long now = System.currentTimeMillis();
+    if (now - lastSignalMs.getOrDefault(sessionId, 0L) < 100)
+      return ResponseEntity.status(429).build();
+    lastSignalMs.put(sessionId, now);
 
     ReentrantLock lock = sessionLocks.computeIfAbsent(sessionId, id -> new ReentrantLock());
     lock.lock();

@@ -76,9 +76,4 @@ async function generateIcons() {
   console.log('\nAll icons and splash screens generated successfully!');
 }
 
-(async () => {
-  await generateIcons();
-})().catch(error => {
-  console.error('Error generating icons:', error);
-  process.exit(1);
-});
+await generateIcons();

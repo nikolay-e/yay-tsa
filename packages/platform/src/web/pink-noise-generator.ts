@@ -30,7 +30,7 @@ export class PinkNoiseGenerator {
       const AudioContextClass =
         globalThis.window.AudioContext ||
         (
-          globalThis.window as typeof window & {
+          globalThis.window as Window & {
             webkitAudioContext?: typeof AudioContext;
           }
         ).webkitAudioContext;

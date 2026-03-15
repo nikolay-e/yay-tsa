@@ -1,3 +1,4 @@
+import type { Locator, Page } from '@playwright/test';
 import { test as authTest, expect } from './fixtures/auth.fixture';
 
 authTest.setTimeout(15 * 60 * 1000);
@@ -24,6 +25,14 @@ const KEYS = [
   'Control+z',
   'Shift+Tab',
   'Control+ArrowRight',
+  'Control+ArrowLeft',
+  'Alt+ArrowLeft',
+  'Alt+ArrowRight',
+  'Shift+End',
+  'Shift+Home',
+  'Control+Shift+End',
+  'F5',
+  'F11',
 ];
 
 const TEXTS = [
@@ -36,10 +45,21 @@ const TEXTS = [
   '   ',
   'x'.repeat(200),
   '0',
-  '日本語',
-  'привет',
+  '日本語テスト',
+  'привет мир',
   '\n\n\n',
-  '"><script>',
+  '"><script>alert(1)</script>',
+  "'; DROP TABLE users; --",
+  '\u0000\u0001\u0002',
+  '',
+  'null',
+  'undefined',
+  'NaN',
+  '-1',
+  '99999999',
+  'true',
+  '{}',
+  '[]',
 ];
 
 const VIEWPORTS = [
@@ -49,6 +69,21 @@ const VIEWPORTS = [
   { width: 1280, height: 800 },
   { width: 1920, height: 1080 },
   { width: 320, height: 568 },
+  { width: 2560, height: 1440 },
+  { width: 360, height: 640 },
+];
+
+const RANDOM_PATHS = [
+  '/',
+  '/library',
+  '/search',
+  '/settings',
+  '/queue',
+  '/favorites',
+  '/playlists',
+  '/history',
+  '/nonexistent-page-404',
+  '/items/00000000-0000-0000-0000-000000000000',
 ];
 
 function pick<T>(arr: T[]): T {
@@ -65,166 +100,383 @@ function weighted(weights: number[]): number {
   return weights.length - 1;
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([promise, new Promise<null>(resolve => setTimeout(() => resolve(null), ms))]);
+}
+
+async function recoverPage(page: Page): Promise<void> {
+  try {
+    await page.goto('/', { waitUntil: 'commit', timeout: 5000 });
+  } catch {
+    // if goto itself hangs, force reload
+    try {
+      await page.reload({ waitUntil: 'commit', timeout: 3000 });
+    } catch {
+      /* give up */
+    }
+  }
+}
+
+function scrollAllContainers(page: Page): void {
+  page
+    .evaluate(() => {
+      const dirs = [0, 1, -1];
+      const y = Math.random() < 0.4 ? document.body.scrollHeight : Math.random() * 9999;
+      globalThis.scrollTo({ top: y, behavior: 'instant' });
+      document.querySelectorAll<HTMLElement>('*').forEach(el => {
+        if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+          const s = globalThis.getComputedStyle(el);
+          const scrollsY = s.overflowY === 'auto' || s.overflowY === 'scroll';
+          const scrollsX = s.overflowX === 'auto' || s.overflowX === 'scroll';
+          if (scrollsY) {
+            const dir = dirs[Math.floor(Math.random() * dirs.length)];
+            if (dir === 1) el.scrollTop = el.scrollHeight;
+            else if (dir === -1) el.scrollTop = 0;
+            else el.scrollTop = Math.random() * el.scrollHeight;
+          }
+          if (scrollsX) {
+            el.scrollLeft = Math.random() * el.scrollWidth;
+          }
+        }
+      });
+    })
+    .catch(() => {});
+}
+
+function burstKeyboard(page: Page): void {
+  const count = Math.floor(Math.random() * 12) + 2;
+  for (let b = 0; b < count; b++) page.keyboard.press(pick(KEYS)).catch(() => {});
+}
+
+function navigateBackForward(page: Page): void {
+  const count = Math.floor(Math.random() * 6) + 1;
+  for (let b = 0; b < count; b++) {
+    if (Math.random() < 0.5) page.goBack({ timeout: 300 }).catch(() => {});
+    else page.goForward({ timeout: 300 }).catch(() => {});
+  }
+}
+
+function randomResize(page: Page): void {
+  page.setViewportSize(pick(VIEWPORTS)).catch(() => {});
+}
+
+function coordClick(page: Page): void {
+  const { width, height } = page.viewportSize() ?? { width: 1280, height: 800 };
+  const count = Math.random() < 0.3 ? 10 : Math.ceil(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    page.mouse
+      .click(Math.floor(Math.random() * width), Math.floor(Math.random() * height))
+      .catch(() => {});
+  }
+}
+
+function dragSliders(page: Page): void {
+  page
+    .evaluate(() => {
+      document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach(el => {
+        const min = parseFloat(el.min || '0');
+        const max = parseFloat(el.max || '100');
+        el.value = String(min + Math.random() * (max - min));
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    })
+    .catch(() => {});
+}
+
+function injectDomEvents(page: Page): void {
+  page
+    .evaluate(() => {
+      const all = Array.from(document.querySelectorAll<HTMLElement>('*'));
+      const picks = Array.from({ length: 20 }, () => all[Math.floor(Math.random() * all.length)]);
+      picks.forEach(el => {
+        const eventType = [
+          'mousedown',
+          'mouseup',
+          'mousemove',
+          'touchstart',
+          'touchend',
+          'pointerdown',
+          'pointerup',
+          'wheel',
+          'focus',
+          'blur',
+          'input',
+          'keydown',
+          'keyup',
+          'click',
+          'contextmenu',
+        ][Math.floor(Math.random() * 15)];
+        try {
+          if (eventType === 'touchstart' || eventType === 'touchend') {
+            const touch = new Touch({
+              identifier: Date.now(),
+              target: el,
+              clientX: Math.random() * 400,
+              clientY: Math.random() * 800,
+            });
+            el.dispatchEvent(
+              new TouchEvent(eventType, {
+                bubbles: true,
+                touches: [touch],
+                changedTouches: [touch],
+              })
+            );
+          } else if (eventType === 'wheel') {
+            el.dispatchEvent(
+              new WheelEvent('wheel', {
+                bubbles: true,
+                deltaY: (Math.random() - 0.5) * 2000,
+                deltaX: (Math.random() - 0.5) * 500,
+              })
+            );
+          } else {
+            el.dispatchEvent(new MouseEvent(eventType, { bubbles: true, cancelable: true }));
+          }
+        } catch {
+          /* ignore */
+        }
+      });
+    })
+    .catch(() => {});
+}
+
+const PROTECTED_KEYS = ['yaytsa_session', 'yaytsa_dj_session'];
+
+function storageChaos(page: Page): void {
+  page
+    .evaluate(
+      ({ texts, protectedKeys }) => {
+        const store = Math.random() < 0.5 ? localStorage : sessionStorage;
+        const action = Math.random();
+        if (action < 0.4) {
+          store.setItem(`monkey_${Math.random()}`, texts[Math.floor(Math.random() * texts.length)]);
+        } else if (action < 0.6 && store.length > 0) {
+          const key = store.key(Math.floor(Math.random() * store.length));
+          if (key && !protectedKeys.includes(key)) store.removeItem(key);
+        } else {
+          const key = store.key(0);
+          if (key) store.getItem(key);
+        }
+      },
+      { texts: TEXTS, protectedKeys: PROTECTED_KEYS }
+    )
+    .catch(() => {});
+}
+
+function keyBurst(page: Page): void {
+  const modifiers = ['Control', 'Shift', 'Alt'];
+  const mod = pick(modifiers);
+  page.keyboard.down(mod).catch(() => {});
+  const count = Math.floor(Math.random() * 8) + 3;
+  for (let b = 0; b < count; b++) {
+    page.keyboard
+      .press(pick(['a', 'z', 'c', 'v', 'x', 's', 'ArrowLeft', 'ArrowRight', 'Enter']))
+      .catch(() => {});
+  }
+  page.keyboard.up(mod).catch(() => {});
+}
+
+async function parallelClicks(page: Page): Promise<void> {
+  const selector =
+    'button, a, [role="button"], [role="tab"], input, [tabindex]:not([tabindex="-1"])';
+  const els = (await withTimeout(page.locator(selector).all(), 2000)) ?? [];
+  if (els.length > 0) {
+    const count = Math.min(12, Math.ceil(Math.random() * 12));
+    const batch = [...els].sort(() => Math.random() - 0.5).slice(0, count);
+    batch.forEach(el => el.click({ timeout: 150, force: true }).catch(() => {}));
+  }
+}
+
+function interactWithElement(
+  page: Page,
+  el: Locator,
+  tag: string,
+  type: string,
+  opts: string[],
+  actionIdx: number
+): void {
+  if (tag === 'INPUT' && type === 'range') {
+    el.fill(String(Math.floor(Math.random() * 100))).catch(() => {});
+  } else if (
+    tag === 'INPUT' &&
+    (type === 'text' || type === 'search' || type === 'email' || !type)
+  ) {
+    el.click({ timeout: 150, force: true }).catch(() => {});
+    if (Math.random() < 0.5) el.fill('').catch(() => {});
+    el.pressSequentially(pick(TEXTS), { delay: 0 }).catch(() => {});
+  } else if (tag === 'TEXTAREA') {
+    el.click({ timeout: 150, force: true }).catch(() => {});
+    el.pressSequentially(pick(TEXTS), { delay: 0 }).catch(() => {});
+  } else if (tag === 'SELECT') {
+    if (opts.length) el.selectOption(pick(opts)).catch(() => {});
+  } else if (actionIdx === 6) {
+    el.hover({ timeout: 150, force: true }).catch(() => {});
+  } else if (actionIdx === 7) {
+    el.dblclick({ timeout: 150, force: true }).catch(() => {});
+  } else if (actionIdx === 8) {
+    el.click({ button: 'right', timeout: 150, force: true }).catch(() => {});
+    page.keyboard.press('Escape').catch(() => {});
+  } else {
+    el.click({ timeout: 150, force: true }).catch(() => {});
+    if (actionIdx === 3) page.keyboard.type(pick(TEXTS), { delay: 0 }).catch(() => {});
+  }
+}
+
 authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   const jsErrors: string[] = [];
-  page.on('pageerror', err => jsErrors.push(err.message));
+  page.on('pageerror', err => {
+    jsErrors.push(err.message);
+    console.log(`  [pageerror] ${err.message}`);
+  });
   page.on('console', msg => {
-    if (msg.type() === 'error') jsErrors.push(msg.text());
+    if (msg.type() === 'error') {
+      jsErrors.push(msg.text());
+      console.log(`  [console.error] ${msg.text()}`);
+    }
   });
 
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+  await page.goto('/', { waitUntil: 'commit' });
 
   let iteration = 0;
+  let consecutiveFails = 0;
+  const MAX = 10000;
+  const RECOVER_AFTER_FAILS = 5;
+  const ACTION_TIMEOUT_MS = 3000;
 
-  while (iteration < 3000) {
-    // Go home every ~100
-    if (iteration > 0 && iteration % 100 === 0) {
-      console.log(`[${iteration}] --- home ---`);
-      await page.goto('/').catch(() => {});
-      await page.waitForTimeout(300);
+  while (iteration < MAX) {
+    if (iteration % 100 === 0) console.log(`[iter ${iteration}/${MAX}] errors=${jsErrors.length}`);
+
+    if (page.url().includes('/login')) {
+      console.log(`[iter ${iteration}] landed on /login (session lost) — re-navigating to /`);
+      await recoverPage(page);
+      consecutiveFails = 0;
+      iteration++;
+      continue;
     }
 
-    // Pick a random action category
-    // weights: click, scroll, keyboard, type_in_input, nav, resize, hover, dblclick, rightclick, coord_click
-    const actionIdx = weighted([35, 20, 15, 10, 5, 5, 4, 3, 2, 1]);
+    if (consecutiveFails >= RECOVER_AFTER_FAILS) {
+      console.log(`[iter ${iteration}] hung/failed ${consecutiveFails}x — recovering to /`);
+      await recoverPage(page);
+      consecutiveFails = 0;
+    }
+
+    if (iteration > 0 && iteration % 150 === 0) {
+      page.goto(pick(RANDOM_PATHS), { waitUntil: 'commit', timeout: 4000 }).catch(() => {});
+    }
+
+    // weights: click, scroll, keyboard, type-burst, nav, resize, hover, dblclick, rightclick,
+    //          coord-click, drag-slider, inject-events, storage-chaos, key-burst, parallel-clicks
+    const actionIdx = weighted([30, 15, 12, 8, 4, 3, 4, 3, 2, 3, 4, 5, 2, 3, 2]);
 
     if (actionIdx === 1) {
-      // SCROLL - scroll window + all overflow containers
-      const toBottom = Math.random() < 0.5;
-      await page
-        .evaluate(bottom => {
-          const y = bottom ? document.body.scrollHeight : Math.random() * 9999;
-          window.scrollTo({ top: y, behavior: 'instant' });
-          document.querySelectorAll<HTMLElement>('*').forEach(el => {
-            if (el.scrollHeight > el.clientHeight + 1) {
-              const s = window.getComputedStyle(el);
-              if (s.overflowY === 'auto' || s.overflowY === 'scroll') {
-                el.scrollTop = bottom ? el.scrollHeight : Math.random() * el.scrollHeight;
-              }
-            }
-          });
-        }, toBottom)
-        .catch(() => {});
-      await page.waitForTimeout(Math.random() < 0.3 ? 0 : 100);
+      scrollAllContainers(page);
       iteration++;
+      consecutiveFails = 0;
       continue;
     }
-
     if (actionIdx === 2) {
-      // KEYBOARD
-      const burstCount = Math.random() < 0.3 ? Math.floor(Math.random() * 5) + 2 : 1;
-      for (let b = 0; b < burstCount; b++) {
-        const key = pick(KEYS);
-        await page.keyboard.press(key).catch(() => {});
-        await page.waitForTimeout(Math.random() < 0.5 ? 0 : 20);
-      }
-      console.log(`[${iteration}] key burst x${burstCount}`);
+      burstKeyboard(page);
       iteration++;
+      consecutiveFails = 0;
       continue;
     }
-
     if (actionIdx === 4) {
-      // NAVIGATE BACK/FORWARD
-      for (let b = 0; b < (Math.random() < 0.3 ? 3 : 1); b++) {
-        if (Math.random() < 0.5) {
-          await page.goBack({ timeout: 1000 }).catch(() => {});
-        } else {
-          await page.goForward({ timeout: 1000 }).catch(() => {});
-        }
-        await page.waitForTimeout(100);
-      }
-      console.log(`[${iteration}] nav`);
+      navigateBackForward(page);
       iteration++;
+      consecutiveFails = 0;
       continue;
     }
-
     if (actionIdx === 5) {
-      // RESIZE VIEWPORT
-      const vp = pick(VIEWPORTS);
-      await page.setViewportSize(vp).catch(() => {});
-      console.log(`[${iteration}] resize ${vp.width}x${vp.height}`);
+      randomResize(page);
       iteration++;
+      consecutiveFails = 0;
       continue;
     }
-
     if (actionIdx === 9) {
-      // CLICK RANDOM COORDINATES
-      const { width, height } = page.viewportSize() ?? { width: 1280, height: 800 };
-      const x = Math.floor(Math.random() * width);
-      const y = Math.floor(Math.random() * height);
-      await page.mouse.click(x, y).catch(() => {});
-      console.log(`[${iteration}] coord click ${x},${y}`);
+      coordClick(page);
+      iteration++;
+      consecutiveFails = 0;
+      continue;
+    }
+    if (actionIdx === 10) {
+      dragSliders(page);
+      iteration++;
+      consecutiveFails = 0;
+      continue;
+    }
+    if (actionIdx === 11) {
+      injectDomEvents(page);
+      iteration++;
+      consecutiveFails = 0;
+      continue;
+    }
+    if (actionIdx === 12) {
+      storageChaos(page);
+      iteration++;
+      consecutiveFails = 0;
+      continue;
+    }
+    if (actionIdx === 13) {
+      keyBurst(page);
+      iteration++;
+      consecutiveFails = 0;
+      continue;
+    }
+
+    if (actionIdx === 14) {
+      const result = await withTimeout(parallelClicks(page), ACTION_TIMEOUT_MS);
+      if (result === null) consecutiveFails++;
+      else consecutiveFails = 0;
       iteration++;
       continue;
     }
 
-    // For the rest: need elements on page
     const selector =
       'button, a, [role="button"], [role="tab"], [role="listitem"], ' +
       'input, select, textarea, [tabindex]:not([tabindex="-1"])';
-    const els = await page.locator(selector).all();
+
+    const els = (await withTimeout(page.locator(selector).all(), ACTION_TIMEOUT_MS)) ?? [];
 
     if (els.length === 0) {
-      await page.waitForTimeout(200);
+      consecutiveFails++;
       iteration++;
       continue;
     }
 
+    consecutiveFails = 0;
     const shuffled = [...els].sort(() => Math.random() - 0.5);
-
-    // How many elements to act on this round (burst or single)
-    const batchSize = Math.random() < 0.2 ? shuffled.length : Math.ceil(Math.random() * 10);
+    const batchSize = Math.random() < 0.1 ? shuffled.length : Math.ceil(Math.random() * 20);
 
     for (const el of shuffled.slice(0, batchSize)) {
       try {
-        const tag = await el.evaluate(e => e.tagName).catch(() => '');
-        const inputType = await el.getAttribute('type').catch(() => '');
-        const text = await el.textContent().catch(() => '');
-        const testid = await el.getAttribute('data-testid').catch(() => '');
-        const label = testid || text?.trim().slice(0, 20) || tag;
+        const infoResult = await withTimeout(
+          el
+            .evaluate(e => ({
+              tag: e.tagName,
+              type: (e as HTMLInputElement).type || '',
+              opts:
+                e.tagName === 'SELECT'
+                  ? Array.from((e as HTMLSelectElement).options).map(o => o.value)
+                  : [],
+            }))
+            .catch(() => ({ tag: '', type: '', opts: [] as string[] })),
+          ACTION_TIMEOUT_MS
+        );
 
-        if (tag === 'INPUT' && inputType === 'range') {
-          await el.fill(String(Math.floor(Math.random() * 100))).catch(() => {});
-        } else if (
-          tag === 'INPUT' &&
-          (inputType === 'text' || inputType === 'search' || inputType === 'email' || !inputType)
-        ) {
-          await el.click({ timeout: 300, force: true }).catch(() => {});
-          if (Math.random() < 0.5) await el.fill('').catch(() => {});
-          await el.pressSequentially(pick(TEXTS), { delay: 0 }).catch(() => {});
-        } else if (tag === 'TEXTAREA') {
-          await el.click({ timeout: 300, force: true }).catch(() => {});
-          await el.pressSequentially(pick(TEXTS), { delay: 0 }).catch(() => {});
-        } else if (tag === 'SELECT') {
-          const opts = await el
-            .evaluate(s => Array.from((s as HTMLSelectElement).options).map(o => o.value))
-            .catch(() => [] as string[]);
-          if (opts.length) await el.selectOption(pick(opts)).catch(() => {});
-        } else if (actionIdx === 6) {
-          // HOVER
-          await el.hover({ timeout: 300, force: true }).catch(() => {});
-        } else if (actionIdx === 7) {
-          // DOUBLE CLICK
-          await el.dblclick({ timeout: 300, force: true }).catch(() => {});
-        } else if (actionIdx === 8) {
-          // RIGHT CLICK
-          await el.click({ button: 'right', timeout: 300, force: true }).catch(() => {});
-          await page.keyboard.press('Escape').catch(() => {});
-        } else {
-          // Normal click + optionally type if it's an input
-          await el.click({ timeout: 300, force: true }).catch(() => {});
-          if (actionIdx === 3) {
-            // TYPE INTO whatever is now focused
-            await page.keyboard.type(pick(TEXTS), { delay: 0 }).catch(() => {});
-          }
+        if (infoResult) {
+          interactWithElement(
+            page,
+            el,
+            infoResult.tag,
+            infoResult.type,
+            infoResult.opts,
+            actionIdx
+          );
         }
 
-        console.log(`[${iteration}] ${tag}(${actionIdx}): ${label}`);
         iteration++;
-        await page.waitForTimeout(Math.random() < 0.4 ? 0 : 20);
-
-        if (iteration % 100 === 0) break;
+        if (iteration % 200 === 0) break;
       } catch {
         iteration++;
       }
@@ -232,7 +484,7 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   }
 
   console.log(`\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors ===`);
-  jsErrors.slice(0, 20).forEach(e => console.log(`  ERR: ${e}`));
+  jsErrors.forEach((e, i) => console.log(`  ERR[${i + 1}]: ${e}`));
 
   const crashes = jsErrors.filter(e => e.toLowerCase().includes('crash'));
   expect(crashes).toHaveLength(0);

@@ -25,7 +25,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   const isNode = typeof process !== 'undefined' && process.env !== undefined;
 
   // Check if we're using import.meta.env (Vite/ESM)
-  const hasImportMetaEnv = typeof import.meta?.env !== 'undefined';
+  const hasImportMetaEnv = import.meta?.env !== undefined;
 
   // Check for runtime config (injected by Docker entrypoint)
   const hasRuntimeConfig = globalThis.window?.__YAYTSA_CONFIG__ !== undefined;

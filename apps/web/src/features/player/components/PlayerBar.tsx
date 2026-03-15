@@ -235,7 +235,10 @@ export function PlayerBar() {
     const onMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data as string) as { state: string };
-        void usePlayerStore.getState().refreshKaraokeStatus();
+        usePlayerStore
+          .getState()
+          .refreshKaraokeStatus()
+          .catch(() => {});
         if (data.state === 'READY' || data.state === 'FAILED') {
           closed = true;
           es.close();
@@ -252,7 +255,10 @@ export function PlayerBar() {
       if (closed) return;
       if (reconnectAttempts >= MAX_RECONNECTS) {
         pollInterval = setInterval(() => {
-          void usePlayerStore.getState().refreshKaraokeStatus();
+          usePlayerStore
+            .getState()
+            .refreshKaraokeStatus()
+            .catch(() => {});
         }, 5000);
         return;
       }
@@ -303,6 +309,23 @@ export function PlayerBar() {
     maxWidth: 64,
     maxHeight: 64,
   });
+
+  const karaokeClass = isKaraokeMode
+    ? 'text-accent'
+    : karaokeEnabled && karaokeStatus?.state === 'PROCESSING'
+      ? 'text-accent animate-pulse'
+      : 'text-text-secondary hover:text-text-primary';
+  const karaokeAriaLabel =
+    karaokeStatus?.state === 'PROCESSING'
+      ? 'Cancel karaoke processing'
+      : isKaraokeMode
+        ? 'Disable karaoke mode'
+        : 'Enable karaoke mode';
+  const karaokeAriaPressed: boolean | 'mixed' = isKaraokeMode
+    ? true
+    : karaokeEnabled
+      ? 'mixed'
+      : false;
 
   return (
     <div
@@ -362,20 +385,10 @@ export function PlayerBar() {
             disabled={isLoading || isKaraokeTransitioning}
             className={cn(
               'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
-              isKaraokeMode
-                ? 'text-accent'
-                : karaokeEnabled && karaokeStatus?.state === 'PROCESSING'
-                  ? 'text-accent animate-pulse'
-                  : 'text-text-secondary hover:text-text-primary'
+              karaokeClass
             )}
-            aria-label={
-              karaokeStatus?.state === 'PROCESSING'
-                ? 'Cancel karaoke processing'
-                : isKaraokeMode
-                  ? 'Disable karaoke mode'
-                  : 'Enable karaoke mode'
-            }
-            aria-pressed={isKaraokeMode ? true : karaokeEnabled ? 'mixed' : false}
+            aria-label={karaokeAriaLabel}
+            aria-pressed={karaokeAriaPressed}
             title={(() => {
               if (isLoading) return 'Wait for track to load';
               if (karaokeStatus?.state === 'PROCESSING')

@@ -3,14 +3,14 @@ import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { Modal } from '@/shared/ui/Modal';
 
-interface SleepTimerModalProps {
+type SleepTimerModalProps = Readonly<{
   isOpen: boolean;
   onClose: () => void;
   currentMinutes: number | null;
   hasActiveTimer: boolean;
   onSetTimer: (minutes: number) => void;
   onClearTimer: () => void;
-}
+}>;
 
 const TIMER_OPTIONS = [5, 10, 15, 30, 45, 60];
 

@@ -72,7 +72,7 @@ const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const PROGRESS_REPORT_INTERVAL_MS = 10000;
 const CROSSFADE_MS = 150;
 const APPROACHING_END_MS = CROSSFADE_MS + 350;
-const ENGINE_TIMEOUT_MS = 5000;
+const ENGINE_TIMEOUT_MS = 10000;
 
 let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
@@ -284,59 +284,52 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
+    async function applyReadyKaraokeState(
+      trackId: string,
+      status: KaraokeStatus,
+      signal: AbortSignal
+    ): Promise<void> {
+      set({ isKaraokeTransitioning: true });
+      const url = currentClient!.getInstrumentalStreamUrl(trackId);
+      await karaokeSwitchUrl(url, signal);
+      if (!signal.aborted) {
+        set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
+        preloader.invalidate();
+        schedulePreload();
+      }
+    }
+
+    async function applyNotStartedKaraokeState(
+      trackId: string,
+      signal: AbortSignal
+    ): Promise<void> {
+      if (karaokeFailedTrackIds.has(trackId)) {
+        set({ isKaraokeMode: false, karaokeEnabled: false });
+        return;
+      }
+      await currentClient!.requestKaraokeProcessing(trackId);
+      if (!signal.aborted) {
+        set({ isKaraokeMode: false, karaokeStatus: { state: 'PROCESSING', message: null } });
+      }
+    }
+
     async function syncKaraokeForTrack(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) return;
-
       const trackId = track.Id;
-
       try {
         const status = await currentClient.getKaraokeStatus(trackId);
         if (signal.aborted) return;
-
         if (status.state === 'READY') {
-          set({ isKaraokeTransitioning: true });
-          const url = currentClient.getInstrumentalStreamUrl(trackId);
-          if (engine.preload && engine.seamlessSwitch) {
-            const hint = engine.getCurrentTime();
-            await withTimeout(engine.preload(url), ENGINE_TIMEOUT_MS);
-            if (signal.aborted) return;
-            const result = await withTimeout(engine.seamlessSwitch(hint, 50), ENGINE_TIMEOUT_MS);
-            if (!get().isPlaying) engine.pause();
-            if (result) {
-              useTimingStore.getState().updateTiming(result.position, result.duration);
-            }
-          } else {
-            const position = engine.getCurrentTime();
-            await withTimeout(engine.load(url), ENGINE_TIMEOUT_MS);
-            if (signal.aborted) return;
-            engine.seek(position);
-            if (get().isPlaying) await engine.play();
-          }
-          if (!signal.aborted) {
-            set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
-            preloader.invalidate();
-            schedulePreload();
-          }
+          await applyReadyKaraokeState(trackId, status, signal);
         } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled) {
-          if (karaokeFailedTrackIds.has(trackId)) {
-            set({ isKaraokeMode: false, karaokeEnabled: false });
-            return;
-          }
-          await currentClient.requestKaraokeProcessing(trackId);
-          if (!signal.aborted) {
-            set({ isKaraokeMode: false, karaokeStatus: { state: 'PROCESSING', message: null } });
-          }
+          await applyNotStartedKaraokeState(trackId, signal);
         } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
-          if (!signal.aborted) {
-            set({ isKaraokeMode: false, karaokeStatus: status });
-          }
-        } else {
-          if (!signal.aborted) {
-            if (status.state === 'FAILED') {
-              set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
-            } else {
-              set({ isKaraokeMode: false, karaokeStatus: null });
-            }
+          if (!signal.aborted) set({ isKaraokeMode: false, karaokeStatus: status });
+        } else if (!signal.aborted) {
+          if (status.state === 'FAILED') {
+            set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
+          } else {
+            set({ isKaraokeMode: false, karaokeStatus: null });
           }
         }
       } catch (error) {
@@ -420,6 +413,19 @@ export const usePlayerStore = create<PlayerStore>()(
         }
       } catch (error) {
         if (signal.aborted) return;
+        const isEngineTimeout = error instanceof Error && error.message.includes('Engine timeout');
+        if (isEngineTimeout && consecutiveLoadFailures < 2) {
+          log.player.warn('Engine timeout on load, retrying once after delay', {
+            trackId: track.Id,
+          });
+          await new Promise<void>(resolve => {
+            setTimeout(resolve, 2000);
+          });
+          if (!signal.aborted) {
+            return loadAndPlay(track, signal);
+          }
+          return;
+        }
         log.player.error('Failed to load and play track', error, {
           trackId: track.Id,
           trackName: track.Name,
@@ -585,6 +591,55 @@ export const usePlayerStore = create<PlayerStore>()(
           .catch(() => {});
       },
     });
+
+    async function enableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
+      set({ karaokeEnabled: true, isKaraokeTransitioning: true });
+      const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
+      if (signal.aborted) return;
+
+      if (status.state === 'NOT_STARTED') {
+        if (karaokeFailedTrackIds.has(currentTrack.Id)) {
+          set({ karaokeEnabled: false, isKaraokeTransitioning: false });
+          return;
+        }
+        await currentClient!.requestKaraokeProcessing(currentTrack.Id);
+        set({
+          karaokeStatus: { state: 'PROCESSING', message: null },
+          isKaraokeTransitioning: false,
+        });
+        return;
+      }
+
+      if (status.state === 'PROCESSING') {
+        set({ karaokeStatus: status, isKaraokeTransitioning: false });
+        return;
+      }
+
+      if (status.state === 'READY') {
+        set({ isKaraokeMode: true, karaokeStatus: status });
+        const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
+        await karaokeSwitchUrl(instrumentalUrl, signal);
+        if (signal.aborted) return;
+        preloader.invalidate();
+        schedulePreload();
+        set({ isKaraokeTransitioning: false });
+        return;
+      }
+
+      // FAILED
+      karaokeFailedTrackIds.add(currentTrack.Id);
+      set({ karaokeEnabled: false, karaokeStatus: status, isKaraokeTransitioning: false });
+    }
+
+    async function disableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
+      set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
+      const streamUrl = new ItemsService(currentClient!).getStreamUrl(currentTrack.Id);
+      await karaokeSwitchUrl(streamUrl, signal);
+      if (signal.aborted) return;
+      preloader.invalidate();
+      schedulePreload();
+      set({ isKaraokeTransitioning: false, karaokeStatus: null });
+    }
 
     return {
       ...initialState,
@@ -820,91 +875,30 @@ export const usePlayerStore = create<PlayerStore>()(
         }
 
         await controller.ifIdle(async signal => {
-          const newKaraokeMode = !isKaraokeMode;
-
-          if (newKaraokeMode) {
-            set({ karaokeEnabled: true, isKaraokeTransitioning: true });
-
-            try {
-              const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
-
-              if (signal.aborted) return;
-
-              if (status.state === 'NOT_STARTED') {
-                if (karaokeFailedTrackIds.has(currentTrack.Id)) {
-                  set({ karaokeEnabled: false, isKaraokeTransitioning: false });
-                  return;
-                }
-                await currentClient!.requestKaraokeProcessing(currentTrack.Id);
-                set({
-                  karaokeStatus: { state: 'PROCESSING', message: null },
-                  isKaraokeTransitioning: false,
-                });
-                return;
-              }
-
-              if (status.state === 'PROCESSING') {
-                set({ karaokeStatus: status, isKaraokeTransitioning: false });
-                return;
-              }
-
-              if (status.state === 'READY') {
-                set({ isKaraokeMode: true, karaokeStatus: status });
-                const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
-                await karaokeSwitchUrl(instrumentalUrl, signal);
-                if (signal.aborted) return;
-                preloader.invalidate();
-                schedulePreload();
-                set({ isKaraokeTransitioning: false });
-                return;
-              }
-
-              // FAILED
-              karaokeFailedTrackIds.add(currentTrack.Id);
-              set({ karaokeEnabled: false, karaokeStatus: status, isKaraokeTransitioning: false });
-            } catch (error) {
-              if (signal.aborted) return;
-              const isAbort = error instanceof DOMException && error.name === 'AbortError';
-              if (isAbort) {
-                log.player.warn('Karaoke enable interrupted by track change');
-              } else {
-                log.player.error('Failed to enable karaoke', error);
-              }
-              set({
-                isKaraokeMode: false,
-                isKaraokeTransitioning: false,
-                karaokeEnabled: isAbort ? get().karaokeEnabled : false,
-                karaokeStatus: null,
-                error:
-                  !isAbort && error instanceof Error
-                    ? new Error(`Couldn't load instrumental track — karaoke unavailable`)
-                    : null,
-              });
+          try {
+            if (!isKaraokeMode) {
+              await enableKaraokeMode(currentTrack, signal);
+            } else {
+              await disableKaraokeMode(currentTrack, signal);
             }
-          } else {
-            set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
-
-            try {
-              const itemsService = new ItemsService(currentClient!);
-              const streamUrl = itemsService.getStreamUrl(currentTrack.Id);
-              await karaokeSwitchUrl(streamUrl, signal);
-              if (signal.aborted) return;
-              preloader.invalidate();
-              schedulePreload();
-              set({ isKaraokeTransitioning: false, karaokeStatus: null });
-            } catch (error) {
-              if (signal.aborted) return;
-              const isAbort = error instanceof DOMException && error.name === 'AbortError';
-              if (!isAbort) {
-                log.player.error('Failed to disable karaoke', error);
-              }
-              set({
-                isKaraokeMode: false,
-                isKaraokeTransitioning: false,
-                karaokeStatus: null,
-                error: !isAbort && error instanceof Error ? error : null,
-              });
+          } catch (error) {
+            if (signal.aborted) return;
+            const isAbort = error instanceof DOMException && error.name === 'AbortError';
+            if (isAbort) {
+              log.player.warn('Karaoke enable interrupted by track change');
+            } else {
+              log.player.error('Failed to enable karaoke', error);
             }
+            set({
+              isKaraokeMode: false,
+              isKaraokeTransitioning: false,
+              karaokeEnabled: isAbort ? get().karaokeEnabled : false,
+              karaokeStatus: null,
+              error:
+                !isAbort && error instanceof Error
+                  ? new Error(`Couldn't load instrumental track — karaoke unavailable`)
+                  : null,
+            });
           }
         });
       },
@@ -1026,8 +1020,11 @@ export const usePlayerStore = create<PlayerStore>()(
           if (sessionState.activeSession) {
             const remaining = items.length - targetIndex - 1;
             const hour = new Date().getHours();
-            const timeOfDay =
-              hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+            let timeOfDay: string;
+            if (hour < 6) timeOfDay = 'night';
+            else if (hour < 12) timeOfDay = 'morning';
+            else if (hour < 18) timeOfDay = 'afternoon';
+            else timeOfDay = 'evening';
             sessionState
               .sendSignal({
                 signalType: 'QUEUE_JUMP',
@@ -1096,35 +1093,39 @@ function completeSleepTimer() {
 }
 
 declare global {
-  interface Window {
-    __playerStore__?: {
-      readonly isPlaying: boolean;
-      readonly volume: number;
-      readonly currentTrack: AudioItem | null;
-      readonly audioEngine: AudioEngine | null;
-      readonly mediaSession: MediaSessionManager | null;
-      setVolume: (level: number) => void;
-    };
-    __sleepTimerStore__?: {
-      readonly isActive: boolean;
-      readonly remainingMs: number;
-      readonly phase: SleepTimerPhase;
-      startCustomTimer: (config: {
-        musicDurationMs: number;
-        crossfadeDurationMs: number;
-        noiseDurationMs: number;
-      }) => void;
-    };
-    __platformClasses__?: {
-      PinkNoiseGenerator: typeof PinkNoiseGenerator;
-      MediaSessionManager: typeof MediaSessionManager;
-      HTML5AudioEngine: typeof HTML5AudioEngine;
-    };
-  }
+  var __playerStore__:
+    | {
+        readonly isPlaying: boolean;
+        readonly volume: number;
+        readonly currentTrack: AudioItem | null;
+        readonly audioEngine: AudioEngine | null;
+        readonly mediaSession: MediaSessionManager | null;
+        setVolume: (level: number) => void;
+      }
+    | undefined;
+  var __sleepTimerStore__:
+    | {
+        readonly isActive: boolean;
+        readonly remainingMs: number;
+        readonly phase: SleepTimerPhase;
+        startCustomTimer: (config: {
+          musicDurationMs: number;
+          crossfadeDurationMs: number;
+          noiseDurationMs: number;
+        }) => void;
+      }
+    | undefined;
+  var __platformClasses__:
+    | {
+        PinkNoiseGenerator: typeof PinkNoiseGenerator;
+        MediaSessionManager: typeof MediaSessionManager;
+        HTML5AudioEngine: typeof HTML5AudioEngine;
+      }
+    | undefined;
 }
 
 if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
-  window.__playerStore__ = {
+  globalThis.__playerStore__ = {
     get isPlaying() {
       return usePlayerStore.getState().isPlaying;
     },
@@ -1145,7 +1146,7 @@ if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
     },
   };
 
-  window.__sleepTimerStore__ = {
+  globalThis.__sleepTimerStore__ = {
     get isActive() {
       return usePlayerStore.getState().sleepTimerEndTime !== null || sleepTimerPhase !== 'idle';
     },
@@ -1203,7 +1204,7 @@ if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
     },
   };
 
-  window.__platformClasses__ = {
+  globalThis.__platformClasses__ = {
     PinkNoiseGenerator,
     MediaSessionManager,
     HTML5AudioEngine,

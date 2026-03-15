@@ -36,6 +36,26 @@ export function AlbumsPage() {
     [playAlbum]
   );
 
+  const content = isLoading ? (
+    <LoadingSpinner />
+  ) : albums.length === 0 ? (
+    <div className="flex h-64 items-center justify-center">
+      <p className="text-text-secondary">No albums found</p>
+    </div>
+  ) : (
+    <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
+      <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
+      <InfiniteScrollFooter
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onLoadMore={handleLoadMore}
+        currentCount={albums.length}
+        totalCount={totalCount}
+        itemLabel="albums"
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -52,25 +72,7 @@ export function AlbumsPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : albums.length === 0 ? (
-        <div className="flex h-64 items-center justify-center">
-          <p className="text-text-secondary">No albums found</p>
-        </div>
-      ) : (
-        <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
-          <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
-          <InfiniteScrollFooter
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            onLoadMore={handleLoadMore}
-            currentCount={albums.length}
-            totalCount={totalCount}
-            itemLabel="albums"
-          />
-        </div>
-      )}
+      {content}
     </div>
   );
 }

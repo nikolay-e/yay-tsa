@@ -89,6 +89,7 @@ async function resolveAudioItems(tracks: AdaptiveQueueTrack[]): Promise<AudioIte
 
 let refreshDebounce = false;
 let restoreInProgress = false;
+const lastSignalTimestamps = new Map<string, number>();
 
 export const useSessionStore = create<SessionStore>()((set, get) => ({
   ...initialState,
@@ -214,6 +215,11 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     const { activeSession } = get();
     const service = getDjService();
     if (!service || !activeSession) return;
+
+    const throttleKey = `${activeSession.id}:${signal.signalType}`;
+    const lastSent = lastSignalTimestamps.get(throttleKey) ?? 0;
+    if (Date.now() - lastSent < 500) return;
+    lastSignalTimestamps.set(throttleKey, Date.now());
 
     try {
       await service.sendSignal(activeSession.id, signal);

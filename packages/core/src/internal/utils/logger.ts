@@ -102,7 +102,7 @@ function formatMessage(namespace: string, message: string): string {
   return `[${namespace}] ${message}`;
 }
 
-function formatErrorMessage(error: Error | unknown): string {
+function formatErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return sanitizeValue(error.message) as string;
   }

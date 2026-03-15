@@ -43,6 +43,36 @@ export function SongsPage() {
     [playTracks, tracks]
   );
 
+  const content = isLoading ? (
+    <LoadingSpinner />
+  ) : tracks.length === 0 ? (
+    <div className="flex h-64 items-center justify-center">
+      <p className="text-text-secondary">No songs found</p>
+    </div>
+  ) : (
+    <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
+      <TrackList
+        tracks={tracks}
+        currentTrackId={currentTrack?.Id}
+        isPlaying={isPlaying}
+        onPlayTrack={handlePlayTrack}
+        onPauseTrack={pause}
+        showAlbum={true}
+        showArtist={true}
+        showImage={true}
+        virtualized
+      />
+      <InfiniteScrollFooter
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onLoadMore={handleLoadMore}
+        currentCount={tracks.length}
+        totalCount={totalCount}
+        itemLabel="songs"
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -59,35 +89,7 @@ export function SongsPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : tracks.length === 0 ? (
-        <div className="flex h-64 items-center justify-center">
-          <p className="text-text-secondary">No songs found</p>
-        </div>
-      ) : (
-        <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
-          <TrackList
-            tracks={tracks}
-            currentTrackId={currentTrack?.Id}
-            isPlaying={isPlaying}
-            onPlayTrack={handlePlayTrack}
-            onPauseTrack={pause}
-            showAlbum={true}
-            showArtist={true}
-            showImage={true}
-            virtualized
-          />
-          <InfiniteScrollFooter
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            onLoadMore={handleLoadMore}
-            currentCount={tracks.length}
-            totalCount={totalCount}
-            itemLabel="songs"
-          />
-        </div>
-      )}
+      {content}
     </div>
   );
 }

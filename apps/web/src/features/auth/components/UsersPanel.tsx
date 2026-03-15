@@ -271,12 +271,12 @@ export function UsersPanel() {
     setShownPassword({ label: 'New password:', password });
   }, []);
 
+  const userCountText = users ? `${users.length} user${users.length === 1 ? '' : 's'}` : '';
+
   return (
     <div className="p-4">
       <div className="mb-4 flex items-center justify-between">
-        <span className="text-text-secondary text-sm">
-          {users ? `${users.length} user${users.length === 1 ? '' : 's'}` : ''}
-        </span>
+        <span className="text-text-secondary text-sm">{userCountText}</span>
         <button
           onClick={() => {
             setShownPassword(null);

@@ -824,6 +824,29 @@ def _find_verified_synced(
     return None
 
 
+def _check_candidate_pair(
+    lyrics_a: str,
+    source_a: str,
+    synced_a: bool,
+    lyrics_b: str,
+    source_b: str,
+    synced_b: bool,
+    verified_synced: tuple[str, str] | None,
+    verified_plain: tuple[str, str] | None,
+) -> tuple[tuple[str, str] | None, tuple[str, str] | None]:
+    sim = _lyrics_similarity(lyrics_a, lyrics_b)
+    log.info(f"Cross-validation {source_a} vs {source_b}: similarity={sim:.2f}")
+    if sim < 0.35:
+        return verified_synced, verified_plain
+    if not verified_synced:
+        verified_synced = _find_verified_synced(
+            lyrics_a, source_a, synced_a, lyrics_b, source_b, synced_b
+        )
+    if not verified_plain:
+        verified_plain = (lyrics_a, source_a)
+    return verified_synced, verified_plain
+
+
 def _cross_validate_candidates(
     candidates: list[tuple[str, str, bool]],
 ) -> tuple[str, str] | None:
@@ -834,15 +857,16 @@ def _cross_validate_candidates(
         for j, (lyrics_b, source_b, synced_b) in enumerate(candidates):
             if i >= j:
                 continue
-            sim = _lyrics_similarity(lyrics_a, lyrics_b)
-            log.info(f"Cross-validation {source_a} vs {source_b}: similarity={sim:.2f}")
-            if sim >= 0.35:
-                if not verified_synced:
-                    verified_synced = _find_verified_synced(
-                        lyrics_a, source_a, synced_a, lyrics_b, source_b, synced_b
-                    )
-                if not verified_plain:
-                    verified_plain = (lyrics_a, source_a)
+            verified_synced, verified_plain = _check_candidate_pair(
+                lyrics_a,
+                source_a,
+                synced_a,
+                lyrics_b,
+                source_b,
+                synced_b,
+                verified_synced,
+                verified_plain,
+            )
 
     if verified_synced:
         log.info(f"Cross-validated synced lyrics from {verified_synced[1]}")

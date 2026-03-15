@@ -84,16 +84,20 @@ public class SignalProcessingService {
     signal.setContext(serializeJson(context));
     signal = signalRepository.save(signal);
 
-    try {
-      affinityAggregationService.updateAffinityFromSignal(
-          session.getUser().getId(), trackId, signalType);
-    } catch (Exception e) {
-      log.warn(
-          "Affinity update failed for user {} track {}: {}",
-          session.getUser().getId(),
-          trackId,
-          e.getMessage());
-    }
+    UUID userId = session.getUser().getId();
+    Thread.ofVirtual()
+        .start(
+            () -> {
+              try {
+                affinityAggregationService.updateAffinityFromSignal(userId, trackId, signalType);
+              } catch (Exception e) {
+                log.warn(
+                    "Affinity update failed for user {} track {}: {}",
+                    userId,
+                    trackId,
+                    e.getMessage());
+              }
+            });
 
     if (CONSUMED_SIGNALS.contains(signalType)) {
       markQueueEntryConsumed(sessionId, trackId, signalType);

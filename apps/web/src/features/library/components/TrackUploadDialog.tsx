@@ -209,7 +209,7 @@ export function TrackUploadDialog({
 
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      if (!f || f.status !== 'pending') continue;
+      if (f?.status !== 'pending') continue;
       const success = await uploadSingleFile(f, i);
       if (success) anySuccess = true;
     }

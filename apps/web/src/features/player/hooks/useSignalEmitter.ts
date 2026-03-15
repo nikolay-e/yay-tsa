@@ -92,27 +92,36 @@ export function useSignalEmitter() {
       }
     );
 
+    const sendVolumeSignal = () => {
+      const trackId = previousTrackIdRef.current;
+      if (!trackId) return;
+      const { currentTime, duration } = useTimingStore.getState();
+      const positionPct = duration > 0 ? currentTime / duration : 0;
+      sendSignal(
+        createSignal('VOLUME_CHANGE', trackId, buildContext(positionPct, currentTime, false, true))
+      ).catch(() => {});
+    };
+
+    const sendPauseLongSignal = () => {
+      const trackId = previousTrackIdRef.current;
+      if (!trackId) return;
+      const { currentTime, duration } = useTimingStore.getState();
+      const positionPct = duration > 0 ? currentTime / duration : 0;
+      sendSignal(
+        createSignal('PAUSE_LONG', trackId, buildContext(positionPct, currentTime, false, true))
+      ).catch(() => {});
+    };
+
     const unsubVolume = usePlayerStore.subscribe(
       state => state.volume,
       () => {
         if (!useSessionStore.getState().activeSession) return;
-        const trackId = previousTrackIdRef.current;
-        if (!trackId) return;
+        if (!previousTrackIdRef.current) return;
 
         if (volumeTimerRef.current) {
           clearTimeout(volumeTimerRef.current);
         }
-        volumeTimerRef.current = setTimeout(() => {
-          const { currentTime, duration } = useTimingStore.getState();
-          const positionPct = duration > 0 ? currentTime / duration : 0;
-          sendSignal(
-            createSignal(
-              'VOLUME_CHANGE',
-              trackId,
-              buildContext(positionPct, currentTime, false, true)
-            )
-          ).catch(() => {});
-        }, VOLUME_DEBOUNCE_MS);
+        volumeTimerRef.current = setTimeout(sendVolumeSignal, VOLUME_DEBOUNCE_MS);
       }
     );
 
@@ -122,19 +131,7 @@ export function useSignalEmitter() {
         if (!useSessionStore.getState().activeSession) return;
 
         if (!isPlaying && wasPlayingRef.current) {
-          pauseTimerRef.current = setTimeout(() => {
-            const trackId = previousTrackIdRef.current;
-            if (!trackId) return;
-            const { currentTime, duration } = useTimingStore.getState();
-            const positionPct = duration > 0 ? currentTime / duration : 0;
-            sendSignal(
-              createSignal(
-                'PAUSE_LONG',
-                trackId,
-                buildContext(positionPct, currentTime, false, true)
-              )
-            ).catch(() => {});
-          }, PAUSE_LONG_THRESHOLD_MS);
+          pauseTimerRef.current = setTimeout(sendPauseLongSignal, PAUSE_LONG_THRESHOLD_MS);
         } else if (isPlaying && pauseTimerRef.current) {
           clearTimeout(pauseTimerRef.current);
           pauseTimerRef.current = undefined;

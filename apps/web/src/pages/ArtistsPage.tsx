@@ -27,6 +27,30 @@ export function ArtistsPage() {
     fetchNextPage();
   };
 
+  const content = isLoading ? (
+    <LoadingSpinner />
+  ) : artists.length === 0 ? (
+    <div className="flex h-64 items-center justify-center">
+      <p className="text-text-secondary">No artists found</p>
+    </div>
+  ) : (
+    <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {artists.map(artist => (
+          <ArtistCard key={artist.Id} artist={artist} />
+        ))}
+      </div>
+      <InfiniteScrollFooter
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onLoadMore={handleLoadMore}
+        currentCount={artists.length}
+        totalCount={totalCount}
+        itemLabel="artists"
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -47,29 +71,7 @@ export function ArtistsPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : artists.length === 0 ? (
-        <div className="flex h-64 items-center justify-center">
-          <p className="text-text-secondary">No artists found</p>
-        </div>
-      ) : (
-        <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {artists.map(artist => (
-              <ArtistCard key={artist.Id} artist={artist} />
-            ))}
-          </div>
-          <InfiniteScrollFooter
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            onLoadMore={handleLoadMore}
-            currentCount={artists.length}
-            totalCount={totalCount}
-            itemLabel="artists"
-          />
-        </div>
-      )}
+      {content}
     </div>
   );
 }

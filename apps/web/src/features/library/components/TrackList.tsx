@@ -102,14 +102,14 @@ function TrackMetadata({
   artistId,
   album,
   albumId,
-}: {
+}: Readonly<{
   showArtist: boolean;
   showAlbum: boolean;
   artistName: string;
   artistId?: string;
   album?: string;
   albumId?: string;
-}) {
+}>) {
   return (
     <p className="text-text-secondary truncate text-sm">
       {showArtist && artistId ? (

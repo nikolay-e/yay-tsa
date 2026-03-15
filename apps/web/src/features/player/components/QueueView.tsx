@@ -29,16 +29,19 @@ function formatDuration(ticks: number): string {
 function DjFeedbackButtons({
   trackId,
   onThumbsDown,
-}: {
+}: Readonly<{
   trackId: string;
   onThumbsDown: (trackId: string) => void;
-}) {
+}>) {
   const [liked, setLiked] = useState(false);
 
   const sendFeedback = (type: 'THUMBS_UP' | 'THUMBS_DOWN') => {
     const hour = new Date().getHours();
-    const timeOfDay =
-      hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    let timeOfDay: string;
+    if (hour < 6) timeOfDay = 'night';
+    else if (hour < 12) timeOfDay = 'morning';
+    else if (hour < 18) timeOfDay = 'afternoon';
+    else timeOfDay = 'evening';
     useSessionStore
       .getState()
       .sendSignal({
@@ -101,14 +104,14 @@ function QueueTrackItem({
   isPlaying,
   onPlay,
   feedbackSlot,
-}: {
+}: Readonly<{
   track: AudioItem;
   index: number;
   isCurrent: boolean;
   isPlaying: boolean;
   onPlay: () => void;
   feedbackSlot?: ReactNode;
-}) {
+}>) {
   return (
     <button
       type="button"

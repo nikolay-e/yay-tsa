@@ -78,8 +78,11 @@ export class HTML5AudioEngine implements AudioEngine {
     }
   };
   private readonly dispatchError = () => {
+    const src = this.audio.src;
+    const isEmptySrc = src === '' || src === globalThis.window?.location.href;
     const mediaError = this.audio.error;
     const errorMessage = mediaError?.message ?? 'Unknown error';
+    if (isEmptySrc || errorMessage.includes('Empty src')) return;
     const sanitized = this.sanitizeError(errorMessage);
     const error = new Error(`Audio error: ${sanitized}`);
     for (const cb of this.errorCallbacks) cb(error);
@@ -165,16 +168,16 @@ export class HTML5AudioEngine implements AudioEngine {
     }
 
     if (
-      typeof globalThis.window !== 'undefined' &&
+      globalThis.window !== undefined &&
       ('AudioContext' in globalThis.window || 'webkitAudioContext' in globalThis.window)
     ) {
       try {
-        const windowWithAudio = globalThis.window as typeof window & {
+        const windowWithAudio = globalThis.window as Window & {
           AudioContext?: typeof AudioContext;
           webkitAudioContext?: typeof AudioContext;
         };
         const AudioContextClass =
-          windowWithAudio.AudioContext || windowWithAudio.webkitAudioContext;
+          windowWithAudio.AudioContext ?? windowWithAudio.webkitAudioContext;
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
           log.info('AudioContext initialized lazily');

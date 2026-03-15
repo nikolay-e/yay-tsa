@@ -130,7 +130,7 @@ export function SortMenu({
   useEffect(() => {
     if (isOpen) {
       const currentIndex = options.findIndex(o => o.id === selectedId);
-      setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
+      setActiveIndex(Math.max(currentIndex, 0));
       requestAnimationFrame(() => listboxRef.current?.focus());
     }
   }, [isOpen, options, selectedId]);
