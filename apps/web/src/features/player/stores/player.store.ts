@@ -378,6 +378,7 @@ export const usePlayerStore = create<PlayerStore>()(
     async function loadAndPlay(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) throw new Error('Not authenticated');
 
+      const wasInKaraokeMode = get().isKaraokeMode;
       set({
         currentTrack: track,
         isLoading: true,
@@ -415,7 +416,7 @@ export const usePlayerStore = create<PlayerStore>()(
         preloader.invalidate();
         schedulePreload();
 
-        if (get().isKaraokeMode) {
+        if (wasInKaraokeMode) {
           void syncKaraokeForTrack(track, signal);
         } else if (!signal.aborted) {
           set({ karaokeEnabled: false, karaokeStatus: null });
