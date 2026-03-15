@@ -415,8 +415,10 @@ export const usePlayerStore = create<PlayerStore>()(
         preloader.invalidate();
         schedulePreload();
 
-        if (get().karaokeEnabled) {
+        if (get().isKaraokeMode) {
           void syncKaraokeForTrack(track, signal);
+        } else if (!signal.aborted) {
+          set({ karaokeEnabled: false, karaokeStatus: null });
         }
       } catch (error) {
         if (signal.aborted) return;
@@ -473,10 +475,10 @@ export const usePlayerStore = create<PlayerStore>()(
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);
 
-      if (get().isKaraokeMode || get().karaokeEnabled) {
+      if (get().isKaraokeMode) {
         await syncKaraokeForTrack(track, signal);
       } else if (!signal.aborted) {
-        set({ karaokeStatus: null });
+        set({ karaokeEnabled: false, karaokeStatus: null });
       }
 
       schedulePreload();
