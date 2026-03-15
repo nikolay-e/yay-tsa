@@ -1002,7 +1002,6 @@ export const usePlayerStore = create<PlayerStore>()(
           const target = items.find(item => item.Id === trackId);
           if (!target) return;
           const targetIndex = items.indexOf(target);
-          const { currentTime, duration } = useTimingStore.getState();
           queue.advanceTo(trackId);
           queue.trimBeforeCurrent();
           syncQueueState();
@@ -1030,8 +1029,8 @@ export const usePlayerStore = create<PlayerStore>()(
                 signalType: 'QUEUE_JUMP',
                 trackId,
                 context: {
-                  positionPct: duration > 0 ? currentTime / duration : 0,
-                  elapsedSec: currentTime,
+                  positionPct: 0,
+                  elapsedSec: 0,
                   autoplay: false,
                   selectedByUser: true,
                   timeOfDay,

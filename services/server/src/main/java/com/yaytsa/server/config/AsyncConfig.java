@@ -25,4 +25,16 @@ public class AsyncConfig {
         Thread.ofVirtual().factory(),
         (r, executor) -> log.warn("Signal async executor queue full, dropping task"));
   }
+
+  @Bean("recommendationExecutor")
+  public ExecutorService recommendationExecutor() {
+    return new ThreadPoolExecutor(
+        0,
+        5,
+        60L,
+        TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>(20),
+        Thread.ofVirtual().factory(),
+        (r, executor) -> log.warn("Recommendation executor queue full, dropping channel fetch"));
+  }
 }

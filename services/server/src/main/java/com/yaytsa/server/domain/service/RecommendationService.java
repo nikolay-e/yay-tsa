@@ -12,7 +12,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,26 +36,27 @@ public class RecommendationService {
 
   private static final double HALF_LIFE_DAYS = 30.0;
 
-  private static final ExecutorService VIRTUAL_EXECUTOR =
-      Executors.newVirtualThreadPerTaskExecutor();
-
   private final CandidateRetrievalService candidateService;
   private final TasteProfileService tasteProfileService;
   private final UserTrackAffinityRepository affinityRepository;
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final AudioTrackRepository audioTrackRepository;
+  private final ExecutorService recommendationExecutor;
 
   public RecommendationService(
       CandidateRetrievalService candidateService,
       TasteProfileService tasteProfileService,
       UserTrackAffinityRepository affinityRepository,
       TrackFeaturesRepository trackFeaturesRepository,
-      AudioTrackRepository audioTrackRepository) {
+      AudioTrackRepository audioTrackRepository,
+      @org.springframework.beans.factory.annotation.Qualifier("recommendationExecutor")
+          ExecutorService recommendationExecutor) {
     this.candidateService = candidateService;
     this.tasteProfileService = tasteProfileService;
     this.affinityRepository = affinityRepository;
     this.trackFeaturesRepository = trackFeaturesRepository;
     this.audioTrackRepository = audioTrackRepository;
+    this.recommendationExecutor = recommendationExecutor;
   }
 
   public record RecommendationContext(
@@ -79,16 +79,16 @@ public class RecommendationService {
 
     var userEmbFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveUserEmbeddingChannel(profile, ctx, count), VIRTUAL_EXECUTOR);
+            () -> retrieveUserEmbeddingChannel(profile, ctx, count), recommendationExecutor);
     var sessionFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveSessionFilterChannel(ctx, count), VIRTUAL_EXECUTOR);
+            () -> retrieveSessionFilterChannel(ctx, count), recommendationExecutor);
     var transitionFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveTransitionChannel(ctx, count), VIRTUAL_EXECUTOR);
+            () -> retrieveTransitionChannel(ctx, count), recommendationExecutor);
     var explorationFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveExplorationChannel(userId, ctx, count), VIRTUAL_EXECUTOR);
+            () -> retrieveExplorationChannel(userId, ctx, count), recommendationExecutor);
 
     CompletableFuture.allOf(userEmbFuture, sessionFuture, transitionFuture, explorationFuture)
         .join();

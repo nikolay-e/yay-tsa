@@ -1,6 +1,8 @@
 package com.yaytsa.server.domain.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yaytsa.server.domain.service.LlmSessionParamService.DjSessionParams;
 import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
@@ -15,7 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,7 +32,11 @@ public class AdaptiveQueueService {
   private static final Logger log = LoggerFactory.getLogger(AdaptiveQueueService.class);
   private static final long LLM_COOLDOWN_MS = 120_000L;
 
-  private final ConcurrentHashMap<UUID, Long> lastLlmAttemptMs = new ConcurrentHashMap<>();
+  private final Cache<UUID, Long> lastLlmAttemptMs =
+      Caffeine.newBuilder()
+          .expireAfterWrite(LLM_COOLDOWN_MS + 10_000, TimeUnit.MILLISECONDS)
+          .maximumSize(500)
+          .build();
 
   private final AdaptiveQueueRepository queueRepository;
   private final ListeningSessionRepository sessionRepository;
@@ -93,13 +99,14 @@ public class AdaptiveQueueService {
 
     boolean manualRefresh = "MANUAL_REFRESH".equals(triggerType);
     long now = System.currentTimeMillis();
-    Long lastAttempt = lastLlmAttemptMs.get(session.getId());
+    Long lastAttempt = lastLlmAttemptMs.getIfPresent(session.getId());
     boolean coolingDown =
         !manualRefresh && lastAttempt != null && (now - lastAttempt) < LLM_COOLDOWN_MS;
 
     Optional<DjSessionParams> params = Optional.empty();
     if (!coolingDown) {
       lastLlmAttemptMs.put(session.getId(), now);
+
       params = llmSessionParamService.generateSessionParams(session, triggerType, triggerSignal);
     } else {
       log.debug(

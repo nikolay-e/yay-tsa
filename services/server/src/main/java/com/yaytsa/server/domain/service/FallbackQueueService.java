@@ -1,5 +1,7 @@
 package com.yaytsa.server.domain.service;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yaytsa.server.domain.service.RecommendationService.RecommendationContext;
 import com.yaytsa.server.domain.service.RecommendationService.ScoredTrack;
 import com.yaytsa.server.infrastructure.persistence.entity.AdaptiveQueueEntity;
@@ -14,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,7 +38,8 @@ public class FallbackQueueService {
   private final int targetQueueSize;
   private final int noRepeatHours;
 
-  private final ConcurrentHashMap<UUID, ReentrantLock> sessionFillLocks = new ConcurrentHashMap<>();
+  private final Cache<UUID, ReentrantLock> sessionFillLocks =
+      Caffeine.newBuilder().expireAfterAccess(30, TimeUnit.MINUTES).maximumSize(500).build();
 
   public FallbackQueueService(
       RecommendationService recommendationService,
@@ -64,7 +67,7 @@ public class FallbackQueueService {
       float explorationWeight,
       Set<String> avoidArtists) {
     UUID sessionId = session.getId();
-    ReentrantLock lock = sessionFillLocks.computeIfAbsent(sessionId, k -> new ReentrantLock());
+    ReentrantLock lock = sessionFillLocks.get(sessionId, k -> new ReentrantLock());
     lock.lock();
     try {
       return fillQueueUnderLock(
