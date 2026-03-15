@@ -35,7 +35,7 @@ public interface AdaptiveQueueRepository extends JpaRepository<AdaptiveQueueEnti
             AND position < (
               SELECT MIN(q2.position) FROM adaptive_queue q2
               WHERE q2.session_id = :sessionId
-                AND q2.item_id = :trackId
+                AND q2.track_id = :trackId
                 AND q2.status IN ('QUEUED', 'PLAYING')
             )
           """,
@@ -52,12 +52,12 @@ public interface AdaptiveQueueRepository extends JpaRepository<AdaptiveQueueEnti
           UPDATE adaptive_queue
           SET status = :status, played_at = :playedAt
           WHERE session_id = :sessionId
-            AND item_id = :trackId
+            AND track_id = :trackId
             AND status IN ('QUEUED', 'PLAYING')
             AND position = (
               SELECT MIN(q2.position) FROM adaptive_queue q2
               WHERE q2.session_id = :sessionId
-                AND q2.item_id = :trackId
+                AND q2.track_id = :trackId
                 AND q2.status IN ('QUEUED', 'PLAYING')
             )
           """,
