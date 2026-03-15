@@ -376,6 +376,10 @@ public class ItemsController {
       return ResponseEntity.status(403).build();
     }
 
+    if (itemService.findById(itemUuid).isEmpty()) {
+      return ResponseEntity.status(404).build();
+    }
+
     playStateService.setFavorite(userUuid, itemUuid, true);
 
     return ResponseEntity.ok().build();
@@ -408,6 +412,10 @@ public class ItemsController {
 
     if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
       return ResponseEntity.status(403).build();
+    }
+
+    if (itemService.findById(itemUuid).isEmpty()) {
+      return ResponseEntity.status(404).build();
     }
 
     playStateService.setFavorite(userUuid, itemUuid, false);

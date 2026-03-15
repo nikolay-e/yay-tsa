@@ -5,6 +5,7 @@ import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -145,6 +146,18 @@ public class GlobalExceptionHandler {
   public void handleAsyncRequestTimeout(
       AsyncRequestTimeoutException ex, HttpServletRequest request) {
     log.debug("SSE connection timed out: path={}", request.getRequestURI());
+  }
+
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
+      DataIntegrityViolationException ex, HttpServletRequest request) {
+    ProblemDetail problem =
+        createProblemDetail(HttpStatus.CONFLICT, "Data integrity violation", request);
+    log.warn(
+        "Data integrity violation: path={}, message={}",
+        request.getRequestURI(),
+        ex.getMostSpecificCause().getMessage());
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
   }
 
   @ExceptionHandler(Exception.class)
