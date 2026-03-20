@@ -354,7 +354,7 @@ export function PlayerBar() {
           onToggleRepeat={handleToggleRepeat}
         />
 
-        <div className="flex shrink-0 items-center justify-end gap-1 md:flex-1 md:gap-2">
+        <div className="hidden shrink-0 items-center justify-end gap-1 sm:flex md:flex-1 md:gap-2">
           <TimeDisplay />
 
           {activeSession && (

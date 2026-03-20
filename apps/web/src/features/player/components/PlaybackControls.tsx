@@ -29,7 +29,7 @@ export function PlaybackControls({
         type="button"
         onClick={onToggleShuffle}
         className={cn(
-          'focus-visible:ring-accent flex rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+          'focus-visible:ring-accent hidden rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex',
           isShuffle ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
         )}
         aria-label="Shuffle"
@@ -80,7 +80,7 @@ export function PlaybackControls({
         type="button"
         onClick={onToggleRepeat}
         className={cn(
-          'focus-visible:ring-accent flex rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+          'focus-visible:ring-accent hidden rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex',
           repeatMode === 'off' ? 'text-text-secondary hover:text-text-primary' : 'text-accent'
         )}
         aria-label={`Repeat: ${repeatMode}`}
