@@ -56,7 +56,23 @@ public class LrcLibClient {
     }
 
     // Step 3: search endpoint
-    return search(artist, title);
+    LrcLibResult searchResult = search(artist, title);
+    if (searchResult.found()) {
+      return searchResult;
+    }
+
+    // Step 4: if artist name has parenthetical (e.g. "Макс Корж (Max Korzh)"), strip it and retry
+    String cleanedArtist = artist.replaceAll("\\s*\\(.*?\\)\\s*", "").trim();
+    if (!cleanedArtist.equals(artist) && !cleanedArtist.isBlank()) {
+      log.debug(
+          "LRCLIB: retrying search with cleaned artist '{}' (was '{}')", cleanedArtist, artist);
+      LrcLibResult cleaned = search(cleanedArtist, title);
+      if (cleaned.found()) {
+        return cleaned;
+      }
+    }
+
+    return searchResult;
   }
 
   private LrcLibResult fetchExact(String artist, String title, String album, Long durationMs) {

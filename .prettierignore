@@ -26,3 +26,4 @@ yarn.lock
 # Helm templates (use Go templating, not pure YAML)
 charts/**/templates/**
 LICENSE.md
+.claude/
