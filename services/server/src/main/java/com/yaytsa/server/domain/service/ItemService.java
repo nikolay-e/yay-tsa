@@ -107,7 +107,12 @@ public class ItemService {
       spec = spec.and(ItemSpecifications.isFavoriteForUser(params.userId(), params.isFavorite()));
     }
 
-    Sort sort = buildSort(params.sortBy(), params.sortOrder());
+    String effectiveSortBy = params.sortBy();
+    if (hasSearchTerm && isJoinBasedSort(effectiveSortBy)) {
+      effectiveSortBy = "SortName";
+    }
+
+    Sort sort = buildSort(effectiveSortBy, params.sortOrder());
     Pageable pageable = new OffsetBasedPageRequest(params.startIndex(), params.limit(), sort);
 
     if ("Random".equals(params.sortBy())) {
@@ -170,6 +175,12 @@ public class ItemService {
 
   public List<AlbumEntity> getArtistAlbums(UUID artistId) {
     return albumRepository.findByAlbumArtistIdOrderBySortNameAsc(artistId);
+  }
+
+  private boolean isJoinBasedSort(String sortBy) {
+    return "DatePlayed".equals(sortBy)
+        || "DateFavorited".equals(sortBy)
+        || "FavoritePosition".equals(sortBy);
   }
 
   private Sort buildSort(String sortBy, String sortOrder) {
