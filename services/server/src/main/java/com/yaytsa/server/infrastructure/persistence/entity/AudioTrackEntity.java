@@ -23,11 +23,11 @@ public class AudioTrackEntity {
   @JoinColumn(name = "item_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_item"))
   private ItemEntity item;
 
-  @ManyToOne(fetch = FetchType.EAGER)
+  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "album_id", foreignKey = @ForeignKey(name = "fk_audio_tracks_album"))
   private ItemEntity album;
 
-  @ManyToOne(fetch = FetchType.EAGER)
+  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(
       name = "album_artist_id",
       foreignKey = @ForeignKey(name = "fk_audio_tracks_album_artist"))

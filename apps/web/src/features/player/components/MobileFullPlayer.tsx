@@ -17,6 +17,7 @@ import type { AudioItem } from '@yay-tsa/core';
 import type { RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { formatSeconds } from '@/shared/utils/time';
+import { getImagePlaceholder } from '@/shared/utils/image-placeholder';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useTimingStore } from '../stores/playback-timing.store';
 import { SeekBar } from './SeekBar';
@@ -122,7 +123,7 @@ export const MobileFullPlayer = memo(function MobileFullPlayer({
           <InlineLyricsPanel />
         ) : (
           <img
-            src={hasImageError ? '/placeholder-album.svg' : imageUrl}
+            src={hasImageError ? getImagePlaceholder() : imageUrl}
             alt={track.Name}
             className="aspect-square w-full max-w-xs rounded-xl object-cover shadow-2xl"
           />

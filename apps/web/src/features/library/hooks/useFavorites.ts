@@ -130,7 +130,7 @@ export function useFavoriteToggle() {
       }
     },
     onSettled: () => {
-      Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['albums'] }),
         queryClient.invalidateQueries({ queryKey: ['artists'] }),
         queryClient.invalidateQueries({ queryKey: ['tracks'] }),

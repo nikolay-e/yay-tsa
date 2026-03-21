@@ -290,12 +290,16 @@ export const usePlayerStore = create<PlayerStore>()(
       signal: AbortSignal
     ): Promise<void> {
       set({ isKaraokeTransitioning: true });
-      const url = currentClient!.getInstrumentalStreamUrl(trackId);
-      await karaokeSwitchUrl(url, signal);
-      if (!signal.aborted) {
-        set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
-        preloader.invalidate();
-        schedulePreload();
+      try {
+        const url = currentClient!.getInstrumentalStreamUrl(trackId);
+        await karaokeSwitchUrl(url, signal);
+        if (!signal.aborted) {
+          set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
+          preloader.invalidate();
+          schedulePreload();
+        }
+      } finally {
+        set({ isKaraokeTransitioning: false });
       }
     }
 
@@ -471,7 +475,13 @@ export const usePlayerStore = create<PlayerStore>()(
       currentItemId = track.Id;
 
       if (signal.aborted) {
-        set({ currentTrack: track, isLoading: false, error: null });
+        suppressNextEnded = false;
+        set({
+          currentTrack: track,
+          isLoading: false,
+          error: null,
+          isKaraokeTransitioning: false,
+        });
         return;
       }
 
@@ -602,51 +612,57 @@ export const usePlayerStore = create<PlayerStore>()(
 
     async function enableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
       set({ karaokeEnabled: true, isKaraokeTransitioning: true });
-      const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
-      if (signal.aborted) return;
+      try {
+        const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
+        if (signal.aborted) return;
 
-      if (status.state === 'NOT_STARTED') {
-        if (karaokeFailedTrackIds.has(currentTrack.Id)) {
-          set({ karaokeEnabled: false, isKaraokeTransitioning: false });
+        if (status.state === 'NOT_STARTED') {
+          if (karaokeFailedTrackIds.has(currentTrack.Id)) {
+            set({ karaokeEnabled: false });
+            return;
+          }
+          await currentClient!.requestKaraokeProcessing(currentTrack.Id);
+          set({ karaokeStatus: { state: 'PROCESSING', message: null } });
           return;
         }
-        await currentClient!.requestKaraokeProcessing(currentTrack.Id);
-        set({
-          karaokeStatus: { state: 'PROCESSING', message: null },
-          isKaraokeTransitioning: false,
-        });
-        return;
-      }
 
-      if (status.state === 'PROCESSING') {
-        set({ karaokeStatus: status, isKaraokeTransitioning: false });
-        return;
-      }
+        if (status.state === 'PROCESSING') {
+          set({ karaokeStatus: status });
+          return;
+        }
 
-      if (status.state === 'READY') {
-        set({ isKaraokeMode: true, karaokeStatus: status });
-        const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
-        await karaokeSwitchUrl(instrumentalUrl, signal);
-        if (signal.aborted) return;
-        preloader.invalidate();
-        schedulePreload();
+        if (status.state === 'READY') {
+          set({ isKaraokeMode: true, karaokeStatus: status });
+          const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
+          await karaokeSwitchUrl(instrumentalUrl, signal);
+          if (!signal.aborted) {
+            preloader.invalidate();
+            schedulePreload();
+          }
+          return;
+        }
+
+        // FAILED
+        karaokeFailedTrackIds.add(currentTrack.Id);
+        set({ karaokeEnabled: false, karaokeStatus: status });
+      } finally {
         set({ isKaraokeTransitioning: false });
-        return;
       }
-
-      // FAILED
-      karaokeFailedTrackIds.add(currentTrack.Id);
-      set({ karaokeEnabled: false, karaokeStatus: status, isKaraokeTransitioning: false });
     }
 
     async function disableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
       set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
-      const streamUrl = new ItemsService(currentClient!).getStreamUrl(currentTrack.Id);
-      await karaokeSwitchUrl(streamUrl, signal);
-      if (signal.aborted) return;
-      preloader.invalidate();
-      schedulePreload();
-      set({ isKaraokeTransitioning: false, karaokeStatus: null });
+      try {
+        const streamUrl = new ItemsService(currentClient!).getStreamUrl(currentTrack.Id);
+        await karaokeSwitchUrl(streamUrl, signal);
+        if (!signal.aborted) {
+          preloader.invalidate();
+          schedulePreload();
+          set({ karaokeStatus: null });
+        }
+      } finally {
+        set({ isKaraokeTransitioning: false });
+      }
     }
 
     return {
@@ -833,6 +849,7 @@ export const usePlayerStore = create<PlayerStore>()(
       stop: () => {
         // eslint-disable-next-line @typescript-eslint/require-await
         void controller.interrupt(async () => {
+          suppressNextEnded = false;
           engine.pause();
           engine.seek(0);
           useTimingStore.getState().reset();
@@ -944,12 +961,16 @@ export const usePlayerStore = create<PlayerStore>()(
           if (ct2?.Id !== currentTrack.Id || ks2?.state !== 'READY') return;
 
           set({ isKaraokeTransitioning: true, isKaraokeMode: true });
-          const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(ct2.Id);
-          await karaokeSwitchUrl(instrumentalUrl, signal);
-          if (signal.aborted) return;
-          preloader.invalidate();
-          schedulePreload();
-          set({ isKaraokeTransitioning: false });
+          try {
+            const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(ct2.Id);
+            await karaokeSwitchUrl(instrumentalUrl, signal);
+            if (!signal.aborted) {
+              preloader.invalidate();
+              schedulePreload();
+            }
+          } finally {
+            set({ isKaraokeTransitioning: false });
+          }
         });
       },
 
