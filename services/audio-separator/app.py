@@ -116,6 +116,8 @@ def _reconfigure_and_separate(output_dir: str, input_path: str) -> list[str]:
     sep = app.state.separator
     with _separator_lock:
         sep.output_dir = output_dir
+        if sep.model_instance is not None:
+            sep.model_instance.output_dir = output_dir
         result: list[str] = sep.separate(input_path)
         return result
 
