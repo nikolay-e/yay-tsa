@@ -27,7 +27,7 @@ public class FileSystemMediaScanner {
   @Value("${yaytsa.media.library.supported-extensions:mp3,flac,m4a,aac,ogg,opus,wav,wma}")
   private String supportedExtensions;
 
-  @Value("${yaytsa.media.library.ignored-folders:.git,.svn,node_modules,@eaDir}")
+  @Value("${yaytsa.media.library.ignored-folders:.git,.svn,node_modules,@eaDir,Data}")
   private String ignoredFolders;
 
   @Value("${yaytsa.media.library.scan-threads:8}")

@@ -58,8 +58,11 @@ public class MediaScannerTransactionalService {
     Optional<AudioMetadata> metadataOpt = metadataExtractor.extract(filePath);
     AudioMetadata metadata = metadataOpt.orElseGet(() -> createFallbackMetadata(filePath));
 
-    ItemEntity artistItem = findOrCreateArtist(metadata.albumArtist(), libraryRoot);
-    ItemEntity albumItem = findOrCreateAlbum(metadata.album(), artistItem, libraryRoot);
+    String resolvedArtist = resolveArtistName(metadata.albumArtist(), filePath, libraryRoot);
+    String resolvedAlbum = resolveAlbumName(metadata.album(), filePath, libraryRoot);
+
+    ItemEntity artistItem = findOrCreateArtist(resolvedArtist, libraryRoot);
+    ItemEntity albumItem = findOrCreateAlbum(resolvedAlbum, artistItem, libraryRoot);
 
     ItemEntity trackItem = new ItemEntity();
     trackItem.setType(ItemType.AudioTrack);
@@ -72,8 +75,7 @@ public class MediaScannerTransactionalService {
     trackItem.setLibraryRoot(libraryRoot);
     trackItem.setParent(albumItem);
     trackItem.setSearchText(
-        buildSearchText(
-            metadata.title(), metadata.albumArtist(), metadata.album(), metadata.genres()));
+        buildSearchText(metadata.title(), resolvedArtist, resolvedAlbum, metadata.genres()));
 
     trackItem = itemRepository.save(trackItem);
 
@@ -131,14 +133,16 @@ public class MediaScannerTransactionalService {
 
     AudioMetadata metadata = metadataOpt.get();
 
-    ItemEntity artistItem = findOrCreateArtist(metadata.albumArtist(), libraryRoot);
-    ItemEntity albumItem = findOrCreateAlbum(metadata.album(), artistItem, libraryRoot);
+    String resolvedArtist = resolveArtistName(metadata.albumArtist(), filePath, libraryRoot);
+    String resolvedAlbum = resolveAlbumName(metadata.album(), filePath, libraryRoot);
+
+    ItemEntity artistItem = findOrCreateArtist(resolvedArtist, libraryRoot);
+    ItemEntity albumItem = findOrCreateAlbum(resolvedAlbum, artistItem, libraryRoot);
 
     item.setName(metadata.title());
     item.setSortName(createSortName(metadata.title()));
     item.setSearchText(
-        buildSearchText(
-            metadata.title(), metadata.albumArtist(), metadata.album(), metadata.genres()));
+        buildSearchText(metadata.title(), resolvedArtist, resolvedAlbum, metadata.genres()));
     item.setMtime(mtime);
     item.setSizeBytes(fileSize);
     item.setParent(albumItem);
@@ -415,6 +419,44 @@ public class MediaScannerTransactionalService {
     if (lower.startsWith("a ")) return name.substring(2);
     if (lower.startsWith("an ")) return name.substring(3);
     return name;
+  }
+
+  private static final java.util.regex.Pattern YEAR_PREFIX =
+      java.util.regex.Pattern.compile("^\\d{4}\\s*[-–—]\\s*");
+
+  private String resolveArtistName(String tagArtist, Path filePath, String libraryRoot) {
+    if (tagArtist != null && !tagArtist.isBlank()) return tagArtist;
+    return inferArtistFromPath(filePath, libraryRoot);
+  }
+
+  private String resolveAlbumName(String tagAlbum, Path filePath, String libraryRoot) {
+    if (tagAlbum != null && !tagAlbum.isBlank()) return tagAlbum;
+    return inferAlbumFromPath(filePath, libraryRoot);
+  }
+
+  private String inferArtistFromPath(Path filePath, String libraryRoot) {
+    try {
+      Path relative = Path.of(libraryRoot).relativize(filePath);
+      if (relative.getNameCount() >= 3) {
+        return relative.getName(0).toString();
+      }
+    } catch (Exception e) {
+      log.trace("Could not infer artist from path: {}", filePath);
+    }
+    return null;
+  }
+
+  private String inferAlbumFromPath(Path filePath, String libraryRoot) {
+    try {
+      Path relative = Path.of(libraryRoot).relativize(filePath);
+      if (relative.getNameCount() >= 2) {
+        String dirName = relative.getName(relative.getNameCount() - 2).toString();
+        return YEAR_PREFIX.matcher(dirName).replaceFirst("");
+      }
+    } catch (Exception e) {
+      log.trace("Could not infer album from path: {}", filePath);
+    }
+    return null;
   }
 
   private AudioMetadata createFallbackMetadata(Path filePath) {

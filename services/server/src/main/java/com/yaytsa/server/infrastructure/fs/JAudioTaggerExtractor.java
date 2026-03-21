@@ -1,6 +1,8 @@
 package com.yaytsa.server.infrastructure.fs;
 
 import com.yaytsa.server.util.PathUtils;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -21,6 +23,7 @@ public class JAudioTaggerExtractor {
 
   private static final Logger log = LoggerFactory.getLogger(JAudioTaggerExtractor.class);
   private static final int DEFAULT_CHANNELS = 2;
+  private static final Charset WINDOWS_1251 = Charset.forName("windows-1251");
 
   static {
     java.util.logging.Logger.getLogger("org.jaudiotagger").setLevel(Level.OFF);
@@ -32,18 +35,18 @@ public class JAudioTaggerExtractor {
       AudioHeader header = audioFile.getAudioHeader();
       Tag tag = audioFile.getTag();
 
-      String title = getTagValue(tag, FieldKey.TITLE);
+      String title = repairField(getTagValue(tag, FieldKey.TITLE));
       if (title == null || title.isBlank()) {
         title = PathUtils.getFilenameWithoutExtension(filePath);
       }
 
-      String artist = getTagValue(tag, FieldKey.ARTIST);
-      String albumArtist = getTagValue(tag, FieldKey.ALBUM_ARTIST);
+      String artist = repairField(getTagValue(tag, FieldKey.ARTIST));
+      String albumArtist = repairField(getTagValue(tag, FieldKey.ALBUM_ARTIST));
       if (albumArtist == null || albumArtist.isBlank()) {
         albumArtist = artist;
       }
 
-      String album = getTagValue(tag, FieldKey.ALBUM);
+      String album = repairField(getTagValue(tag, FieldKey.ALBUM));
       Integer trackNumber = parseInteger(getTagValue(tag, FieldKey.TRACK));
       Integer discNumber = parseInteger(getTagValue(tag, FieldKey.DISC_NO));
       Integer year = parseYear(getTagValue(tag, FieldKey.YEAR));
@@ -194,5 +197,44 @@ public class JAudioTaggerExtractor {
       return genre;
     }
     return genre.replaceAll("\\(\\d+\\)", "").trim();
+  }
+
+  private String repairField(String value) {
+    if (value == null) return null;
+    String repaired = tryRepairCp1251(value);
+    if (isGarbledText(repaired)) return null;
+    return repaired;
+  }
+
+  static boolean isGarbledText(String text) {
+    if (text == null || text.isBlank()) return false;
+    long nonAscii = text.chars().filter(c -> c > 127).count();
+    if (nonAscii == 0) return false;
+    long garbled = text.chars().filter(c -> c == 0xFFFD || c == '#' || c == '?').count();
+    return garbled > text.length() / 2;
+  }
+
+  static String tryRepairCp1251(String text) {
+    if (text == null || text.isBlank()) return text;
+    try {
+      byte[] latin1Bytes = text.getBytes(StandardCharsets.ISO_8859_1);
+      boolean hasCyrillicRange = false;
+      for (byte b : latin1Bytes) {
+        int unsigned = b & 0xFF;
+        if (unsigned >= 0xC0 && unsigned <= 0xFF) {
+          hasCyrillicRange = true;
+          break;
+        }
+      }
+      if (hasCyrillicRange) {
+        String repaired = new String(latin1Bytes, WINDOWS_1251);
+        if (repaired.chars().anyMatch(c -> c >= 0x0400 && c <= 0x04FF)) {
+          return repaired;
+        }
+      }
+    } catch (Exception e) {
+      log.trace("CP1251 repair failed for: {}", text);
+    }
+    return text;
   }
 }
