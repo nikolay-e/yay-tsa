@@ -57,32 +57,38 @@ export const LyricsScroller = memo(function LyricsScroller({
       ref={containerRef}
       className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden"
       style={{
-        maskImage: 'linear-gradient(transparent 0%, black 15%, black 85%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(transparent 0%, black 15%, black 85%, transparent 100%)',
+        maskImage: 'linear-gradient(transparent 0%, black 12%, black 88%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(transparent 0%, black 12%, black 88%, transparent 100%)',
         scrollbarWidth: 'none',
       }}
     >
-      <div style={{ height: '40%' }} aria-hidden="true" />
+      <div style={{ height: '45%' }} aria-hidden="true" />
       {lines.map((line, i) => {
         const isActive = i === activeLineIndex;
         const dist = activeLineIndex >= 0 ? Math.abs(i - activeLineIndex) : 0;
-        const opacity = activeLineIndex < 0 ? 0.7 : isActive ? 1 : Math.max(0.15, 1 - dist * 0.18);
+        const opacity =
+          activeLineIndex < 0 ? 0.5 : isActive ? 1 : Math.max(0.08, 0.5 - dist * 0.12);
 
         return (
           <div
             key={`${i}-${line.time}`}
             ref={isActive ? activeRef : undefined}
             className={cn(
-              'px-6 py-2.5 text-center text-lg leading-relaxed transition-[opacity,color,font-weight] duration-500 ease-out',
-              isActive ? 'text-text-primary font-bold' : 'text-text-secondary font-normal'
+              'px-6 py-3 text-center text-xl leading-relaxed transition-all duration-500 ease-out',
+              isActive ? 'text-accent font-bold' : 'text-text-secondary font-normal'
             )}
-            style={{ opacity }}
+            style={{
+              opacity,
+              textShadow: isActive
+                ? '0 0 24px var(--color-accent), 0 0 48px color-mix(in srgb, var(--color-accent) 40%, transparent)'
+                : 'none',
+            }}
           >
             {line.text || '\u00A0'}
           </div>
         );
       })}
-      <div style={{ height: '40%' }} aria-hidden="true" />
+      <div style={{ height: '45%' }} aria-hidden="true" />
     </div>
   );
 });
