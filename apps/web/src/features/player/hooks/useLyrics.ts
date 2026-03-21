@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { parseLyrics, findActiveLineIndex, type ParsedLyrics } from '@yay-tsa/core';
+import type { LineState } from '../components/LyricLine';
 import { useCurrentTrack } from '../stores/player.store';
 import { useTimingStore } from '../stores/playback-timing.store';
 
@@ -8,6 +9,7 @@ interface UseLyricsResult {
   activeLineIndex: number;
   isTimeSynced: boolean;
   hasLyrics: boolean;
+  getLineState: (index: number) => LineState;
 }
 
 export function useLyrics(): UseLyricsResult {
@@ -34,10 +36,23 @@ export function useLyrics(): UseLyricsResult {
     return unsubscribe;
   }, [parsedLyrics]);
 
+  const isTimeSynced = parsedLyrics?.isTimeSynced ?? false;
+
+  const getLineState = useCallback(
+    (index: number): LineState => {
+      if (!isTimeSynced) return 'future';
+      if (index === activeLineIndex) return 'active';
+      if (index < activeLineIndex) return 'past';
+      return 'future';
+    },
+    [isTimeSynced, activeLineIndex]
+  );
+
   return {
     parsedLyrics,
     activeLineIndex,
-    isTimeSynced: parsedLyrics?.isTimeSynced ?? false,
+    isTimeSynced,
     hasLyrics: parsedLyrics !== null && parsedLyrics.lines.length > 0,
+    getLineState,
   };
 }

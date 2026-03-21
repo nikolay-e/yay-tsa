@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import {
   MediaServerClient,
   AuthService,
+  AuthenticationError,
   getOrCreateDeviceId,
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
@@ -165,12 +166,6 @@ export const useAuthStore = create<AuthStore>()(
         const client = new MediaServerClient(API_BASE_PATH, clientInfo);
         client.setToken(session.token, session.userId);
 
-        client.setAuthErrorCallback(() => {
-          get()
-            .logout()
-            .catch(() => {});
-        });
-
         await client.getServerInfo();
 
         const authService = new AuthService(client);
@@ -178,9 +173,19 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const me = await client.get<{ Policy?: { IsAdministrator?: boolean } }>('/Users/Me');
           isAdmin = me?.Policy?.IsAdministrator ?? false;
-        } catch {
-          // non-critical — defaults to false
+        } catch (error) {
+          if (error instanceof AuthenticationError) {
+            throw error; // Token invalid — fail the restore
+          }
+          // Non-auth errors (network, etc.) are non-critical
         }
+
+        // Session validated — set callback for ongoing authenticated requests
+        client.setAuthErrorCallback(() => {
+          get()
+            .logout()
+            .catch(() => {});
+        });
 
         set({
           client,

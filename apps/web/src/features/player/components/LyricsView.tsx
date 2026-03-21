@@ -1,10 +1,10 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { Modal } from '@/shared/ui/Modal';
-import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useLyrics } from '../hooks/useLyrics';
-import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
+import { useLyricsFetch } from '../hooks/useLyricsFetch';
+import { useAutoScrollToActiveLine } from '../hooks/useAutoScrollToActiveLine';
+import { useCurrentTrack } from '../stores/player.store';
 import { LyricLine } from './LyricLine';
 
 type LyricsViewProps = Readonly<{
@@ -14,96 +14,9 @@ type LyricsViewProps = Readonly<{
 
 export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
   const currentTrack = useCurrentTrack();
-  const client = useAuthStore(state => state.client);
-  const { parsedLyrics, activeLineIndex, isTimeSynced, hasLyrics } = useLyrics();
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const activeLineRef = useRef<HTMLDivElement>(null);
-  const lastScrolledIndex = useRef<number>(-1);
-
-  useEffect(() => {
-    if (!isTimeSynced || activeLineIndex < 0) return;
-    if (activeLineIndex === lastScrolledIndex.current) return;
-
-    lastScrolledIndex.current = activeLineIndex;
-
-    const timeoutId = setTimeout(() => {
-      try {
-        activeLineRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-      } catch {
-        // Element may be detached during unmount
-      }
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
-  }, [activeLineIndex, isTimeSynced]);
-
-  useEffect(() => {
-    setIsFetching(false);
-    setFetchError(null);
-  }, [currentTrack?.Id]);
-
-  useEffect(() => {
-    if (!currentTrack || !client || hasLyrics || currentTrack.Lyrics) return;
-
-    const trackId = currentTrack.Id;
-    const debounceTimer = setTimeout(async () => {
-      setIsFetching(true);
-      setFetchError(null);
-      try {
-        const result = await client.fetchLyrics(trackId);
-        if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-        if (result.found && result.lyrics) {
-          usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
-        } else {
-          setFetchError('not_found');
-        }
-      } catch {
-        if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-        setFetchError('Lyrics service unavailable');
-      } finally {
-        if (usePlayerStore.getState().currentTrack?.Id === trackId) {
-          setIsFetching(false);
-        }
-      }
-    }, 300);
-
-    return () => clearTimeout(debounceTimer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTrack?.Id, client, hasLyrics, currentTrack?.Lyrics]);
-
-  const handleFetchLyrics = useCallback(async () => {
-    if (!client || !currentTrack) return;
-    const trackId = currentTrack.Id;
-    setIsFetching(true);
-    setFetchError(null);
-    try {
-      const result = await client.fetchLyrics(trackId);
-      if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-      if (result.found && result.lyrics) {
-        usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
-      } else {
-        setFetchError('not_found');
-      }
-    } catch {
-      if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-      setFetchError('Lyrics service unavailable');
-    } finally {
-      if (usePlayerStore.getState().currentTrack?.Id === trackId) {
-        setIsFetching(false);
-      }
-    }
-  }, [client, currentTrack]);
-
-  const getLineState = (index: number): 'active' | 'past' | 'future' => {
-    if (!isTimeSynced) return 'future';
-    if (index === activeLineIndex) return 'active';
-    if (index < activeLineIndex) return 'past';
-    return 'future';
-  };
+  const { parsedLyrics, activeLineIndex, isTimeSynced, hasLyrics, getLineState } = useLyrics();
+  const { isFetching, fetchError, handleFetch } = useLyricsFetch();
+  const activeLineRef = useAutoScrollToActiveLine(activeLineIndex, isTimeSynced);
 
   return (
     <Modal
@@ -171,7 +84,7 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        handleFetchLyrics();
+                        void handleFetch();
                       }}
                       className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
                     >
@@ -183,7 +96,7 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      handleFetchLyrics();
+                      void handleFetch();
                     }}
                     className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
                   >

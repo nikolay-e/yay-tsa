@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AudioItem } from '@yay-tsa/core';
-import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown, Play, Pause } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -29,6 +29,7 @@ import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
+import { MobileFullPlayer } from './MobileFullPlayer';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
 import { SleepTimerModal } from './SleepTimerModal';
@@ -105,6 +106,7 @@ function TrackInfo({
 export function PlayerBar() {
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [showLyricsView, setShowLyricsView] = useState(false);
+  const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const activeSession = useActiveSession();
   const { sendSignal } = useSessionActions();
@@ -311,6 +313,14 @@ export function PlayerBar() {
     maxHeight: 64,
   });
 
+  const imageUrlLarge = getTrackImageUrl(getImageUrl, {
+    albumId: currentTrack.AlbumId,
+    albumPrimaryImageTag: currentTrack.AlbumPrimaryImageTag,
+    trackId: currentTrack.Id,
+    maxWidth: 400,
+    maxHeight: 400,
+  });
+
   const karaokeClass = isKaraokeMode
     ? 'text-accent'
     : karaokeEnabled && karaokeStatus?.state === 'PROCESSING'
@@ -322,20 +332,68 @@ export function PlayerBar() {
       : isKaraokeMode
         ? 'Disable karaoke mode'
         : 'Enable karaoke mode';
-  const karaokeAriaPressed: boolean | 'mixed' = isKaraokeMode
-    ? true
-    : karaokeEnabled
-      ? 'mixed'
-      : false;
+  const karaokeAriaPressed = isKaraokeMode || karaokeEnabled;
+  const karaokeAriaBusy = karaokeStatus?.state === 'PROCESSING';
 
   return (
     <div
       data-testid="player-bar"
       className="z-player border-border bg-bg-secondary px-safe md:left-sidebar md:pb-safe bottom-above-tab-bar fixed right-0 left-0 border-t"
     >
-      <SeekBar onSeek={handleSeek} />
+      <div className="hidden md:block">
+        <SeekBar onSeek={handleSeek} />
+      </div>
 
-      <div className="mx-auto flex max-w-7xl items-center gap-4 p-2 px-4">
+      {/* Mobile mini-bar */}
+      <div
+        className="flex cursor-pointer items-center gap-3 p-2 px-3 md:hidden"
+        onClick={() => setShowFullPlayer(true)}
+        role="button"
+        tabIndex={0}
+        aria-label="Open player"
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setShowFullPlayer(true);
+          }
+        }}
+      >
+        <img
+          src={hasImageError ? getImagePlaceholder() : imageUrl}
+          alt={currentTrack.Name}
+          className="h-11 w-11 shrink-0 rounded object-cover"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-text-primary truncate text-sm font-medium">{currentTrack.Name}</p>
+          <p className="text-text-secondary truncate text-xs">
+            {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
+          </p>
+        </div>
+        <div
+          className="flex shrink-0 items-center gap-1"
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => e.stopPropagation()}
+        >
+          <FavoriteButton
+            itemId={currentTrack.Id}
+            isFavorite={currentTrack.UserData?.IsFavorite ?? false}
+          />
+          <button
+            type="button"
+            onClick={handlePlayPause}
+            className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <Pause className="h-5 w-5" fill="currentColor" />
+            ) : (
+              <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="mx-auto hidden max-w-7xl items-center gap-4 p-2 px-4 md:flex">
         <TrackInfo
           track={currentTrack}
           hasImageError={hasImageError}
@@ -354,7 +412,7 @@ export function PlayerBar() {
           onToggleRepeat={handleToggleRepeat}
         />
 
-        <div className="flex shrink-0 items-center justify-end gap-1 md:flex-1 md:gap-2">
+        <div className="hidden shrink-0 items-center justify-end gap-1 sm:flex md:flex-1 md:gap-2">
           <TimeDisplay />
 
           {activeSession && (
@@ -390,6 +448,7 @@ export function PlayerBar() {
             )}
             aria-label={karaokeAriaLabel}
             aria-pressed={karaokeAriaPressed}
+            aria-busy={karaokeAriaBusy}
             title={(() => {
               if (isLoading) return 'Wait for track to load';
               if (karaokeStatus?.state === 'PROCESSING')
@@ -444,6 +503,31 @@ export function PlayerBar() {
       />
 
       <LyricsView isOpen={showLyricsView} onClose={() => setShowLyricsView(false)} />
+
+      {showFullPlayer && (
+        <MobileFullPlayer
+          track={currentTrack}
+          imageUrl={imageUrlLarge}
+          hasImageError={hasImageError}
+          isPlaying={isPlaying}
+          isShuffle={isShuffle}
+          repeatMode={repeatMode}
+          isKaraokeMode={isKaraokeMode}
+          isKaraokeTransitioning={isKaraokeTransitioning}
+          karaokeStatus={karaokeStatus}
+          hasSleepTimer={!!sleepTimer.endTime}
+          sleepMinutesLeft={sleepMinutesLeft}
+          onClose={() => setShowFullPlayer(false)}
+          onPlayPause={handlePlayPause}
+          onNext={handleNext}
+          onPrevious={handlePrevious}
+          onToggleShuffle={handleToggleShuffle}
+          onToggleRepeat={handleToggleRepeat}
+          onToggleKaraoke={handleToggleKaraoke}
+          onOpenSleepTimer={() => setShowSleepModal(true)}
+          onSeek={handleSeek}
+        />
+      )}
     </div>
   );
 }
