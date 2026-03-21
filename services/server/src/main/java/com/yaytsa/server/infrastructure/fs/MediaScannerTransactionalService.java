@@ -71,6 +71,9 @@ public class MediaScannerTransactionalService {
     trackItem.setMtime(mtime);
     trackItem.setLibraryRoot(libraryRoot);
     trackItem.setParent(albumItem);
+    trackItem.setSearchText(
+        buildSearchText(
+            metadata.title(), metadata.albumArtist(), metadata.album(), metadata.genres()));
 
     trackItem = itemRepository.save(trackItem);
 
@@ -133,6 +136,9 @@ public class MediaScannerTransactionalService {
 
     item.setName(metadata.title());
     item.setSortName(createSortName(metadata.title()));
+    item.setSearchText(
+        buildSearchText(
+            metadata.title(), metadata.albumArtist(), metadata.album(), metadata.genres()));
     item.setMtime(mtime);
     item.setSizeBytes(fileSize);
     item.setParent(albumItem);
@@ -202,6 +208,7 @@ public class MediaScannerTransactionalService {
     item.setType(ItemType.MusicArtist);
     item.setName(finalArtistName);
     item.setSortName(createSortName(finalArtistName));
+    item.setSearchText(finalArtistName.toLowerCase(java.util.Locale.ROOT));
     item.setPath(artistPath);
     item.setLibraryRoot(libraryRoot);
     item = itemRepository.save(item);
@@ -244,6 +251,8 @@ public class MediaScannerTransactionalService {
     item.setType(ItemType.MusicAlbum);
     item.setName(finalAlbumName);
     item.setSortName(createSortName(finalAlbumName));
+    item.setSearchText(
+        (finalAlbumName + " " + artistItem.getName()).toLowerCase(java.util.Locale.ROOT));
     item.setPath(albumPath);
     item.setLibraryRoot(libraryRoot);
     item.setParent(artistItem);
@@ -386,6 +395,17 @@ public class MediaScannerTransactionalService {
     String filename = path.getFileName().toString();
     int dotIndex = filename.lastIndexOf('.');
     return dotIndex > 0 ? filename.substring(dotIndex + 1) : "";
+  }
+
+  private String buildSearchText(String title, String artist, String album, List<String> genres) {
+    StringBuilder sb = new StringBuilder();
+    if (title != null) sb.append(title).append(' ');
+    if (artist != null) sb.append(artist).append(' ');
+    if (album != null) sb.append(album).append(' ');
+    if (genres != null) {
+      for (String g : genres) sb.append(g).append(' ');
+    }
+    return sb.toString().toLowerCase(java.util.Locale.ROOT).trim();
   }
 
   private String createSortName(String name) {

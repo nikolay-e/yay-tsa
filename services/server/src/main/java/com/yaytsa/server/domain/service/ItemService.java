@@ -100,7 +100,7 @@ public class ItemService {
     }
 
     if (params.searchTerm() != null && !params.searchTerm().isBlank()) {
-      spec = spec.and(ItemSpecifications.searchByName(params.searchTerm()));
+      spec = spec.and(ItemSpecifications.searchByText(params.searchTerm()));
     }
 
     if (params.isFavorite() != null && params.userId() != null) {

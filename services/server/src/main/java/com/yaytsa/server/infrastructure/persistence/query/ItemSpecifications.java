@@ -143,6 +143,21 @@ public final class ItemSpecifications {
     };
   }
 
+  public static Specification<ItemEntity> searchByText(String searchTerm) {
+    return (root, query, cb) -> {
+      if (searchTerm == null || searchTerm.isBlank()) {
+        return cb.conjunction();
+      }
+      String pattern = "%" + searchTerm.toLowerCase(java.util.Locale.ROOT) + "%";
+      Predicate searchTextMatch = cb.like(root.get("searchText"), pattern);
+      Predicate nameMatch =
+          cb.or(
+              cb.like(cb.lower(root.get("name")), pattern),
+              cb.like(cb.lower(root.get("sortName")), pattern));
+      return cb.or(searchTextMatch, nameMatch);
+    };
+  }
+
   public static Specification<ItemEntity> isFavoriteForUser(UUID userId, Boolean isFavorite) {
     return (root, query, cb) -> {
       if (userId == null || isFavorite == null) {
