@@ -66,8 +66,14 @@ export const LyricsScroller = memo(function LyricsScroller({
       {lines.map((line, i) => {
         const isActive = i === activeLineIndex;
         const dist = activeLineIndex >= 0 ? Math.abs(i - activeLineIndex) : 0;
-        const opacity =
-          activeLineIndex < 0 ? 0.5 : isActive ? 1 : Math.max(0.08, 0.5 - dist * 0.12);
+        let opacity: number;
+        if (activeLineIndex < 0) {
+          opacity = 0.5;
+        } else if (isActive) {
+          opacity = 1;
+        } else {
+          opacity = Math.max(0.08, 0.5 - dist * 0.12);
+        }
 
         return (
           <div

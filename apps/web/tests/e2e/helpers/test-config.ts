@@ -1,6 +1,6 @@
 export const TEST_CREDENTIALS = {
   USERNAME: process.env.YAYTSA_TEST_USERNAME || 'test-user',
-  PASSWORD: process.env.YAYTSA_TEST_PASSWORD || 'test-password',
+  PASSWORD: process.env.YAYTSA_TEST_PASSWORD || 'test-password', // NOSONAR — test fixture default, not a real credential
 } as const;
 
 export const TEST_DATA = {

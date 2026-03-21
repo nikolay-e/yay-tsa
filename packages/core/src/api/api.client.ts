@@ -346,6 +346,8 @@ export class MediaServerClient {
       if (value !== undefined && value !== null) {
         if (joinArrays && Array.isArray(value)) {
           searchParams.append(key, value.join(','));
+        } else if (Array.isArray(value)) {
+          searchParams.append(key, value.join(','));
         } else {
           searchParams.append(
             key,

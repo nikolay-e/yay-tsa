@@ -48,7 +48,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
   // Approaching-end detection
   private readonly approachingEndCallbacks = new Set<() => void>();
-  private approachingEndThresholdMs: number;
+  private readonly approachingEndThresholdMs: number;
   private approachingEndFired: boolean = false;
 
   // Dispatch handlers — single handler per event type, iterates registered callbacks

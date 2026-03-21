@@ -380,6 +380,61 @@ export const usePlayerStore = create<PlayerStore>()(
 
     // --- Core playback commands ---
 
+    function commitPlaybackSideEffects(track: AudioItem, signal: AbortSignal): void {
+      currentItemId = track.Id;
+      set({ isPlaying: true });
+      consecutiveLoadFailures = 0;
+      wakeLock.acquire().catch(() => {});
+
+      engine.setNormalizationGain?.(track.NormalizationGain ?? null);
+      get().queue.advanceTo(track.Id);
+      get().queue.trimBeforeCurrent();
+      syncQueueState();
+      updateSessionMetadata(track);
+      startPlaybackReporter(track.Id);
+      preloader.invalidate();
+      schedulePreload();
+
+      if (get().karaokeEnabled) {
+        void syncKaraokeForTrack(track, signal);
+      }
+    }
+
+    function isRetryableTimeout(error: unknown, retryCount: number): boolean {
+      return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
+    }
+
+    async function handleLoadError(
+      error: unknown,
+      track: AudioItem,
+      signal: AbortSignal,
+      retryCount: number
+    ): Promise<void> {
+      if (signal.aborted) return;
+      if (isRetryableTimeout(error, retryCount)) {
+        log.player.warn('Engine timeout on load, retrying once after delay', {
+          trackId: track.Id,
+        });
+        await new Promise<void>(resolve => {
+          setTimeout(resolve, 2000);
+        });
+        if (!signal.aborted) {
+          return loadAndPlay(track, signal, retryCount + 1);
+        }
+        return;
+      }
+      log.player.error('Failed to load and play track', error, {
+        trackId: track.Id,
+        trackName: track.Name,
+      });
+      set({
+        error: error instanceof Error ? error : new Error(String(error)),
+        isPlaying: false,
+        isLoading: false,
+      });
+      throw error;
+    }
+
     async function loadAndPlay(
       track: AudioItem,
       signal: AbortSignal,
@@ -408,50 +463,9 @@ export const usePlayerStore = create<PlayerStore>()(
         await engine.play();
         if (signal.aborted) return;
 
-        // --- Commit: identity + playing state ---
-        currentItemId = track.Id;
-        set({ isPlaying: true });
-        consecutiveLoadFailures = 0;
-        wakeLock.acquire().catch(() => {});
-
-        // --- Side effects ---
-        engine.setNormalizationGain?.(track.NormalizationGain ?? null);
-        get().queue.advanceTo(track.Id);
-        get().queue.trimBeforeCurrent();
-        syncQueueState();
-        updateSessionMetadata(track);
-        startPlaybackReporter(track.Id);
-        preloader.invalidate();
-        schedulePreload();
-
-        if (get().karaokeEnabled) {
-          void syncKaraokeForTrack(track, signal);
-        }
+        commitPlaybackSideEffects(track, signal);
       } catch (error) {
-        if (signal.aborted) return;
-        const isEngineTimeout = error instanceof Error && error.message.includes('Engine timeout');
-        if (isEngineTimeout && retryCount < 1) {
-          log.player.warn('Engine timeout on load, retrying once after delay', {
-            trackId: track.Id,
-          });
-          await new Promise<void>(resolve => {
-            setTimeout(resolve, 2000);
-          });
-          if (!signal.aborted) {
-            return loadAndPlay(track, signal, retryCount + 1);
-          }
-          return;
-        }
-        log.player.error('Failed to load and play track', error, {
-          trackId: track.Id,
-          trackName: track.Name,
-        });
-        set({
-          error: error instanceof Error ? error : new Error(String(error)),
-          isPlaying: false,
-          isLoading: false,
-        });
-        throw error;
+        return handleLoadError(error, track, signal, retryCount);
       }
     }
 
@@ -656,9 +670,10 @@ export const usePlayerStore = create<PlayerStore>()(
     }
 
     async function disableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
+      if (!currentClient) return;
       set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
       try {
-        const streamUrl = new ItemsService(currentClient!).getStreamUrl(currentTrack.Id);
+        const streamUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
         await karaokeSwitchUrl(streamUrl, signal);
         if (!signal.aborted) {
           preloader.invalidate();
@@ -907,10 +922,10 @@ export const usePlayerStore = create<PlayerStore>()(
 
         await controller.ifIdle(async signal => {
           try {
-            if (!isKaraokeMode) {
-              await enableKaraokeMode(currentTrack, signal);
-            } else {
+            if (isKaraokeMode) {
               await disableKaraokeMode(currentTrack, signal);
+            } else {
+              await enableKaraokeMode(currentTrack, signal);
             }
           } catch (error) {
             if (signal.aborted) return;

@@ -327,17 +327,15 @@ export function PlayerBar() {
     maxHeight: 400,
   });
 
+  const karaokeProcessing = karaokeEnabled && karaokeStatus?.state === 'PROCESSING';
   const karaokeClass = isKaraokeMode
     ? 'text-accent'
-    : karaokeEnabled && karaokeStatus?.state === 'PROCESSING'
+    : karaokeProcessing
       ? 'text-accent animate-pulse'
       : 'text-text-secondary hover:text-text-primary';
+  const karaokeNonProcessingLabel = isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode';
   const karaokeAriaLabel =
-    karaokeStatus?.state === 'PROCESSING'
-      ? 'Cancel karaoke processing'
-      : isKaraokeMode
-        ? 'Disable karaoke mode'
-        : 'Enable karaoke mode';
+    karaokeStatus?.state === 'PROCESSING' ? 'Cancel karaoke processing' : karaokeNonProcessingLabel;
   const karaokeAriaPressed = isKaraokeMode || karaokeEnabled;
   const karaokeAriaBusy = karaokeStatus?.state === 'PROCESSING';
 
@@ -351,32 +349,27 @@ export function PlayerBar() {
       </div>
 
       {/* Mobile mini-bar */}
-      <div
-        className="flex cursor-pointer items-center gap-3 p-2 px-3 md:hidden"
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center gap-3 p-2 px-3 md:hidden"
         onClick={() => setShowFullPlayer(true)}
-        role="button"
-        tabIndex={0}
         aria-label="Open player"
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setShowFullPlayer(true);
-          }
-        }}
       >
         <img
           src={hasImageError ? getImagePlaceholder() : imageUrl}
           alt={currentTrack.Name}
           className="h-11 w-11 shrink-0 rounded object-cover"
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 text-left">
           <p className="text-text-primary truncate text-sm font-medium">{currentTrack.Name}</p>
           <p className="text-text-secondary truncate text-xs">
             {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
           </p>
         </div>
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
         <div
           className="flex shrink-0 items-center gap-1"
+          role="group"
           onClick={e => e.stopPropagation()}
           onKeyDown={e => e.stopPropagation()}
         >
@@ -397,7 +390,7 @@ export function PlayerBar() {
             )}
           </button>
         </div>
-      </div>
+      </button>
 
       <div className="mx-auto hidden max-w-7xl items-center gap-4 p-2 px-4 md:flex">
         <TrackInfo

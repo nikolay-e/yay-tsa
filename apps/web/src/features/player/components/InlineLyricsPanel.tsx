@@ -29,31 +29,39 @@ export function InlineLyricsPanel() {
           <Loader2 className="text-accent h-8 w-8 animate-spin" />
           <span className="text-text-secondary text-sm">Searching...</span>
         </>
-      ) : fetchError === 'not_found' ? (
-        <span className="text-text-tertiary text-sm">No lyrics found</span>
-      ) : fetchError ? (
-        <div className="flex flex-col items-center gap-3">
-          <span className="text-text-tertiary text-sm">{fetchError}</span>
-          <button
-            type="button"
-            onClick={() => {
-              void handleFetch();
-            }}
-            className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
-          >
-            <Search className="h-4 w-4" /> Try Again
-          </button>
-        </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => {
-            void handleFetch();
-          }}
-          className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
-        >
-          <Search className="h-4 w-4" /> Search Lyrics
-        </button>
+        (() => {
+          if (fetchError === 'not_found') {
+            return <span className="text-text-tertiary text-sm">No lyrics found</span>;
+          }
+          if (fetchError) {
+            return (
+              <div className="flex flex-col items-center gap-3">
+                <span className="text-text-tertiary text-sm">{fetchError}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleFetch();
+                  }}
+                  className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
+                >
+                  <Search className="h-4 w-4" /> Try Again
+                </button>
+              </div>
+            );
+          }
+          return (
+            <button
+              type="button"
+              onClick={() => {
+                handleFetch();
+              }}
+              className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
+            >
+              <Search className="h-4 w-4" /> Search Lyrics
+            </button>
+          );
+        })()
       )}
     </div>
   );

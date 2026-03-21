@@ -13,8 +13,7 @@ import {
   Timer,
   AlignLeft,
 } from 'lucide-react';
-import type { AudioItem } from '@yay-tsa/core';
-import type { RepeatMode } from '@yay-tsa/core';
+import type { AudioItem, RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { formatSeconds } from '@/shared/utils/time';
 import { getImagePlaceholder } from '@/shared/utils/image-placeholder';

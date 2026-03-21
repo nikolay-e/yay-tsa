@@ -82,7 +82,7 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        void handleFetch();
+                        handleFetch();
                       }}
                       className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
                     >
@@ -94,7 +94,7 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      void handleFetch();
+                      handleFetch();
                     }}
                     className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
                   >

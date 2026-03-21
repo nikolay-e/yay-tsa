@@ -36,13 +36,13 @@ export function AlbumsPage() {
     [playAlbum]
   );
 
-  const content = isLoading ? (
-    <LoadingSpinner />
-  ) : albums.length === 0 ? (
+  const emptyState = (
     <div className="flex h-64 items-center justify-center">
       <p className="text-text-secondary">No albums found</p>
     </div>
-  ) : (
+  );
+
+  const albumList = (
     <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
       <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
       <InfiniteScrollFooter
@@ -55,6 +55,9 @@ export function AlbumsPage() {
       />
     </div>
   );
+
+  const loadedContent = albums.length === 0 ? emptyState : albumList;
+  const content = isLoading ? <LoadingSpinner /> : loadedContent;
 
   return (
     <div className="space-y-6 p-6">

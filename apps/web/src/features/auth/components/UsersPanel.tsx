@@ -271,7 +271,8 @@ export function UsersPanel() {
     setShownPassword({ label: 'New password:', password });
   }, []);
 
-  const userCountText = users ? `${users.length} user${users.length === 1 ? '' : 's'}` : '';
+  const userSuffix = users?.length === 1 ? '' : 's';
+  const userCountText = users ? `${users.length} user${userSuffix}` : '';
 
   return (
     <div className="p-4">

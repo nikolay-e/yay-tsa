@@ -27,13 +27,13 @@ export function ArtistsPage() {
     fetchNextPage();
   };
 
-  const content = isLoading ? (
-    <LoadingSpinner />
-  ) : artists.length === 0 ? (
+  const emptyState = (
     <div className="flex h-64 items-center justify-center">
       <p className="text-text-secondary">No artists found</p>
     </div>
-  ) : (
+  );
+
+  const artistList = (
     <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {artists.map(artist => (
@@ -50,6 +50,9 @@ export function ArtistsPage() {
       />
     </div>
   );
+
+  const loadedContent = artists.length === 0 ? emptyState : artistList;
+  const content = isLoading ? <LoadingSpinner /> : loadedContent;
 
   return (
     <div className="space-y-6 p-6">

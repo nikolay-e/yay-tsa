@@ -43,13 +43,13 @@ export function SongsPage() {
     [playTracks, tracks]
   );
 
-  const content = isLoading ? (
-    <LoadingSpinner />
-  ) : tracks.length === 0 ? (
+  const emptyState = (
     <div className="flex h-64 items-center justify-center">
       <p className="text-text-secondary">No songs found</p>
     </div>
-  ) : (
+  );
+
+  const trackList = (
     <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
       <TrackList
         tracks={tracks}
@@ -72,6 +72,9 @@ export function SongsPage() {
       />
     </div>
   );
+
+  const loadedContent = tracks.length === 0 ? emptyState : trackList;
+  const content = isLoading ? <LoadingSpinner /> : loadedContent;
 
   return (
     <div className="space-y-6 p-6">

@@ -275,9 +275,11 @@ def _cleanup_leftover_stems(karaoke_dir: Path, keep_names: list[str]):
     "/api/separate",
     response_model=SeparationResponse,
     responses={
+        400: {"description": "Invalid track_id format"},
         403: {"description": "Path traversal attempt"},
         404: {"description": "Input file not found"},
         500: {"description": ERR_INTERNAL},
+        503: {"description": "Audio separation not available"},
     },
 )
 async def separate_audio(request: SeparationRequest):

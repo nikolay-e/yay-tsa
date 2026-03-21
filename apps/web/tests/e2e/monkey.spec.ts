@@ -175,8 +175,8 @@ function dragSliders(page: Page): void {
   page
     .evaluate(() => {
       document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach(el => {
-        const min = parseFloat(el.min || '0');
-        const max = parseFloat(el.max || '100');
+        const min = Number.parseFloat(el.min || '0');
+        const max = Number.parseFloat(el.max || '100');
         el.value = String(min + Math.random() * (max - min));
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -401,8 +401,46 @@ async function processBatch(
   return added;
 }
 
-authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
-  const jsErrors: string[] = [];
+const INTERACTIVE_SELECTOR =
+  'button, a, [role="button"], [role="tab"], [role="listitem"], ' +
+  'input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+const ACTION_WEIGHTS = [30, 15, 12, 8, 4, 3, 4, 3, 2, 3, 4, 5, 2, 3, 2];
+const ACTION_TIMEOUT_MS = 3000;
+
+async function reAuthenticate(page: Page): Promise<void> {
+  try {
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.getByLabel('Username').fill(TEST_CREDENTIALS.USERNAME);
+    await page.locator('input[type="password"]').fill(TEST_CREDENTIALS.PASSWORD);
+    await page.getByRole('button', { name: 'Sign In' }).click();
+    await page.waitForURL('/', { timeout: 15000 });
+  } catch {
+    await recoverPage(page);
+  }
+}
+
+async function executeInteractiveAction(
+  page: Page,
+  actionIdx: number,
+  iteration: number
+): Promise<{ iterationDelta: number; failed: boolean }> {
+  if (actionIdx === 14) {
+    const result = await withTimeout(parallelClicks(page), ACTION_TIMEOUT_MS);
+    return { iterationDelta: 1, failed: result === null };
+  }
+
+  const els =
+    (await withTimeout(page.locator(INTERACTIVE_SELECTOR).all(), ACTION_TIMEOUT_MS)) ?? [];
+  if (els.length === 0) {
+    return { iterationDelta: 1, failed: true };
+  }
+
+  const added = await processBatch(page, els, actionIdx, iteration);
+  return { iterationDelta: added, failed: false };
+}
+
+function collectJsErrors(page: Page, jsErrors: string[]): void {
   page.on('pageerror', err => {
     jsErrors.push(err.message);
     console.log(`  [pageerror] ${err.message}`);
@@ -413,6 +451,11 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
       console.log(`  [console.error] ${msg.text()}`);
     }
   });
+}
+
+authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
+  const jsErrors: string[] = [];
+  collectJsErrors(page, jsErrors);
 
   await page.goto('/', { waitUntil: 'commit' });
 
@@ -420,22 +463,13 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   let consecutiveFails = 0;
   const MAX = 10000;
   const RECOVER_AFTER_FAILS = 5;
-  const ACTION_TIMEOUT_MS = 3000;
 
   while (iteration < MAX) {
     if (iteration % 100 === 0) console.log(`[iter ${iteration}/${MAX}] errors=${jsErrors.length}`);
 
     if (page.url().includes('/login')) {
       console.log(`[iter ${iteration}] landed on /login (session lost) — re-authenticating`);
-      try {
-        await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 10000 });
-        await page.getByLabel('Username').fill(TEST_CREDENTIALS.USERNAME);
-        await page.locator('input[type="password"]').fill(TEST_CREDENTIALS.PASSWORD);
-        await page.getByRole('button', { name: 'Sign In' }).click();
-        await page.waitForURL('/', { timeout: 15000 });
-      } catch {
-        await recoverPage(page);
-      }
+      await reAuthenticate(page);
       consecutiveFails = 0;
       iteration++;
       continue;
@@ -451,9 +485,7 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
       page.goto(pick(RANDOM_PATHS), { waitUntil: 'commit', timeout: 4000 }).catch(() => {});
     }
 
-    // weights: click, scroll, keyboard, type-burst, nav, resize, hover, dblclick, rightclick,
-    //          coord-click, drag-slider, inject-events, storage-chaos, key-burst, parallel-clicks
-    const actionIdx = weighted([30, 15, 12, 8, 4, 3, 4, 3, 2, 3, 4, 5, 2, 3, 2]);
+    const actionIdx = weighted(ACTION_WEIGHTS);
 
     if (dispatchSimpleAction(page, actionIdx)) {
       iteration++;
@@ -461,27 +493,9 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
       continue;
     }
 
-    if (actionIdx === 14) {
-      const result = await withTimeout(parallelClicks(page), ACTION_TIMEOUT_MS);
-      consecutiveFails = result === null ? consecutiveFails + 1 : 0;
-      iteration++;
-      continue;
-    }
-
-    const selector =
-      'button, a, [role="button"], [role="tab"], [role="listitem"], ' +
-      'input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
-    const els = (await withTimeout(page.locator(selector).all(), ACTION_TIMEOUT_MS)) ?? [];
-
-    if (els.length === 0) {
-      consecutiveFails++;
-      iteration++;
-      continue;
-    }
-
-    consecutiveFails = 0;
-    iteration += await processBatch(page, els, actionIdx, iteration);
+    const { iterationDelta, failed } = await executeInteractiveAction(page, actionIdx, iteration);
+    consecutiveFails = failed ? consecutiveFails + 1 : 0;
+    iteration += iterationDelta;
   }
 
   console.log(`\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors ===`);
