@@ -57,7 +57,7 @@ RUN getent group 1000 >/dev/null || groupadd --gid 1000 appuser && \
     mkdir -p /app/models /app/output && \
     chown -R 1000:1000 /app
 
-ENV MODEL_NAME=htdemucs.yaml
+ENV MODEL_NAME=model_bs_roformer_ep_317_sdr_12.9755.yaml
 ENV OUTPUT_FORMAT=wav
 ENV DEVICE=cpu
 ENV ESSENTIA_MODELS_DIR=/app/models

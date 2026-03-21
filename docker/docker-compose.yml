@@ -93,7 +93,7 @@ services:
     profiles:
       - karaoke
     environment:
-      MODEL_NAME: ${KARAOKE_MODEL:-htdemucs.yaml}
+      MODEL_NAME: ${KARAOKE_MODEL:-model_bs_roformer_ep_317_sdr_12.9755.yaml}
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
     volumes:

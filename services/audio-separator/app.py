@@ -49,6 +49,7 @@ except ImportError:
     log.warning("transformers/torch not installed — embedding extraction disabled")
 
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
+MODEL_STEM_SUFFIX = Path(MODEL_NAME).stem
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
 USE_CUDA = os.getenv("DEVICE", "cpu") == "cuda"
 ALLOWED_MEDIA_ROOT = os.path.realpath(os.getenv("MEDIA_PATH", "/media"))
@@ -267,7 +268,7 @@ def _finalize_vocal(vocal_stem: Path | None, song_name: str, karaoke_dir: Path) 
 
 
 def _cleanup_leftover_stems(karaoke_dir: Path, keep_names: list[str]):
-    for leftover in karaoke_dir.glob(f"*_{MODEL_NAME}.{OUTPUT_FORMAT}"):
+    for leftover in karaoke_dir.glob(f"*_{MODEL_STEM_SUFFIX}.{OUTPUT_FORMAT}"):
         if leftover.name not in keep_names:
             leftover.unlink(missing_ok=True)
             log.info(f"Cleaned up leftover stem: {leftover}")
