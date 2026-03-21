@@ -53,7 +53,7 @@ public interface ItemRepository
           ORDER BY
             CASE WHEN ps.last_played_at IS NOT NULL THEN 0 ELSE 1 END,
             ps.last_played_at DESC NULLS LAST,
-            RANDOM()
+            i.sort_name, i.id
           """,
       countQuery =
           """
@@ -81,7 +81,7 @@ public interface ItemRepository
           ORDER BY
             CASE WHEN agg.max_played_at IS NOT NULL THEN 0 ELSE 1 END,
             agg.max_played_at DESC NULLS LAST,
-            RANDOM()
+            a.sort_name, a.id
           """,
       countQuery =
           """
@@ -112,7 +112,7 @@ public interface ItemRepository
           ORDER BY
             CASE WHEN agg.max_played_at IS NOT NULL THEN 0 ELSE 1 END,
             agg.max_played_at DESC NULLS LAST,
-            RANDOM()
+            a.sort_name, a.id
           """,
       countQuery =
           """
