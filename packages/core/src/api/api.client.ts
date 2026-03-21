@@ -340,19 +340,14 @@ export class MediaServerClient {
     return headers;
   }
 
-  private buildQueryString(params: Record<string, unknown>, joinArrays: boolean = false): string {
+  private buildQueryString(params: Record<string, unknown>): string {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        if (joinArrays && Array.isArray(value)) {
-          searchParams.append(key, value.join(','));
-        } else if (Array.isArray(value)) {
+        if (Array.isArray(value)) {
           searchParams.append(key, value.join(','));
         } else {
-          searchParams.append(
-            key,
-            typeof value === 'object' ? JSON.stringify(value) : String(value)
-          );
+          searchParams.append(key, String(value));
         }
       }
     });
@@ -405,7 +400,7 @@ export class MediaServerClient {
   async get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T | undefined> {
     let url = endpoint;
     if (params) {
-      const queryString = this.buildQueryString(params, true);
+      const queryString = this.buildQueryString(params);
       if (queryString) url += `?${queryString}`;
     }
     return this.request<T>(url, { method: 'GET' });

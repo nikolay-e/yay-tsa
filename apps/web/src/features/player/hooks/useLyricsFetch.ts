@@ -57,7 +57,7 @@ export function useLyricsFetch(): UseLyricsFetchResult {
 
     const id = currentTrack.Id;
     const timer = setTimeout(() => {
-      void doFetch(id, client);
+      doFetch(id, client).catch(() => {});
     }, 300);
 
     return () => clearTimeout(timer);
@@ -66,7 +66,7 @@ export function useLyricsFetch(): UseLyricsFetchResult {
   const handleFetch = useCallback(() => {
     const c = clientRef.current;
     if (!c || !currentTrack) return;
-    void doFetch(currentTrack.Id, c);
+    doFetch(currentTrack.Id, c).catch(() => {});
   }, [currentTrack, doFetch]);
 
   return { isFetching, fetchError, handleFetch };

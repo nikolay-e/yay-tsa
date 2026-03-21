@@ -328,11 +328,10 @@ export function PlayerBar() {
   });
 
   const karaokeProcessing = karaokeEnabled && karaokeStatus?.state === 'PROCESSING';
-  const karaokeClass = isKaraokeMode
-    ? 'text-accent'
-    : karaokeProcessing
-      ? 'text-accent animate-pulse'
-      : 'text-text-secondary hover:text-text-primary';
+  let karaokeClass: string;
+  if (isKaraokeMode) karaokeClass = 'text-accent';
+  else if (karaokeProcessing) karaokeClass = 'text-accent animate-pulse';
+  else karaokeClass = 'text-text-secondary hover:text-text-primary';
   const karaokeNonProcessingLabel = isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode';
   const karaokeAriaLabel =
     karaokeStatus?.state === 'PROCESSING' ? 'Cancel karaoke processing' : karaokeNonProcessingLabel;
@@ -366,12 +365,11 @@ export function PlayerBar() {
             {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
           </p>
         </div>
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
-        <div
+        <span
           className="flex shrink-0 items-center gap-1"
-          role="group"
           onClick={e => e.stopPropagation()}
           onKeyDown={e => e.stopPropagation()}
+          role="presentation"
         >
           <FavoriteButton
             itemId={currentTrack.Id}
@@ -389,7 +387,7 @@ export function PlayerBar() {
               <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
             )}
           </button>
-        </div>
+        </span>
       </button>
 
       <div className="mx-auto hidden max-w-7xl items-center gap-4 p-2 px-4 md:flex">

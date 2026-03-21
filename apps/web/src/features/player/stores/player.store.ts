@@ -86,6 +86,10 @@ const wakeLock = new WakeLockManager();
 let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
 const karaokeFailedTrackIds = new Set<string>();
 
+function isRetryableTimeout(error: unknown, retryCount: number): boolean {
+  return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
+}
+
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
   try {
@@ -398,10 +402,6 @@ export const usePlayerStore = create<PlayerStore>()(
       if (get().karaokeEnabled) {
         void syncKaraokeForTrack(track, signal);
       }
-    }
-
-    function isRetryableTimeout(error: unknown, retryCount: number): boolean {
-      return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
     }
 
     async function handleLoadError(
