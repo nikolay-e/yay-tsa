@@ -222,15 +222,21 @@ public class KaraokeService {
   }
 
   private boolean validateStemFilesExist(AudioTrackEntity track) {
-    if (track.getInstrumentalPath() == null || track.getVocalPath() == null) {
+    if (track.getInstrumentalPath() == null || track.getInstrumentalPath().isEmpty()) {
       return false;
     }
     Path instrumentalPath = Paths.get(track.getInstrumentalPath()).toAbsolutePath().normalize();
-    Path vocalPath = Paths.get(track.getVocalPath()).toAbsolutePath().normalize();
-    return isStemPathSafe(instrumentalPath)
-        && Files.exists(instrumentalPath)
-        && isStemPathSafe(vocalPath)
-        && Files.exists(vocalPath);
+    if (!isStemPathSafe(instrumentalPath) || !Files.exists(instrumentalPath)) {
+      return false;
+    }
+    String vocalPathStr = track.getVocalPath();
+    if (vocalPathStr != null && !vocalPathStr.isEmpty()) {
+      Path vocalPath = Paths.get(vocalPathStr).toAbsolutePath().normalize();
+      if (!isStemPathSafe(vocalPath) || !Files.exists(vocalPath)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private void resetKaraokeState(AudioTrackEntity track, String reason) {

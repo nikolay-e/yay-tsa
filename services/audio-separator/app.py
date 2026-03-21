@@ -214,7 +214,6 @@ def _classify_stems(stem_files: list[Path]) -> tuple[Path | None, list[Path]]:
             vocal_stem = stem
         elif "instrumental" in name_lower or "no_vocals" in name_lower:
             instrumental_stems = [stem]
-            break
         else:
             instrumental_stems.append(stem)
     return vocal_stem, instrumental_stems
@@ -268,7 +267,7 @@ def _finalize_vocal(vocal_stem: Path | None, song_name: str, karaoke_dir: Path) 
 
 
 def _cleanup_leftover_stems(karaoke_dir: Path, keep_names: list[str]):
-    for leftover in karaoke_dir.glob(f"*_{MODEL_STEM_SUFFIX}.{OUTPUT_FORMAT}"):
+    for leftover in karaoke_dir.glob(f"*.{OUTPUT_FORMAT}"):
         if leftover.name not in keep_names:
             leftover.unlink(missing_ok=True)
             log.info(f"Cleaned up leftover stem: {leftover}")
