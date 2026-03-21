@@ -29,6 +29,8 @@ export const LyricsScroller = memo(function LyricsScroller({
     const container = containerRef.current;
     if (!container) return;
 
+    let initialized = false;
+
     const unsubscribe = useTimingStore.subscribe(state => {
       const currentLines = linesRef.current;
       if (currentLines.length === 0) return;
@@ -59,7 +61,12 @@ export const LyricsScroller = memo(function LyricsScroller({
         }
       }
 
-      container.scrollTop = target;
+      if (!initialized) {
+        container.scrollTop = target;
+        initialized = true;
+      } else {
+        container.scrollTop += (target - container.scrollTop) * 0.12;
+      }
     });
 
     return unsubscribe;
