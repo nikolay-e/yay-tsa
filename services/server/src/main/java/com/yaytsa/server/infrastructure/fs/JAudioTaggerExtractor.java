@@ -37,7 +37,7 @@ public class JAudioTaggerExtractor {
 
       String title = repairField(getTagValue(tag, FieldKey.TITLE));
       if (title == null || title.isBlank()) {
-        title = PathUtils.getFilenameWithoutExtension(filePath);
+        title = stripTrackNumberPrefix(PathUtils.getFilenameWithoutExtension(filePath));
       }
 
       String artist = repairField(getTagValue(tag, FieldKey.ARTIST));
@@ -244,5 +244,14 @@ public class JAudioTaggerExtractor {
       log.trace("CP1251 repair failed for: {}", text);
     }
     return text;
+  }
+
+  private static final java.util.regex.Pattern TRACK_NUMBER_PREFIX =
+      java.util.regex.Pattern.compile("^\\d{1,3}\\s*[-–—.]\\s*");
+
+  private static String stripTrackNumberPrefix(String filename) {
+    if (filename == null) return null;
+    String stripped = TRACK_NUMBER_PREFIX.matcher(filename).replaceFirst("");
+    return stripped.isBlank() ? filename : stripped;
   }
 }
