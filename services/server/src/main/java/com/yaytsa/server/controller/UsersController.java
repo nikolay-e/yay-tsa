@@ -1,6 +1,7 @@
 package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ItemService;
+import com.yaytsa.server.domain.service.LyricsService;
 import com.yaytsa.server.domain.service.PlayStateService;
 import com.yaytsa.server.domain.service.UserService;
 import com.yaytsa.server.dto.response.BaseItemResponse;
@@ -38,6 +39,7 @@ public class UsersController {
 
   private final UserService userService;
   private final ItemService itemService;
+  private final LyricsService lyricsService;
   private final PlayStateService playStateService;
   private final UserMapper userMapper;
   private final ItemMapper itemMapper;
@@ -47,6 +49,7 @@ public class UsersController {
   public UsersController(
       UserService userService,
       ItemService itemService,
+      LyricsService lyricsService,
       PlayStateService playStateService,
       UserMapper userMapper,
       ItemMapper itemMapper,
@@ -54,6 +57,7 @@ public class UsersController {
       AlbumRepository albumRepository) {
     this.userService = userService;
     this.itemService = itemService;
+    this.lyricsService = lyricsService;
     this.playStateService = playStateService;
     this.userMapper = userMapper;
     this.itemMapper = itemMapper;
@@ -234,7 +238,8 @@ public class UsersController {
       album = albumRepository.findByIdWithArtist(itemUuid);
     }
 
-    BaseItemResponse itemDto = itemMapper.toDto(item, playState, audioTrack, album);
+    String lyrics = (audioTrack != null) ? lyricsService.getLyrics(audioTrack) : null;
+    BaseItemResponse itemDto = itemMapper.toDto(item, playState, audioTrack, album, null, lyrics);
 
     return ResponseEntity.ok(itemDto);
   }
@@ -387,6 +392,11 @@ public class UsersController {
             : albumRepository.findAllByIdInWithArtist(allAlbumIds).stream()
                 .collect(Collectors.toMap(AlbumEntity::getItemId, Function.identity()));
 
+    Map<UUID, String> lyricsMap =
+        audioTracksMap.isEmpty()
+            ? Map.of()
+            : lyricsService.getLyricsForTracks(audioTracksMap.values());
+
     return items.stream()
         .map(
             item -> {
@@ -400,7 +410,8 @@ public class UsersController {
                 album = albumsMap.get(item.getId());
               }
 
-              return itemMapper.toDto(item, playState, audioTrack, album);
+              return itemMapper.toDto(
+                  item, playState, audioTrack, album, null, lyricsMap.get(item.getId()));
             })
         .toList();
   }

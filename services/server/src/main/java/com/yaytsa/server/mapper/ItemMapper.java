@@ -1,9 +1,7 @@
 package com.yaytsa.server.mapper;
 
-import com.yaytsa.server.domain.service.LyricsService;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
-import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -12,21 +10,14 @@ import org.springframework.stereotype.Component;
 public class ItemMapper {
 
   private static final long TICKS_PER_MILLISECOND = 10_000L;
-  private final LyricsService lyricsService;
-  private final AlbumRepository albumRepository;
-
-  public ItemMapper(LyricsService lyricsService, AlbumRepository albumRepository) {
-    this.lyricsService = lyricsService;
-    this.albumRepository = albumRepository;
-  }
 
   public BaseItemResponse toDto(ItemEntity item, PlayStateEntity playState) {
-    return toDto(item, playState, null, null, null);
+    return toDto(item, playState, null, null, null, null);
   }
 
   public BaseItemResponse toDto(
       ItemEntity item, PlayStateEntity playState, AudioTrackEntity audioTrack, AlbumEntity album) {
-    return toDto(item, playState, audioTrack, album, null);
+    return toDto(item, playState, audioTrack, album, null, null);
   }
 
   public BaseItemResponse toDto(
@@ -35,6 +26,16 @@ public class ItemMapper {
       AudioTrackEntity audioTrack,
       AlbumEntity album,
       Integer childCount) {
+    return toDto(item, playState, audioTrack, album, childCount, null);
+  }
+
+  public BaseItemResponse toDto(
+      ItemEntity item,
+      PlayStateEntity playState,
+      AudioTrackEntity audioTrack,
+      AlbumEntity album,
+      Integer childCount,
+      String lyrics) {
     String type = mapItemType(item.getType());
     BaseItemResponse.UserItemDataDto userData = playState != null ? mapUserData(playState) : null;
 
@@ -80,7 +81,7 @@ public class ItemMapper {
       builder
           .indexNumber(audioTrack.getTrackNumber())
           .parentIndexNumber(audioTrack.getDiscNumber())
-          .lyrics(lyricsService.getLyrics(audioTrack))
+          .lyrics(lyrics)
           .normalizationGain(audioTrack.getReplaygainTrackGain());
 
       if (audioTrack.getAlbum() != null) {
@@ -118,15 +119,9 @@ public class ItemMapper {
       builder.childCount(childCount);
     }
 
-    if (item.getType() == ItemType.MusicAlbum) {
-      AlbumEntity albumToUse = album;
-      if (albumToUse == null) {
-        albumToUse = albumRepository.findById(item.getId()).orElse(null);
-      }
-      if (albumToUse != null) {
-        builder.isComplete(albumToUse.getIsComplete());
-        builder.totalTracks(albumToUse.getTotalTracks());
-      }
+    if (item.getType() == ItemType.MusicAlbum && album != null) {
+      builder.isComplete(album.getIsComplete());
+      builder.totalTracks(album.getTotalTracks());
     }
 
     return builder.build();

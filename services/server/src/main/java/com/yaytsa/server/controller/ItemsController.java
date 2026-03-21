@@ -1,6 +1,7 @@
 package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.ItemService;
+import com.yaytsa.server.domain.service.LyricsService;
 import com.yaytsa.server.domain.service.PlayStateService;
 import com.yaytsa.server.domain.service.PlaylistService;
 import com.yaytsa.server.dto.request.ReorderFavoritesRequest;
@@ -36,6 +37,7 @@ public class ItemsController {
   private static final int MAX_PAGE_SIZE = 1000;
 
   private final ItemService itemService;
+  private final LyricsService lyricsService;
   private final PlayStateService playStateService;
   private final PlaylistService playlistService;
   private final ItemMapper itemMapper;
@@ -44,12 +46,14 @@ public class ItemsController {
 
   public ItemsController(
       ItemService itemService,
+      LyricsService lyricsService,
       PlayStateService playStateService,
       PlaylistService playlistService,
       ItemMapper itemMapper,
       AudioTrackRepository audioTrackRepository,
       AlbumRepository albumRepository) {
     this.itemService = itemService;
+    this.lyricsService = lyricsService;
     this.playStateService = playStateService;
     this.playlistService = playlistService;
     this.itemMapper = itemMapper;
@@ -206,6 +210,11 @@ public class ItemsController {
             : audioTrackRepository.findAllByIdInWithRelations(trackIds).stream()
                 .collect(Collectors.toMap(at -> at.getItemId(), at -> at));
 
+    Map<UUID, String> lyricsMap =
+        audioTrackMap.isEmpty()
+            ? Collections.emptyMap()
+            : lyricsService.getLyricsForTracks(audioTrackMap.values());
+
     List<UUID> albumItemIds =
         items.stream()
             .filter(i -> i.getType() == ItemType.MusicAlbum)
@@ -244,7 +253,8 @@ public class ItemsController {
                         audioTrackMap.get(item.getId()),
                         albumMap.get(item.getId()),
                         trackCountByAlbum.get(item.getId()),
-                        albumCountByArtist.get(item.getId())))
+                        albumCountByArtist.get(item.getId()),
+                        lyricsMap.get(item.getId())))
             .collect(Collectors.toList());
 
     QueryResultResponse<BaseItemResponse> result =
@@ -326,19 +336,31 @@ public class ItemsController {
 
     List<AudioTrackEntity> tracks = itemService.getAlbumTracks(albumUuid);
 
+    List<AudioTrackEntity> paginatedTracks = tracks.stream().skip(startIndex).limit(limit).toList();
+
+    List<UUID> trackItemIds = paginatedTracks.stream().map(AudioTrackEntity::getItemId).toList();
+
+    Map<UUID, PlayStateEntity> playStateMap =
+        (userUuid != null && !trackItemIds.isEmpty())
+            ? playStateService.getPlayStatesForItems(userUuid, trackItemIds)
+            : Collections.emptyMap();
+
+    Map<UUID, String> lyricsMap =
+        paginatedTracks.isEmpty()
+            ? Collections.emptyMap()
+            : lyricsService.getLyricsForTracks(paginatedTracks);
+
     List<BaseItemResponse> dtos =
-        tracks.stream()
-            .skip(startIndex)
-            .limit(limit)
+        paginatedTracks.stream()
             .map(
-                track -> {
-                  PlayStateEntity playState = null;
-                  if (userUuid != null) {
-                    playState =
-                        playStateService.getPlayState(userUuid, track.getItemId()).orElse(null);
-                  }
-                  return itemMapper.toDto(track.getItem(), playState, track, null);
-                })
+                track ->
+                    itemMapper.toDto(
+                        track.getItem(),
+                        playStateMap.get(track.getItemId()),
+                        track,
+                        null,
+                        null,
+                        lyricsMap.get(track.getItemId())))
             .collect(Collectors.toList());
 
     QueryResultResponse<BaseItemResponse> result =
@@ -540,14 +562,15 @@ public class ItemsController {
       AudioTrackEntity audioTrack,
       AlbumEntity album,
       Long trackCount,
-      Long albumCount) {
+      Long albumCount,
+      String lyrics) {
     Integer childCount = null;
     if (item.getType() == ItemType.MusicAlbum && trackCount != null) {
       childCount = trackCount.intValue();
     } else if (item.getType() == ItemType.MusicArtist && albumCount != null) {
       childCount = albumCount.intValue();
     }
-    return itemMapper.toDto(item, playState, audioTrack, album, childCount);
+    return itemMapper.toDto(item, playState, audioTrack, album, childCount, lyrics);
   }
 
   private BaseItemResponse convertToDto(ItemEntity item, UUID userId, boolean enableUserData) {
@@ -559,9 +582,13 @@ public class ItemsController {
     AudioTrackEntity audioTrack = null;
     AlbumEntity album = null;
     Integer childCount = null;
+    String lyrics = null;
 
     if (item.getType() == ItemType.AudioTrack) {
       audioTrack = audioTrackRepository.findById(item.getId()).orElse(null);
+      if (audioTrack != null) {
+        lyrics = lyricsService.getLyrics(audioTrack);
+      }
     } else if (item.getType() == ItemType.MusicAlbum) {
       album = albumRepository.findByIdWithArtist(item.getId());
       childCount = (int) audioTrackRepository.countByAlbumId(item.getId());
@@ -569,6 +596,6 @@ public class ItemsController {
       childCount = (int) albumRepository.countByArtistId(item.getId());
     }
 
-    return itemMapper.toDto(item, playState, audioTrack, album, childCount);
+    return itemMapper.toDto(item, playState, audioTrack, album, childCount, lyrics);
   }
 }

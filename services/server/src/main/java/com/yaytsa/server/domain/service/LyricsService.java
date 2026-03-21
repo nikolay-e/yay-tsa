@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,22 +31,36 @@ public class LyricsService {
   }
 
   public String getLyrics(AudioTrackEntity track) {
-    String diskLyrics = readLyricsFromDisk(track.getItemId());
+    ItemEntity item = track.getItem();
+    if (item == null) {
+      item = itemRepository.findById(track.getItemId()).orElse(null);
+    }
+    String diskLyrics = readLyricsFromDisk(item);
     if (diskLyrics != null) {
       return diskLyrics;
     }
     return track.getLyrics();
   }
 
-  private String readLyricsFromDisk(UUID trackId) {
-    ItemEntity item = itemRepository.findById(trackId).orElse(null);
+  public Map<UUID, String> getLyricsForTracks(Collection<AudioTrackEntity> tracks) {
+    Map<UUID, String> result = new HashMap<>();
+    for (AudioTrackEntity track : tracks) {
+      String lyrics = getLyrics(track);
+      if (lyrics != null) {
+        result.put(track.getItemId(), lyrics);
+      }
+    }
+    return result;
+  }
+
+  private String readLyricsFromDisk(ItemEntity item) {
     if (item == null || item.getPath() == null) {
       return null;
     }
 
     Path audioFilePath = Paths.get(item.getPath());
     if (!isPathSafe(audioFilePath)) {
-      log.warn("Path traversal attempt detected for track {}: {}", trackId, audioFilePath);
+      log.warn("Path traversal attempt detected for track {}: {}", item.getId(), audioFilePath);
       return null;
     }
 

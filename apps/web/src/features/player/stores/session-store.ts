@@ -128,6 +128,9 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     if (!service || restoreInProgress) return;
 
     restoreInProgress = true;
+    const safetyTimer = setTimeout(() => {
+      restoreInProgress = false;
+    }, 10_000);
     set({ isStarting: true, error: null });
     try {
       const session = await service.getActiveSession();
@@ -153,6 +156,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
         error: error instanceof Error ? error : new Error(String(error)),
       });
     } finally {
+      clearTimeout(safetyTimer);
       restoreInProgress = false;
     }
   },

@@ -187,7 +187,7 @@ export class ItemsService extends BaseService {
     if (ids.length <= BATCH_SIZE) {
       const result = await this.queryItems<AudioItem>({
         Ids: ids,
-        Fields: ['Genres'],
+        Fields: ['Genres', 'MediaSources'],
       });
       return result.Items ?? [];
     }
@@ -196,7 +196,9 @@ export class ItemsService extends BaseService {
       batches.push(ids.slice(i, i + BATCH_SIZE));
     }
     const results = await Promise.all(
-      batches.map(async batch => this.queryItems<AudioItem>({ Ids: batch, Fields: ['Genres'] }))
+      batches.map(async batch =>
+        this.queryItems<AudioItem>({ Ids: batch, Fields: ['Genres', 'MediaSources'] })
+      )
     );
     return results.flatMap(r => r.Items ?? []);
   }
@@ -274,6 +276,7 @@ export class ItemsService extends BaseService {
   async getRecentAlbums(limit?: number): Promise<ItemsResult<MusicAlbum>> {
     return this.getAlbums({
       sortBy: 'DateCreated',
+      sortOrder: 'Descending',
       limit,
     });
   }
@@ -287,6 +290,7 @@ export class ItemsService extends BaseService {
     const params: Record<string, string | number | boolean> = {
       userId,
       IncludeItemTypes: 'MusicAlbum',
+      Recursive: true,
       SortBy: 'DatePlayed',
       SortOrder: 'Descending',
       enableUserData: true,

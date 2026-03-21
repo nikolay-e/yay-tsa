@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
@@ -247,9 +248,19 @@ public class KaraokeController {
       log.debug("X-Accel-Redirect karaoke file to: {}", redirectPath);
     } else {
       response.setStatus(HttpServletResponse.SC_OK);
-      try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
+      try (FileChannel fileChannel =
+              FileChannel.open(filePath, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
           OutputStream outputStream = response.getOutputStream()) {
-        fileChannel.transferTo(0, fileSize, Channels.newChannel(outputStream));
+        long position = 0;
+        long size = fileChannel.size();
+        var target = Channels.newChannel(outputStream);
+        while (position < size) {
+          long transferred = fileChannel.transferTo(position, size - position, target);
+          if (transferred <= 0) {
+            break;
+          }
+          position += transferred;
+        }
       }
     }
   }

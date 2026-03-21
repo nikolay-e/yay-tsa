@@ -289,17 +289,26 @@ public class PlaylistsController {
     Page<PlaylistEntryEntity> page =
         playlistService.getPlaylistItems(playlistUuid, validStartIndex, validLimit);
 
+    List<UUID> entryItemIds =
+        page.getContent().stream().map(PlaylistEntryEntity::getItemId).toList();
+
+    Map<UUID, ItemEntity> itemEntityMap =
+        entryItemIds.isEmpty()
+            ? Collections.emptyMap()
+            : itemService.findAllByIds(entryItemIds).stream()
+                .collect(Collectors.toMap(ItemEntity::getId, i -> i));
+
     List<Map<String, Object>> items =
         page.getContent().stream()
             .flatMap(
                 entry -> {
-                  Optional<ItemEntity> itemEntity = itemService.findById(entry.getItemId());
-                  if (itemEntity.isEmpty()) {
+                  ItemEntity itemEntity = itemEntityMap.get(entry.getItemId());
+                  if (itemEntity == null) {
                     return java.util.stream.Stream.empty();
                   }
                   Map<String, Object> item = new HashMap<>();
                   item.put("PlaylistItemId", entry.getId().toString());
-                  BaseItemResponse dto = itemMapper.toDto(itemEntity.get(), null);
+                  BaseItemResponse dto = itemMapper.toDto(itemEntity, null);
                   item.put("Id", dto.id());
                   item.put("Name", dto.name());
                   item.put("Type", dto.type());

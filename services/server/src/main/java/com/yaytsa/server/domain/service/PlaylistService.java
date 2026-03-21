@@ -108,7 +108,13 @@ public class PlaylistService {
   }
 
   public void removeItemsFromPlaylist(UUID playlistId, List<UUID> entryIds) {
-    playlistEntryRepository.deleteAllById(entryIds);
+    List<PlaylistEntryEntity> entries = playlistEntryRepository.findAllById(entryIds);
+    for (PlaylistEntryEntity entry : entries) {
+      if (!entry.getPlaylistId().equals(playlistId)) {
+        throw new IllegalArgumentException("Entry does not belong to this playlist");
+      }
+    }
+    playlistEntryRepository.deleteAll(entries);
     reorderPlaylistEntries(playlistId);
   }
 

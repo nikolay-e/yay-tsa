@@ -104,9 +104,10 @@ export class MediaServerClient {
   }
 
   /**
-   * Set callback for global 401/403 authentication errors
+   * Set callback for global 401 authentication errors
    * This callback will be invoked before throwing AuthenticationError
    * Use this for auto-logout or redirecting to login page
+   * Note: 403 (forbidden) does NOT trigger this callback
    */
   setAuthErrorCallback(callback: () => void): void {
     this.authErrorCallback = callback;
@@ -377,8 +378,7 @@ export class MediaServerClient {
       response.statusText ??
       'Request failed';
 
-    if (response.status === 401 || response.status === 403) {
-      // Invoke global auth error callback (e.g., auto-logout) before throwing
+    if (response.status === 401) {
       if (this.authErrorCallback) {
         try {
           this.authErrorCallback();
@@ -387,6 +387,10 @@ export class MediaServerClient {
         }
       }
 
+      throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
+    }
+
+    if (response.status === 403) {
       throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
     }
 

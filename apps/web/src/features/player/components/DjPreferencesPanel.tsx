@@ -66,6 +66,7 @@ export function DjPreferencesPanel() {
   const [searchResults, setSearchResults] = useState<RecommendedTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const mountedRef = useRef(true);
 
   const handleEnqueue = useCallback(
     async (trackId: string) => {
@@ -97,11 +98,11 @@ export function DjPreferencesPanel() {
         try {
           const service = new AdaptiveDjService(client);
           const results = await service.searchByText(query.trim(), 10);
-          setSearchResults(results);
+          if (mountedRef.current) setSearchResults(results);
         } catch {
-          setSearchResults([]);
+          if (mountedRef.current) setSearchResults([]);
         } finally {
-          setIsSearching(false);
+          if (mountedRef.current) setIsSearching(false);
         }
       }, 400);
     },
@@ -110,6 +111,7 @@ export function DjPreferencesPanel() {
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
       if (searchTimeout.current) clearTimeout(searchTimeout.current);
     };
   }, []);

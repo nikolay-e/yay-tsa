@@ -105,7 +105,7 @@ export class PlaylistsService extends BaseService {
     const userId = this.requireAuth();
 
     const idsParam = itemIds.join(',');
-    const url = `/Playlists/${playlistId}/Items?Ids=${encodeURIComponent(idsParam)}&UserId=${userId}`;
+    const url = `/Playlists/${playlistId}/Items?Ids=${idsParam}&UserId=${userId}`;
 
     await this.client.post(url);
   }
@@ -118,7 +118,7 @@ export class PlaylistsService extends BaseService {
     this.requireAuth();
 
     const entryIdsParam = entryIds.join(',');
-    const url = `/Playlists/${playlistId}/Items?EntryIds=${encodeURIComponent(entryIdsParam)}`;
+    const url = `/Playlists/${playlistId}/Items?EntryIds=${entryIdsParam}`;
 
     await this.client.delete(url);
   }

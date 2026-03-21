@@ -64,7 +64,6 @@ public class StreamingService {
 
   private record ResolvedFile(Path filePath, String container) {}
 
-  @Transactional(readOnly = true)
   public void streamAudio(UUID itemId, String rangeHeader, HttpServletResponse response)
       throws IOException {
 

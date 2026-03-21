@@ -380,7 +380,11 @@ export const usePlayerStore = create<PlayerStore>()(
 
     // --- Core playback commands ---
 
-    async function loadAndPlay(track: AudioItem, signal: AbortSignal): Promise<void> {
+    async function loadAndPlay(
+      track: AudioItem,
+      signal: AbortSignal,
+      retryCount = 0
+    ): Promise<void> {
       if (!currentClient) throw new Error('Not authenticated');
 
       set({
@@ -426,7 +430,7 @@ export const usePlayerStore = create<PlayerStore>()(
       } catch (error) {
         if (signal.aborted) return;
         const isEngineTimeout = error instanceof Error && error.message.includes('Engine timeout');
-        if (isEngineTimeout && consecutiveLoadFailures < 2) {
+        if (isEngineTimeout && retryCount < 1) {
           log.player.warn('Engine timeout on load, retrying once after delay', {
             trackId: track.Id,
           });
@@ -434,7 +438,7 @@ export const usePlayerStore = create<PlayerStore>()(
             setTimeout(resolve, 2000);
           });
           if (!signal.aborted) {
-            return loadAndPlay(track, signal);
+            return loadAndPlay(track, signal, retryCount + 1);
           }
           return;
         }
@@ -487,6 +491,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
       // --- Commit: state matches engine reality ---
       set({ currentTrack: track, isPlaying: true, isLoading: false, error: null });
+      consecutiveLoadFailures = 0;
       useTimingStore.getState().updateTiming(0, result.duration);
 
       // --- Side effects ---

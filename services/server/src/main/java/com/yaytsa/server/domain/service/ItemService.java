@@ -5,6 +5,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.query.ItemSpecifications;
+import com.yaytsa.server.infrastructure.persistence.query.OffsetBasedPageRequest;
 import com.yaytsa.server.infrastructure.persistence.repository.AlbumRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
@@ -104,7 +105,7 @@ public class ItemService {
     }
 
     Sort sort = buildSort(params.sortBy(), params.sortOrder());
-    Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit(), sort);
+    Pageable pageable = new OffsetBasedPageRequest(params.startIndex(), params.limit(), sort);
 
     if ("Random".equals(params.sortBy())) {
       return itemRepository.findAllRandomized(spec, pageable);

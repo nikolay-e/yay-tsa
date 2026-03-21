@@ -228,11 +228,12 @@ export function PlayerBar() {
       return;
     }
 
-    let es = new EventSource(sseUrl);
     let closed = false;
     let reconnectAttempts = 0;
     const MAX_RECONNECTS = 3;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let currentEs: EventSource | null = null;
 
     const onMessage = (event: MessageEvent) => {
       try {
@@ -243,14 +244,14 @@ export function PlayerBar() {
           .catch(() => {});
         if (data.state === 'READY' || data.state === 'FAILED') {
           closed = true;
-          es.close();
+          currentEs?.close();
+          currentEs = null;
         }
       } catch {
         // ignore malformed events
       }
     };
 
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
     const pollKaraokeStatus = () => {
       usePlayerStore
         .getState()
@@ -259,7 +260,8 @@ export function PlayerBar() {
     };
 
     const onError = () => {
-      es.close();
+      currentEs?.close();
+      currentEs = null;
       if (closed) return;
       if (reconnectAttempts >= MAX_RECONNECTS) {
         pollInterval = setInterval(pollKaraokeStatus, 5000);
@@ -268,20 +270,24 @@ export function PlayerBar() {
       reconnectAttempts++;
       reconnectTimer = setTimeout(() => {
         if (closed) return;
-        es = new EventSource(sseUrl);
+        const es = new EventSource(sseUrl);
         es.onmessage = onMessage;
         es.onerror = onError;
+        currentEs = es;
       }, 2000 * reconnectAttempts);
     };
 
+    const es = new EventSource(sseUrl);
     es.onmessage = onMessage;
     es.onerror = onError;
+    currentEs = es;
 
     return () => {
       closed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (pollInterval) clearInterval(pollInterval);
-      es.close();
+      currentEs?.close();
+      currentEs = null;
     };
   }, [karaokeStatus?.state, currentTrack?.Id]);
 
