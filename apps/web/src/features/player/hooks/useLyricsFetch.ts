@@ -23,42 +23,45 @@ export function useLyricsFetch(): UseLyricsFetchResult {
   const clientRef = useRef(client);
   clientRef.current = client;
 
+  const trackId = currentTrack?.Id;
+  const trackLyrics = currentTrack?.Lyrics;
+
   useEffect(() => {
     setIsFetching(false);
     setFetchError(null);
-  }, [currentTrack?.Id]);
+  }, [trackId]);
 
-  const doFetch = useCallback(async (trackId: string, apiClient: MediaServerClient) => {
+  const doFetch = useCallback(async (id: string, apiClient: MediaServerClient) => {
     setIsFetching(true);
     setFetchError(null);
     try {
-      const result = await apiClient.fetchLyrics(trackId);
-      if (isStaleTrack(trackId)) return;
+      const result = await apiClient.fetchLyrics(id);
+      if (isStaleTrack(id)) return;
       if (result.found && result.lyrics) {
         usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
       } else {
         setFetchError('not_found');
       }
     } catch {
-      if (isStaleTrack(trackId)) return;
+      if (isStaleTrack(id)) return;
       setFetchError('Lyrics service unavailable');
     } finally {
-      if (!isStaleTrack(trackId)) {
+      if (!isStaleTrack(id)) {
         setIsFetching(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    if (!currentTrack || !client || hasLyrics || currentTrack.Lyrics) return;
+    if (!currentTrack || !client || hasLyrics || trackLyrics) return;
 
-    const trackId = currentTrack.Id;
+    const id = currentTrack.Id;
     const timer = setTimeout(() => {
-      void doFetch(trackId, client);
+      void doFetch(id, client);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [currentTrack?.Id, currentTrack?.Lyrics, client, hasLyrics, doFetch]);
+  }, [trackId, trackLyrics, client, hasLyrics, doFetch, currentTrack]);
 
   const handleFetch = useCallback(() => {
     const c = clientRef.current;

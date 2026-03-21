@@ -332,11 +332,8 @@ export function PlayerBar() {
       : isKaraokeMode
         ? 'Disable karaoke mode'
         : 'Enable karaoke mode';
-  const karaokeAriaPressed: boolean | 'mixed' = isKaraokeMode
-    ? true
-    : karaokeEnabled
-      ? 'mixed'
-      : false;
+  const karaokeAriaPressed = isKaraokeMode || karaokeEnabled;
+  const karaokeAriaBusy = karaokeStatus?.state === 'PROCESSING';
 
   return (
     <div
@@ -451,6 +448,7 @@ export function PlayerBar() {
             )}
             aria-label={karaokeAriaLabel}
             aria-pressed={karaokeAriaPressed}
+            aria-busy={karaokeAriaBusy}
             title={(() => {
               if (isLoading) return 'Wait for track to load';
               if (karaokeStatus?.state === 'PROCESSING')
