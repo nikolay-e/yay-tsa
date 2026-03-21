@@ -42,6 +42,11 @@ RUN set -ex; \
       pip3 install --no-cache-dir --break-system-packages -r requirements/${VARIANT}.txt; \
     fi
 
+# Patch audio-separator for PyTorch 2.10+ (torch.load weights_only default changed)
+RUN find / -path "*/audio_separator/separator/roformer/roformer_loader.py" -exec \
+    sed -i 's/torch\.load(model_path, map_location=device)/torch.load(model_path, map_location=device, weights_only=False)/g; s/torch\.load(model_path, map_location=.cpu.)/torch.load(model_path, map_location="cpu", weights_only=False)/g' {} + \
+    2>/dev/null || true
+
 COPY scripts/ scripts/
 RUN if [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" != "arm64" ]; then \
       bash scripts/download_models.sh /app/models || \
