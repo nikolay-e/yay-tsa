@@ -208,9 +208,13 @@ public class JAudioTaggerExtractor {
 
   private static boolean isGarbledText(String text) {
     if (text == null || text.isBlank()) return false;
+    long nonWhitespace = text.chars().filter(c -> !Character.isWhitespace(c)).count();
+    if (nonWhitespace == 0) return false;
+    long hashCount = text.chars().filter(c -> c == '#').count();
+    if (hashCount > nonWhitespace / 2) return true;
     long nonAscii = text.chars().filter(c -> c > 127).count();
     if (nonAscii == 0) return false;
-    long garbled = text.chars().filter(c -> c == 0xFFFD || c == '#' || c == '?').count();
+    long garbled = text.chars().filter(c -> c == 0xFFFD || c == '?' || c == '#').count();
     return garbled > text.length() / 2;
   }
 
