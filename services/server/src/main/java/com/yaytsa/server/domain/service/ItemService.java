@@ -46,17 +46,21 @@ public class ItemService {
   }
 
   public Page<ItemEntity> queryItems(ItemsQueryParams params) {
-    if ("DatePlayed".equals(params.sortBy()) && params.userId() != null) {
+    boolean hasSearchTerm = params.searchTerm() != null && !params.searchTerm().isBlank();
+
+    if (!hasSearchTerm && "DatePlayed".equals(params.sortBy()) && params.userId() != null) {
       return queryRecentlyPlayed(params);
     }
 
-    if ("DateFavorited".equals(params.sortBy())
+    if (!hasSearchTerm
+        && "DateFavorited".equals(params.sortBy())
         && params.userId() != null
         && Boolean.TRUE.equals(params.isFavorite())) {
       return queryFavoritesByDate(params);
     }
 
-    if ("FavoritePosition".equals(params.sortBy())
+    if (!hasSearchTerm
+        && "FavoritePosition".equals(params.sortBy())
         && params.userId() != null
         && Boolean.TRUE.equals(params.isFavorite())) {
       return queryFavoritesByPosition(params);

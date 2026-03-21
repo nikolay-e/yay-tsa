@@ -2,6 +2,7 @@ package com.yaytsa.server.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.infrastructure.security.EmbyAuthFilter;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 import java.util.Map;
@@ -60,6 +61,7 @@ public class SecurityConfig {
                 exception
                     .authenticationEntryPoint(
                         (request, response, authException) -> {
+                          if (response.isCommitted()) return;
                           response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                           response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                           objectMapper.writeValue(
@@ -74,6 +76,7 @@ public class SecurityConfig {
                         })
                     .accessDeniedHandler(
                         (request, response, accessDeniedException) -> {
+                          if (response.isCommitted()) return;
                           response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                           response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                           objectMapper.writeValue(
@@ -103,7 +106,9 @@ public class SecurityConfig {
                         pp -> pp.policy("camera=(), microphone=(), geolocation=(), payment=()")))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(HttpMethod.OPTIONS, "/**")
+                auth.dispatcherTypeMatchers(DispatcherType.ASYNC)
+                    .permitAll()
+                    .requestMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
                     .requestMatchers("/error")
                     .permitAll()

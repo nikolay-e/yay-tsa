@@ -74,7 +74,7 @@ export const AlbumCard = memo(
               'bg-accent text-text-on-accent rounded-full shadow-lg',
               isPlaying
                 ? 'scale-100 opacity-100'
-                : 'scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100 max-md:scale-100 max-md:opacity-60',
+                : 'scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100',
               'transition-all duration-200',
               'hover:bg-accent-hover hover:scale-110',
               'focus-visible:ring-accent focus-visible:scale-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
