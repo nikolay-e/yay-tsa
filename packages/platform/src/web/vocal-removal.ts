@@ -93,7 +93,6 @@ export class VocalRemovalProcessor {
 
   private disconnectAll(): void {
     for (const node of [
-      this.inputNode,
       this.splitter,
       this.merger,
       this.highPassFilter,

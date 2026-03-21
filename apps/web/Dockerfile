@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM node:24-alpine AS base
+FROM --platform=$BUILDPLATFORM node:22-alpine AS base
 
 RUN apk add --no-cache bash git curl wget
 
@@ -58,6 +58,7 @@ CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/
 FROM nginx:1.28-alpine AS production
 
 COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY infra/nginx/security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/docker/entrypoint.sh /docker-entrypoint.sh
 

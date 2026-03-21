@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 CLAP_MODEL_ID = "laion/clap-htsat-fused"
 MERT_MODEL_ID = "m-a-p/MERT-v1-95M"
+MERT_REVISION = "12af15fef9d0ac838c3f475bfbbf26d2060dd4f5"
 
 CLAP_SAMPLE_RATE = 48000
 MERT_SAMPLE_RATE = 24000
@@ -73,11 +74,17 @@ class DualEmbeddingExtractor:
             from transformers import AutoModel, Wav2Vec2FeatureExtractor
 
             self._mert_model = AutoModel.from_pretrained(
-                MERT_MODEL_ID, cache_dir=self._cache_dir, trust_remote_code=True
+                MERT_MODEL_ID,
+                cache_dir=self._cache_dir,
+                trust_remote_code=True,
+                revision=MERT_REVISION,
             )
             self._mert_model.eval()
             self._mert_processor = Wav2Vec2FeatureExtractor.from_pretrained(
-                MERT_MODEL_ID, cache_dir=self._cache_dir, trust_remote_code=True
+                MERT_MODEL_ID,
+                cache_dir=self._cache_dir,
+                trust_remote_code=True,
+                revision=MERT_REVISION,
             )
 
             self._mert_initialized = True

@@ -35,7 +35,7 @@ export type {
 
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
-export { PlaybackState, PlaybackReporter } from './player/playback-state.js';
+export { PlaybackReporter } from './player/playback-state.js';
 
 // Lyrics modules
 export {
@@ -62,10 +62,6 @@ export {
   secondsToTicks,
   ticksToSeconds,
 } from './internal/config/constants.js';
-
-// Cache modules
-export { IndexedDBCache } from './cache/indexed-db-cache.js';
-export { ICache, CacheConfig, CacheEntry, TTL } from './cache/cache.interface.js';
 
 // Logging
 export {

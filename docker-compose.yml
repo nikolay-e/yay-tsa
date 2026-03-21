@@ -161,7 +161,7 @@ services:
       DEVICE: ${KARAOKE_DEVICE:-cpu}
       STEMS_OUTPUT_ROOT: /app/stems
     volumes:
-      - ${MEDIA_PATH:-./services/server/media}:/media:rw
+      - ${MEDIA_PATH:-./services/server/media}:/media:ro
       - karaoke_stems:/app/stems
     networks:
       - yay-tsa-network
@@ -194,6 +194,8 @@ services:
         VARIANT: essentia
     container_name: yay-tsa-feature-extractor
     restart: unless-stopped
+    profiles:
+      - feature-extractor
     environment:
       ESSENTIA_MODELS_DIR: /app/models
     ports:

@@ -239,13 +239,19 @@ test.describe('Sleep Timer and Background Playback', () => {
     // Wait for audio to be playing before checking RMS
     await playerBar.waitForAudioPlaying();
 
-    // Poll for RMS value to be available
+    // Poll for RMS value to be available via analyser node
     await expect(async () => {
       const rmsValue = await authenticatedPage.evaluate(() => {
         const player = (globalThis as any).__playerStore__;
         const audioEngine = player?.audioEngine;
         audioEngine?.getAudioContext?.();
-        return audioEngine?.getRMS?.() ?? -1;
+        const analyser = audioEngine?.analyser;
+        if (!analyser) return -1;
+        const dataArray = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(dataArray);
+        return Math.sqrt(
+          dataArray.reduce((sum: number, val: number) => sum + val * val, 0) / dataArray.length
+        );
       });
       expect(rmsValue).toBeGreaterThanOrEqual(0);
     }).toPass({ timeout: 5000 });

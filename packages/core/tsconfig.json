@@ -3,7 +3,7 @@
     "target": "ES2021",
     "module": "ESNext",
     "lib": ["ES2021", "DOM"],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "strict": true,
     "noUnusedLocals": true,

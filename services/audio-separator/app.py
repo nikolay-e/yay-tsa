@@ -6,11 +6,13 @@ import subprocess
 import threading
 import time
 import unicodedata
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import requests as http_requests
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -91,7 +93,17 @@ _http_session = _create_http_session()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    log.info(f"Model {MODEL_NAME} will be loaded on first request")
+    try:
+        from audio_separator.separator import Separator
+
+        log.info("Loading Separator model %s at startup", MODEL_NAME)
+        sep = Separator(output_format=OUTPUT_FORMAT)
+        sep.load_model(model_filename=MODEL_NAME)
+        _app.state.separator = sep
+        log.info("Separator model loaded successfully")
+    except Exception:
+        log.warning("audio-separator not installed or model load failed — separation disabled")
+        _app.state.separator = None
     yield
 
 
@@ -100,18 +112,12 @@ app = FastAPI(title="Audio Separator Service", version="2.0.0", lifespan=lifespa
 _separator_lock = threading.Lock()
 
 
-def create_separator(output_dir: str):
-    from audio_separator.separator import Separator
-
+def _reconfigure_and_separate(output_dir: str, input_path: str) -> list[str]:
+    sep = app.state.separator
     with _separator_lock:
-        log.info("Creating Separator with model %s, output_dir=%s", MODEL_NAME, repr(output_dir))
-        sep = Separator(
-            output_dir=output_dir,
-            output_format=OUTPUT_FORMAT,
-        )
-        sep.load_model(model_filename=MODEL_NAME)
-        log.info(f"Model loaded, output_dir confirmed: {sep.output_dir}")
-        return sep
+        sep.output_dir = output_dir
+        result: list[str] = sep.separate(input_path)
+        return result
 
 
 class SeparationRequest(BaseModel):
@@ -274,9 +280,18 @@ def _cleanup_leftover_stems(karaoke_dir: Path, keep_names: list[str]):
         500: {"description": ERR_INTERNAL},
     },
 )
-def separate_audio(request: SeparationRequest):
+async def separate_audio(request: SeparationRequest):
+    if app.state.separator is None:
+        raise HTTPException(status_code=503, detail="Audio separation not available")
+
     input_path = _validate_media_path(request.inputPath)
     track_id = request.trackId
+
+    try:
+        uuid.UUID(track_id)
+    except ValueError:
+        log.error("Invalid track_id format: %s", _sanitize(track_id))
+        raise HTTPException(status_code=400, detail="Invalid track_id") from None
 
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Input file not found: {input_path}")
@@ -301,10 +316,11 @@ def separate_audio(request: SeparationRequest):
 
     try:
         karaoke_dir.mkdir(parents=True, exist_ok=True)
-        sep = create_separator(str(karaoke_dir))
 
         log.info("Starting separation for track %s", _sanitize(track_id))
-        output_files = sep.separate(str(input_path))
+        output_files = await run_in_threadpool(
+            _reconfigure_and_separate, str(karaoke_dir), str(input_path)
+        )
         log.info(f"Separation returned: {output_files}")
 
         stem_files = _resolve_stem_files(output_files, karaoke_dir, start_time)

@@ -7,7 +7,7 @@ import { createLogger } from '@yay-tsa/core';
 
 const log = createLogger('MediaSession');
 
-export interface MediaMetadata {
+export interface TrackMetadata {
   title: string;
   artist: string;
   album: string;
@@ -40,7 +40,7 @@ export class MediaSessionManager {
   /**
    * Update media metadata (shown on lock screen, notifications, etc.)
    */
-  public updateMetadata(metadata: MediaMetadata): void {
+  public updateMetadata(metadata: TrackMetadata): void {
     if (!this.isSupported || !navigator.mediaSession) {
       return;
     }

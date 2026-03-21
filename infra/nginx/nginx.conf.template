@@ -85,9 +85,6 @@ http {
         # Runtime hashes computed at startup (__CSP_SCRIPT_HASHES__)
         # img-src/media-src use same domains as connect-src (backend serves images/audio)
         add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-        # HSTS header (only add if served over HTTPS via reverse proxy/ingress)
-        # Tells browsers to always use HTTPS for this site for 1 year
-        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
         # Health check endpoint for Docker/Kubernetes
         location = /health {
@@ -100,36 +97,21 @@ http {
         location /assets/ {
             expires 1y;
             add_header Cache-Control "public, immutable";
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # Workbox runtime - content-hashed, safe to cache forever
         location ~ ^/workbox-[a-f0-9]+\.js$ {
             expires 1y;
             add_header Cache-Control "public, immutable";
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # Static assets - images, fonts (not in _app/, so safe to cache)
         location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             expires 1y;
             add_header Cache-Control "public, immutable";
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # Runtime config - no cache
@@ -138,13 +120,7 @@ http {
             alias /var/cache/nginx/config.js;
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
-            # Security headers (must repeat in each location with add_header)
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # Runtime config JSON - no cache (contains environment-injected settings)
@@ -154,13 +130,7 @@ http {
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Content-Type application/json;
-            # Security headers (must repeat in each location with add_header)
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # PWA manifest - no cache (may change with config)
@@ -168,13 +138,7 @@ http {
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Content-Type application/manifest+json;
-            # Security headers (must repeat in each location with add_header)
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # Service worker files - no cache (needs to update immediately)
@@ -182,13 +146,7 @@ http {
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Service-Worker-Allowed "/";
-            # Security headers (must repeat in each location with add_header)
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
 
         # Allow .well-known directory for security.txt, app-site association, etc.
@@ -299,13 +257,7 @@ http {
             try_files $uri $uri/ /index.html;
             expires -1;
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, no-transform";
-            # Security headers (must repeat in each location with add_header)
-            add_header X-Frame-Options "SAMEORIGIN" always;
-            add_header X-Content-Type-Options "nosniff" always;
-            add_header X-XSS-Protection "1; mode=block" always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
-            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            include /var/cache/nginx/security-headers.conf;
         }
     }
 }

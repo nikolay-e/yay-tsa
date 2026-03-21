@@ -6,6 +6,7 @@ import com.yaytsa.server.dto.response.AuthenticationResultResponse;
 import com.yaytsa.server.dto.response.SessionInfoResponse;
 import com.yaytsa.server.dto.response.UserResponse;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import com.yaytsa.server.infrastructure.security.EmbyAuthHeaderParser;
 import com.yaytsa.server.infrastructure.security.LoginRateLimiter;
 import com.yaytsa.server.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,7 +17,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -79,7 +79,7 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
     }
 
-    Map<String, String> headerParts = parseEmbyAuthHeader(embyAuth);
+    Map<String, String> headerParts = EmbyAuthHeaderParser.parse(embyAuth);
     String deviceId = headerParts.getOrDefault("DeviceId", UUID.randomUUID().toString());
     String deviceName = headerParts.getOrDefault("Device", "Web Browser");
     String client = headerParts.getOrDefault("Client", "Yay-Tsa Web");
@@ -161,38 +161,8 @@ public class AuthController {
 
   private String extractToken(String embyAuth, String apiKey) {
     if (embyAuth != null && !embyAuth.isBlank()) {
-      Map<String, String> headerParts = parseEmbyAuthHeader(embyAuth);
-      return headerParts.get("Token");
+      return EmbyAuthHeaderParser.parse(embyAuth).get("Token");
     }
     return apiKey;
-  }
-
-  private Map<String, String> parseEmbyAuthHeader(String header) {
-    Map<String, String> result = new HashMap<>();
-
-    if (header == null || header.isEmpty()) {
-      return result;
-    }
-
-    String content = header;
-    if (content.startsWith("MediaBrowser ")) {
-      content = content.substring("MediaBrowser ".length());
-    }
-
-    String[] parts = content.split(",");
-    for (String part : parts) {
-      String trimmed = part.trim();
-      int equalPos = trimmed.indexOf('=');
-      if (equalPos > 0) {
-        String key = trimmed.substring(0, equalPos).trim();
-        String value = trimmed.substring(equalPos + 1).trim();
-        if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
-          value = value.substring(1, value.length() - 1);
-        }
-        result.put(key, value);
-      }
-    }
-
-    return result;
   }
 }

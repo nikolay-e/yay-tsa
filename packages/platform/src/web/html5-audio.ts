@@ -7,6 +7,7 @@ const log = createLogger('Audio');
 
 export interface HTML5AudioEngineOptions {
   loadTimeoutMs?: number;
+  approachingEndThresholdMs?: number;
 }
 
 const DEFAULT_LOAD_TIMEOUT_MS = 30000;
@@ -47,7 +48,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
   // Approaching-end detection
   private readonly approachingEndCallbacks = new Set<() => void>();
-  private approachingEndThresholdMs: number = 500;
+  private approachingEndThresholdMs: number;
   private approachingEndFired: boolean = false;
 
   // Dispatch handlers — single handler per event type, iterates registered callbacks
@@ -121,6 +122,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
   constructor(options: HTML5AudioEngineOptions = {}) {
     this.loadTimeoutMs = options.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS;
+    this.approachingEndThresholdMs = options.approachingEndThresholdMs ?? 500;
     this.audio = new Audio();
     this.audio.crossOrigin = 'anonymous';
     this.audio.preload = 'auto';
@@ -398,7 +400,7 @@ export class HTML5AudioEngine implements AudioEngine {
         });
       })
       .catch(error => {
-        // Propagate errors from Web Audio setup or load operation
+        if ((error as Error).message?.includes('Load cancelled')) return;
         throw error;
       });
 
@@ -525,9 +527,8 @@ export class HTML5AudioEngine implements AudioEngine {
     };
   }
 
-  onApproachingEnd(callback: () => void, thresholdMs: number = 500): () => void {
+  onApproachingEnd(callback: () => void): () => void {
     this.approachingEndCallbacks.add(callback);
-    this.approachingEndThresholdMs = thresholdMs;
     return () => {
       this.approachingEndCallbacks.delete(callback);
     };
@@ -725,17 +726,6 @@ export class HTML5AudioEngine implements AudioEngine {
 
   getAudioContext(): AudioContext | null {
     return this.ensureAudioContext();
-  }
-
-  getRMS(): number {
-    if (!this._analyser) return -1;
-    const dataArray = new Float32Array(this._analyser.fftSize);
-    this._analyser.getFloatTimeDomainData(dataArray);
-    let sum = 0;
-    for (const sample of dataArray) {
-      sum += sample * sample;
-    }
-    return Math.sqrt(sum / dataArray.length);
   }
 
   getAudioElement(): HTMLAudioElement | null {
@@ -986,12 +976,11 @@ export class HTML5AudioEngine implements AudioEngine {
     const nextElement = this.audioSecondary;
     const newDuration = nextElement.duration;
 
-    if (this.webAudioInitialized && this.audioContext && this.elemGainSecondary) {
-      this.elemGainSecondary.gain.setValueAtTime(1, this.audioContext.currentTime);
-    } else {
+    nextElement.muted = false;
+
+    if (!this.webAudioInitialized) {
       nextElement.volume = this.storedVolume;
     }
-    nextElement.muted = false;
 
     await nextElement.play();
 
@@ -1029,9 +1018,5 @@ export class HTML5AudioEngine implements AudioEngine {
     } finally {
       this.activeElementFades.delete(cancel);
     }
-  }
-
-  getActiveAudioElement(): HTMLAudioElement {
-    return this.audio;
   }
 }

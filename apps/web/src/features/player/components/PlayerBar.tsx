@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AudioItem } from '@yay-tsa/core';
 import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown, Play, Pause } from 'lucide-react';
@@ -133,32 +133,32 @@ export function PlayerBar() {
 
   const { getImageUrl } = useImageUrl();
 
-  const handleSeek = useCallback((seconds: number) => usePlayerStore.getState().seek(seconds), []);
-  const handleSetVolume = useCallback((v: number) => usePlayerStore.getState().setVolume(v), []);
-  const handleToggleShuffle = useCallback(() => usePlayerStore.getState().toggleShuffle(), []);
-  const handleToggleRepeat = useCallback(() => usePlayerStore.getState().toggleRepeat(), []);
-  const handlePlayPause = useCallback(() => {
-    if (usePlayerStore.getState().isPlaying) {
-      usePlayerStore.getState().pause();
-    } else {
-      usePlayerStore.getState().resume();
-    }
-  }, []);
-  const handleNext = useCallback(() => {
-    usePlayerStore.getState().next();
-  }, []);
-  const handlePrevious = useCallback(() => {
-    usePlayerStore.getState().previous();
-  }, []);
-  const handleToggleKaraoke = useCallback(() => {
-    usePlayerStore.getState().toggleKaraoke();
-  }, []);
-  const handleSetSleepTimer = useCallback(
-    (m: number) => usePlayerStore.getState().setSleepTimer(m),
-    []
-  );
-  const handleClearSleepTimer = useCallback(() => usePlayerStore.getState().clearSleepTimer(), []);
-  const handleThumbsUp = useCallback(() => {
+  const seek = usePlayerStore(s => s.seek);
+  const setVolume = usePlayerStore(s => s.setVolume);
+  const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
+  const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
+  const pause = usePlayerStore(s => s.pause);
+  const resume = usePlayerStore(s => s.resume);
+  const next = usePlayerStore(s => s.next);
+  const previous = usePlayerStore(s => s.previous);
+  const toggleKaraoke = usePlayerStore(s => s.toggleKaraoke);
+  const setSleepTimer = usePlayerStore(s => s.setSleepTimer);
+  const clearSleepTimer = usePlayerStore(s => s.clearSleepTimer);
+
+  const handleSeek = seek;
+  const handleSetVolume = setVolume;
+  const handleToggleShuffle = toggleShuffle;
+  const handleToggleRepeat = toggleRepeat;
+  const handlePlayPause = () => {
+    if (isPlaying) pause();
+    else resume();
+  };
+  const handleNext = next;
+  const handlePrevious = previous;
+  const handleToggleKaraoke = toggleKaraoke;
+  const handleSetSleepTimer = setSleepTimer;
+  const handleClearSleepTimer = clearSleepTimer;
+  const handleThumbsUp = () => {
     if (!currentTrack) return;
     sendSignal({
       signalType: 'THUMBS_UP',
@@ -172,8 +172,8 @@ export function PlayerBar() {
       },
     });
     toast.add('success', 'Liked');
-  }, [currentTrack, sendSignal]);
-  const handleThumbsDown = useCallback(() => {
+  };
+  const handleThumbsDown = () => {
     if (!currentTrack) return;
     sendSignal({
       signalType: 'THUMBS_DOWN',
@@ -186,9 +186,9 @@ export function PlayerBar() {
         timeOfDay: new Date().toISOString(),
       },
     });
-    usePlayerStore.getState().next();
+    next();
     toast.add('info', 'Skipping...');
-  }, [currentTrack, sendSignal]);
+  };
 
   useEffect(() => {
     if (playerError) {

@@ -4,6 +4,7 @@ import { Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { useInView } from '@/shared/hooks/useInView';
+import { formatTicks } from '@/shared/utils/time';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -18,13 +19,6 @@ import {
   useIsSessionRefreshing,
   getSavedSessionId,
 } from '../stores/session-store';
-
-function formatDuration(ticks: number): string {
-  const totalSeconds = Math.floor(ticks / 10_000_000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
 
 function DjFeedbackButtons({
   trackId,
@@ -149,7 +143,7 @@ function QueueTrackItem({
 
       {track.RunTimeTicks && (
         <span className="text-text-tertiary shrink-0 text-xs">
-          {formatDuration(track.RunTimeTicks)}
+          {formatTicks(track.RunTimeTicks)}
         </span>
       )}
     </button>

@@ -34,10 +34,10 @@
     "prepare": "command -v pre-commit >/dev/null 2>&1 && (pre-commit install && pre-commit install --hook-type commit-msg) || true",
     "sync:version": "node scripts/sync-version.js",
     "type-check": "tsc -b packages/core packages/platform && cd apps/web && npx tsc --noEmit",
-    "postversion": "npm run sync:version && git add -A"
+    "postversion": "npm run sync:version"
   },
   "overrides": {
-    "lodash": "4.17.23",
+    "lodash": "4.17.21",
     "serialize-javascript": ">=7.0.3",
     "tmp": "0.2.5"
   },

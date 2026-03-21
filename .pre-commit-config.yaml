@@ -235,6 +235,7 @@ repos:
         name: 'TypeScript type check (core)'
         entry: npm run type-check
         language: system
+        files: ^(packages|apps)/.*\.(ts|tsx)$
         pass_filenames: false
 
       - id: tsc-web
@@ -278,6 +279,7 @@ repos:
         name: 'Knip (unused code detection)'
         entry: npx --no-install knip --no-progress --exclude unresolved
         language: system
+        files: ^(packages|apps)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
       - id: jscpd
@@ -294,6 +296,7 @@ repos:
         name: 'Type coverage (>=90%)'
         entry: npx --no-install type-coverage --at-least 90 --ignore-catch
         language: system
+        files: ^(packages|apps)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
       # --------------------------------------------------------------------------
@@ -335,6 +338,7 @@ repos:
         language: system
         files: ^services/server/src/main/.*\.java$
         pass_filenames: false
+        stages: [pre-push]
 
       - id: maven-pmd
         name: 'PMD (Java code quality)'
@@ -342,3 +346,4 @@ repos:
         language: system
         files: ^services/server/src/main/.*\.java$
         pass_filenames: false
+        stages: [pre-push]

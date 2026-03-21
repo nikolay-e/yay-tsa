@@ -1,3 +1,4 @@
+import { MediaServerError } from '../internal/models/types.js';
 import { BaseService } from './base-api.service.js';
 
 export interface UserSummary {
@@ -56,7 +57,7 @@ export class AdminService extends BaseService {
     this.requireAuth();
     const result = await this.client.get<CacheStats>('/Admin/Cache/Stats');
     if (!result) {
-      throw new Error('Failed to get cache stats');
+      throw new MediaServerError('Failed to get cache stats');
     }
     return result;
   }
@@ -65,7 +66,7 @@ export class AdminService extends BaseService {
     this.requireAuth();
     const result = await this.client.delete<CacheClearResult>('/Admin/Cache');
     if (!result) {
-      throw new Error('Failed to clear caches');
+      throw new MediaServerError('Failed to clear caches');
     }
     return result;
   }
@@ -74,7 +75,7 @@ export class AdminService extends BaseService {
     this.requireAuth();
     const result = await this.client.delete<CacheClearResult>(`/Admin/Cache/Images/${itemId}`);
     if (!result) {
-      throw new Error('Failed to clear item cache');
+      throw new MediaServerError('Failed to clear item cache');
     }
     return result;
   }
@@ -83,7 +84,7 @@ export class AdminService extends BaseService {
     this.requireAuth();
     const result = await this.client.post<LibraryRescanResult>('/Admin/Library/Rescan', {});
     if (!result) {
-      throw new Error('Failed to trigger library rescan');
+      throw new MediaServerError('Failed to trigger library rescan');
     }
     return result;
   }
@@ -92,7 +93,7 @@ export class AdminService extends BaseService {
     this.requireAuth();
     const result = await this.client.get<ScanStatus>('/Admin/Library/ScanStatus');
     if (!result) {
-      throw new Error('Failed to get scan status');
+      throw new MediaServerError('Failed to get scan status');
     }
     return result;
   }
@@ -106,7 +107,7 @@ export class AdminService extends BaseService {
   async createUser(request: CreateUserRequest): Promise<CreateUserResult> {
     this.requireAuth();
     const result = await this.client.post<CreateUserResult>('/Admin/Users', request);
-    if (!result) throw new Error('Failed to create user');
+    if (!result) throw new MediaServerError('Failed to create user');
     return result;
   }
 
@@ -121,7 +122,7 @@ export class AdminService extends BaseService {
       `/Admin/Users/${userId}/ResetPassword`,
       {}
     );
-    if (!result) throw new Error('Failed to reset password');
+    if (!result) throw new MediaServerError('Failed to reset password');
     return result.newPassword;
   }
 }

@@ -246,6 +246,9 @@ sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
   -e "s#__BACKEND_URL__#$BACKEND_URL#g" \
   -e "s#__MEDIA_PATH__#$YAYTSA_MEDIA_PATH#g" \
   /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
+sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
+  -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
+  /etc/nginx/security-headers.conf >/var/cache/nginx/security-headers.conf
 echo "Generated nginx.conf with runtime CSP hashes, domains, backend URL, and media path"
 
 # Execute the main command (nginx) with generated config

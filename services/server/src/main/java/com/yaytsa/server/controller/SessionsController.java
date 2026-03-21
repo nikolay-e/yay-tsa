@@ -11,7 +11,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -208,30 +212,6 @@ public class SessionsController {
     UUID userId = authenticatedUser.getUserEntity().getId();
     String deviceId = authenticatedUser.getDeviceId();
     sessionService.pingSession(userId, deviceId);
-
-    return ResponseEntity.noContent().build();
-  }
-
-  @Operation(
-      summary = "Send playback command",
-      description = "Send a command to control playback (play, pause, stop, next, previous)")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "204", description = "Command accepted"),
-        @ApiResponse(responseCode = "400", description = "Invalid command")
-      })
-  @PostMapping("/{sessionId}/Playing/{command}")
-  public ResponseEntity<Void> sendPlaybackCommand(
-      @PathVariable String sessionId,
-      @PathVariable String command,
-      @RequestBody(required = false) Map<String, Object> commandData,
-      @RequestHeader(value = "Authorization", required = false) String authorization,
-      @RequestParam(value = "api_key", required = false) String apiKey) {
-
-    Set<String> validCommands = Set.of("play", "pause", "stop", "next", "previous", "playpause");
-    if (!validCommands.contains(command.toLowerCase(Locale.ROOT))) {
-      return ResponseEntity.badRequest().build();
-    }
 
     return ResponseEntity.noContent().build();
   }

@@ -69,7 +69,7 @@ export interface AudioEngine {
    */
   onEnded(callback: () => void): () => void;
 
-  onApproachingEnd?(callback: () => void, thresholdMs?: number): () => void;
+  onApproachingEnd?(callback: () => void): () => void;
 
   /**
    * Subscribe to error events

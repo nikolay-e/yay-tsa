@@ -117,9 +117,9 @@ public class StreamingService {
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
       }
     } catch (java.nio.file.NoSuchFileException e) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: " + item.getPath());
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Audio file not found");
     } catch (IOException e) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: " + item.getPath());
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Audio file not found");
     }
 
     return new ResolvedFile(filePath, item.getContainer());

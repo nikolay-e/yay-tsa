@@ -47,7 +47,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: 0
-    out-of-order: true
+    out-of-order: false
 
   # Security Configuration
   security:
@@ -282,7 +282,7 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
   show-actuator: false
 
 ---
@@ -298,7 +298,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
 
   devtools:

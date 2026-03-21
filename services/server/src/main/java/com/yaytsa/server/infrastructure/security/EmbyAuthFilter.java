@@ -7,8 +7,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,7 +86,7 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
   private Optional<EmbyAuthCredentials> extractCredentials(HttpServletRequest request) {
     String embyAuthHeader = request.getHeader(EMBY_AUTH_HEADER);
     if (embyAuthHeader != null && !embyAuthHeader.isBlank()) {
-      return Optional.of(parseEmbyAuthHeader(embyAuthHeader));
+      return Optional.of(EmbyAuthHeaderParser.parseToCredentials(embyAuthHeader));
     }
 
     String apiKeyParam = request.getParameter(API_KEY_PARAM);
@@ -100,35 +98,5 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
     }
 
     return Optional.empty();
-  }
-
-  private EmbyAuthCredentials parseEmbyAuthHeader(String header) {
-    Map<String, String> parts = new HashMap<>();
-
-    String content = header;
-    if (content.startsWith("MediaBrowser ")) {
-      content = content.substring("MediaBrowser ".length());
-    }
-
-    String[] pairs = content.split(",");
-    for (String pair : pairs) {
-      String trimmed = pair.trim();
-      int equalPos = trimmed.indexOf('=');
-      if (equalPos > 0) {
-        String key = trimmed.substring(0, equalPos).trim();
-        String value = trimmed.substring(equalPos + 1).trim();
-        if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
-          value = value.substring(1, value.length() - 1);
-        }
-        parts.put(key, value);
-      }
-    }
-
-    return new EmbyAuthCredentials(
-        parts.get("Token"),
-        parts.getOrDefault("DeviceId", "unknown"),
-        parts.get("Device"),
-        parts.get("Client"),
-        parts.get("Version"));
   }
 }

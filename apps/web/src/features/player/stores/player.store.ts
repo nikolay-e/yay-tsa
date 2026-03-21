@@ -89,7 +89,7 @@ const karaokeFailedTrackIds = new Set<string>();
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
   try {
-    audioEngine = new HTML5AudioEngine();
+    audioEngine = new HTML5AudioEngine({ approachingEndThresholdMs: APPROACHING_END_MS });
     return audioEngine;
   } catch (e) {
     log.player.error('Failed to initialize audio engine', e);
@@ -540,7 +540,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         await gaplessTransition(next, false, signal);
       });
-    }, APPROACHING_END_MS);
+    });
 
     engine.onEnded(() => {
       if (suppressNextEnded) {
@@ -675,8 +675,9 @@ export const usePlayerStore = create<PlayerStore>()(
 
       playTrack: async track => {
         await controller.interrupt(async signal => {
-          const { queue } = get();
+          const { queue, repeatMode } = get();
           queue.setQueue([track], 0);
+          queue.setRepeatMode(repeatMode);
           await loadAndPlay(track, signal);
         });
       },
@@ -1242,6 +1243,13 @@ if (import.meta.env.VITE_TEST_MODE === 'true' || import.meta.env.DEV) {
     MediaSessionManager,
     HTML5AudioEngine,
   };
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    audioEngine?.dispose?.();
+    audioEngine = null;
+  });
 }
 
 export const useCurrentTrack = () => usePlayerStore(state => state.currentTrack);

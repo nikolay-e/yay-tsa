@@ -8,8 +8,11 @@ export class WakeLockManager {
   private handleVisibilityChange: (() => void) | null = null;
 
   async acquire(): Promise<void> {
-    if (this.sentinel || !('wakeLock' in navigator)) return;
+    if (!('wakeLock' in navigator)) return;
+    if (this.pendingAcquire) return;
+    if (this.sentinel && !this.sentinel.released) return;
 
+    this.pendingAcquire = true;
     try {
       this.sentinel = await navigator.wakeLock.request('screen');
       this.sentinel.addEventListener('release', () => {
@@ -19,6 +22,8 @@ export class WakeLockManager {
       this.startVisibilityReacquire();
     } catch (err) {
       log.debug('Wake lock request failed', { error: String(err) });
+    } finally {
+      this.pendingAcquire = false;
     }
   }
 
