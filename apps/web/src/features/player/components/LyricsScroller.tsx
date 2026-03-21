@@ -1,5 +1,7 @@
 import { useRef, useEffect, memo } from 'react';
+import { findActiveLineIndex } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
+import { useTimingStore } from '../stores/playback-timing.store';
 
 type LyricsLine = Readonly<{ time: number; text: string }>;
 
@@ -15,42 +17,53 @@ export const LyricsScroller = memo(function LyricsScroller({
   isTimeSynced,
 }: LyricsScrollerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLDivElement>(null);
-  const rafId = useRef(0);
-  const lastIndex = useRef(-1);
+  const linesRef = useRef(lines);
 
   useEffect(() => {
-    lastIndex.current = -1;
+    linesRef.current = lines;
   }, [lines]);
 
   useEffect(() => {
-    if (!isTimeSynced || activeLineIndex < 0) return;
-    if (activeLineIndex === lastIndex.current) return;
-    lastIndex.current = activeLineIndex;
+    if (!isTimeSynced) return;
 
     const container = containerRef.current;
-    const line = activeRef.current;
-    if (!container || !line) return;
+    if (!container) return;
 
-    cancelAnimationFrame(rafId.current);
+    const unsubscribe = useTimingStore.subscribe(state => {
+      const currentLines = linesRef.current;
+      if (currentLines.length === 0) return;
 
-    const target = line.offsetTop - container.clientHeight / 2 + line.offsetHeight / 2;
-    const start = container.scrollTop;
-    const delta = target - start;
-    if (Math.abs(delta) < 1) return;
+      const { currentTime } = state;
+      const idx = findActiveLineIndex(currentLines, currentTime);
+      if (idx < 0) return;
 
-    const duration = 600;
-    const t0 = performance.now();
+      const currentEl = container.children[idx + 1] as HTMLElement;
+      if (!currentEl) return;
 
-    function step(now: number) {
-      const p = Math.min((now - t0) / duration, 1);
-      container!.scrollTop = start + delta * (1 - (1 - p) ** 3);
-      if (p < 1) rafId.current = requestAnimationFrame(step);
-    }
+      const half = container.clientHeight / 2;
+      const currentCenter = currentEl.offsetTop - half + currentEl.offsetHeight / 2;
 
-    rafId.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(rafId.current);
-  }, [activeLineIndex, isTimeSynced]);
+      let target = currentCenter;
+
+      const currentLine = currentLines[idx];
+      const nextLine = currentLines[idx + 1];
+      if (currentLine && nextLine) {
+        const nextEl = container.children[idx + 2] as HTMLElement;
+        if (nextEl) {
+          const nextCenter = nextEl.offsetTop - half + nextEl.offsetHeight / 2;
+          const duration = nextLine.time - currentLine.time;
+          if (duration > 0) {
+            const progress = Math.min(1, (currentTime - currentLine.time) / duration);
+            target = currentCenter + (nextCenter - currentCenter) * progress;
+          }
+        }
+      }
+
+      container.scrollTop = target;
+    });
+
+    return unsubscribe;
+  }, [isTimeSynced]);
 
   return (
     <div
@@ -99,9 +112,8 @@ export const LyricsScroller = memo(function LyricsScroller({
           return (
             <div
               key={`${i}-${line.time}`}
-              ref={isActive ? activeRef : undefined}
               className={cn(
-                'px-6 py-3 text-center text-xl leading-relaxed transition-all duration-500 ease-out',
+                'px-6 py-3 text-center text-3xl leading-relaxed transition-all duration-500 ease-out',
                 textClass
               )}
               style={{ opacity, textShadow: shadow }}
