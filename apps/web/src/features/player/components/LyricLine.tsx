@@ -1,7 +1,7 @@
 import { forwardRef, memo } from 'react';
 import { cn } from '@/shared/utils/cn';
 
-type LineState = 'active' | 'past' | 'future';
+export type LineState = 'active' | 'past' | 'future';
 
 type LyricLineProps = Readonly<{
   text: string;

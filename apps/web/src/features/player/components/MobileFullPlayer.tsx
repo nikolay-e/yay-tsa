@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useState, useCallback } from 'react';
+import { memo, useRef, useEffect, useState } from 'react';
 import {
   ChevronDown,
   Play,
@@ -12,20 +12,15 @@ import {
   MicOff,
   Timer,
   AlignLeft,
-  Loader2,
-  Search,
 } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import type { RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { formatSeconds } from '@/shared/utils/time';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
-import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useTimingStore } from '../stores/playback-timing.store';
-import { useLyrics } from '../hooks/useLyrics';
-import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
 import { SeekBar } from './SeekBar';
-import { LyricLine } from './LyricLine';
+import { InlineLyricsPanel } from './InlineLyricsPanel';
 
 type MobileFullPlayerProps = Readonly<{
   track: AudioItem;
@@ -75,141 +70,6 @@ function MobileTimeRow() {
     <div className="text-text-tertiary mt-1 flex justify-between text-xs tabular-nums">
       <span ref={currentRef}>0:00</span>
       <span ref={totalRef}>0:00</span>
-    </div>
-  );
-}
-
-function InlineLyricsPanel() {
-  const { parsedLyrics, activeLineIndex, isTimeSynced, hasLyrics } = useLyrics();
-  const currentTrack = useCurrentTrack();
-  const client = useAuthStore(state => state.client);
-  const activeLineRef = useRef<HTMLDivElement>(null);
-  const lastScrolledIndex = useRef(-1);
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIsFetching(false);
-    setFetchError(null);
-  }, [currentTrack?.Id]);
-
-  useEffect(() => {
-    if (!isTimeSynced || activeLineIndex < 0) return;
-    if (activeLineIndex === lastScrolledIndex.current) return;
-    lastScrolledIndex.current = activeLineIndex;
-    const id = setTimeout(() => {
-      try {
-        activeLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } catch {
-        // Element may be detached during unmount
-      }
-    }, 100);
-    return () => clearTimeout(id);
-  }, [activeLineIndex, isTimeSynced]);
-
-  useEffect(() => {
-    if (!currentTrack || !client || hasLyrics || currentTrack.Lyrics) return;
-    const trackId = currentTrack.Id;
-    const timer = setTimeout(async () => {
-      setIsFetching(true);
-      try {
-        const result = await client.fetchLyrics(trackId);
-        if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-        if (result.found && result.lyrics) {
-          usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
-        } else {
-          setFetchError('not_found');
-        }
-      } catch {
-        if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-        setFetchError('Lyrics service unavailable');
-      } finally {
-        if (usePlayerStore.getState().currentTrack?.Id === trackId) setIsFetching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTrack?.Id, client, hasLyrics, currentTrack?.Lyrics]);
-
-  const handleFetch = useCallback(async () => {
-    if (!client || !currentTrack) return;
-    const trackId = currentTrack.Id;
-    setIsFetching(true);
-    setFetchError(null);
-    try {
-      const result = await client.fetchLyrics(trackId);
-      if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-      if (result.found && result.lyrics) {
-        usePlayerStore.getState().updateCurrentTrackLyrics(result.lyrics);
-      } else {
-        setFetchError('not_found');
-      }
-    } catch {
-      if (usePlayerStore.getState().currentTrack?.Id !== trackId) return;
-      setFetchError('Lyrics service unavailable');
-    } finally {
-      if (usePlayerStore.getState().currentTrack?.Id === trackId) setIsFetching(false);
-    }
-  }, [client, currentTrack]);
-
-  const getLineState = (index: number): 'active' | 'past' | 'future' => {
-    if (!isTimeSynced) return 'future';
-    if (index === activeLineIndex) return 'active';
-    if (index < activeLineIndex) return 'past';
-    return 'future';
-  };
-
-  return (
-    <div className="h-full w-full overflow-y-auto">
-      {hasLyrics ? (
-        <div className="space-y-1 py-4">
-          {!isTimeSynced && (
-            <p className="text-text-tertiary mb-3 text-center text-xs">Not time-synced</p>
-          )}
-          {parsedLyrics?.lines.map((line, index) => (
-            <LyricLine
-              key={`${index}-${line.time}`}
-              ref={index === activeLineIndex ? activeLineRef : undefined}
-              text={line.text}
-              state={getLineState(index)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          {isFetching ? (
-            <>
-              <Loader2 className="text-accent h-8 w-8 animate-spin" />
-              <span className="text-text-secondary text-sm">Searching...</span>
-            </>
-          ) : fetchError === 'not_found' ? (
-            <span className="text-text-tertiary text-sm">No lyrics found</span>
-          ) : fetchError ? (
-            <div className="flex flex-col items-center gap-3">
-              <span className="text-text-tertiary text-sm">{fetchError}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleFetch();
-                }}
-                className="bg-bg-secondary hover:bg-bg-tertiary text-text-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm transition-colors"
-              >
-                <Search className="h-4 w-4" /> Try Again
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                void handleFetch();
-              }}
-              className="bg-accent hover:bg-accent-hover text-text-on-accent flex items-center gap-2 rounded-full px-6 py-2.5 transition-colors"
-            >
-              <Search className="h-4 w-4" /> Search Lyrics
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

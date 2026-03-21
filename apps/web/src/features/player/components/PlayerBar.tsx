@@ -354,7 +354,12 @@ export function PlayerBar() {
         role="button"
         tabIndex={0}
         aria-label="Open player"
-        onKeyDown={e => e.key === 'Enter' && setShowFullPlayer(true)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setShowFullPlayer(true);
+          }
+        }}
       >
         <img
           src={hasImageError ? getImagePlaceholder() : imageUrl}
@@ -367,7 +372,11 @@ export function PlayerBar() {
             {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1" onClick={e => e.stopPropagation()}>
+        <div
+          className="flex shrink-0 items-center gap-1"
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => e.stopPropagation()}
+        >
           <FavoriteButton
             itemId={currentTrack.Id}
             isFavorite={currentTrack.UserData?.IsFavorite ?? false}
