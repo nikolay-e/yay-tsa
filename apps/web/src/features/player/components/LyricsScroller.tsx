@@ -64,15 +64,24 @@ export const LyricsScroller = memo(function LyricsScroller({
     >
       <div style={{ height: '45%' }} aria-hidden="true" />
       {lines.map((line, i) => {
-        const isActive = i === activeLineIndex;
+        const isActive = isTimeSynced && i === activeLineIndex;
         const dist = activeLineIndex >= 0 ? Math.abs(i - activeLineIndex) : 0;
         let opacity: number;
-        if (activeLineIndex < 0) {
-          opacity = 0.5;
+        if (!isTimeSynced) {
+          opacity = 0.85;
         } else if (isActive) {
           opacity = 1;
         } else {
           opacity = Math.max(0.08, 0.5 - dist * 0.12);
+        }
+
+        let textClass: string;
+        if (isActive) {
+          textClass = 'text-accent font-bold';
+        } else if (!isTimeSynced) {
+          textClass = 'text-text-primary font-normal';
+        } else {
+          textClass = 'text-text-secondary font-normal';
         }
 
         return (
@@ -81,7 +90,7 @@ export const LyricsScroller = memo(function LyricsScroller({
             ref={isActive ? activeRef : undefined}
             className={cn(
               'px-6 py-3 text-center text-xl leading-relaxed transition-all duration-500 ease-out',
-              isActive ? 'text-accent font-bold' : 'text-text-secondary font-normal'
+              textClass
             )}
             style={{
               opacity,

@@ -451,7 +451,8 @@ public class MediaScannerTransactionalService {
       Path relative = Path.of(libraryRoot).relativize(filePath);
       if (relative.getNameCount() >= 2) {
         String dirName = relative.getName(relative.getNameCount() - 2).toString();
-        return YEAR_PREFIX.matcher(dirName).replaceFirst("");
+        String albumName = YEAR_PREFIX.matcher(dirName).replaceFirst("");
+        return albumName.isBlank() ? null : albumName;
       }
     } catch (Exception e) {
       log.trace("Could not infer album from path: {}", filePath);

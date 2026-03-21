@@ -206,7 +206,7 @@ public class JAudioTaggerExtractor {
     return repaired;
   }
 
-  static boolean isGarbledText(String text) {
+  private static boolean isGarbledText(String text) {
     if (text == null || text.isBlank()) return false;
     long nonAscii = text.chars().filter(c -> c > 127).count();
     if (nonAscii == 0) return false;
@@ -214,23 +214,27 @@ public class JAudioTaggerExtractor {
     return garbled > text.length() / 2;
   }
 
-  static String tryRepairCp1251(String text) {
+  private static String tryRepairCp1251(String text) {
     if (text == null || text.isBlank()) return text;
+    if (text.chars().anyMatch(c -> c > 0xFF)) return text;
     try {
       byte[] latin1Bytes = text.getBytes(StandardCharsets.ISO_8859_1);
-      boolean hasCyrillicRange = false;
+      int cyrillicCount = 0;
+      int totalHighBytes = 0;
       for (byte b : latin1Bytes) {
         int unsigned = b & 0xFF;
-        if (unsigned >= 0xC0 && unsigned <= 0xFF) {
-          hasCyrillicRange = true;
-          break;
+        if (unsigned >= 0x80) {
+          totalHighBytes++;
+          if (unsigned >= 0xC0 && unsigned <= 0xFF) {
+            cyrillicCount++;
+          }
         }
       }
-      if (hasCyrillicRange) {
-        String repaired = new String(latin1Bytes, WINDOWS_1251);
-        if (repaired.chars().anyMatch(c -> c >= 0x0400 && c <= 0x04FF)) {
-          return repaired;
-        }
+      if (cyrillicCount == 0 || cyrillicCount < totalHighBytes / 2) return text;
+      String repaired = new String(latin1Bytes, WINDOWS_1251);
+      long cyrillicChars = repaired.chars().filter(c -> c >= 0x0400 && c <= 0x04FF).count();
+      if (cyrillicChars >= repaired.length() / 3) {
+        return repaired;
       }
     } catch (Exception e) {
       log.trace("CP1251 repair failed for: {}", text);
