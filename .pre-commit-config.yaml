@@ -127,7 +127,7 @@ repos:
       - id: codespell
         name: codespell (spell checker)
         args:
-          - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether,errorprone
+          - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether,errorprone,currenty
           - --skip=package-lock.json,pnpm-lock.yaml,jellyfin-api-spec.json,node_modules,dist,build
 
   # ------------------------------------------------------------------------------

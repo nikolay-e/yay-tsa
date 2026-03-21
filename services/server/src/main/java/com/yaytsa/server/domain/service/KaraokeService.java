@@ -413,7 +413,9 @@ public class KaraokeService {
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Track not found: " + trackId));
 
-    if (!Boolean.TRUE.equals(track.getKaraokeReady()) || track.getVocalPath() == null) {
+    if (!Boolean.TRUE.equals(track.getKaraokeReady())
+        || track.getVocalPath() == null
+        || track.getVocalPath().isEmpty()) {
       throw new ResponseStatusException(
           HttpStatus.NOT_FOUND, "Vocal track not available for track: " + trackId);
     }
