@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.JpaSort;
@@ -115,7 +114,7 @@ public class ItemService {
   }
 
   private Page<ItemEntity> queryRecentlyPlayed(ItemsQueryParams params) {
-    Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit());
+    Pageable pageable = new OffsetBasedPageRequest(params.startIndex(), params.limit());
 
     if (params.includeItemTypes() != null && params.includeItemTypes().contains("MusicAlbum")) {
       return itemRepository.findRecentlyPlayedAlbumsByUser(params.userId(), pageable);
@@ -129,7 +128,7 @@ public class ItemService {
   }
 
   private Page<ItemEntity> queryFavoritesByDate(ItemsQueryParams params) {
-    Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit());
+    Pageable pageable = new OffsetBasedPageRequest(params.startIndex(), params.limit());
     ItemType type = resolveItemType(params.includeItemTypes());
     if (type != null) {
       return itemRepository.findFavoritesByDateAndType(params.userId(), type, pageable);
@@ -139,7 +138,7 @@ public class ItemService {
   }
 
   private Page<ItemEntity> queryFavoritesByPosition(ItemsQueryParams params) {
-    Pageable pageable = PageRequest.of(params.startIndex() / params.limit(), params.limit());
+    Pageable pageable = new OffsetBasedPageRequest(params.startIndex(), params.limit());
     ItemType type = resolveItemType(params.includeItemTypes());
     if (type != null) {
       return itemRepository.findFavoritesByPositionAndType(params.userId(), type, pageable);
