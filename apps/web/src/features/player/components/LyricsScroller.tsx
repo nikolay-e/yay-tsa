@@ -63,46 +63,54 @@ export const LyricsScroller = memo(function LyricsScroller({
       }}
     >
       <div style={{ height: '45%' }} aria-hidden="true" />
-      {lines.map((line, i) => {
-        const isActive = isTimeSynced && i === activeLineIndex;
-        const dist = activeLineIndex >= 0 ? Math.abs(i - activeLineIndex) : 0;
-        let opacity: number;
-        if (!isTimeSynced) {
-          opacity = 0.85;
-        } else if (isActive) {
-          opacity = 1;
-        } else {
-          opacity = Math.max(0.08, 0.5 - dist * 0.12);
-        }
+      {(() => {
+        const hasActive = isTimeSynced && activeLineIndex >= 0;
+        return lines.map((line, i) => {
+          const isActive = hasActive && i === activeLineIndex;
+          const dist = hasActive ? Math.abs(i - activeLineIndex) : 0;
 
-        let textClass: string;
-        if (isActive) {
-          textClass = 'text-accent font-bold';
-        } else if (!isTimeSynced) {
-          textClass = 'text-text-primary font-normal';
-        } else {
-          textClass = 'text-text-secondary font-normal';
-        }
+          let opacity: number;
+          let textClass: string;
+          let shadow: string;
 
-        return (
-          <div
-            key={`${i}-${line.time}`}
-            ref={isActive ? activeRef : undefined}
-            className={cn(
-              'px-6 py-3 text-center text-xl leading-relaxed transition-all duration-500 ease-out',
-              textClass
-            )}
-            style={{
-              opacity,
-              textShadow: isActive
-                ? '0 0 24px var(--color-accent), 0 0 48px color-mix(in srgb, var(--color-accent) 40%, transparent)'
-                : 'none',
-            }}
-          >
-            {line.text || '\u00A0'}
-          </div>
-        );
-      })}
+          if (!isTimeSynced || !hasActive) {
+            opacity = 0.85;
+            textClass = 'text-text-primary font-normal';
+            shadow = 'none';
+          } else if (isActive) {
+            opacity = 1;
+            textClass = 'text-accent font-bold';
+            shadow =
+              '0 0 24px var(--color-accent), 0 0 48px color-mix(in srgb, var(--color-accent) 40%, transparent)';
+          } else if (dist <= 1) {
+            opacity = 0.7;
+            textClass = 'text-accent font-normal';
+            shadow = '0 0 12px color-mix(in srgb, var(--color-accent) 25%, transparent)';
+          } else if (dist <= 2) {
+            opacity = 0.45;
+            textClass = 'text-text-primary font-normal';
+            shadow = 'none';
+          } else {
+            opacity = Math.max(0.06, 0.3 - (dist - 3) * 0.08);
+            textClass = 'text-text-secondary font-normal';
+            shadow = 'none';
+          }
+
+          return (
+            <div
+              key={`${i}-${line.time}`}
+              ref={isActive ? activeRef : undefined}
+              className={cn(
+                'px-6 py-3 text-center text-xl leading-relaxed transition-all duration-500 ease-out',
+                textClass
+              )}
+              style={{ opacity, textShadow: shadow }}
+            >
+              {line.text || '\u00A0'}
+            </div>
+          );
+        });
+      })()}
       <div style={{ height: '45%' }} aria-hidden="true" />
     </div>
   );
