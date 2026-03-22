@@ -10,7 +10,8 @@ import com.yaytsa.server.dto.response.PlaybackSignalResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,14 +30,14 @@ public class PlaybackSignalController {
   private final SignalProcessingService signalService;
   private final ListeningSessionService sessionService;
   private final AdaptiveQueueService adaptiveQueueService;
-  private final ExecutorService signalAsyncExecutor;
+  private final Executor signalAsyncExecutor;
   private final ObjectMapper objectMapper;
 
   public PlaybackSignalController(
       SignalProcessingService signalService,
       ListeningSessionService sessionService,
       AdaptiveQueueService adaptiveQueueService,
-      @Qualifier("signalAsyncExecutor") ExecutorService signalAsyncExecutor,
+      @Qualifier("signalAsyncExecutor") Executor signalAsyncExecutor,
       ObjectMapper objectMapper) {
     this.signalService = signalService;
     this.sessionService = sessionService;
@@ -62,8 +63,9 @@ public class PlaybackSignalController {
           signalService.processSignal(
               sessionId, request.signalType(), trackId, queueEntryId, request.context());
       if (result.triggerFired()) {
-        signalAsyncExecutor.submit(
-            () -> adaptiveQueueService.triggerDjDecision(result.sessionId(), result.triggerType()));
+        CompletableFuture.runAsync(
+            () -> adaptiveQueueService.triggerDjDecision(result.sessionId(), result.triggerType()),
+            signalAsyncExecutor);
       }
       return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result));
     } catch (ObjectOptimisticLockingFailureException e) {

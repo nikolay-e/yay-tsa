@@ -1,47 +1,34 @@
 package com.yaytsa.server.config;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
 @Configuration
 public class AsyncConfig {
 
-  private static final Logger log = LoggerFactory.getLogger(AsyncConfig.class);
-
   @Bean("applicationTaskExecutor")
-  public Executor applicationTaskExecutor() {
-    return Executors.newVirtualThreadPerTaskExecutor();
+  public AsyncTaskExecutor applicationTaskExecutor() {
+    SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("app-");
+    executor.setVirtualThreads(true);
+    executor.setConcurrencyLimit(50);
+    return executor;
   }
 
   @Bean("signalAsyncExecutor")
-  public ExecutorService signalAsyncExecutor() {
-    return new ThreadPoolExecutor(
-        0,
-        10,
-        60L,
-        TimeUnit.SECONDS,
-        new LinkedBlockingQueue<>(50),
-        Thread.ofVirtual().factory(),
-        (r, executor) -> log.warn("Signal async executor queue full, dropping task"));
+  public AsyncTaskExecutor signalAsyncExecutor() {
+    SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("signal-");
+    executor.setVirtualThreads(true);
+    executor.setConcurrencyLimit(10);
+    return executor;
   }
 
   @Bean("recommendationExecutor")
-  public ExecutorService recommendationExecutor() {
-    return new ThreadPoolExecutor(
-        0,
-        5,
-        60L,
-        TimeUnit.SECONDS,
-        new LinkedBlockingQueue<>(20),
-        Thread.ofVirtual().factory(),
-        (r, executor) -> log.warn("Recommendation executor queue full, dropping channel fetch"));
+  public AsyncTaskExecutor recommendationExecutor() {
+    SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("recommend-");
+    executor.setVirtualThreads(true);
+    executor.setConcurrencyLimit(5);
+    return executor;
   }
 }

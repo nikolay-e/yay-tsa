@@ -1,6 +1,5 @@
 package com.yaytsa.server.domain.service.metadata;
 
-import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -13,23 +12,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * Aggregated metadata enrichment service.
- *
- * <p>Queries multiple metadata providers (MusicBrainz, Last.fm, Spotify) in parallel, compares
- * results, and returns the best match based on confidence scoring and provider priority.
- */
 @Service
 public class AggregatedMetadataService {
 
   private static final Logger log = LoggerFactory.getLogger(AggregatedMetadataService.class);
 
   private final List<MetadataProvider> providers;
-  private final ExecutorService executor;
+  private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
   public AggregatedMetadataService(List<MetadataProvider> providers) {
     this.providers = providers;
-    this.executor = Executors.newVirtualThreadPerTaskExecutor(); // Java 21 virtual threads
 
     log.info(
         "Initialized metadata enrichment with {} providers: {}",
@@ -38,20 +30,6 @@ public class AggregatedMetadataService {
             .filter(MetadataProvider::isEnabled)
             .map(MetadataProvider::getProviderName)
             .toList());
-  }
-
-  @PreDestroy
-  public void shutdown() {
-    log.info("Shutting down metadata enrichment executor");
-    executor.shutdown();
-    try {
-      if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-        executor.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      executor.shutdownNow();
-      Thread.currentThread().interrupt();
-    }
   }
 
   /**

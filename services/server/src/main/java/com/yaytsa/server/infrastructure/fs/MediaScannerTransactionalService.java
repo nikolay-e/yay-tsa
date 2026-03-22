@@ -1,5 +1,7 @@
 package com.yaytsa.server.infrastructure.fs;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.*;
 import com.yaytsa.server.infrastructure.transcoding.FfmpegTranscoder;
@@ -11,7 +13,7 @@ import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,9 +32,12 @@ public class MediaScannerTransactionalService {
   private final GenreRepository genreRepository;
   private final ImageRepository imageRepository;
 
-  private final Map<String, UUID> artistIdCache = new ConcurrentHashMap<>();
-  private final Map<String, UUID> albumIdCache = new ConcurrentHashMap<>();
-  private final Map<String, UUID> genreIdCache = new ConcurrentHashMap<>();
+  private final Cache<String, UUID> artistIdCache =
+      Caffeine.newBuilder().maximumSize(10_000).expireAfterAccess(2, TimeUnit.HOURS).build();
+  private final Cache<String, UUID> albumIdCache =
+      Caffeine.newBuilder().maximumSize(50_000).expireAfterAccess(2, TimeUnit.HOURS).build();
+  private final Cache<String, UUID> genreIdCache =
+      Caffeine.newBuilder().maximumSize(1_000).expireAfterAccess(2, TimeUnit.HOURS).build();
 
   public MediaScannerTransactionalService(
       JAudioTaggerExtractor metadataExtractor,
@@ -193,12 +198,12 @@ public class MediaScannerTransactionalService {
         (artistName == null || artistName.isBlank()) ? "Unknown Artist" : artistName;
 
     String cacheKey = finalArtistName.toLowerCase(java.util.Locale.ROOT);
-    UUID cachedId = artistIdCache.get(cacheKey);
+    UUID cachedId = artistIdCache.getIfPresent(cacheKey);
 
     if (cachedId != null) {
       Optional<ItemEntity> existing = itemRepository.findById(cachedId);
       if (existing.isPresent()) return existing.get();
-      artistIdCache.remove(cacheKey);
+      artistIdCache.invalidate(cacheKey);
     }
 
     String artistPath = "artist:" + finalArtistName.toLowerCase(java.util.Locale.ROOT);
@@ -233,11 +238,11 @@ public class MediaScannerTransactionalService {
     String artistName = artistItem.getName();
     String cacheKey = (artistName + "::" + finalAlbumName).toLowerCase(java.util.Locale.ROOT);
 
-    UUID cachedId = albumIdCache.get(cacheKey);
+    UUID cachedId = albumIdCache.getIfPresent(cacheKey);
     if (cachedId != null) {
       Optional<ItemEntity> existing = itemRepository.findById(cachedId);
       if (existing.isPresent()) return existing.get();
-      albumIdCache.remove(cacheKey);
+      albumIdCache.invalidate(cacheKey);
     }
 
     String albumPath =
@@ -276,7 +281,7 @@ public class MediaScannerTransactionalService {
 
     for (String genreName : genres) {
       UUID genreId =
-          genreIdCache.computeIfAbsent(
+          genreIdCache.get(
               genreName.toLowerCase(java.util.Locale.ROOT),
               key -> {
                 Optional<GenreEntity> existing = genreRepository.findByName(genreName);

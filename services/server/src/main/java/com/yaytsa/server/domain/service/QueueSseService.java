@@ -17,10 +17,18 @@ public class QueueSseService {
 
   private static final Logger log = LoggerFactory.getLogger(QueueSseService.class);
   private static final long SSE_TIMEOUT_MS = 30 * 60 * 1000L;
+  private static final int MAX_SESSIONS = 100;
 
   private final Map<UUID, List<SseEmitter>> sessionEmitters = new ConcurrentHashMap<>();
 
   public SseEmitter createEmitter(UUID sessionId) {
+    if (sessionEmitters.size() >= MAX_SESSIONS && !sessionEmitters.containsKey(sessionId)) {
+      log.warn("Max SSE sessions reached ({}), rejecting new connection", MAX_SESSIONS);
+      SseEmitter rejected = new SseEmitter(0L);
+      rejected.completeWithError(new IllegalStateException("Too many active sessions"));
+      return rejected;
+    }
+
     SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
 
     sessionEmitters.computeIfAbsent(sessionId, k -> new CopyOnWriteArrayList<>()).add(emitter);

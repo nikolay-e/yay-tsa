@@ -278,7 +278,11 @@ export const usePlayerStore = create<PlayerStore>()(
 
     function schedulePreload(): void {
       if (!currentClient) return;
-      const { queue, repeatMode } = get();
+      const { queue, repeatMode, isKaraokeMode } = get();
+      if (isKaraokeMode) {
+        preloader.invalidate();
+        return;
+      }
       const next = resolveNextItem(queue, repeatMode);
       if (next) {
         const url = new ItemsService(currentClient).getStreamUrl(next.Id);

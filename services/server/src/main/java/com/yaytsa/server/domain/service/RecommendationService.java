@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +41,7 @@ public class RecommendationService {
   private final UserTrackAffinityRepository affinityRepository;
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final AudioTrackRepository audioTrackRepository;
-  private final ExecutorService recommendationExecutor;
+  private final Executor recommendationExecutor;
 
   public RecommendationService(
       CandidateRetrievalService candidateService,
@@ -50,7 +50,7 @@ public class RecommendationService {
       TrackFeaturesRepository trackFeaturesRepository,
       AudioTrackRepository audioTrackRepository,
       @org.springframework.beans.factory.annotation.Qualifier("recommendationExecutor")
-          ExecutorService recommendationExecutor) {
+          Executor recommendationExecutor) {
     this.candidateService = candidateService;
     this.tasteProfileService = tasteProfileService;
     this.affinityRepository = affinityRepository;

@@ -1,5 +1,7 @@
 package com.yaytsa.server.domain.service;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yaytsa.server.config.LibraryRootsConfig;
 import com.yaytsa.server.infrastructure.client.AudioSeparatorClient;
 import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
@@ -12,10 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -45,7 +45,8 @@ public class KaraokeService {
   private final Path stemsRootPath;
   private volatile Path realStemsRoot;
 
-  private final Map<UUID, JobEntry> processingJobs = new ConcurrentHashMap<>();
+  private final Cache<UUID, JobEntry> processingJobs =
+      Caffeine.newBuilder().maximumSize(1_000).expireAfterWrite(2, TimeUnit.HOURS).build();
   private final ExecutorService separationExecutor = Executors.newFixedThreadPool(2);
   private final ScheduledExecutorService cleanupScheduler =
       Executors.newSingleThreadScheduledExecutor();
@@ -122,23 +123,25 @@ public class KaraokeService {
 
   private void cleanupExpiredJobs() {
     long now = Instant.now().toEpochMilli();
-    processingJobs.forEach(
-        (trackId, job) -> {
-          ProcessingState state = job.status().state();
-          long age = now - job.createdAt().toEpochMilli();
+    processingJobs
+        .asMap()
+        .forEach(
+            (trackId, job) -> {
+              ProcessingState state = job.status().state();
+              long age = now - job.createdAt().toEpochMilli();
 
-          String reason = null;
-          if ((state == ProcessingState.READY || state == ProcessingState.FAILED)
-              && age > JOB_TTL_MS) {
-            reason = "expired " + state;
-          } else if (state == ProcessingState.PROCESSING && age > STALE_PROCESSING_TIMEOUT_MS) {
-            reason = "stale PROCESSING";
-          }
+              String reason = null;
+              if ((state == ProcessingState.READY || state == ProcessingState.FAILED)
+                  && age > JOB_TTL_MS) {
+                reason = "expired " + state;
+              } else if (state == ProcessingState.PROCESSING && age > STALE_PROCESSING_TIMEOUT_MS) {
+                reason = "stale PROCESSING";
+              }
 
-          if (reason != null && processingJobs.remove(trackId, job)) {
-            log.debug("Cleaned up {} job: {}", reason, trackId);
-          }
-        });
+              if (reason != null && processingJobs.asMap().remove(trackId, job)) {
+                log.debug("Cleaned up {} job: {}", reason, trackId);
+              }
+            });
   }
 
   @PreDestroy
@@ -170,7 +173,7 @@ public class KaraokeService {
       resetKaraokeState(track, "Stem files missing, resetting karaoke state");
     }
 
-    JobEntry job = processingJobs.get(trackId);
+    JobEntry job = processingJobs.getIfPresent(trackId);
     if (job != null) {
       if (job.status().state() == ProcessingState.FAILED) {
         return ProcessingStatus.notStarted();
@@ -245,12 +248,12 @@ public class KaraokeService {
     track.setInstrumentalPath(null);
     track.setVocalPath(null);
     audioTrackRepository.save(track);
-    processingJobs.remove(track.getItemId());
+    processingJobs.invalidate(track.getItemId());
   }
 
   @Async
   public void processTrack(UUID trackId) {
-    JobEntry existingJob = processingJobs.get(trackId);
+    JobEntry existingJob = processingJobs.getIfPresent(trackId);
     if (existingJob != null) {
       ProcessingState state = existingJob.status().state();
       long ageMs = Instant.now().toEpochMilli() - existingJob.createdAt().toEpochMilli();
@@ -263,7 +266,7 @@ public class KaraokeService {
       if (state == ProcessingState.FAILED
           || (state == ProcessingState.PROCESSING && ageMs >= STALE_PROCESSING_TIMEOUT_MS)) {
         log.info("Retrying track {} (previous state: {}, age: {}ms)", trackId, state, ageMs);
-        processingJobs.remove(trackId);
+        processingJobs.invalidate(trackId);
       }
     }
 
@@ -327,20 +330,22 @@ public class KaraokeService {
       updateJobStatus(trackId, ProcessingStatus.failed("Processing timed out"));
     } catch (Exception e) {
       log.error("Karaoke processing failed for track {}: {}", trackId, e.getMessage(), e);
-      updateJobStatus(trackId, ProcessingStatus.failed(e.getMessage()));
+      updateJobStatus(trackId, ProcessingStatus.failed("Processing failed"));
     }
   }
 
   private void updateJobStatus(UUID trackId, ProcessingStatus status) {
-    processingJobs.compute(
-        trackId,
-        (key, existing) -> {
-          Instant now = Instant.now();
-          if (existing == null) {
-            return new JobEntry(status, now, now);
-          }
-          return existing.withStatus(status);
-        });
+    processingJobs
+        .asMap()
+        .compute(
+            trackId,
+            (key, existing) -> {
+              Instant now = Instant.now();
+              if (existing == null) {
+                return new JobEntry(status, now, now);
+              }
+              return existing.withStatus(status);
+            });
   }
 
   private boolean isStemPathSafe(Path path) {
@@ -434,6 +439,6 @@ public class KaraokeService {
   }
 
   public void clearProcessingStatus(UUID trackId) {
-    processingJobs.remove(trackId);
+    processingJobs.invalidate(trackId);
   }
 }

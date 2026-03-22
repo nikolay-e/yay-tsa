@@ -11,6 +11,8 @@ import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntit
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,14 +25,17 @@ public class ListeningSessionController {
   private final ListeningSessionService sessionService;
   private final AdaptiveQueueService adaptiveQueueService;
   private final ObjectMapper objectMapper;
+  private final Executor applicationTaskExecutor;
 
   public ListeningSessionController(
       ListeningSessionService sessionService,
       AdaptiveQueueService adaptiveQueueService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      @Qualifier("applicationTaskExecutor") Executor applicationTaskExecutor) {
     this.sessionService = sessionService;
     this.adaptiveQueueService = adaptiveQueueService;
     this.objectMapper = objectMapper;
+    this.applicationTaskExecutor = applicationTaskExecutor;
   }
 
   @PostMapping
@@ -50,7 +55,8 @@ public class ListeningSessionController {
     verifyOwnership(id, user);
     var session = sessionService.updateState(id, request.state());
     CompletableFuture.runAsync(
-        () -> adaptiveQueueService.triggerDjDecision(session, "MOOD_CHANGE", null));
+        () -> adaptiveQueueService.triggerDjDecision(session, "MOOD_CHANGE", null),
+        applicationTaskExecutor);
     return ResponseEntity.ok(toResponse(session));
   }
 

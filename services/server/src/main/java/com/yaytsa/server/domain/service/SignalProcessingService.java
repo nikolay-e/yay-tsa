@@ -2,7 +2,8 @@ package com.yaytsa.server.domain.service;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -16,13 +17,13 @@ public class SignalProcessingService {
 
   private final SignalPersistenceService persistenceService;
   private final AffinityAggregationService affinityAggregationService;
-  private final ExecutorService signalAsyncExecutor;
+  private final Executor signalAsyncExecutor;
   private final int queueLowThreshold;
 
   public SignalProcessingService(
       SignalPersistenceService persistenceService,
       AffinityAggregationService affinityAggregationService,
-      @Qualifier("signalAsyncExecutor") ExecutorService signalAsyncExecutor,
+      @Qualifier("signalAsyncExecutor") Executor signalAsyncExecutor,
       @Value("${yaytsa.adaptive-dj.queue.trigger-threshold:8}") int queueLowThreshold) {
     this.persistenceService = persistenceService;
     this.affinityAggregationService = affinityAggregationService;
@@ -45,7 +46,7 @@ public class SignalProcessingService {
     var persisted =
         persistenceService.persistSignal(sessionId, signalType, trackId, queueEntryId, context);
 
-    signalAsyncExecutor.submit(
+    CompletableFuture.runAsync(
         () -> {
           try {
             affinityAggregationService.updateAffinityFromSignal(
@@ -57,7 +58,8 @@ public class SignalProcessingService {
                 trackId,
                 e.getMessage());
           }
-        });
+        },
+        signalAsyncExecutor);
 
     boolean queueLow = persistenceService.isQueueLow(sessionId, queueLowThreshold);
     boolean skipPattern = persistenceService.hasSkipPattern(sessionId);
