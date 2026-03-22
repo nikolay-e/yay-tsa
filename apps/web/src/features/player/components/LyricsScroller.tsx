@@ -178,37 +178,26 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
 
             let opacity: number;
             let textClass: string;
-            let shadow: string;
 
             if (!isTimeSynced || !hasActive) {
               opacity = 0.85;
-              textClass = 'text-text-primary font-normal';
-              shadow = 'none';
-            } else if (dist <= 1) {
-              opacity = dist === 0 ? 0.95 : 0.9;
-              textClass = 'text-accent font-medium';
-              shadow = '0 0 16px color-mix(in srgb, var(--color-accent) 30%, transparent)';
-            } else if (dist <= 3) {
-              opacity = 0.75 - (dist - 2) * 0.2;
-              textClass = 'text-accent font-normal';
-              shadow =
-                dist === 2
-                  ? '0 0 8px color-mix(in srgb, var(--color-accent) 12%, transparent)'
-                  : 'none';
+              textClass = 'text-text-primary';
+            } else if (dist <= 4) {
+              opacity = 0.95 - dist * 0.12;
+              textClass = 'text-accent';
             } else {
-              opacity = Math.max(0.06, 0.3 - (dist - 4) * 0.06);
-              textClass = 'text-text-secondary font-normal';
-              shadow = 'none';
+              opacity = Math.max(0.06, 0.3 - (dist - 5) * 0.05);
+              textClass = 'text-text-secondary';
             }
 
             return (
               <div
                 key={`${i}-${line.time}`}
                 className={cn(
-                  'px-6 py-3 text-center text-3xl leading-relaxed transition-all duration-500 ease-out',
+                  'px-6 py-3 text-center text-3xl leading-relaxed transition-[opacity,color] duration-500 ease-out',
                   textClass
                 )}
-                style={{ opacity, textShadow: shadow }}
+                style={{ opacity }}
               >
                 {line.text || '\u00A0'}
               </div>
