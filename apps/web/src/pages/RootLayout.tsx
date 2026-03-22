@@ -1,11 +1,14 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { Home, Disc3, Users, Music, Heart, Settings, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
+
+const MAX_SCROLL_ENTRIES = 200;
+const scrollPositions = new Map<string, number>();
 
 type NavItem = Readonly<{
   href: string;
@@ -33,8 +36,33 @@ export function RootLayout() {
   const sessionRestored = useRef(false);
   const sessionRestoreComplete = useRef(false);
   const hasCurrentTrack = usePlayerStore(state => state.currentTrack !== null);
+  const mainRef = useRef<HTMLElement>(null);
+  const locationKeyRef = useRef(location.key);
 
   const isLoginPage = location.pathname === '/login';
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const onScroll = () => {
+      scrollPositions.set(locationKeyRef.current, main.scrollTop);
+      if (scrollPositions.size > MAX_SCROLL_ENTRIES) {
+        scrollPositions.delete(scrollPositions.keys().next().value!);
+      }
+    };
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useLayoutEffect(() => {
+    locationKeyRef.current = location.key;
+    const main = mainRef.current;
+    if (!main) return;
+    const saved = scrollPositions.get(location.key);
+    requestAnimationFrame(() => {
+      main.scrollTop = saved ?? 0;
+    });
+  }, [location.key]);
 
   useEffect(() => {
     if (sessionRestored.current) {
@@ -76,6 +104,7 @@ export function RootLayout() {
     <div className="flex h-full min-h-screen">
       {showNavigation && <Sidebar hasPlayer={!!showPlayer} />}
       <main
+        ref={mainRef}
         className={cn(
           'pt-safe h-full min-h-screen flex-1 overflow-y-auto',
           showNavigation && 'md:ml-sidebar',

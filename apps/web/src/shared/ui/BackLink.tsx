@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
 type BackLinkProps = Readonly<{
@@ -8,14 +8,26 @@ type BackLinkProps = Readonly<{
 }>;
 
 export function BackLink({ to, label, 'data-testid': testId }: BackLinkProps) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    const historyIndex = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (historyIndex > 0) {
+      navigate(-1);
+    } else {
+      navigate(to);
+    }
+  };
+
   return (
-    <Link
+    <button
       data-testid={testId}
-      to={to}
-      className="text-text-secondary hover:text-text-primary inline-flex items-center gap-2 transition-colors"
+      type="button"
+      onClick={handleClick}
+      className="text-text-secondary hover:text-text-primary inline-flex cursor-pointer items-center gap-2 transition-colors"
     >
       <ArrowLeft className="h-4 w-4" />
       {label}
-    </Link>
+    </button>
   );
 }
