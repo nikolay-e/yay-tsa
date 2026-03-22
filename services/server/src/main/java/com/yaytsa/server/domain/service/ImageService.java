@@ -22,6 +22,7 @@ import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
@@ -125,7 +126,7 @@ public class ImageService {
 
       return Optional.of(processedImage);
 
-    } catch (Exception | NoClassDefFoundError | UnsatisfiedLinkError e) {
+    } catch (Exception e) {
       logger.error(
           "Error processing image: itemId={}, type={}, error={}",
           itemId,
@@ -493,12 +494,9 @@ public class ImageService {
       }
     } else if ("webp".equals(outputFormat)) {
       try {
-        if (!ImageIO.write(image, "webp", outputStream)) {
-          logger.warn("WebP encoding failed, falling back to JPEG");
-          return encodeImage(image, "jpeg", quality);
-        }
-      } catch (Exception | NoClassDefFoundError | UnsatisfiedLinkError e) {
-        logger.warn("WebP encoder not available ({}), falling back to JPEG", e.getMessage());
+        return encodeToWebpViaProcess(image, quality);
+      } catch (Exception e) {
+        logger.warn("WebP encoding failed ({}), falling back to JPEG", e.getMessage());
         return encodeImage(image, "jpeg", quality);
       }
     } else if ("png".equals(outputFormat)) {
@@ -508,6 +506,46 @@ public class ImageService {
     }
 
     return outputStream.toByteArray();
+  }
+
+  private byte[] encodeToWebpViaProcess(BufferedImage image, int quality) throws IOException {
+    Path tempInput = Files.createTempFile("webp-in-", ".png");
+    Path tempOutput = Files.createTempFile("webp-out-", ".webp");
+    try {
+      ImageIO.write(image, "png", tempInput.toFile());
+
+      ProcessBuilder pb =
+          new ProcessBuilder(
+              "cwebp",
+              "-q",
+              String.valueOf(quality),
+              tempInput.toAbsolutePath().toString(),
+              "-o",
+              tempOutput.toAbsolutePath().toString());
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+
+      try (var is = process.getInputStream()) {
+        is.readAllBytes();
+      }
+
+      boolean finished = process.waitFor(15, TimeUnit.SECONDS);
+      if (!finished) {
+        process.destroyForcibly();
+        throw new IOException("cwebp timed out after 15s");
+      }
+      if (process.exitValue() != 0) {
+        throw new IOException("cwebp exited with code " + process.exitValue());
+      }
+
+      return Files.readAllBytes(tempOutput);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("cwebp interrupted", e);
+    } finally {
+      Files.deleteIfExists(tempInput);
+      Files.deleteIfExists(tempOutput);
+    }
   }
 
   private String normalizeFormat(String format) {

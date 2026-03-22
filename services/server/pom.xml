@@ -29,6 +29,7 @@
         <thumbnailator.version>0.4.21</thumbnailator.version>
         <springdoc.version>2.6.0</springdoc.version>
         <testcontainers.version>1.21.4</testcontainers.version>
+        <twelvemonkeys.version>3.12.0</twelvemonkeys.version>
         <caffeine.version>3.2.3</caffeine.version>
         <commons-codec.version>1.21.0</commons-codec.version>
         <commons-io.version>2.21.0</commons-io.version>
@@ -127,9 +128,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.sejda.imageio</groupId>
-            <artifactId>webp-imageio</artifactId>
-            <version>0.1.6</version>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-webp</artifactId>
+            <version>${twelvemonkeys.version}</version>
         </dependency>
 
         <!-- Caching -->
