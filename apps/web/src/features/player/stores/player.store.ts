@@ -311,63 +311,28 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
-    async function applyNotStartedKaraokeState(
-      trackId: string,
-      signal: AbortSignal
-    ): Promise<void> {
-      if (karaokeFailedTrackIds.has(trackId)) {
-        set({ isKaraokeMode: false, karaokeEnabled: false });
-        return;
-      }
-      await currentClient!.requestKaraokeProcessing(trackId);
-      if (!signal.aborted) {
-        set({ isKaraokeMode: false, karaokeStatus: { state: 'PROCESSING', message: null } });
-      }
-    }
-
-    async function applyKaraokeStatus(
-      trackId: string,
-      status: KaraokeStatus,
-      signal: AbortSignal,
-      autoProcess = true
-    ): Promise<void> {
-      if (status.state === 'READY') {
-        await applyReadyKaraokeState(trackId, status, signal);
-      } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled && autoProcess) {
-        await applyNotStartedKaraokeState(trackId, signal);
-      } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled && !autoProcess) {
-        if (!signal.aborted) {
-          set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: null });
-        }
-      } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
-        if (!signal.aborted) set({ isKaraokeMode: false, karaokeStatus: status });
-      } else if (!signal.aborted) {
-        if (status.state === 'FAILED') {
-          set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
-        } else {
-          set({ isKaraokeMode: false, karaokeStatus: null });
-        }
-      }
-    }
-
     async function syncKaraokeForTrack(track: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) return;
       const trackId = track.Id;
       try {
         const status = await currentClient.getKaraokeStatus(trackId);
-        if (signal.aborted) return;
-        await applyKaraokeStatus(trackId, status, signal, false);
+        if (signal.aborted || get().currentTrack?.Id !== trackId) return;
+
+        if (status.state === 'READY') {
+          await applyReadyKaraokeState(trackId, status, signal);
+        } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
+          set({ isKaraokeMode: false, karaokeStatus: status });
+        } else if (status.state === 'FAILED') {
+          set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: status });
+        } else {
+          set({ isKaraokeMode: false, karaokeStatus: null });
+        }
       } catch (error) {
-        if (signal.aborted) return;
+        if (signal.aborted || get().currentTrack?.Id !== trackId) return;
         const isAbort = error instanceof DOMException && error.name === 'AbortError';
         if (!isAbort) {
           log.player.warn('Failed to sync karaoke for track', { error: String(error) });
-          set({
-            isKaraokeMode: false,
-            isKaraokeTransitioning: false,
-            karaokeEnabled: false,
-            karaokeStatus: null,
-          });
+          set({ isKaraokeMode: false, isKaraokeTransitioning: false, karaokeStatus: null });
         }
       }
     }
