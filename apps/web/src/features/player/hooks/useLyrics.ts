@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { parseLyrics, findActiveLineIndex, type ParsedLyrics } from '@yay-tsa/core';
 import { useCurrentTrack } from '../stores/player.store';
 import { useTimingStore } from '../stores/playback-timing.store';
@@ -15,9 +15,7 @@ export function useLyrics(): UseLyricsResult {
   const [activeLineIndex, setActiveLineIndex] = useState(-1);
   const lastSecondRef = useRef(-1);
 
-  const parsedLyrics = useMemo(() => {
-    return parseLyrics(currentTrack?.Lyrics);
-  }, [currentTrack?.Lyrics]);
+  const parsedLyrics = parseLyrics(currentTrack?.Lyrics);
 
   useEffect(() => {
     if (!parsedLyrics?.isTimeSynced) {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUpDown, Check } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
@@ -87,13 +87,10 @@ export function useSortPreference(
   const matched = options.find(o => o.id === selectedId);
   const activeOption: SortOption = matched ?? options[0]!;
 
-  const select = useCallback(
-    (optionId: string) => {
-      setSelectedId(optionId);
-      saveSortPreference(tab, context, optionId);
-    },
-    [tab, context]
-  );
+  const select = (optionId: string) => {
+    setSelectedId(optionId);
+    saveSortPreference(tab, context, optionId);
+  };
 
   return { selectedId, activeOption, select };
 }
@@ -135,33 +132,30 @@ export function SortMenu({
     }
   }, [isOpen, options, selectedId]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      switch (e.key) {
-        case 'Escape':
-          e.preventDefault();
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        setActiveIndex(prev => (prev + 1) % options.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveIndex(prev => (prev <= 0 ? options.length - 1 : prev - 1));
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (activeIndex >= 0 && activeIndex < options.length) {
+          onSelect(options[activeIndex]!.id);
           setIsOpen(false);
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          setActiveIndex(prev => (prev + 1) % options.length);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setActiveIndex(prev => (prev <= 0 ? options.length - 1 : prev - 1));
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          if (activeIndex >= 0 && activeIndex < options.length) {
-            onSelect(options[activeIndex]!.id);
-            setIsOpen(false);
-          }
-          break;
-      }
-    },
-    [activeIndex, options, onSelect]
-  );
+        }
+        break;
+    }
+  };
 
   const activeOption = options.find(o => o.id === selectedId) ?? options[0]!;
 

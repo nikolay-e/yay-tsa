@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import {
   ChevronDown,
   Play,
@@ -74,7 +74,7 @@ function MobileTimeRow() {
   );
 }
 
-export const MobileFullPlayer = memo(function MobileFullPlayer({
+export function MobileFullPlayer({
   track,
   imageUrl,
   hasImageError,
@@ -263,4 +263,4 @@ export const MobileFullPlayer = memo(function MobileFullPlayer({
       </div>
     </div>
   );
-});
+}

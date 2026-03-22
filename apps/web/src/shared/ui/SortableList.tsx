@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback } from 'react';
+import { type ReactNode } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -84,19 +84,16 @@ export function SortableList<T extends { Id: string }>({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-      const oldIndex = items.findIndex(item => item.Id === active.id);
-      const newIndex = items.findIndex(item => item.Id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return;
+    const oldIndex = items.findIndex(item => item.Id === active.id);
+    const newIndex = items.findIndex(item => item.Id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
 
-      onReorder(arrayMove(items, oldIndex, newIndex));
-    },
-    [items, onReorder]
-  );
+    onReorder(arrayMove(items, oldIndex, newIndex));
+  };
 
   const strategy = layout === 'grid' ? rectSortingStrategy : verticalListSortingStrategy;
 

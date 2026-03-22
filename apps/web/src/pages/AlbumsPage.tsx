@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useDeferredValue } from 'react';
+import { useState, useDeferredValue } from 'react';
 import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
@@ -22,19 +22,16 @@ export function AlbumsPage() {
       sortOrder: activeOption.sortOrder,
     });
 
-  const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const albums = data?.pages.flatMap(page => page.Items) ?? [];
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = () => {
     fetchNextPage();
-  }, [fetchNextPage]);
+  };
 
-  const handlePlayAlbum = useCallback(
-    (album: { Id: string }) => {
-      playAlbum(album.Id);
-    },
-    [playAlbum]
-  );
+  const handlePlayAlbum = (album: { Id: string }) => {
+    playAlbum(album.Id);
+  };
 
   const emptyState = (
     <div className="flex h-64 items-center justify-center">

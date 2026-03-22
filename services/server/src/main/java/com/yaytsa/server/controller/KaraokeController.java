@@ -44,7 +44,7 @@ public class KaraokeController {
   private static final Logger log = LoggerFactory.getLogger(KaraokeController.class);
   private static final long SSE_TIMEOUT_MS = 300_000; // 5 minutes
   private static final long POLL_INTERVAL_MS = 500; // Poll every 500ms
-  private static final int SSE_THREAD_POOL_SIZE = 10; // Support up to 10 concurrent SSE connections
+  private static final int SSE_THREAD_POOL_SIZE = 1;
 
   private final KaraokeService karaokeService;
   private final ObjectMapper objectMapper;
@@ -115,6 +115,38 @@ public class KaraokeController {
     AtomicLong eventId = new AtomicLong(0);
     AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
 
+    emitter.onCompletion(
+        () -> {
+          ScheduledFuture<?> f = futureRef.get();
+          if (f != null) {
+            f.cancel(false);
+          }
+        });
+    emitter.onTimeout(
+        () -> {
+          ScheduledFuture<?> f = futureRef.get();
+          if (f != null) {
+            f.cancel(false);
+          }
+        });
+    emitter.onError(
+        e -> {
+          ScheduledFuture<?> f = futureRef.get();
+          if (f != null) {
+            f.cancel(true);
+          }
+        });
+
+    try {
+      ProcessingStatus initialStatus = karaokeService.getStatus(trackId);
+      lastStatus[0] = initialStatus;
+      String json = objectMapper.writeValueAsString(initialStatus);
+      emitter.send(
+          SseEmitter.event().id("0").name("status").data(json, MediaType.APPLICATION_JSON));
+    } catch (Exception e) {
+      log.debug("Failed to send initial status for track {}", trackId);
+    }
+
     ScheduledFuture<?> future =
         scheduler.scheduleAtFixedRate(
             () -> {
@@ -155,19 +187,6 @@ public class KaraokeController {
             TimeUnit.MILLISECONDS);
 
     futureRef.set(future);
-
-    try {
-      ProcessingStatus initialStatus = karaokeService.getStatus(trackId);
-      String json = objectMapper.writeValueAsString(initialStatus);
-      emitter.send(
-          SseEmitter.event().id("0").name("status").data(json, MediaType.APPLICATION_JSON));
-    } catch (Exception e) {
-      log.debug("Failed to send initial status for track {}", trackId);
-    }
-
-    emitter.onCompletion(() -> future.cancel(false));
-    emitter.onTimeout(() -> future.cancel(false));
-    emitter.onError(e -> future.cancel(true));
 
     return emitter;
   }

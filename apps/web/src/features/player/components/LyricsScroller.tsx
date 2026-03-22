@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { useRef, useEffect, useLayoutEffect } from 'react';
 import { findActiveLineIndex } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { useTimingStore } from '../stores/playback-timing.store';
@@ -11,11 +11,7 @@ type LyricsScrollerProps = Readonly<{
   isTimeSynced: boolean;
 }>;
 
-export const LyricsScroller = memo(function LyricsScroller({
-  lines,
-  activeLineIndex,
-  isTimeSynced,
-}: LyricsScrollerProps) {
+export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsScrollerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef(lines);
@@ -31,7 +27,7 @@ export const LyricsScroller = memo(function LyricsScroller({
     targetY.current = 0;
   }, [lines]);
 
-  const cacheOffsets = useCallback(() => {
+  const cacheOffsets = () => {
     const inner = innerRef.current;
     const container = containerRef.current;
     if (!inner || !container) return;
@@ -44,7 +40,7 @@ export const LyricsScroller = memo(function LyricsScroller({
       offsets.push(el.offsetTop - half + el.offsetHeight / 2);
     }
     offsetsRef.current = offsets;
-  }, []);
+  };
 
   useLayoutEffect(() => {
     cacheOffsets();
@@ -54,7 +50,7 @@ export const LyricsScroller = memo(function LyricsScroller({
     const observer = new ResizeObserver(cacheOffsets);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [lines, cacheOffsets]);
+  }, [lines]);
 
   useEffect(() => {
     if (!isTimeSynced) {
@@ -198,4 +194,4 @@ export const LyricsScroller = memo(function LyricsScroller({
       </div>
     </div>
   );
-});
+}

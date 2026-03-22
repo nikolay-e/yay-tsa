@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { formatSeconds } from '@/shared/utils/time';
 import { useTimingStore } from '../stores/playback-timing.store';
 
@@ -10,7 +10,7 @@ function formatTimeText(time: number, total: number): string {
   return `${formatSeconds(time)} of ${formatSeconds(total)}`;
 }
 
-export const SeekBar = memo(function SeekBar({ onSeek }: SeekBarProps) {
+export function SeekBar({ onSeek }: SeekBarProps) {
   const sliderRef = useRef<HTMLInputElement>(null);
   const isDragging = useRef(false);
   const pendingValue = useRef<number | null>(null);
@@ -29,45 +29,39 @@ export const SeekBar = memo(function SeekBar({ onSeek }: SeekBarProps) {
     });
   }, []);
 
-  const updateSliderVisual = useCallback((value: number) => {
+  const updateSliderVisual = (value: number) => {
     if (!sliderRef.current) return;
     const max = Number.parseFloat(sliderRef.current.max) || 1;
     const progress = max > 0 ? (value / max) * 100 : 0;
     sliderRef.current.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
     sliderRef.current.setAttribute('aria-valuetext', formatTimeText(value, max));
-  }, []);
+  };
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = Number.parseFloat(e.target.value);
-      pendingValue.current = value;
-      updateSliderVisual(value);
-    },
-    [updateSliderVisual]
-  );
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number.parseFloat(e.target.value);
+    pendingValue.current = value;
+    updateSliderVisual(value);
+  };
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLInputElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
     isDragging.current = true;
     pendingValue.current = null;
     e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
+  };
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = () => {
     isDragging.current = false;
     if (pendingValue.current !== null) {
       onSeek(pendingValue.current);
       pendingValue.current = null;
     }
-  }, [onSeek]);
+  };
 
-  const handleKeyUp = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
-        onSeek(Number.parseFloat(e.currentTarget.value));
-      }
-    },
-    [onSeek]
-  );
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+      onSeek(Number.parseFloat(e.currentTarget.value));
+    }
+  };
 
   return (
     <input
@@ -87,9 +81,9 @@ export const SeekBar = memo(function SeekBar({ onSeek }: SeekBarProps) {
       className="bg-bg-tertiary accent-accent h-1 w-full cursor-pointer appearance-none"
     />
   );
-});
+}
 
-export const TimeDisplay = memo(function TimeDisplay() {
+export function TimeDisplay() {
   const currentTimeRef = useRef<HTMLSpanElement>(null);
   const totalTimeRef = useRef<HTMLSpanElement>(null);
   const lastDisplayedSecond = useRef(-1);
@@ -122,4 +116,4 @@ export const TimeDisplay = memo(function TimeDisplay() {
       </span>
     </span>
   );
-});
+}

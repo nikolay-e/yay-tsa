@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { UserPlus, Trash2, KeyRound, ShieldCheck, User, Loader2, Copy, Check } from 'lucide-react';
 import { AdminService, type UserSummary } from '@yay-tsa/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -254,22 +254,19 @@ export function UsersPanel() {
     enabled: !!client,
   });
 
-  const invalidate = useCallback(() => {
+  const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['admin', 'users'] });
-  }, [qc]);
+  };
 
-  const handleCreated = useCallback(
-    (password: string) => {
-      setShowAddModal(false);
-      setShownPassword({ label: 'Initial password for new user:', password });
-      invalidate();
-    },
-    [invalidate]
-  );
+  const handleCreated = (password: string) => {
+    setShowAddModal(false);
+    setShownPassword({ label: 'Initial password for new user:', password });
+    invalidate();
+  };
 
-  const handlePasswordReset = useCallback((password: string) => {
+  const handlePasswordReset = (password: string) => {
     setShownPassword({ label: 'New password:', password });
-  }, []);
+  };
 
   const userSuffix = users?.length === 1 ? '' : 's';
   const userCountText = users ? `${users.length} user${userSuffix}` : '';

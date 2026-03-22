@@ -1,5 +1,4 @@
 import { useParams } from 'react-router-dom';
-import { useCallback } from 'react';
 import { useArtist, useArtistAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -21,12 +20,9 @@ export function ArtistDetailPage() {
     artist?.ImageTags?.Primary
   );
 
-  const handlePlayAlbum = useCallback(
-    (album: { Id: string }) => {
-      playAlbum(album.Id);
-    },
-    [playAlbum]
-  );
+  const handlePlayAlbum = (album: { Id: string }) => {
+    playAlbum(album.Id);
+  };
 
   const isLoading = artistLoading || albumsLoading;
 

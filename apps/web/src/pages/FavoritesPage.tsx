@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState } from 'react';
 import { type AudioItem, type MusicAlbum, type MusicArtist } from '@yay-tsa/core';
 import { useInfiniteAlbums, useInfiniteArtists, useInfiniteTracks } from '@/features/library/hooks';
 import { AlbumGrid, ArtistCard, TrackList, TrackListRow } from '@/features/library/components';
@@ -86,26 +86,20 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
     sortOrder: activeOption.sortOrder,
   });
 
-  const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const albums = data?.pages.flatMap(page => page.Items) ?? [];
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
-  const handleReorder = useCallback(
-    (reordered: MusicAlbum[]) => {
-      reorderMutation.mutate(reordered.map(a => a.Id));
-    },
-    [reorderMutation]
-  );
+  const handleReorder = (reordered: MusicAlbum[]) => {
+    reorderMutation.mutate(reordered.map(a => a.Id));
+  };
 
-  const handlePlayAlbum = useCallback(
-    (album: { Id: string }) => {
-      playAlbum(album.Id);
-    },
-    [playAlbum]
-  );
+  const handlePlayAlbum = (album: { Id: string }) => {
+    playAlbum(album.Id);
+  };
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = () => {
     fetchNextPage();
-  }, [fetchNextPage]);
+  };
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -161,19 +155,16 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
     sortOrder: activeOption.sortOrder,
   });
 
-  const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const artists = data?.pages.flatMap(page => page.Items) ?? [];
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
-  const handleReorder = useCallback(
-    (reordered: MusicArtist[]) => {
-      reorderMutation.mutate(reordered.map(a => a.Id));
-    },
-    [reorderMutation]
-  );
+  const handleReorder = (reordered: MusicArtist[]) => {
+    reorderMutation.mutate(reordered.map(a => a.Id));
+  };
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = () => {
     fetchNextPage();
-  }, [fetchNextPage]);
+  };
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -229,26 +220,20 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
     sortOrder: activeOption.sortOrder,
   });
 
-  const tracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const tracks = data?.pages.flatMap(page => page.Items) ?? [];
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
-  const handleReorder = useCallback(
-    (reordered: AudioItem[]) => {
-      reorderMutation.mutate(reordered.map(t => t.Id));
-    },
-    [reorderMutation]
-  );
+  const handleReorder = (reordered: AudioItem[]) => {
+    reorderMutation.mutate(reordered.map(t => t.Id));
+  };
 
-  const handlePlayTrack = useCallback(
-    (_: unknown, index: number) => {
-      playTracks(tracks, index);
-    },
-    [playTracks, tracks]
-  );
+  const handlePlayTrack = (_: unknown, index: number) => {
+    playTracks(tracks, index);
+  };
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = () => {
     fetchNextPage();
-  }, [fetchNextPage]);
+  };
 
   if (isLoading) return <LoadingSpinner />;
 

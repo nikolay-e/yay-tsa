@@ -1,4 +1,4 @@
-import { useState, useMemo, useDeferredValue } from 'react';
+import { useState, useDeferredValue } from 'react';
 import { useInfiniteArtists } from '@/features/library/hooks';
 import { ArtistCard } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
@@ -20,7 +20,7 @@ export function ArtistsPage() {
       sortOrder: activeOption.sortOrder,
     });
 
-  const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const artists = data?.pages.flatMap(page => page.Items) ?? [];
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleLoadMore = () => {

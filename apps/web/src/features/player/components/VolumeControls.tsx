@@ -1,4 +1,4 @@
-import { memo, useRef, type ChangeEvent } from 'react';
+import { useRef, type ChangeEvent } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 
 interface VolumeControlsProps {
@@ -8,10 +8,7 @@ interface VolumeControlsProps {
 
 const DEFAULT_UNMUTE_VOLUME = 0.5;
 
-export const VolumeControls = memo(function VolumeControls({
-  volume,
-  onVolumeChange,
-}: VolumeControlsProps) {
+export function VolumeControls({ volume, onVolumeChange }: VolumeControlsProps) {
   const previousVolumeRef = useRef(1);
 
   const toggleMute = () => {
@@ -54,4 +51,4 @@ export const VolumeControls = memo(function VolumeControls({
       />
     </div>
   );
-});
+}
