@@ -44,7 +44,7 @@ public class KaraokeController {
   private static final Logger log = LoggerFactory.getLogger(KaraokeController.class);
   private static final long SSE_TIMEOUT_MS = 300_000; // 5 minutes
   private static final long POLL_INTERVAL_MS = 500; // Poll every 500ms
-  private static final int SSE_THREAD_POOL_SIZE = 1;
+  private static final int SSE_THREAD_POOL_SIZE = 2;
 
   private final KaraokeService karaokeService;
   private final ObjectMapper objectMapper;

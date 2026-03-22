@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useEffectEvent } from 'react';
+import { useState, useEffect, useEffectEvent } from 'react';
 import type { MediaServerClient } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
@@ -60,10 +60,10 @@ export function useLyricsFetch(): UseLyricsFetchResult {
     return () => clearTimeout(timer);
   }, [trackId, trackLyrics, client, hasLyrics, currentTrack]);
 
-  const handleFetch = useCallback(() => {
+  const handleFetch = () => {
     if (!client || !currentTrack) return;
     doFetch(currentTrack.Id, client).catch(() => {});
-  }, [currentTrack, client]);
+  };
 
   return { isFetching, fetchError, handleFetch };
 }

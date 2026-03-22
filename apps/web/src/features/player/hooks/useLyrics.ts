@@ -35,7 +35,7 @@ export function useLyrics(): UseLyricsResult {
     });
 
     return unsubscribe;
-  }, [parsedLyrics]);
+  }, [currentTrack?.Lyrics]);
 
   return {
     parsedLyrics,
