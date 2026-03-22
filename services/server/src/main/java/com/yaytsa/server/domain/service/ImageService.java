@@ -22,6 +22,7 @@ import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -41,6 +42,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class ImageService {
   private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
+
+  private static final Semaphore CWEBP_SEMAPHORE =
+      new Semaphore(Runtime.getRuntime().availableProcessors());
 
   private static final String[] ARTWORK_NAMES = {
     "cover.jpg", "cover.jpeg", "cover.png",
@@ -509,10 +513,20 @@ public class ImageService {
   }
 
   private byte[] encodeToWebpViaProcess(BufferedImage image, int quality) throws IOException {
+    try {
+      CWEBP_SEMAPHORE.acquire();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("WebP encoding interrupted while waiting for permit", e);
+    }
+
     Path tempInput = Files.createTempFile("webp-in-", ".png");
     Path tempOutput = Files.createTempFile("webp-out-", ".webp");
+    Process process = null;
     try {
-      ImageIO.write(image, "png", tempInput.toFile());
+      if (!ImageIO.write(image, "png", tempInput.toFile())) {
+        throw new IOException("Failed to write temporary PNG");
+      }
 
       ProcessBuilder pb =
           new ProcessBuilder(
@@ -523,17 +537,17 @@ public class ImageService {
               "-o",
               tempOutput.toAbsolutePath().toString());
       pb.redirectErrorStream(true);
-      Process process = pb.start();
+      process = pb.start();
+
+      boolean finished = process.waitFor(10, TimeUnit.SECONDS);
+      if (!finished) {
+        throw new IOException("cwebp timed out after 10s");
+      }
 
       try (var is = process.getInputStream()) {
         is.readAllBytes();
       }
 
-      boolean finished = process.waitFor(15, TimeUnit.SECONDS);
-      if (!finished) {
-        process.destroyForcibly();
-        throw new IOException("cwebp timed out after 15s");
-      }
       if (process.exitValue() != 0) {
         throw new IOException("cwebp exited with code " + process.exitValue());
       }
@@ -543,6 +557,10 @@ public class ImageService {
       Thread.currentThread().interrupt();
       throw new IOException("cwebp interrupted", e);
     } finally {
+      if (process != null) {
+        process.destroyForcibly();
+      }
+      CWEBP_SEMAPHORE.release();
       Files.deleteIfExists(tempInput);
       Files.deleteIfExists(tempOutput);
     }
