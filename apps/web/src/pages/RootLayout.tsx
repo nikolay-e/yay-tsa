@@ -52,7 +52,7 @@ export function RootLayout() {
     };
     main.addEventListener('scroll', onScroll, { passive: true });
     return () => main.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [authState]);
 
   useLayoutEffect(() => {
     locationKeyRef.current = location.key;
