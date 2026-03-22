@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
 import { useLyrics } from '../hooks/useLyrics';
 import { useLyricsFetch } from '../hooks/useLyricsFetch';
@@ -15,14 +15,15 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
   const { parsedLyrics, activeLineIndex, isTimeSynced, hasLyrics } = useLyrics();
   const { isFetching, fetchError, handleFetch } = useLyricsFetch();
 
+  const handleKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  });
+
   useEffect(() => {
     if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

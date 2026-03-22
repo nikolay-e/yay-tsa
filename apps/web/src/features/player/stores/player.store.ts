@@ -403,7 +403,7 @@ export const usePlayerStore = create<PlayerStore>()(
       preloader.invalidate();
       schedulePreload();
 
-      if (get().karaokeEnabled) {
+      if (get().karaokeEnabled && !get().isKaraokeTransitioning) {
         void syncKaraokeForTrack(track, signal);
       }
     }

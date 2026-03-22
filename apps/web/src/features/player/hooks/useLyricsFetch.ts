@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useEffectEvent } from 'react';
 import type { MediaServerClient } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useCurrentTrack, usePlayerStore } from '../stores/player.store';
@@ -20,9 +20,6 @@ export function useLyricsFetch(): UseLyricsFetchResult {
   const { hasLyrics } = useLyrics();
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const clientRef = useRef(client);
-  clientRef.current = client;
-
   const trackId = currentTrack?.Id;
   const trackLyrics = currentTrack?.Lyrics;
 
@@ -31,7 +28,7 @@ export function useLyricsFetch(): UseLyricsFetchResult {
     setFetchError(null);
   }, [trackId]);
 
-  const doFetch = useCallback(async (id: string, apiClient: MediaServerClient) => {
+  const doFetch = useEffectEvent(async (id: string, apiClient: MediaServerClient) => {
     setIsFetching(true);
     setFetchError(null);
     try {
@@ -50,7 +47,7 @@ export function useLyricsFetch(): UseLyricsFetchResult {
         setIsFetching(false);
       }
     }
-  }, []);
+  });
 
   useEffect(() => {
     if (!currentTrack || !client || hasLyrics || trackLyrics) return;
@@ -61,13 +58,12 @@ export function useLyricsFetch(): UseLyricsFetchResult {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [trackId, trackLyrics, client, hasLyrics, doFetch, currentTrack]);
+  }, [trackId, trackLyrics, client, hasLyrics, currentTrack]);
 
   const handleFetch = useCallback(() => {
-    const c = clientRef.current;
-    if (!c || !currentTrack) return;
-    doFetch(currentTrack.Id, c).catch(() => {});
-  }, [currentTrack, doFetch]);
+    if (!client || !currentTrack) return;
+    doFetch(currentTrack.Id, client).catch(() => {});
+  }, [currentTrack, client]);
 
   return { isFetching, fetchError, handleFetch };
 }

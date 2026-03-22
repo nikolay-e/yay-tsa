@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { useImageUrl } from '@/features/auth/hooks/useImageUrl';
 import {
   extractAlbumPalette,
@@ -44,6 +44,17 @@ export function useAlbumColors() {
   const lastUrlRef = useRef<string>('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const resolveImageUrl = useEffectEvent(() => {
+    if (!currentTrack) return null;
+    return getTrackImageUrl(getImageUrl, {
+      albumId: currentTrack.AlbumId,
+      albumPrimaryImageTag: currentTrack.AlbumPrimaryImageTag,
+      trackId: currentTrack.Id,
+      maxWidth: 100,
+      maxHeight: 100,
+    });
+  });
+
   useEffect(() => {
     let cancelled = false;
 
@@ -56,15 +67,8 @@ export function useAlbumColors() {
       };
     }
 
-    const imageUrl = getTrackImageUrl(getImageUrl, {
-      albumId: currentTrack.AlbumId,
-      albumPrimaryImageTag: currentTrack.AlbumPrimaryImageTag,
-      trackId: currentTrack.Id,
-      maxWidth: 100,
-      maxHeight: 100,
-    });
-
-    if (imageUrl === lastUrlRef.current) return;
+    const imageUrl = resolveImageUrl();
+    if (!imageUrl || imageUrl === lastUrlRef.current) return;
 
     if (imageUrl.startsWith('data:')) {
       clearTimeout(debounceRef.current);
@@ -90,7 +94,7 @@ export function useAlbumColors() {
       cancelled = true;
       clearTimeout(debounceRef.current);
     };
-  }, [currentTrack?.Id, currentTrack?.AlbumId, getImageUrl]);
+  }, [currentTrack?.Id, currentTrack?.AlbumId]);
 
   useEffect(() => {
     return () => clearPalette();
