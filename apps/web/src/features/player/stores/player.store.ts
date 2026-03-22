@@ -890,7 +890,7 @@ export const usePlayerStore = create<PlayerStore>()(
         if (!currentTrack || !currentClient || isKaraokeTransitioning) return;
 
         if (get().karaokeStatus?.state === 'PROCESSING') {
-          set({ karaokeEnabled: false, karaokeStatus: null });
+          set({ karaokeEnabled: !get().karaokeEnabled });
           return;
         }
 
@@ -937,7 +937,6 @@ export const usePlayerStore = create<PlayerStore>()(
 
         const { currentTrack: ct, karaokeStatus: ks } = get();
         if (ct?.Id !== currentTrack.Id || ks?.state !== 'PROCESSING') return;
-        if (!get().karaokeEnabled) return;
 
         if (status.state === 'FAILED') {
           set({ karaokeEnabled: false, karaokeStatus: status, isKaraokeMode: false });
@@ -951,9 +950,11 @@ export const usePlayerStore = create<PlayerStore>()(
 
         set({ karaokeStatus: status });
 
+        if (!get().karaokeEnabled) return;
+
         await controller.ifIdle(async signal => {
-          const { currentTrack: ct2, karaokeStatus: ks2 } = get();
-          if (ct2?.Id !== currentTrack.Id || ks2?.state !== 'READY') return;
+          const { currentTrack: ct2, karaokeStatus: ks2, karaokeEnabled: ke2 } = get();
+          if (ct2?.Id !== currentTrack.Id || ks2?.state !== 'READY' || !ke2) return;
 
           set({ isKaraokeTransitioning: true, isKaraokeMode: true });
           try {

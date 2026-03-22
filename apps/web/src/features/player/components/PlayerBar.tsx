@@ -332,9 +332,11 @@ export function PlayerBar() {
   if (isKaraokeMode) karaokeClass = 'text-accent';
   else if (karaokeProcessing) karaokeClass = 'text-accent animate-pulse';
   else karaokeClass = 'text-text-secondary hover:text-text-primary';
-  const karaokeNonProcessingLabel = isKaraokeMode ? 'Disable karaoke mode' : 'Enable karaoke mode';
-  const karaokeAriaLabel =
-    karaokeStatus?.state === 'PROCESSING' ? 'Cancel karaoke processing' : karaokeNonProcessingLabel;
+  const karaokeAriaLabel = isKaraokeMode
+    ? 'Disable karaoke mode'
+    : karaokeProcessing
+      ? 'Cancel karaoke processing'
+      : 'Enable karaoke mode';
   const karaokeAriaPressed = isKaraokeMode || karaokeEnabled;
   const karaokeAriaBusy = karaokeStatus?.state === 'PROCESSING';
 
@@ -448,8 +450,8 @@ export function PlayerBar() {
             aria-busy={karaokeAriaBusy}
             title={(() => {
               if (isLoading) return 'Wait for track to load';
-              if (karaokeStatus?.state === 'PROCESSING')
-                return 'Processing karaoke... Click to cancel';
+              if (karaokeProcessing) return 'Processing karaoke... Click to cancel';
+              if (karaokeStatus?.state === 'PROCESSING') return 'Processing karaoke in background';
               if (isKaraokeTransitioning) return 'Switching...';
               return isKaraokeMode ? 'Karaoke on' : 'Karaoke';
             })()}
