@@ -22,8 +22,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    python3-dev \
-    gcc \
     ffmpeg \
     libsndfile1 \
     wget \
@@ -33,14 +31,18 @@ ARG VARIANT=gpu
 ARG TARGETARCH
 
 COPY requirements/ requirements/
-RUN set -ex; \
+RUN apt-get update && apt-get install -y --no-install-recommends python3-dev gcc \
+    && set -ex; \
     if [ "$VARIANT" = "gpu" ] && [ "$TARGETARCH" = "arm64" ]; then \
       pip3 install --no-cache-dir --break-system-packages -r requirements/cpu.txt; \
     elif [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" = "arm64" ]; then \
       pip3 install --no-cache-dir --break-system-packages -r requirements/essentia-base.txt; \
     else \
       pip3 install --no-cache-dir --break-system-packages -r requirements/${VARIANT}.txt; \
-    fi
+    fi \
+    && apt-get purge -y python3-dev gcc \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY patches/ patches/
 RUN python3 patches/patch_audio_separator.py

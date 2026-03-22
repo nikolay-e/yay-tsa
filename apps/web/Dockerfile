@@ -55,7 +55,7 @@ ENV NO_COLOR=1
 
 CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/web && npm run test:e2e"]
 
-FROM nginx:1.28-alpine AS production
+FROM nginx:1.29-alpine AS production
 
 COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY infra/nginx/security-headers.conf /etc/nginx/security-headers.conf
