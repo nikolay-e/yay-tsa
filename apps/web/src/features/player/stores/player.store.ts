@@ -328,12 +328,17 @@ export const usePlayerStore = create<PlayerStore>()(
     async function applyKaraokeStatus(
       trackId: string,
       status: KaraokeStatus,
-      signal: AbortSignal
+      signal: AbortSignal,
+      autoProcess = true
     ): Promise<void> {
       if (status.state === 'READY') {
         await applyReadyKaraokeState(trackId, status, signal);
-      } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled) {
+      } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled && autoProcess) {
         await applyNotStartedKaraokeState(trackId, signal);
+      } else if (status.state === 'NOT_STARTED' && get().karaokeEnabled && !autoProcess) {
+        if (!signal.aborted) {
+          set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: null });
+        }
       } else if (status.state === 'PROCESSING' && get().karaokeEnabled) {
         if (!signal.aborted) set({ isKaraokeMode: false, karaokeStatus: status });
       } else if (!signal.aborted) {
@@ -351,7 +356,7 @@ export const usePlayerStore = create<PlayerStore>()(
       try {
         const status = await currentClient.getKaraokeStatus(trackId);
         if (signal.aborted) return;
-        await applyKaraokeStatus(trackId, status, signal);
+        await applyKaraokeStatus(trackId, status, signal, false);
       } catch (error) {
         if (signal.aborted) return;
         const isAbort = error instanceof DOMException && error.name === 'AbortError';
