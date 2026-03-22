@@ -271,14 +271,14 @@ export function PlayerBar() {
       reconnectTimer = setTimeout(() => {
         if (closed) return;
         const es = new EventSource(sseUrl);
-        es.onmessage = onMessage;
+        es.addEventListener('status', onMessage);
         es.onerror = onError;
         currentEs = es;
       }, 2000 * reconnectAttempts);
     };
 
     const es = new EventSource(sseUrl);
-    es.onmessage = onMessage;
+    es.addEventListener('status', onMessage);
     es.onerror = onError;
     currentEs = es;
 

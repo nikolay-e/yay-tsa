@@ -143,6 +143,11 @@ public class KaraokeController {
       String json = objectMapper.writeValueAsString(initialStatus);
       emitter.send(
           SseEmitter.event().id("0").name("status").data(json, MediaType.APPLICATION_JSON));
+      if (initialStatus.state() == ProcessingState.READY
+          || initialStatus.state() == ProcessingState.FAILED) {
+        emitter.complete();
+        return emitter;
+      }
     } catch (Exception e) {
       log.debug("Failed to send initial status for track {}", trackId);
     }
