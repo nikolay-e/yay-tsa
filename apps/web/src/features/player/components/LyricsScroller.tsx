@@ -11,6 +11,15 @@ type LyricsScrollerProps = Readonly<{
   isTimeSynced: boolean;
 }>;
 
+const DECAY_RATE = 8;
+const USER_SCROLL_PAUSE_MS = 5000;
+
+const maskStyle = {
+  maskImage: 'linear-gradient(transparent 0%, black 12%, black 88%, transparent 100%)',
+  WebkitMaskImage: 'linear-gradient(transparent 0%, black 12%, black 88%, transparent 100%)',
+  scrollbarWidth: 'none' as const,
+};
+
 export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsScrollerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -20,11 +29,13 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
   const targetY = useRef(0);
   const rafId = useRef(0);
   const lastFrameTime = useRef(0);
+  const userScrollUntil = useRef(0);
 
   useEffect(() => {
     linesRef.current = lines;
     currentY.current = 0;
     targetY.current = 0;
+    userScrollUntil.current = 0;
   }, [lines]);
 
   const cacheOffsets = () => {
@@ -35,7 +46,9 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
     const half = container.clientHeight / 2;
     const children = inner.children;
     const offsets: number[] = [];
-    for (let i = 1; i < children.length - 1; i++) {
+    const start = isTimeSynced ? 1 : 0;
+    const end = isTimeSynced ? children.length - 1 : children.length;
+    for (let i = start; i < end; i++) {
       const el = children[i] as HTMLElement;
       offsets.push(el.offsetTop - half + el.offsetHeight / 2);
     }
@@ -50,23 +63,45 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
     const observer = new ResizeObserver(cacheOffsets);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [lines]);
+  }, [lines, isTimeSynced]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isTimeSynced) return;
+
+    const pauseAutoScroll = () => {
+      userScrollUntil.current = performance.now() + USER_SCROLL_PAUSE_MS;
+    };
+
+    container.addEventListener('touchstart', pauseAutoScroll, { passive: true });
+    container.addEventListener('wheel', pauseAutoScroll, { passive: true });
+    return () => {
+      container.removeEventListener('touchstart', pauseAutoScroll);
+      container.removeEventListener('wheel', pauseAutoScroll);
+    };
+  }, [isTimeSynced]);
 
   useEffect(() => {
     if (!isTimeSynced) {
       cancelAnimationFrame(rafId.current);
-      const inner = innerRef.current;
-      if (inner) inner.style.transform = '';
+      const container = containerRef.current;
+      if (container) container.scrollTop = 0;
       return;
     }
 
-    const inner = innerRef.current;
-    if (!inner) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     let initialized = false;
-    const DECAY_RATE = 8;
 
     const animate = (timestamp: number) => {
+      if (performance.now() < userScrollUntil.current) {
+        currentY.current = container.scrollTop;
+        lastFrameTime.current = 0;
+        rafId.current = 0;
+        return;
+      }
+
       const dt = lastFrameTime.current
         ? Math.min((timestamp - lastFrameTime.current) / 1000, 0.1)
         : 0.016;
@@ -75,13 +110,13 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
       const diff = targetY.current - currentY.current;
       if (Math.abs(diff) < 0.3) {
         currentY.current = targetY.current;
-        inner.style.transform = `translateY(${-currentY.current}px)`;
+        container.scrollTop = currentY.current;
         lastFrameTime.current = 0;
         rafId.current = 0;
         return;
       }
       currentY.current += diff * (1 - Math.exp(-DECAY_RATE * dt));
-      inner.style.transform = `translateY(${-currentY.current}px)`;
+      container.scrollTop = currentY.current;
       rafId.current = requestAnimationFrame(animate);
     };
 
@@ -114,16 +149,16 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
         }
       }
 
+      targetY.current = target;
+
+      if (performance.now() < userScrollUntil.current) return;
+
       if (!initialized) {
         currentY.current = target;
-        targetY.current = target;
-        inner.style.transform = `translateY(${-target}px)`;
+        container.scrollTop = target;
         initialized = true;
-        scheduleAnimate();
-      } else {
-        targetY.current = target;
-        scheduleAnimate();
       }
+      scheduleAnimate();
     });
 
     return () => {
@@ -133,20 +168,12 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
   }, [isTimeSynced]);
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full overflow-hidden"
-      style={{
-        maskImage: 'linear-gradient(transparent 0%, black 12%, black 88%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(transparent 0%, black 12%, black 88%, transparent 100%)',
-      }}
-    >
-      <div ref={innerRef} className="will-change-transform">
-        <div style={{ height: '45%' }} aria-hidden="true" />
+    <div ref={containerRef} className="h-full overflow-y-auto" style={maskStyle}>
+      <div ref={innerRef}>
+        {isTimeSynced && <div style={{ height: '45%' }} aria-hidden="true" />}
         {(() => {
           const hasActive = isTimeSynced && activeLineIndex >= 0;
           return lines.map((line, i) => {
-            const isActive = hasActive && i === activeLineIndex;
             const dist = hasActive ? Math.abs(i - activeLineIndex) : 0;
 
             let opacity: number;
@@ -157,21 +184,19 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
               opacity = 0.85;
               textClass = 'text-text-primary font-normal';
               shadow = 'none';
-            } else if (isActive) {
-              opacity = 1;
-              textClass = 'text-accent font-bold';
-              shadow =
-                '0 0 24px var(--color-accent), 0 0 48px color-mix(in srgb, var(--color-accent) 40%, transparent)';
             } else if (dist <= 1) {
-              opacity = 0.7;
+              opacity = dist === 0 ? 0.95 : 0.9;
+              textClass = 'text-accent font-medium';
+              shadow = '0 0 16px color-mix(in srgb, var(--color-accent) 30%, transparent)';
+            } else if (dist <= 3) {
+              opacity = 0.75 - (dist - 2) * 0.2;
               textClass = 'text-accent font-normal';
-              shadow = '0 0 12px color-mix(in srgb, var(--color-accent) 25%, transparent)';
-            } else if (dist <= 2) {
-              opacity = 0.45;
-              textClass = 'text-text-primary font-normal';
-              shadow = 'none';
+              shadow =
+                dist === 2
+                  ? '0 0 8px color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                  : 'none';
             } else {
-              opacity = Math.max(0.06, 0.3 - (dist - 3) * 0.08);
+              opacity = Math.max(0.06, 0.3 - (dist - 4) * 0.06);
               textClass = 'text-text-secondary font-normal';
               shadow = 'none';
             }
@@ -190,7 +215,7 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
             );
           });
         })()}
-        <div style={{ height: '45%' }} aria-hidden="true" />
+        {isTimeSynced && <div style={{ height: '45%' }} aria-hidden="true" />}
       </div>
     </div>
   );
