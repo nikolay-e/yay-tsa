@@ -60,13 +60,13 @@
     "globals": "^17.4.0",
     "jscpd": "^4.0.8",
     "jsdom": "^29.0.1",
-    "knip": "^6.0.0",
+    "knip": "^6.0.3",
     "madge": "^8.0.0",
     "prettier": "^3.8.1",
     "sharp": "^0.34.5",
     "type-coverage": "^2.29.7",
-    "vitest": "^4.1.0",
-    "yaml": "2.8.2"
+    "vitest": "^4.1.1",
+    "yaml": "2.8.3"
   },
   "engines": {
     "node": ">=20.0.0"
