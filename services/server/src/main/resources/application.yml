@@ -184,6 +184,8 @@ yaytsa:
     # Feature extraction configuration (Adaptive DJ)
     feature-extraction:
       url: ${FEATURE_EXTRACTOR_URL:http://feature-extractor:8000}
+    embedding-extraction:
+      url: ${FEATURE_EXTRACTOR_URL:http://feature-extractor:8000}
       max-concurrent: ${FEATURE_EXTRACTION_MAX_CONCURRENT:2}
       batch-size: ${FEATURE_EXTRACTION_BATCH_SIZE:10}
       timeout-seconds: ${FEATURE_EXTRACTION_TIMEOUT:120}

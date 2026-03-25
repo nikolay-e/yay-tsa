@@ -10,4 +10,6 @@ public record ListeningSessionResponse(
     @JsonProperty("started_at") OffsetDateTime startedAt,
     @JsonProperty("last_activity_at") OffsetDateTime lastActivityAt,
     @JsonProperty("ended_at") OffsetDateTime endedAt,
-    @JsonProperty("session_summary") String sessionSummary) {}
+    @JsonProperty("session_summary") String sessionSummary,
+    @JsonProperty("is_radio_mode") boolean isRadioMode,
+    @JsonProperty("seed_track_id") String seedTrackId) {}

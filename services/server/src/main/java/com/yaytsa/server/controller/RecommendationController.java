@@ -2,10 +2,12 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.CandidateRetrievalService;
 import com.yaytsa.server.domain.service.CandidateRetrievalService.TrackCandidate;
+import com.yaytsa.server.domain.service.RadioSeedService;
 import com.yaytsa.server.domain.service.RecommendationService;
 import com.yaytsa.server.domain.service.RecommendationService.RecommendationContext;
 import com.yaytsa.server.domain.service.RecommendationService.ScoredTrack;
 import com.yaytsa.server.domain.service.SemanticSearchService;
+import com.yaytsa.server.dto.response.RadioSeedsResponse;
 import com.yaytsa.server.dto.response.RecommendedTrackResponse;
 import com.yaytsa.server.dto.response.RecommendedTrackResponse.TrackFeaturesSnippet;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
@@ -24,14 +26,17 @@ public class RecommendationController {
   private final RecommendationService recommendationService;
   private final SemanticSearchService semanticSearchService;
   private final CandidateRetrievalService candidateRetrievalService;
+  private final RadioSeedService radioSeedService;
 
   public RecommendationController(
       RecommendationService recommendationService,
       SemanticSearchService semanticSearchService,
-      CandidateRetrievalService candidateRetrievalService) {
+      CandidateRetrievalService candidateRetrievalService,
+      RadioSeedService radioSeedService) {
     this.recommendationService = recommendationService;
     this.semanticSearchService = semanticSearchService;
     this.candidateRetrievalService = candidateRetrievalService;
+    this.radioSeedService = radioSeedService;
   }
 
   @GetMapping
@@ -55,7 +60,7 @@ public class RecommendationController {
         new HashSet<>(candidateRetrievalService.getRecentlyOverplayed(userId, 24));
 
     var ctx =
-        new RecommendationContext(
+        RecommendationContext.standard(
             energy,
             valence,
             exploration,
@@ -95,6 +100,12 @@ public class RecommendationController {
             .toList();
 
     return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/radio/seeds")
+  public ResponseEntity<RadioSeedsResponse> getRadioSeeds(
+      @AuthenticationPrincipal AuthenticatedUser user) {
+    return ResponseEntity.ok(radioSeedService.getSeeds(user.getUserEntity().getId()));
   }
 
   private RecommendedTrackResponse toResponse(ScoredTrack st) {

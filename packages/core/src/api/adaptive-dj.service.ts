@@ -5,15 +5,17 @@ import type {
   PlaybackSignal,
   UserPreferences,
   RecommendedTrack,
+  RadioSeedsResponse,
 } from './adaptive-dj.types.js';
 import { BaseService } from './base-api.service.js';
 
 export class AdaptiveDjService extends BaseService {
-  async startSession(state: SessionState): Promise<ListeningSession> {
+  async startSession(state: SessionState, seedTrackId?: string): Promise<ListeningSession> {
     const userId = this.requireAuth();
     return this.client.postRequired<ListeningSession>('/v1/sessions', {
       userId,
       state,
+      seed_track_id: seedTrackId ?? undefined,
     });
   }
 
@@ -70,6 +72,11 @@ export class AdaptiveDjService extends BaseService {
       method: 'PUT',
       body: JSON.stringify(prefs),
     });
+  }
+
+  async getRadioSeeds(): Promise<RadioSeedsResponse | null> {
+    const result = await this.client.get<RadioSeedsResponse>('/v1/recommend/radio/seeds');
+    return result ?? null;
   }
 
   async searchByText(query: string, limit = 20): Promise<RecommendedTrack[]> {

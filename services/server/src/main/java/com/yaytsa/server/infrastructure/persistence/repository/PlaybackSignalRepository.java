@@ -16,6 +16,13 @@ public interface PlaybackSignalRepository extends JpaRepository<PlaybackSignalEn
 
   @Query(
       value =
+          "SELECT signal_type, COUNT(*) FROM playback_signal"
+              + " WHERE session_id = :sessionId GROUP BY signal_type",
+      nativeQuery = true)
+  List<Object[]> countSignalsByTypeForSession(@Param("sessionId") UUID sessionId);
+
+  @Query(
+      value =
           """
           SELECT ps.track_id, COUNT(*) AS play_count,
                  SUM(CASE WHEN ps.signal_type IN ('PLAY_COMPLETE', 'SKIP_LATE') THEN 1 ELSE 0 END) AS completions,

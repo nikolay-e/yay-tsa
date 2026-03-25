@@ -5,6 +5,21 @@ export interface ListeningSession {
   startedAt: string;
   lastActivityAt?: string;
   sessionSummary?: string;
+  isRadioMode: boolean;
+  seedTrackId?: string;
+}
+
+export interface RadioSeed {
+  trackId: string;
+  name: string;
+  artistName: string;
+  albumName: string;
+  albumId: string;
+  imageTag: string;
+}
+
+export interface RadioSeedsResponse {
+  seeds: RadioSeed[];
 }
 
 export interface SessionState {

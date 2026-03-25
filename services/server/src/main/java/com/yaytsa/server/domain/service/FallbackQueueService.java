@@ -33,6 +33,7 @@ public class FallbackQueueService {
 
   private final RecommendationService recommendationService;
   private final CandidateRetrievalService candidateRetrievalService;
+  private final RadioAnchorResolver radioAnchorResolver;
   private final AdaptiveQueueRepository queueRepository;
   private final ItemRepository itemRepository;
   private final int targetQueueSize;
@@ -44,12 +45,14 @@ public class FallbackQueueService {
   public FallbackQueueService(
       RecommendationService recommendationService,
       CandidateRetrievalService candidateRetrievalService,
+      RadioAnchorResolver radioAnchorResolver,
       AdaptiveQueueRepository queueRepository,
       ItemRepository itemRepository,
       @Value("${yaytsa.adaptive-dj.queue.max-size:50}") int targetQueueSize,
       @Value("${yaytsa.adaptive-dj.queue.no-repeat-hours:6}") int noRepeatHours) {
     this.recommendationService = recommendationService;
     this.candidateRetrievalService = candidateRetrievalService;
+    this.radioAnchorResolver = radioAnchorResolver;
     this.queueRepository = queueRepository;
     this.itemRepository = itemRepository;
     this.targetQueueSize = targetQueueSize;
@@ -113,7 +116,7 @@ public class FallbackQueueService {
     }
 
     var ctx =
-        new RecommendationContext(
+        RecommendationContext.standard(
             targetEnergy,
             targetValence,
             explorationWeight,
@@ -122,6 +125,25 @@ public class FallbackQueueService {
             overplayed,
             excluded,
             avoidArtists);
+
+    if (session.isRadioMode()) {
+      float[] anchor = radioAnchorResolver.resolveAnchorEmbedding(session);
+      float weight = radioAnchorResolver.computeWeight(session.getId());
+      if (anchor != null) {
+        ctx =
+            RecommendationContext.radio(
+                ctx.targetEnergy(),
+                ctx.targetValence(),
+                ctx.explorationWeight(),
+                ctx.lastPlayedTrackId(),
+                ctx.recentlyPlayedIds(),
+                ctx.overplayedIds(),
+                ctx.excludeIds(),
+                ctx.avoidArtists(),
+                anchor,
+                weight);
+      }
+    }
 
     List<ScoredTrack> recommendations = recommendationService.recommend(userId, ctx, needed);
 

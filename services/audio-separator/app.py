@@ -1259,6 +1259,56 @@ def embedding_status():
     }
 
 
+# ---------------------------------------------------------------------------
+# Radio seed selection
+# ---------------------------------------------------------------------------
+
+
+class SeedTrackInput(BaseModel):
+    track_id: str
+    embedding_mert: list[float]
+    affinity_score: float
+
+
+class ComputeSeedsRequest(BaseModel):
+    tracks: list[SeedTrackInput]
+    num_seeds: int = 10
+
+
+class RadioSeedOutput(BaseModel):
+    track_id: str
+
+
+class ComputeSeedsResponse(BaseModel):
+    seeds: list[RadioSeedOutput]
+
+
+@app.post(
+    "/api/v1/radio/compute-seeds",
+    response_model=ComputeSeedsResponse,
+    responses={
+        400: {"description": "Not enough tracks"},
+    },
+)
+async def compute_seeds(request: ComputeSeedsRequest):
+    if len(request.tracks) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 tracks with embeddings")
+
+    from radio.seed_selector import SeedSelector
+
+    selector = SeedSelector()
+    track_dicts = [
+        {
+            "track_id": t.track_id,
+            "embedding_mert": t.embedding_mert,
+            "affinity_score": t.affinity_score,
+        }
+        for t in request.tracks
+    ]
+    result = await run_in_threadpool(selector.compute_seeds, track_dicts, request.num_seeds)
+    return ComputeSeedsResponse(seeds=[RadioSeedOutput(**s) for s in result["seeds"]])
+
+
 if __name__ == "__main__":
     import uvicorn
 

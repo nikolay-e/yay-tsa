@@ -33,6 +33,11 @@ public class ListeningSessionService {
   }
 
   public ListeningSessionEntity createSession(UUID userId, Map<String, Object> initialState) {
+    return createSession(userId, initialState, null);
+  }
+
+  public ListeningSessionEntity createSession(
+      UUID userId, Map<String, Object> initialState, UUID seedTrackId) {
     UserEntity user =
         userRepository
             .findById(userId)
@@ -44,6 +49,7 @@ public class ListeningSessionService {
     session.setUser(user);
     session.setState(serializeJson(stateMap));
     applyTypedFields(session, stateMap);
+    session.setSeedTrackId(seedTrackId);
     session.setStartedAt(OffsetDateTime.now());
     session.setLastActivityAt(OffsetDateTime.now());
 

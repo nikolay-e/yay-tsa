@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.infrastructure.client.EmbeddingExtractionClient;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
 import java.util.List;
@@ -19,16 +20,19 @@ public class EmbeddingBackfillService {
   private final TrackFeaturesRepository featuresRepository;
   private final ItemRepository itemRepository;
   private final FeatureExtractionService featureExtractionService;
+  private final EmbeddingExtractionClient embeddingClient;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final AtomicInteger processedCount = new AtomicInteger(0);
 
   public EmbeddingBackfillService(
       TrackFeaturesRepository featuresRepository,
       ItemRepository itemRepository,
-      FeatureExtractionService featureExtractionService) {
+      FeatureExtractionService featureExtractionService,
+      EmbeddingExtractionClient embeddingClient) {
     this.featuresRepository = featuresRepository;
     this.itemRepository = itemRepository;
     this.featureExtractionService = featureExtractionService;
+    this.embeddingClient = embeddingClient;
   }
 
   public boolean isRunning() {
@@ -55,6 +59,10 @@ public class EmbeddingBackfillService {
 
   private void runBackfill() {
     try {
+      if (!embeddingClient.isAvailable()) {
+        log.error("Embedding extractor not available, aborting backfill");
+        return;
+      }
       log.info("Starting embedding backfill");
       while (running.get()) {
         List<UUID> batch = featuresRepository.findTrackIdsWithoutEmbeddings(BATCH_SIZE);
@@ -63,6 +71,7 @@ public class EmbeddingBackfillService {
           break;
         }
 
+        int batchBefore = processedCount.get();
         for (UUID trackId : batch) {
           if (!running.get()) break;
           try {
@@ -75,8 +84,14 @@ public class EmbeddingBackfillService {
           }
         }
 
-        if (processedCount.get() % 100 == 0) {
-          log.info("Embedding backfill progress: {} tracks processed", processedCount.get());
+        if (processedCount.get() == batchBefore) {
+          log.error("Backfill made no progress on batch of {} tracks, aborting", batch.size());
+          break;
+        }
+
+        int count = processedCount.get();
+        if (count % 100 < BATCH_SIZE) {
+          log.info("Embedding backfill progress: {} tracks processed", count);
         }
       }
     } finally {

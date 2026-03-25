@@ -262,4 +262,28 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
           """,
       nativeQuery = true)
   long countTracksWithoutEmbeddings();
+
+  @Query(
+      value =
+          """
+          SELECT tf.track_id, tf.embedding_mert
+          FROM track_features tf
+          WHERE tf.embedding_mert IS NOT NULL
+          """,
+      nativeQuery = true)
+  List<Object[]> findAllWithMertEmbedding();
+
+  @Query(
+      value =
+          """
+          SELECT tf.track_id, tf.embedding_mert, uta.affinity_score
+          FROM track_features tf
+          JOIN user_track_affinity uta ON uta.track_id = tf.track_id
+          WHERE tf.embedding_mert IS NOT NULL
+            AND uta.user_id = :userId
+            AND uta.affinity_score > 0
+          ORDER BY uta.affinity_score DESC
+          """,
+      nativeQuery = true)
+  List<Object[]> findMertEmbeddingsForUserWithPositiveAffinity(@Param("userId") UUID userId);
 }
