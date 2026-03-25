@@ -11,7 +11,7 @@ export function BackLink({ to, label, 'data-testid': testId }: BackLinkProps) {
   const navigate = useNavigate();
 
   const handleClick = () => {
-    const historyIndex = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    const historyIndex = (globalThis.history.state as { idx?: number } | null)?.idx ?? 0;
     if (historyIndex > 0) {
       navigate(-1);
     } else {

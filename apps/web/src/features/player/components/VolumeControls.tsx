@@ -8,7 +8,7 @@ interface VolumeControlsProps {
 
 const DEFAULT_UNMUTE_VOLUME = 0.5;
 
-export function VolumeControls({ volume, onVolumeChange }: VolumeControlsProps) {
+export function VolumeControls({ volume, onVolumeChange }: Readonly<VolumeControlsProps>) {
   const previousVolumeRef = useRef(1);
 
   const toggleMute = () => {

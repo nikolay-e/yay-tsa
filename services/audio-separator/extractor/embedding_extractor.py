@@ -140,7 +140,7 @@ class DualEmbeddingExtractor:
             embeddings = []
             for chunk in chunks:
                 inputs = self._clap_processor(
-                    audios=[chunk], sampling_rate=CLAP_SAMPLE_RATE, return_tensors="pt"
+                    audio=[chunk], sampling_rate=CLAP_SAMPLE_RATE, return_tensors="pt"
                 )
                 with self._torch.no_grad():
                     audio_features = self._clap_model.get_audio_features(**inputs)

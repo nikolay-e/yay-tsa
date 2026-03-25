@@ -35,8 +35,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   if (hasImportMetaEnv) {
     // Vite/ESM environment
     env = import.meta.env as Record<string, string | undefined>;
-  } else if (isNode) {
-    // Node.js environment
+  } else if (isNode && typeof process !== 'undefined') {
     env = process.env;
   } else {
     // Browser without build tool - no env variables available

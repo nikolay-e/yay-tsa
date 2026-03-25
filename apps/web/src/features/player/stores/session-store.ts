@@ -24,7 +24,7 @@ interface SessionStoreState {
 }
 
 interface SessionStoreActions {
-  startSession: () => Promise<void>;
+  startSession: (seedTrackId?: string) => Promise<void>;
   endSession: () => Promise<void>;
   reset: () => void;
   restoreSession: () => Promise<void>;
@@ -94,15 +94,22 @@ const lastSignalTimestamps = new Map<string, number>();
 export const useSessionStore = create<SessionStore>()((set, get) => ({
   ...initialState,
 
-  startSession: async () => {
+  startSession: async (seedTrackId?: string) => {
     const service = getDjService();
     if (!service) return;
+
+    const { activeSession } = get();
+    if (activeSession) {
+      await service.endSession(activeSession.id).catch(() => {});
+      saveSession(null);
+      set({ activeSession: null });
+    }
 
     const sessionState = buildSessionState();
 
     set({ isStarting: true, error: null });
     try {
-      const session = await service.startSession(sessionState);
+      const session = await service.startSession(sessionState, seedTrackId);
       set({ activeSession: session });
       saveSession(session.id);
 
@@ -110,7 +117,11 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       const djQueue = await service.getQueue(session.id);
       const audioItems = await resolveAudioItems(djQueue);
       if (audioItems.length > 0) {
-        usePlayerStore.getState().appendToQueue(audioItems);
+        if (seedTrackId) {
+          await usePlayerStore.getState().playTracks(audioItems);
+        } else {
+          usePlayerStore.getState().appendToQueue(audioItems);
+        }
       }
       set({ isStarting: false });
     } catch (error) {

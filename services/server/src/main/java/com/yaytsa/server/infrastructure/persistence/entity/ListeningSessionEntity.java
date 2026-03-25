@@ -55,4 +55,12 @@ public class ListeningSessionEntity {
 
   @Column(name = "session_summary", columnDefinition = "TEXT")
   private String sessionSummary;
+
+  @Column(name = "seed_track_id")
+  private UUID seedTrackId;
+
+  @Transient
+  public boolean isRadioMode() {
+    return seedTrackId != null;
+  }
 }

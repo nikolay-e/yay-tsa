@@ -28,7 +28,7 @@ export function useLyricsFetch(): UseLyricsFetchResult {
     setFetchError(null);
   }, [trackId]);
 
-  const doFetch = useEffectEvent(async (id: string, apiClient: MediaServerClient) => {
+  const fetchLyricsForTrack = async (id: string, apiClient: MediaServerClient) => {
     setIsFetching(true);
     setFetchError(null);
     try {
@@ -47,7 +47,9 @@ export function useLyricsFetch(): UseLyricsFetchResult {
         setIsFetching(false);
       }
     }
-  });
+  };
+
+  const doFetch = useEffectEvent(fetchLyricsForTrack);
 
   useEffect(() => {
     if (!currentTrack || !client || hasLyrics || trackLyrics) return;
@@ -62,7 +64,7 @@ export function useLyricsFetch(): UseLyricsFetchResult {
 
   const handleFetch = () => {
     if (!client || !currentTrack) return;
-    doFetch(currentTrack.Id, client).catch(() => {});
+    fetchLyricsForTrack(currentTrack.Id, client).catch(() => {});
   };
 
   return { isFetching, fetchError, handleFetch };

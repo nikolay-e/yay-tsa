@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AudioItem } from '@yay-tsa/core';
-import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown, Play, Pause } from 'lucide-react';
+import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown, Play, Pause, Radio } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -41,11 +41,13 @@ function TrackInfo({
   hasImageError,
   onImageError,
   imageUrl,
+  isRadioMode,
 }: Readonly<{
   track: AudioItem;
   hasImageError: boolean;
   onImageError: () => void;
   imageUrl: string;
+  isRadioMode: boolean;
 }>) {
   const artistName = track.Artists?.[0] ?? 'Unknown Artist';
   const artistId = track.ArtistItems?.[0]?.Id;
@@ -71,19 +73,27 @@ function TrackInfo({
         />
       )}
       <div className="min-w-0">
-        {track.AlbumId ? (
-          <Link
-            to={`/albums/${track.AlbumId}`}
-            data-testid="current-track-title"
-            className="text-text-primary block truncate font-medium hover:underline"
-          >
-            {track.Name}
-          </Link>
-        ) : (
-          <p data-testid="current-track-title" className="text-text-primary truncate font-medium">
-            {track.Name}
-          </p>
-        )}
+        <div className="flex items-center gap-1.5">
+          {track.AlbumId ? (
+            <Link
+              to={`/albums/${track.AlbumId}`}
+              data-testid="current-track-title"
+              className="text-text-primary truncate font-medium hover:underline"
+            >
+              {track.Name}
+            </Link>
+          ) : (
+            <p data-testid="current-track-title" className="text-text-primary truncate font-medium">
+              {track.Name}
+            </p>
+          )}
+          {isRadioMode && (
+            <span className="bg-accent/20 text-accent inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+              <Radio className="h-2.5 w-2.5" />
+              Radio
+            </span>
+          )}
+        </div>
         {artistId ? (
           <Link
             to={`/artists/${artistId}`}
@@ -332,11 +342,10 @@ export function PlayerBar() {
   if (isKaraokeMode) karaokeClass = 'text-accent';
   else if (karaokeProcessing) karaokeClass = 'text-accent animate-pulse';
   else karaokeClass = 'text-text-secondary hover:text-text-primary';
-  const karaokeAriaLabel = isKaraokeMode
-    ? 'Disable karaoke mode'
-    : karaokeProcessing
-      ? 'Cancel karaoke processing'
-      : 'Enable karaoke mode';
+  let karaokeAriaLabel: string;
+  if (isKaraokeMode) karaokeAriaLabel = 'Disable karaoke mode';
+  else if (karaokeProcessing) karaokeAriaLabel = 'Cancel karaoke processing';
+  else karaokeAriaLabel = 'Enable karaoke mode';
   const karaokeAriaPressed = isKaraokeMode || karaokeEnabled;
   const karaokeAriaBusy = karaokeStatus?.state === 'PROCESSING';
 
@@ -371,7 +380,6 @@ export function PlayerBar() {
           className="flex shrink-0 items-center gap-1"
           onClick={e => e.stopPropagation()}
           onKeyDown={e => e.stopPropagation()}
-          role="presentation"
         >
           <FavoriteButton
             itemId={currentTrack.Id}
@@ -398,6 +406,7 @@ export function PlayerBar() {
           hasImageError={hasImageError}
           onImageError={onImageError}
           imageUrl={imageUrl}
+          isRadioMode={!!activeSession?.isRadioMode}
         />
 
         <PlaybackControls

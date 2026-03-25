@@ -29,6 +29,7 @@ public class LibraryScanService {
   private final FileSystemMediaScanner scanner;
   private final LibraryScanRepository libraryScanRepository;
   private final FeatureExtractionService featureExtractionService;
+  private final EmbeddingBackfillService embeddingBackfillService;
   private final Executor taskExecutor;
   private final AtomicBoolean scanInProgress = new AtomicBoolean(false);
 
@@ -42,10 +43,12 @@ public class LibraryScanService {
       FileSystemMediaScanner scanner,
       LibraryScanRepository libraryScanRepository,
       FeatureExtractionService featureExtractionService,
+      EmbeddingBackfillService embeddingBackfillService,
       @Qualifier("applicationTaskExecutor") Executor taskExecutor) {
     this.scanner = scanner;
     this.libraryScanRepository = libraryScanRepository;
     this.featureExtractionService = featureExtractionService;
+    this.embeddingBackfillService = embeddingBackfillService;
     this.taskExecutor = taskExecutor;
   }
 
@@ -134,6 +137,15 @@ public class LibraryScanService {
       featureExtractionService.processPendingJobs(10);
     } catch (Exception e) {
       log.warn("Feature extraction trigger failed (non-fatal): {}", e.getMessage());
+    }
+    try {
+      long missing = embeddingBackfillService.getRemainingCount();
+      if (missing > 0) {
+        log.info("Found {} tracks without MERT embeddings, starting backfill", missing);
+        embeddingBackfillService.startBackfill();
+      }
+    } catch (Exception e) {
+      log.warn("Embedding backfill trigger failed (non-fatal): {}", e.getMessage());
     }
   }
 }

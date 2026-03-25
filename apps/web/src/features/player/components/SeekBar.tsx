@@ -10,7 +10,7 @@ function formatTimeText(time: number, total: number): string {
   return `${formatSeconds(time)} of ${formatSeconds(total)}`;
 }
 
-export function SeekBar({ onSeek }: SeekBarProps) {
+export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
   const sliderRef = useRef<HTMLInputElement>(null);
   const isDragging = useRef(false);
   const pendingValue = useRef<number | null>(null);

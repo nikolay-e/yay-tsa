@@ -31,6 +31,8 @@ export type {
   SignalContext,
   UserPreferences,
   RecommendedTrack,
+  RadioSeed,
+  RadioSeedsResponse,
 } from './api/adaptive-dj.types.js';
 
 // Player modules

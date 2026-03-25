@@ -67,7 +67,56 @@ public class RecommendationService {
       Set<UUID> recentlyPlayedIds,
       Set<UUID> overplayedIds,
       Set<UUID> excludeIds,
-      Set<String> avoidArtists) {}
+      Set<String> avoidArtists,
+      float[] anchorEmbedding,
+      float anchorWeight) {
+
+    public static RecommendationContext standard(
+        float targetEnergy,
+        float targetValence,
+        float explorationWeight,
+        UUID lastPlayedTrackId,
+        Set<UUID> recentlyPlayedIds,
+        Set<UUID> overplayedIds,
+        Set<UUID> excludeIds,
+        Set<String> avoidArtists) {
+      return new RecommendationContext(
+          targetEnergy,
+          targetValence,
+          explorationWeight,
+          lastPlayedTrackId,
+          recentlyPlayedIds,
+          overplayedIds,
+          excludeIds,
+          avoidArtists,
+          null,
+          0.0f);
+    }
+
+    public static RecommendationContext radio(
+        float targetEnergy,
+        float targetValence,
+        float explorationWeight,
+        UUID lastPlayedTrackId,
+        Set<UUID> recentlyPlayedIds,
+        Set<UUID> overplayedIds,
+        Set<UUID> excludeIds,
+        Set<String> avoidArtists,
+        float[] anchorEmbedding,
+        float anchorWeight) {
+      return new RecommendationContext(
+          targetEnergy,
+          targetValence,
+          explorationWeight,
+          lastPlayedTrackId,
+          recentlyPlayedIds,
+          overplayedIds,
+          excludeIds,
+          avoidArtists,
+          anchorEmbedding,
+          anchorWeight);
+    }
+  }
 
   public record ScoredTrack(
       TrackCandidate candidate, double score, String source, long durationMs) {}
@@ -125,10 +174,11 @@ public class RecommendationService {
 
   private List<ScoredTrack> retrieveUserEmbeddingChannel(
       TasteProfileEntity profile, RecommendationContext ctx, int count) {
-    if (profile == null || profile.getEmbeddingMert() == null) return List.of();
+    float[] queryEmbedding = resolveQueryEmbedding(profile, ctx);
+    if (queryEmbedding == null) return List.of();
 
     int limit = (int) (count * 2.5);
-    String embedding = formatEmbedding(profile.getEmbeddingMert());
+    String embedding = formatEmbedding(queryEmbedding);
     List<UUID> excludeList =
         ctx.excludeIds().isEmpty() ? List.of(EMPTY_UUID) : new ArrayList<>(ctx.excludeIds());
 
@@ -214,6 +264,42 @@ public class RecommendationService {
       }
     }
     return tracks;
+  }
+
+  private static float[] resolveQueryEmbedding(
+      TasteProfileEntity profile, RecommendationContext ctx) {
+    float[] userEmb = profile != null ? profile.getEmbeddingMert() : null;
+    float[] anchor = ctx.anchorEmbedding();
+    float weight = ctx.anchorWeight();
+
+    if (anchor == null || weight <= 0) return userEmb;
+    if (userEmb == null) return l2Normalize(anchor);
+    if (anchor.length != userEmb.length) {
+      log.warn(
+          "Embedding dimension mismatch: anchor={}, user={}. Using anchor only.",
+          anchor.length,
+          userEmb.length);
+      return l2Normalize(anchor);
+    }
+    return blendEmbeddings(anchor, userEmb, weight);
+  }
+
+  private static float[] blendEmbeddings(float[] anchor, float[] user, float alpha) {
+    float[] result = new float[anchor.length];
+    for (int i = 0; i < anchor.length; i++) {
+      result[i] = alpha * anchor[i] + (1 - alpha) * user[i];
+    }
+    return l2Normalize(result);
+  }
+
+  private static float[] l2Normalize(float[] vec) {
+    float norm = 0;
+    for (float v : vec) norm += v * v;
+    norm = (float) Math.sqrt(norm);
+    if (norm < 1e-9f) return vec.clone();
+    float[] result = new float[vec.length];
+    for (int i = 0; i < vec.length; i++) result[i] = vec[i] / norm;
+    return result;
   }
 
   private double computeScore(

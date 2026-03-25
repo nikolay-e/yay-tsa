@@ -10,3 +10,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env?: ImportMetaEnv | Record<string, string | undefined>;
 }
+
+declare let process:
+  | {
+      env: Record<string, string | undefined>;
+      [key: string]: unknown;
+    }
+  | undefined;
