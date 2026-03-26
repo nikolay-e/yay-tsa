@@ -60,7 +60,7 @@ export function AlbumsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Albums</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search albums..." />
           <SortMenu selectedId={selectedId} onSelect={select} />
         </div>
