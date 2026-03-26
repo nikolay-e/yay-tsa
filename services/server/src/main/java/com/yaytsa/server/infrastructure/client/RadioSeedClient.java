@@ -20,8 +20,7 @@ public class RadioSeedClient {
 
   public RadioSeedClient(
       RestClient.Builder restClientBuilder,
-      @Value("${yaytsa.media.feature-extraction.url:http://feature-extractor:8000}")
-          String baseUrl) {
+      @Value("${yaytsa.media.karaoke.separator-url:http://audio-separator:8000}") String baseUrl) {
     var factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(Duration.ofSeconds(10));
     factory.setReadTimeout(Duration.ofSeconds(30));
