@@ -37,7 +37,7 @@
     "postversion": "npm run sync:version"
   },
   "overrides": {
-    "lodash": "4.17.21",
+    "lodash": "4.17.23",
     "serialize-javascript": ">=7.0.3",
     "tmp": "0.2.5"
   },
