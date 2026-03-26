@@ -10,6 +10,7 @@ import { toast } from '@/shared/ui/Toast';
 import { PLAYER_TEST_IDS } from '@/shared/testing/test-ids';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { MarqueeText } from '@/shared/ui/MarqueeText';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -370,8 +371,10 @@ export function PlayerBar() {
           alt={currentTrack.Name}
           className="h-11 w-11 shrink-0 rounded object-cover"
         />
-        <div className="min-w-0 flex-1 text-left">
-          <p className="text-text-primary truncate text-sm font-medium">{currentTrack.Name}</p>
+        <div className="min-w-0 flex-1">
+          <MarqueeText className="text-text-primary text-sm font-medium">
+            {currentTrack.Name}
+          </MarqueeText>
           <p className="text-text-secondary truncate text-xs">
             {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
           </p>
@@ -388,13 +391,13 @@ export function PlayerBar() {
           <button
             type="button"
             onClick={handlePlayPause}
-            className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
-              <Pause className="h-5 w-5" fill="currentColor" />
+              <Pause className="h-4 w-4" fill="currentColor" />
             ) : (
-              <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
+              <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
             )}
           </button>
         </span>

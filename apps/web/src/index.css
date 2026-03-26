@@ -414,3 +414,14 @@
       rotate(var(--tw-enter-rotate, 0));
   }
 }
+
+@keyframes marquee-text {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  70%,
+  100% {
+    transform: translateX(var(--marquee-shift));
+  }
+}

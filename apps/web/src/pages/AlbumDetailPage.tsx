@@ -27,7 +27,6 @@ export function AlbumDetailPage() {
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const setShuffle = usePlayerStore(state => state.setShuffle);
-  const isShuffle = usePlayerStore(state => state.isShuffle);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
@@ -112,7 +111,7 @@ export function AlbumDetailPage() {
                 }
               }}
               className={cn(
-                'flex items-center gap-2 px-6 py-2',
+                'flex min-w-[7.5rem] items-center justify-center gap-2 px-6 py-2',
                 'bg-accent text-text-on-accent rounded-full',
                 'hover:bg-accent-hover transition-colors'
               )}
@@ -125,7 +124,7 @@ export function AlbumDetailPage() {
               ) : (
                 <>
                   <Play className="h-5 w-5" fill="currentColor" />
-                  {isShuffle ? 'Play in order' : 'Play'}
+                  Play
                 </>
               )}
             </button>
