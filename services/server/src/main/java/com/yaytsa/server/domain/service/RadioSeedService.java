@@ -54,7 +54,7 @@ public class RadioSeedService {
 
   @Transactional
   public RadioSeedsResponse getSeeds(UUID userId) {
-    OffsetDateTime computedAt = seedCacheRepository.findComputedAtByUserId(userId);
+    java.time.Instant computedAt = seedCacheRepository.findComputedAtByUserId(userId);
     if (computedAt != null && !isStale(computedAt)) {
       List<UUID> cachedTrackIds = seedCacheRepository.findTrackIdsByUserId(userId);
       if (!cachedTrackIds.isEmpty()) {
@@ -204,8 +204,8 @@ public class RadioSeedService {
     return new RadioSeedsResponse(enriched);
   }
 
-  private boolean isStale(OffsetDateTime computedAt) {
-    return computedAt.plus(CACHE_TTL).isBefore(OffsetDateTime.now());
+  private boolean isStale(java.time.Instant computedAt) {
+    return computedAt.plus(CACHE_TTL).isBefore(java.time.Instant.now());
   }
 
   private static float[] parseEmbedding(Object raw) {
