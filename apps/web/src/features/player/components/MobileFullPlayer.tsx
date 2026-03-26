@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useState, useCallback } from 'react';
+import { memo, useRef, useEffect, useState, useCallback, type CSSProperties } from 'react';
 import {
   ChevronDown,
   Play,
@@ -57,6 +57,12 @@ function MobileTimeRow() {
   const lastDur = useRef(-1);
 
   useEffect(() => {
+    const { currentTime: ct, duration: dur } = useTimingStore.getState();
+    if (currentRef.current) currentRef.current.textContent = formatSeconds(ct);
+    if (totalRef.current) totalRef.current.textContent = formatSeconds(dur);
+    lastSec.current = Math.floor(ct);
+    lastDur.current = Math.floor(dur);
+
     return useTimingStore.subscribe(({ currentTime, duration }) => {
       const s = Math.floor(currentTime);
       const d = Math.floor(duration);
@@ -265,6 +271,9 @@ export const MobileFullPlayer = memo(function MobileFullPlayer({
             src={hasImageError ? '/placeholder-album.svg' : imageUrl}
             alt={track.Name}
             className="aspect-square w-full max-w-xs rounded-xl object-cover shadow-2xl"
+            draggable={false}
+            onContextMenu={e => e.preventDefault()}
+            style={{ WebkitTouchCallout: 'none', userSelect: 'none' } as CSSProperties}
           />
         )}
       </div>

@@ -17,7 +17,7 @@ export function SearchInput({
   className,
 }: SearchInputProps) {
   return (
-    <div className={cn('relative w-full sm:w-64', className)}>
+    <div className={cn('relative w-full sm:w-96', className)}>
       <Search className="text-text-tertiary absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
       <input
         type="text"
@@ -27,7 +27,7 @@ export function SearchInput({
         maxLength={maxLength}
         data-testid="search-input"
         className={cn(
-          'border-border bg-bg-secondary w-full rounded-sm border py-2 pr-4 pl-9',
+          'border-border bg-bg-secondary w-full rounded-lg border py-2.5 pr-4 pl-9 sm:rounded-md sm:py-2',
           'text-text-primary placeholder:text-text-tertiary',
           'focus:border-accent focus-visible:ring-accent transition-colors focus-visible:ring-2 focus-visible:outline-none'
         )}
