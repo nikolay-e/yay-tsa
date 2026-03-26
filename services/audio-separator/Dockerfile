@@ -54,6 +54,7 @@ RUN if [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" != "arm64" ]; then \
     fi
 
 COPY extractor/ extractor/
+COPY radio/ radio/
 COPY app.py .
 
 RUN getent group 1000 >/dev/null || groupadd --gid 1000 appuser && \
