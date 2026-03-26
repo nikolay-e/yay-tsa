@@ -60,12 +60,12 @@
     "globals": "^17.4.0",
     "jscpd": "^4.0.8",
     "jsdom": "^29.0.1",
-    "knip": "^6.0.5",
+    "knip": "^6.0.6",
     "madge": "^8.0.0",
     "prettier": "^3.8.1",
     "sharp": "^0.34.5",
     "type-coverage": "^2.29.7",
-    "vitest": "^4.1.1",
+    "vitest": "^4.1.2",
     "yaml": "2.8.3"
   },
   "engines": {
