@@ -15,6 +15,7 @@ class SeedSelector:
 
         seed_indices = [0]
         min_distances = 1.0 - embeddings @ embeddings[0]
+        min_distances[0] = -1.0
 
         for _ in range(1, num_seeds):
             farthest = np.argmax(min_distances)

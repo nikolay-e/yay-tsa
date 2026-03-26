@@ -203,6 +203,7 @@ repos:
       - id: bandit
         name: 'bandit (Python security scanning)'
         files: ^services/audio-separator/.*\.py$
+        exclude: ^services/audio-separator/tests/
         args: [-c, services/audio-separator/pyproject.toml]
 
   # ------------------------------------------------------------------------------
