@@ -46,7 +46,13 @@ public class RadioAnchorResolver {
         id ->
             trackFeaturesRepository
                 .findByTrackId(id)
-                .map(tf -> tf.getEmbeddingMert())
+                .map(
+                    tf -> {
+                      if (tf.getEmbeddingMert() != null) return tf.getEmbeddingMert();
+                      log.debug(
+                          "No MERT embedding for seed track {}, anchor unavailable", seedTrackId);
+                      return null;
+                    })
                 .orElse(null));
   }
 

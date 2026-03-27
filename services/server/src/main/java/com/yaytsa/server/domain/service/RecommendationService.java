@@ -226,12 +226,23 @@ public class RecommendationService {
     if (ctx.lastPlayedTrackId() == null) return List.of();
 
     var features = trackFeaturesRepository.findByTrackId(ctx.lastPlayedTrackId()).orElse(null);
-    if (features == null || features.getEmbeddingMert() == null) return List.of();
+    if (features == null) return List.of();
 
-    String embedding = formatEmbedding(features.getEmbeddingMert());
-    var rows =
-        trackFeaturesRepository.findSimilarTracksByMert(
-            ctx.lastPlayedTrackId(), embedding, (int) (count * 1.5));
+    List<Object[]> rows;
+    if (features.getEmbeddingMert() != null) {
+      String embedding = formatEmbedding(features.getEmbeddingMert());
+      rows =
+          trackFeaturesRepository.findSimilarTracksByMert(
+              ctx.lastPlayedTrackId(), embedding, (int) (count * 1.5));
+    } else if (features.getEmbeddingDiscogs() != null) {
+      String embedding = formatEmbedding(features.getEmbeddingDiscogs());
+      rows =
+          trackFeaturesRepository.findSimilarTracksExact(
+              ctx.lastPlayedTrackId(), embedding, (int) (count * 1.5));
+    } else {
+      return List.of();
+    }
+
     List<ScoredTrack> tracks = new ArrayList<>();
     for (var row : rows) {
       var candidate = CandidateRetrievalService.mapEmbeddingSimilarityRow(row);

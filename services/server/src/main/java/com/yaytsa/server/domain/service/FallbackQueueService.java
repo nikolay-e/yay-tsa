@@ -96,7 +96,14 @@ public class FallbackQueueService {
     if (activeQueue.size() >= targetQueueSize) {
       return List.of();
     }
+
+    boolean isFirstFill = activeQueue.isEmpty();
+    UUID seedTrackId = session.getSeedTrackId();
+
     int needed = targetQueueSize - activeQueue.size();
+    if (isFirstFill && session.isRadioMode() && seedTrackId != null) {
+      needed = Math.max(0, needed - 1);
+    }
 
     Set<UUID> existingTrackIds =
         activeQueue.stream().map(q -> q.getItem().getId()).collect(Collectors.toSet());
@@ -108,11 +115,17 @@ public class FallbackQueueService {
     Set<UUID> excluded = new HashSet<>(overplayed);
     excluded.addAll(recentlyPlayed);
     excluded.addAll(existingTrackIds);
+    if (seedTrackId != null) {
+      excluded.add(seedTrackId);
+    }
 
     UUID lastPlayedTrackId = null;
     if (!activeQueue.isEmpty()) {
       var playing = activeQueue.stream().filter(e -> "PLAYING".equals(e.getStatus())).findFirst();
       lastPlayedTrackId = playing.map(e -> e.getItem().getId()).orElse(null);
+    }
+    if (lastPlayedTrackId == null && session.isRadioMode() && seedTrackId != null) {
+      lastPlayedTrackId = seedTrackId;
     }
 
     var ctx =
@@ -145,9 +158,10 @@ public class FallbackQueueService {
       }
     }
 
-    List<ScoredTrack> recommendations = recommendationService.recommend(userId, ctx, needed);
+    List<ScoredTrack> recommendations =
+        needed > 0 ? recommendationService.recommend(userId, ctx, needed) : List.of();
 
-    if (recommendations.isEmpty()) {
+    if (needed > 0 && recommendations.isEmpty()) {
       log.warn(
           "Recommendation pipeline returned no results for session {}, using random fallback",
           sessionId);
@@ -174,8 +188,27 @@ public class FallbackQueueService {
     int maxPosition =
         activeQueue.stream().mapToInt(AdaptiveQueueEntity::getPosition).max().orElse(0);
 
-    List<AdaptiveQueueEntity> addedEntries =
-        insertQueueEntries(session, recommendations, maxPosition, maxVersion);
+    List<AdaptiveQueueEntity> addedEntries = new ArrayList<>();
+
+    if (isFirstFill && session.isRadioMode() && seedTrackId != null) {
+      ItemEntity seedItem = itemRepository.findById(seedTrackId).orElse(null);
+      if (seedItem != null) {
+        var seedEntry = new AdaptiveQueueEntity();
+        seedEntry.setSession(session);
+        seedEntry.setItem(seedItem);
+        seedEntry.setPosition(maxPosition + 1);
+        seedEntry.setAddedReason("radio_seed");
+        seedEntry.setIntentLabel("seed");
+        seedEntry.setStatus("QUEUED");
+        seedEntry.setQueueVersion(maxVersion + 1);
+        seedEntry.setAddedAt(OffsetDateTime.now());
+        addedEntries.add(queueRepository.save(seedEntry));
+        maxPosition++;
+        maxVersion++;
+      }
+    }
+
+    addedEntries.addAll(insertQueueEntries(session, recommendations, maxPosition, maxVersion));
 
     log.info(
         "Recommendation queue filled {} tracks for session {} (excluded {} recently played)",
