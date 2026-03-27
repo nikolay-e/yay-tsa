@@ -180,6 +180,9 @@ yaytsa:
       separator-url: ${KARAOKE_SEPARATOR_URL:http://audio-separator:8000}
       model: ${KARAOKE_MODEL:htdemucs}
       stems-path: ${KARAOKE_STEMS_PATH:/app/stems}
+      backfill-enabled: ${KARAOKE_BACKFILL_ENABLED:false}
+      backfill-batch-size: ${KARAOKE_BACKFILL_BATCH_SIZE:20}
+      backfill-delay-between-tracks-ms: ${KARAOKE_BACKFILL_DELAY_MS:2000}
 
     # Feature extraction configuration (Adaptive DJ)
     feature-extraction:

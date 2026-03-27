@@ -24,6 +24,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class KaraokeService {
   private final LibraryRootsConfig libraryRootsConfig;
   private final Path stemsRootPath;
   private volatile Path realStemsRoot;
+  private KaraokeBackfillService backfillService;
 
   private final Cache<UUID, JobEntry> processingJobs =
       Caffeine.newBuilder().maximumSize(1_000).expireAfterWrite(2, TimeUnit.HOURS).build();
@@ -96,6 +98,12 @@ public class KaraokeService {
     initStemsRoot();
 
     cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
+  }
+
+  @Lazy
+  @org.springframework.beans.factory.annotation.Autowired
+  public void setBackfillService(KaraokeBackfillService backfillService) {
+    this.backfillService = backfillService;
   }
 
   private void initStemsRoot() {
@@ -253,6 +261,19 @@ public class KaraokeService {
 
   @Async
   public void processTrack(UUID trackId) {
+    if (backfillService != null) {
+      backfillService.pause();
+    }
+    try {
+      processTrackSync(trackId);
+    } finally {
+      if (backfillService != null) {
+        backfillService.resume();
+      }
+    }
+  }
+
+  void processTrackSync(UUID trackId) {
     JobEntry existingJob = processingJobs.getIfPresent(trackId);
     if (existingJob != null) {
       ProcessingState state = existingJob.status().state();
@@ -332,6 +353,10 @@ public class KaraokeService {
       log.error("Karaoke processing failed for track {}: {}", trackId, e.getMessage(), e);
       updateJobStatus(trackId, ProcessingStatus.failed("Processing failed"));
     }
+  }
+
+  public boolean isSeparatorHealthy() {
+    return separatorClient.isHealthy();
   }
 
   private void updateJobStatus(UUID trackId, ProcessingStatus status) {

@@ -3,6 +3,7 @@ package com.yaytsa.server.controller;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.yaytsa.server.domain.service.EmbeddingBackfillService;
 import com.yaytsa.server.domain.service.ImageService;
+import com.yaytsa.server.domain.service.KaraokeBackfillService;
 import com.yaytsa.server.domain.service.LibraryScanService;
 import com.yaytsa.server.domain.service.UserManagementService;
 import com.yaytsa.server.domain.service.UserService;
@@ -32,6 +33,7 @@ public class AdminController {
   private final UserManagementService userManagementService;
   private final UserService userService;
   private final EmbeddingBackfillService embeddingBackfillService;
+  private final KaraokeBackfillService karaokeBackfillService;
 
   public AdminController(
       ImageService imageService,
@@ -39,13 +41,15 @@ public class AdminController {
       LibraryScanService libraryScanService,
       UserManagementService userManagementService,
       UserService userService,
-      EmbeddingBackfillService embeddingBackfillService) {
+      EmbeddingBackfillService embeddingBackfillService,
+      KaraokeBackfillService karaokeBackfillService) {
     this.imageService = imageService;
     this.mediaScannerService = mediaScannerService;
     this.libraryScanService = libraryScanService;
     this.userManagementService = userManagementService;
     this.userService = userService;
     this.embeddingBackfillService = embeddingBackfillService;
+    this.karaokeBackfillService = karaokeBackfillService;
   }
 
   record UserSummary(
@@ -248,5 +252,44 @@ public class AdminController {
             "Backfill stop requested",
             "processed",
             embeddingBackfillService.getProcessedCount()));
+  }
+
+  @PostMapping("/Karaoke/Backfill")
+  public ResponseEntity<Map<String, Object>> startKaraokeBackfill() {
+    if (karaokeBackfillService.isRunning()) {
+      return ResponseEntity.status(409)
+          .body(
+              Map.of(
+                  "success",
+                  false,
+                  "message",
+                  "Karaoke backfill already in progress",
+                  "processed",
+                  karaokeBackfillService.getProcessedCount()));
+    }
+    karaokeBackfillService.startBackfill();
+    return ResponseEntity.ok(Map.of("success", true, "message", "Karaoke backfill started"));
+  }
+
+  @GetMapping("/Karaoke/Backfill/Status")
+  public ResponseEntity<Map<String, Object>> getKaraokeBackfillStatus() {
+    return ResponseEntity.ok(
+        Map.of(
+            "running", karaokeBackfillService.isRunning(),
+            "processed", karaokeBackfillService.getProcessedCount(),
+            "remaining", karaokeBackfillService.getRemainingCount()));
+  }
+
+  @DeleteMapping("/Karaoke/Backfill")
+  public ResponseEntity<Map<String, Object>> stopKaraokeBackfill() {
+    karaokeBackfillService.stopBackfill();
+    return ResponseEntity.ok(
+        Map.of(
+            "success",
+            true,
+            "message",
+            "Karaoke backfill stop requested",
+            "processed",
+            karaokeBackfillService.getProcessedCount()));
   }
 }

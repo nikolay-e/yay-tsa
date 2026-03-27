@@ -76,4 +76,25 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
       "SELECT at.album.id, COUNT(at) FROM AudioTrackEntity at"
           + " WHERE at.album.id IN :albumIds GROUP BY at.album.id")
   List<Object[]> countByAlbumIdIn(@Param("albumIds") Collection<UUID> albumIds);
+
+  @Query(
+      value =
+          "SELECT at.item_id FROM audio_tracks at "
+              + "LEFT JOIN play_state ps ON ps.item_id = at.item_id "
+              + "LEFT JOIN user_track_affinity uta ON uta.track_id = at.item_id "
+              + "WHERE at.karaoke_ready IS NOT TRUE "
+              + "GROUP BY at.item_id "
+              + "ORDER BY "
+              + "  BOOL_OR(ps.is_favorite) DESC NULLS LAST, "
+              + "  MAX(uta.affinity_score) DESC NULLS LAST, "
+              + "  MAX(ps.last_played_at) DESC NULLS LAST, "
+              + "  at.item_id "
+              + "LIMIT :limit",
+      nativeQuery = true)
+  List<UUID> findUnprocessedKaraokeTrackIdsPrioritized(@Param("limit") int limit);
+
+  @Query(
+      value = "SELECT COUNT(*) FROM audio_tracks WHERE karaoke_ready IS NOT TRUE",
+      nativeQuery = true)
+  long countUnprocessedKaraokeTracks();
 }
