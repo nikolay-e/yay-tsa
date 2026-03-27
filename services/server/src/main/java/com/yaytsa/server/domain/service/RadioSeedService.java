@@ -24,7 +24,6 @@ import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -53,7 +52,7 @@ public class RadioSeedService {
     this.seedCacheRepository = seedCacheRepository;
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public RadioSeedsResponse getSeeds(UUID userId) {
     java.time.Instant computedAt = seedCacheRepository.findComputedAtByUserId(userId);
     if (computedAt != null && !isStale(computedAt)) {
@@ -78,7 +77,7 @@ public class RadioSeedService {
     log.info("Radio seeds cache invalidated for user {}", userId);
   }
 
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Transactional
   public RadioSeedsResponse recomputeAndCache(UUID userId) {
     List<UUID> seedTrackIds = computeSeedTrackIds(userId);
     seedCacheRepository.deleteByUserId(userId);
