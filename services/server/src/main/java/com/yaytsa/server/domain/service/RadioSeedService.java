@@ -52,7 +52,6 @@ public class RadioSeedService {
     this.seedCacheRepository = seedCacheRepository;
   }
 
-  @Transactional
   public RadioSeedsResponse getSeeds(UUID userId) {
     java.time.Instant computedAt = seedCacheRepository.findComputedAtByUserId(userId);
     if (computedAt != null && !isStale(computedAt)) {
@@ -122,6 +121,11 @@ public class RadioSeedService {
       if (!seeds.isEmpty()) {
         return seeds.stream().map(s -> UUID.fromString(s.trackId())).toList();
       }
+      log.warn(
+          "ML seed service returned empty for user {} with {} embedded tracks, falling back to"
+              + " affinity",
+          userId,
+          trackInputs.size());
     }
 
     List<UUID> affinityTrackIds =
@@ -221,15 +225,20 @@ public class RadioSeedService {
   private static float[] parseEmbedding(Object raw) {
     if (raw instanceof float[] arr) return arr;
     if (raw == null) return null;
-    String str = raw.toString();
-    if (str.startsWith("[")) str = str.substring(1);
-    if (str.endsWith("]")) str = str.substring(0, str.length() - 1);
-    String[] parts = str.split(",");
-    float[] result = new float[parts.length];
-    for (int i = 0; i < parts.length; i++) {
-      result[i] = Float.parseFloat(parts[i].trim());
+    try {
+      String str = raw.toString();
+      if (str.startsWith("[")) str = str.substring(1);
+      if (str.endsWith("]")) str = str.substring(0, str.length() - 1);
+      String[] parts = str.split(",");
+      float[] result = new float[parts.length];
+      for (int i = 0; i < parts.length; i++) {
+        result[i] = Float.parseFloat(parts[i].trim());
+      }
+      return result;
+    } catch (NumberFormatException e) {
+      log.warn("Malformed embedding data: {}", e.getMessage());
+      return null;
     }
-    return result;
   }
 
   private static List<Float> floatArrayToList(float[] arr) {
