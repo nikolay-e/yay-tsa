@@ -148,8 +148,26 @@ public class FallbackQueueService {
     List<ScoredTrack> recommendations = recommendationService.recommend(userId, ctx, needed);
 
     if (recommendations.isEmpty()) {
-      log.warn("Recommendation pipeline returned no results for session {}", sessionId);
-      return List.of();
+      log.warn(
+          "Recommendation pipeline returned no results for session {}, using random fallback",
+          sessionId);
+      List<UUID> randomIds = new ArrayList<>(itemRepository.findRandomAudioTrackIds(needed * 2));
+      randomIds.removeAll(excluded);
+      if (randomIds.isEmpty()) {
+        return List.of();
+      }
+      recommendations =
+          randomIds.stream()
+              .map(
+                  id ->
+                      new ScoredTrack(
+                          new CandidateRetrievalService.TrackCandidate(
+                              id, null, null, null, null, null, null, null, null, null, null, null),
+                          0.5,
+                          "random_fallback",
+                          0L))
+              .limit(needed)
+              .toList();
     }
 
     long maxVersion = queueRepository.findMaxQueueVersionBySessionId(sessionId).orElse(0L);

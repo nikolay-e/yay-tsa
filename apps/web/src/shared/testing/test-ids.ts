@@ -28,6 +28,11 @@ export const LIBRARY_TEST_IDS = {
   ARTIST_DETAIL_NAME: 'artist-detail-name',
 } as const;
 
+export const RADIO_TEST_IDS = {
+  SECTION: 'radio-section',
+  SEED_CARD: 'radio-seed-card',
+} as const;
+
 export const NAVIGATION_TEST_IDS = {
   NAV_HOME: 'nav-home',
   NAV_LIBRARY: 'nav-library',

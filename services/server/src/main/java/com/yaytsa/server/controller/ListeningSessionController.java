@@ -8,7 +8,6 @@ import com.yaytsa.server.dto.request.CreateListeningSessionRequest;
 import com.yaytsa.server.dto.request.UpdateSessionStateRequest;
 import com.yaytsa.server.dto.response.ListeningSessionResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
-import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -18,7 +17,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/v1/sessions")
@@ -26,19 +24,16 @@ public class ListeningSessionController {
 
   private final ListeningSessionService sessionService;
   private final AdaptiveQueueService adaptiveQueueService;
-  private final TrackFeaturesRepository trackFeaturesRepository;
   private final ObjectMapper objectMapper;
   private final Executor applicationTaskExecutor;
 
   public ListeningSessionController(
       ListeningSessionService sessionService,
       AdaptiveQueueService adaptiveQueueService,
-      TrackFeaturesRepository trackFeaturesRepository,
       ObjectMapper objectMapper,
       @Qualifier("applicationTaskExecutor") Executor applicationTaskExecutor) {
     this.sessionService = sessionService;
     this.adaptiveQueueService = adaptiveQueueService;
-    this.trackFeaturesRepository = trackFeaturesRepository;
     this.objectMapper = objectMapper;
     this.applicationTaskExecutor = applicationTaskExecutor;
   }
@@ -49,14 +44,6 @@ public class ListeningSessionController {
       @AuthenticationPrincipal AuthenticatedUser user) {
     UUID userId = user.getUserEntity().getId();
     UUID seedTrackId = request != null ? request.seedTrackId() : null;
-
-    if (seedTrackId != null) {
-      var features = trackFeaturesRepository.findByTrackId(seedTrackId).orElse(null);
-      if (features == null || features.getEmbeddingMert() == null) {
-        throw new ResponseStatusException(
-            HttpStatus.BAD_REQUEST, "Seed track has no MERT embedding");
-      }
-    }
 
     var session =
         sessionService.createSession(userId, request != null ? request.state() : null, seedTrackId);
