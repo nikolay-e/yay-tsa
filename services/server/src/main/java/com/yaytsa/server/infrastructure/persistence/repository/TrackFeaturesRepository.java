@@ -246,8 +246,15 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
       value =
           """
           SELECT tf.track_id FROM track_features tf
+          LEFT JOIN (
+            SELECT track_id, MAX(affinity_score) AS max_affinity
+            FROM user_track_affinity
+            WHERE affinity_score > 0
+            GROUP BY track_id
+          ) agg ON agg.track_id = tf.track_id
           WHERE tf.embedding_discogs IS NOT NULL
             AND tf.embedding_mert IS NULL
+          ORDER BY agg.max_affinity DESC NULLS LAST
           LIMIT :lim
           """,
       nativeQuery = true)
@@ -286,4 +293,19 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
           """,
       nativeQuery = true)
   List<Object[]> findMertEmbeddingsForUserWithPositiveAffinity(@Param("userId") UUID userId);
+
+  @Query(
+      value =
+          """
+          SELECT uta.track_id
+          FROM user_track_affinity uta
+          JOIN items i ON i.id = uta.track_id
+          WHERE uta.user_id = :userId
+            AND uta.affinity_score > 0
+            AND i.type = 'AudioTrack'
+          ORDER BY uta.affinity_score DESC
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<UUID> findTopAffinityTrackIds(@Param("userId") UUID userId, @Param("lim") int limit);
 }

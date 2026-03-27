@@ -116,25 +116,35 @@ public class RadioSeedService {
               trackId.toString(), floatArrayToList(embedding), affinity));
     }
 
-    if (trackInputs.size() < MIN_USER_TRACKS_FOR_SEEDS) {
-      log.info(
-          "User affinity tracks insufficient for radio seeds: {} (need {}), trying all embedded"
-              + " tracks",
-          trackInputs.size(),
-          MIN_USER_TRACKS_FOR_SEEDS);
-      trackInputs = buildFallbackInputs();
+    if (trackInputs.size() >= MIN_USER_TRACKS_FOR_SEEDS) {
+      List<RadioSeedClient.SeedResult> seeds =
+          radioSeedClient.computeSeeds(trackInputs, OVERFETCH_SEEDS);
+      if (!seeds.isEmpty()) {
+        return seeds.stream().map(s -> UUID.fromString(s.trackId())).toList();
+      }
     }
 
-    if (trackInputs.size() < MIN_USER_TRACKS_FOR_SEEDS) {
+    List<UUID> affinityTrackIds =
+        trackFeaturesRepository.findTopAffinityTrackIds(userId, OVERFETCH_SEEDS);
+    if (!affinityTrackIds.isEmpty()) {
+      log.info(
+          "Using top affinity tracks as radio seeds for user {} ({} tracks)",
+          userId,
+          affinityTrackIds.size());
+      return affinityTrackIds;
+    }
+
+    var fallbackInputs = buildFallbackInputs();
+    if (fallbackInputs.size() < MIN_USER_TRACKS_FOR_SEEDS) {
       log.info(
           "Not enough embedded tracks for radio seeds: {} (need {})",
-          trackInputs.size(),
+          fallbackInputs.size(),
           MIN_USER_TRACKS_FOR_SEEDS);
       return List.of();
     }
 
     List<RadioSeedClient.SeedResult> seeds =
-        radioSeedClient.computeSeeds(trackInputs, OVERFETCH_SEEDS);
+        radioSeedClient.computeSeeds(fallbackInputs, OVERFETCH_SEEDS);
     if (seeds.isEmpty()) {
       return List.of();
     }
