@@ -13,18 +13,18 @@
   "backgroundColor": "#0F0F0F",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "http://localhost:8000/icons/icon-512.png",
-  "maskableIconUrl": "http://localhost:8000/icons/icon-512-maskable.png",
+  "iconUrl": "https://yay-tsa.com/icons/icon-512.png",
+  "maskableIconUrl": "https://yay-tsa.com/icons/icon-512-maskable.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
     "alias": "yaytsa"
   },
-  "appVersionName": "y",
+  "appVersionName": "1.0.0",
   "appVersionCode": 5,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "http://localhost:8000/manifest.webmanifest",
+  "webManifestUrl": "https://yay-tsa.com/manifest.webmanifest",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -39,5 +39,5 @@
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
   "displayOverride": [],
-  "appVersion": "y"
+  "appVersion": "1.0.0"
 }

@@ -149,6 +149,25 @@ http {
             include /var/cache/nginx/security-headers.conf;
         }
 
+        # APK downloads - force download with proper headers
+        location = /downloads/yay-tsa.apk {
+            add_header Content-Disposition 'attachment; filename="yay-tsa.apk"';
+            add_header X-Content-Type-Options "nosniff" always;
+            expires 7d;
+            add_header Cache-Control "public, max-age=604800";
+            include /var/cache/nginx/security-headers.conf;
+        }
+
+        # Digital Asset Links for Android TWA verification
+        # Served from writable volume (/var/cache/nginx) since root filesystem is read-only
+        location = /.well-known/assetlinks.json {
+            alias /var/cache/nginx/assetlinks.json;
+            add_header Content-Type application/json;
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate";
+            include /var/cache/nginx/security-headers.conf;
+        }
+
         # Allow .well-known directory for security.txt, app-site association, etc.
         location ^~ /.well-known/ {
             allow all;

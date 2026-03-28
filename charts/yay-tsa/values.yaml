@@ -15,6 +15,7 @@ config:
   clientName: 'Yay-Tsa'
   deviceName: 'Yay-Tsa Web'
   logLevel: 'error'
+  androidCertSha256: ''
 
 serviceAccount:
   create: false

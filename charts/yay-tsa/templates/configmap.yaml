@@ -16,3 +16,6 @@ data:
   YAYTSA_DEVICE_NAME: {{ .Values.config.deviceName | quote }}
   YAYTSA_LOG_LEVEL: {{ .Values.config.logLevel | default "error" | quote }}
   APP_VERSION: {{ .Chart.AppVersion | quote }}
+  {{- if .Values.config.androidCertSha256 }}
+  ANDROID_CERT_SHA256: {{ .Values.config.androidCertSha256 | quote }}
+  {{- end }}

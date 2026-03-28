@@ -1,0 +1,2 @@
+-keep class com.yaytsa.app.** { *; }
+-keep class com.google.androidbrowserhelper.** { *; }
