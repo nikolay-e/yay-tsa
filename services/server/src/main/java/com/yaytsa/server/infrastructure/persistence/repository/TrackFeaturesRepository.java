@@ -53,8 +53,8 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
   @Query(
       value =
           """
-          SELECT i.id, i.name, ar.name AS artist_name,
-                 tf.bpm, tf.energy, tf.valence, tf.arousal,
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
                  1 - (tf.embedding_discogs <=> CAST(:refEmbedding AS vector)) AS similarity
           FROM items i
           JOIN track_features tf ON tf.track_id = i.id
@@ -74,8 +74,8 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
   @Query(
       value =
           """
-          SELECT i.id, i.name, ar.name AS artist_name,
-                 tf.bpm, tf.energy, tf.valence, tf.arousal,
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
                  1 - (tf.embedding_discogs <=> CAST(:refEmbedding AS vector)) AS similarity
           FROM items i
           JOIN track_features tf ON tf.track_id = i.id

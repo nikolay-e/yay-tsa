@@ -28,6 +28,10 @@ public class FeatureExtractionService {
 
   private static final Logger log = LoggerFactory.getLogger(FeatureExtractionService.class);
   private static final int MAX_ATTEMPTS = 3;
+  private static final int EXPECTED_DISCOGS_DIM = 1280;
+  private static final int EXPECTED_MUSICNN_DIM = 200;
+  private static final int EXPECTED_CLAP_DIM = 512;
+  private static final int EXPECTED_MERT_DIM = 768;
 
   private final FeatureExtractionClient extractionClient;
   private final EmbeddingExtractionClient embeddingClient;
@@ -172,9 +176,11 @@ public class FeatureExtractionService {
             var entity = featuresRepository.findByTrackId(trackId).orElse(null);
             if (entity == null) return;
             if (embResult.embeddingClap() != null)
-              entity.setEmbeddingClap(toFloatArray(embResult.embeddingClap()));
+              setEmbeddingIfValid(
+                  entity::setEmbeddingClap, embResult.embeddingClap(), EXPECTED_CLAP_DIM, "clap");
             if (embResult.embeddingMert() != null)
-              entity.setEmbeddingMert(toFloatArray(embResult.embeddingMert()));
+              setEmbeddingIfValid(
+                  entity::setEmbeddingMert, embResult.embeddingMert(), EXPECTED_MERT_DIM, "mert");
             featuresRepository.save(entity);
           });
       log.info(
@@ -206,9 +212,11 @@ public class FeatureExtractionService {
     entity.setDissonance(floatVal(f, "dissonance"));
     entity.setOnsetRate(floatVal(f, "onset_rate"));
     if (result.embeddingDiscogs() != null)
-      entity.setEmbeddingDiscogs(toFloatArray(result.embeddingDiscogs()));
+      setEmbeddingIfValid(
+          entity::setEmbeddingDiscogs, result.embeddingDiscogs(), EXPECTED_DISCOGS_DIM, "discogs");
     if (result.embeddingMusicnn() != null)
-      entity.setEmbeddingMusicnn(toFloatArray(result.embeddingMusicnn()));
+      setEmbeddingIfValid(
+          entity::setEmbeddingMusicnn, result.embeddingMusicnn(), EXPECTED_MUSICNN_DIM, "musicnn");
     entity.setExtractedAt(OffsetDateTime.now());
     entity.setExtractorVersion("1.0");
     featuresRepository.save(entity);
@@ -220,6 +228,22 @@ public class FeatureExtractionService {
 
   private static String stringVal(Map<String, Object> map, String key) {
     return map.get(key) != null ? map.get(key).toString() : null;
+  }
+
+  private static void setEmbeddingIfValid(
+      java.util.function.Consumer<float[]> setter,
+      List<?> embedding,
+      int expectedDim,
+      String name) {
+    if (embedding.size() != expectedDim) {
+      log.warn(
+          "Skipping {} embedding: expected {} dimensions, got {}",
+          name,
+          expectedDim,
+          embedding.size());
+      return;
+    }
+    setter.accept(toFloatArray(embedding));
   }
 
   private static float[] toFloatArray(List<?> list) {
