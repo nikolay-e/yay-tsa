@@ -190,15 +190,15 @@ public class CandidateRetrievalService {
         (UUID) row[0],
         (String) row[1],
         (String) row[2],
-        null,
-        toFloat(row[3]),
+        (String) row[3],
         toFloat(row[4]),
         toFloat(row[5]),
         toFloat(row[6]),
+        toFloat(row[7]),
+        toFloat(row[8]),
         null,
         null,
-        null,
-        toDouble(row[7]));
+        toDouble(row[9]));
   }
 
   private long getFeatureCount() {
