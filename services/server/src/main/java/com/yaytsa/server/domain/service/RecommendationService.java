@@ -35,6 +35,7 @@ public class RecommendationService {
   private static final int MAX_CONSECUTIVE_SAME_ARTIST = 2;
 
   private static final double HALF_LIFE_DAYS = 30.0;
+  private static final double MMR_LAMBDA = 0.6;
 
   private final CandidateRetrievalService candidateService;
   private final TasteProfileService tasteProfileService;
@@ -361,27 +362,108 @@ public class RecommendationService {
 
   private List<ScoredTrack> rerank(
       List<ScoredTrack> scored, Set<UUID> dislikedIds, RecommendationContext ctx, int count) {
+    Map<UUID, float[]> embeddings = loadEmbeddingsForCandidates(scored);
+
     List<ScoredTrack> result = new ArrayList<>();
     Set<UUID> selectedIds = new HashSet<>();
     List<String> recentArtists = new ArrayList<>();
+    List<ScoredTrack> remaining = new ArrayList<>(scored);
 
-    for (var st : scored) {
-      if (result.size() >= count) break;
-      UUID trackId = st.candidate().id();
+    while (result.size() < count && !remaining.isEmpty()) {
+      ScoredTrack best = null;
+      double bestMmr = Double.NEGATIVE_INFINITY;
+      int bestIdx = -1;
 
-      if (selectedIds.contains(trackId)) continue;
-      if (dislikedIds.contains(trackId)) continue;
+      for (int i = 0; i < remaining.size(); i++) {
+        var st = remaining.get(i);
+        UUID trackId = st.candidate().id();
 
-      String artist = st.candidate().artistName();
-      if (artist != null && ctx.avoidArtists().contains(artist)) continue;
-      if (artist != null && wouldExceedConsecutiveArtist(recentArtists, artist)) continue;
+        if (selectedIds.contains(trackId)) continue;
+        if (dislikedIds.contains(trackId)) continue;
 
-      result.add(st);
-      selectedIds.add(trackId);
+        String artist = st.candidate().artistName();
+        if (artist != null && ctx.avoidArtists().contains(artist)) continue;
+        if (artist != null && wouldExceedConsecutiveArtist(recentArtists, artist)) continue;
+
+        double maxSimToSelected;
+        float[] candidateEmb = embeddings.get(trackId);
+        if (candidateEmb == null || result.isEmpty()) {
+          maxSimToSelected = result.isEmpty() ? 0 : 0.5;
+        } else {
+          maxSimToSelected = 0;
+          for (var selected : result) {
+            float[] selEmb = embeddings.get(selected.candidate().id());
+            if (selEmb != null) {
+              maxSimToSelected = Math.max(maxSimToSelected, cosineSimilarity(candidateEmb, selEmb));
+            }
+          }
+        }
+
+        double mmrScore = MMR_LAMBDA * st.score() - (1 - MMR_LAMBDA) * maxSimToSelected;
+        if (mmrScore > bestMmr) {
+          bestMmr = mmrScore;
+          best = st;
+          bestIdx = i;
+        }
+      }
+
+      if (best == null) break;
+
+      result.add(best);
+      selectedIds.add(best.candidate().id());
+      String artist = best.candidate().artistName();
       if (artist != null) recentArtists.add(artist);
+      remaining.remove(bestIdx);
     }
 
     return result;
+  }
+
+  private Map<UUID, float[]> loadEmbeddingsForCandidates(List<ScoredTrack> scored) {
+    List<UUID> trackIds = scored.stream().map(st -> st.candidate().id()).toList();
+    if (trackIds.isEmpty()) return Map.of();
+
+    Map<UUID, float[]> embeddings = new HashMap<>();
+    var rows = trackFeaturesRepository.findMertEmbeddingsByTrackIds(trackIds);
+    for (var row : rows) {
+      UUID trackId = (UUID) row[0];
+      float[] embedding = parseRawEmbedding(row[1]);
+      if (embedding != null) {
+        embeddings.put(trackId, embedding);
+      }
+    }
+    return embeddings;
+  }
+
+  private static float[] parseRawEmbedding(Object raw) {
+    if (raw instanceof float[] arr) return arr;
+    if (raw == null) return null;
+    try {
+      String str = raw.toString();
+      if (str.startsWith("[")) str = str.substring(1);
+      if (str.endsWith("]")) str = str.substring(0, str.length() - 1);
+      String[] parts = str.split(",");
+      float[] result = new float[parts.length];
+      for (int i = 0; i < parts.length; i++) {
+        result[i] = Float.parseFloat(parts[i].trim());
+      }
+      return result;
+    } catch (Exception e) {
+      log.warn("Failed to parse embedding: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  private static double cosineSimilarity(float[] a, float[] b) {
+    if (a.length != b.length) return 0;
+    double dot = 0, normA = 0, normB = 0;
+    for (int i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    double denom = Math.sqrt(normA) * Math.sqrt(normB);
+    return denom < 1e-9 ? 0 : dot / denom;
   }
 
   private boolean wouldExceedConsecutiveArtist(List<String> recentArtists, String artist) {

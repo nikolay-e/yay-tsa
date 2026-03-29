@@ -95,16 +95,6 @@ class TrackFeaturesNativeQueryTest {
         .isEmpty();
   }
 
-  @Test
-  @DisplayName("findAllWithMertEmbedding returns only tracks with embeddings")
-  void allEmbeddedTracksExcludesNull() {
-    List<Object[]> results = trackFeaturesRepository.findAllWithMertEmbedding();
-
-    List<UUID> ids = results.stream().map(r -> (UUID) r[0]).toList();
-    assertThat(ids).contains(highAffinityTrackId, lowAffinityTrackId);
-    assertThat(ids).doesNotContain(noEmbeddingTrackId);
-  }
-
   private UUID createTrack(ItemEntity album, String name, float[] embedding) {
     ItemEntity track = new ItemEntity();
     track.setType(ItemType.AudioTrack);

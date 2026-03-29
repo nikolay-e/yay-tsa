@@ -273,16 +273,6 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
   @Query(
       value =
           """
-          SELECT tf.track_id, tf.embedding_mert
-          FROM track_features tf
-          WHERE tf.embedding_mert IS NOT NULL
-          """,
-      nativeQuery = true)
-  List<Object[]> findAllWithMertEmbedding();
-
-  @Query(
-      value =
-          """
           SELECT tf.track_id, tf.embedding_mert, uta.affinity_score
           FROM track_features tf
           JOIN user_track_affinity uta ON uta.track_id = tf.track_id
@@ -297,15 +287,29 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
   @Query(
       value =
           """
-          SELECT uta.track_id
-          FROM user_track_affinity uta
-          JOIN items i ON i.id = uta.track_id
-          WHERE uta.user_id = :userId
-            AND uta.affinity_score > 0
-            AND i.type = 'AudioTrack'
-          ORDER BY uta.affinity_score DESC
+          SELECT tf.track_id, tf.embedding_mert,
+                 (COALESCE(ps.play_count, 0) * 0.3
+                  + CASE WHEN ps.is_favorite THEN 2.0 ELSE 0.0 END
+                 ) AS derived_affinity
+          FROM track_features tf
+          JOIN play_state ps ON ps.item_id = tf.track_id AND ps.user_id = :userId
+          WHERE tf.embedding_mert IS NOT NULL
+            AND (ps.play_count > 0 OR ps.is_favorite = true)
+          ORDER BY derived_affinity DESC, ps.last_played_at DESC NULLS LAST
           LIMIT :lim
           """,
       nativeQuery = true)
-  List<UUID> findTopAffinityTrackIds(@Param("userId") UUID userId, @Param("lim") int limit);
+  List<Object[]> findMertEmbeddingsForUserPlayHistory(
+      @Param("userId") UUID userId, @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT tf.track_id, tf.embedding_mert
+          FROM track_features tf
+          WHERE tf.track_id IN (:trackIds)
+            AND tf.embedding_mert IS NOT NULL
+          """,
+      nativeQuery = true)
+  List<Object[]> findMertEmbeddingsByTrackIds(@Param("trackIds") List<UUID> trackIds);
 }

@@ -17,13 +17,13 @@ public class RadioAnchorResolver {
 
   private static final Logger log = LoggerFactory.getLogger(RadioAnchorResolver.class);
 
-  private static final float MIN_WEIGHT = 0.15f;
+  private static final float MIN_WEIGHT = 0.40f;
   private static final float INITIAL_WEIGHT = 0.7f;
-  private static final float COMPLETED_DECAY = 0.012f;
-  private static final float SKIP_LATE_DECAY = 0.018f;
-  private static final float SKIPPED_DECAY = 0.025f;
-  private static final float THUMBS_DOWN_DECAY = 0.04f;
-  private static final float THUMBS_UP_DECAY = 0.005f;
+  private static final float COMPLETED_DECAY = 0.006f;
+  private static final float SKIP_LATE_DECAY = 0.009f;
+  private static final float SKIPPED_DECAY = 0.012f;
+  private static final float THUMBS_DOWN_DECAY = 0.02f;
+  private static final float THUMBS_UP_DECAY = 0.002f;
 
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final PlaybackSignalRepository signalRepository;
