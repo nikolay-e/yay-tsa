@@ -31,7 +31,7 @@ public class EmbeddingExtractionClient {
       @Value("${yaytsa.media.embedding-extraction.url:http://feature-extractor:8000}")
           String extractorUrl) {
     this.restClient =
-        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(10, 180)).build();
+        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(10, 900)).build();
     this.healthCheckClient =
         restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(5, 5)).build();
   }

@@ -144,7 +144,10 @@ class DualEmbeddingExtractor:
                 )
                 with self._torch.no_grad():
                     audio_features = self._clap_model.get_audio_features(**inputs)
-                embeddings.append(audio_features[0].cpu().numpy().flatten())
+                emb = audio_features[0].cpu().numpy()
+                if emb.ndim > 1:
+                    emb = emb.mean(axis=0)
+                embeddings.append(emb)
 
             mean_embedding = np.mean(embeddings, axis=0).flatten()
             mean_embedding = mean_embedding / (np.linalg.norm(mean_embedding) + 1e-9)
