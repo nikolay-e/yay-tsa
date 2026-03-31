@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { AlertTriangle, Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { useInView } from '@/shared/hooks/useInView';
-import { formatTicks } from '@/shared/utils/time';
+import { formatTicks, currentTimeOfDay } from '@/shared/utils/time';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -17,6 +17,7 @@ import {
   useActiveSession,
   useIsSessionStarting,
   useIsSessionRefreshing,
+  useSessionError,
   getSavedSessionId,
 } from '../stores/session-store';
 
@@ -30,12 +31,6 @@ function DjFeedbackButtons({
   const [liked, setLiked] = useState(false);
 
   const sendFeedback = (type: 'THUMBS_UP' | 'THUMBS_DOWN') => {
-    const hour = new Date().getHours();
-    let timeOfDay: string;
-    if (hour < 6) timeOfDay = 'night';
-    else if (hour < 12) timeOfDay = 'morning';
-    else if (hour < 18) timeOfDay = 'afternoon';
-    else timeOfDay = 'evening';
     useSessionStore
       .getState()
       .sendSignal({
@@ -46,7 +41,7 @@ function DjFeedbackButtons({
           elapsedSec: 0,
           autoplay: false,
           selectedByUser: true,
-          timeOfDay,
+          timeOfDay: currentTimeOfDay(),
         },
       })
       .catch(() => {});
@@ -150,6 +145,27 @@ function QueueTrackItem({
   );
 }
 
+function SessionExpiredBanner() {
+  return (
+    <div className="mx-2 mb-2 flex items-center gap-3 rounded-lg bg-yellow-500/10 px-4 py-3">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-500" />
+      <div className="min-w-0 flex-1">
+        <p className="text-text-primary text-sm font-medium">DJ session ended</p>
+        <p className="text-text-secondary text-xs">
+          Start a new session to keep getting recommendations
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => useSessionStore.getState().startSession()}
+        className="bg-accent text-text-on-accent hover:bg-accent-hover shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+      >
+        Restart
+      </button>
+    </div>
+  );
+}
+
 export function QueueView() {
   const queueItems = useQueueItems();
   const queueIndex = useQueueIndex();
@@ -162,6 +178,7 @@ export function QueueView() {
   const activeSession = useActiveSession();
   const isStarting = useIsSessionStarting();
   const isRefreshing = useIsSessionRefreshing();
+  const sessionError = useSessionError();
   const initAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -192,6 +209,8 @@ export function QueueView() {
     useSessionStore.getState().refreshQueue();
   }, [isInView, canLoadMore]);
 
+  const isSessionExpired = !activeSession && sessionError != null;
+
   if (queueItems.length === 0) {
     if (isStarting) {
       return (
@@ -203,8 +222,9 @@ export function QueueView() {
     }
     return (
       <div className="flex flex-col items-center gap-3 py-8">
+        {isSessionExpired && <SessionExpiredBanner />}
         <p className="text-text-tertiary text-sm">No tracks in queue</p>
-        {!activeSession && (
+        {!activeSession && !isSessionExpired && (
           <button
             type="button"
             onClick={() => useSessionStore.getState().startSession()}
@@ -234,6 +254,7 @@ export function QueueView() {
 
   return (
     <div className="flex flex-col">
+      {isSessionExpired && <SessionExpiredBanner />}
       <div ref={listRef} className="flex-1 overflow-y-auto px-1 py-1">
         {queueItems.map((track, index) => (
           <QueueTrackItem

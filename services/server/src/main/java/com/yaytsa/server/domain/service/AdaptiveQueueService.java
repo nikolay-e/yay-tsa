@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -30,13 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdaptiveQueueService {
 
   private static final Logger log = LoggerFactory.getLogger(AdaptiveQueueService.class);
-  private static final long LLM_COOLDOWN_MS = 120_000L;
 
-  private final Cache<UUID, Long> lastLlmAttemptMs =
-      Caffeine.newBuilder()
-          .expireAfterWrite(LLM_COOLDOWN_MS + 10_000, TimeUnit.MILLISECONDS)
-          .maximumSize(500)
-          .build();
+  private final long llmCooldownMs;
+
+  private final Cache<UUID, Long> lastLlmAttemptMs;
 
   private final Cache<UUID, DjSessionParams> lastSessionParams =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(500).build();
@@ -54,13 +52,20 @@ public class AdaptiveQueueService {
       UserPreferenceContractRepository contractRepository,
       LlmSessionParamService llmSessionParamService,
       FallbackQueueService fallbackQueueService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      @Value("${yaytsa.adaptive-dj.llm-cooldown-ms:120000}") long llmCooldownMs) {
     this.queueRepository = queueRepository;
     this.sessionRepository = sessionRepository;
     this.contractRepository = contractRepository;
     this.llmSessionParamService = llmSessionParamService;
     this.fallbackQueueService = fallbackQueueService;
     this.objectMapper = objectMapper;
+    this.llmCooldownMs = llmCooldownMs;
+    this.lastLlmAttemptMs =
+        Caffeine.newBuilder()
+            .expireAfterWrite(llmCooldownMs + 10_000, TimeUnit.MILLISECONDS)
+            .maximumSize(500)
+            .build();
   }
 
   public List<AdaptiveQueueEntity> getQueue(UUID sessionId) {
@@ -104,7 +109,7 @@ public class AdaptiveQueueService {
     long now = System.currentTimeMillis();
     Long lastAttempt = lastLlmAttemptMs.getIfPresent(session.getId());
     boolean coolingDown =
-        !manualRefresh && lastAttempt != null && (now - lastAttempt) < LLM_COOLDOWN_MS;
+        !manualRefresh && lastAttempt != null && (now - lastAttempt) < llmCooldownMs;
 
     Optional<DjSessionParams> params = Optional.empty();
     if (!coolingDown) {
@@ -115,7 +120,7 @@ public class AdaptiveQueueService {
       log.debug(
           "LLM cooldown active for session {}, {}s remaining",
           session.getId(),
-          (LLM_COOLDOWN_MS - (now - lastAttempt)) / 1000);
+          (llmCooldownMs - (now - lastAttempt)) / 1000);
     }
 
     if (params.isPresent()) {

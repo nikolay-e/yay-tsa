@@ -236,7 +236,8 @@ public class FallbackQueueService {
       }
     }
 
-    addedEntries.addAll(insertQueueEntries(session, recommendations, maxPosition, maxVersion));
+    addedEntries.addAll(
+        insertQueueEntries(session, recommendations, maxPosition, maxVersion, existingTrackIds));
 
     log.info(
         "Recommendation queue filled {} tracks for session {} (excluded {} recently played)",
@@ -263,7 +264,8 @@ public class FallbackQueueService {
       ListeningSessionEntity session,
       List<ScoredTrack> recommendations,
       int maxPosition,
-      long maxVersion) {
+      long maxVersion,
+      Set<UUID> existingTrackIds) {
     long newVersion = maxVersion + 1;
     List<UUID> itemIds =
         recommendations.stream().map(r -> r.candidate().id()).collect(Collectors.toList());
@@ -271,11 +273,12 @@ public class FallbackQueueService {
         itemRepository.findAllById(itemIds).stream()
             .collect(Collectors.toMap(ItemEntity::getId, Function.identity()));
 
+    Set<UUID> seen = new HashSet<>(existingTrackIds);
     List<AdaptiveQueueEntity> toSave = new ArrayList<>();
     int positionOffset = 0;
     for (ScoredTrack rec : recommendations) {
       ItemEntity item = itemsById.get(rec.candidate().id());
-      if (item == null) continue;
+      if (item == null || !seen.add(item.getId())) continue;
       var entry = new AdaptiveQueueEntity();
       entry.setSession(session);
       entry.setItem(item);

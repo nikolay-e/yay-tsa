@@ -6,6 +6,7 @@ import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { cn } from '@/shared/utils/cn';
+import { currentTimeOfDay } from '@/shared/utils/time';
 import { toast } from '@/shared/ui/Toast';
 import { PLAYER_TEST_IDS } from '@/shared/testing/test-ids';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
@@ -179,7 +180,7 @@ export function PlayerBar() {
         elapsedSec: 0,
         autoplay: false,
         selectedByUser: true,
-        timeOfDay: new Date().toISOString(),
+        timeOfDay: currentTimeOfDay(),
       },
     });
     toast.add('success', 'Liked');
@@ -194,7 +195,7 @@ export function PlayerBar() {
         elapsedSec: 0,
         autoplay: false,
         selectedByUser: true,
-        timeOfDay: new Date().toISOString(),
+        timeOfDay: currentTimeOfDay(),
       },
     });
     next();

@@ -18,6 +18,7 @@ import {
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
 import { PlaybackController, withTimeout } from './playback-controller';
 import { PreloadManager } from './preload-manager';
@@ -1043,12 +1044,6 @@ export const usePlayerStore = create<PlayerStore>()(
           const sessionState = useSessionStore.getState();
           if (sessionState.activeSession) {
             const remaining = items.length - targetIndex - 1;
-            const hour = new Date().getHours();
-            let timeOfDay: string;
-            if (hour < 6) timeOfDay = 'night';
-            else if (hour < 12) timeOfDay = 'morning';
-            else if (hour < 18) timeOfDay = 'afternoon';
-            else timeOfDay = 'evening';
             sessionState
               .sendSignal({
                 signalType: 'QUEUE_JUMP',
@@ -1058,7 +1053,7 @@ export const usePlayerStore = create<PlayerStore>()(
                   elapsedSec: 0,
                   autoplay: false,
                   selectedByUser: true,
-                  timeOfDay,
+                  timeOfDay: currentTimeOfDay(),
                 },
               })
               .catch(() => {});

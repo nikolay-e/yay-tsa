@@ -17,3 +17,11 @@ export function formatTicks(ticks: number | undefined): string {
   if (!ticks) return '0:00';
   return formatSeconds(ticksToSeconds(ticks));
 }
+
+export function currentTimeOfDay(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) return 'night';
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+}

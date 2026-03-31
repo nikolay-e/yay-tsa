@@ -15,6 +15,7 @@ import { toast } from '@/shared/ui/Toast';
 import { usePlayerStore } from './player.store';
 
 const DJ_SESSION_KEY = 'yaytsa_dj_session';
+const MAX_REFRESH_ERRORS = 3;
 
 interface SessionStoreState {
   activeSession: ListeningSession | null;
@@ -89,12 +90,15 @@ async function resolveAudioItems(tracks: AdaptiveQueueTrack[]): Promise<AudioIte
 
 let refreshDebounce = false;
 let restoreInProgress = false;
+let consecutiveRefreshErrors = 0;
 const lastSignalTimestamps = new Map<string, number>();
 
 export const useSessionStore = create<SessionStore>()((set, get) => ({
   ...initialState,
 
   startSession: async (seedTrackId?: string) => {
+    if (get().isStarting) return;
+
     const service = getDjService();
     if (!service) return;
 
@@ -162,6 +166,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       set({ isStarting: false });
     } catch (error) {
       log.player.error('Failed to restore DJ session', error);
+      saveSession(null);
       set({
         isStarting: false,
         error: error instanceof Error ? error : new Error(String(error)),
@@ -184,12 +189,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
         error: String(error),
       });
     }
+    consecutiveRefreshErrors = 0;
     saveSession(null);
     set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
     toast.add('info', 'DJ off, queue kept');
   },
 
   reset: () => {
+    consecutiveRefreshErrors = 0;
     saveSession(null);
     set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
   },
@@ -205,6 +212,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       await service.refreshQueue(activeSession.id);
       const djQueue = await service.getQueue(activeSession.id);
 
+      consecutiveRefreshErrors = 0;
+
       const existingIds = new Set(usePlayerStore.getState().queueItems.map(i => i.Id));
       const newTracks = djQueue.filter(t => !existingIds.has(t.trackId));
       if (newTracks.length > 0) {
@@ -213,14 +222,29 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
           usePlayerStore.getState().appendToQueue(audioItems);
         }
       }
-      set({ isRefreshing: false });
+      set({ isRefreshing: false, error: null });
     } catch (error) {
-      log.player.error('Failed to refresh queue', error);
+      consecutiveRefreshErrors++;
+      log.player.error(
+        `Failed to refresh queue (attempt ${consecutiveRefreshErrors}/${MAX_REFRESH_ERRORS})`,
+        error
+      );
+
+      if (consecutiveRefreshErrors >= MAX_REFRESH_ERRORS) {
+        log.player.error('DJ session appears dead, clearing session');
+        saveSession(null);
+        set({
+          isRefreshing: false,
+          activeSession: null,
+          error: new Error('DJ session expired'),
+        });
+        return;
+      }
+
       set({
         isRefreshing: false,
         error: error instanceof Error ? error : new Error(String(error)),
       });
-      toast.add('error', 'Failed to refresh DJ queue');
     } finally {
       refreshDebounce = false;
     }

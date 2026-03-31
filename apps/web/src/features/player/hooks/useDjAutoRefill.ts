@@ -11,8 +11,8 @@ export function useDjAutoRefill() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const session = useSessionStore.getState().activeSession;
-      if (!session || refillPendingRef.current) return;
+      const { activeSession, error } = useSessionStore.getState();
+      if (!activeSession || error || refillPendingRef.current) return;
 
       const { queueItems, queueIndex } = usePlayerStore.getState();
       if (queueItems.length === 0 || queueIndex < 0) return;
@@ -28,10 +28,9 @@ export function useDjAutoRefill() {
 
       if (totalRemainingSec < REFILL_THRESHOLD_SEC) {
         refillPendingRef.current = true;
-        useSessionStore
+        void useSessionStore
           .getState()
           .refreshQueue()
-          .catch(() => {})
           .finally(() => {
             refillPendingRef.current = false;
           });
