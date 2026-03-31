@@ -24,7 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class FallbackQueueService {
@@ -36,7 +36,8 @@ public class FallbackQueueService {
   private final RadioAnchorResolver radioAnchorResolver;
   private final AdaptiveQueueRepository queueRepository;
   private final ItemRepository itemRepository;
-  private final int targetQueueSize;
+  private final TransactionTemplate transactionTemplate;
+  private final int defaultQueueSize;
   private final int noRepeatHours;
 
   private final Cache<UUID, ReentrantLock> sessionFillLocks =
@@ -48,19 +49,22 @@ public class FallbackQueueService {
       RadioAnchorResolver radioAnchorResolver,
       AdaptiveQueueRepository queueRepository,
       ItemRepository itemRepository,
-      @Value("${yaytsa.adaptive-dj.queue.max-size:50}") int targetQueueSize,
+      TransactionTemplate transactionTemplate,
+      @Value("${yaytsa.adaptive-dj.queue.max-size:40}") int defaultQueueSize,
       @Value("${yaytsa.adaptive-dj.queue.no-repeat-hours:6}") int noRepeatHours) {
     this.recommendationService = recommendationService;
     this.candidateRetrievalService = candidateRetrievalService;
     this.radioAnchorResolver = radioAnchorResolver;
     this.queueRepository = queueRepository;
     this.itemRepository = itemRepository;
-    this.targetQueueSize = targetQueueSize;
+    this.transactionTemplate = transactionTemplate;
+    this.defaultQueueSize = defaultQueueSize;
     this.noRepeatHours = noRepeatHours;
   }
 
   public List<AdaptiveQueueEntity> fillQueue(ListeningSessionEntity session) {
-    return fillQueue(session, 0.5f, 0.5f, 0.3f, Set.of(), List.of(), List.of());
+    return fillQueue(
+        session, 0.5f, 0.5f, 0.3f, Set.of(), List.of(), List.of(), defaultQueueSize, 0);
   }
 
   public List<AdaptiveQueueEntity> fillQueue(
@@ -70,7 +74,9 @@ public class FallbackQueueService {
       float explorationWeight,
       Set<String> avoidArtists,
       List<String> preferGenres,
-      List<String> avoidGenres) {
+      List<String> avoidGenres,
+      int dynamicQueueSize,
+      int insertNextCount) {
     UUID sessionId = session.getId();
     ReentrantLock lock = sessionFillLocks.get(sessionId, k -> new ReentrantLock());
     lock.lock();
@@ -82,7 +88,9 @@ public class FallbackQueueService {
           explorationWeight,
           avoidArtists,
           preferGenres,
-          avoidGenres);
+          avoidGenres,
+          dynamicQueueSize,
+          insertNextCount);
     } finally {
       lock.unlock();
     }
@@ -95,7 +103,9 @@ public class FallbackQueueService {
       float explorationWeight,
       Set<String> avoidArtists,
       List<String> preferGenres,
-      List<String> avoidGenres) {
+      List<String> avoidGenres,
+      int dynamicQueueSize,
+      int insertNextCount) {
     UUID userId = session.getUser().getId();
     UUID sessionId = session.getId();
 
@@ -103,14 +113,14 @@ public class FallbackQueueService {
         queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
             sessionId, List.of("QUEUED", "PLAYING"));
 
-    if (activeQueue.size() >= targetQueueSize) {
+    if (activeQueue.size() >= dynamicQueueSize) {
       return List.of();
     }
 
     boolean isFirstFill = activeQueue.isEmpty();
     UUID seedTrackId = session.getSeedTrackId();
 
-    int needed = targetQueueSize - activeQueue.size();
+    int needed = dynamicQueueSize - activeQueue.size();
     if (isFirstFill && session.isRadioMode() && seedTrackId != null) {
       needed = Math.max(0, needed - 1);
     }
@@ -236,8 +246,22 @@ public class FallbackQueueService {
       }
     }
 
+    int playingPosition =
+        activeQueue.stream()
+            .filter(e -> "PLAYING".equals(e.getStatus()))
+            .mapToInt(AdaptiveQueueEntity::getPosition)
+            .findFirst()
+            .orElse(-1);
+
     addedEntries.addAll(
-        insertQueueEntries(session, recommendations, maxPosition, maxVersion, existingTrackIds));
+        insertQueueEntries(
+            session,
+            recommendations,
+            maxPosition,
+            maxVersion,
+            existingTrackIds,
+            insertNextCount,
+            playingPosition));
 
     log.info(
         "Recommendation queue filled {} tracks for session {} (excluded {} recently played)",
@@ -259,38 +283,74 @@ public class FallbackQueueService {
     return merged;
   }
 
-  @Transactional
-  List<AdaptiveQueueEntity> insertQueueEntries(
+  private List<AdaptiveQueueEntity> insertQueueEntries(
       ListeningSessionEntity session,
       List<ScoredTrack> recommendations,
       int maxPosition,
       long maxVersion,
-      Set<UUID> existingTrackIds) {
-    long newVersion = maxVersion + 1;
-    List<UUID> itemIds =
-        recommendations.stream().map(r -> r.candidate().id()).collect(Collectors.toList());
-    Map<UUID, ItemEntity> itemsById =
-        itemRepository.findAllById(itemIds).stream()
-            .collect(Collectors.toMap(ItemEntity::getId, Function.identity()));
+      Set<UUID> existingTrackIds,
+      int insertNextCount,
+      int playingPosition) {
+    return transactionTemplate.execute(
+        status -> {
+          long newVersion = maxVersion + 1;
+          List<UUID> itemIds =
+              recommendations.stream().map(r -> r.candidate().id()).collect(Collectors.toList());
+          Map<UUID, ItemEntity> itemsById =
+              itemRepository.findAllById(itemIds).stream()
+                  .collect(Collectors.toMap(ItemEntity::getId, Function.identity()));
 
-    Set<UUID> seen = new HashSet<>(existingTrackIds);
-    List<AdaptiveQueueEntity> toSave = new ArrayList<>();
-    int positionOffset = 0;
-    for (ScoredTrack rec : recommendations) {
-      ItemEntity item = itemsById.get(rec.candidate().id());
-      if (item == null || !seen.add(item.getId())) continue;
-      var entry = new AdaptiveQueueEntity();
-      entry.setSession(session);
-      entry.setItem(item);
-      entry.setPosition(maxPosition + positionOffset + 1);
-      entry.setAddedReason(rec.source());
-      entry.setIntentLabel("recommendation");
-      entry.setStatus("QUEUED");
-      entry.setQueueVersion(newVersion);
-      entry.setAddedAt(OffsetDateTime.now());
-      toSave.add(entry);
-      positionOffset++;
-    }
-    return queueRepository.saveAll(toSave);
+          Set<UUID> seen = new HashSet<>(existingTrackIds);
+          List<ScoredTrack> deduped = new ArrayList<>();
+          for (ScoredTrack rec : recommendations) {
+            ItemEntity item = itemsById.get(rec.candidate().id());
+            if (item != null && seen.add(item.getId())) {
+              deduped.add(rec);
+            }
+          }
+
+          int effectiveInsertNext =
+              (playingPosition >= 0) ? Math.min(insertNextCount, deduped.size()) : 0;
+
+          List<ScoredTrack> playNextTracks = deduped.subList(0, effectiveInsertNext);
+          List<ScoredTrack> appendTracks = deduped.subList(effectiveInsertNext, deduped.size());
+
+          List<AdaptiveQueueEntity> toSave = new ArrayList<>();
+
+          if (!playNextTracks.isEmpty()) {
+            queueRepository.shiftPositionsAfter(
+                session.getId(), playingPosition, playNextTracks.size());
+
+            int insertPos = playingPosition + 1;
+            for (ScoredTrack rec : playNextTracks) {
+              var entry = new AdaptiveQueueEntity();
+              entry.setSession(session);
+              entry.setItem(itemsById.get(rec.candidate().id()));
+              entry.setPosition(insertPos++);
+              entry.setAddedReason(rec.source());
+              entry.setIntentLabel("play_next");
+              entry.setStatus("QUEUED");
+              entry.setQueueVersion(newVersion);
+              entry.setAddedAt(OffsetDateTime.now());
+              toSave.add(entry);
+            }
+          }
+
+          int appendPosition = maxPosition + (playNextTracks.isEmpty() ? 0 : playNextTracks.size());
+          for (ScoredTrack rec : appendTracks) {
+            var entry = new AdaptiveQueueEntity();
+            entry.setSession(session);
+            entry.setItem(itemsById.get(rec.candidate().id()));
+            entry.setPosition(++appendPosition);
+            entry.setAddedReason(rec.source());
+            entry.setIntentLabel("recommendation");
+            entry.setStatus("QUEUED");
+            entry.setQueueVersion(newVersion);
+            entry.setAddedAt(OffsetDateTime.now());
+            toSave.add(entry);
+          }
+
+          return queueRepository.saveAll(toSave);
+        });
   }
 }

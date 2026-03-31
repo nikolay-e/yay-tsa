@@ -67,4 +67,17 @@ public interface AdaptiveQueueRepository extends JpaRepository<AdaptiveQueueEnti
       @Param("trackId") UUID trackId,
       @Param("status") String status,
       @Param("playedAt") OffsetDateTime playedAt);
+
+  @Modifying(clearAutomatically = true)
+  @Query(
+      value =
+          """
+          UPDATE adaptive_queue SET position = position + :shiftBy
+          WHERE session_id = :sessionId AND status = 'QUEUED' AND position > :afterPosition
+          """,
+      nativeQuery = true)
+  int shiftPositionsAfter(
+      @Param("sessionId") UUID sessionId,
+      @Param("afterPosition") int afterPosition,
+      @Param("shiftBy") int shiftBy);
 }

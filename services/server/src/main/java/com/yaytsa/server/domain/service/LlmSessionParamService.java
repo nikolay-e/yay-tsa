@@ -40,7 +40,9 @@ public class LlmSessionParamService {
       List<String> avoidArtists,
       List<String> preferGenres,
       List<String> avoidGenres,
-      String sessionSummaryUpdate) {}
+      String sessionSummaryUpdate,
+      int targetQueueSize,
+      int insertNextCount) {}
 
   public LlmSessionParamService(
       TasteProfileService tasteProfileService,
@@ -71,13 +73,16 @@ public class LlmSessionParamService {
   }
 
   public Optional<DjSessionParams> generateSessionParams(
-      ListeningSessionEntity session, String triggerType, PlaybackSignalEntity triggerSignal) {
+      ListeningSessionEntity session,
+      String triggerType,
+      PlaybackSignalEntity triggerSignal,
+      int currentQueueSize) {
 
     if (!isAvailable()) return Optional.empty();
 
     try {
       String systemPrompt = buildSystemPrompt(session);
-      String userMessage = buildUserMessage(session, triggerType, triggerSignal);
+      String userMessage = buildUserMessage(session, triggerType, triggerSignal, currentQueueSize);
 
       MessageCreateParams params =
           MessageCreateParams.builder()
@@ -99,17 +104,30 @@ public class LlmSessionParamService {
   private String buildSystemPrompt(ListeningSessionEntity session) {
     var sb = new StringBuilder();
     sb.append(
-        "You are a DJ assistant. Based on the user's taste profile and recent listening signals,"
-            + " output ONLY a JSON object with these fields:\n"
-            + "- targetEnergy: float 0-1 (desired energy level)\n"
-            + "- targetValence: float 0-1 (desired mood, 0=dark/melancholic, 1=bright/happy)\n"
-            + "- explorationWeight: float 0-1 (0=stick to favorites, 1=maximize discovery)\n"
-            + "- arc: string describing the session direction (e.g. \"building energy\", \"winding"
-            + " down\")\n"
-            + "- avoidArtists: list of artist names to avoid in next batch\n"
-            + "- preferGenres: list of genre names to prioritize (e.g. [\"Metal\", \"Rock\"])\n"
-            + "- avoidGenres: list of genre names to avoid (e.g. [\"Pop\", \"Country\"])\n"
-            + "- sessionSummaryUpdate: brief update to session narrative\n\n"
+        "You are a master DJ crafting a live listening experience. Your job is to read the room"
+            + " — the listener's mood, energy, and engagement — and shape the musical journey"
+            + " through emotion, atmosphere, and flow. Think in terms of tension and release,"
+            + " color and texture, not just genre labels.\n\n"
+            + "Output ONLY a JSON object with these fields:\n"
+            + "- targetEnergy: float 0-1 (desired energy level for next batch)\n"
+            + "- targetValence: float 0-1 (emotional tone: 0=dark/heavy/introspective,"
+            + " 1=bright/uplifting/euphoric)\n"
+            + "- explorationWeight: float 0-1 (0=comfort zone, 1=push boundaries)\n"
+            + "- arc: string — the emotional narrative you're building (e.g. \"slow burn into"
+            + " catharsis\", \"late-night drift\", \"defiant energy\")\n"
+            + "- avoidArtists: list of artist names to rest (recently overplayed)\n"
+            + "- preferGenres: list of genre names to lean into\n"
+            + "- avoidGenres: list of genre names to steer away from\n"
+            + "- sessionSummaryUpdate: 1-2 sentence narrative of where this session is and where"
+            + " it's heading\n"
+            + "- targetQueueSize: int 30-50 — how deep the queue should be right now:\n"
+            + "  30-35 if listener is skipping actively (restless, searching)\n"
+            + "  36-44 normal engaged listening\n"
+            + "  45-50 deep flow state, uninterrupted listening\n"
+            + "- insertNextCount: int 0-3 — how many top picks to insert as \"play next\":\n"
+            + "  0 = let the queue flow naturally\n"
+            + "  1 = you have the perfect next track in mind\n"
+            + "  2-3 = steering a mood shift, need immediate impact\n\n"
             + "Output ONLY valid JSON, no explanation.\n\n");
 
     TasteProfileEntity profile = tasteProfileService.getProfile(session.getUser().getId());
@@ -133,7 +151,10 @@ public class LlmSessionParamService {
   }
 
   private String buildUserMessage(
-      ListeningSessionEntity session, String triggerType, PlaybackSignalEntity triggerSignal) {
+      ListeningSessionEntity session,
+      String triggerType,
+      PlaybackSignalEntity triggerSignal,
+      int currentQueueSize) {
     var sb = new StringBuilder();
     sb.append("Trigger: ").append(triggerType);
     if (triggerSignal != null) {
@@ -143,7 +164,17 @@ public class LlmSessionParamService {
       }
       sb.append(")");
     }
-    sb.append("\n\nRecent signals:\n");
+    sb.append("\n");
+
+    int hour = java.time.LocalTime.now().getHour();
+    sb.append("Current hour: ").append(hour).append(":00\n");
+    sb.append("Current queue size: ").append(currentQueueSize).append(" tracks\n");
+
+    if (session.getSessionSummary() != null && !session.getSessionSummary().isBlank()) {
+      sb.append("Previous session narrative: ").append(session.getSessionSummary()).append("\n");
+    }
+
+    sb.append("\nRecent signals:\n");
 
     var recentSignals =
         signalRepository.findBySessionIdOrderByCreatedAtDesc(
@@ -207,9 +238,21 @@ public class LlmSessionParamService {
       String summary =
           node.has("sessionSummaryUpdate") ? node.get("sessionSummaryUpdate").asText("") : "";
 
+      int queueSize = Math.max(30, Math.min(50, node.path("targetQueueSize").asInt(40)));
+      int insertNext = Math.max(0, Math.min(3, node.path("insertNextCount").asInt(0)));
+
       return Optional.of(
           new DjSessionParams(
-              energy, valence, exploration, arc, avoidArtists, preferGenres, avoidGenres, summary));
+              energy,
+              valence,
+              exploration,
+              arc,
+              avoidArtists,
+              preferGenres,
+              avoidGenres,
+              summary,
+              queueSize,
+              insertNext));
     } catch (Exception e) {
       log.warn("Failed to parse LLM session params: {}", e.getMessage());
       return Optional.empty();

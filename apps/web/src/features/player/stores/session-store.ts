@@ -217,9 +217,19 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       const existingIds = new Set(usePlayerStore.getState().queueItems.map(i => i.Id));
       const newTracks = djQueue.filter(t => !existingIds.has(t.trackId));
       if (newTracks.length > 0) {
-        const audioItems = await resolveAudioItems(newTracks);
-        if (audioItems.length > 0) {
-          usePlayerStore.getState().appendToQueue(audioItems);
+        const playNextTracks = newTracks.filter(t => t.intentLabel === 'play_next');
+        const appendTracks = newTracks.filter(t => t.intentLabel !== 'play_next');
+
+        const [playNextItems, appendItems] = await Promise.all([
+          playNextTracks.length > 0 ? resolveAudioItems(playNextTracks) : Promise.resolve([]),
+          appendTracks.length > 0 ? resolveAudioItems(appendTracks) : Promise.resolve([]),
+        ]);
+
+        if (playNextItems.length > 0) {
+          usePlayerStore.getState().insertNextInQueue(playNextItems);
+        }
+        if (appendItems.length > 0) {
+          usePlayerStore.getState().appendToQueue(appendItems);
         }
       }
       set({ isRefreshing: false, error: null });

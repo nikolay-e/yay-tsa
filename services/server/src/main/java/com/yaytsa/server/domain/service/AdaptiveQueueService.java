@@ -112,10 +112,13 @@ public class AdaptiveQueueService {
         !manualRefresh && lastAttempt != null && (now - lastAttempt) < llmCooldownMs;
 
     Optional<DjSessionParams> params = Optional.empty();
+    int currentQueueSize = currentQueue.size();
     if (!coolingDown) {
       lastLlmAttemptMs.put(session.getId(), now);
 
-      params = llmSessionParamService.generateSessionParams(session, triggerType, triggerSignal);
+      params =
+          llmSessionParamService.generateSessionParams(
+              session, triggerType, triggerSignal, currentQueueSize);
     } else {
       log.debug(
           "LLM cooldown active for session {}, {}s remaining",
@@ -128,13 +131,15 @@ public class AdaptiveQueueService {
       lastSessionParams.put(session.getId(), p);
       log.info(
           "LLM session params for session {}: energy={}, valence={}, exploration={}, arc={},"
-              + " preferGenres={}",
+              + " preferGenres={}, targetQueueSize={}, insertNextCount={}",
           session.getId(),
           p.targetEnergy(),
           p.targetValence(),
           p.explorationWeight(),
           p.arc(),
-          p.preferGenres());
+          p.preferGenres(),
+          p.targetQueueSize(),
+          p.insertNextCount());
       persistSessionSummary(session.getId(), p.sessionSummaryUpdate());
       fillQueueWithRetry(
           session,
@@ -143,7 +148,9 @@ public class AdaptiveQueueService {
           p.explorationWeight(),
           Set.copyOf(p.avoidArtists()),
           p.preferGenres(),
-          p.avoidGenres());
+          p.avoidGenres(),
+          p.targetQueueSize(),
+          p.insertNextCount());
     } else {
       DjSessionParams cached = lastSessionParams.getIfPresent(session.getId());
       if (cached != null) {
@@ -155,7 +162,9 @@ public class AdaptiveQueueService {
             cached.explorationWeight(),
             Set.copyOf(cached.avoidArtists()),
             cached.preferGenres(),
-            cached.avoidGenres());
+            cached.avoidGenres(),
+            cached.targetQueueSize(),
+            cached.insertNextCount());
       } else {
         float exploration = resolveExplorationWeight(session.getUser().getId());
         log.info(
@@ -164,7 +173,15 @@ public class AdaptiveQueueService {
             exploration,
             session.getId());
         fillQueueWithRetry(
-            session, 0.5f, 0.5f, exploration, Set.of(), session.getSeedGenreList(), List.of());
+            session,
+            0.5f,
+            0.5f,
+            exploration,
+            Set.of(),
+            session.getSeedGenreList(),
+            List.of(),
+            40,
+            0);
       }
     }
   }
@@ -176,7 +193,9 @@ public class AdaptiveQueueService {
       float explorationWeight,
       Set<String> avoidArtists,
       List<String> preferGenres,
-      List<String> avoidGenres) {
+      List<String> avoidGenres,
+      int dynamicQueueSize,
+      int insertNextCount) {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
         return fallbackQueueService.fillQueue(
@@ -186,7 +205,9 @@ public class AdaptiveQueueService {
             explorationWeight,
             avoidArtists,
             preferGenres,
-            avoidGenres);
+            avoidGenres,
+            dynamicQueueSize,
+            insertNextCount);
       } catch (DataIntegrityViolationException e) {
         log.warn(
             "Queue fill version conflict attempt {} for session {}", attempt + 1, session.getId());
