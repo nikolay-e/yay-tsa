@@ -11,8 +11,8 @@ export function useRadioSeeds() {
       const service = new AdaptiveDjService(client);
       return service.getRadioSeeds();
     },
-    staleTime: 30 * 60_000,
-    gcTime: 60 * 60_000,
+    staleTime: 0,
+    gcTime: 0,
     enabled: !!client,
   });
 }

@@ -14,7 +14,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,10 +31,8 @@ public class RadioSeedService {
 
   private static final Logger log = LoggerFactory.getLogger(RadioSeedService.class);
   private static final int MIN_USER_TRACKS_FOR_SEEDS = 5;
-  private static final int OVERFETCH_SEEDS = 20;
-  private static final int MAX_SEEDS = 10;
-  private static final int MAX_PER_ARTIST = 2;
-  private static final Duration CACHE_TTL = Duration.ofHours(2);
+  private static final int SEED_CANDIDATES = 100;
+  private static final Duration CACHE_TTL = Duration.ofMinutes(30);
 
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final ItemRepository itemRepository;
@@ -107,7 +104,7 @@ public class RadioSeedService {
 
     if (trackInputs.size() >= MIN_USER_TRACKS_FOR_SEEDS) {
       List<RadioSeedClient.SeedResult> seeds =
-          radioSeedClient.computeSeeds(trackInputs, OVERFETCH_SEEDS);
+          radioSeedClient.computeSeeds(trackInputs, SEED_CANDIDATES);
       if (!seeds.isEmpty()) {
         var result =
             new ArrayList<>(seeds.stream().map(s -> UUID.fromString(s.trackId())).toList());
@@ -179,13 +176,10 @@ public class RadioSeedService {
         itemRepository.findAllById(seedTrackIds).stream()
             .collect(Collectors.toMap(ItemEntity::getId, i -> i));
 
-    Map<String, Integer> artistCount = new HashMap<>();
     Set<UUID> albumsSeen = new HashSet<>();
     List<RadioSeed> enriched = new ArrayList<>();
 
     for (UUID trackId : seedTrackIds) {
-      if (enriched.size() >= MAX_SEEDS) break;
-
       ItemEntity track = itemsById.get(trackId);
       if (track == null) continue;
 
@@ -197,12 +191,6 @@ public class RadioSeedService {
       String artistName = null;
       if (album != null && album.getParent() != null) {
         artistName = album.getParent().getName();
-      }
-
-      if (artistName != null) {
-        int count = artistCount.getOrDefault(artistName, 0);
-        if (count >= MAX_PER_ARTIST) continue;
-        artistCount.put(artistName, count + 1);
       }
 
       String albumName = album != null ? album.getName() : null;
