@@ -16,6 +16,7 @@ import { usePlayerStore } from './player.store';
 
 const DJ_SESSION_KEY = 'yaytsa_dj_session';
 const MAX_REFRESH_ERRORS = 3;
+const MAX_QUEUE_SIZE = 100;
 
 interface SessionStoreState {
   activeSession: ListeningSession | null;
@@ -214,11 +215,15 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 
       consecutiveRefreshErrors = 0;
 
-      const existingIds = new Set(usePlayerStore.getState().queueItems.map(i => i.Id));
+      const currentQueueItems = usePlayerStore.getState().queueItems;
+      const existingIds = new Set(currentQueueItems.map(i => i.Id));
       const newTracks = djQueue.filter(t => !existingIds.has(t.trackId));
-      if (newTracks.length > 0) {
+      const budget = MAX_QUEUE_SIZE - currentQueueItems.length;
+      if (newTracks.length > 0 && budget > 0) {
         const playNextTracks = newTracks.filter(t => t.intentLabel === 'play_next');
-        const appendTracks = newTracks.filter(t => t.intentLabel !== 'play_next');
+        const appendTracks = newTracks
+          .filter(t => t.intentLabel !== 'play_next')
+          .slice(0, Math.max(0, budget - playNextTracks.length));
 
         const [playNextItems, appendItems] = await Promise.all([
           playNextTracks.length > 0 ? resolveAudioItems(playNextTracks) : Promise.resolve([]),
