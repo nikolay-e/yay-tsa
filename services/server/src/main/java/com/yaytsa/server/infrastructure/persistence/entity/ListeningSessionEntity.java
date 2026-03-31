@@ -2,6 +2,8 @@ package com.yaytsa.server.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -59,8 +61,17 @@ public class ListeningSessionEntity {
   @Column(name = "seed_track_id")
   private UUID seedTrackId;
 
+  @Column(name = "seed_genres")
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  private String[] seedGenres;
+
   @Transient
   public boolean isRadioMode() {
     return seedTrackId != null;
+  }
+
+  @Transient
+  public List<String> getSeedGenreList() {
+    return seedGenres != null ? Arrays.asList(seedGenres) : List.of();
   }
 }

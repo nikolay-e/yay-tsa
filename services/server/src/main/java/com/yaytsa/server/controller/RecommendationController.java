@@ -68,7 +68,9 @@ public class RecommendationController {
             recentlyPlayed,
             overplayed,
             recentlyPlayed,
-            Set.of());
+            Set.of(),
+            List.of(),
+            List.of());
 
     List<ScoredTrack> tracks = recommendationService.recommend(userId, ctx, count);
     List<RecommendedTrackResponse> response = tracks.stream().map(this::toResponse).toList();

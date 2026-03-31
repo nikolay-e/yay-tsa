@@ -38,6 +38,9 @@ public class AdaptiveQueueService {
           .maximumSize(500)
           .build();
 
+  private final Cache<UUID, DjSessionParams> lastSessionParams =
+      Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(500).build();
+
   private final AdaptiveQueueRepository queueRepository;
   private final ListeningSessionRepository sessionRepository;
   private final UserPreferenceContractRepository contractRepository;
@@ -117,27 +120,47 @@ public class AdaptiveQueueService {
 
     if (params.isPresent()) {
       var p = params.get();
+      lastSessionParams.put(session.getId(), p);
       log.info(
-          "LLM session params for session {}: energy={}, valence={}, exploration={}, arc={}",
+          "LLM session params for session {}: energy={}, valence={}, exploration={}, arc={},"
+              + " preferGenres={}",
           session.getId(),
           p.targetEnergy(),
           p.targetValence(),
           p.explorationWeight(),
-          p.arc());
+          p.arc(),
+          p.preferGenres());
       persistSessionSummary(session.getId(), p.sessionSummaryUpdate());
       fillQueueWithRetry(
           session,
           p.targetEnergy(),
           p.targetValence(),
           p.explorationWeight(),
-          Set.copyOf(p.avoidArtists()));
+          Set.copyOf(p.avoidArtists()),
+          p.preferGenres(),
+          p.avoidGenres());
     } else {
-      float exploration = resolveExplorationWeight(session.getUser().getId());
-      log.info(
-          "LLM unavailable, using djStyle-derived exploration={} for session {}",
-          exploration,
-          session.getId());
-      fillQueueWithRetry(session, 0.5f, 0.5f, exploration, Set.of());
+      DjSessionParams cached = lastSessionParams.getIfPresent(session.getId());
+      if (cached != null) {
+        log.info("Reusing cached LLM params for session {}", session.getId());
+        fillQueueWithRetry(
+            session,
+            cached.targetEnergy(),
+            cached.targetValence(),
+            cached.explorationWeight(),
+            Set.copyOf(cached.avoidArtists()),
+            cached.preferGenres(),
+            cached.avoidGenres());
+      } else {
+        float exploration = resolveExplorationWeight(session.getUser().getId());
+        log.info(
+            "LLM unavailable and no cached params, using djStyle-derived exploration={} for"
+                + " session {}",
+            exploration,
+            session.getId());
+        fillQueueWithRetry(
+            session, 0.5f, 0.5f, exploration, Set.of(), session.getSeedGenreList(), List.of());
+      }
     }
   }
 
@@ -146,11 +169,19 @@ public class AdaptiveQueueService {
       float targetEnergy,
       float targetValence,
       float explorationWeight,
-      Set<String> avoidArtists) {
+      Set<String> avoidArtists,
+      List<String> preferGenres,
+      List<String> avoidGenres) {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
         return fallbackQueueService.fillQueue(
-            session, targetEnergy, targetValence, explorationWeight, avoidArtists);
+            session,
+            targetEnergy,
+            targetValence,
+            explorationWeight,
+            avoidArtists,
+            preferGenres,
+            avoidGenres);
       } catch (DataIntegrityViolationException e) {
         log.warn(
             "Queue fill version conflict attempt {} for session {}", attempt + 1, session.getId());

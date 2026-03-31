@@ -312,4 +312,78 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
           """,
       nativeQuery = true)
   List<Object[]> findMertEmbeddingsByTrackIds(@Param("trackIds") List<UUID> trackIds);
+
+  @Query(
+      value =
+          """
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
+                 tf.vocal_instrumental, tf.dissonance, tf.musical_key
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          WHERE i.type = 'AudioTrack'
+            AND EXISTS (
+              SELECT 1 FROM item_genres ig
+              JOIN genres g ON g.id = ig.genre_id
+              WHERE ig.item_id = i.id AND LOWER(g.name) IN (:genreNames)
+            )
+            AND (:energyMin IS NULL OR tf.energy >= :energyMin)
+            AND (:energyMax IS NULL OR tf.energy <= :energyMax)
+            AND (:valenceMin IS NULL OR tf.valence >= :valenceMin)
+            AND (:valenceMax IS NULL OR tf.valence <= :valenceMax)
+          ORDER BY random()
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> searchLibraryByGenre(
+      @Param("genreNames") List<String> genreNames,
+      @Param("energyMin") Float energyMin,
+      @Param("energyMax") Float energyMax,
+      @Param("valenceMin") Float valenceMin,
+      @Param("valenceMax") Float valenceMax,
+      @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT i.id, i.name, ar.name AS artist_name, al.name AS album_name,
+                 tf.bpm, tf.energy, tf.valence, tf.arousal, tf.danceability,
+                 tf.vocal_instrumental, tf.dissonance, tf.musical_key
+          FROM items i
+          JOIN track_features tf ON tf.track_id = i.id
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          LEFT JOIN play_history ph ON ph.item_id = i.id AND ph.user_id = :userId
+          WHERE i.type = 'AudioTrack'
+            AND ph.id IS NULL
+            AND EXISTS (
+              SELECT 1 FROM item_genres ig
+              JOIN genres g ON g.id = ig.genre_id
+              WHERE ig.item_id = i.id AND LOWER(g.name) IN (:genreNames)
+            )
+            AND (:energyMin IS NULL OR tf.energy >= :energyMin)
+            AND (:energyMax IS NULL OR tf.energy <= :energyMax)
+          ORDER BY random()
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findNeverPlayedTracksByGenre(
+      @Param("userId") UUID userId,
+      @Param("genreNames") List<String> genreNames,
+      @Param("energyMin") Float energyMin,
+      @Param("energyMax") Float energyMax,
+      @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT ig.item_id, g.name
+          FROM item_genres ig
+          JOIN genres g ON g.id = ig.genre_id
+          WHERE ig.item_id IN (:trackIds)
+          """,
+      nativeQuery = true)
+  List<Object[]> findGenresByTrackIds(@Param("trackIds") List<UUID> trackIds);
 }

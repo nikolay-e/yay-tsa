@@ -38,6 +38,8 @@ public class LlmSessionParamService {
       float explorationWeight,
       String arc,
       List<String> avoidArtists,
+      List<String> preferGenres,
+      List<String> avoidGenres,
       String sessionSummaryUpdate) {}
 
   public LlmSessionParamService(
@@ -105,12 +107,19 @@ public class LlmSessionParamService {
             + "- arc: string describing the session direction (e.g. \"building energy\", \"winding"
             + " down\")\n"
             + "- avoidArtists: list of artist names to avoid in next batch\n"
+            + "- preferGenres: list of genre names to prioritize (e.g. [\"Metal\", \"Rock\"])\n"
+            + "- avoidGenres: list of genre names to avoid (e.g. [\"Pop\", \"Country\"])\n"
             + "- sessionSummaryUpdate: brief update to session narrative\n\n"
             + "Output ONLY valid JSON, no explanation.\n\n");
 
     TasteProfileEntity profile = tasteProfileService.getProfile(session.getUser().getId());
     if (profile != null && profile.getSummaryText() != null) {
       sb.append("User taste profile: ").append(profile.getSummaryText()).append("\n\n");
+    }
+
+    var seedGenres = session.getSeedGenreList();
+    if (!seedGenres.isEmpty()) {
+      sb.append("Session seed genres: ").append(String.join(", ", seedGenres)).append("\n");
     }
 
     if (session.getEnergy() != null) {
@@ -183,11 +192,24 @@ public class LlmSessionParamService {
           avoidArtists.add(artistNode.asText());
         }
       }
+      List<String> preferGenres = new ArrayList<>();
+      if (node.has("preferGenres") && node.get("preferGenres").isArray()) {
+        for (var genreNode : node.get("preferGenres")) {
+          preferGenres.add(genreNode.asText());
+        }
+      }
+      List<String> avoidGenres = new ArrayList<>();
+      if (node.has("avoidGenres") && node.get("avoidGenres").isArray()) {
+        for (var genreNode : node.get("avoidGenres")) {
+          avoidGenres.add(genreNode.asText());
+        }
+      }
       String summary =
           node.has("sessionSummaryUpdate") ? node.get("sessionSummaryUpdate").asText("") : "";
 
       return Optional.of(
-          new DjSessionParams(energy, valence, exploration, arc, avoidArtists, summary));
+          new DjSessionParams(
+              energy, valence, exploration, arc, avoidArtists, preferGenres, avoidGenres, summary));
     } catch (Exception e) {
       log.warn("Failed to parse LLM session params: {}", e.getMessage());
       return Optional.empty();

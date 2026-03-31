@@ -64,22 +64,54 @@ public class CandidateRetrievalService {
       Float vocalMax,
       List<String> excludeArtists,
       List<String> excludeGenres,
+      List<String> includeGenres,
       int limit) {}
 
   public List<TrackCandidate> searchLibrary(LibrarySearchFilters filters) {
-    var rows =
-        trackFeaturesRepository.searchLibrary(
-            filters.energyMin(),
-            filters.energyMax(),
-            filters.bpmMin(),
-            filters.bpmMax(),
-            filters.valenceMin(),
-            filters.valenceMax(),
-            filters.arousalMin(),
-            filters.arousalMax(),
-            filters.vocalMax(),
-            filters.limit());
-    var candidates = rows.stream().map(this::mapLibraryRow).toList();
+    List<TrackCandidate> genreCandidates = List.of();
+    if (filters.includeGenres() != null && !filters.includeGenres().isEmpty()) {
+      List<String> lowercased = filters.includeGenres().stream().map(String::toLowerCase).toList();
+      var genreRows =
+          trackFeaturesRepository.searchLibraryByGenre(
+              lowercased,
+              filters.energyMin(),
+              filters.energyMax(),
+              filters.valenceMin(),
+              filters.valenceMax(),
+              filters.limit());
+      genreCandidates = genreRows.stream().map(this::mapLibraryRow).toList();
+    }
+
+    int remaining = filters.limit() - genreCandidates.size();
+    List<TrackCandidate> generalCandidates = List.of();
+    if (remaining > 0) {
+      var rows =
+          trackFeaturesRepository.searchLibrary(
+              filters.energyMin(),
+              filters.energyMax(),
+              filters.bpmMin(),
+              filters.bpmMax(),
+              filters.valenceMin(),
+              filters.valenceMax(),
+              filters.arousalMin(),
+              filters.arousalMax(),
+              filters.vocalMax(),
+              remaining * 2);
+      generalCandidates = rows.stream().map(this::mapLibraryRow).toList();
+    }
+
+    Set<UUID> genreIds =
+        genreCandidates.stream()
+            .map(TrackCandidate::id)
+            .collect(java.util.stream.Collectors.toSet());
+    var merged = new java.util.ArrayList<>(genreCandidates);
+    for (var c : generalCandidates) {
+      if (!genreIds.contains(c.id()) && merged.size() < filters.limit()) {
+        merged.add(c);
+      }
+    }
+
+    List<TrackCandidate> candidates = merged;
     if (filters.excludeArtists() != null && !filters.excludeArtists().isEmpty()) {
       candidates =
           candidates.stream()
@@ -147,20 +179,46 @@ public class CandidateRetrievalService {
       Float bpmMax,
       Float valenceMin,
       Float valenceMax,
+      List<String> includeGenres,
       int limit) {}
 
   public List<TrackCandidate> findNeverPlayedTracks(UUID userId, NeverPlayedFilters filters) {
-    var rows =
-        trackFeaturesRepository.findNeverPlayedTracks(
-            userId,
-            filters.energyMin(),
-            filters.energyMax(),
-            filters.bpmMin(),
-            filters.bpmMax(),
-            filters.valenceMin(),
-            filters.valenceMax(),
-            filters.limit());
-    return rows.stream().map(this::mapLibraryRow).toList();
+    List<TrackCandidate> genreCandidates = List.of();
+    if (filters.includeGenres() != null && !filters.includeGenres().isEmpty()) {
+      List<String> lowercased = filters.includeGenres().stream().map(String::toLowerCase).toList();
+      var genreRows =
+          trackFeaturesRepository.findNeverPlayedTracksByGenre(
+              userId, lowercased, filters.energyMin(), filters.energyMax(), filters.limit());
+      genreCandidates = genreRows.stream().map(this::mapLibraryRow).toList();
+    }
+
+    int remaining = filters.limit() - genreCandidates.size();
+    List<TrackCandidate> generalCandidates = List.of();
+    if (remaining > 0) {
+      var rows =
+          trackFeaturesRepository.findNeverPlayedTracks(
+              userId,
+              filters.energyMin(),
+              filters.energyMax(),
+              filters.bpmMin(),
+              filters.bpmMax(),
+              filters.valenceMin(),
+              filters.valenceMax(),
+              remaining * 2);
+      generalCandidates = rows.stream().map(this::mapLibraryRow).toList();
+    }
+
+    Set<UUID> genreIds =
+        genreCandidates.stream()
+            .map(TrackCandidate::id)
+            .collect(java.util.stream.Collectors.toSet());
+    var merged = new java.util.ArrayList<>(genreCandidates);
+    for (var c : generalCandidates) {
+      if (!genreIds.contains(c.id()) && merged.size() < filters.limit()) {
+        merged.add(c);
+      }
+    }
+    return merged;
   }
 
   public List<TrackCandidate> getArtistTracks(String artistName) {

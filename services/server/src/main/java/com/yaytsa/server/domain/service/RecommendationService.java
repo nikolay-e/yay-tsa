@@ -36,6 +36,7 @@ public class RecommendationService {
 
   private static final double HALF_LIFE_DAYS = 30.0;
   private static final double MMR_LAMBDA = 0.6;
+  private static final double GENRE_MATCH_BONUS = 0.08;
 
   private final CandidateRetrievalService candidateService;
   private final TasteProfileService tasteProfileService;
@@ -70,7 +71,9 @@ public class RecommendationService {
       Set<UUID> excludeIds,
       Set<String> avoidArtists,
       float[] anchorEmbedding,
-      float anchorWeight) {
+      float anchorWeight,
+      List<String> preferGenres,
+      List<String> avoidGenres) {
 
     public static RecommendationContext standard(
         float targetEnergy,
@@ -80,7 +83,9 @@ public class RecommendationService {
         Set<UUID> recentlyPlayedIds,
         Set<UUID> overplayedIds,
         Set<UUID> excludeIds,
-        Set<String> avoidArtists) {
+        Set<String> avoidArtists,
+        List<String> preferGenres,
+        List<String> avoidGenres) {
       return new RecommendationContext(
           targetEnergy,
           targetValence,
@@ -91,7 +96,9 @@ public class RecommendationService {
           excludeIds,
           avoidArtists,
           null,
-          0.0f);
+          0.0f,
+          preferGenres != null ? preferGenres : List.of(),
+          avoidGenres != null ? avoidGenres : List.of());
     }
 
     public static RecommendationContext radio(
@@ -104,7 +111,9 @@ public class RecommendationService {
         Set<UUID> excludeIds,
         Set<String> avoidArtists,
         float[] anchorEmbedding,
-        float anchorWeight) {
+        float anchorWeight,
+        List<String> preferGenres,
+        List<String> avoidGenres) {
       return new RecommendationContext(
           targetEnergy,
           targetValence,
@@ -115,7 +124,9 @@ public class RecommendationService {
           excludeIds,
           avoidArtists,
           anchorEmbedding,
-          anchorWeight);
+          anchorWeight,
+          preferGenres != null ? preferGenres : List.of(),
+          avoidGenres != null ? avoidGenres : List.of());
     }
   }
 
@@ -149,13 +160,29 @@ public class RecommendationService {
     for (var st : transitionFuture.join()) candidates.putIfAbsent(st.candidate().id(), st);
     for (var st : explorationFuture.join()) candidates.putIfAbsent(st.candidate().id(), st);
 
+    boolean hasGenrePrefs = !ctx.preferGenres().isEmpty();
+    Map<UUID, Set<String>> candidateGenres =
+        hasGenrePrefs ? loadGenresForCandidates(candidates.keySet()) : Map.of();
+    Set<String> preferGenresLower =
+        hasGenrePrefs
+            ? ctx.preferGenres().stream()
+                .map(String::toLowerCase)
+                .collect(java.util.stream.Collectors.toSet())
+            : Set.of();
+
     List<ScoredTrack> scored =
         candidates.values().stream()
             .map(
                 st ->
                     new ScoredTrack(
                         st.candidate(),
-                        computeScore(st, ctx, affinityScores, dislikedIds),
+                        computeScore(
+                            st,
+                            ctx,
+                            affinityScores,
+                            dislikedIds,
+                            candidateGenres,
+                            preferGenresLower),
                         st.source(),
                         st.durationMs()))
             .sorted(Comparator.comparingDouble(ScoredTrack::score).reversed())
@@ -210,7 +237,8 @@ public class RecommendationService {
             null,
             null,
             null,
-            null,
+            ctx.avoidGenres().isEmpty() ? null : ctx.avoidGenres(),
+            ctx.preferGenres().isEmpty() ? null : ctx.preferGenres(),
             count * 2);
     var results = candidateService.searchLibrary(filters);
     List<ScoredTrack> tracks = new ArrayList<>();
@@ -266,6 +294,7 @@ public class RecommendationService {
             null,
             null,
             null,
+            ctx.preferGenres().isEmpty() ? null : ctx.preferGenres(),
             count);
     var results = candidateService.findNeverPlayedTracks(userId, filters);
     List<ScoredTrack> tracks = new ArrayList<>();
@@ -318,7 +347,9 @@ public class RecommendationService {
       ScoredTrack st,
       RecommendationContext ctx,
       Map<UUID, Double> affinityScores,
-      Set<UUID> dislikedIds) {
+      Set<UUID> dislikedIds,
+      Map<UUID, Set<String>> candidateGenres,
+      Set<String> preferGenresLower) {
     UUID trackId = st.candidate().id();
     double score = 0;
 
@@ -338,6 +369,12 @@ public class RecommendationService {
 
     double novelty = affinityScores.containsKey(trackId) ? 0.0 : 1.0;
     score += W_NOVELTY * ctx.explorationWeight() * novelty;
+
+    if (!preferGenresLower.isEmpty()) {
+      Set<String> trackGenres = candidateGenres.getOrDefault(trackId, Set.of());
+      boolean hasMatch = trackGenres.stream().anyMatch(preferGenresLower::contains);
+      if (hasMatch) score += GENRE_MATCH_BONUS;
+    }
 
     if (ctx.recentlyPlayedIds().contains(trackId)) score += PENALTY_RECENTLY_PLAYED;
     if (ctx.overplayedIds().contains(trackId)) score += PENALTY_OVERPLAYED;
@@ -417,6 +454,18 @@ public class RecommendationService {
     }
 
     return result;
+  }
+
+  private Map<UUID, Set<String>> loadGenresForCandidates(Set<UUID> trackIds) {
+    if (trackIds.isEmpty()) return Map.of();
+    Map<UUID, Set<String>> genreMap = new HashMap<>();
+    var rows = trackFeaturesRepository.findGenresByTrackIds(new ArrayList<>(trackIds));
+    for (var row : rows) {
+      UUID trackId = (UUID) row[0];
+      String genre = ((String) row[1]).toLowerCase();
+      genreMap.computeIfAbsent(trackId, k -> new HashSet<>()).add(genre);
+    }
+    return genreMap;
   }
 
   private Map<UUID, float[]> loadEmbeddingsForCandidates(List<ScoredTrack> scored) {

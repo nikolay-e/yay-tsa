@@ -60,7 +60,7 @@ public class FallbackQueueService {
   }
 
   public List<AdaptiveQueueEntity> fillQueue(ListeningSessionEntity session) {
-    return fillQueue(session, 0.5f, 0.5f, 0.3f, Set.of());
+    return fillQueue(session, 0.5f, 0.5f, 0.3f, Set.of(), List.of(), List.of());
   }
 
   public List<AdaptiveQueueEntity> fillQueue(
@@ -68,13 +68,21 @@ public class FallbackQueueService {
       float targetEnergy,
       float targetValence,
       float explorationWeight,
-      Set<String> avoidArtists) {
+      Set<String> avoidArtists,
+      List<String> preferGenres,
+      List<String> avoidGenres) {
     UUID sessionId = session.getId();
     ReentrantLock lock = sessionFillLocks.get(sessionId, k -> new ReentrantLock());
     lock.lock();
     try {
       return fillQueueUnderLock(
-          session, targetEnergy, targetValence, explorationWeight, avoidArtists);
+          session,
+          targetEnergy,
+          targetValence,
+          explorationWeight,
+          avoidArtists,
+          preferGenres,
+          avoidGenres);
     } finally {
       lock.unlock();
     }
@@ -85,7 +93,9 @@ public class FallbackQueueService {
       float targetEnergy,
       float targetValence,
       float explorationWeight,
-      Set<String> avoidArtists) {
+      Set<String> avoidArtists,
+      List<String> preferGenres,
+      List<String> avoidGenres) {
     UUID userId = session.getUser().getId();
     UUID sessionId = session.getId();
 
@@ -128,6 +138,8 @@ public class FallbackQueueService {
       lastPlayedTrackId = seedTrackId;
     }
 
+    List<String> effectiveGenres = mergeGenres(preferGenres, session.getSeedGenreList());
+
     var ctx =
         RecommendationContext.standard(
             targetEnergy,
@@ -137,7 +149,9 @@ public class FallbackQueueService {
             recentlyPlayed,
             overplayed,
             excluded,
-            avoidArtists);
+            avoidArtists,
+            effectiveGenres,
+            avoidGenres);
 
     if (session.isRadioMode()) {
       float[] anchor = radioAnchorResolver.resolveAnchorEmbedding(session);
@@ -154,7 +168,9 @@ public class FallbackQueueService {
                 ctx.excludeIds(),
                 ctx.avoidArtists(),
                 anchor,
-                weight);
+                weight,
+                effectiveGenres,
+                avoidGenres);
       }
     }
 
@@ -165,8 +181,20 @@ public class FallbackQueueService {
       log.warn(
           "Recommendation pipeline returned no results for session {}, using random fallback",
           sessionId);
-      List<UUID> randomIds = new ArrayList<>(itemRepository.findRandomAudioTrackIds(needed * 2));
-      randomIds.removeAll(excluded);
+      List<UUID> randomIds = new ArrayList<>();
+      if (!effectiveGenres.isEmpty()) {
+        List<String> lowercased = effectiveGenres.stream().map(String::toLowerCase).toList();
+        randomIds.addAll(itemRepository.findRandomAudioTrackIdsByGenre(lowercased, needed * 2));
+        randomIds.removeAll(excluded);
+      }
+      if (randomIds.size() < needed) {
+        List<UUID> generalIds = new ArrayList<>(itemRepository.findRandomAudioTrackIds(needed * 2));
+        generalIds.removeAll(excluded);
+        Set<UUID> seen = new HashSet<>(randomIds);
+        for (UUID id : generalIds) {
+          if (seen.add(id)) randomIds.add(id);
+        }
+      }
       if (randomIds.isEmpty()) {
         return List.of();
       }
@@ -216,6 +244,18 @@ public class FallbackQueueService {
         sessionId,
         recentlyPlayed.size());
     return addedEntries;
+  }
+
+  private static List<String> mergeGenres(List<String> llmGenres, List<String> seedGenres) {
+    Set<String> seen = new HashSet<>();
+    List<String> merged = new ArrayList<>();
+    for (String g : llmGenres != null ? llmGenres : List.<String>of()) {
+      if (seen.add(g.toLowerCase())) merged.add(g);
+    }
+    for (String g : seedGenres != null ? seedGenres : List.<String>of()) {
+      if (seen.add(g.toLowerCase())) merged.add(g);
+    }
+    return merged;
   }
 
   @Transactional

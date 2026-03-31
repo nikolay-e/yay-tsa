@@ -6,6 +6,7 @@ import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.GenreRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ListeningSessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.time.OffsetDateTime;
@@ -21,14 +22,17 @@ public class ListeningSessionService {
 
   private final ListeningSessionRepository sessionRepository;
   private final UserRepository userRepository;
+  private final GenreRepository genreRepository;
   private final ObjectMapper objectMapper;
 
   public ListeningSessionService(
       ListeningSessionRepository sessionRepository,
       UserRepository userRepository,
+      GenreRepository genreRepository,
       ObjectMapper objectMapper) {
     this.sessionRepository = sessionRepository;
     this.userRepository = userRepository;
+    this.genreRepository = genreRepository;
     this.objectMapper = objectMapper;
   }
 
@@ -50,6 +54,12 @@ public class ListeningSessionService {
     session.setState(serializeJson(stateMap));
     applyTypedFields(session, stateMap);
     session.setSeedTrackId(seedTrackId);
+    if (seedTrackId != null) {
+      List<String> genres = genreRepository.findGenreNamesByItemId(seedTrackId);
+      if (!genres.isEmpty()) {
+        session.setSeedGenres(genres.toArray(String[]::new));
+      }
+    }
     session.setStartedAt(OffsetDateTime.now());
     session.setLastActivityAt(OffsetDateTime.now());
 

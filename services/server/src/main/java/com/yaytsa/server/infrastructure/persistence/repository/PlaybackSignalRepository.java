@@ -79,4 +79,22 @@ public interface PlaybackSignalRepository extends JpaRepository<PlaybackSignalEn
       nativeQuery = true)
   List<Object[]> getTopArtistsByUser(
       @Param("userId") UUID userId, @Param("since") OffsetDateTime since, @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT g.name AS genre_name, COUNT(*) AS play_count
+          FROM playback_signal ps
+          JOIN listening_session ls ON ls.id = ps.session_id
+          JOIN item_genres ig ON ig.item_id = ps.track_id
+          JOIN genres g ON g.id = ig.genre_id
+          WHERE ls.user_id = :userId
+            AND ps.created_at > :since
+          GROUP BY g.name
+          ORDER BY play_count DESC
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> getTopGenresByUser(
+      @Param("userId") UUID userId, @Param("since") OffsetDateTime since, @Param("lim") int limit);
 }
