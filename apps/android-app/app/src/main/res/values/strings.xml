@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Yay-Tsa</string>
+    <string name="login_title">Yay-Tsa</string>
+    <string name="login_subtitle">Connect to your media server</string>
+    <string name="host_hint">Server URL (e.g. https://yaytsa.com)</string>
+    <string name="connect_btn">Connect</string>
+    <string name="remember_host">Remember server and auto-connect</string>
+    <string name="error_empty_host">Please enter a valid server URL.</string>
+</resources>
