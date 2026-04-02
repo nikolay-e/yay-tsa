@@ -31,13 +31,11 @@ def seed_tracks_identical():
 
     emb = np.ones(768, dtype=np.float32)
     emb = emb / np.linalg.norm(emb)
-    tracks = []
-    for i in range(10):
-        tracks.append(
-            {
-                "track_id": f"identical-{i:03d}",
-                "embedding_mert": emb.tolist(),
-                "affinity_score": 1.0 - i * 0.1,
-            }
-        )
-    return tracks
+    return [
+        {
+            "track_id": f"identical-{i:03d}",
+            "embedding_mert": emb.tolist(),
+            "affinity_score": 1.0 - i * 0.1,
+        }
+        for i in range(10)
+    ]

@@ -133,18 +133,15 @@ describe('Integration: Playback Reporting', () => {
         return;
       }
 
-      // Start first session
-      await reporter.reportStart(testTrackId);
-      await reporter.reportProgress(testTrackId, 10, false);
-      await reporter.reportStopped(testTrackId, 10);
+      // First session: start → progress → stop lifecycle
+      await expect(reporter.reportStart(testTrackId)).resolves.not.toThrow();
+      await expect(reporter.reportProgress(testTrackId, 10, false)).resolves.not.toThrow();
+      await expect(reporter.reportStopped(testTrackId, 10)).resolves.not.toThrow();
 
-      // Start second session
-      await reporter.reportStart(testTrackId);
-      await reporter.reportProgress(testTrackId, 20, false);
-      await reporter.reportStopped(testTrackId, 20);
-
-      // Both should succeed without error
-      expect(true).toBe(true);
+      // Second session: same track, different position — server must accept a new session
+      await expect(reporter.reportStart(testTrackId)).resolves.not.toThrow();
+      await expect(reporter.reportProgress(testTrackId, 20, false)).resolves.not.toThrow();
+      await expect(reporter.reportStopped(testTrackId, 20)).resolves.not.toThrow();
     });
 
     it('should handle rapid progress updates', async () => {
@@ -153,15 +150,15 @@ describe('Integration: Playback Reporting', () => {
         return;
       }
 
-      await reporter.reportStart(testTrackId);
+      await expect(reporter.reportStart(testTrackId)).resolves.not.toThrow();
 
       // Simulate rapid progress updates (like during seeking)
-      for (let i = 0; i < 5; i++) {
-        await reporter.reportProgress(testTrackId, i * 10, false);
+      const progressPositions = [0, 10, 20, 30, 40];
+      for (const position of progressPositions) {
+        await expect(reporter.reportProgress(testTrackId, position, false)).resolves.not.toThrow();
       }
 
-      await reporter.reportStopped(testTrackId, 50);
-      expect(true).toBe(true);
+      await expect(reporter.reportStopped(testTrackId, 50)).resolves.not.toThrow();
     });
   });
 

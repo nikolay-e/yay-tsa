@@ -1,0 +1,4 @@
+-keep class com.yaytsa.app.** { *; }
+-keepattributes *Annotation*
+-dontwarn androidx.**
+-dontwarn com.google.android.material.**

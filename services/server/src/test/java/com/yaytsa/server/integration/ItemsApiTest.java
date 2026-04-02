@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,28 @@ import org.springframework.http.*;
 
 @DisplayName("Feature: Items API")
 class ItemsApiTest extends BaseIntegrationTest {
+
+  private static String firstTrackName;
+
+  @BeforeAll
+  static void findTestData() throws Exception {
+    if (authToken == null) return;
+
+    HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1",
+            HttpMethod.GET,
+            request,
+            String.class);
+
+    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+      JsonNode json = objectMapper.readTree(response.getBody());
+      if (json.get("TotalRecordCount").asInt() > 0) {
+        firstTrackName = json.get("Items").get(0).get("Name").asText();
+      }
+    }
+  }
 
   @Nested
   @DisplayName("Scenario: Get music albums")
@@ -112,6 +135,61 @@ class ItemsApiTest extends BaseIntegrationTest {
       JsonNode json = objectMapper.readTree(response.getBody());
       assertTrue(json.has("TotalRecordCount"));
       assertTrue(json.has("Items"));
+    }
+  }
+
+  @Nested
+  @DisplayName("Scenario: Search items")
+  class SearchItems {
+
+    @Test
+    @DisplayName(
+        "Given: Known track name, When: GET /Items with SearchTerm, Then: Returns matching results")
+    void searchByTerm() throws Exception {
+      assumeTrue(authToken != null, "Auth token required");
+      assumeTrue(firstTrackName != null, "Track name required");
+
+      String searchTerm =
+          firstTrackName.length() > 3 ? firstTrackName.substring(0, 3) : firstTrackName;
+
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=" + searchTerm,
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+
+      JsonNode json = objectMapper.readTree(response.getBody());
+      assertTrue(json.has("TotalRecordCount"));
+      assertTrue(json.has("Items"));
+      assertTrue(
+          json.get("TotalRecordCount").asInt() > 0, "Search should return at least one result");
+    }
+
+    @Test
+    @DisplayName(
+        "Given: Nonsense search term, When: GET /Items with SearchTerm, Then: Returns empty"
+            + " results")
+    void searchByNonsenseTerm() throws Exception {
+      assumeTrue(authToken != null, "Auth token required");
+
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL
+                  + "/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=zzzzxxxxxnonexistent99999",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+
+      JsonNode json = objectMapper.readTree(response.getBody());
+      assertEquals(0, json.get("TotalRecordCount").asInt());
+      assertEquals(0, json.get("Items").size());
     }
   }
 

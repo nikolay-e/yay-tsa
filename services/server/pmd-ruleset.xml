@@ -31,7 +31,7 @@
         <exclude name="TooFewBranchesForASwitchStatement"/>
     </rule>
 
-    <!-- Best Practices - only critical -->
+    <!-- Best Practices -->
     <rule ref="category/java/bestpractices.xml">
         <exclude name="GuardLogStatement"/>
         <exclude name="JUnitTestContainsTooManyAsserts"/>
@@ -39,9 +39,6 @@
         <exclude name="UseVarargs"/>
         <exclude name="AvoidReassigningLoopVariables"/>
         <exclude name="AvoidReassigningParameters"/>
-        <exclude name="UnusedPrivateMethod"/>
-        <exclude name="UnusedLocalVariable"/>
         <exclude name="UnusedFormalParameter"/>
-        <exclude name="UnusedPrivateField"/>
     </rule>
 </ruleset>

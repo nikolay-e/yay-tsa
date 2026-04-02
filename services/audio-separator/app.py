@@ -232,6 +232,7 @@ def _mix_stems_with_ffmpeg(instrumental_stems: list[Path], final_karaoke_path: P
             capture_output=True,
             text=True,
             timeout=FFMPEG_TIMEOUT_SECONDS,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg failed: {result.stderr}")

@@ -2,6 +2,9 @@ import numpy as np
 
 
 class SeedSelector:
+    def __init__(self):
+        self._rng = np.random.default_rng()
+
     def compute_seeds(
         self, tracks: list[dict], num_seeds: int = 10, temperature: float = 0.7
     ) -> dict:
@@ -21,7 +24,7 @@ class SeedSelector:
         top_k = min(max(5, num_seeds), len(sorted_tracks))
         top_weights = affinities[:top_k]
         top_probs = top_weights / top_weights.sum()
-        first_idx = int(np.random.choice(top_k, p=top_probs))
+        first_idx = int(self._rng.choice(top_k, p=top_probs))
 
         seed_indices = [first_idx]
         min_distances = 1.0 - embeddings @ embeddings[first_idx]
@@ -41,7 +44,7 @@ class SeedSelector:
                 break
             probs = exp_scores / total
 
-            chosen = int(np.random.choice(len(probs), p=probs))
+            chosen = int(self._rng.choice(len(probs), p=probs))
             seed_indices.append(chosen)
 
             new_distances = 1.0 - embeddings @ embeddings[chosen]

@@ -3,7 +3,9 @@
 # USAGE:
 #   docker compose up                      # Start core services (db, backend, frontend)
 #   docker compose --profile karaoke up    # Start with karaoke (audio separator)
-#   docker compose --profile test up       # Run E2E tests
+#   docker compose --profile integration-test up  # Run integration tests only
+#   docker compose --profile e2e-test up          # Run E2E tests only
+#   docker compose --profile test up              # Run all tests
 #   docker compose down -v                 # Stop and clean volumes
 
 services:
@@ -232,6 +234,7 @@ services:
     container_name: yay-tsa-backend-test
     profiles:
       - test
+      - integration-test
     environment:
       YAYTSA_SERVER_URL: http://backend:8096
       YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
@@ -244,24 +247,49 @@ services:
       backend:
         condition: service_healthy
 
-  # Frontend E2E Tests
-  test:
+  # Frontend Integration Tests (Vitest against live backend)
+  integration-test:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       target: test
-    container_name: yay-tsa-test
+    container_name: yay-tsa-integration-test
     profiles:
       - test
+      - integration-test
+    environment:
+      YAYTSA_SERVER_URL: http://backend:8096
+      YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
+      YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
+      TEST_CMD: cd packages/core && npm run test:integration
+    volumes:
+      - ./packages/core/tests:/app/packages/core/tests
+      - ./test-results/integration:/app/test-results
+    networks:
+      - yay-tsa-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Frontend E2E Tests (Playwright)
+  e2e-test:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: test
+    container_name: yay-tsa-e2e-test
+    profiles:
+      - test
+      - e2e-test
     environment:
       YAYTSA_SERVER_URL: http://backend:8096
       YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
       YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
       BASE_URL: http://frontend:5173
+      TEST_CMD: cd apps/web && npm run test:e2e
     volumes:
-      - ./packages/core/tests:/app/packages/core/tests
       - ./apps/web/tests:/app/apps/web/tests
-      - ./test-results/frontend:/app/test-results
+      - ./test-results/e2e:/app/test-results
     networks:
       - yay-tsa-network
     depends_on:

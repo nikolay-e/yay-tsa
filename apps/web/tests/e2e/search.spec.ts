@@ -50,7 +50,7 @@ test.describe('Search Functionality', () => {
     await libraryPage.clearSearch();
 
     const albumCount = await libraryPage.getAlbumCount();
-    expect(albumCount).toBeGreaterThanOrEqual(0);
+    expect(albumCount).toBeGreaterThan(0);
   });
 
   test('should search with partial matches', async () => {
@@ -110,11 +110,9 @@ test.describe('Search Functionality', () => {
     // Search with special characters should not throw errors
     await libraryPage.search('test-album.2024');
 
-    // Verify search completed and UI is still functional
-    const resultsCount = await libraryPage.getAlbumCount();
-    // May return 0 results, but should not crash - that's the expected behavior
-    expect(resultsCount).toBeGreaterThanOrEqual(0);
+    // Verify search completed without errors and UI is still functional
     await expect(libraryPage.searchInput).toBeVisible();
+    await expect(libraryPage.page.locator('[role="alert"]')).not.toBeVisible();
   });
 
   test('should clear search when navigating away and back', async ({ authenticatedPage }) => {

@@ -5,6 +5,7 @@ node_modules/
 PLAN.md
 
 playwright-report
+.playwright-mcp/
 *api-spec.json
 
 # Build outputs

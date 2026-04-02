@@ -5,7 +5,6 @@
 
 import { MediaServerError } from '../../src/index.js';
 import { TestDataFactory, TestFixtures } from './fixtures/data-factory.js';
-import { ScenarioContext } from './fixtures/scenarios.js';
 import { TestConfig } from './types.js';
 
 /**
@@ -64,18 +63,6 @@ export async function cleanupTestFixtures(fixtures: TestFixtures): Promise<void>
   }
   const factory = new TestDataFactory(fixtures.config);
   await factory.cleanup();
-}
-
-/**
- * Create BDD scenario context for fluent test syntax
- * Usage:
- *   const scenario = createScenario(fixtures);
- *   await scenario.given.user.isAuthenticated();
- *   const results = await scenario.when.user.searches('Beatles');
- *   scenario.verify.library.searchReturnsResults(results, 'Beatles');
- */
-export function createScenario(fixtures: TestFixtures): ScenarioContext {
-  return new ScenarioContext(fixtures);
 }
 
 /**

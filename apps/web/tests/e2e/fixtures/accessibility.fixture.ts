@@ -19,20 +19,17 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
     await page.getByRole('button', { name: 'Sign In' }).click();
 
     const result = await Promise.race([
+      page.waitForURL(/.*(?!.*login)/, { timeout: 15000 }).then(() => 'navigated' as const),
       page
-        .waitForFunction(() => sessionStorage.getItem('yaytsa_session') !== null, {
-          timeout: 15000,
-        })
-        .then(() => 'success' as const),
-      page.waitForURL('/', { timeout: 15000 }).then(() => 'navigated' as const),
+        .getByRole('heading', { level: 1 })
+        .first()
+        .waitFor({ timeout: 15000 })
+        .then(() => 'loaded' as const),
       new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 15000)),
     ]);
 
-    if (result === 'success' || result === 'navigated') {
-      const hasSession = await page.evaluate(
-        () => sessionStorage.getItem('yaytsa_session') !== null
-      );
-      if (hasSession) return;
+    if (result === 'navigated' || result === 'loaded') {
+      return;
     }
 
     if (attempt === maxRetries) {

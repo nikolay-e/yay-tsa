@@ -1,8 +1,7 @@
 import type { RadioSeed } from '@yay-tsa/core';
 import { Loader2, Play } from 'lucide-react';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
-import { useIsSessionStarting } from '@/features/player/stores/session-store';
-import { useSessionStore } from '@/features/player/stores/session-store';
+import { useIsSessionStarting, useSessionStore } from '@/features/player/stores/session-store';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { RADIO_TEST_IDS } from '@/shared/testing/test-ids';
 import { cn } from '@/shared/utils/cn';

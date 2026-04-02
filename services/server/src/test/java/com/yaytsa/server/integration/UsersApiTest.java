@@ -74,7 +74,7 @@ class UsersApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Given: Invalid user ID, When: GET /Users/{userId}, Then: Returns 404 or 500")
+    @DisplayName("Given: Invalid user ID, When: GET /Users/{userId}, Then: Returns 404")
     void getUserByIdNotFound() {
       assumeTrue(authToken != null, "Auth token required");
 
@@ -86,9 +86,7 @@ class UsersApiTest extends BaseIntegrationTest {
               request,
               String.class);
 
-      assertTrue(
-          response.getStatusCode() == HttpStatus.NOT_FOUND
-              || response.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR);
+      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
   }
 
@@ -176,7 +174,7 @@ class UsersApiTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName(
-        "Given: Invalid item ID, When: GET /Users/{userId}/Items/{itemId}, Then: Returns 500")
+        "Given: Invalid item ID, When: GET /Users/{userId}/Items/{itemId}, Then: Returns 404")
     void getUserItemNotFound() {
       assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
@@ -189,9 +187,7 @@ class UsersApiTest extends BaseIntegrationTest {
               request,
               String.class);
 
-      assertTrue(
-          response.getStatusCode().is4xxClientError()
-              || response.getStatusCode().is5xxServerError());
+      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
   }
 
@@ -248,6 +244,76 @@ class UsersApiTest extends BaseIntegrationTest {
       JsonNode json = objectMapper.readTree(response.getBody());
       assertTrue(json.has("TotalRecordCount"));
       assertTrue(json.has("Items"));
+    }
+  }
+
+  @Nested
+  @DisplayName("Scenario: Favorite toggle")
+  class FavoriteToggle {
+
+    @Test
+    @DisplayName(
+        "Given: Valid track, When: POST favorite then DELETE unfavorite, Then: Item appears and"
+            + " disappears from favorites")
+    void toggleFavorite() throws Exception {
+      assumeTrue(authToken != null, "Auth token required");
+      assumeTrue(userId != null, "User ID required");
+      assumeTrue(firstTrackId != null, "Track ID required");
+
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+
+      ResponseEntity<String> markResponse =
+          restTemplate.postForEntity(
+              BASE_URL + "/Items/" + firstTrackId + "/Favorite?userId=" + userId,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, markResponse.getStatusCode());
+
+      ResponseEntity<String> favoritesResponse =
+          restTemplate.exchange(
+              BASE_URL + "/Users/" + userId + "/FavoriteItems?IncludeItemTypes=Audio&Limit=200",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, favoritesResponse.getStatusCode());
+      JsonNode favoritesJson = objectMapper.readTree(favoritesResponse.getBody());
+      boolean found = false;
+      for (JsonNode item : favoritesJson.get("Items")) {
+        if (firstTrackId.equals(item.get("Id").asText())) {
+          found = true;
+          break;
+        }
+      }
+      assertTrue(found, "Track should appear in favorites after marking");
+
+      ResponseEntity<String> unmarkResponse =
+          restTemplate.exchange(
+              BASE_URL + "/Items/" + firstTrackId + "/Favorite?userId=" + userId,
+              HttpMethod.DELETE,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, unmarkResponse.getStatusCode());
+
+      ResponseEntity<String> afterUnmarkResponse =
+          restTemplate.exchange(
+              BASE_URL + "/Users/" + userId + "/FavoriteItems?IncludeItemTypes=Audio&Limit=200",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, afterUnmarkResponse.getStatusCode());
+      JsonNode afterJson = objectMapper.readTree(afterUnmarkResponse.getBody());
+      boolean stillFound = false;
+      for (JsonNode item : afterJson.get("Items")) {
+        if (firstTrackId.equals(item.get("Id").asText())) {
+          stillFound = true;
+          break;
+        }
+      }
+      assertFalse(stillFound, "Track should not appear in favorites after unmarking");
     }
   }
 

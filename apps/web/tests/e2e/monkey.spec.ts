@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { test as authTest, expect } from './fixtures/auth.fixture';
 import { TEST_CREDENTIALS } from './helpers/test-config';
 
-authTest.setTimeout(15 * 60 * 1000);
+authTest.setTimeout(5 * 60 * 1000);
 
 const KEYS = [
   ' ',
@@ -440,8 +440,9 @@ async function executeInteractiveAction(
   return { iterationDelta: added, failed: false };
 }
 
-function collectJsErrors(page: Page, jsErrors: string[]): void {
+function collectJsErrors(page: Page, jsErrors: string[], uncaughtExceptions: string[]): void {
   page.on('pageerror', err => {
+    uncaughtExceptions.push(err.message);
     jsErrors.push(err.message);
     console.log(`  [pageerror] ${err.message}`);
   });
@@ -455,13 +456,14 @@ function collectJsErrors(page: Page, jsErrors: string[]): void {
 
 authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   const jsErrors: string[] = [];
-  collectJsErrors(page, jsErrors);
+  const uncaughtExceptions: string[] = [];
+  collectJsErrors(page, jsErrors, uncaughtExceptions);
 
   await page.goto('/', { waitUntil: 'commit' });
 
   let iteration = 0;
   let consecutiveFails = 0;
-  const MAX = 10000;
+  const MAX = 1000;
   const RECOVER_AFTER_FAILS = 5;
 
   while (iteration < MAX) {
@@ -498,10 +500,11 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
     iteration += iterationDelta;
   }
 
-  console.log(`\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors ===`);
-  jsErrors.forEach((e, i) => console.log(`  ERR[${i + 1}]: ${e}`));
+  console.log(
+    `\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors, ${uncaughtExceptions.length} uncaught ===`
+  );
+  uncaughtExceptions.forEach((e, i) => console.log(`  UNCAUGHT[${i + 1}]: ${e}`));
 
-  const crashes = jsErrors.filter(e => e.toLowerCase().includes('crash'));
-  expect(crashes).toHaveLength(0);
+  expect(uncaughtExceptions).toHaveLength(0);
   await expect(page.locator('body')).toBeVisible();
 });

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useLayoutEffect } from 'react';
 import { findActiveLineIndex } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
+import { LYRICS_TEST_IDS } from '@/shared/testing/test-ids';
 import { useTimingStore } from '../stores/playback-timing.store';
 
 type LyricsLine = Readonly<{ time: number; text: string }>;
@@ -193,6 +194,7 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
             return (
               <div
                 key={`${i}-${line.time}`}
+                data-testid={LYRICS_TEST_IDS.LINE}
                 className={cn(
                   'px-6 py-3 text-center text-3xl leading-relaxed transition-[opacity,color] duration-500 ease-out',
                   textClass

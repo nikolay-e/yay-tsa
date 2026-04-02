@@ -139,27 +139,77 @@ test.describe('Playback and Player Controls', () => {
     await playAlbumFromLibrary();
     await playerBar.waitForAudioReady();
 
-    // Try to seek to an invalid position (beyond duration)
+    // Get duration from the DOM audio element
     const duration = await authenticatedPage.evaluate(() => {
-      const player = (globalThis as any).__playerStore__;
-      return player?.audioEngine?.getDuration() ?? 0;
+      const audio = document.querySelector('audio');
+      return audio?.duration ?? 0;
     });
 
-    // Seek beyond end - should be clamped or handled gracefully
+    // Seek beyond end via DOM audio element - should be clamped or handled gracefully
     await authenticatedPage.evaluate(dur => {
-      const player = (globalThis as any).__playerStore__;
-      player?.audioEngine?.seek(dur + 100);
+      const audio = document.querySelector('audio');
+      if (audio) audio.currentTime = dur + 100;
     }, duration);
 
     // Player should still be functional after invalid seek
     expect(await playerBar.isVisible()).toBe(true);
     const currentTime = await authenticatedPage.evaluate(() => {
-      const player = (globalThis as any).__playerStore__;
-      return player?.audioEngine?.getCurrentTime() ?? -1;
+      const audio = document.querySelector('audio');
+      return audio?.currentTime ?? -1;
     });
 
     // Time should be valid (clamped to duration or reset)
     expect(currentTime).toBeGreaterThanOrEqual(0);
     expect(currentTime).toBeLessThanOrEqual(duration + 1);
+  });
+
+  test('should auto-advance to next track when current track ends via seek', async ({
+    libraryPage,
+    albumPage,
+    playerBar,
+  }) => {
+    await libraryPage.clickAlbum(0);
+    await albumPage.waitForAlbumToLoad();
+
+    const trackCount = await albumPage.getTrackCount();
+    test.skip(trackCount < 2, 'Album has fewer than 2 tracks');
+
+    await albumPage.playAlbum();
+    await playerBar.waitForPlayerToLoad();
+    await playerBar.waitForAudioReady();
+
+    const firstTrack = await playerBar.getCurrentTrackTitle();
+
+    // Seek near the end of the track to trigger natural completion
+    await playerBar.seek(98);
+
+    // Wait for the track to change — natural ended event fires when playback reaches end
+    await expect(async () => {
+      const currentTrack = await playerBar.getCurrentTrackTitle();
+      expect(currentTrack).not.toBe(firstTrack);
+    }).toPass({ timeout: 30000 });
+
+    const secondTrack = await playerBar.getCurrentTrackTitle();
+    expect(secondTrack).not.toBe(firstTrack);
+    expect(secondTrack).toBeTruthy();
+  });
+
+  test('should toggle play/pause via keyboard on focused button', async ({
+    playAlbumFromLibrary,
+    playerBar,
+  }) => {
+    await playAlbumFromLibrary();
+    await playerBar.waitForPlayingState();
+
+    // Focus the play/pause button and press Space
+    await playerBar.playPauseButton.focus();
+    await playerBar.playPauseButton.press('Space');
+    await playerBar.waitForPausedState();
+    expect(await playerBar.isPlaying()).toBe(false);
+
+    // Press Enter to resume
+    await playerBar.playPauseButton.press('Enter');
+    await playerBar.waitForPlayingState();
+    expect(await playerBar.isPlaying()).toBe(true);
   });
 });

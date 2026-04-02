@@ -17,5 +17,7 @@ allprojects {
 }
 
 tasks.register("clean", Delete::class) {
+    group = "build"
+    description = "Delete the root project build directory"
     delete(rootProject.buildDir)
 }

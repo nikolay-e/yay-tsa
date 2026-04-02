@@ -8,6 +8,7 @@
 .vscode/
 *.iml
 local.properties
+gradle/gradle-daemon-jvm.properties
 
 # Build artifacts
 *.apk

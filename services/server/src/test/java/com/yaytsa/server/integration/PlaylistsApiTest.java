@@ -8,10 +8,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.http.*;
 
 @DisplayName("Feature: Playlists API")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PlaylistsApiTest extends BaseIntegrationTest {
 
-  private static String createdPlaylistId;
   private static String firstTrackId;
 
   @BeforeAll
@@ -31,6 +29,33 @@ class PlaylistsApiTest extends BaseIntegrationTest {
       if (json.get("TotalRecordCount").asInt() > 0) {
         firstTrackId = json.get("Items").get(0).get("Id").asText();
       }
+    }
+  }
+
+  private static String createTestPlaylist(String name) throws Exception {
+    HttpHeaders headers = authHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+
+    String body = String.format("{\"Name\":\"%s\",\"UserId\":\"%s\"}", name, userId);
+    HttpEntity<String> request = new HttpEntity<>(body, headers);
+
+    ResponseEntity<String> response =
+        restTemplate.postForEntity(BASE_URL + "/Playlists", request, String.class);
+
+    assertTrue(
+        response.getStatusCode() == HttpStatus.CREATED || response.getStatusCode() == HttpStatus.OK,
+        "Expected 201 or 200 but got " + response.getStatusCode());
+
+    JsonNode json = objectMapper.readTree(response.getBody());
+    return json.get("Id").asText();
+  }
+
+  private static void deletePlaylistQuietly(String playlistId) {
+    try {
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      restTemplate.exchange(
+          BASE_URL + "/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
+    } catch (Exception ignored) {
     }
   }
 
@@ -56,52 +81,43 @@ class PlaylistsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Create playlist")
-  @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+  @DisplayName("Scenario: Create and retrieve playlist")
   class CreatePlaylist {
 
     @Test
-    @Order(1)
     @DisplayName("Given: Valid request, When: POST /Playlists, Then: Creates playlist")
     void createPlaylist() throws Exception {
       assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
-      HttpHeaders headers = authHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-
-      String body = String.format("{\"Name\":\"Test Playlist\",\"UserId\":\"%s\"}", userId);
-      HttpEntity<String> request = new HttpEntity<>(body, headers);
-
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(BASE_URL + "/Playlists", request, String.class);
-
-      assertTrue(
-          response.getStatusCode() == HttpStatus.CREATED
-              || response.getStatusCode() == HttpStatus.OK,
-          "Expected 201 or 200 but got " + response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertNotNull(json.get("Id"));
-      createdPlaylistId = json.get("Id").asText();
+      String playlistId = createTestPlaylist("Test Create");
+      try {
+        assertNotNull(playlistId);
+      } finally {
+        deletePlaylistQuietly(playlistId);
+      }
     }
 
     @Test
-    @Order(2)
-    @DisplayName("Given: Created playlist ID, When: GET /Playlists/{id}, Then: Returns playlist")
+    @DisplayName("Given: Created playlist, When: GET /Playlists/{id}, Then: Returns playlist")
     void getPlaylistById() throws Exception {
       assumeTrue(authToken != null, "Auth token required");
-      assumeTrue(createdPlaylistId != null, "Playlist ID required");
+      assumeTrue(userId != null, "User ID required");
 
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Playlists/" + createdPlaylistId, HttpMethod.GET, request, String.class);
+      String playlistId = createTestPlaylist("Test Get By Id");
+      try {
+        HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+        ResponseEntity<String> response =
+            restTemplate.exchange(
+                BASE_URL + "/Playlists/" + playlistId, HttpMethod.GET, request, String.class);
 
-      assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
 
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertEquals(createdPlaylistId, json.get("Id").asText());
+        JsonNode json = objectMapper.readTree(response.getBody());
+        assertEquals(playlistId, json.get("Id").asText());
+      } finally {
+        deletePlaylistQuietly(playlistId);
+      }
     }
   }
 
@@ -113,40 +129,50 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @DisplayName("Given: Valid playlist ID, When: GET /Playlists/{id}/Items, Then: Returns items")
     void getPlaylistItems() throws Exception {
       assumeTrue(authToken != null, "Auth token required");
-      assumeTrue(createdPlaylistId != null, "Playlist ID required");
+      assumeTrue(userId != null, "User ID required");
 
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Playlists/" + createdPlaylistId + "/Items",
-              HttpMethod.GET,
-              request,
-              String.class);
+      String playlistId = createTestPlaylist("Test Get Items");
+      try {
+        HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+        ResponseEntity<String> response =
+            restTemplate.exchange(
+                BASE_URL + "/Playlists/" + playlistId + "/Items",
+                HttpMethod.GET,
+                request,
+                String.class);
 
-      assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
 
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("TotalRecordCount"));
-      assertTrue(json.has("Items"));
+        JsonNode json = objectMapper.readTree(response.getBody());
+        assertTrue(json.has("TotalRecordCount"));
+        assertTrue(json.has("Items"));
+      } finally {
+        deletePlaylistQuietly(playlistId);
+      }
     }
 
     @Test
     @DisplayName(
         "Given: Valid track ID, When: POST /Playlists/{id}/Items, Then: Adds item to playlist")
-    void addItemToPlaylist() {
+    void addItemToPlaylist() throws Exception {
       assumeTrue(authToken != null, "Auth token required");
-      assumeTrue(createdPlaylistId != null, "Playlist ID required");
+      assumeTrue(userId != null, "User ID required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Playlists/" + createdPlaylistId + "/Items?Ids=" + firstTrackId,
-              HttpMethod.POST,
-              request,
-              String.class);
+      String playlistId = createTestPlaylist("Test Add Item");
+      try {
+        HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+        ResponseEntity<String> response =
+            restTemplate.exchange(
+                BASE_URL + "/Playlists/" + playlistId + "/Items?Ids=" + firstTrackId,
+                HttpMethod.POST,
+                request,
+                String.class);
 
-      assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+      } finally {
+        deletePlaylistQuietly(playlistId);
+      }
     }
   }
 
@@ -158,22 +184,27 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @DisplayName("Given: Valid playlist ID, When: PUT /Playlists/{id}, Then: Updates playlist")
     void updatePlaylist() throws Exception {
       assumeTrue(authToken != null, "Auth token required");
-      assumeTrue(createdPlaylistId != null, "Playlist ID required");
+      assumeTrue(userId != null, "User ID required");
 
-      HttpHeaders headers = authHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
+      String playlistId = createTestPlaylist("Test Update");
+      try {
+        HttpHeaders headers = authHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-      String body = "{\"Name\":\"Updated Playlist Name\"}";
-      HttpEntity<String> request = new HttpEntity<>(body, headers);
+        String body = "{\"Name\":\"Updated Playlist Name\"}";
+        HttpEntity<String> request = new HttpEntity<>(body, headers);
 
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Playlists/" + createdPlaylistId, HttpMethod.PUT, request, String.class);
+        ResponseEntity<String> response =
+            restTemplate.exchange(
+                BASE_URL + "/Playlists/" + playlistId, HttpMethod.PUT, request, String.class);
 
-      assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
 
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertEquals("Updated Playlist Name", json.get("Name").asText());
+        JsonNode json = objectMapper.readTree(response.getBody());
+        assertEquals("Updated Playlist Name", json.get("Name").asText());
+      } finally {
+        deletePlaylistQuietly(playlistId);
+      }
     }
   }
 
@@ -183,17 +214,16 @@ class PlaylistsApiTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("Given: Valid playlist ID, When: DELETE /Playlists/{id}, Then: Deletes playlist")
-    void deletePlaylist() {
+    void deletePlaylist() throws Exception {
       assumeTrue(authToken != null, "Auth token required");
-      assumeTrue(createdPlaylistId != null, "Playlist ID required");
+      assumeTrue(userId != null, "User ID required");
+
+      String playlistId = createTestPlaylist("Test Delete");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Playlists/" + createdPlaylistId,
-              HttpMethod.DELETE,
-              request,
-              String.class);
+              BASE_URL + "/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
 
       assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
     }

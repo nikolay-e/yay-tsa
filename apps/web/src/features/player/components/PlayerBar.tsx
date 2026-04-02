@@ -206,8 +206,8 @@ export function PlayerBar() {
     if (!showFullPlayer) return;
     history.pushState(null, '');
     const handlePopState = () => setShowFullPlayer(false);
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    globalThis.addEventListener('popstate', handlePopState);
+    return () => globalThis.removeEventListener('popstate', handlePopState);
   }, [showFullPlayer]);
 
   useEffect(() => {
@@ -236,7 +236,7 @@ export function PlayerBar() {
   }, [karaokeStatus?.state, karaokeStatus?.message]);
 
   useEffect(() => {
-    if (karaokeStatus?.state !== 'PROCESSING' || !currentTrack) return;
+    if (karaokeStatus?.state !== 'PROCESSING' || !currentTrack?.Id) return;
 
     const client = useAuthStore.getState().client;
     if (!client) return;
@@ -388,7 +388,8 @@ export function PlayerBar() {
             {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
           </p>
         </div>
-        <span
+        <div
+          role="toolbar"
           className="flex shrink-0 items-center gap-1"
           onClick={e => e.stopPropagation()}
           onKeyDown={e => e.stopPropagation()}
@@ -409,7 +410,7 @@ export function PlayerBar() {
               <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
             )}
           </button>
-        </span>
+        </div>
       </button>
 
       <div className="mx-auto hidden max-w-7xl items-center gap-4 p-2 px-4 md:flex">

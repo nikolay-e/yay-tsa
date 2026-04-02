@@ -28,12 +28,13 @@ export function useDjAutoRefill() {
 
       if (totalRemainingSec < REFILL_THRESHOLD_SEC) {
         refillPendingRef.current = true;
-        void useSessionStore
+        useSessionStore
           .getState()
           .refreshQueue()
           .finally(() => {
             refillPendingRef.current = false;
-          });
+          })
+          .catch(() => {});
       }
     }, CHECK_INTERVAL_MS);
 

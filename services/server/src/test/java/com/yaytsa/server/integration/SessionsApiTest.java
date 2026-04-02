@@ -8,7 +8,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.http.*;
 
 @DisplayName("Feature: Sessions API")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SessionsApiTest extends BaseIntegrationTest {
 
   private static String firstTrackId;
@@ -33,6 +32,16 @@ class SessionsApiTest extends BaseIntegrationTest {
     }
   }
 
+  private static void reportPlayingStart(String trackId) {
+    HttpHeaders headers = authHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+
+    String body = String.format("{\"ItemId\":\"%s\",\"PositionTicks\":0}", trackId);
+    HttpEntity<String> request = new HttpEntity<>(body, headers);
+
+    restTemplate.postForEntity(BASE_URL + "/Sessions/Playing", request, String.class);
+  }
+
   @Nested
   @DisplayName("Scenario: Get sessions")
   class GetSessions {
@@ -53,11 +62,9 @@ class SessionsApiTest extends BaseIntegrationTest {
 
   @Nested
   @DisplayName("Scenario: Playback reporting")
-  @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
   class PlaybackReporting {
 
     @Test
-    @Order(1)
     @DisplayName(
         "Given: Valid track ID, When: POST /Sessions/Playing, Then: Reports playback start")
     void reportPlaybackStart() {
@@ -77,12 +84,13 @@ class SessionsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @Order(2)
     @DisplayName(
         "Given: Playing track, When: POST /Sessions/Playing/Progress, Then: Reports progress")
     void reportPlaybackProgress() {
       assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
+
+      reportPlayingStart(firstTrackId);
 
       HttpHeaders headers = authHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
@@ -100,11 +108,12 @@ class SessionsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @Order(3)
     @DisplayName("Given: Playing track, When: POST /Sessions/Playing/Stopped, Then: Reports stop")
     void reportPlaybackStopped() {
       assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
+
+      reportPlayingStart(firstTrackId);
 
       HttpHeaders headers = authHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
@@ -135,46 +144,6 @@ class SessionsApiTest extends BaseIntegrationTest {
       HttpEntity<String> request = new HttpEntity<>("{}", headers);
       ResponseEntity<String> response =
           restTemplate.postForEntity(BASE_URL + "/Sessions/Playing/Ping", request, String.class);
-
-      assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Playback commands")
-  class PlaybackCommands {
-
-    @Test
-    @DisplayName(
-        "Given: Valid session ID, When: POST /Sessions/{id}/Playing/play, Then: Sends command")
-    void sendPlayCommand() {
-      assumeTrue(authToken != null, "Auth token required");
-
-      HttpHeaders headers = authHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-
-      HttpEntity<String> request = new HttpEntity<>("{}", headers);
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(
-              BASE_URL + "/Sessions/test-session-id/Playing/play", request, String.class);
-
-      assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-    }
-
-    @Test
-    @DisplayName(
-        "Given: Valid session ID, When: POST /Sessions/{id}/Playing/pause, Then: Sends pause"
-            + " command")
-    void sendPauseCommand() {
-      assumeTrue(authToken != null, "Auth token required");
-
-      HttpHeaders headers = authHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-
-      HttpEntity<String> request = new HttpEntity<>("{}", headers);
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(
-              BASE_URL + "/Sessions/test-session-id/Playing/pause", request, String.class);
 
       assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
     }

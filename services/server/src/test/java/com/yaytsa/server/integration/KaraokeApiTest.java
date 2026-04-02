@@ -135,10 +135,7 @@ class KaraokeApiTest extends BaseIntegrationTest {
               BASE_URL + "/Karaoke/" + firstTrackId + "/instrumental?api_key=" + authToken,
               byte[].class);
 
-      assertTrue(
-          response.getStatusCode() == HttpStatus.NOT_FOUND
-              || response.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR
-              || response.getStatusCode().is2xxSuccessful());
+      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
 
     @Test
@@ -151,10 +148,7 @@ class KaraokeApiTest extends BaseIntegrationTest {
           restTemplate.getForEntity(
               BASE_URL + "/Karaoke/" + firstTrackId + "/vocals?api_key=" + authToken, byte[].class);
 
-      assertTrue(
-          response.getStatusCode() == HttpStatus.NOT_FOUND
-              || response.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR
-              || response.getStatusCode().is2xxSuccessful());
+      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
   }
 
@@ -172,9 +166,7 @@ class KaraokeApiTest extends BaseIntegrationTest {
           restTemplate.getForEntity(
               BASE_URL + "/Karaoke/not-a-uuid/status?api_key=" + authToken, String.class);
 
-      assertTrue(
-          response.getStatusCode() == HttpStatus.BAD_REQUEST
-              || response.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR);
+      assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
   }
 }

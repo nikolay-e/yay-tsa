@@ -17,11 +17,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-    
+
     buildFeatures {
         viewBinding = true
     }
@@ -36,13 +37,13 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("androidx.media:media:1.7.0")
+    implementation("androidx.core:core-ktx:${property("coreKtxVersion")}")
+    implementation("androidx.appcompat:appcompat:${property("appcompatVersion")}")
+    implementation("com.google.android.material:material:${property("materialVersion")}")
+    implementation("androidx.constraintlayout:constraintlayout:${property("constraintlayoutVersion")}")
+    implementation("androidx.security:security-crypto:${property("securityCryptoVersion")}")
+    implementation("androidx.media:media:${property("mediaVersion")}")
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20231013")
+    testImplementation("junit:junit:${property("junitVersion")}")
+    testImplementation("org.json:json:${property("jsonVersion")}")
 }

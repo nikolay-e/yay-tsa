@@ -69,10 +69,8 @@ class ImagesApiTest extends BaseIntegrationTest {
 
       HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful()
-              || status == HttpStatus.NOT_FOUND
-              || status == HttpStatus.BAD_REQUEST,
-          "Expected 2xx, 404, or 400 but got " + status);
+          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
+          "Expected 2xx or 404 but got " + status);
       if (status.is2xxSuccessful() && response.getBody() != null) {
         assertTrue(response.getBody().length > 0);
       }
@@ -98,10 +96,8 @@ class ImagesApiTest extends BaseIntegrationTest {
 
       HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful()
-              || status == HttpStatus.NOT_FOUND
-              || status == HttpStatus.BAD_REQUEST,
-          "Expected 2xx, 404, or 400 but got " + status);
+          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
+          "Expected 2xx or 404 but got " + status);
     }
 
     @Test
@@ -124,10 +120,8 @@ class ImagesApiTest extends BaseIntegrationTest {
 
       HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful()
-              || status == HttpStatus.NOT_FOUND
-              || status == HttpStatus.BAD_REQUEST,
-          "Expected 2xx, 404, or 400 but got " + status);
+          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
+          "Expected 2xx or 404 but got " + status);
       if (status.is2xxSuccessful() && response.getHeaders().getContentType() != null) {
         assertEquals("image/webp", response.getHeaders().getContentType().toString());
       }
@@ -152,10 +146,8 @@ class ImagesApiTest extends BaseIntegrationTest {
 
       HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful()
-              || status == HttpStatus.NOT_FOUND
-              || status == HttpStatus.BAD_REQUEST,
-          "Expected 2xx, 404, or 400 but got " + status);
+          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
+          "Expected 2xx or 404 but got " + status);
     }
   }
 
@@ -184,8 +176,7 @@ class ImagesApiTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName(
-        "Given: Non-existent item ID, When: GET /Items/{id}/Images/Primary, Then: Returns 404 or"
-            + " 400")
+        "Given: Non-existent item ID, When: GET /Items/{id}/Images/Primary, Then: Returns 404")
     void getImageNotFound() {
       assumeTrue(authToken != null, "Auth token required");
 
@@ -196,9 +187,7 @@ class ImagesApiTest extends BaseIntegrationTest {
                   + authToken,
               byte[].class);
 
-      assertTrue(
-          response.getStatusCode() == HttpStatus.NOT_FOUND
-              || response.getStatusCode() == HttpStatus.BAD_REQUEST);
+      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
   }
 
@@ -244,9 +233,7 @@ class ImagesApiTest extends BaseIntegrationTest {
   class UnauthorizedAccess {
 
     @Test
-    @DisplayName(
-        "Given: No auth token, When: GET /Items/{id}/Images/Primary, Then: Returns image (public"
-            + " endpoint)")
+    @DisplayName("Given: No auth token, When: GET /Items/{id}/Images/Primary, Then: Returns 401")
     void getImageWithoutAuth() {
       assumeTrue(firstAlbumId != null, "Album ID required");
 
@@ -254,10 +241,10 @@ class ImagesApiTest extends BaseIntegrationTest {
           restTemplate.getForEntity(
               BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary", byte[].class);
 
-      assertTrue(
-          response.getStatusCode().is2xxSuccessful()
-              || response.getStatusCode() == HttpStatus.NOT_FOUND
-              || response.getStatusCode() == HttpStatus.UNAUTHORIZED);
+      assertEquals(
+          HttpStatus.UNAUTHORIZED,
+          response.getStatusCode(),
+          "Image endpoint requires authentication");
     }
   }
 }

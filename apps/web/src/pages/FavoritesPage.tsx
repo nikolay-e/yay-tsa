@@ -14,6 +14,7 @@ import {
 } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
 import { AlbumCard } from '@/features/library/components/AlbumCard';
+import { FAVORITES_TEST_IDS } from '@/shared/testing/test-ids';
 
 type FavoriteTab = 'albums' | 'artists' | 'tracks';
 
@@ -38,7 +39,7 @@ export function FavoritesPage() {
   else activeSort = artistSort;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6" data-testid={FAVORITES_TEST_IDS.PAGE}>
       <h1 className="text-2xl font-bold">Favorites</h1>
 
       <div className="border-border flex items-end justify-between border-b">

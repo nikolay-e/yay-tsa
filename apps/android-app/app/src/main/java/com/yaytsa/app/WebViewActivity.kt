@@ -65,43 +65,49 @@ class WebViewActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    private val pollRunnable = object : Runnable {
-        override fun run() {
-            if (!polling) return
-            pollMediaSession()
-            handler.postDelayed(this, POLL_INTERVAL_MS)
-        }
+    private val pollRunnable: Runnable = Runnable {
+        if (!polling) return@Runnable
+        pollMediaSession()
+        handler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
     }
 
     private fun pollMediaSession() {
         webView.evaluateJavascript(POLL_JS) { raw ->
-            if (raw == null || raw == "null") return@evaluateJavascript
-            try {
-                val json = JSONObject(unescapeJs(raw))
-                if (json.has("err")) return@evaluateJavascript
+            if (raw != null && raw != "null") {
+                handlePollResult(raw)
+            }
+        }
+    }
 
-                val title = json.optString("t", "")
-                val artist = json.optString("a", "")
-                val album = json.optString("al", "")
-                val artwork = json.optString("art", "")
-                val state = json.optString("s", "none")
-                val positionMs = (json.optDouble("pos", 0.0) * 1000).toLong()
-                val durationMs = (json.optDouble("dur", 0.0) * 1000).toLong()
+    private fun handlePollResult(raw: String) {
+        val json = try {
+            JSONObject(unescapeJs(raw))
+        } catch (_: Exception) {
+            return
+        }
+        if (json.has("err")) return
 
-                if (title.isNotEmpty() && state == "playing") {
-                    ensureServiceStarted()
-                }
+        val title = json.optString("t", "")
+        val artist = json.optString("a", "")
+        val album = json.optString("al", "")
+        val artwork = json.optString("art", "")
+        val state = json.optString("s", "none")
+        val positionMs = (json.optDouble("pos", 0.0) * 1000).toLong()
+        val durationMs = (json.optDouble("dur", 0.0) * 1000).toLong()
 
-                if (title.isNotEmpty() && (title != lastTitle || artist != lastArtist || album != lastAlbum || artwork != lastArtwork)) {
-                    lastTitle = title; lastArtist = artist; lastAlbum = album; lastArtwork = artwork
-                    mediaService?.updateMetadata(title, artist, album, artwork)
-                }
+        if (title.isNotEmpty() && state == "playing") {
+            ensureServiceStarted()
+        }
 
-                if (state != lastState || state == "playing") {
-                    lastState = state
-                    mediaService?.updatePlaybackState(state, positionMs, durationMs, 1.0f)
-                }
-            } catch (_: Exception) {}
+        val metadataChanged = title != lastTitle || artist != lastArtist || album != lastAlbum || artwork != lastArtwork
+        if (title.isNotEmpty() && metadataChanged) {
+            lastTitle = title; lastArtist = artist; lastAlbum = album; lastArtwork = artwork
+            mediaService?.updateMetadata(title, artist, album, artwork)
+        }
+
+        if (state != lastState || state == "playing") {
+            lastState = state
+            mediaService?.updatePlaybackState(state, positionMs, durationMs, 1.0f)
         }
     }
 
@@ -156,14 +162,13 @@ class WebViewActivity : AppCompatActivity() {
     }
 
     private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100
-                )
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100
+            )
         }
     }
 

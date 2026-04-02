@@ -31,33 +31,32 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
 
     await page.getByRole('button', { name: 'Sign In' }).click();
 
-    // Wait for either: session stored OR error visible OR navigation to home
+    // Wait for either: navigation away from login OR error visible
     const result = await Promise.race([
+      page.waitForURL(/.*(?!.*login)/, { timeout: 15000 }).then(() => 'navigated' as const),
       page
-        .waitForFunction(() => sessionStorage.getItem('yaytsa_session') !== null, {
-          timeout: 15000,
-        })
-        .then(() => 'success' as const),
-      page.waitForURL('/', { timeout: 15000 }).then(() => 'navigated' as const),
-      page
-        .locator('.text-error, [role="alert"]')
+        .locator('[role="alert"]')
         .waitFor({ state: 'visible', timeout: 15000 })
         .then(() => 'error' as const),
       new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 15000)),
     ]);
 
-    if (result === 'success' || result === 'navigated') {
-      // Double-check session is stored
-      const hasSession = await page.evaluate(
-        () => sessionStorage.getItem('yaytsa_session') !== null
-      );
-      if (hasSession) {
-        return;
-      }
+    if (result === 'navigated') {
+      await page
+        .getByRole('heading', { level: 1 })
+        .first()
+        .waitFor({ state: 'visible', timeout: 5000 });
+      return;
     }
 
-    // Gather diagnostic info
-    const sessionKeys = await page.evaluate(() => Object.keys(sessionStorage));
+    if (result === 'error') {
+      const errorText = await page
+        .locator('[role="alert"]')
+        .textContent()
+        .catch(() => null);
+      throw new Error(`Login rejected by server: ${errorText || 'unknown error'}`);
+    }
+
     const currentUrl = page.url();
     const pageContent = await page
       .locator('body')
@@ -67,21 +66,19 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
     if (attempt < maxRetries) {
       console.log(`Login attempt ${attempt} result: ${result}`);
       console.log(`  URL: ${currentUrl}`);
-      console.log(`  Session keys: ${JSON.stringify(sessionKeys)}`);
       console.log(`  Console: ${consoleLogs.slice(-5).join('\n    ')}`);
       console.log(`  Network errors: ${networkErrors.join(', ') || 'none'}`);
       await page.waitForTimeout(1000);
     } else {
-      const errorDiv = await page
-        .locator('.text-error')
+      const errorText = await page
+        .locator('[role="alert"]')
         .textContent()
         .catch(() => null);
       throw new Error(
         `Login failed after ${maxRetries} attempts.\n` +
           `Last result: ${result}\n` +
           `URL: ${currentUrl}\n` +
-          `Session keys: ${JSON.stringify(sessionKeys)}\n` +
-          `Error on page: ${errorDiv || 'none'}\n` +
+          `Error on page: ${errorText || 'none'}\n` +
           `Console (last 10):\n  ${consoleLogs.slice(-10).join('\n  ')}\n` +
           `Network errors: ${networkErrors.join(', ') || 'none'}\n` +
           `Page content snippet: ${pageContent?.substring(0, 200) || 'N/A'}`

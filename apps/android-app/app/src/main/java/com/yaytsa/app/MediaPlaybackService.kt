@@ -17,7 +17,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat as MediaNotificationCompat
-import java.net.URL
+import java.net.URI
 import kotlin.concurrent.thread
 
 class MediaPlaybackService : Service() {
@@ -106,7 +106,7 @@ class MediaPlaybackService : Service() {
             currentArtworkUrl = resolvedUrl
             thread {
                 try {
-                    val bitmap = BitmapFactory.decodeStream(URL(resolvedUrl).openStream())
+                    val bitmap = BitmapFactory.decodeStream(URI(resolvedUrl).toURL().openStream())
                     if (bitmap != null) {
                         currentArtwork = bitmap
                         mediaSession.setMetadata(
@@ -119,7 +119,9 @@ class MediaPlaybackService : Service() {
                         )
                         updateNotification()
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                    currentArtworkUrl = null
+                }
             }
         }
     }

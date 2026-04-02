@@ -7,11 +7,14 @@ test.describe('Queue Management', () => {
 
     const trackCount = await albumPage.getTrackCount();
 
+    const firstTrackTitle = await albumPage.getTrackTitle(0);
+
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
     expect(await playerBar.isVisible()).toBe(true);
     expect(trackCount).toBeGreaterThan(0);
+    await expect(playerBar.currentTrackTitle).toHaveText(firstTrackTitle);
   });
 
   test('should advance through queue automatically', async ({
@@ -118,7 +121,9 @@ test.describe('Queue Management', () => {
 
     // Click next on the last track - should stay on last track or stop
     await playerBar.clickNext();
-    await authenticatedPage.waitForTimeout(500);
+
+    // Wait and verify track title remains stable (no looping)
+    await expect(playerBar.currentTrackTitle).toHaveText(lastTrackTitle, { timeout: 2000 });
 
     // Verify we haven't looped back to first track (no repeat)
     const currentTrackAfterNext = await playerBar.getCurrentTrackTitle();
@@ -128,5 +133,83 @@ test.describe('Queue Management', () => {
     if (trackCount > 1) {
       expect(currentTrackAfterNext).toBe(lastTrackTitle);
     }
+  });
+
+  test('should display queue tracks on home page after starting playback', async ({
+    libraryPage,
+    albumPage,
+    playerBar,
+  }) => {
+    await libraryPage.clickAlbum(0);
+    await albumPage.waitForAlbumToLoad();
+
+    const trackCount = await albumPage.getTrackCount();
+    test.skip(trackCount < 2, 'Album has fewer than 2 tracks');
+
+    await albumPage.playAlbum();
+    await playerBar.waitForPlayerToLoad();
+
+    const currentTrack = await playerBar.getCurrentTrackTitle();
+
+    await libraryPage.navigateHome();
+
+    // Queue tracks should be visible on the home page
+    // The current track name should appear somewhere in the queue view
+    await expect(async () => {
+      const queueText = await libraryPage.page.locator('main').textContent();
+      expect(queueText).toContain(currentTrack);
+    }).toPass({ timeout: 10000 });
+  });
+
+  test('should toggle shuffle button state', async ({
+    playAlbumFromLibrary,
+    authenticatedPage,
+  }) => {
+    await playAlbumFromLibrary();
+
+    const shuffleButton = authenticatedPage.getByRole('button', { name: 'Shuffle' });
+    // Shuffle button has hidden sm:flex — only visible on desktop
+    const isVisible = await shuffleButton.isVisible().catch(() => false);
+    test.skip(!isVisible, 'Shuffle button not visible at current viewport size');
+
+    const initialPressed = await shuffleButton.getAttribute('aria-pressed');
+    expect(initialPressed).toBe('false');
+
+    await shuffleButton.click();
+    await expect(shuffleButton).toHaveAttribute('aria-pressed', 'true');
+
+    await shuffleButton.click();
+    await expect(shuffleButton).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('should cycle repeat button through modes', async ({
+    playAlbumFromLibrary,
+    authenticatedPage,
+  }) => {
+    await playAlbumFromLibrary();
+
+    const repeatButton = authenticatedPage.getByRole('button', { name: /Repeat/ });
+    // Repeat button has hidden sm:flex — only visible on desktop
+    const isVisible = await repeatButton.isVisible().catch(() => false);
+    test.skip(!isVisible, 'Repeat button not visible at current viewport size');
+
+    // Initial state: off
+    await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: off');
+    await expect(repeatButton).toHaveAttribute('aria-pressed', 'false');
+
+    // First click: repeat all
+    await repeatButton.click();
+    await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: all');
+    await expect(repeatButton).toHaveAttribute('aria-pressed', 'true');
+
+    // Second click: repeat one
+    await repeatButton.click();
+    await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: one');
+    await expect(repeatButton).toHaveAttribute('aria-pressed', 'true');
+
+    // Third click: back to off
+    await repeatButton.click();
+    await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: off');
+    await expect(repeatButton).toHaveAttribute('aria-pressed', 'false');
   });
 });

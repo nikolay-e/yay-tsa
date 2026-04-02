@@ -1,6 +1,6 @@
 import type { Page, Locator } from '@playwright/test';
 import { expect } from '@playwright/test';
-import { PLAYER_TEST_IDS } from '../../../src/shared/testing/test-ids';
+import { PLAYER_TEST_IDS } from '../helpers/test-ids';
 
 export class PlayerBar {
   readonly page: Page;
@@ -78,13 +78,10 @@ export class PlayerBar {
   }
 
   async setVolume(percentage: number): Promise<void> {
-    const normalizedVolume = percentage / 100;
-    await this.page.evaluate((vol: number) => {
-      const player = (
-        globalThis as unknown as { __playerStore__?: { setVolume?: (v: number) => void } }
-      ).__playerStore__;
-      player?.setVolume?.(vol);
-    }, normalizedVolume);
+    await this.page.evaluate(vol => {
+      const audio = document.querySelector('audio');
+      if (audio) audio.volume = vol / 100;
+    }, percentage);
   }
 
   async seek(percentage: number): Promise<void> {
@@ -155,29 +152,28 @@ export class PlayerBar {
     await expect(this.currentTrackTitle).toHaveText(title);
   }
 
-  async waitForAudioReady(): Promise<void> {
-    await expect(async () => {
-      const duration = await this.page.evaluate(() => {
-        const player = (globalThis as any).__playerStore__;
-        const audioEngine = player?.audioEngine;
-        return audioEngine?.getDuration?.() ?? 0;
-      });
-      expect(duration).toBeGreaterThan(0);
-    }).toPass({ timeout: 10000 });
+  async waitForAudioReady(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        const audio = document.querySelector('audio');
+        return audio && audio.readyState >= 2 && audio.duration > 0;
+      },
+      { timeout }
+    );
   }
 
   async waitForSeekComplete(): Promise<void> {
     await expect(this.currentTime).not.toHaveText('0:00', { timeout: 5000 });
   }
 
-  async waitForAudioPlaying(): Promise<void> {
-    await expect(async () => {
-      const isPlaying = await this.page.evaluate(() => {
-        const player = (globalThis as any).__playerStore__;
-        return player?.isPlaying === true;
-      });
-      expect(isPlaying).toBe(true);
-    }).toPass({ timeout: 10000 });
+  async waitForAudioPlaying(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        const audio = document.querySelector('audio');
+        return audio && !audio.paused && audio.currentTime > 0;
+      },
+      { timeout }
+    );
   }
 
   async waitForTimeProgress(): Promise<void> {
@@ -191,13 +187,6 @@ export class PlayerBar {
     return await this.page.evaluate(() => {
       const audio = document.querySelector('audio');
       return audio?.volume ?? 0;
-    });
-  }
-
-  async getVolumeFromStore(): Promise<number> {
-    return await this.page.evaluate(() => {
-      const player = (globalThis as any).__playerStore__;
-      return player?.volume ?? 0;
     });
   }
 

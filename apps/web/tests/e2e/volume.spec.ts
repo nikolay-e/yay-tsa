@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/playback.fixture';
-import { getVolumeFromLocalStorage, getVolumeFromPlayerStore } from './helpers/audio-helpers';
+import { getVolumeFromLocalStorage } from './helpers/audio-helpers';
 
 test.describe('Volume Control', () => {
   test('Given: Track playing, When: User sets volume to 50%, Then: Audio element volume updates', async ({
@@ -45,25 +45,6 @@ test.describe('Volume Control', () => {
 
     const volume = await playerBar.getVolume();
     expect(volume).toBe(1);
-  });
-
-  test('Given: User sets volume, When: Volume changes, Then: Player store syncs with audio element', async ({
-    playAlbumFromLibrary,
-    playerBar,
-    authenticatedPage,
-  }) => {
-    await playAlbumFromLibrary();
-    await playerBar.waitForAudioReady();
-
-    await playerBar.setVolume(75);
-    await playerBar.waitForVolume(0.75);
-
-    const audioVolume = await playerBar.getVolume();
-    const storeVolume = await getVolumeFromPlayerStore(authenticatedPage);
-
-    expect(audioVolume).toBeCloseTo(0.75, 2);
-    expect(storeVolume).toBeCloseTo(0.75, 2);
-    expect(audioVolume).toBeCloseTo(storeVolume, 2);
   });
 
   test('Given: User sets volume, When: Volume changes, Then: Volume persists in localStorage', async ({

@@ -86,17 +86,84 @@ describe('Integration: Authentication', () => {
     await delay(AUTH_DELAY);
   });
 
-  it('should validate HTTPS server URL in production mode', async () => {
+  it('should authenticate with a fresh client instance', async () => {
     const freshClient = new MediaServerClient(config.serverUrl, clientInfo);
     const freshAuthService = new AuthService(freshClient);
 
     const response = await retryableLogin(
       () => freshAuthService.login(config.username, config.password),
-      'HTTPS validation login'
+      'Fresh client login'
     );
 
     expect(response).toBeDefined();
+    expect(response.AccessToken).toBeDefined();
+    expect(freshClient.isAuthenticated()).toBe(true);
 
+    await delay(AUTH_DELAY);
+  });
+
+  it('should support concurrent sessions from different devices', async () => {
+    await delay(AUTH_DELAY);
+
+    const client1 = new MediaServerClient(config.serverUrl, {
+      ...clientInfo,
+      deviceId: 'device-1',
+      device: 'Phone',
+    });
+    const client2 = new MediaServerClient(config.serverUrl, {
+      ...clientInfo,
+      deviceId: 'device-2',
+      device: 'Tablet',
+    });
+
+    const authService1 = new AuthService(client1);
+    const authService2 = new AuthService(client2);
+
+    const session1 = await retryableLogin(
+      () => authService1.login(config.username, config.password),
+      'Device 1 login'
+    );
+    await delay(AUTH_DELAY);
+
+    const session2 = await retryableLogin(
+      () => authService2.login(config.username, config.password),
+      'Device 2 login'
+    );
+
+    expect(session1.User.Id).toBe(session2.User.Id);
+    expect(client1.isAuthenticated()).toBe(true);
+    expect(client2.isAuthenticated()).toBe(true);
+
+    await delay(AUTH_DELAY);
+    await authService1.logout();
+    await delay(AUTH_DELAY);
+    await authService2.logout();
+    await delay(AUTH_DELAY);
+  });
+
+  it('should create new session on re-login after logout', async () => {
+    await delay(AUTH_DELAY);
+
+    const freshClient = new MediaServerClient(config.serverUrl, clientInfo);
+    const freshAuthService = new AuthService(freshClient);
+
+    await retryableLogin(
+      () => freshAuthService.login(config.username, config.password),
+      'First session login'
+    );
+    const firstUserId = freshClient.getUserId();
+
+    await delay(AUTH_DELAY);
+    await freshAuthService.logout();
+    await delay(AUTH_DELAY);
+
+    const secondLogin = await retryableLogin(
+      () => freshAuthService.login(config.username, config.password),
+      'Second session login'
+    );
+
+    expect(freshClient.isAuthenticated()).toBe(true);
+    expect(secondLogin.User.Id).toBe(firstUserId);
     await delay(AUTH_DELAY);
   });
 });

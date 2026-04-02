@@ -41,9 +41,9 @@ test.describe('Library Browsing', () => {
 
     await libraryPage.scrollToBottom();
 
-    // Wait for either more albums or verify we've loaded all available
+    // Verify pagination actually loaded more albums
     const newCount = await libraryPage.getAlbumCount();
-    expect(newCount).toBeGreaterThanOrEqual(initialCount);
+    expect(newCount).toBeGreaterThan(initialCount);
   });
 
   test('should display album metadata', async ({ libraryPage }) => {
@@ -51,35 +51,6 @@ test.describe('Library Browsing', () => {
 
     await libraryPage.expectAlbumTitleVisible(0);
     // Album artist is shown in album detail page, not in card
-  });
-
-  test('should handle empty search results', async ({ libraryPage }) => {
-    await libraryPage.navigateToSearch();
-    await libraryPage.search('xyznonexistentalbumname12345');
-
-    await libraryPage.expectNoResults();
-  });
-
-  test('should search and find albums', async ({ libraryPage }) => {
-    await libraryPage.navigateToSearch();
-
-    const firstAlbumTitle = await libraryPage.getAlbumTitle(0);
-    const searchQuery = firstAlbumTitle.substring(0, 5);
-
-    await libraryPage.search(searchQuery);
-
-    const resultsCount = await libraryPage.getAlbumCount();
-    expect(resultsCount).toBeGreaterThan(0);
-  });
-
-  test('should clear search results', async ({ libraryPage }) => {
-    await libraryPage.navigateToSearch();
-
-    await libraryPage.search('test');
-    await libraryPage.clearSearch();
-
-    const albumCount = await libraryPage.getAlbumCount();
-    expect(albumCount).toBeGreaterThan(0);
   });
 
   test('should navigate between Albums and Home tabs', async ({ libraryPage }) => {

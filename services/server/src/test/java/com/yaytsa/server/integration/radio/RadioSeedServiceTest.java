@@ -10,6 +10,7 @@ import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @SpringBootTest
 @Import({TestcontainersConfig.class, RadioSeedServiceTest.MockClientConfig.class})
 @ActiveProfiles("tc")
+@Tag("testcontainers")
 @DisplayName("RadioSeedService")
 class RadioSeedServiceTest {
 

@@ -9,23 +9,34 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-  "E",   # pycodestyle errors
-  "W",   # pycodestyle warnings
-  "F",   # pyflakes (unused imports, undefined names)
-  "I",   # isort (import ordering)
-  "UP",  # pyupgrade (modern Python syntax)
-  "B",   # flake8-bugbear (common bug patterns)
-  "C4",  # flake8-comprehensions
-  "SIM", # flake8-simplify
-  "RUF", # ruff-specific rules
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes (unused imports, undefined names)
+  "I",    # isort (import ordering)
+  "UP",   # pyupgrade (modern Python syntax)
+  "B",    # flake8-bugbear (common bug patterns)
+  "C4",   # flake8-comprehensions
+  "SIM",  # flake8-simplify
+  "RUF",  # ruff-specific rules
+  "T20",  # flake8-print (no print() in production)
+  "PIE",  # flake8-pie (misc lints)
+  "PERF", # perflint (performance anti-patterns)
+  "PLC",  # pylint convention
+  "PLE",  # pylint errors
+  "PLW",  # pylint warnings
+  "FLY",  # flynt (f-string conversion)
+  "FURB", # refurb (modern Python idioms)
 ]
 ignore = [
-  "E501", # line too long — enforced by ruff-format
-  "B008", # function calls in defaults — FastAPI Depends() pattern
+  "E501",    # line too long — enforced by ruff-format
+  "B008",    # function calls in defaults — FastAPI Depends() pattern
+  "PLC0415", # import not at top-level — intentional lazy imports for heavy ML libraries
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "extractor/**" = ["B006"]
+"**/patches/**" = ["T20"]
+"**/vulture_whitelist.py" = ["F821", "E501"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -37,6 +48,10 @@ no_implicit_optional = true
 
 [[tool.mypy.overrides]]
 module = "extractor.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "vulture_whitelist"
 ignore_errors = true
 
 [tool.bandit]

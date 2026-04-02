@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
+import { LYRICS_TEST_IDS } from '@/shared/testing/test-ids';
 import { useLyrics } from '../hooks/useLyrics';
 import { useLyricsFetch } from '../hooks/useLyricsFetch';
 import { useCurrentTrack } from '../stores/player.store';
@@ -29,6 +30,7 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
 
   return (
     <div
+      data-testid={LYRICS_TEST_IDS.OVERLAY}
       className="bg-bg-primary md:left-sidebar fixed inset-0 z-[95] flex flex-col"
       style={{ bottom: 'var(--spacing-player-bar, 76px)' }}
     >
@@ -46,12 +48,13 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
           onClick={onClose}
           className="text-text-secondary hover:text-text-primary focus-visible:ring-accent ml-4 rounded-full p-2 focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Close lyrics"
+          data-testid={LYRICS_TEST_IDS.CLOSE_BUTTON}
         >
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden" data-testid={LYRICS_TEST_IDS.CONTENT}>
         {hasLyrics && parsedLyrics ? (
           <div className="h-full">
             {!isTimeSynced && (
@@ -70,12 +73,19 @@ export function LyricsView({ isOpen, onClose }: LyricsViewProps) {
             {isFetching ? (
               <div className="flex flex-col items-center gap-3">
                 <Loader2 className="text-accent h-8 w-8 animate-spin" />
-                <span className="text-text-secondary text-sm">Searching for lyrics...</span>
+                <span className="text-text-secondary text-sm" data-testid={LYRICS_TEST_IDS.LOADING}>
+                  Searching for lyrics...
+                </span>
               </div>
             ) : (
               (() => {
                 const notFoundContent = (
-                  <span className="text-text-tertiary text-sm">No lyrics found</span>
+                  <span
+                    className="text-text-tertiary text-sm"
+                    data-testid={LYRICS_TEST_IDS.NOT_FOUND}
+                  >
+                    No lyrics found
+                  </span>
                 );
                 const errorContent = fetchError ? (
                   <div className="flex flex-col items-center gap-3">

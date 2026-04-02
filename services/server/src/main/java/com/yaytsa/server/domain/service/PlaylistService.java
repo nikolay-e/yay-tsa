@@ -98,7 +98,6 @@ public class PlaylistService {
     List<PlaylistEntryEntity> entries = new ArrayList<>(itemIds.size());
     for (int i = 0; i < itemIds.size(); i++) {
       PlaylistEntryEntity entry = new PlaylistEntryEntity();
-      entry.setId(UUID.randomUUID());
       entry.setPlaylistId(playlistId);
       entry.setItemId(itemIds.get(i));
       entry.setPosition(maxPosition + i + 1);

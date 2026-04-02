@@ -347,10 +347,7 @@ export class MediaServerClient {
         if (Array.isArray(value)) {
           searchParams.append(key, value.join(','));
         } else {
-          searchParams.append(
-            key,
-            typeof value === 'object' ? JSON.stringify(value) : String(value)
-          );
+          searchParams.append(key, String(value));
         }
       }
     });

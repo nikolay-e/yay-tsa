@@ -25,6 +25,8 @@ repos:
       - id: detect-private-key # [CHECK] Prevents leaking private keys.
       - id: check-json # [CHECK] Validates JSON syntax.
       - id: check-toml # [CHECK] Validates TOML syntax (pyproject.toml).
+      - id: check-xml # [CHECK] Validates XML syntax (pom.xml, spotbugs, pmd).
+        files: \.(xml|pom)$
 
   # ------------------------------------------------------------------------------
   # EMOJI REMOVAL (Autofixing)
@@ -202,6 +204,25 @@ repos:
         files: ^services/audio-separator/.*\.py$
         exclude: ^services/audio-separator/tests/
         args: [-c, services/audio-separator/pyproject.toml]
+
+  # ------------------------------------------------------------------------------
+  # PYTHON DEAD CODE DETECTION (Vulture)
+  # Finds unused functions, variables, imports, and classes in Python code.
+  # Whitelist: services/audio-separator/vulture_whitelist.py
+  # ------------------------------------------------------------------------------
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        name: 'vulture (Python dead code detection)'
+        files: ^services/audio-separator/.*\.py$
+        exclude: ^services/audio-separator/(tests|patches)/
+        args:
+          [
+            services/audio-separator/,
+            services/audio-separator/vulture_whitelist.py,
+            --min-confidence=80,
+          ]
 
   # ------------------------------------------------------------------------------
   # JAVA CODE FORMATTING (Google Java Format)

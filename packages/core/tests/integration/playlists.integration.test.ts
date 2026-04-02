@@ -18,7 +18,6 @@ describe('Integration: Playlists Management', () => {
   let itemsService: ItemsService;
   let playlistsService: PlaylistsService;
   let testTrackIds: string[] = [];
-  let testPlaylistId: string | null = null;
 
   const clientInfo: ClientInfo = {
     name: 'Media Server Client Integration Tests',
@@ -60,16 +59,6 @@ describe('Integration: Playlists Management', () => {
   });
 
   afterAll(async () => {
-    // Clean up: delete test playlist if it was created
-    if (testPlaylistId && playlistsService) {
-      try {
-        await playlistsService.deletePlaylist(testPlaylistId);
-      } catch {
-        // intentionally ignored
-      }
-    }
-
-    // Add delay after cleanup
     await delay(AUTH_DELAY);
   });
 
@@ -81,93 +70,128 @@ describe('Integration: Playlists Management', () => {
       mediaType: 'Audio',
     });
 
-    expect(playlist).toBeDefined();
-    expect(playlist.Id).toBeDefined();
-    expect(playlist.Name).toBe(playlistName);
-    expect(playlist.Type).toBe('Playlist');
-
-    // Store for cleanup
-    testPlaylistId = playlist.Id;
+    try {
+      expect(playlist).toBeDefined();
+      expect(playlist.Id).toBeDefined();
+      expect(playlist.Name).toBe(playlistName);
+      expect(playlist.Type).toBe('Playlist');
+    } finally {
+      await playlistsService.deletePlaylist(playlist.Id).catch(() => {});
+    }
   });
 
   it('should get playlist details', async () => {
-    expect(testPlaylistId).not.toBeNull();
+    const playlistName = `Details Test Playlist ${Date.now()}`;
+    const created = await playlistsService.createPlaylist({
+      name: playlistName,
+      mediaType: 'Audio',
+    });
 
-    const playlist = await playlistsService.getPlaylist(testPlaylistId!);
+    try {
+      const playlist = await playlistsService.getPlaylist(created.Id);
 
-    expect(playlist).toBeDefined();
-    expect(playlist.Id).toBe(testPlaylistId);
-    expect(playlist.Type).toBe('Playlist');
-    expect(playlist.Name).toBeDefined();
+      expect(playlist).toBeDefined();
+      expect(playlist.Id).toBe(created.Id);
+      expect(playlist.Type).toBe('Playlist');
+      expect(playlist.Name).toBe(playlistName);
+    } finally {
+      await playlistsService.deletePlaylist(created.Id).catch(() => {});
+    }
   });
 
   it('should add items to playlist', async () => {
-    expect(testPlaylistId).not.toBeNull();
     expect(testTrackIds.length).toBeGreaterThanOrEqual(2);
 
-    // Add first two tracks
-    const itemsToAdd = testTrackIds.slice(0, 2);
-    await playlistsService.addItemsToPlaylist(testPlaylistId!, itemsToAdd);
+    const created = await playlistsService.createPlaylist({
+      name: `Add Items Test ${Date.now()}`,
+      mediaType: 'Audio',
+    });
 
-    // Verify items were added by getting playlist items
-    const items = await playlistsService.getPlaylistItems(testPlaylistId!);
+    try {
+      const itemsToAdd = testTrackIds.slice(0, 2);
+      await playlistsService.addItemsToPlaylist(created.Id, itemsToAdd);
 
-    expect(items).toBeDefined();
-    expect(items.Items.length).toBe(2);
-    expect(items.Items[0].Id).toBeDefined();
-    expect(items.Items[1].Id).toBeDefined();
+      const items = await playlistsService.getPlaylistItems(created.Id);
+
+      expect(items).toBeDefined();
+      expect(items.Items.length).toBe(2);
+      expect(items.Items[0].Id).toBeDefined();
+      expect(items.Items[1].Id).toBeDefined();
+    } finally {
+      await playlistsService.deletePlaylist(created.Id).catch(() => {});
+    }
   });
 
   it('should get playlist items', async () => {
-    expect(testPlaylistId).not.toBeNull();
+    expect(testTrackIds.length).toBeGreaterThanOrEqual(2);
 
-    const items = await playlistsService.getPlaylistItems(testPlaylistId!);
+    const created = await playlistsService.createPlaylist({
+      name: `Get Items Test ${Date.now()}`,
+      mediaType: 'Audio',
+      itemIds: testTrackIds.slice(0, 2),
+    });
 
-    expect(items).toBeDefined();
-    expect(items.Items).toBeInstanceOf(Array);
-    expect(items.Items.length).toBeGreaterThan(0);
-    expect(items.TotalRecordCount).toBeGreaterThan(0);
+    try {
+      const items = await playlistsService.getPlaylistItems(created.Id);
 
-    // Verify items have proper structure
-    const firstItem = items.Items[0];
-    expect(firstItem.Id).toBeDefined();
-    expect(firstItem.Type).toBe('Audio');
-    expect(firstItem.Name).toBeDefined();
+      expect(items).toBeDefined();
+      expect(items.Items).toBeInstanceOf(Array);
+      expect(items.Items.length).toBe(2);
+      expect(items.TotalRecordCount).toBe(2);
+
+      const firstItem = items.Items[0];
+      expect(firstItem.Id).toBeDefined();
+      expect(firstItem.Type).toBe('Audio');
+      expect(firstItem.Name).toBeDefined();
+    } finally {
+      await playlistsService.deletePlaylist(created.Id).catch(() => {});
+    }
   });
 
   it('should add more items to existing playlist', async () => {
-    expect(testPlaylistId).not.toBeNull();
     expect(testTrackIds.length).toBeGreaterThanOrEqual(3);
 
-    // Get current count
-    const beforeItems = await playlistsService.getPlaylistItems(testPlaylistId!);
-    const beforeCount = beforeItems.Items.length;
+    const created = await playlistsService.createPlaylist({
+      name: `Add More Items Test ${Date.now()}`,
+      mediaType: 'Audio',
+      itemIds: testTrackIds.slice(0, 2),
+    });
 
-    // Add third track
-    await playlistsService.addItemsToPlaylist(testPlaylistId!, [testTrackIds[2]]);
+    try {
+      const beforeItems = await playlistsService.getPlaylistItems(created.Id);
+      const beforeCount = beforeItems.Items.length;
 
-    // Verify count increased
-    const afterItems = await playlistsService.getPlaylistItems(testPlaylistId!);
-    expect(afterItems.Items.length).toBe(beforeCount + 1);
+      await playlistsService.addItemsToPlaylist(created.Id, [testTrackIds[2]]);
+
+      const afterItems = await playlistsService.getPlaylistItems(created.Id);
+      expect(afterItems.Items.length).toBe(beforeCount + 1);
+    } finally {
+      await playlistsService.deletePlaylist(created.Id).catch(() => {});
+    }
   });
 
   it('should remove items from playlist', async () => {
-    expect(testPlaylistId).not.toBeNull();
+    expect(testTrackIds.length).toBeGreaterThanOrEqual(2);
 
-    // Get current items
-    const beforeItems = await playlistsService.getPlaylistItems(testPlaylistId!);
-    expect(beforeItems.Items.length).toBeGreaterThan(0);
+    const created = await playlistsService.createPlaylist({
+      name: `Remove Items Test ${Date.now()}`,
+      mediaType: 'Audio',
+      itemIds: testTrackIds.slice(0, 2),
+    });
 
-    // Get the playlist entry ID of the first item (not the original track ID!)
-    const entryIdToRemove = beforeItems.Items[0].PlaylistItemId!;
-    const beforeCount = beforeItems.Items.length;
+    try {
+      const beforeItems = await playlistsService.getPlaylistItems(created.Id);
+      expect(beforeItems.Items.length).toBe(2);
 
-    // Remove first item
-    await playlistsService.removeItemsFromPlaylist(testPlaylistId!, [entryIdToRemove]);
+      const entryIdToRemove = beforeItems.Items[0].PlaylistItemId!;
 
-    // Verify count decreased
-    const afterItems = await playlistsService.getPlaylistItems(testPlaylistId!);
-    expect(afterItems.Items.length).toBe(beforeCount - 1);
+      await playlistsService.removeItemsFromPlaylist(created.Id, [entryIdToRemove]);
+
+      const afterItems = await playlistsService.getPlaylistItems(created.Id);
+      expect(afterItems.Items.length).toBe(1);
+    } finally {
+      await playlistsService.deletePlaylist(created.Id).catch(() => {});
+    }
   });
 
   it('should create playlist with initial items', async () => {
@@ -192,21 +216,28 @@ describe('Integration: Playlists Management', () => {
   });
 
   it('should move/reorder items in playlist', async () => {
-    expect(testPlaylistId).not.toBeNull();
+    expect(testTrackIds.length).toBeGreaterThanOrEqual(2);
 
-    // Get current items
-    const beforeItems = await playlistsService.getPlaylistItems(testPlaylistId!);
-    expect(beforeItems.Items.length).toBeGreaterThanOrEqual(2);
+    const created = await playlistsService.createPlaylist({
+      name: `Reorder Test ${Date.now()}`,
+      mediaType: 'Audio',
+      itemIds: testTrackIds.slice(0, 2),
+    });
 
-    const firstItemId = beforeItems.Items[0].Id;
-    const firstItemPlaylistId = beforeItems.Items[0].PlaylistItemId!;
+    try {
+      const beforeItems = await playlistsService.getPlaylistItems(created.Id);
+      expect(beforeItems.Items.length).toBe(2);
 
-    // Move first item to index 1 (swap first two items)
-    await playlistsService.movePlaylistItem(testPlaylistId!, firstItemPlaylistId, 1);
+      const firstItemId = beforeItems.Items[0].Id;
+      const firstItemPlaylistId = beforeItems.Items[0].PlaylistItemId!;
 
-    // Verify order changed
-    const afterItems = await playlistsService.getPlaylistItems(testPlaylistId!);
-    expect(afterItems.Items[1].Id).toBe(firstItemId);
+      await playlistsService.movePlaylistItem(created.Id, firstItemPlaylistId, 1);
+
+      const afterItems = await playlistsService.getPlaylistItems(created.Id);
+      expect(afterItems.Items[1].Id).toBe(firstItemId);
+    } finally {
+      await playlistsService.deletePlaylist(created.Id).catch(() => {});
+    }
   });
 
   it('should fail to create playlist without authentication', async () => {
@@ -228,5 +259,24 @@ describe('Integration: Playlists Management', () => {
     await expect(async () => {
       await playlistsService.addItemsToPlaylist(fakePlaylistId, [testTrackIds[0]]);
     }).rejects.toThrow();
+  });
+
+  it('should delete playlist and verify it no longer exists', async () => {
+    const playlistName = `Delete Test Playlist ${Date.now()}`;
+
+    const playlist = await playlistsService.createPlaylist({
+      name: playlistName,
+      mediaType: 'Audio',
+      itemIds: [testTrackIds[0]],
+    });
+
+    expect(playlist.Id).toBeDefined();
+
+    const beforeDelete = await playlistsService.getPlaylist(playlist.Id);
+    expect(beforeDelete.Id).toBe(playlist.Id);
+
+    await playlistsService.deletePlaylist(playlist.Id);
+
+    await expect(playlistsService.getPlaylist(playlist.Id)).rejects.toThrow();
   });
 });

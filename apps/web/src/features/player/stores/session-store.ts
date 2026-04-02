@@ -89,6 +89,27 @@ async function resolveAudioItems(tracks: AdaptiveQueueTrack[]): Promise<AudioIte
   }
 }
 
+async function mergeNewTracksIntoQueue(djQueue: AdaptiveQueueTrack[]) {
+  const currentQueueItems = usePlayerStore.getState().queueItems;
+  const existingIds = new Set(currentQueueItems.map(i => i.Id));
+  const newTracks = djQueue.filter(t => !existingIds.has(t.trackId));
+  const budget = MAX_QUEUE_SIZE - currentQueueItems.length;
+  if (newTracks.length === 0 || budget <= 0) return;
+
+  const playNextTracks = newTracks.filter(t => t.intentLabel === 'play_next');
+  const appendTracks = newTracks
+    .filter(t => t.intentLabel !== 'play_next')
+    .slice(0, Math.max(0, budget - playNextTracks.length));
+
+  const [playNextItems, appendItems] = await Promise.all([
+    playNextTracks.length > 0 ? resolveAudioItems(playNextTracks) : Promise.resolve([]),
+    appendTracks.length > 0 ? resolveAudioItems(appendTracks) : Promise.resolve([]),
+  ]);
+
+  if (playNextItems.length > 0) usePlayerStore.getState().insertNextInQueue(playNextItems);
+  if (appendItems.length > 0) usePlayerStore.getState().appendToQueue(appendItems);
+}
+
 let refreshDebounce = false;
 let restoreInProgress = false;
 let consecutiveRefreshErrors = 0;
@@ -212,31 +233,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     try {
       await service.refreshQueue(activeSession.id);
       const djQueue = await service.getQueue(activeSession.id);
-
       consecutiveRefreshErrors = 0;
-
-      const currentQueueItems = usePlayerStore.getState().queueItems;
-      const existingIds = new Set(currentQueueItems.map(i => i.Id));
-      const newTracks = djQueue.filter(t => !existingIds.has(t.trackId));
-      const budget = MAX_QUEUE_SIZE - currentQueueItems.length;
-      if (newTracks.length > 0 && budget > 0) {
-        const playNextTracks = newTracks.filter(t => t.intentLabel === 'play_next');
-        const appendTracks = newTracks
-          .filter(t => t.intentLabel !== 'play_next')
-          .slice(0, Math.max(0, budget - playNextTracks.length));
-
-        const [playNextItems, appendItems] = await Promise.all([
-          playNextTracks.length > 0 ? resolveAudioItems(playNextTracks) : Promise.resolve([]),
-          appendTracks.length > 0 ? resolveAudioItems(appendTracks) : Promise.resolve([]),
-        ]);
-
-        if (playNextItems.length > 0) {
-          usePlayerStore.getState().insertNextInQueue(playNextItems);
-        }
-        if (appendItems.length > 0) {
-          usePlayerStore.getState().appendToQueue(appendItems);
-        }
-      }
+      await mergeNewTracksIntoQueue(djQueue);
       set({ isRefreshing: false, error: null });
     } catch (error) {
       consecutiveRefreshErrors++;

@@ -5,6 +5,10 @@ import org.junit.Test
 
 class ResolveUrlTest {
 
+    companion object {
+        private const val ART_PATH = "/art.jpg"
+    }
+
     @Test
     fun `empty url returns empty`() {
         assertEquals("", MediaPlaybackService.resolveUrl("", "https://example.com"))
@@ -33,14 +37,14 @@ class ResolveUrlTest {
     @Test
     fun `relative url trims trailing slash from base`() {
         assertEquals(
-            "https://example.com/art.jpg",
-            MediaPlaybackService.resolveUrl("/art.jpg", "https://example.com/")
+            "https://example.com$ART_PATH",
+            MediaPlaybackService.resolveUrl(ART_PATH, "https://example.com/")
         )
     }
 
     @Test
     fun `relative url with empty base returned as-is`() {
-        assertEquals("/art.jpg", MediaPlaybackService.resolveUrl("/art.jpg", ""))
+        assertEquals(ART_PATH, MediaPlaybackService.resolveUrl(ART_PATH, ""))
     }
 
     @Test
