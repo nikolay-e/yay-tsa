@@ -1,6 +1,5 @@
 package com.yaytsa.server.infrastructure.client;
 
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -12,7 +11,6 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 @Component
@@ -33,7 +31,7 @@ public class EmbeddingExtractionClient {
       @Value("${yaytsa.media.embedding-extraction.url:http://feature-extractor:8000}")
           String extractorUrl) {
     this.restClient =
-        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(10, 180)).build();
+        restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(10, 900)).build();
     this.healthCheckClient =
         restClientBuilder.baseUrl(extractorUrl).requestFactory(requestFactory(5, 5)).build();
   }
@@ -56,6 +54,7 @@ public class EmbeddingExtractionClient {
                 .post()
                 .uri("/api/v1/embed")
                 .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
                 .body(MAP_TYPE);
@@ -67,9 +66,9 @@ public class EmbeddingExtractionClient {
             (List<? extends Number>) response.get("embedding_clap"),
             (List<? extends Number>) response.get("embedding_mert"),
             time);
-      } catch (ResourceAccessException e) {
+      } catch (Exception e) {
         lastException = e;
-        if (isRetryable(e) && attempt < MAX_RETRIES) {
+        if (attempt < MAX_RETRIES) {
           long delay = INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
           log.warn(
               "Embedding extraction attempt {} failed for track {} (retrying in {}ms): {}",
@@ -127,13 +126,5 @@ public class EmbeddingExtractionClient {
     factory.setConnectTimeout(Duration.ofSeconds(connectSec));
     factory.setReadTimeout(Duration.ofSeconds(readSec));
     return factory;
-  }
-
-  private static boolean isRetryable(ResourceAccessException e) {
-    Throwable cause = e.getCause();
-    return cause instanceof SocketTimeoutException
-        || cause instanceof java.net.ConnectException
-        || cause instanceof java.net.NoRouteToHostException
-        || cause instanceof java.net.UnknownHostException;
   }
 }

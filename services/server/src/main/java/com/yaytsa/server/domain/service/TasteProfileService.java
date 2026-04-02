@@ -21,6 +21,7 @@ public class TasteProfileService {
   private static final Logger log = LoggerFactory.getLogger(TasteProfileService.class);
   private static final int TOP_TRACKS_LIMIT = 200;
   private static final int TOP_ARTISTS_LIMIT = 10;
+  private static final int TOP_GENRES_LIMIT = 10;
   private static final int LOOKBACK_DAYS = 90;
 
   private final TasteProfileRepository tasteProfileRepository;
@@ -57,6 +58,7 @@ public class TasteProfileService {
     Map<UUID, TrackFeaturesEntity> featuresMap = loadFeatures(topTrackIds);
     var agg = aggregateFeatures(playCounts, featuresMap);
     var topArtists = playbackSignalRepository.getTopArtistsByUser(userId, since, TOP_ARTISTS_LIMIT);
+    var topGenres = playbackSignalRepository.getTopGenresByUser(userId, since, TOP_GENRES_LIMIT);
     var sessionStats = playbackSignalRepository.getSessionStats(userId, since);
     double avgSessionMin =
         sessionStats.isEmpty() || sessionStats.getFirst()[1] == null
@@ -64,8 +66,8 @@ public class TasteProfileService {
             : ((Number) sessionStats.getFirst()[1]).doubleValue();
     saveProfile(
         userId,
-        buildProfileData(agg, topArtists, avgSessionMin),
-        generateSummary(agg, topArtists, avgSessionMin));
+        buildProfileData(agg, topArtists, topGenres, avgSessionMin),
+        generateSummary(agg, topArtists, topGenres, avgSessionMin));
     log.info(
         "Rebuilt taste profile for user {} with {} tracks, {} artists",
         userId,
@@ -129,7 +131,7 @@ public class TasteProfileService {
   }
 
   private Map<String, Object> buildProfileData(
-      Agg agg, List<Object[]> topArtists, double avgSessionMin) {
+      Agg agg, List<Object[]> topArtists, List<Object[]> topGenres, double avgSessionMin) {
     Map<String, Object> profile = new LinkedHashMap<>();
     profile.put("bpm", rangeMap(agg.bpm));
     profile.put("energy", rangeMap(agg.energy));
@@ -148,12 +150,24 @@ public class TasteProfileService {
                   return m;
                 })
             .toList());
+    profile.put(
+        "topGenres",
+        topGenres.stream()
+            .map(
+                row -> {
+                  Map<String, Object> m = new LinkedHashMap<>();
+                  m.put("name", row[0]);
+                  m.put("playCount", ((Number) row[1]).longValue());
+                  return m;
+                })
+            .toList());
     profile.put("avgSessionMinutes", Math.round(avgSessionMin));
     profile.put("lookbackDays", LOOKBACK_DAYS);
     return profile;
   }
 
-  private String generateSummary(Agg agg, List<Object[]> topArtists, double avgSessionMin) {
+  private String generateSummary(
+      Agg agg, List<Object[]> topArtists, List<Object[]> topGenres, double avgSessionMin) {
     var sb = new StringBuilder();
     if (!agg.bpm.isEmpty())
       sb.append(
@@ -165,6 +179,11 @@ public class TasteProfileService {
     if (!agg.valence.isEmpty())
       sb.append(" and ").append(describeValence(percentile(agg.valence, 50))).append(" mood");
     sb.append(".");
+    if (!topGenres.isEmpty()) {
+      var genreJoiner = new StringJoiner(", ");
+      topGenres.stream().limit(5).forEach(row -> genreJoiner.add((String) row[0]));
+      sb.append(" Top genres: ").append(genreJoiner).append(".");
+    }
     if (!topArtists.isEmpty()) {
       var joiner = new StringJoiner(", ");
       topArtists.stream().limit(5).forEach(row -> joiner.add((String) row[0]));

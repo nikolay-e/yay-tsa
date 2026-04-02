@@ -1,0 +1,43 @@
+{
+  "packageId": "com.yaytsa.app",
+  "host": "yay-tsa.com",
+  "name": "Yay-Tsa",
+  "launcherName": "Yay-Tsa",
+  "display": "standalone",
+  "themeColor": "#0F0F0F",
+  "themeColorDark": "#0F0F0F",
+  "navigationColor": "#0F0F0F",
+  "navigationColorDark": "#0F0F0F",
+  "navigationDividerColor": "#0F0F0F",
+  "navigationDividerColorDark": "#0F0F0F",
+  "backgroundColor": "#0F0F0F",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://yay-tsa.com/icons/icon-512.png",
+  "maskableIconUrl": "https://yay-tsa.com/icons/icon-512-maskable.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "yaytsa"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 5,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://yay-tsa.com/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.0.0"
+}

@@ -1,0 +1,44 @@
+#!/usr/bin/expect -f
+match_max 10000000
+set timeout -1
+
+if {[info exists env(KEYSTORE_PASSWORD)]} {
+    set ks_password $env(KEYSTORE_PASSWORD)
+} else {
+    puts stderr "Error: KEYSTORE_PASSWORD environment variable is not set"
+    exit 1
+}
+
+spawn bubblewrap build
+
+expect {
+    -re "install the JDK" {
+        send "y\r"
+        exp_continue
+    }
+    -re "install the Android SDK" {
+        send "y\r"
+        exp_continue
+    }
+    -re "(?i)terms and conditions" {
+        send "y\r"
+        exp_continue
+    }
+    -re "(?i)(regenerate your project|apply them to the project)" {
+        send "y\r"
+        exp_continue
+    }
+    -re "(?i)Password for the Key Store" {
+        send "$ks_password\r"
+        exp_continue
+    }
+    -re "(?i)Password for the Key" {
+        send "$ks_password\r"
+        exp_continue
+    }
+    -re "(?i)Please enter the password" {
+        send "$ks_password\r"
+        exp_continue
+    }
+    eof
+}

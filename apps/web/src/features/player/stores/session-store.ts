@@ -15,6 +15,8 @@ import { toast } from '@/shared/ui/Toast';
 import { usePlayerStore } from './player.store';
 
 const DJ_SESSION_KEY = 'yaytsa_dj_session';
+const MAX_REFRESH_ERRORS = 3;
+const MAX_QUEUE_SIZE = 100;
 
 interface SessionStoreState {
   activeSession: ListeningSession | null;
@@ -89,12 +91,15 @@ async function resolveAudioItems(tracks: AdaptiveQueueTrack[]): Promise<AudioIte
 
 let refreshDebounce = false;
 let restoreInProgress = false;
+let consecutiveRefreshErrors = 0;
 const lastSignalTimestamps = new Map<string, number>();
 
 export const useSessionStore = create<SessionStore>()((set, get) => ({
   ...initialState,
 
   startSession: async (seedTrackId?: string) => {
+    if (get().isStarting) return;
+
     const service = getDjService();
     if (!service) return;
 
@@ -162,6 +167,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       set({ isStarting: false });
     } catch (error) {
       log.player.error('Failed to restore DJ session', error);
+      saveSession(null);
       set({
         isStarting: false,
         error: error instanceof Error ? error : new Error(String(error)),
@@ -184,12 +190,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
         error: String(error),
       });
     }
+    consecutiveRefreshErrors = 0;
     saveSession(null);
     set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
     toast.add('info', 'DJ off, queue kept');
   },
 
   reset: () => {
+    consecutiveRefreshErrors = 0;
     saveSession(null);
     set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
   },
@@ -205,22 +213,53 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       await service.refreshQueue(activeSession.id);
       const djQueue = await service.getQueue(activeSession.id);
 
-      const existingIds = new Set(usePlayerStore.getState().queueItems.map(i => i.Id));
+      consecutiveRefreshErrors = 0;
+
+      const currentQueueItems = usePlayerStore.getState().queueItems;
+      const existingIds = new Set(currentQueueItems.map(i => i.Id));
       const newTracks = djQueue.filter(t => !existingIds.has(t.trackId));
-      if (newTracks.length > 0) {
-        const audioItems = await resolveAudioItems(newTracks);
-        if (audioItems.length > 0) {
-          usePlayerStore.getState().appendToQueue(audioItems);
+      const budget = MAX_QUEUE_SIZE - currentQueueItems.length;
+      if (newTracks.length > 0 && budget > 0) {
+        const playNextTracks = newTracks.filter(t => t.intentLabel === 'play_next');
+        const appendTracks = newTracks
+          .filter(t => t.intentLabel !== 'play_next')
+          .slice(0, Math.max(0, budget - playNextTracks.length));
+
+        const [playNextItems, appendItems] = await Promise.all([
+          playNextTracks.length > 0 ? resolveAudioItems(playNextTracks) : Promise.resolve([]),
+          appendTracks.length > 0 ? resolveAudioItems(appendTracks) : Promise.resolve([]),
+        ]);
+
+        if (playNextItems.length > 0) {
+          usePlayerStore.getState().insertNextInQueue(playNextItems);
+        }
+        if (appendItems.length > 0) {
+          usePlayerStore.getState().appendToQueue(appendItems);
         }
       }
-      set({ isRefreshing: false });
+      set({ isRefreshing: false, error: null });
     } catch (error) {
-      log.player.error('Failed to refresh queue', error);
+      consecutiveRefreshErrors++;
+      log.player.error(
+        `Failed to refresh queue (attempt ${consecutiveRefreshErrors}/${MAX_REFRESH_ERRORS})`,
+        error
+      );
+
+      if (consecutiveRefreshErrors >= MAX_REFRESH_ERRORS) {
+        log.player.error('DJ session appears dead, clearing session');
+        saveSession(null);
+        set({
+          isRefreshing: false,
+          activeSession: null,
+          error: new Error('DJ session expired'),
+        });
+        return;
+      }
+
       set({
         isRefreshing: false,
         error: error instanceof Error ? error : new Error(String(error)),
       });
-      toast.add('error', 'Failed to refresh DJ queue');
     } finally {
       refreshDebounce = false;
     }

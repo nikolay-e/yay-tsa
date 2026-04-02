@@ -13,7 +13,7 @@ import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepo
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +31,8 @@ public class RadioSeedService {
 
   private static final Logger log = LoggerFactory.getLogger(RadioSeedService.class);
   private static final int MIN_USER_TRACKS_FOR_SEEDS = 5;
-  private static final int OVERFETCH_SEEDS = 20;
-  private static final int MAX_SEEDS = 10;
-  private static final int MAX_PER_ARTIST = 2;
-  private static final Duration CACHE_TTL = Duration.ofHours(12);
+  private static final int SEED_CANDIDATES = 100;
+  private static final Duration CACHE_TTL = Duration.ofMinutes(30);
 
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final ItemRepository itemRepository;
@@ -102,72 +100,75 @@ public class RadioSeedService {
   }
 
   private List<UUID> computeSeedTrackIds(UUID userId) {
-    var userTracks = trackFeaturesRepository.findMertEmbeddingsForUserWithPositiveAffinity(userId);
-
-    List<RadioSeedClient.SeedTrackInput> trackInputs = new ArrayList<>();
-    for (var row : userTracks) {
-      UUID trackId = (UUID) row[0];
-      float[] embedding = parseEmbedding(row[1]);
-      double affinity = ((Number) row[2]).doubleValue();
-      if (embedding == null) continue;
-
-      trackInputs.add(
-          new RadioSeedClient.SeedTrackInput(
-              trackId.toString(), floatArrayToList(embedding), affinity));
-    }
+    List<RadioSeedClient.SeedTrackInput> trackInputs = buildSeedInputs(userId);
 
     if (trackInputs.size() >= MIN_USER_TRACKS_FOR_SEEDS) {
       List<RadioSeedClient.SeedResult> seeds =
-          radioSeedClient.computeSeeds(trackInputs, OVERFETCH_SEEDS);
+          radioSeedClient.computeSeeds(trackInputs, SEED_CANDIDATES);
       if (!seeds.isEmpty()) {
-        return seeds.stream().map(s -> UUID.fromString(s.trackId())).toList();
+        var result =
+            new ArrayList<>(seeds.stream().map(s -> UUID.fromString(s.trackId())).toList());
+        Collections.shuffle(result);
+        return result;
       }
       log.warn(
-          "ML seed service returned empty for user {} with {} embedded tracks, falling back to"
-              + " affinity",
+          "ML seed service returned empty for user {} with {} tracks, using direct list",
           userId,
           trackInputs.size());
     }
 
-    List<UUID> affinityTrackIds =
-        trackFeaturesRepository.findTopAffinityTrackIds(userId, OVERFETCH_SEEDS);
-    if (!affinityTrackIds.isEmpty()) {
-      log.info(
-          "Using top affinity tracks as radio seeds for user {} ({} tracks)",
-          userId,
-          affinityTrackIds.size());
-      return affinityTrackIds;
+    if (!trackInputs.isEmpty()) {
+      var result =
+          new ArrayList<>(trackInputs.stream().map(t -> UUID.fromString(t.trackId())).toList());
+      Collections.shuffle(result);
+      return result;
     }
 
-    var fallbackInputs = buildFallbackInputs();
-    if (fallbackInputs.size() < MIN_USER_TRACKS_FOR_SEEDS) {
-      log.info(
-          "Not enough embedded tracks for radio seeds: {} (need {})",
-          fallbackInputs.size(),
-          MIN_USER_TRACKS_FOR_SEEDS);
-      return List.of();
-    }
-
-    List<RadioSeedClient.SeedResult> seeds =
-        radioSeedClient.computeSeeds(fallbackInputs, OVERFETCH_SEEDS);
-    if (seeds.isEmpty()) {
-      return List.of();
-    }
-
-    return seeds.stream().map(s -> UUID.fromString(s.trackId())).toList();
+    log.info("No play history with embeddings for user {}, returning empty seeds", userId);
+    return List.of();
   }
 
-  private List<RadioSeedClient.SeedTrackInput> buildFallbackInputs() {
-    var allEmbedded = trackFeaturesRepository.findAllWithMertEmbedding();
-    List<RadioSeedClient.SeedTrackInput> inputs = new ArrayList<>();
-    for (var row : allEmbedded) {
+  private List<RadioSeedClient.SeedTrackInput> buildSeedInputs(UUID userId) {
+    var affinityTracks =
+        trackFeaturesRepository.findMertEmbeddingsForUserWithPositiveAffinity(userId);
+    List<RadioSeedClient.SeedTrackInput> trackInputs = new ArrayList<>();
+    Set<UUID> seenTrackIds = new HashSet<>();
+    for (var row : affinityTracks) {
       UUID trackId = (UUID) row[0];
       float[] embedding = parseEmbedding(row[1]);
+      double affinity = ((Number) row[2]).doubleValue();
       if (embedding == null) continue;
-      inputs.add(
-          new RadioSeedClient.SeedTrackInput(trackId.toString(), floatArrayToList(embedding), 1.0));
+      seenTrackIds.add(trackId);
+      trackInputs.add(
+          new RadioSeedClient.SeedTrackInput(
+              trackId.toString(), floatArrayToList(embedding), affinity));
     }
-    return inputs;
+    if (trackInputs.size() >= MIN_USER_TRACKS_FOR_SEEDS) {
+      log.info(
+          "Using {} radio affinity tracks as seed input for user {}", trackInputs.size(), userId);
+      return trackInputs;
+    }
+
+    var playHistoryTracks =
+        trackFeaturesRepository.findMertEmbeddingsForUserPlayHistory(userId, 200);
+    for (var row : playHistoryTracks) {
+      UUID trackId = (UUID) row[0];
+      if (seenTrackIds.contains(trackId)) continue;
+      float[] embedding = parseEmbedding(row[1]);
+      double affinity = ((Number) row[2]).doubleValue();
+      if (embedding == null) continue;
+      seenTrackIds.add(trackId);
+      trackInputs.add(
+          new RadioSeedClient.SeedTrackInput(
+              trackId.toString(), floatArrayToList(embedding), affinity));
+    }
+    if (!trackInputs.isEmpty()) {
+      log.info(
+          "Using {} combined seed input tracks for user {} (affinity + play history)",
+          trackInputs.size(),
+          userId);
+    }
+    return trackInputs;
   }
 
   private RadioSeedsResponse enrichSeeds(List<UUID> seedTrackIds) {
@@ -175,13 +176,10 @@ public class RadioSeedService {
         itemRepository.findAllById(seedTrackIds).stream()
             .collect(Collectors.toMap(ItemEntity::getId, i -> i));
 
-    Map<String, Integer> artistCount = new HashMap<>();
     Set<UUID> albumsSeen = new HashSet<>();
     List<RadioSeed> enriched = new ArrayList<>();
 
     for (UUID trackId : seedTrackIds) {
-      if (enriched.size() >= MAX_SEEDS) break;
-
       ItemEntity track = itemsById.get(trackId);
       if (track == null) continue;
 
@@ -193,12 +191,6 @@ public class RadioSeedService {
       String artistName = null;
       if (album != null && album.getParent() != null) {
         artistName = album.getParent().getName();
-      }
-
-      if (artistName != null) {
-        int count = artistCount.getOrDefault(artistName, 0);
-        if (count >= MAX_PER_ARTIST) continue;
-        artistCount.put(artistName, count + 1);
       }
 
       String albumName = album != null ? album.getName() : null;

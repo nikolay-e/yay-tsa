@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { PlaybackSignal, SignalType, SignalContext } from '@yay-tsa/core';
+import { currentTimeOfDay } from '@/shared/utils/time';
 import { usePlayerStore } from '../stores/player.store';
 import { useTimingStore } from '../stores/playback-timing.store';
 import { useSessionStore } from '../stores/session-store';
@@ -8,14 +9,6 @@ const SKIP_EARLY_THRESHOLD = 0.25;
 const SKIP_LATE_THRESHOLD = 0.75;
 const VOLUME_DEBOUNCE_MS = 2000;
 const PAUSE_LONG_THRESHOLD_MS = 30000;
-
-function currentTimeOfDay(): string {
-  const hour = new Date().getHours();
-  if (hour < 6) return 'night';
-  if (hour < 12) return 'morning';
-  if (hour < 18) return 'afternoon';
-  return 'evening';
-}
 
 function buildContext(
   positionPct: number,

@@ -6,12 +6,16 @@ import com.yaytsa.server.error.ResourceNotFoundException;
 import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.GenreRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ListeningSessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,16 +23,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ListeningSessionService {
 
+  private static final Logger log = LoggerFactory.getLogger(ListeningSessionService.class);
+
   private final ListeningSessionRepository sessionRepository;
   private final UserRepository userRepository;
+  private final GenreRepository genreRepository;
   private final ObjectMapper objectMapper;
 
   public ListeningSessionService(
       ListeningSessionRepository sessionRepository,
       UserRepository userRepository,
+      GenreRepository genreRepository,
       ObjectMapper objectMapper) {
     this.sessionRepository = sessionRepository;
     this.userRepository = userRepository;
+    this.genreRepository = genreRepository;
     this.objectMapper = objectMapper;
   }
 
@@ -50,6 +59,12 @@ public class ListeningSessionService {
     session.setState(serializeJson(stateMap));
     applyTypedFields(session, stateMap);
     session.setSeedTrackId(seedTrackId);
+    if (seedTrackId != null) {
+      List<String> genres = genreRepository.findGenreNamesByItemId(seedTrackId);
+      if (!genres.isEmpty()) {
+        session.setSeedGenres(genres.toArray(String[]::new));
+      }
+    }
     session.setStartedAt(OffsetDateTime.now());
     session.setLastActivityAt(OffsetDateTime.now());
 
@@ -109,6 +124,20 @@ public class ListeningSessionService {
             .orElseThrow(
                 () -> new ResourceNotFoundException(ResourceType.ListeningSession, sessionId));
     return session.getUser().getId();
+  }
+
+  @Scheduled(fixedDelay = 3600_000)
+  public void cleanupStaleSessions() {
+    OffsetDateTime cutoff = OffsetDateTime.now().minusHours(24);
+    List<ListeningSessionEntity> stale = sessionRepository.findStaleSessions(cutoff);
+    if (!stale.isEmpty()) {
+      OffsetDateTime now = OffsetDateTime.now();
+      for (ListeningSessionEntity s : stale) {
+        s.setEndedAt(now);
+      }
+      sessionRepository.saveAll(stale);
+      log.info("Cleaned up {} stale DJ sessions (inactive >24h)", stale.size());
+    }
   }
 
   private void applyTypedFields(ListeningSessionEntity session, Map<String, Object> stateMap) {

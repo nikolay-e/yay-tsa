@@ -18,6 +18,7 @@ import {
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
 import { PlaybackController, withTimeout } from './playback-controller';
 import { PreloadManager } from './preload-manager';
@@ -63,6 +64,7 @@ interface PlayerActions {
   clearSleepTimer: () => void;
   updateCurrentTrackLyrics: (lyrics: string) => void;
   appendToQueue: (tracks: AudioItem[]) => void;
+  insertNextInQueue: (tracks: AudioItem[]) => void;
   jumpToQueueTrack: (trackId: string) => Promise<void>;
 }
 
@@ -222,6 +224,7 @@ export const usePlayerStore = create<PlayerStore>()(
         clearSleepTimer: () => {},
         updateCurrentTrackLyrics: () => {},
         appendToQueue: () => {},
+        insertNextInQueue: () => {},
         jumpToQueueTrack: async () => {},
       };
     }
@@ -1020,6 +1023,17 @@ export const usePlayerStore = create<PlayerStore>()(
         schedulePreload();
       },
 
+      insertNextInQueue: (tracks: AudioItem[]) => {
+        if (tracks.length === 0) return;
+        const { queue, queueIndex } = get();
+        for (let i = 0; i < tracks.length; i++) {
+          queue.insertAt(tracks[i]!, queueIndex + 1 + i);
+        }
+        syncQueueState();
+        preloader.invalidate();
+        schedulePreload();
+      },
+
       jumpToQueueTrack: async (trackId: string) => {
         await controller.interrupt(async signal => {
           const { queue } = get();
@@ -1043,12 +1057,6 @@ export const usePlayerStore = create<PlayerStore>()(
           const sessionState = useSessionStore.getState();
           if (sessionState.activeSession) {
             const remaining = items.length - targetIndex - 1;
-            const hour = new Date().getHours();
-            let timeOfDay: string;
-            if (hour < 6) timeOfDay = 'night';
-            else if (hour < 12) timeOfDay = 'morning';
-            else if (hour < 18) timeOfDay = 'afternoon';
-            else timeOfDay = 'evening';
             sessionState
               .sendSignal({
                 signalType: 'QUEUE_JUMP',
@@ -1058,7 +1066,7 @@ export const usePlayerStore = create<PlayerStore>()(
                   elapsedSec: 0,
                   autoplay: false,
                   selectedByUser: true,
-                  timeOfDay,
+                  timeOfDay: currentTimeOfDay(),
                 },
               })
               .catch(() => {});

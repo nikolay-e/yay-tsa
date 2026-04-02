@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -30,13 +31,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdaptiveQueueService {
 
   private static final Logger log = LoggerFactory.getLogger(AdaptiveQueueService.class);
-  private static final long LLM_COOLDOWN_MS = 120_000L;
 
-  private final Cache<UUID, Long> lastLlmAttemptMs =
-      Caffeine.newBuilder()
-          .expireAfterWrite(LLM_COOLDOWN_MS + 10_000, TimeUnit.MILLISECONDS)
-          .maximumSize(500)
-          .build();
+  private final long llmCooldownMs;
+
+  private final Cache<UUID, Long> lastLlmAttemptMs;
+
+  private final Cache<UUID, DjSessionParams> lastSessionParams =
+      Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(500).build();
 
   private final AdaptiveQueueRepository queueRepository;
   private final ListeningSessionRepository sessionRepository;
@@ -51,13 +52,20 @@ public class AdaptiveQueueService {
       UserPreferenceContractRepository contractRepository,
       LlmSessionParamService llmSessionParamService,
       FallbackQueueService fallbackQueueService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      @Value("${yaytsa.adaptive-dj.llm-cooldown-ms:120000}") long llmCooldownMs) {
     this.queueRepository = queueRepository;
     this.sessionRepository = sessionRepository;
     this.contractRepository = contractRepository;
     this.llmSessionParamService = llmSessionParamService;
     this.fallbackQueueService = fallbackQueueService;
     this.objectMapper = objectMapper;
+    this.llmCooldownMs = llmCooldownMs;
+    this.lastLlmAttemptMs =
+        Caffeine.newBuilder()
+            .expireAfterWrite(llmCooldownMs + 10_000, TimeUnit.MILLISECONDS)
+            .maximumSize(500)
+            .build();
   }
 
   public List<AdaptiveQueueEntity> getQueue(UUID sessionId) {
@@ -101,43 +109,80 @@ public class AdaptiveQueueService {
     long now = System.currentTimeMillis();
     Long lastAttempt = lastLlmAttemptMs.getIfPresent(session.getId());
     boolean coolingDown =
-        !manualRefresh && lastAttempt != null && (now - lastAttempt) < LLM_COOLDOWN_MS;
+        !manualRefresh && lastAttempt != null && (now - lastAttempt) < llmCooldownMs;
 
     Optional<DjSessionParams> params = Optional.empty();
+    int currentQueueSize = currentQueue.size();
     if (!coolingDown) {
       lastLlmAttemptMs.put(session.getId(), now);
 
-      params = llmSessionParamService.generateSessionParams(session, triggerType, triggerSignal);
+      params =
+          llmSessionParamService.generateSessionParams(
+              session, triggerType, triggerSignal, currentQueueSize);
     } else {
       log.debug(
           "LLM cooldown active for session {}, {}s remaining",
           session.getId(),
-          (LLM_COOLDOWN_MS - (now - lastAttempt)) / 1000);
+          (llmCooldownMs - (now - lastAttempt)) / 1000);
     }
 
     if (params.isPresent()) {
       var p = params.get();
+      lastSessionParams.put(session.getId(), p);
       log.info(
-          "LLM session params for session {}: energy={}, valence={}, exploration={}, arc={}",
+          "LLM session params for session {}: energy={}, valence={}, exploration={}, arc={},"
+              + " preferGenres={}, targetQueueSize={}, insertNextCount={}",
           session.getId(),
           p.targetEnergy(),
           p.targetValence(),
           p.explorationWeight(),
-          p.arc());
+          p.arc(),
+          p.preferGenres(),
+          p.targetQueueSize(),
+          p.insertNextCount());
       persistSessionSummary(session.getId(), p.sessionSummaryUpdate());
       fillQueueWithRetry(
           session,
           p.targetEnergy(),
           p.targetValence(),
           p.explorationWeight(),
-          Set.copyOf(p.avoidArtists()));
+          Set.copyOf(p.avoidArtists()),
+          p.preferGenres(),
+          p.avoidGenres(),
+          p.targetQueueSize(),
+          p.insertNextCount());
     } else {
-      float exploration = resolveExplorationWeight(session.getUser().getId());
-      log.info(
-          "LLM unavailable, using djStyle-derived exploration={} for session {}",
-          exploration,
-          session.getId());
-      fillQueueWithRetry(session, 0.5f, 0.5f, exploration, Set.of());
+      DjSessionParams cached = lastSessionParams.getIfPresent(session.getId());
+      if (cached != null) {
+        log.info("Reusing cached LLM params for session {}", session.getId());
+        fillQueueWithRetry(
+            session,
+            cached.targetEnergy(),
+            cached.targetValence(),
+            cached.explorationWeight(),
+            Set.copyOf(cached.avoidArtists()),
+            cached.preferGenres(),
+            cached.avoidGenres(),
+            cached.targetQueueSize(),
+            cached.insertNextCount());
+      } else {
+        float exploration = resolveExplorationWeight(session.getUser().getId());
+        log.info(
+            "LLM unavailable and no cached params, using djStyle-derived exploration={} for"
+                + " session {}",
+            exploration,
+            session.getId());
+        fillQueueWithRetry(
+            session,
+            0.5f,
+            0.5f,
+            exploration,
+            Set.of(),
+            session.getSeedGenreList(),
+            List.of(),
+            40,
+            0);
+      }
     }
   }
 
@@ -146,11 +191,23 @@ public class AdaptiveQueueService {
       float targetEnergy,
       float targetValence,
       float explorationWeight,
-      Set<String> avoidArtists) {
+      Set<String> avoidArtists,
+      List<String> preferGenres,
+      List<String> avoidGenres,
+      int dynamicQueueSize,
+      int insertNextCount) {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
         return fallbackQueueService.fillQueue(
-            session, targetEnergy, targetValence, explorationWeight, avoidArtists);
+            session,
+            targetEnergy,
+            targetValence,
+            explorationWeight,
+            avoidArtists,
+            preferGenres,
+            avoidGenres,
+            dynamicQueueSize,
+            insertNextCount);
       } catch (DataIntegrityViolationException e) {
         log.warn(
             "Queue fill version conflict attempt {} for session {}", attempt + 1, session.getId());

@@ -239,6 +239,24 @@ validate_backend_url "${BACKEND_URL}" || {
   exit 1
 }
 
+# Copy assetlinks.json to writable volume (root filesystem is read-only in K8s)
+# Nginx serves this via alias from /var/cache/nginx/
+ASSETLINKS_SRC="/usr/share/nginx/html/.well-known/assetlinks.json"
+ASSETLINKS_DST="/var/cache/nginx/assetlinks.json"
+if [[ -f "$ASSETLINKS_SRC" ]]; then
+  cp "$ASSETLINKS_SRC" "$ASSETLINKS_DST"
+  if [[ -n "$ANDROID_CERT_SHA256" ]]; then
+    if ! printf '%s' "$ANDROID_CERT_SHA256" | grep -qE '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31}$'; then
+      echo "ERROR: ANDROID_CERT_SHA256 must be a SHA-256 fingerprint (XX:XX:...:XX format)" >&2
+      exit 1
+    fi
+    sed -i "s#__ANDROID_CERT_SHA256__#$ANDROID_CERT_SHA256#g" "$ASSETLINKS_DST"
+    echo "INFO: Injected Android certificate fingerprint into assetlinks.json"
+  else
+    echo "INFO: ANDROID_CERT_SHA256 not set, assetlinks.json served with placeholder"
+  fi
+fi
+
 # Generate nginx.conf from template with CSP hash, domain, backend URL, and media path substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs
 sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \

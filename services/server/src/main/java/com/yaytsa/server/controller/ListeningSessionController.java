@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.domain.service.AdaptiveQueueService;
 import com.yaytsa.server.domain.service.ListeningSessionService;
+import com.yaytsa.server.domain.service.RadioSeedService;
 import com.yaytsa.server.dto.request.CreateListeningSessionRequest;
 import com.yaytsa.server.dto.request.UpdateSessionStateRequest;
 import com.yaytsa.server.dto.response.ListeningSessionResponse;
@@ -24,16 +25,19 @@ public class ListeningSessionController {
 
   private final ListeningSessionService sessionService;
   private final AdaptiveQueueService adaptiveQueueService;
+  private final RadioSeedService radioSeedService;
   private final ObjectMapper objectMapper;
   private final Executor applicationTaskExecutor;
 
   public ListeningSessionController(
       ListeningSessionService sessionService,
       AdaptiveQueueService adaptiveQueueService,
+      RadioSeedService radioSeedService,
       ObjectMapper objectMapper,
       @Qualifier("applicationTaskExecutor") Executor applicationTaskExecutor) {
     this.sessionService = sessionService;
     this.adaptiveQueueService = adaptiveQueueService;
+    this.radioSeedService = radioSeedService;
     this.objectMapper = objectMapper;
     this.applicationTaskExecutor = applicationTaskExecutor;
   }
@@ -67,7 +71,9 @@ public class ListeningSessionController {
   public ResponseEntity<ListeningSessionResponse> endSession(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
     verifyOwnership(id, user);
-    return ResponseEntity.ok(toResponse(sessionService.endSession(id)));
+    var response = toResponse(sessionService.endSession(id));
+    radioSeedService.invalidateCacheForUser(user.getUserEntity().getId());
+    return ResponseEntity.ok(response);
   }
 
   @GetMapping("/active")

@@ -68,3 +68,6 @@ CURRENT.md
 services/server/logs/
 services/server/media/
 __pycache__/
+
+# Android APK builds (placed here before Docker build, not tracked in git)
+apps/web/public/downloads/*.apk

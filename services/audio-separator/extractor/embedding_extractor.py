@@ -122,7 +122,10 @@ class DualEmbeddingExtractor:
         with self._torch.no_grad():
             text_features = self._clap_model.get_text_features(**inputs)
 
-        embedding = text_features[0].cpu().numpy()
+        if hasattr(text_features, "pooler_output"):
+            embedding = text_features.pooler_output[0].cpu().numpy()
+        else:
+            embedding = text_features[0].cpu().numpy()
         embedding = embedding / (np.linalg.norm(embedding) + 1e-9)
         return embedding.tolist()
 
@@ -144,7 +147,13 @@ class DualEmbeddingExtractor:
                 )
                 with self._torch.no_grad():
                     audio_features = self._clap_model.get_audio_features(**inputs)
-                embeddings.append(audio_features[0].cpu().numpy().flatten())
+                if hasattr(audio_features, "pooler_output"):
+                    emb = audio_features.pooler_output[0].cpu().numpy()
+                else:
+                    emb = audio_features[0].cpu().numpy()
+                if emb.ndim > 1:
+                    emb = emb.mean(axis=0)
+                embeddings.append(emb)
 
             mean_embedding = np.mean(embeddings, axis=0).flatten()
             mean_embedding = mean_embedding / (np.linalg.norm(mean_embedding) + 1e-9)
