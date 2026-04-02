@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   Play,
@@ -106,7 +107,7 @@ export function MobileFullPlayer({
   const albumName = track.Album ?? '';
   const [showLyrics, setShowLyrics] = useState(false);
 
-  return (
+  return createPortal(
     <div className="bg-bg-primary fixed inset-0 z-[140] flex flex-col md:hidden">
       {/* Header */}
       <div className="pt-safe flex items-center justify-between px-4 py-3">
@@ -270,6 +271,7 @@ export function MobileFullPlayer({
           )}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
