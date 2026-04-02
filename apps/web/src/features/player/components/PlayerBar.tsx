@@ -203,6 +203,14 @@ export function PlayerBar() {
   };
 
   useEffect(() => {
+    if (!showFullPlayer) return;
+    history.pushState(null, '');
+    const handlePopState = () => setShowFullPlayer(false);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showFullPlayer]);
+
+  useEffect(() => {
     if (playerError) {
       toast.add('error', `Playback error: ${playerError.message}`);
     }
