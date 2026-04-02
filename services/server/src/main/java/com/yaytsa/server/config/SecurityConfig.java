@@ -92,18 +92,9 @@ public class SecurityConfig {
         .headers(
             headers ->
                 headers
-                    .referrerPolicy(
-                        referrer ->
-                            referrer.policy(
-                                org.springframework.security.web.header.writers
-                                    .ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN))
                     .contentTypeOptions(
                         org.springframework.security.config.Customizer.withDefaults())
-                    .frameOptions(frame -> frame.deny())
-                    .httpStrictTransportSecurity(
-                        hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
-                    .permissionsPolicy(
-                        pp -> pp.policy("camera=(), microphone=(), geolocation=(), payment=()")))
+                    .frameOptions(frame -> frame.deny()))
         .authorizeHttpRequests(
             auth ->
                 auth.dispatcherTypeMatchers(DispatcherType.ASYNC)

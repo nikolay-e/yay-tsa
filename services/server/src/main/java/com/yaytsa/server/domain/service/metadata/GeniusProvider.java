@@ -19,14 +19,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
-/**
- * Genius metadata provider.
- *
- * <p>Queries Genius API for track information. Genius has excellent coverage for modern music,
- * especially hip-hop, pop, and Russian artists. Also provides lyrics.
- *
- * <p>Free API access: https://genius.com/api-clients
- */
 @Component
 public class GeniusProvider implements MetadataProvider {
 

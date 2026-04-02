@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-Yay-Tsa is a self-hosted music streaming system: a custom Jellyfin-compatible media server written in Java paired with a portable React PWA client. The project is structured as an npm workspaces monorepo for the frontend layers, with a separate Maven backend and an optional Python karaoke service.
+Yay-Tsa is a self-hosted music streaming system: a custom media server implementing Jellyfin's music API subset, written in Java, paired with a React PWA client. The project is structured as an npm workspaces monorepo for the frontend layers, with a separate Maven backend and an optional Python karaoke service.
 
 The system is designed around two hard problems: **fast, flexible queries over large music libraries** and **correct, efficient audio streaming with seek support**.
 
@@ -83,7 +83,7 @@ Jellyfin is a monolithic media server supporting video, TV, movies, music, and b
 
 **Reasons for building from scratch**:
 
-- **Scope reduction**: Music-only design eliminates 80% of Jellyfin's complexity. Fewer moving parts means fewer bugs, faster queries, and a smaller operational footprint (~5MB jar vs ~1GB Jellyfin).
+- **Scope reduction**: Music-only design eliminates video/TV/movie complexity. Fewer moving parts means fewer bugs, faster queries, and a smaller operational footprint.
 - **Query optimization**: Custom PostgreSQL schema with trigram indexes for fuzzy search, composite indexes tuned for the exact filter combinations the UI uses, and JPA Specifications for type-safe dynamic queries. Jellyfin's generic item store can't be this selective.
 - **Token model**: Device-bound opaque tokens with immediate revocation instead of stateless JWTs. For a single-service deployment, server-validated tokens are operationally safer and simpler. JWT can be introduced later if cross-service validation becomes a requirement.
 - **Virtual threads**: Java 21 virtual threads (JEP 444) enable thread-per-request that scales blocking I/O (filesystem, JDBC, FFmpeg) without reactive complexity. Imperative code with real stack traces, comparable throughput to async for I/O-bound workloads.
@@ -107,43 +107,24 @@ Vocal-instrumental separation is provided by an optional sidecar service running
 
 **Why a separate service**: The ML model requires ~5GB download and 4GB RAM. Making it optional (Docker Compose profile) means the core system stays lightweight. GPU acceleration is supported but not required — ARM-native CPU mode works on Apple Silicon.
 
-## Technology Choices and Trade-offs
+## Technology Stack
 
-### Frontend: React 19 + Zustand + Tailwind
+- **Frontend**: React 19, Zustand, TanStack Query, Tailwind CSS 4, React Router 7, Vite
+- **Backend**: Java 21 (virtual threads), Spring Boot 3.3, Spring Data JPA + Specifications, PostgreSQL 15+ (trigram, pgvector), Flyway, Caffeine, jaudiotagger, FFmpeg
+- **Auth**: Opaque device-bound tokens (not JWT) — immediate revocation, no cross-service validation needed
+- **ML/Experimental**: MERT/CLAP embeddings, Demucs vocal separation, Claude Haiku DJ (all optional)
 
-| Decision     | Choice               | Alternative Considered         | Reasoning                                                                                                                                                                     |
-| ------------ | -------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework    | React 19             | Svelte                         | Mature ecosystem (React Router 7, TanStack Query), larger community, team familiarity. Svelte would save ~40KB but the <150KB target is achievable with React.                |
-| State        | Zustand              | Redux, Context                 | 2KB bundle, minimal boilerplate, per-store granularity with selective subscriptions, no provider wrapping. Redux is overkill; Context requires restructuring for performance. |
-| Styling      | Tailwind CSS 4       | CSS Modules, styled-components | Utility-first with tree-shaking, @tailwindcss/vite plugin for zero-config integration. No runtime CSS-in-JS overhead.                                                         |
-| Routing      | React Router 7       | TanStack Router                | Proven SPA routing with lazy loading, route guards via wrapper components, and seamless integration with auth store.                                                          |
-| Server Cache | TanStack React Query | SWR, manual fetch              | Built-in infinite pagination, cache deduplication, stale-while-revalidate, and query key invalidation. Clean separation from client state in Zustand.                         |
-| Icons        | lucide-react         | heroicons, custom SVG          | Tree-shakeable, consistent design language. Split into separate vendor chunk to keep main bundle small.                                                                       |
+### API: Jellyfin Music Subset
 
-### Backend: Java 21 + Spring Boot 3.3 + PostgreSQL
+Implements the Jellyfin HTTP API subset used by music clients: auth, library browsing, audio streaming, sessions, favorites, playlists. PascalCase parameter names for wire compatibility.
 
-| Decision    | Choice                           | Alternative Considered | Reasoning                                                                                                                                                         |
-| ----------- | -------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Concurrency | Virtual threads                  | Reactive (WebFlux)     | Imperative code is simpler, has real stack traces, and shows comparable throughput for I/O-bound workloads. Reactive only justified with evidence of bottlenecks. |
-| Persistence | Spring Data JPA + Specifications | QueryDSL, raw JPQL     | Type-safe dynamic filters with built-in pagination/sorting. Less boilerplate than alternatives.                                                                   |
-| Database    | PostgreSQL 15+ only              | Multi-DB support       | Leverages PostgreSQL-specific features (trigram, recursive CTE, CITEXT, partial indexes) that generic SQL can't express.                                          |
-| Auth tokens | Opaque server-stored             | JWT                    | Immediate revocation, device binding, no client-side tampering. Single-service deployment doesn't need stateless tokens.                                          |
-| Migrations  | Flyway                           | Liquibase              | Simpler SQL-first approach. Repeatable and deterministic.                                                                                                         |
-| Tag parsing | jaudiotagger                     | FFprobe                | Reliable multi-format parsing (MP3, FLAC, M4A, OGG). Widely used in MusicBrainz ecosystem.                                                                        |
-| Transcoding | FFmpeg (external process)        | Java library           | De facto standard. Process isolation simplifies failure handling — kill on disconnect, cap concurrency, return 503 when saturated.                                |
-| Caching     | Caffeine                         | Redis, Hazelcast       | In-process near-cache with short TTL. No infrastructure overhead for single-instance deployment.                                                                  |
+**Key contract details**:
 
-### API Compatibility: Jellyfin Surface
-
-The API implements the subset of Jellyfin's HTTP API that music clients use: authentication (`/Users/AuthenticateByName`), library browsing (`/Items` with filters), audio streaming (`/Audio/{id}/stream` with byte-range), playback sessions, favorites, and playlists. PascalCase parameter names maintain wire compatibility.
-
-**Critical API contract details**:
-
-- `Recursive: true` is mandatory for library queries — without it, only immediate children are returned (Jellyfin legacy behavior)
-- Stream URLs pass `api_key` as query parameter because browsers don't send headers for `<audio src="">` requests
+- `Recursive: true` is mandatory for library queries
+- Stream URLs pass `api_key` as query parameter (browsers don't send headers for `<audio src="">`)
 - Time positions use Jellyfin's 100-nanosecond "ticks" format (multiply seconds by 10,000,000)
-- `maxStreamingBitrate` parameter must never be sent — it triggers HTTP 500 on some server configurations
-- `Fields` parameter controls response expansion (genres, images) to minimize N+1 queries and payload size
+- `maxStreamingBitrate` must never be sent — triggers HTTP 500
+- `Fields` controls response expansion to minimize N+1 queries
 
 ## Security Model
 

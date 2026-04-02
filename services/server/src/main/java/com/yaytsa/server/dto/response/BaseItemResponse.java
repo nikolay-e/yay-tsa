@@ -5,13 +5,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Base item response matching Jellyfin API specification. This represents all media items:
- * AudioTrack, MusicAlbum, MusicArtist, etc.
- *
- * <p>CRITICAL: Field names MUST use PascalCase to match Jellyfin API! CRITICAL: Time durations use
- * TICKS (10,000,000 ticks = 1 second)!
- */
 public record BaseItemResponse(
     // Core identification
     @JsonProperty("Name") String name,
@@ -134,10 +127,8 @@ public record BaseItemResponse(
     // ReplayGain normalization gain in dB (track gain, null if not available)
     @JsonProperty("NormalizationGain") Double normalizationGain) {
 
-  /** Name-GUID pair for artists, genres, etc. */
   public record NameGuidPair(@JsonProperty("Name") String name, @JsonProperty("Id") String id) {}
 
-  /** User-specific item data (play state, favorite status, etc.) */
   public record UserItemDataDto(
       @JsonProperty("Rating") Double rating,
       @JsonProperty("PlayedPercentage") Double playedPercentage,
@@ -151,7 +142,6 @@ public record BaseItemResponse(
       @JsonProperty("Key") String key,
       @JsonProperty("ItemId") String itemId) {}
 
-  /** Media stream information */
   public record MediaStreamDto(
       @JsonProperty("Codec") String codec,
       @JsonProperty("CodecTag") String codecTag,
@@ -172,7 +162,6 @@ public record BaseItemResponse(
       @JsonProperty("IsTextSubtitleStream") Boolean isTextSubtitleStream,
       @JsonProperty("SupportsExternalStream") Boolean supportsExternalStream) {}
 
-  /** Media source information */
   public record MediaSourceInfoDto(
       @JsonProperty("Protocol") String protocol,
       @JsonProperty("Id") String id,
@@ -197,7 +186,6 @@ public record BaseItemResponse(
       @JsonProperty("DefaultAudioStreamIndex") Integer defaultAudioStreamIndex,
       @JsonProperty("DefaultSubtitleStreamIndex") Integer defaultSubtitleStreamIndex) {}
 
-  /** Chapter information */
   public record ChapterInfoDto(
       @JsonProperty("StartPositionTicks") Long startPositionTicks,
       @JsonProperty("Name") String name,
@@ -530,7 +518,6 @@ public record BaseItemResponse(
     }
   }
 
-  /** Create a minimal audio track item */
   public static BaseItemResponse audioTrack(
       String id,
       String name,
@@ -625,7 +612,6 @@ public record BaseItemResponse(
         );
   }
 
-  /** Create a minimal album item */
   public static BaseItemResponse album(
       String id,
       String name,

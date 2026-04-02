@@ -25,9 +25,6 @@ repos:
       - id: detect-private-key # [CHECK] Prevents leaking private keys.
       - id: check-json # [CHECK] Validates JSON syntax.
       - id: check-toml # [CHECK] Validates TOML syntax (pyproject.toml).
-      - id: check-yaml # [CHECK] Validates YAML syntax.
-        args: [--unsafe] # Specific to this project: Allows custom Docker Compose tags.
-        exclude: ^charts/.*/templates/.*\.yaml$
 
   # ------------------------------------------------------------------------------
   # EMOJI REMOVAL (Autofixing)

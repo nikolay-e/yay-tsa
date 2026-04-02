@@ -152,7 +152,6 @@ http {
         # APK downloads - force download with proper headers
         location = /downloads/yay-tsa.apk {
             add_header Content-Disposition 'attachment; filename="yay-tsa.apk"';
-            add_header X-Content-Type-Options "nosniff" always;
             expires 7d;
             add_header Cache-Control "public, max-age=604800";
             include /var/cache/nginx/security-headers.conf;

@@ -11,24 +11,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/**
- * Audio fingerprinting service using Chromaprint (AcoustID).
- *
- * <p>Generates acoustic fingerprints for audio files to detect duplicates, remixes, sped-up/slowed
- * versions. Uses fpcalc CLI tool from Chromaprint library.
- *
- * <p>Install: - Debian/Ubuntu: apt-get install libchromaprint-tools - Windows: Download from
- * https://acoustid.org/chromaprint - macOS: brew install chromaprint
- */
 @Service
 public class AudioFingerprintService {
 
   private static final Logger log = LoggerFactory.getLogger(AudioFingerprintService.class);
 
   private static final int COMMAND_TIMEOUT_SECONDS = 30;
-  private static final double SIMILARITY_THRESHOLD = 0.90; // 90% match = duplicate
-  private static final double SPED_UP_THRESHOLD = 1.15; // >15% faster = sped up
-  private static final double SLOWED_DOWN_THRESHOLD = 0.85; // >15% slower = slowed
 
   private final String fpcalcPath;
 
@@ -38,21 +26,8 @@ public class AudioFingerprintService {
     this.fpcalcAvailable = checkFpcalcAvailable();
   }
 
-  /**
-   * Audio fingerprint result.
-   *
-   * @param fingerprint Chromaprint fingerprint (base64 encoded)
-   * @param duration Track duration in seconds
-   * @param sampleRate Audio sample rate
-   */
   public record AudioFingerprint(String fingerprint, double duration, int sampleRate) {
 
-    /**
-     * Calculates similarity with another fingerprint (0.0 - 1.0).
-     *
-     * @param other Other fingerprint to compare
-     * @return Similarity score (1.0 = identical)
-     */
     // TODO: Replace Levenshtein with proper Chromaprint bitwise comparison for production use
     public double similarity(AudioFingerprint other) {
       if (fingerprint == null || other.fingerprint == null) {
@@ -70,28 +45,6 @@ public class AudioFingerprintService {
       if (maxLen == 0) return 1.0;
 
       return 1.0 - ((double) distance / maxLen);
-    }
-
-    /**
-     * Detects if this is a sped-up or slowed version of another track.
-     *
-     * @param other Original track fingerprint
-     * @return Variant type: "original", "sped-up", "slowed"
-     */
-    public String detectVariant(AudioFingerprint other) {
-      if (other == null || other.duration == 0) {
-        return "original";
-      }
-
-      double durationRatio = this.duration / other.duration;
-
-      if (durationRatio < SLOWED_DOWN_THRESHOLD) {
-        return "sped-up";
-      } else if (durationRatio > SPED_UP_THRESHOLD) {
-        return "slowed";
-      }
-
-      return "original";
     }
 
     private int levenshteinDistance(String s1, String s2) {
@@ -116,43 +69,6 @@ public class AudioFingerprintService {
     }
   }
 
-  /**
-   * Duplicate detection result.
-   *
-   * @param isDuplicate Whether file is a duplicate
-   * @param similarity Similarity score (0.0-1.0)
-   * @param variant Track variant type
-   * @param suggestedSuffix Suggested suffix for title (e.g., " (sped up)")
-   */
-  public record DuplicateCheckResult(
-      boolean isDuplicate, double similarity, String variant, String suggestedSuffix) {
-
-    public static DuplicateCheckResult notDuplicate() {
-      return new DuplicateCheckResult(false, 0.0, "original", "");
-    }
-
-    public static DuplicateCheckResult exactDuplicate(double similarity) {
-      return new DuplicateCheckResult(true, similarity, "original", "");
-    }
-
-    public static DuplicateCheckResult variant(String variantType, double similarity) {
-      String suffix =
-          switch (variantType) {
-            case "sped-up" -> " (sped up)";
-            case "slowed" -> " (slowed)";
-            default -> "";
-          };
-
-      return new DuplicateCheckResult(false, similarity, variantType, suffix);
-    }
-  }
-
-  /**
-   * Generates acoustic fingerprint for audio file.
-   *
-   * @param audioFile Path to audio file
-   * @return Fingerprint or empty if generation failed
-   */
   public Optional<AudioFingerprint> generateFingerprint(Path audioFile) {
     if (!isFingerprintingEnabled()) {
       log.debug("Audio fingerprinting is disabled (fpcalc not available)");
@@ -202,49 +118,6 @@ public class AudioFingerprintService {
     }
   }
 
-  /**
-   * Checks if new file is a duplicate of existing track.
-   *
-   * @param newFingerprint New file fingerprint
-   * @param existingFingerprint Existing track fingerprint
-   * @return Duplicate check result
-   */
-  public DuplicateCheckResult checkDuplicate(
-      AudioFingerprint newFingerprint, AudioFingerprint existingFingerprint) {
-
-    if (newFingerprint == null || existingFingerprint == null) {
-      return DuplicateCheckResult.notDuplicate();
-    }
-
-    double similarity = newFingerprint.similarity(existingFingerprint);
-
-    log.debug(
-        "Fingerprint similarity: {}% (threshold: {}%)",
-        similarity * 100, SIMILARITY_THRESHOLD * 100);
-
-    if (similarity >= SIMILARITY_THRESHOLD) {
-      // High similarity - check if it's a variant (sped up/slowed)
-      String variant = newFingerprint.detectVariant(existingFingerprint);
-
-      if ("original".equals(variant)) {
-        // Exact duplicate
-        log.info("Exact duplicate detected (similarity: {}%)", similarity * 100);
-        return DuplicateCheckResult.exactDuplicate(similarity);
-      } else {
-        // Variant (sped up or slowed)
-        log.info("Variant detected: {} (similarity: {}%)", variant, similarity * 100);
-        return DuplicateCheckResult.variant(variant, similarity);
-      }
-    }
-
-    return DuplicateCheckResult.notDuplicate();
-  }
-
-  /**
-   * Checks if fingerprinting is available on this system.
-   *
-   * @return true if fpcalc is available
-   */
   private volatile Boolean fpcalcAvailable;
 
   public boolean isFingerprintingEnabled() {

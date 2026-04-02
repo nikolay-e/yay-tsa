@@ -5,15 +5,10 @@ import com.yaytsa.server.dto.response.RadioSeedsResponse.RadioSeed;
 import com.yaytsa.server.infrastructure.client.RadioSeedClient;
 import com.yaytsa.server.infrastructure.persistence.entity.ImageEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
-import com.yaytsa.server.infrastructure.persistence.entity.RadioSeedCacheEntity;
-import com.yaytsa.server.infrastructure.persistence.entity.RadioSeedCacheEntity.RadioSeedCacheId;
+import com.yaytsa.server.infrastructure.persistence.entity.TasteProfileEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
-import com.yaytsa.server.infrastructure.persistence.repository.RadioSeedCacheRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
-import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,70 +27,30 @@ public class RadioSeedService {
   private static final Logger log = LoggerFactory.getLogger(RadioSeedService.class);
   private static final int MIN_USER_TRACKS_FOR_SEEDS = 5;
   private static final int SEED_CANDIDATES = 100;
-  private static final Duration CACHE_TTL = Duration.ofMinutes(30);
+  private static final double TEMPERATURE = 0.7;
+  private static final double DISCOVERY_AFFINITY = 0.3;
+  private static final int DISCOVERY_LIMIT = 80;
+  private static final UUID EMPTY_UUID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
   private final TrackFeaturesRepository trackFeaturesRepository;
   private final ItemRepository itemRepository;
   private final RadioSeedClient radioSeedClient;
-  private final RadioSeedCacheRepository seedCacheRepository;
+  private final TasteProfileService tasteProfileService;
 
   public RadioSeedService(
       TrackFeaturesRepository trackFeaturesRepository,
       ItemRepository itemRepository,
       RadioSeedClient radioSeedClient,
-      RadioSeedCacheRepository seedCacheRepository) {
+      TasteProfileService tasteProfileService) {
     this.trackFeaturesRepository = trackFeaturesRepository;
     this.itemRepository = itemRepository;
     this.radioSeedClient = radioSeedClient;
-    this.seedCacheRepository = seedCacheRepository;
+    this.tasteProfileService = tasteProfileService;
   }
 
-  @Transactional
+  @Transactional(readOnly = true)
   public RadioSeedsResponse getSeeds(UUID userId) {
-    java.time.Instant computedAt = seedCacheRepository.findComputedAtByUserId(userId);
-    if (computedAt != null && !isStale(computedAt)) {
-      List<UUID> cachedTrackIds = seedCacheRepository.findTrackIdsByUserId(userId);
-      if (!cachedTrackIds.isEmpty()) {
-        log.debug("Returning {} cached radio seeds for user {}", cachedTrackIds.size(), userId);
-        return enrichSeeds(cachedTrackIds);
-      }
-    }
-    return recomputeAndCache(userId);
-  }
-
-  @Transactional
-  public void invalidateCache() {
-    seedCacheRepository.deleteAllCache();
-    log.info("Radio seeds cache invalidated (all users)");
-  }
-
-  @Transactional
-  public void invalidateCacheForUser(UUID userId) {
-    seedCacheRepository.deleteByUserId(userId);
-    log.info("Radio seeds cache invalidated for user {}", userId);
-  }
-
-  @Transactional
-  public RadioSeedsResponse recomputeAndCache(UUID userId) {
     List<UUID> seedTrackIds = computeSeedTrackIds(userId);
-    seedCacheRepository.deleteByUserId(userId);
-
-    if (seedTrackIds.isEmpty()) {
-      return new RadioSeedsResponse(List.of());
-    }
-
-    OffsetDateTime now = OffsetDateTime.now();
-    List<RadioSeedCacheEntity> entities = new ArrayList<>();
-    for (int i = 0; i < seedTrackIds.size(); i++) {
-      var entity = new RadioSeedCacheEntity();
-      entity.setId(new RadioSeedCacheId(userId, (short) i));
-      entity.setTrackId(seedTrackIds.get(i));
-      entity.setComputedAt(now);
-      entities.add(entity);
-    }
-    seedCacheRepository.saveAll(entities);
-    log.info("Cached {} radio seeds for user {}", seedTrackIds.size(), userId);
-
     return enrichSeeds(seedTrackIds);
   }
 
@@ -104,12 +59,9 @@ public class RadioSeedService {
 
     if (trackInputs.size() >= MIN_USER_TRACKS_FOR_SEEDS) {
       List<RadioSeedClient.SeedResult> seeds =
-          radioSeedClient.computeSeeds(trackInputs, SEED_CANDIDATES);
+          radioSeedClient.computeSeeds(trackInputs, SEED_CANDIDATES, TEMPERATURE);
       if (!seeds.isEmpty()) {
-        var result =
-            new ArrayList<>(seeds.stream().map(s -> UUID.fromString(s.trackId())).toList());
-        Collections.shuffle(result);
-        return result;
+        return seeds.stream().map(s -> UUID.fromString(s.trackId())).toList();
       }
       log.warn(
           "ML seed service returned empty for user {} with {} tracks, using direct list",
@@ -118,10 +70,7 @@ public class RadioSeedService {
     }
 
     if (!trackInputs.isEmpty()) {
-      var result =
-          new ArrayList<>(trackInputs.stream().map(t -> UUID.fromString(t.trackId())).toList());
-      Collections.shuffle(result);
-      return result;
+      return trackInputs.stream().map(t -> UUID.fromString(t.trackId())).toList();
     }
 
     log.info("No play history with embeddings for user {}, returning empty seeds", userId);
@@ -143,11 +92,6 @@ public class RadioSeedService {
           new RadioSeedClient.SeedTrackInput(
               trackId.toString(), floatArrayToList(embedding), affinity));
     }
-    if (trackInputs.size() >= MIN_USER_TRACKS_FOR_SEEDS) {
-      log.info(
-          "Using {} radio affinity tracks as seed input for user {}", trackInputs.size(), userId);
-      return trackInputs;
-    }
 
     var playHistoryTracks =
         trackFeaturesRepository.findMertEmbeddingsForUserPlayHistory(userId, 200);
@@ -162,16 +106,58 @@ public class RadioSeedService {
           new RadioSeedClient.SeedTrackInput(
               trackId.toString(), floatArrayToList(embedding), affinity));
     }
+
+    addDiscoveryTracks(userId, seenTrackIds, trackInputs);
+
     if (!trackInputs.isEmpty()) {
       log.info(
-          "Using {} combined seed input tracks for user {} (affinity + play history)",
+          "Built {} seed input tracks for user {} ({} user + {} discovery)",
           trackInputs.size(),
-          userId);
+          userId,
+          seenTrackIds.size() - countDiscovery(trackInputs),
+          countDiscovery(trackInputs));
     }
     return trackInputs;
   }
 
+  private void addDiscoveryTracks(
+      UUID userId, Set<UUID> seenTrackIds, List<RadioSeedClient.SeedTrackInput> trackInputs) {
+    TasteProfileEntity profile = tasteProfileService.getProfile(userId);
+    if (profile == null || profile.getEmbeddingMert() == null) {
+      log.debug("No taste profile or MERT embedding for user {}, skipping discovery", userId);
+      return;
+    }
+
+    String userEmbedding = formatEmbedding(profile.getEmbeddingMert());
+    List<UUID> excludeIds =
+        seenTrackIds.isEmpty() ? List.of(EMPTY_UUID) : new ArrayList<>(seenTrackIds);
+
+    List<Object[]> discoveryRows =
+        trackFeaturesRepository.findTracksByUserEmbedding(
+            userEmbedding, excludeIds, DISCOVERY_LIMIT);
+
+    int added = 0;
+    for (var row : discoveryRows) {
+      UUID trackId = (UUID) row[0];
+      if (seenTrackIds.contains(trackId)) continue;
+      float[] embedding = parseEmbedding(row[1]);
+      if (embedding == null) continue;
+      seenTrackIds.add(trackId);
+      trackInputs.add(
+          new RadioSeedClient.SeedTrackInput(
+              trackId.toString(), floatArrayToList(embedding), DISCOVERY_AFFINITY));
+      added++;
+    }
+    if (added > 0) {
+      log.info("Added {} discovery tracks from library for user {}", added, userId);
+    }
+  }
+
   private RadioSeedsResponse enrichSeeds(List<UUID> seedTrackIds) {
+    if (seedTrackIds.isEmpty()) {
+      return new RadioSeedsResponse(List.of());
+    }
+
     Map<UUID, ItemEntity> itemsById =
         itemRepository.findAllById(seedTrackIds).stream()
             .collect(Collectors.toMap(ItemEntity::getId, i -> i));
@@ -211,8 +197,14 @@ public class RadioSeedService {
     return new RadioSeedsResponse(enriched);
   }
 
-  private boolean isStale(java.time.Instant computedAt) {
-    return computedAt.plus(CACHE_TTL).isBefore(java.time.Instant.now());
+  private static int countDiscovery(List<RadioSeedClient.SeedTrackInput> inputs) {
+    return (int) inputs.stream().filter(t -> t.affinityScore() == DISCOVERY_AFFINITY).count();
+  }
+
+  private static String formatEmbedding(float[] embedding) {
+    return IntStream.range(0, embedding.length)
+        .mapToObj(i -> String.valueOf(embedding[i]))
+        .collect(Collectors.joining(",", "[", "]"));
   }
 
   private static float[] parseEmbedding(Object raw) {

@@ -36,12 +36,14 @@ public class RadioSeedClient {
 
   private record ComputeSeedsRequest(
       @JsonProperty("tracks") List<SeedTrackInput> tracks,
-      @JsonProperty("num_seeds") int numSeeds) {}
+      @JsonProperty("num_seeds") int numSeeds,
+      @JsonProperty("temperature") double temperature) {}
 
   private record ComputeSeedsResponse(@JsonProperty("seeds") List<SeedResult> seeds) {}
 
-  public List<SeedResult> computeSeeds(List<SeedTrackInput> tracks, int numSeeds) {
-    var request = new ComputeSeedsRequest(tracks, numSeeds);
+  public List<SeedResult> computeSeeds(
+      List<SeedTrackInput> tracks, int numSeeds, double temperature) {
+    var request = new ComputeSeedsRequest(tracks, numSeeds, temperature);
     try {
       var response =
           restClient

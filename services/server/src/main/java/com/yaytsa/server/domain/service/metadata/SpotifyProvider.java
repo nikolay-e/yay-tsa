@@ -26,14 +26,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-/**
- * Spotify metadata provider.
- *
- * <p>Queries Spotify Web API for track information. Requires Client ID and Client Secret (free
- * registration at https://developer.spotify.com).
- *
- * <p>Uses Client Credentials Flow for server-to-server authentication.
- */
 @Component
 public class SpotifyProvider implements MetadataProvider {
 

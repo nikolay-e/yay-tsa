@@ -27,14 +27,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Controller for authentication and user management. Handles login, logout, and user profile
- * operations.
- *
- * <p>IMPORTANT: Jellyfin clients expect specific response structures! - Authentication must include
- * User, SessionInfo, AccessToken, ServerId - Password field is "Pw" (not "Password") -
- * X-Emby-Authorization header contains client info
- */
 @RestController
 @Tag(name = "Authentication", description = "User authentication and management")
 public class AuthController {

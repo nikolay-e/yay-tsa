@@ -13,18 +13,14 @@ public class FeatureExtractionJobScheduler {
 
   private final FeatureExtractionService featureExtractionService;
   private final TasteProfileService tasteProfileService;
-  private final RadioSeedService radioSeedService;
 
   @Value("${yaytsa.media.feature-extraction.batch-size:10}")
   private int batchSize;
 
   public FeatureExtractionJobScheduler(
-      FeatureExtractionService featureExtractionService,
-      TasteProfileService tasteProfileService,
-      RadioSeedService radioSeedService) {
+      FeatureExtractionService featureExtractionService, TasteProfileService tasteProfileService) {
     this.featureExtractionService = featureExtractionService;
     this.tasteProfileService = tasteProfileService;
-    this.radioSeedService = radioSeedService;
   }
 
   @Scheduled(fixedDelayString = "${yaytsa.media.feature-extraction.poll-interval-ms:30000}")
@@ -41,7 +37,5 @@ public class FeatureExtractionJobScheduler {
   public void rebuildTasteProfiles() {
     log.info("Starting scheduled taste profile rebuild");
     tasteProfileService.rebuildAllProfiles();
-    radioSeedService.invalidateCache();
-    log.info("Radio seeds cache invalidated after taste profile rebuild");
   }
 }

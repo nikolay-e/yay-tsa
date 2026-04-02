@@ -3,10 +3,6 @@ package com.yaytsa.server.dto.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
 
-/**
- * User data transfer object matching Jellyfin API specification. Field names use PascalCase to
- * match Jellyfin's JSON format.
- */
 public record UserResponse(
     @JsonProperty("Name") String name,
     @JsonProperty("ServerId") String serverId,
@@ -22,7 +18,6 @@ public record UserResponse(
     @JsonProperty("Policy") UserPolicy policy,
     @JsonProperty("Configuration") UserConfiguration configuration) {
 
-  /** User policy settings */
   public record UserPolicy(
       @JsonProperty("IsAdministrator") boolean isAdministrator,
       @JsonProperty("IsHidden") boolean isHidden,
@@ -52,7 +47,6 @@ public record UserResponse(
       @JsonProperty("PasswordResetProviderId") String passwordResetProviderId,
       @JsonProperty("SyncPlayAccess") String syncPlayAccess) {}
 
-  /** User configuration preferences */
   public record UserConfiguration(
       @JsonProperty("AudioLanguagePreference") String audioLanguagePreference,
       @JsonProperty("PlayDefaultAudioTrack") boolean playDefaultAudioTrack,
@@ -70,7 +64,6 @@ public record UserResponse(
       @JsonProperty("RememberSubtitleSelections") boolean rememberSubtitleSelections,
       @JsonProperty("EnableNextEpisodeAutoPlay") boolean enableNextEpisodeAutoPlay) {}
 
-  /** Create a minimal UserResponse for basic authentication responses */
   public static UserResponse minimal(String id, String name, String serverId) {
     return new UserResponse(
         name,

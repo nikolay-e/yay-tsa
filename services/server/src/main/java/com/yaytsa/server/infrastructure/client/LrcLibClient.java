@@ -13,10 +13,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-/**
- * Client for the LRCLIB public API (https://lrclib.net). Free, no API key required,
- * community-sourced synced/plain lyrics.
- */
 @Component
 public class LrcLibClient {
 
@@ -40,10 +36,6 @@ public class LrcLibClient {
             .build();
   }
 
-  /**
-   * Fetch lyrics with two-step strategy: 1. Exact match by artist + title + album + duration 2.
-   * Fallback: search by artist + title (no album/duration filter)
-   */
   public LrcLibResult fetchLyrics(String artist, String title, String album, Long durationMs) {
     // Step 1: exact match
     LrcLibResult exact = fetchExact(artist, title, album, durationMs);

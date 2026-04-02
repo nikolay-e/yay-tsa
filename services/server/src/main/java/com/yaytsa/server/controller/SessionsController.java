@@ -22,7 +22,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-/** Controller for managing playback sessions. Handles play state reporting and session tracking. */
 @RestController
 @RequestMapping("/Sessions")
 @Tag(name = "Sessions", description = "Playback session management")

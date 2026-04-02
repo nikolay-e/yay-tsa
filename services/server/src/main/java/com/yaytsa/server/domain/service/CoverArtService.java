@@ -28,13 +28,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Service for managing cover art (album/track artwork).
- *
- * <p>Handles: - Extracting embedded artwork from audio files - Downloading artwork from external
- * APIs (Genius, etc.) - Saving artwork to filesystem and database - Generating image metadata
- * (dimensions, hash)
- */
 @Service
 public class CoverArtService {
 
@@ -80,13 +73,6 @@ public class CoverArtService {
     }
   }
 
-  /**
-   * Save cover art for an item from embedded audio file artwork.
-   *
-   * @param item the item entity
-   * @param audioFilePath path to the audio file
-   * @return true if artwork was extracted and saved
-   */
   @Transactional
   public boolean saveEmbeddedArtwork(ItemEntity item, Path audioFilePath) {
     try {
@@ -105,15 +91,6 @@ public class CoverArtService {
     }
   }
 
-  /**
-   * Download and save cover art from a URL.
-   *
-   * @param item the item entity
-   * @param imageUrl URL of the cover art image
-   * @param imageType type of image (Primary, Banner, etc.)
-   * @param source source identifier (e.g., "genius", "musicbrainz")
-   * @return true if image was downloaded and saved
-   */
   public boolean downloadAndSaveArtwork(
       ItemEntity item, String imageUrl, ImageType imageType, String source) {
     try {
@@ -172,15 +149,6 @@ public class CoverArtService {
     }
   }
 
-  /**
-   * Save artwork data to filesystem and database.
-   *
-   * @param item the item entity
-   * @param imageData raw image bytes
-   * @param imageType type of image
-   * @param source source identifier
-   * @return true if saved successfully
-   */
   private boolean saveArtworkData(
       ItemEntity item, byte[] imageData, ImageType imageType, String source) {
     try {
@@ -249,12 +217,6 @@ public class CoverArtService {
     }
   }
 
-  /**
-   * Detect image format from byte data.
-   *
-   * @param imageData raw image bytes
-   * @return file extension (jpg, png, etc.)
-   */
   private boolean isAllowedImageUrl(String imageUrl) {
     try {
       URI uri = URI.create(imageUrl);

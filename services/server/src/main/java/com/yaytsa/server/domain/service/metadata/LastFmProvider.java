@@ -15,12 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-/**
- * Last.fm metadata provider.
- *
- * <p>Queries Last.fm API for track information. Requires API key (free registration at
- * https://www.last.fm/api).
- */
 @Component
 public class LastFmProvider implements MetadataProvider {
 

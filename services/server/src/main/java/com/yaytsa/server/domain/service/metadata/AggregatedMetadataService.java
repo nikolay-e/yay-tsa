@@ -32,13 +32,6 @@ public class AggregatedMetadataService {
             .toList());
   }
 
-  /**
-   * Enriches metadata by querying all enabled providers in parallel.
-   *
-   * @param artist Artist name from file tags
-   * @param title Track title from file tags
-   * @return Best enriched metadata result, or empty if no providers found a match
-   */
   public Optional<MetadataProvider.EnrichedMetadata> enrichMetadata(String artist, String title) {
     if (artist == null || artist.isBlank() || title == null || title.isBlank()) {
       log.debug("Skipping metadata enrichment - artist or title is blank");
@@ -141,14 +134,6 @@ public class AggregatedMetadataService {
     return Optional.of(merged);
   }
 
-  /**
-   * Selects the best result from multiple providers.
-   *
-   * <p>Scoring algorithm: 1. Calculate weighted score = confidence * (priority / 100) 2. Sort by
-   * weighted score (descending) 3. Return highest scoring result
-   *
-   * <p>This favors high-confidence results from high-priority providers.
-   */
   private MetadataProvider.EnrichedMetadata selectBestResult(
       List<MetadataProvider.EnrichedMetadata> results, List<MetadataProvider> enabledProviders) {
 
@@ -187,14 +172,6 @@ public class AggregatedMetadataService {
     return scored.get(0).metadata();
   }
 
-  /**
-   * Checks consensus across multiple providers.
-   *
-   * <p>If multiple providers agree on album name (ignoring case and whitespace), boost confidence.
-   *
-   * @param results Results from different providers
-   * @return Best result with adjusted confidence
-   */
   @SuppressWarnings("unused")
   private MetadataProvider.EnrichedMetadata applyConsensusBoost(
       List<MetadataProvider.EnrichedMetadata> results) {

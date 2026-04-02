@@ -13,10 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * OpenAPI documentation configuration for the media server. Provides API documentation compatible
- * with Jellyfin clients.
- */
 @Configuration
 public class OpenApiConfig {
 

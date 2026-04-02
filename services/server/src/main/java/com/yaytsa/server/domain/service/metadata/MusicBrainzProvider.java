@@ -14,12 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-/**
- * MusicBrainz metadata provider.
- *
- * <p>Queries the MusicBrainz database (open music encyclopedia) for track metadata. No API key
- * required, but rate-limited to 1 request per second.
- */
 @Component
 public class MusicBrainzProvider implements MetadataProvider {
 

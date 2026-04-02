@@ -1273,6 +1273,7 @@ class SeedTrackInput(BaseModel):
 class ComputeSeedsRequest(BaseModel):
     tracks: list[SeedTrackInput]
     num_seeds: int = 10
+    temperature: float = 0.7
 
 
 class RadioSeedOutput(BaseModel):
@@ -1305,7 +1306,9 @@ async def compute_seeds(request: ComputeSeedsRequest):
         }
         for t in request.tracks
     ]
-    result = await run_in_threadpool(selector.compute_seeds, track_dicts, request.num_seeds)
+    result = await run_in_threadpool(
+        selector.compute_seeds, track_dicts, request.num_seeds, request.temperature
+    )
     return ComputeSeedsResponse(seeds=[RadioSeedOutput(**s) for s in result["seeds"]])
 
 

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/** Session information DTO matching Jellyfin API specification. */
 public record SessionInfoResponse(
     @JsonProperty("PlayState") PlayerStateInfo playState,
     @JsonProperty("AdditionalUsers") List<SessionUserInfo> additionalUsers,
@@ -79,7 +78,6 @@ public record SessionInfoResponse(
   public record QueueItem(
       @JsonProperty("Id") String id, @JsonProperty("PlaylistItemId") String playlistItemId) {}
 
-  /** Create a minimal SessionInfoResponse for authentication response */
   public static SessionInfoResponse forAuth(
       String sessionId,
       String userId,

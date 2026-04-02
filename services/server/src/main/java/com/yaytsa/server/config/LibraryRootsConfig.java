@@ -12,15 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Parses the comma-separated {@code yaytsa.media.library.roots} property into a list of absolute
- * paths and exposes a single {@link #isPathSafe(Path)} that returns {@code true} when the given
- * path lives under any of those roots.
- *
- * <p>Using a single config bean avoids the bug where services inject the comma-separated string
- * directly into {@code Paths.get()}, which treats the whole string (including commas) as a single
- * invalid path, causing {@code toRealPath()} to return {@code null} and every path check to fail.
- */
 @Component
 public class LibraryRootsConfig {
 
@@ -41,10 +32,6 @@ public class LibraryRootsConfig {
         .collect(Collectors.toList());
   }
 
-  /**
-   * Returns {@code true} if the given path resolves to a real path that starts with any configured
-   * library root. Returns {@code false} if the file does not exist or if an I/O error occurs.
-   */
   public boolean isPathSafe(Path path) {
     try {
       Path realPath = path.toRealPath();
