@@ -7,16 +7,12 @@ import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserTrackAffinityRepository;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AffinityAggregationService {
-
-  private static final Logger log = LoggerFactory.getLogger(AffinityAggregationService.class);
 
   static final double COMPLETION_WEIGHT = 1.0;
   static final double THUMBS_UP_WEIGHT = 2.0;
@@ -38,46 +34,39 @@ public class AffinityAggregationService {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void updateAffinityFromSignal(UUID userId, UUID trackId, String signalType) {
-    var id = new AffinityId(userId, trackId);
-    var affinity =
-        affinityRepository.findById(id).orElseGet(() -> createNewAffinity(userId, trackId));
+    int updated =
+        switch (signalType) {
+          case "PLAY_START" -> affinityRepository.incrementPlayCount(userId, trackId);
+          case "PLAY_COMPLETE", "SKIP_LATE" ->
+              affinityRepository.incrementCompletionCount(userId, trackId);
+          case "SKIP_EARLY", "SKIP_MID" -> affinityRepository.incrementSkipCount(userId, trackId);
+          case "THUMBS_UP" -> affinityRepository.incrementThumbsUpCount(userId, trackId);
+          case "THUMBS_DOWN" -> affinityRepository.incrementThumbsDownCount(userId, trackId);
+          default -> -1;
+        };
 
-    if (affinity == null) return;
+    if (updated == -1) return;
 
-    switch (signalType) {
-      case "PLAY_START" -> affinity.setPlayCount(affinity.getPlayCount() + 1);
-      case "PLAY_COMPLETE", "SKIP_LATE" ->
-          affinity.setCompletionCount(affinity.getCompletionCount() + 1);
-      case "SKIP_EARLY", "SKIP_MID" -> affinity.setSkipCount(affinity.getSkipCount() + 1);
-      case "THUMBS_UP" -> affinity.setThumbsUpCount(affinity.getThumbsUpCount() + 1);
-      case "THUMBS_DOWN" -> affinity.setThumbsDownCount(affinity.getThumbsDownCount() + 1);
-      default -> {
-        return;
+    if (updated == 0) {
+      createNewAffinity(userId, trackId);
+      switch (signalType) {
+        case "PLAY_START" -> affinityRepository.incrementPlayCount(userId, trackId);
+        case "PLAY_COMPLETE", "SKIP_LATE" ->
+            affinityRepository.incrementCompletionCount(userId, trackId);
+        case "SKIP_EARLY", "SKIP_MID" -> affinityRepository.incrementSkipCount(userId, trackId);
+        case "THUMBS_UP" -> affinityRepository.incrementThumbsUpCount(userId, trackId);
+        case "THUMBS_DOWN" -> affinityRepository.incrementThumbsDownCount(userId, trackId);
+        default -> {}
       }
     }
-
-    affinity.setLastSignalAt(OffsetDateTime.now());
-    affinity.setAffinityScore(computeAffinity(affinity));
-    affinity.setUpdatedAt(OffsetDateTime.now());
-    affinityRepository.save(affinity);
   }
 
-  private UserTrackAffinityEntity createNewAffinity(UUID userId, UUID trackId) {
+  private void createNewAffinity(UUID userId, UUID trackId) {
     var entity = new UserTrackAffinityEntity();
     entity.setId(new AffinityId(userId, trackId));
     entity.setUser(userRepository.getReferenceById(userId));
     entity.setTrack(itemRepository.getReferenceById(trackId));
     entity.setUpdatedAt(OffsetDateTime.now());
-    return entity;
-  }
-
-  private double computeAffinity(UserTrackAffinityEntity a) {
-    double implicitScore =
-        a.getCompletionCount() * COMPLETION_WEIGHT
-            + a.getPlayCount() * PLAY_WEIGHT
-            + a.getSkipCount() * SKIP_EARLY_PENALTY;
-    double explicitScore =
-        a.getThumbsUpCount() * THUMBS_UP_WEIGHT + a.getThumbsDownCount() * THUMBS_DOWN_PENALTY;
-    return implicitScore + explicitScore;
+    affinityRepository.saveAndFlush(entity);
   }
 }

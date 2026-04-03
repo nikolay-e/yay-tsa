@@ -33,6 +33,7 @@ public class RecommendationService {
   private static final double PENALTY_OVERPLAYED = -0.8;
   private static final double PENALTY_THUMBS_DOWN = -1.0;
   private static final int MAX_CONSECUTIVE_SAME_ARTIST = 2;
+  private static final int MAX_TRACKS_PER_ARTIST = 3;
 
   private static final double HALF_LIFE_DAYS = 30.0;
   private static final double MMR_LAMBDA = 0.6;
@@ -41,6 +42,7 @@ public class RecommendationService {
   private static final double PENALTY_SESSION_SKIPPED_TRACK = -0.5;
   private static final double PENALTY_SESSION_SKIPPED_ARTIST = -0.3;
   private static final double PENALTY_SESSION_SKIPPED_SIMILAR_MOOD = -0.15;
+  private static final double PENALTY_DISLIKED_ARTIST = -0.5;
 
   private final CandidateRetrievalService candidateService;
   private final TasteProfileService tasteProfileService;
@@ -144,6 +146,7 @@ public class RecommendationService {
   public List<ScoredTrack> recommend(UUID userId, RecommendationContext ctx, int count) {
     TasteProfileEntity profile = tasteProfileService.getProfile(userId);
     Set<UUID> dislikedIds = new HashSet<>(affinityRepository.findDislikedTrackIds(userId));
+    Set<String> dislikedArtists = new HashSet<>(affinityRepository.findDislikedArtistNames(userId));
     Map<UUID, Double> affinityScores = loadAffinityScores(userId);
 
     var userEmbFuture =
@@ -214,6 +217,7 @@ public class RecommendationService {
                             ctx,
                             affinityScores,
                             dislikedIds,
+                            dislikedArtists,
                             candidateGenres,
                             preferGenresLower),
                         st.source(),
@@ -381,6 +385,7 @@ public class RecommendationService {
       RecommendationContext ctx,
       Map<UUID, Double> affinityScores,
       Set<UUID> dislikedIds,
+      Set<String> dislikedArtists,
       Map<UUID, Set<String>> candidateGenres,
       Set<String> preferGenresLower) {
     UUID trackId = st.candidate().id();
@@ -413,12 +418,14 @@ public class RecommendationService {
     if (ctx.overplayedIds().contains(trackId)) score += PENALTY_OVERPLAYED;
     if (dislikedIds.contains(trackId)) score += PENALTY_THUMBS_DOWN;
 
+    String artist = st.candidate().artistName();
+    if (artist != null && dislikedArtists.contains(artist)) score += PENALTY_DISLIKED_ARTIST;
+
     SessionSkipContext skips = ctx.sessionSkips();
     if (skips != null && !skips.skippedTrackIds().isEmpty()) {
       if (skips.skippedTrackIds().contains(trackId)) {
         score += PENALTY_SESSION_SKIPPED_TRACK;
       }
-      String artist = st.candidate().artistName();
       if (artist != null && skips.skippedArtistNames().contains(artist)) {
         score += PENALTY_SESSION_SKIPPED_ARTIST;
       }
@@ -457,6 +464,7 @@ public class RecommendationService {
     List<ScoredTrack> result = new ArrayList<>();
     Set<UUID> selectedIds = new HashSet<>();
     List<String> recentArtists = new ArrayList<>();
+    Map<String, Integer> artistCounts = new HashMap<>();
     List<ScoredTrack> remaining = new ArrayList<>(scored);
 
     while (result.size() < count && !remaining.isEmpty()) {
@@ -474,6 +482,8 @@ public class RecommendationService {
         String artist = st.candidate().artistName();
         if (artist != null && ctx.avoidArtists().contains(artist)) continue;
         if (artist != null && wouldExceedConsecutiveArtist(recentArtists, artist)) continue;
+        if (artist != null && artistCounts.getOrDefault(artist, 0) >= MAX_TRACKS_PER_ARTIST)
+          continue;
 
         double maxSimToSelected;
         float[] candidateEmb = embeddings.get(trackId);
@@ -502,7 +512,10 @@ public class RecommendationService {
       result.add(best);
       selectedIds.add(best.candidate().id());
       String artist = best.candidate().artistName();
-      if (artist != null) recentArtists.add(artist);
+      if (artist != null) {
+        recentArtists.add(artist);
+        artistCounts.merge(artist, 1, Integer::sum);
+      }
       remaining.remove(bestIdx);
     }
 
