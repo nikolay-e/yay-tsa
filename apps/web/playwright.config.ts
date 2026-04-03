@@ -38,11 +38,10 @@ export default defineConfig({
     {
       name: 'mobile',
       use: {
-        ...devices['iPhone 13 Pro'],
-        hasTouch: true, // Explicitly enable touch for mobile tests
-        // isMobile: true is already set by iPhone 13 Pro preset
+        ...devices['Pixel 7'],
+        hasTouch: true,
         launchOptions: {
-          args: [],
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         },
       },
     },

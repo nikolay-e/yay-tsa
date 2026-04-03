@@ -102,46 +102,52 @@ function QueueTrackItem({
   feedbackSlot?: ReactNode;
 }>) {
   return (
-    <button
-      type="button"
-      onClick={onPlay}
+    <div
       className={cn(
-        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
-        'focus-visible:ring-accent cursor-pointer focus-visible:ring-2 focus-visible:outline-none',
+        'flex w-full items-center rounded-lg px-3 py-2 transition-colors',
         isCurrent ? 'bg-accent/10' : 'hover:bg-bg-hover'
       )}
     >
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center">
-        {(() => {
-          if (isCurrent && isPlaying)
-            return <Music className="text-accent h-3.5 w-3.5 animate-pulse" />;
-          if (isCurrent) return <Play className="text-accent h-3.5 w-3.5" />;
-          return <span className="text-text-tertiary text-xs">{index + 1}</span>;
-        })()}
-      </div>
+      <button
+        type="button"
+        onClick={onPlay}
+        className={cn(
+          'flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left',
+          'focus-visible:ring-accent rounded focus-visible:ring-2 focus-visible:outline-none'
+        )}
+      >
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center">
+          {(() => {
+            if (isCurrent && isPlaying)
+              return <Music className="text-accent h-3.5 w-3.5 animate-pulse" />;
+            if (isCurrent) return <Play className="text-accent h-3.5 w-3.5" />;
+            return <span className="text-text-tertiary text-xs">{index + 1}</span>;
+          })()}
+        </div>
 
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            'truncate text-sm',
-            isCurrent ? 'text-accent font-medium' : 'text-text-primary'
-          )}
-        >
-          {track.Name}
+        <div className="min-w-0 flex-1">
+          <div
+            className={cn(
+              'truncate text-sm',
+              isCurrent ? 'text-accent font-medium' : 'text-text-primary'
+            )}
+          >
+            {track.Name}
+          </div>
+          <div className="text-text-secondary truncate text-xs">
+            {track.Artists?.join(', ') ?? 'Unknown Artist'}
+          </div>
         </div>
-        <div className="text-text-secondary truncate text-xs">
-          {track.Artists?.join(', ') ?? 'Unknown Artist'}
-        </div>
-      </div>
+      </button>
 
       {feedbackSlot}
 
       {track.RunTimeTicks && (
-        <span className="text-text-tertiary shrink-0 text-xs">
+        <span className="text-text-tertiary shrink-0 pl-3 text-xs">
           {formatTicks(track.RunTimeTicks)}
         </span>
       )}
-    </button>
+    </div>
   );
 }
 

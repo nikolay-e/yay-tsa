@@ -369,31 +369,28 @@ export function PlayerBar() {
       </div>
 
       {/* Mobile mini-bar */}
-      <button
-        type="button"
-        className="flex w-full cursor-pointer items-center gap-3 p-2 px-3 md:hidden"
-        onClick={() => setShowFullPlayer(true)}
-        aria-label="Open player"
-      >
-        <img
-          src={hasImageError ? getImagePlaceholder() : imageUrl}
-          alt={currentTrack.Name}
-          className="h-11 w-11 shrink-0 rounded object-cover"
-        />
-        <div className="min-w-0 flex-1">
-          <MarqueeText className="text-text-primary text-sm font-medium">
-            {currentTrack.Name}
-          </MarqueeText>
-          <p className="text-text-secondary truncate text-xs">
-            {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
-          </p>
-        </div>
-        <div
-          role="toolbar"
-          className="flex shrink-0 items-center gap-1"
-          onClick={e => e.stopPropagation()}
-          onKeyDown={e => e.stopPropagation()}
+      <div className="flex w-full items-center gap-3 p-2 px-3 md:hidden">
+        <button
+          type="button"
+          className="focus-visible:ring-accent flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded focus-visible:ring-2 focus-visible:outline-none"
+          onClick={() => setShowFullPlayer(true)}
+          aria-label="Open player"
         >
+          <img
+            src={hasImageError ? getImagePlaceholder() : imageUrl}
+            alt={currentTrack.Name}
+            className="h-11 w-11 shrink-0 rounded object-cover"
+          />
+          <div className="min-w-0 flex-1">
+            <MarqueeText className="text-text-primary text-sm font-medium">
+              {currentTrack.Name}
+            </MarqueeText>
+            <p className="text-text-secondary truncate text-xs">
+              {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
+            </p>
+          </div>
+        </button>
+        <div role="toolbar" className="flex shrink-0 items-center gap-1">
           <FavoriteButton
             itemId={currentTrack.Id}
             isFavorite={currentTrack.UserData?.IsFavorite ?? false}
@@ -411,7 +408,7 @@ export function PlayerBar() {
             )}
           </button>
         </div>
-      </button>
+      </div>
 
       <div className="mx-auto hidden max-w-7xl items-center gap-4 p-2 px-4 md:flex">
         <TrackInfo
