@@ -143,8 +143,6 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     try {
       const session = await service.startSession(sessionState, seedTrackId);
       if (signal.aborted) return;
-      set({ activeSession: session });
-      saveSession(session.id);
 
       await service.refreshQueue(session.id);
       if (signal.aborted) return;
@@ -159,7 +157,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
           usePlayerStore.getState().appendToQueue(audioItems);
         }
       }
-      set({ isStarting: false });
+      set({ activeSession: session, isStarting: false });
+      saveSession(session.id);
     } catch (error) {
       if (signal.aborted) return;
       log.player.error('Failed to start DJ session', error);
