@@ -153,13 +153,47 @@ describe('PlaybackQueue', () => {
       expect(queue.getCurrentIndex()).toBe(2);
     });
 
-    it('previous goes back', () => {
-      queue.jumpTo(2);
+    it('previous returns to last played track (history-based)', () => {
+      queue.next();
+      queue.next();
+      expect(queue.getCurrentItem()?.Id).toBe('t3');
       expect(queue.previous()?.Id).toBe('t2');
       expect(queue.previous()?.Id).toBe('t1');
     });
 
-    it('previous at start returns null and stays', () => {
+    it('previous after jumpTo returns to track before jump', () => {
+      queue.jumpTo(2);
+      expect(queue.previous()?.Id).toBe('t1');
+    });
+
+    it('previous after skipping 20 tracks returns to last played, not skipped', () => {
+      queue.setQueue(tracks(25));
+      queue.next();
+      queue.next();
+      expect(queue.getCurrentItem()?.Id).toBe('t3');
+
+      queue.jumpTo(22);
+      expect(queue.getCurrentItem()?.Id).toBe('t23');
+
+      expect(queue.previous()?.Id).toBe('t3');
+      expect(queue.previous()?.Id).toBe('t2');
+      expect(queue.previous()?.Id).toBe('t1');
+    });
+
+    it('previous after trimBeforeCurrent re-inserts history track', () => {
+      queue.setQueue(tracks(10));
+      queue.next();
+      queue.next();
+      expect(queue.getCurrentItem()?.Id).toBe('t3');
+
+      queue.trimBeforeCurrent();
+      expect(queue.getCurrentIndex()).toBe(0);
+
+      const prev = queue.previous();
+      expect(prev?.Id).toBe('t2');
+    });
+
+    it('previous with empty history at start returns null', () => {
       expect(queue.previous()).toBeNull();
       expect(queue.getCurrentIndex()).toBe(0);
     });
@@ -195,7 +229,7 @@ describe('PlaybackQueue', () => {
       expect(queue.getCurrentIndex()).toBe(0);
     });
 
-    it('previous at start wraps to end', () => {
+    it('previous with empty history at start wraps to end', () => {
       expect(queue.previous()?.Id).toBe('t3');
       expect(queue.getCurrentIndex()).toBe(2);
     });

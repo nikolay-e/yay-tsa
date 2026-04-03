@@ -19,6 +19,8 @@ export class PlaybackQueue {
   private originalOrder: AudioItem[] = [];
   private repeatMode: RepeatMode = 'off';
   private shuffleMode: ShuffleMode = 'off';
+  private playHistory: AudioItem[] = [];
+  private static readonly MAX_HISTORY = 50;
 
   /**
    * Get current queue state
@@ -36,6 +38,15 @@ export class PlaybackQueue {
   /**
    * Set queue items and optionally start playing at index
    */
+  private recordCurrentToHistory(): void {
+    const current = this.getCurrentItem();
+    if (!current) return;
+    this.playHistory.push(current);
+    if (this.playHistory.length > PlaybackQueue.MAX_HISTORY) {
+      this.playHistory.shift();
+    }
+  }
+
   setQueue(items: AudioItem[], startIndex: number = 0): void {
     if (items.length === 0) {
       this.clear();
@@ -45,6 +56,7 @@ export class PlaybackQueue {
     this.items = [...items];
     this.originalOrder = [...items];
     this.currentIndex = Math.max(0, Math.min(startIndex, items.length - 1));
+    this.playHistory = [];
 
     // Apply shuffle if enabled
     if (this.shuffleMode === 'on') {
@@ -147,6 +159,7 @@ export class PlaybackQueue {
     this.items = [];
     this.originalOrder = [];
     this.currentIndex = -1;
+    this.playHistory = [];
   }
 
   /**
@@ -223,10 +236,8 @@ export class PlaybackQueue {
    */
   hasPrevious(): boolean {
     if (this.isEmpty()) return false;
-
-    // With repeat modes, there's always a previous
+    if (this.playHistory.length > 0) return true;
     if (this.repeatMode !== 'off') return true;
-
     return this.currentIndex > 0;
   }
 
@@ -237,19 +248,17 @@ export class PlaybackQueue {
   next(): AudioItem | null {
     if (this.isEmpty()) return null;
 
-    // Repeat one: stay on current
     if (this.repeatMode === 'one') {
       return this.getCurrentItem();
     }
 
-    // Move to next item
     if (this.currentIndex < this.items.length - 1) {
+      this.recordCurrentToHistory();
       this.currentIndex++;
     } else if (this.repeatMode === 'all') {
-      // Loop back to start
+      this.recordCurrentToHistory();
       this.currentIndex = 0;
     } else {
-      // No repeat: stay at last item (caller should stop playback)
       return null;
     }
 
@@ -263,19 +272,27 @@ export class PlaybackQueue {
   previous(): AudioItem | null {
     if (this.isEmpty()) return null;
 
-    // Repeat one: stay on current
     if (this.repeatMode === 'one') {
       return this.getCurrentItem();
     }
 
-    // Move to previous item
+    if (this.playHistory.length > 0) {
+      const prev = this.playHistory.pop()!;
+      const idx = this.items.findIndex(item => item.Id === prev.Id);
+      if (idx !== -1) {
+        this.currentIndex = idx;
+        return this.getCurrentItem();
+      }
+      this.items.splice(this.currentIndex, 0, prev);
+      this.originalOrder.push(prev);
+      return this.getCurrentItem();
+    }
+
     if (this.currentIndex > 0) {
       this.currentIndex--;
     } else if (this.repeatMode === 'all') {
-      // Loop to end
       this.currentIndex = this.items.length - 1;
     } else {
-      // No repeat: stay at first item
       return null;
     }
 
@@ -285,6 +302,7 @@ export class PlaybackQueue {
   advanceTo(trackId: string): boolean {
     const index = this.items.findIndex(item => item.Id === trackId);
     if (index < 0) return false;
+    this.recordCurrentToHistory();
     this.currentIndex = index;
     return true;
   }
@@ -304,6 +322,7 @@ export class PlaybackQueue {
       return null;
     }
 
+    this.recordCurrentToHistory();
     this.currentIndex = index;
     return this.getCurrentItem();
   }
