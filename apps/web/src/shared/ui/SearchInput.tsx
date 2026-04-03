@@ -24,6 +24,7 @@ export function SearchInput({
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         maxLength={maxLength}
         data-testid="search-input"
         className={cn(

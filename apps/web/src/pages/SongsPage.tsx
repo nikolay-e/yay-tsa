@@ -103,6 +103,7 @@ export function SongsPage() {
           <div className="border-border flex overflow-hidden rounded-md border">
             <button
               onClick={() => setSearchMode('text')}
+              aria-pressed={searchMode === 'text'}
               className={cn(
                 'px-2.5 py-1.5 text-xs font-medium transition-colors',
                 searchMode === 'text'
@@ -114,6 +115,7 @@ export function SongsPage() {
             </button>
             <button
               onClick={() => setSearchMode('semantic')}
+              aria-pressed={searchMode === 'semantic'}
               className={cn(
                 'px-2.5 py-1.5 text-xs font-medium transition-colors',
                 searchMode === 'semantic'

@@ -23,7 +23,7 @@ function PasswordReveal({ password, label }: Readonly<{ password: string; label:
         <button
           onClick={() => void copy()}
           className="text-text-secondary hover:text-text-primary shrink-0 transition-colors"
-          title="Copy to clipboard"
+          aria-label="Copy to clipboard"
         >
           {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
         </button>
@@ -190,7 +190,7 @@ function UserRow({
           <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
-            title="Reset password"
+            aria-label="Reset password"
             className="text-text-secondary hover:text-text-primary rounded-lg p-2 transition-colors disabled:opacity-50"
           >
             {resetMutation.isPending ? (
@@ -219,7 +219,7 @@ function UserRow({
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
-              title="Delete user"
+              aria-label="Delete user"
               className="text-text-secondary hover:text-error rounded-lg p-2 transition-colors"
             >
               <Trash2 className="h-4 w-4" />

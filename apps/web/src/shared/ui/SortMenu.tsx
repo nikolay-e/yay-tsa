@@ -164,6 +164,7 @@ export function SortMenu({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
+        aria-label="Sort options"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={cn(

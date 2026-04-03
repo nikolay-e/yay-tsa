@@ -8,7 +8,7 @@ test.describe('Favorites', () => {
     await expect(firstAlbum).toBeVisible({ timeout: 10000 });
     await firstAlbum.click();
 
-    await expect(albumPage.title).toBeVisible({ timeout: 10000 });
+    await expect(albumPage.albumTitle).toBeVisible({ timeout: 10000 });
 
     const favButton = albumPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_FAVORITE_BUTTON);
     await expect(favButton).toBeVisible();
@@ -88,7 +88,7 @@ test.describe('Favorites', () => {
     const firstAlbum = libraryPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD).first();
     await expect(firstAlbum).toBeVisible({ timeout: 10000 });
     await firstAlbum.click();
-    await expect(albumPage.title).toBeVisible({ timeout: 10000 });
+    await expect(albumPage.albumTitle).toBeVisible({ timeout: 10000 });
 
     const initialFavState = await albumPage.isFavorite();
     if (!initialFavState) {
@@ -101,7 +101,7 @@ test.describe('Favorites', () => {
     await albumPage.goBack();
     await expect(firstAlbum).toBeVisible({ timeout: 10000 });
     await firstAlbum.click();
-    await expect(albumPage.title).toBeVisible({ timeout: 10000 });
+    await expect(albumPage.albumTitle).toBeVisible({ timeout: 10000 });
 
     await expect(async () => {
       expect(await albumPage.isFavorite()).toBe(true);
