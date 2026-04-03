@@ -38,6 +38,10 @@ public class RecommendationService {
   private static final double MMR_LAMBDA = 0.6;
   private static final double GENRE_MATCH_BONUS = 0.08;
 
+  private static final double PENALTY_SESSION_SKIPPED_TRACK = -0.5;
+  private static final double PENALTY_SESSION_SKIPPED_ARTIST = -0.3;
+  private static final double PENALTY_SESSION_SKIPPED_SIMILAR_MOOD = -0.15;
+
   private final CandidateRetrievalService candidateService;
   private final TasteProfileService tasteProfileService;
   private final UserTrackAffinityRepository affinityRepository;
@@ -73,7 +77,8 @@ public class RecommendationService {
       float[] anchorEmbedding,
       float anchorWeight,
       List<String> preferGenres,
-      List<String> avoidGenres) {
+      List<String> avoidGenres,
+      SessionSkipContext sessionSkips) {
 
     public static RecommendationContext standard(
         float targetEnergy,
@@ -98,7 +103,8 @@ public class RecommendationService {
           null,
           0.0f,
           preferGenres != null ? preferGenres : List.of(),
-          avoidGenres != null ? avoidGenres : List.of());
+          avoidGenres != null ? avoidGenres : List.of(),
+          SessionSkipContext.EMPTY);
     }
 
     public static RecommendationContext radio(
@@ -113,7 +119,8 @@ public class RecommendationService {
         float[] anchorEmbedding,
         float anchorWeight,
         List<String> preferGenres,
-        List<String> avoidGenres) {
+        List<String> avoidGenres,
+        SessionSkipContext sessionSkips) {
       return new RecommendationContext(
           targetEnergy,
           targetValence,
@@ -126,7 +133,8 @@ public class RecommendationService {
           anchorEmbedding,
           anchorWeight,
           preferGenres != null ? preferGenres : List.of(),
-          avoidGenres != null ? avoidGenres : List.of());
+          avoidGenres != null ? avoidGenres : List.of(),
+          sessionSkips != null ? sessionSkips : SessionSkipContext.EMPTY);
     }
   }
 
@@ -140,16 +148,36 @@ public class RecommendationService {
 
     var userEmbFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveUserEmbeddingChannel(profile, ctx, count), recommendationExecutor);
+                () -> retrieveUserEmbeddingChannel(profile, ctx, count), recommendationExecutor)
+            .exceptionally(
+                ex -> {
+                  log.warn("User embedding channel failed: {}", ex.getMessage());
+                  return List.of();
+                });
     var sessionFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveSessionFilterChannel(ctx, count), recommendationExecutor);
+                () -> retrieveSessionFilterChannel(ctx, count), recommendationExecutor)
+            .exceptionally(
+                ex -> {
+                  log.warn("Session filter channel failed: {}", ex.getMessage());
+                  return List.of();
+                });
     var transitionFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveTransitionChannel(ctx, count), recommendationExecutor);
+                () -> retrieveTransitionChannel(ctx, count), recommendationExecutor)
+            .exceptionally(
+                ex -> {
+                  log.warn("Transition channel failed: {}", ex.getMessage());
+                  return List.of();
+                });
     var explorationFuture =
         CompletableFuture.supplyAsync(
-            () -> retrieveExplorationChannel(userId, ctx, count), recommendationExecutor);
+                () -> retrieveExplorationChannel(userId, ctx, count), recommendationExecutor)
+            .exceptionally(
+                ex -> {
+                  log.warn("Exploration channel failed: {}", ex.getMessage());
+                  return List.of();
+                });
 
     CompletableFuture.allOf(userEmbFuture, sessionFuture, transitionFuture, explorationFuture)
         .join();
@@ -159,6 +187,11 @@ public class RecommendationService {
     for (var st : sessionFuture.join()) candidates.putIfAbsent(st.candidate().id(), st);
     for (var st : transitionFuture.join()) candidates.putIfAbsent(st.candidate().id(), st);
     for (var st : explorationFuture.join()) candidates.putIfAbsent(st.candidate().id(), st);
+
+    if (candidates.isEmpty()) {
+      log.error("All recommendation channels returned empty for user {}", userId);
+      return List.of();
+    }
 
     boolean hasGenrePrefs = !ctx.preferGenres().isEmpty();
     Map<UUID, Set<String>> candidateGenres =
@@ -379,6 +412,26 @@ public class RecommendationService {
     if (ctx.recentlyPlayedIds().contains(trackId)) score += PENALTY_RECENTLY_PLAYED;
     if (ctx.overplayedIds().contains(trackId)) score += PENALTY_OVERPLAYED;
     if (dislikedIds.contains(trackId)) score += PENALTY_THUMBS_DOWN;
+
+    SessionSkipContext skips = ctx.sessionSkips();
+    if (skips != null && !skips.skippedTrackIds().isEmpty()) {
+      if (skips.skippedTrackIds().contains(trackId)) {
+        score += PENALTY_SESSION_SKIPPED_TRACK;
+      }
+      String artist = st.candidate().artistName();
+      if (artist != null && skips.skippedArtistNames().contains(artist)) {
+        score += PENALTY_SESSION_SKIPPED_ARTIST;
+      }
+      if (skips.hasSkipMood()
+          && st.candidate().energy() != null
+          && st.candidate().valence() != null) {
+        double energyDiff = Math.abs(st.candidate().energy() - skips.avgSkippedEnergy());
+        double valenceDiff = Math.abs(st.candidate().valence() - skips.avgSkippedValence());
+        if (energyDiff < 0.15 && valenceDiff < 0.15) {
+          score += PENALTY_SESSION_SKIPPED_SIMILAR_MOOD;
+        }
+      }
+    }
 
     return score;
   }

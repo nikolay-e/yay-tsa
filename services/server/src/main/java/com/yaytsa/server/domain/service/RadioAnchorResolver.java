@@ -29,7 +29,7 @@ public class RadioAnchorResolver {
   private final PlaybackSignalRepository signalRepository;
 
   private final Cache<UUID, float[]> embeddingCache =
-      Caffeine.newBuilder().maximumSize(200).expireAfterWrite(Duration.ofHours(1)).build();
+      Caffeine.newBuilder().maximumSize(200).expireAfterWrite(Duration.ofMinutes(10)).build();
 
   public RadioAnchorResolver(
       TrackFeaturesRepository trackFeaturesRepository, PlaybackSignalRepository signalRepository) {
@@ -54,6 +54,10 @@ public class RadioAnchorResolver {
                       return null;
                     })
                 .orElse(null));
+  }
+
+  public void invalidateEmbeddingCache(UUID trackId) {
+    embeddingCache.invalidate(trackId);
   }
 
   public float computeWeight(UUID sessionId) {

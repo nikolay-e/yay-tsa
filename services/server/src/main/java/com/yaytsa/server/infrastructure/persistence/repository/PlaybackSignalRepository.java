@@ -97,4 +97,22 @@ public interface PlaybackSignalRepository extends JpaRepository<PlaybackSignalEn
       nativeQuery = true)
   List<Object[]> getTopGenresByUser(
       @Param("userId") UUID userId, @Param("since") OffsetDateTime since, @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT ps.track_id,
+                 COALESCE(ar.name, '') AS artist_name,
+                 tf.energy,
+                 tf.valence
+          FROM playback_signal ps
+          JOIN items i ON i.id = ps.track_id AND i.type = 'AudioTrack'
+          JOIN items al ON al.id = i.parent_id
+          LEFT JOIN items ar ON ar.id = al.parent_id
+          LEFT JOIN track_features tf ON tf.track_id = ps.track_id
+          WHERE ps.session_id = :sessionId
+            AND ps.signal_type IN ('SKIP_EARLY', 'SKIP_MID')
+          """,
+      nativeQuery = true)
+  List<Object[]> findSessionSkipContext(@Param("sessionId") UUID sessionId);
 }

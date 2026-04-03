@@ -114,6 +114,7 @@ let refreshDebounce = false;
 let restoreInProgress = false;
 let consecutiveRefreshErrors = 0;
 const lastSignalTimestamps = new Map<string, number>();
+let activeStartController: AbortController | null = null;
 
 export const useSessionStore = create<SessionStore>()((set, get) => ({
   ...initialState,
@@ -123,6 +124,11 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 
     const service = getDjService();
     if (!service) return;
+
+    activeStartController?.abort();
+    const controller = new AbortController();
+    activeStartController = controller;
+    const { signal } = controller;
 
     const { activeSession } = get();
     if (activeSession) {
@@ -136,12 +142,16 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     set({ isStarting: true, error: null });
     try {
       const session = await service.startSession(sessionState, seedTrackId);
+      if (signal.aborted) return;
       set({ activeSession: session });
       saveSession(session.id);
 
       await service.refreshQueue(session.id);
+      if (signal.aborted) return;
       const djQueue = await service.getQueue(session.id);
+      if (signal.aborted) return;
       const audioItems = await resolveAudioItems(djQueue);
+      if (signal.aborted) return;
       if (audioItems.length > 0) {
         if (seedTrackId) {
           await usePlayerStore.getState().playTracks(audioItems);
@@ -151,18 +161,26 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       }
       set({ isStarting: false });
     } catch (error) {
+      if (signal.aborted) return;
       log.player.error('Failed to start DJ session', error);
       set({
         isStarting: false,
         error: error instanceof Error ? error : new Error(String(error)),
       });
       toast.add('error', 'Failed to start DJ');
+    } finally {
+      if (activeStartController === controller) activeStartController = null;
     }
   },
 
   restoreSession: async () => {
     const service = getDjService();
     if (!service || restoreInProgress) return;
+
+    activeStartController?.abort();
+    const controller = new AbortController();
+    activeStartController = controller;
+    const { signal } = controller;
 
     restoreInProgress = true;
     const safetyTimer = setTimeout(() => {
@@ -171,6 +189,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     set({ isStarting: true, error: null });
     try {
       const session = await service.getActiveSession();
+      if (signal.aborted) return;
       if (!session) {
         saveSession(null);
         set({ isStarting: false });
@@ -181,12 +200,15 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       saveSession(session.id);
 
       const djQueue = await service.getQueue(session.id);
+      if (signal.aborted) return;
       const audioItems = await resolveAudioItems(djQueue);
+      if (signal.aborted) return;
       if (audioItems.length > 0) {
         usePlayerStore.getState().appendToQueue(audioItems);
       }
       set({ isStarting: false });
     } catch (error) {
+      if (signal.aborted) return;
       log.player.error('Failed to restore DJ session', error);
       saveSession(null);
       set({
@@ -196,6 +218,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     } finally {
       clearTimeout(safetyTimer);
       restoreInProgress = false;
+      if (activeStartController === controller) activeStartController = null;
     }
   },
 

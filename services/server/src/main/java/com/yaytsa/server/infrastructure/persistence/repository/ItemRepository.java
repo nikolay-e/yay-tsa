@@ -237,4 +237,19 @@ public interface ItemRepository
       nativeQuery = true)
   List<UUID> findRandomAudioTrackIdsByGenre(
       @Param("genreNames") List<String> genreNames, @Param("limit") int limit);
+
+  @Query(
+      value =
+          """
+          SELECT DISTINCT i.id FROM items i
+          JOIN item_genres ig ON ig.item_id = i.id
+          JOIN genres g ON g.id = ig.genre_id
+          WHERE i.type = 'AudioTrack'
+            AND LOWER(g.name) LIKE :pattern
+          ORDER BY RANDOM()
+          LIMIT :limit
+          """,
+      nativeQuery = true)
+  List<UUID> findRandomAudioTrackIdsByGenreLike(
+      @Param("pattern") String pattern, @Param("limit") int limit);
 }

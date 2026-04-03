@@ -9,6 +9,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
+import com.yaytsa.server.infrastructure.persistence.repository.PlaybackSignalRepository;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,12 +31,33 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class FallbackQueueService {
 
   private static final Logger log = LoggerFactory.getLogger(FallbackQueueService.class);
+  private static final Set<String> KNOWN_ROOT_GENRES =
+      Set.of(
+          "rock",
+          "pop",
+          "jazz",
+          "blues",
+          "metal",
+          "electronic",
+          "classical",
+          "hip hop",
+          "r&b",
+          "country",
+          "folk",
+          "soul",
+          "funk",
+          "reggae",
+          "punk",
+          "latin",
+          "ambient",
+          "indie");
 
   private final RecommendationService recommendationService;
   private final CandidateRetrievalService candidateRetrievalService;
   private final RadioAnchorResolver radioAnchorResolver;
   private final AdaptiveQueueRepository queueRepository;
   private final ItemRepository itemRepository;
+  private final PlaybackSignalRepository signalRepository;
   private final TransactionTemplate transactionTemplate;
   private final int defaultQueueSize;
   private final int noRepeatHours;
@@ -49,6 +71,7 @@ public class FallbackQueueService {
       RadioAnchorResolver radioAnchorResolver,
       AdaptiveQueueRepository queueRepository,
       ItemRepository itemRepository,
+      PlaybackSignalRepository signalRepository,
       TransactionTemplate transactionTemplate,
       @Value("${yaytsa.adaptive-dj.queue.max-size:40}") int defaultQueueSize,
       @Value("${yaytsa.adaptive-dj.queue.no-repeat-hours:6}") int noRepeatHours) {
@@ -57,6 +80,7 @@ public class FallbackQueueService {
     this.radioAnchorResolver = radioAnchorResolver;
     this.queueRepository = queueRepository;
     this.itemRepository = itemRepository;
+    this.signalRepository = signalRepository;
     this.transactionTemplate = transactionTemplate;
     this.defaultQueueSize = defaultQueueSize;
     this.noRepeatHours = noRepeatHours;
@@ -149,6 +173,7 @@ public class FallbackQueueService {
     }
 
     List<String> effectiveGenres = mergeGenres(preferGenres, session.getSeedGenreList());
+    SessionSkipContext skipContext = buildSessionSkipContext(sessionId);
 
     var ctx =
         RecommendationContext.standard(
@@ -180,7 +205,8 @@ public class FallbackQueueService {
                 anchor,
                 weight,
                 effectiveGenres,
-                avoidGenres);
+                avoidGenres,
+                skipContext);
       }
     }
 
@@ -196,6 +222,19 @@ public class FallbackQueueService {
         List<String> lowercased = effectiveGenres.stream().map(String::toLowerCase).toList();
         randomIds.addAll(itemRepository.findRandomAudioTrackIdsByGenre(lowercased, needed * 2));
         randomIds.removeAll(excluded);
+      }
+      if (randomIds.size() < needed && !effectiveGenres.isEmpty()) {
+        Set<String> rootGenres = extractRootGenres(effectiveGenres);
+        for (String root : rootGenres) {
+          List<UUID> broadIds =
+              itemRepository.findRandomAudioTrackIdsByGenreLike("%" + root + "%", needed * 2);
+          broadIds.removeAll(excluded);
+          Set<UUID> seen = new HashSet<>(randomIds);
+          for (UUID id : broadIds) {
+            if (seen.add(id)) randomIds.add(id);
+          }
+          if (randomIds.size() >= needed) break;
+        }
       }
       if (randomIds.size() < needed) {
         List<UUID> generalIds = new ArrayList<>(itemRepository.findRandomAudioTrackIds(needed * 2));
@@ -271,6 +310,37 @@ public class FallbackQueueService {
     return addedEntries;
   }
 
+  private SessionSkipContext buildSessionSkipContext(UUID sessionId) {
+    List<Object[]> rows = signalRepository.findSessionSkipContext(sessionId);
+    if (rows.isEmpty()) return SessionSkipContext.EMPTY;
+
+    Set<UUID> trackIds = new HashSet<>();
+    Set<String> artistNames = new HashSet<>();
+    float energySum = 0;
+    float valenceSum = 0;
+    int moodCount = 0;
+
+    for (Object[] row : rows) {
+      trackIds.add((UUID) row[0]);
+      String artist = (String) row[1];
+      if (artist != null && !artist.isEmpty()) artistNames.add(artist);
+      Number energy = (Number) row[2];
+      Number valence = (Number) row[3];
+      if (energy != null && valence != null) {
+        energySum += energy.floatValue();
+        valenceSum += valence.floatValue();
+        moodCount++;
+      }
+    }
+
+    return new SessionSkipContext(
+        trackIds,
+        artistNames,
+        moodCount > 0 ? energySum / moodCount : 0f,
+        moodCount > 0 ? valenceSum / moodCount : 0f,
+        moodCount > 0);
+  }
+
   private static List<String> mergeGenres(List<String> llmGenres, List<String> seedGenres) {
     Set<String> seen = new HashSet<>();
     List<String> merged = new ArrayList<>();
@@ -281,6 +351,20 @@ public class FallbackQueueService {
       if (seen.add(g.toLowerCase())) merged.add(g);
     }
     return merged;
+  }
+
+  private static Set<String> extractRootGenres(List<String> genres) {
+    Set<String> roots = new HashSet<>();
+    for (String genre : genres) {
+      String lower = genre.toLowerCase();
+      for (String root : KNOWN_ROOT_GENRES) {
+        if (lower.contains(root)) {
+          roots.add(root);
+          break;
+        }
+      }
+    }
+    return roots;
   }
 
   private List<AdaptiveQueueEntity> insertQueueEntries(

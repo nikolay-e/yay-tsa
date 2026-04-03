@@ -667,6 +667,43 @@ export const usePlayerStore = create<PlayerStore>()(
 
       playTrack: async track => {
         await controller.interrupt(async signal => {
+          const { useSessionStore } = await import('./session-store');
+          const sessionState = useSessionStore.getState();
+
+          if (sessionState.activeSession) {
+            const { queue, repeatMode } = get();
+            const items = queue.getAllItems();
+            const existingIndex = items.findIndex(item => item.Id === track.Id);
+
+            if (existingIndex >= 0) {
+              queue.advanceTo(track.Id);
+            } else {
+              const insertPos = queue.getCurrentIndex() + 1;
+              queue.insertAt(track, insertPos);
+              queue.advanceTo(track.Id);
+            }
+            queue.setRepeatMode(repeatMode);
+            syncQueueState();
+            await loadAndPlay(track, signal);
+
+            if (!signal.aborted) {
+              sessionState
+                .sendSignal({
+                  signalType: 'QUEUE_JUMP',
+                  trackId: track.Id,
+                  context: {
+                    positionPct: 0,
+                    elapsedSec: 0,
+                    autoplay: false,
+                    selectedByUser: true,
+                    timeOfDay: currentTimeOfDay(),
+                  },
+                })
+                .catch(() => {});
+            }
+            return;
+          }
+
           const { queue, repeatMode } = get();
           queue.setQueue([track], 0);
           queue.setRepeatMode(repeatMode);
@@ -678,6 +715,12 @@ export const usePlayerStore = create<PlayerStore>()(
         if (tracks.length === 0) return;
 
         await controller.interrupt(async signal => {
+          const { useSessionStore } = await import('./session-store');
+          const sessionState = useSessionStore.getState();
+          if (sessionState.activeSession) {
+            void sessionState.endSession();
+          }
+
           const { queue, isShuffle, repeatMode } = get();
           queue.setQueue(tracks, startIndex);
           queue.setRepeatMode(repeatMode);
@@ -694,6 +737,13 @@ export const usePlayerStore = create<PlayerStore>()(
       playAlbum: async (albumId, startIndex = 0) => {
         await controller.interrupt(async signal => {
           if (!currentClient) throw new Error('Not authenticated');
+
+          const { useSessionStore } = await import('./session-store');
+          const sessionState = useSessionStore.getState();
+          if (sessionState.activeSession) {
+            void sessionState.endSession();
+          }
+
           const itemsService = new ItemsService(currentClient);
           const tracks = await itemsService.getAlbumTracks(albumId);
           if (signal.aborted || tracks.length === 0) return;

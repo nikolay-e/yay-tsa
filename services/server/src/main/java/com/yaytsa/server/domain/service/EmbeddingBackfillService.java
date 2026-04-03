@@ -23,6 +23,7 @@ public class EmbeddingBackfillService {
   private final ItemRepository itemRepository;
   private final FeatureExtractionService featureExtractionService;
   private final EmbeddingExtractionClient embeddingClient;
+  private final RadioAnchorResolver radioAnchorResolver;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final AtomicInteger processedCount = new AtomicInteger(0);
 
@@ -30,11 +31,13 @@ public class EmbeddingBackfillService {
       TrackFeaturesRepository featuresRepository,
       ItemRepository itemRepository,
       FeatureExtractionService featureExtractionService,
-      EmbeddingExtractionClient embeddingClient) {
+      EmbeddingExtractionClient embeddingClient,
+      RadioAnchorResolver radioAnchorResolver) {
     this.featuresRepository = featuresRepository;
     this.itemRepository = itemRepository;
     this.featureExtractionService = featureExtractionService;
     this.embeddingClient = embeddingClient;
+    this.radioAnchorResolver = radioAnchorResolver;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -107,6 +110,7 @@ public class EmbeddingBackfillService {
             var item = itemRepository.findById(trackId).orElse(null);
             if (item == null || item.getPath() == null) continue;
             featureExtractionService.extractEmbeddingsForTrack(trackId, item.getPath());
+            radioAnchorResolver.invalidateEmbeddingCache(trackId);
             processedCount.incrementAndGet();
           } catch (Exception e) {
             log.warn("Backfill failed for track {}: {}", trackId, e.getMessage());
