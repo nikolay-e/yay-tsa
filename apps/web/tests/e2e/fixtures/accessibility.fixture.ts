@@ -71,7 +71,13 @@ export const test = base.extend<AccessibilityFixtures>({
 
       if (results.violations.length > 0) {
         const violationsSummary = results.violations
-          .map(v => `- ${v.id}: ${v.description} (${v.nodes.length} occurrences)`)
+          .map(v => {
+            const nodes = v.nodes
+              .slice(0, 3)
+              .map(n => `    ${n.html}`)
+              .join('\n');
+            return `- ${v.id}: ${v.description} (${v.nodes.length} occurrences)\n${nodes}`;
+          })
           .join('\n');
         throw new Error(`Accessibility violations found:\n${violationsSummary}`);
       }

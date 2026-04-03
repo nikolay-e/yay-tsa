@@ -7,6 +7,7 @@ type FavoriteButtonProps = Readonly<{
   isFavorite: boolean;
   size?: 'sm' | 'md';
   className?: string;
+  'data-testid'?: string;
 }>;
 
 export function FavoriteButton({
@@ -14,6 +15,7 @@ export function FavoriteButton({
   isFavorite,
   size = 'sm',
   className,
+  'data-testid': testId,
 }: FavoriteButtonProps) {
   const { mutate, isPending } = useFavoriteToggle();
 
@@ -36,6 +38,7 @@ export function FavoriteButton({
       )}
       aria-pressed={isFavorite}
       aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+      data-testid={testId}
     >
       <Heart className={iconSize} fill={isFavorite ? 'currentColor' : 'none'} />
     </button>

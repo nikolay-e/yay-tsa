@@ -369,7 +369,6 @@ export const usePlayerStore = create<PlayerStore>()(
 
       engine.setNormalizationGain?.(track.NormalizationGain ?? null);
       get().queue.advanceTo(track.Id);
-      get().queue.trimBeforeCurrent();
       syncQueueState();
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);

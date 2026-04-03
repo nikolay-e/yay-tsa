@@ -57,9 +57,9 @@ function SortableItem({
         type="button"
         className={cn(
           'absolute z-10 cursor-grab touch-none active:cursor-grabbing',
-          'text-text-tertiary hover:text-text-secondary',
+          'text-text-secondary hover:text-text-primary',
           'rounded-sm p-1 transition-opacity',
-          'opacity-30 group-hover/sortable:opacity-100 focus:opacity-100',
+          'opacity-50 group-hover/sortable:opacity-100 focus:opacity-100',
           layout === 'vertical' ? 'top-1/2 left-1 -translate-y-1/2' : 'top-1 left-1'
         )}
         {...listeners}

@@ -145,13 +145,12 @@ export function AlbumDetailPage() {
               <Shuffle className="h-5 w-5" />
               Shuffle
             </button>
-            <div data-testid="album-favorite-button">
-              <FavoriteButton
-                itemId={album.Id}
-                isFavorite={album.UserData?.IsFavorite ?? false}
-                size="md"
-              />
-            </div>
+            <FavoriteButton
+              itemId={album.Id}
+              isFavorite={album.UserData?.IsFavorite ?? false}
+              size="md"
+              data-testid="album-favorite-button"
+            />
           </div>
         </div>
       </div>
