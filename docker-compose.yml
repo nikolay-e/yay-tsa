@@ -261,7 +261,7 @@ services:
       YAYTSA_SERVER_URL: http://backend:8096
       YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
       YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
-      TEST_CMD: cd packages/core && npm run test:integration
+    command: ['sh', '-c', 'cd packages/core && npm run test:integration']
     volumes:
       - ./packages/core/tests:/app/packages/core/tests
       - ./test-results/integration:/app/test-results
@@ -286,7 +286,7 @@ services:
       YAYTSA_TEST_USERNAME: ${YAYTSA_TEST_USERNAME:-admin}
       YAYTSA_TEST_PASSWORD: ${YAYTSA_TEST_PASSWORD:-admin123}
       BASE_URL: http://frontend:5173
-      TEST_CMD: cd apps/web && npm run test:e2e
+    command: ['sh', '-c', 'cd apps/web && npm run test:e2e']
     volumes:
       - ./apps/web/tests:/app/apps/web/tests
       - ./test-results/e2e:/app/test-results

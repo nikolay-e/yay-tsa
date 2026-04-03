@@ -53,8 +53,7 @@ RUN npx playwright install chromium
 
 ENV NO_COLOR=1
 
-ENTRYPOINT ["sh", "-c"]
-CMD ["${TEST_CMD:-cd packages/core && npm run test:integration && cd ../../apps/web && npm run test:e2e}"]
+CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/web && npm run test:e2e"]
 
 FROM nginx:1.29-alpine AS production
 
