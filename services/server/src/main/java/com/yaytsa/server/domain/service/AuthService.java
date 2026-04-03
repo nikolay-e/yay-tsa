@@ -97,7 +97,7 @@ public class AuthService {
             });
   }
 
-  @Cacheable(value = "api-tokens", key = "#rawToken", unless = "#result.isEmpty()")
+  @Cacheable(value = "api-tokens", key = "#rawToken", unless = "#result == null")
   @Transactional(readOnly = true)
   public Optional<UserEntity> validateToken(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
