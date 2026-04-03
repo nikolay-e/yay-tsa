@@ -1,4 +1,4 @@
-# Java Backend Review (Spring Boot)
+# Java Backend (Spring Boot)
 # All Java source files + Maven config
 
 services/server/**/*.java

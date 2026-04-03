@@ -1,4 +1,4 @@
-# Core Packages Review
+# Core Packages
 # Shared TypeScript libraries (core + platform)
 
 packages/core/src/**/*.ts

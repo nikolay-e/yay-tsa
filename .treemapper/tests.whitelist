@@ -2,11 +2,11 @@
 
 # Core: integration tests against real server
 packages/core/tests/**
-packages/core/vitest.integration.config.ts
+packages/core/vitest*.config.*
 
 # Web: Playwright E2E tests
 apps/web/tests/**
-apps/web/playwright.config.ts
+apps/web/playwright.config.*
 
 # Backend: Spring Boot + Testcontainers integration tests
 services/server/src/test/**

@@ -1,93 +1,63 @@
 # DJ Mode & Music Recommendation
-# Frontend session, queue, and DJ components
-apps/web/src/features/player/stores/session-store.ts
-apps/web/src/features/player/hooks/useDjAutoRefill.ts
-apps/web/src/features/player/components/DjPreferencesPanel.tsx
-apps/web/src/features/player/components/QueueView.tsx
-apps/web/src/shared/utils/session-manager.ts
 
-# Core API services
-packages/core/src/api/adaptive-dj.service.ts
-packages/core/src/api/adaptive-dj.types.ts
-packages/core/src/player/queue.ts
+# Frontend - player feature (session, queue, DJ components)
+apps/web/src/features/player/**
+apps/web/src/shared/utils/session*
 
-# Backend controllers
-services/server/src/main/java/com/yaytsa/server/controller/AdaptiveQueueController.java
-services/server/src/main/java/com/yaytsa/server/controller/ListeningSessionController.java
-services/server/src/main/java/com/yaytsa/server/controller/TrackFeaturesController.java
-services/server/src/main/java/com/yaytsa/server/controller/PlaybackSignalController.java
-services/server/src/main/java/com/yaytsa/server/controller/RecommendationController.java
+# Core - adaptive DJ API + queue
+packages/core/src/api/adaptive-dj*
+packages/core/src/player/**
 
-# Backend domain services
-services/server/src/main/java/com/yaytsa/server/domain/service/AdaptiveQueueService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/AdaptiveQueueManager.java
-services/server/src/main/java/com/yaytsa/server/domain/service/LlmDjService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/LlmSessionParamService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/DjDecision.java
-services/server/src/main/java/com/yaytsa/server/domain/service/QueuePolicyValidator.java
-services/server/src/main/java/com/yaytsa/server/domain/service/QueueSseService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/FallbackQueueService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/CandidateRetrievalService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/ListeningSessionService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/TrackFeaturesService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/FeatureExtractionService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/FeatureExtractionJobScheduler.java
-services/server/src/main/java/com/yaytsa/server/domain/service/AudioFingerprintService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/RecommendationService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/SemanticSearchService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/AffinityAggregationService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/UserEmbeddingService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/EmbeddingBackfillService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/SignalProcessingService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/TasteProfileService.java
+# Backend - DJ/recommendation controllers
+services/server/**/controller/*Queue*.java
+services/server/**/controller/*Session*.java
+services/server/**/controller/*Features*.java
+services/server/**/controller/*Signal*.java
+services/server/**/controller/*Recommendation*.java
 
-# Backend DTOs
-services/server/src/main/java/com/yaytsa/server/dto/request/CreateListeningSessionRequest.java
-services/server/src/main/java/com/yaytsa/server/dto/request/UpdateSessionStateRequest.java
-services/server/src/main/java/com/yaytsa/server/dto/response/AdaptiveQueueResponse.java
-services/server/src/main/java/com/yaytsa/server/dto/response/AdaptiveQueueEntryResponse.java
-services/server/src/main/java/com/yaytsa/server/dto/response/ListeningSessionResponse.java
-services/server/src/main/java/com/yaytsa/server/dto/response/TrackFeaturesResponse.java
-services/server/src/main/java/com/yaytsa/server/dto/response/RecommendedTrackResponse.java
+# Backend - domain services
+services/server/**/domain/service/*Queue*.java
+services/server/**/domain/service/*Dj*.java
+services/server/**/domain/service/*Session*.java
+services/server/**/domain/service/*Feature*.java
+services/server/**/domain/service/*Recommend*.java
+services/server/**/domain/service/*Candidate*.java
+services/server/**/domain/service/*Fallback*.java
+services/server/**/domain/service/*Affinity*.java
+services/server/**/domain/service/*Embedding*.java
+services/server/**/domain/service/*Signal*.java
+services/server/**/domain/service/*TasteProfile*.java
+services/server/**/domain/service/*Semantic*.java
+services/server/**/domain/service/*Fingerprint*.java
 
-# Backend persistence
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/AdaptiveQueueEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/ListeningSessionEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/TrackFeaturesEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/TasteProfileEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/FeatureExtractionJobEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/LlmDecisionLogEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/UserTrackAffinityEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/PlaybackSignalEntity.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/AdaptiveQueueRepository.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/ListeningSessionRepository.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/TrackFeaturesRepository.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/FeatureExtractionJobRepository.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/LlmDecisionLogRepository.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/UserTrackAffinityRepository.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/repository/PlaybackSignalRepository.java
+# Backend - DTOs
+services/server/**/dto/**/*Queue*.java
+services/server/**/dto/**/*Session*.java
+services/server/**/dto/**/*Feature*.java
+services/server/**/dto/**/*Recommend*.java
 
-# Backend infrastructure clients
-services/server/src/main/java/com/yaytsa/server/infrastructure/client/FeatureExtractionClient.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/client/EmbeddingExtractionClient.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/client/AudioSeparatorClient.java
+# Backend - persistence (entities + repositories)
+services/server/**/persistence/**/*Queue*.java
+services/server/**/persistence/**/*Session*.java
+services/server/**/persistence/**/*Feature*.java
+services/server/**/persistence/**/*TasteProfile*.java
+services/server/**/persistence/**/*Affinity*.java
+services/server/**/persistence/**/*Signal*.java
+services/server/**/persistence/**/*Decision*.java
+services/server/**/persistence/**/*Extraction*.java
 
-# Database migrations
-services/server/src/main/resources/db/migration/V12__adaptive_dj.sql
-services/server/src/main/resources/db/migration/V13__extract_session_state_columns.sql
-services/server/src/main/resources/db/migration/V14__add_adaptive_queue_entity_version.sql
-services/server/src/main/resources/db/migration/V17__add_audio_fingerprinting.sql
-services/server/src/main/resources/db/migration/V24__clap_mert_embeddings.sql
-services/server/src/main/resources/db/migration/V25__user_affinity_and_embeddings.sql
+# Backend - infrastructure clients
+services/server/**/client/*Extraction*.java
+services/server/**/client/*Embedding*.java
+services/server/**/client/*Separator*.java
 
-# Audio separator & feature extractor (Python)
-services/audio-separator/app.py
-services/audio-separator/extractor/essentia_analyzer.py
-services/audio-separator/extractor/embedding_extractor.py
-services/audio-separator/extractor/__init__.py
-services/audio-separator/requirements/cpu.txt
-services/audio-separator/requirements/gpu.txt
-services/audio-separator/requirements/essentia.txt
+# DJ-related database migrations
+services/server/src/main/resources/db/migration/*adaptive*.sql
+services/server/src/main/resources/db/migration/*session*.sql
+services/server/src/main/resources/db/migration/*queue*.sql
+services/server/src/main/resources/db/migration/*fingerprint*.sql
+services/server/src/main/resources/db/migration/*embedding*.sql
+services/server/src/main/resources/db/migration/*affinity*.sql
 
-# Frontend player bar (thumbs up/down)
-apps/web/src/features/player/components/PlayerBar.tsx
+# Audio separator & feature extractor
+services/audio-separator/**

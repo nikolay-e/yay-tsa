@@ -1,4 +1,4 @@
-# Frontend Pages Review
+# Frontend Pages
 # All page components + shared UI + routing
 
 apps/web/src/pages/**/*.tsx

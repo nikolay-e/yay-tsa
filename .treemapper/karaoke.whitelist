@@ -1,41 +1,33 @@
-# Karaoke Feature Review
-# Full karaoke stack: audio separation sidecar, Java controller/service,
+# Karaoke Feature
+# Audio separation sidecar, Java controller/service,
 # frontend store + platform layer, DB migration, infrastructure
 
 # Python audio separator sidecar
 services/audio-separator/**
 
-# Java backend
-services/server/src/main/java/com/yaytsa/server/controller/KaraokeController.java
-services/server/src/main/java/com/yaytsa/server/domain/service/KaraokeService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/LyricsService.java
-services/server/src/main/java/com/yaytsa/server/domain/service/TrackUploadService.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/client/AudioSeparatorClient.java
-services/server/src/main/java/com/yaytsa/server/infrastructure/persistence/entity/AudioTrackEntity.java
-services/server/src/main/java/com/yaytsa/server/config/ObservabilityConfig.java
-services/server/src/main/resources/db/migration/V4__add_karaoke_support.sql
-services/server/src/test/java/com/yaytsa/server/integration/KaraokeApiTest.java
+# Java backend - karaoke/lyrics
+services/server/**/controller/Karaoke*.java
+services/server/**/domain/service/Karaoke*.java
+services/server/**/domain/service/Lyrics*.java
+services/server/**/domain/service/TrackUpload*.java
+services/server/**/client/AudioSeparator*.java
+services/server/**/persistence/entity/AudioTrack*.java
+services/server/**/config/Observability*.java
+services/server/src/main/resources/db/migration/*karaoke*.sql
+services/server/src/test/**/Karaoke*.java
 
 # Frontend - platform audio layer
-packages/platform/src/audio.interface.ts
-packages/platform/src/web/html5-audio.ts
-packages/platform/src/web/vocal-removal.ts
-packages/platform/src/index.ts
+packages/platform/src/**/*.ts
 
-# Frontend - player store (karaoke mode + gapless coordination)
-apps/web/src/features/player/stores/player.store.ts
-apps/web/src/features/player/components/PlayerBar.tsx
+# Frontend - player store (karaoke + gapless)
+apps/web/src/features/player/stores/player.store*
+apps/web/src/features/player/components/PlayerBar*
 
-# Core API client + types (KaraokeStatus defined in api.client.ts)
-packages/core/src/api/api.client.ts
+# Core API client + types
+packages/core/src/api/api.client*
 
 # Infrastructure
-docker-compose.yml
-docker/docker-compose.yml
-services/server/src/main/resources/application.yml
-.github/workflows/ci.yml
-charts/yay-tsa/templates/audio-separator-deployment.yaml
-charts/yay-tsa/templates/audio-separator-service.yaml
-charts/yay-tsa/templates/audio-separator-stems-pvc.yaml
-charts/yay-tsa/templates/networkpolicy.yaml
-charts/yay-tsa/values.yaml
+docker-compose*.yml
+services/server/src/main/resources/application*.yml
+.github/workflows/*.yml
+charts/yay-tsa/**

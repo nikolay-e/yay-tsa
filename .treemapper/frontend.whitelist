@@ -1,4 +1,4 @@
-# React Frontend Review
+# React Frontend
 # All TSX/TS source files in web app
 
 apps/web/src/**/*.tsx

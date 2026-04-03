@@ -1,4 +1,4 @@
-# Domain & Infrastructure Review
+# Domain & Infrastructure
 # Domain services, persistence, security, transcoding, external clients
 
 services/server/**/domain/**/*.java

@@ -1,7 +1,7 @@
-# Audio Services Review
+# Audio Services
 # Audio separator (Python) + platform audio adapters + transcoding
 
 services/audio-separator/**/*.py
 packages/platform/src/**/*.ts
 services/server/**/transcoding/**/*.java
-services/server/**/client/AudioSeparatorClient.java
+services/server/**/client/AudioSeparator*.java
