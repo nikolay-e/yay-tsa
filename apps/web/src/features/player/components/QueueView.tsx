@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
-import { useInView } from '@/shared/hooks/useInView';
 import { formatTicks, currentTimeOfDay } from '@/shared/utils/time';
 import {
   usePlayerStore,
@@ -16,7 +15,6 @@ import {
   useSessionStore,
   useActiveSession,
   useIsSessionStarting,
-  useIsSessionRefreshing,
   useSessionError,
   getSavedSessionId,
 } from '../stores/session-store';
@@ -183,7 +181,6 @@ export function QueueView() {
   const next = usePlayerStore(state => state.next);
   const activeSession = useActiveSession();
   const isStarting = useIsSessionStarting();
-  const isRefreshing = useIsSessionRefreshing();
   const sessionError = useSessionError();
   const initAttemptedRef = useRef(false);
 
@@ -203,17 +200,6 @@ export function QueueView() {
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0 });
   }, [currentTrack?.Id]);
-
-  const canLoadMore = activeSession != null && !isRefreshing;
-  const { ref: sentinelRef, isInView } = useInView({
-    rootMargin: '200px',
-    enabled: canLoadMore,
-  });
-
-  useEffect(() => {
-    if (!isInView || !canLoadMore) return;
-    useSessionStore.getState().refreshQueue();
-  }, [isInView, canLoadMore]);
 
   const isSessionExpired = !activeSession && sessionError != null;
 
@@ -277,12 +263,6 @@ export function QueueView() {
             }
           />
         ))}
-        <div ref={sentinelRef} className="h-1" />
-        {isRefreshing && (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="text-text-tertiary h-5 w-5 animate-spin" />
-          </div>
-        )}
       </div>
     </div>
   );
