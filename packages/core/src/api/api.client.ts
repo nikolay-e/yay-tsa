@@ -342,15 +342,16 @@ export class MediaServerClient {
 
   private buildQueryString(params: Record<string, unknown>): string {
     const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) {
-          searchParams.append(key, value.join(','));
-        } else {
-          searchParams.append(key, String(value));
-        }
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null) continue;
+      if (Array.isArray(value)) {
+        searchParams.append(key, value.join(','));
+      } else if (typeof value === 'object') {
+        searchParams.append(key, JSON.stringify(value));
+      } else {
+        searchParams.append(key, String(value));
       }
-    });
+    }
     return searchParams.toString();
   }
 

@@ -1027,7 +1027,8 @@ export const usePlayerStore = create<PlayerStore>()(
         if (tracks.length === 0) return;
         const { queue, queueIndex } = get();
         for (let i = 0; i < tracks.length; i++) {
-          queue.insertAt(tracks[i]!, queueIndex + 1 + i);
+          const track = tracks[i];
+          if (track) queue.insertAt(track, queueIndex + 1 + i);
         }
         syncQueueState();
         preloader.invalidate();

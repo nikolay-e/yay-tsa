@@ -2,8 +2,8 @@ import numpy as np
 
 
 class SeedSelector:
-    def __init__(self):
-        self._rng = np.random.default_rng()
+    def __init__(self, seed=None):
+        self._rng = np.random.default_rng(seed)
 
     def compute_seeds(
         self, tracks: list[dict], num_seeds: int = 10, temperature: float = 0.7

@@ -18,6 +18,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -147,6 +148,16 @@ class WebViewActivity : AppCompatActivity() {
             override fun onConsoleMessage(msg: ConsoleMessage?): Boolean = true
         }
 
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) webView.goBack()
+                else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         webView.loadUrl(hostUrl)
     }
 
@@ -203,11 +214,6 @@ class WebViewActivity : AppCompatActivity() {
             stopService(Intent(this, MediaPlaybackService::class.java))
         }
         super.onDestroy()
-    }
-
-    @Deprecated("Deprecated in Java in favor of OnBackPressedCallback")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 
     companion object {

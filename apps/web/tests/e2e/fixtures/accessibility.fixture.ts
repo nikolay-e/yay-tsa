@@ -19,7 +19,9 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
     await page.getByRole('button', { name: 'Sign In' }).click();
 
     const result = await Promise.race([
-      page.waitForURL(/.*(?!.*login)/, { timeout: 15000 }).then(() => 'navigated' as const),
+      page
+        .waitForURL(url => !url.includes('login'), { timeout: 15000 })
+        .then(() => 'navigated' as const),
       page
         .getByRole('heading', { level: 1 })
         .first()

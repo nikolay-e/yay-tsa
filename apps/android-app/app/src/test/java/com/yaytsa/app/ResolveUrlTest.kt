@@ -3,6 +3,7 @@ package com.yaytsa.app
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+@Suppress("FunctionName")
 class ResolveUrlTest {
 
     companion object {
