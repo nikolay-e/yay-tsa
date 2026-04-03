@@ -34,7 +34,7 @@ async function loginWithRetry(page: Page, username: string, password: string, ma
     // Wait for either: navigation away from login OR error visible
     const result = await Promise.race([
       page
-        .waitForURL(url => !url.includes('login'), { timeout: 15000 })
+        .waitForURL(url => !url.href.includes('login'), { timeout: 15000 })
         .then(() => 'navigated' as const),
       page
         .locator('[role="alert"]')
