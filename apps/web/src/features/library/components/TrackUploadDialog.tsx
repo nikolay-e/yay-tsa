@@ -379,7 +379,7 @@ export function TrackUploadDialog({
               <button
                 onClick={handleUpload}
                 disabled={pendingCount === 0}
-                className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors disabled:opacity-50"
+                className="bg-accent hover:bg-accent/90 text-text-on-accent flex-1 rounded-lg px-4 py-2 font-medium transition-colors disabled:opacity-50"
               >
                 Upload {pendingCount} track{pendingCount === 1 ? '' : 's'}
               </button>
@@ -388,7 +388,7 @@ export function TrackUploadDialog({
           {allDone && (
             <button
               onClick={handleClose}
-              className="bg-accent hover:bg-accent/90 flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors"
+              className="bg-accent hover:bg-accent/90 text-text-on-accent flex-1 rounded-lg px-4 py-2 font-medium transition-colors"
             >
               Done
             </button>

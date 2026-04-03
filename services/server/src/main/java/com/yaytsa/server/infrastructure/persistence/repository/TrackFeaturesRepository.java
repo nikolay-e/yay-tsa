@@ -236,6 +236,24 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
   @Query(
       value =
           """
+          SELECT tf.track_id, tf.embedding_mert
+          FROM track_features tf
+          JOIN items i ON i.id = tf.track_id
+          WHERE i.type = 'AudioTrack'
+            AND tf.embedding_mert IS NOT NULL
+            AND tf.track_id NOT IN (:excludeIds)
+          ORDER BY tf.embedding_mert <=> CAST(:userEmbedding AS vector)
+          LIMIT :lim
+          """,
+      nativeQuery = true)
+  List<Object[]> findDiscoveryEmbeddingsByUserProfile(
+      @Param("userEmbedding") String userEmbedding,
+      @Param("excludeIds") List<UUID> excludeIds,
+      @Param("lim") int limit);
+
+  @Query(
+      value =
+          """
           SELECT COUNT(*) FROM track_features
           WHERE embedding_mert IS NOT NULL
           """,

@@ -121,7 +121,7 @@ function AddUserModal({
           <button
             onClick={() => mutation.mutate()}
             disabled={!username.trim() || mutation.isPending}
-            className="bg-accent hover:bg-accent/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent/90 text-text-on-accent flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Create
@@ -280,7 +280,7 @@ export function UsersPanel() {
             setShownPassword(null);
             setShowAddModal(true);
           }}
-          className="bg-accent hover:bg-accent/90 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-colors"
+          className="bg-accent hover:bg-accent/90 text-text-on-accent flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
         >
           <UserPlus className="h-4 w-4" />
           Add User

@@ -133,7 +133,7 @@ public class RadioSeedService {
         seenTrackIds.isEmpty() ? List.of(EMPTY_UUID) : new ArrayList<>(seenTrackIds);
 
     List<Object[]> discoveryRows =
-        trackFeaturesRepository.findTracksByUserEmbedding(
+        trackFeaturesRepository.findDiscoveryEmbeddingsByUserProfile(
             userEmbedding, excludeIds, DISCOVERY_LIMIT);
 
     int added = 0;

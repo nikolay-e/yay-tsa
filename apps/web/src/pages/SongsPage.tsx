@@ -107,7 +107,7 @@ export function SongsPage() {
               className={cn(
                 'px-2.5 py-1.5 text-xs font-medium transition-colors',
                 searchMode === 'text'
-                  ? 'bg-accent text-white'
+                  ? 'bg-accent text-text-on-accent'
                   : 'text-text-secondary hover:bg-bg-secondary'
               )}
             >
@@ -119,7 +119,7 @@ export function SongsPage() {
               className={cn(
                 'px-2.5 py-1.5 text-xs font-medium transition-colors',
                 searchMode === 'semantic'
-                  ? 'bg-accent text-white'
+                  ? 'bg-accent text-text-on-accent'
                   : 'text-text-secondary hover:bg-bg-secondary'
               )}
             >
