@@ -1,5 +1,5 @@
 import { createLogger } from '@yay-tsa/core';
-import { easeInOutQuad } from '../shared/easing.js';
+import { createFade } from './fade.js';
 
 const log = createLogger('PinkNoise');
 
@@ -134,23 +134,14 @@ export class PinkNoiseGenerator {
     toLevel: number,
     durationMs: number
   ): { promise: Promise<void>; cancel: () => void } {
-    // Cancel any existing fade
     if (this.currentFadeCancel) {
       this.currentFadeCancel();
     }
 
-    const startTime = Date.now();
-    const startVolume = Math.max(0, Math.min(1, fromLevel));
-    const endVolume = Math.max(0, Math.min(1, toLevel));
-    let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const fade = createFade(fromLevel, toLevel, durationMs, true, v => this.setVolume(v));
 
     const cancel = () => {
-      cancelled = true;
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
+      fade.cancel();
       if (this.currentFadeCancel === cancel) {
         this.currentFadeCancel = null;
       }
@@ -158,33 +149,10 @@ export class PinkNoiseGenerator {
 
     this.currentFadeCancel = cancel;
 
-    const promise = new Promise<void>(resolve => {
-      this.setVolume(startVolume);
-
-      const FADE_INTERVAL_MS = 16;
-      intervalId = setInterval(() => {
-        if (cancelled) {
-          resolve();
-          return;
-        }
-
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / durationMs, 1);
-
-        const easedProgress = easeInOutQuad(progress);
-
-        const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
-        this.setVolume(currentVolume);
-
-        if (progress >= 1) {
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          this.currentFadeCancel = null;
-          resolve();
-        }
-      }, FADE_INTERVAL_MS);
+    const promise = fade.promise.then(() => {
+      if (this.currentFadeCancel === cancel) {
+        this.currentFadeCancel = null;
+      }
     });
 
     return { promise, cancel };

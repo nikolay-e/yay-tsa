@@ -1,6 +1,6 @@
 import { createLogger } from '@yay-tsa/core';
 import { type AudioEngine } from '../audio.interface.js';
-import { easeInOutQuad } from '../shared/easing.js';
+import { createFade } from './fade.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';
 
 const log = createLogger('Audio');
@@ -653,8 +653,12 @@ export class HTML5AudioEngine implements AudioEngine {
       this.currentFadeCancel();
     }
 
-    const { promise, cancel } = this.createFade(fromLevel, toLevel, durationMs, true, volume =>
-      this.setVolume(volume)
+    const { promise, cancel } = this.createFadeOperation(
+      fromLevel,
+      toLevel,
+      durationMs,
+      true,
+      volume => this.setVolume(volume)
     );
 
     this.currentFadeCancel = cancel;
@@ -662,59 +666,26 @@ export class HTML5AudioEngine implements AudioEngine {
     return { promise, cancel };
   }
 
-  private createFade(
+  private createFadeOperation(
     fromLevel: number,
     toLevel: number,
     durationMs: number,
     useEasing: boolean,
     setVolume: (v: number) => void
   ): { promise: Promise<void>; cancel: () => void } {
-    const startTime = Date.now();
-    const startVolume = Math.max(0, Math.min(1, fromLevel));
-    const endVolume = Math.max(0, Math.min(1, toLevel));
-    let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const fade = createFade(fromLevel, toLevel, durationMs, useEasing, setVolume);
 
     const cancel = () => {
-      cancelled = true;
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
+      fade.cancel();
       if (this.currentFadeCancel === cancel) {
         this.currentFadeCancel = null;
       }
     };
 
-    const promise = new Promise<void>(resolve => {
-      setVolume(startVolume);
-
-      const FADE_INTERVAL_MS = 16;
-      intervalId = setInterval(() => {
-        if (cancelled) {
-          resolve();
-          return;
-        }
-
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / durationMs, 1);
-
-        const easedProgress = useEasing ? easeInOutQuad(progress) : progress;
-
-        const currentVolume = startVolume + (endVolume - startVolume) * easedProgress;
-        setVolume(currentVolume);
-
-        if (progress >= 1) {
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          if (this.currentFadeCancel === cancel) {
-            this.currentFadeCancel = null;
-          }
-          resolve();
-        }
-      }, FADE_INTERVAL_MS);
+    const promise = fade.promise.then(() => {
+      if (this.currentFadeCancel === cancel) {
+        this.currentFadeCancel = null;
+      }
     });
 
     return { promise, cancel };
@@ -1009,9 +980,15 @@ export class HTML5AudioEngine implements AudioEngine {
     toLevel: number,
     durationMs: number
   ): Promise<void> {
-    const { promise, cancel } = this.createFade(fromLevel, toLevel, durationMs, false, v => {
-      element.volume = v;
-    });
+    const { promise, cancel } = this.createFadeOperation(
+      fromLevel,
+      toLevel,
+      durationMs,
+      false,
+      v => {
+        element.volume = v;
+      }
+    );
     this.activeElementFades.add(cancel);
     try {
       await promise;

@@ -16,12 +16,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +30,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class StreamingService {
 
-  private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=(\\d+)-(\\d*)$");
   private static final org.slf4j.Logger log =
       org.slf4j.LoggerFactory.getLogger(StreamingService.class);
 
@@ -78,7 +77,7 @@ public class StreamingService {
 
     if (xAccelRedirectEnabled) {
       handleXAccelRedirect(resolved.filePath(), fileSize, mimeType, response);
-    } else if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+    } else if (rangeHeader != null) {
       handleRangeRequest(resolved.filePath(), fileSize, mimeType, rangeHeader, response);
     } else {
       handleFullRequest(resolved.filePath(), fileSize, mimeType, response);
@@ -176,17 +175,26 @@ public class StreamingService {
       HttpServletResponse response)
       throws IOException {
 
-    Matcher matcher = RANGE_PATTERN.matcher(rangeHeader);
-    if (!matcher.matches()) {
+    List<HttpRange> ranges;
+    try {
+      ranges = HttpRange.parseRanges(rangeHeader);
+    } catch (IllegalArgumentException e) {
       response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
       response.setHeader("Content-Range", "bytes */" + fileSize);
       return;
     }
 
-    long start = Long.parseLong(matcher.group(1));
-    long end = matcher.group(2).isEmpty() ? fileSize - 1 : Long.parseLong(matcher.group(2));
+    if (ranges.isEmpty()) {
+      response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+      response.setHeader("Content-Range", "bytes */" + fileSize);
+      return;
+    }
 
-    if (start >= fileSize || end >= fileSize || start > end) {
+    HttpRange range = ranges.get(0);
+    long start = range.getRangeStart(fileSize);
+    long end = range.getRangeEnd(fileSize);
+
+    if (start >= fileSize || start > end) {
       response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
       response.setHeader("Content-Range", "bytes */" + fileSize);
       return;

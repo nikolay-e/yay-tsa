@@ -7,6 +7,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,8 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,10 +28,27 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
   private static final String EMBY_AUTH_HEADER = "X-Emby-Authorization";
   private static final String API_KEY_PARAM = "api_key";
 
+  private static final List<RequestMatcher> PUBLIC_PATH_MATCHERS =
+      List.of(
+          new AntPathRequestMatcher("/Users/AuthenticateByName"),
+          new AntPathRequestMatcher("/System/Info/Public"),
+          new AntPathRequestMatcher("/error"),
+          new AntPathRequestMatcher("/api-docs/**"),
+          new AntPathRequestMatcher("/swagger-ui/**"),
+          new AntPathRequestMatcher("/swagger-ui.html"),
+          new AntPathRequestMatcher("/v3/api-docs/**"),
+          new AntPathRequestMatcher("/manage/health"),
+          new AntPathRequestMatcher("/manage/health/**"));
+
   private final AuthService authService;
 
   public EmbyAuthFilter(AuthService authService) {
     this.authService = authService;
+  }
+
+  @Override
+  protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+    return PUBLIC_PATH_MATCHERS.stream().anyMatch(matcher -> matcher.matches(request));
   }
 
   @Override
@@ -37,11 +57,6 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
       @NonNull HttpServletResponse response,
       @NonNull FilterChain filterChain)
       throws ServletException, IOException {
-
-    if (shouldSkipAuthentication(request)) {
-      filterChain.doFilter(request, response);
-      return;
-    }
 
     Optional<EmbyAuthCredentials> credentials = extractCredentials(request);
 
@@ -71,16 +86,6 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
     }
 
     filterChain.doFilter(request, response);
-  }
-
-  private boolean shouldSkipAuthentication(HttpServletRequest request) {
-    String path = request.getRequestURI();
-    return "/Users/AuthenticateByName".equals(path)
-        || "/System/Info/Public".equals(path)
-        || path.startsWith("/swagger-ui")
-        || path.startsWith("/api-docs")
-        || path.startsWith("/v3/api-docs")
-        || path.startsWith("/manage/health");
   }
 
   private Optional<EmbyAuthCredentials> extractCredentials(HttpServletRequest request) {

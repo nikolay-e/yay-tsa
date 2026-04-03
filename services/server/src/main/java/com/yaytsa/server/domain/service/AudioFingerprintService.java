@@ -1,5 +1,7 @@
 package com.yaytsa.server.domain.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,6 +19,7 @@ public class AudioFingerprintService {
   private static final Logger log = LoggerFactory.getLogger(AudioFingerprintService.class);
 
   private static final int COMMAND_TIMEOUT_SECONDS = 30;
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final String fpcalcPath;
 
@@ -148,18 +151,18 @@ public class AudioFingerprintService {
 
   private Optional<AudioFingerprint> parseFpcalcOutput(String json) {
     try {
-      // Simple JSON parsing (avoid adding Jackson dependency just for this)
-      String fingerprint = extractJsonValue(json, "fingerprint");
-      String durationStr = extractJsonValue(json, "duration");
-      String sampleRateStr = extractJsonValue(json, "sample_rate");
+      JsonNode root = OBJECT_MAPPER.readTree(json);
 
-      if (fingerprint == null || durationStr == null) {
+      JsonNode fingerprintNode = root.get("fingerprint");
+      JsonNode durationNode = root.get("duration");
+      if (fingerprintNode == null || durationNode == null) {
         log.warn("Invalid fpcalc output: {}", json);
         return Optional.empty();
       }
 
-      double duration = Double.parseDouble(durationStr);
-      int sampleRate = sampleRateStr != null ? Integer.parseInt(sampleRateStr) : 0;
+      String fingerprint = fingerprintNode.asText();
+      double duration = durationNode.asDouble();
+      int sampleRate = root.has("sample_rate") ? root.get("sample_rate").asInt() : 0;
 
       log.debug(
           "Fingerprint generated: {} chars, duration: {}s, sample rate: {}Hz",
@@ -172,42 +175,6 @@ public class AudioFingerprintService {
     } catch (Exception e) {
       log.error("Failed to parse fpcalc output: {}", e.getMessage());
       return Optional.empty();
-    }
-  }
-
-  private String extractJsonValue(String json, String key) {
-    String searchKey = "\"" + key + "\"";
-    int keyIndex = json.indexOf(searchKey);
-
-    if (keyIndex == -1) return null;
-
-    int colonIndex = json.indexOf(':', keyIndex);
-    if (colonIndex == -1) return null;
-
-    int valueStart = colonIndex + 1;
-    while (valueStart < json.length() && Character.isWhitespace(json.charAt(valueStart))) {
-      valueStart++;
-    }
-
-    if (valueStart >= json.length()) return null;
-
-    char firstChar = json.charAt(valueStart);
-
-    if (firstChar == '"') {
-      // String value
-      int valueEnd = json.indexOf('"', valueStart + 1);
-      if (valueEnd == -1) return null;
-      return json.substring(valueStart + 1, valueEnd);
-    } else {
-      // Number value
-      int valueEnd = valueStart;
-      while (valueEnd < json.length()
-          && (Character.isDigit(json.charAt(valueEnd))
-              || json.charAt(valueEnd) == '.'
-              || json.charAt(valueEnd) == '-')) {
-        valueEnd++;
-      }
-      return json.substring(valueStart, valueEnd);
     }
   }
 }

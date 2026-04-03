@@ -12,6 +12,8 @@ import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,6 +80,7 @@ public class AuthService {
         user, rawToken, tokenEntity.getId().toString(), deviceId, deviceName, client, version);
   }
 
+  @CacheEvict(value = "api-tokens", key = "#rawToken")
   @Transactional
   public void logout(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
@@ -94,6 +97,7 @@ public class AuthService {
             });
   }
 
+  @Cacheable(value = "api-tokens", key = "#rawToken", unless = "#result.isEmpty()")
   @Transactional(readOnly = true)
   public Optional<UserEntity> validateToken(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
