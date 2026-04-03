@@ -12,6 +12,7 @@ import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlaybackSignalRepository;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class FallbackQueueService {
 
   private static final Logger log = LoggerFactory.getLogger(FallbackQueueService.class);
+  private static final int MAX_TRACKS_PER_ARTIST = 3;
   private static final Set<String> KNOWN_ROOT_GENRES =
       Set.of(
           "rock",
@@ -300,7 +302,8 @@ public class FallbackQueueService {
             maxVersion,
             existingTrackIds,
             insertNextCount,
-            playingPosition));
+            playingPosition,
+            activeQueue));
 
     log.info(
         "Recommendation queue filled {} tracks for session {} (excluded {} recently played)",
@@ -353,6 +356,17 @@ public class FallbackQueueService {
     return merged;
   }
 
+  private static String resolveArtistName(ItemEntity item) {
+    try {
+      ItemEntity album = item.getParent();
+      if (album == null) return null;
+      ItemEntity artist = album.getParent();
+      return artist != null ? artist.getName() : null;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
   private static Set<String> extractRootGenres(List<String> genres) {
     Set<String> roots = new HashSet<>();
     for (String genre : genres) {
@@ -374,7 +388,8 @@ public class FallbackQueueService {
       long maxVersion,
       Set<UUID> existingTrackIds,
       int insertNextCount,
-      int playingPosition) {
+      int playingPosition,
+      List<AdaptiveQueueEntity> activeQueue) {
     return transactionTemplate.execute(
         status -> {
           long newVersion = maxVersion + 1;
@@ -384,12 +399,23 @@ public class FallbackQueueService {
               itemRepository.findAllById(itemIds).stream()
                   .collect(Collectors.toMap(ItemEntity::getId, Function.identity()));
 
+          Map<String, Integer> artistCounts = new HashMap<>();
+          for (var q : activeQueue) {
+            String artist = resolveArtistName(q.getItem());
+            if (artist != null) artistCounts.merge(artist, 1, Integer::sum);
+          }
+
           Set<UUID> seen = new HashSet<>(existingTrackIds);
           List<ScoredTrack> deduped = new ArrayList<>();
           for (ScoredTrack rec : recommendations) {
             ItemEntity item = itemsById.get(rec.candidate().id());
             if (item != null && seen.add(item.getId())) {
+              String artist = resolveArtistName(item);
+              if (artist != null && artistCounts.getOrDefault(artist, 0) >= MAX_TRACKS_PER_ARTIST) {
+                continue;
+              }
               deduped.add(rec);
+              if (artist != null) artistCounts.merge(artist, 1, Integer::sum);
             }
           }
 
