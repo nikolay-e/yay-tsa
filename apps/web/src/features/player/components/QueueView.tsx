@@ -47,7 +47,7 @@ function DjFeedbackButtons({
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5">
+    <div className="flex shrink-0 items-center">
       <button
         type="button"
         aria-label="Good pick"
@@ -59,12 +59,12 @@ function DjFeedbackButtons({
           sendFeedback('THUMBS_UP');
         }}
         className={cn(
-          'cursor-pointer rounded p-1.5 transition-colors',
+          'cursor-pointer rounded p-2.5 transition-colors',
           'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
           liked ? 'text-accent' : 'text-text-tertiary hover:text-text-primary'
         )}
       >
-        <ThumbsUp className="h-3.5 w-3.5" fill={liked ? 'currentColor' : 'none'} />
+        <ThumbsUp className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
       </button>
       <button
         type="button"
@@ -75,11 +75,11 @@ function DjFeedbackButtons({
           onThumbsDown(trackId);
         }}
         className={cn(
-          'text-text-tertiary cursor-pointer rounded p-1.5 transition-colors hover:text-red-400',
+          'text-text-tertiary cursor-pointer rounded p-2.5 transition-colors hover:text-red-400',
           'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none'
         )}
       >
-        <ThumbsDown className="h-3.5 w-3.5" />
+        <ThumbsDown className="h-4 w-4" />
       </button>
     </div>
   );
@@ -102,19 +102,22 @@ function QueueTrackItem({
 }>) {
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onPlay}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPlay();
+        }
+      }}
       className={cn(
-        'flex w-full items-center rounded-lg px-3 py-2 transition-colors',
+        'flex w-full cursor-pointer items-center rounded-lg px-3 py-2 transition-colors',
+        'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
         isCurrent ? 'bg-accent/10' : 'hover:bg-bg-hover'
       )}
     >
-      <button
-        type="button"
-        onClick={onPlay}
-        className={cn(
-          'flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left',
-          'focus-visible:ring-accent rounded focus-visible:ring-2 focus-visible:outline-none'
-        )}
-      >
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center">
           {(() => {
             if (isCurrent && isPlaying)
@@ -147,7 +150,7 @@ function QueueTrackItem({
             )}
           </div>
         </div>
-      </button>
+      </div>
 
       {feedbackSlot}
 
