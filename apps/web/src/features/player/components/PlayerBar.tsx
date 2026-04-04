@@ -433,28 +433,24 @@ export function PlayerBar() {
         <div className="hidden shrink-0 items-center justify-end gap-1 sm:flex md:flex-1 md:gap-2">
           <TimeDisplay />
 
-          {activeSession && (
-            <>
-              <button
-                type="button"
-                onClick={handleThumbsUp}
-                className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                aria-label="Thumbs up"
-                title="Like this track"
-              >
-                <ThumbsUp className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleThumbsDown}
-                className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                aria-label="Thumbs down"
-                title="Skip and avoid"
-              >
-                <ThumbsDown className="h-4 w-4" />
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={handleThumbsUp}
+            className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Thumbs up"
+            title="Like this track"
+          >
+            <ThumbsUp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleThumbsDown}
+            className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Thumbs down"
+            title="Skip and avoid"
+          >
+            <ThumbsDown className="h-4 w-4" />
+          </button>
 
           <button
             type="button"
@@ -544,6 +540,8 @@ export function PlayerBar() {
           onToggleKaraoke={handleToggleKaraoke}
           onOpenSleepTimer={() => setShowSleepModal(true)}
           onSeek={handleSeek}
+          onThumbsUp={handleThumbsUp}
+          onThumbsDown={handleThumbsDown}
         />
       )}
     </div>

@@ -14,6 +14,8 @@ import {
   MicOff,
   Timer,
   AlignLeft,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import type { AudioItem, RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -45,6 +47,8 @@ type MobileFullPlayerProps = Readonly<{
   onToggleKaraoke: () => void;
   onOpenSleepTimer: () => void;
   onSeek: (seconds: number) => void;
+  onThumbsUp: () => void;
+  onThumbsDown: () => void;
 }>;
 
 function MobileTimeRow() {
@@ -103,6 +107,8 @@ export function MobileFullPlayer({
   onToggleKaraoke,
   onOpenSleepTimer,
   onSeek,
+  onThumbsUp,
+  onThumbsDown,
 }: MobileFullPlayerProps) {
   const artistName = track.Artists?.[0] ?? 'Unknown Artist';
   const artistId = track.ArtistItems?.[0]?.Id;
@@ -141,7 +147,7 @@ export function MobileFullPlayer({
         )}
       </div>
 
-      {/* Track info + like */}
+      {/* Track info + like + rating */}
       <div className="flex items-center justify-between px-8 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-text-primary truncate text-xl font-semibold">{track.Name}</p>
@@ -157,11 +163,29 @@ export function MobileFullPlayer({
             <p className="text-text-secondary truncate text-base">{artistName}</p>
           )}
         </div>
-        <FavoriteButton
-          itemId={track.Id}
-          isFavorite={track.UserData?.IsFavorite ?? false}
-          size="md"
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onThumbsUp}
+            className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Thumbs up"
+          >
+            <ThumbsUp className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onThumbsDown}
+            className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Thumbs down"
+          >
+            <ThumbsDown className="h-5 w-5" />
+          </button>
+          <FavoriteButton
+            itemId={track.Id}
+            isFavorite={track.UserData?.IsFavorite ?? false}
+            size="md"
+          />
+        </div>
       </div>
 
       {/* Seek bar + time */}

@@ -1,6 +1,6 @@
 import { memo, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { type AudioItem } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -8,7 +8,7 @@ import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatTicks } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
-import { useFavoriteToggle } from '@/features/library/hooks/useFavorites';
+import { FavoriteButton } from './FavoriteButton';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
 
@@ -94,58 +94,6 @@ const TrackImage = memo(
     prev.isCurrentTrack === next.isCurrentTrack &&
     prev.isPlaying === next.isPlaying
 );
-
-function RatingButtons({
-  itemId,
-  isFavorite,
-  className,
-}: Readonly<{
-  itemId: string;
-  isFavorite: boolean;
-  className?: string;
-}>) {
-  const { mutate, isPending } = useFavoriteToggle();
-
-  return (
-    <div className={cn('flex items-center gap-0.5', className)}>
-      <button
-        type="button"
-        onClick={e => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (!isFavorite) mutate({ itemId, isFavorite });
-        }}
-        disabled={isPending}
-        className={cn(
-          'focus-visible:ring-accent rounded-full p-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-          isFavorite ? 'text-accent' : 'text-text-secondary hover:text-text-primary',
-          isPending && 'opacity-50'
-        )}
-        aria-label="Thumbs up"
-        aria-pressed={isFavorite}
-      >
-        <ThumbsUp className="h-3.5 w-3.5" fill={isFavorite ? 'currentColor' : 'none'} />
-      </button>
-      <button
-        type="button"
-        onClick={e => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (isFavorite) mutate({ itemId, isFavorite });
-        }}
-        disabled={isPending}
-        className={cn(
-          'focus-visible:ring-accent rounded-full p-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-          'text-text-secondary hover:text-text-primary',
-          isPending && 'opacity-50'
-        )}
-        aria-label="Thumbs down"
-      >
-        <ThumbsDown className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-}
 
 function TrackMetadata({
   showArtist,
@@ -260,7 +208,7 @@ export function TrackListRow({
         )}
       </div>
 
-      <RatingButtons
+      <FavoriteButton
         itemId={track.Id}
         isFavorite={track.UserData?.IsFavorite ?? false}
         className={cn(
