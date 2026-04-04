@@ -65,6 +65,7 @@ interface PlayerActions {
   updateCurrentTrackLyrics: (lyrics: string) => void;
   appendToQueue: (tracks: AudioItem[]) => void;
   insertNextInQueue: (tracks: AudioItem[]) => void;
+  removeFromQueue: (trackId: string) => void;
   jumpToQueueTrack: (trackId: string) => Promise<void>;
 }
 
@@ -225,6 +226,7 @@ export const usePlayerStore = create<PlayerStore>()(
         updateCurrentTrackLyrics: () => {},
         appendToQueue: () => {},
         insertNextInQueue: () => {},
+        removeFromQueue: () => {},
         jumpToQueueTrack: async () => {},
       };
     }
@@ -1079,6 +1081,17 @@ export const usePlayerStore = create<PlayerStore>()(
           const track = tracks[i];
           if (track) queue.insertAt(track, queueIndex + 1 + i);
         }
+        syncQueueState();
+        preloader.invalidate();
+        schedulePreload();
+      },
+
+      removeFromQueue: (trackId: string) => {
+        const { queue } = get();
+        const items = queue.getAllItems();
+        const index = items.findIndex(item => item.Id === trackId);
+        if (index === -1 || index === queue.getCurrentIndex()) return;
+        queue.removeAt(index);
         syncQueueState();
         preloader.invalidate();
         schedulePreload();

@@ -197,6 +197,7 @@ export function QueueView() {
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const jumpToQueueTrack = usePlayerStore(state => state.jumpToQueueTrack);
+  const removeFromQueue = usePlayerStore(state => state.removeFromQueue);
   const pause = usePlayerStore(state => state.pause);
   const resume = usePlayerStore(state => state.resume);
   const next = usePlayerStore(state => state.next);
@@ -262,6 +263,8 @@ export function QueueView() {
   const handleThumbsDown = (trackId: string) => {
     if (trackId === currentTrack?.Id) {
       next();
+    } else {
+      removeFromQueue(trackId);
     }
   };
 
