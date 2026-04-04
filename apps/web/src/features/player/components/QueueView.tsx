@@ -28,6 +28,7 @@ function DjFeedbackButtons({
   onThumbsDown: (trackId: string) => void;
 }>) {
   const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
 
   const sendFeedback = (type: 'THUMBS_UP' | 'THUMBS_DOWN') => {
     useSessionStore
@@ -56,6 +57,7 @@ function DjFeedbackButtons({
           e.stopPropagation();
           if (liked) return;
           setLiked(true);
+          setDisliked(false);
           sendFeedback('THUMBS_UP');
         }}
         className={cn(
@@ -69,17 +71,22 @@ function DjFeedbackButtons({
       <button
         type="button"
         aria-label="Bad pick"
+        aria-pressed={disliked}
         onClick={e => {
           e.stopPropagation();
+          if (disliked) return;
+          setDisliked(true);
+          setLiked(false);
           sendFeedback('THUMBS_DOWN');
           onThumbsDown(trackId);
         }}
         className={cn(
-          'text-text-tertiary cursor-pointer rounded p-2.5 transition-colors hover:text-red-400',
-          'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none'
+          'cursor-pointer rounded p-2.5 transition-colors',
+          'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
+          disliked ? 'text-red-400' : 'text-text-tertiary hover:text-red-400'
         )}
       >
-        <ThumbsDown className="h-4 w-4" />
+        <ThumbsDown className="h-4 w-4" fill={disliked ? 'currentColor' : 'none'} />
       </button>
     </div>
   );
