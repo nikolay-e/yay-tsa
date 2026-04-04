@@ -3,6 +3,7 @@ import { useArtist, useArtistAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
+import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { NotFound } from '@/shared/ui/NotFound';
 import { BackLink } from '@/shared/ui/BackLink';
@@ -60,9 +61,16 @@ export function ArtistDetailPage() {
 
         <div className="flex flex-col justify-end space-y-4">
           <div>
-            <h1 data-testid="artist-detail-name" className="text-text-primary text-3xl font-bold">
-              {artist.Name}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 data-testid="artist-detail-name" className="text-text-primary text-3xl font-bold">
+                {artist.Name}
+              </h1>
+              <FavoriteButton
+                itemId={artist.Id}
+                isFavorite={artist.UserData?.IsFavorite ?? false}
+                size="md"
+              />
+            </div>
             <p className="text-text-tertiary text-sm">
               {albumCount} {albumCount === 1 ? 'album' : 'albums'}
             </p>

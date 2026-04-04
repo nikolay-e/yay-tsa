@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertTriangle, Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -133,7 +134,17 @@ function QueueTrackItem({
             {track.Name}
           </div>
           <div className="text-text-secondary truncate text-xs">
-            {track.Artists?.join(', ') ?? 'Unknown Artist'}
+            {track.ArtistItems?.[0]?.Id ? (
+              <Link
+                to={`/artists/${track.ArtistItems[0].Id}`}
+                onClick={e => e.stopPropagation()}
+                className="hover:text-text-primary hover:underline"
+              >
+                {track.Artists?.join(', ') ?? 'Unknown Artist'}
+              </Link>
+            ) : (
+              (track.Artists?.join(', ') ?? 'Unknown Artist')
+            )}
           </div>
         </div>
       </button>

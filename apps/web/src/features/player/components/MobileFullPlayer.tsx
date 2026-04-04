@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import {
   ChevronDown,
   Play,
@@ -104,6 +105,7 @@ export function MobileFullPlayer({
   onSeek,
 }: MobileFullPlayerProps) {
   const artistName = track.Artists?.[0] ?? 'Unknown Artist';
+  const artistId = track.ArtistItems?.[0]?.Id;
   const albumName = track.Album ?? '';
   const [showLyrics, setShowLyrics] = useState(false);
 
@@ -143,7 +145,17 @@ export function MobileFullPlayer({
       <div className="flex items-center justify-between px-8 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-text-primary truncate text-xl font-semibold">{track.Name}</p>
-          <p className="text-text-secondary truncate text-base">{artistName}</p>
+          {artistId ? (
+            <Link
+              to={`/artists/${artistId}`}
+              onClick={onClose}
+              className="text-text-secondary hover:text-text-primary truncate text-base hover:underline"
+            >
+              {artistName}
+            </Link>
+          ) : (
+            <p className="text-text-secondary truncate text-base">{artistName}</p>
+          )}
         </div>
         <FavoriteButton
           itemId={track.Id}
