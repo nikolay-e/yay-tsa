@@ -112,17 +112,20 @@ runs:
     - name: Prepare build args
       id: prepare-args
       shell: bash
+      env:
+        INCLUDE_GIT_SHA: ${{ inputs.include-git-sha }}
+        INCLUDE_APP_ENVIRONMENT: ${{ inputs.include-app-environment }}
+        EXTRA_BUILD_ARGS: ${{ inputs.build-args }}
       run: |
         BUILD_ARGS=""
-        if [[ "${{ inputs.include-git-sha }}" == "true" ]]; then
+        if [[ "$INCLUDE_GIT_SHA" == "true" ]]; then
           BUILD_ARGS="GIT_SHA=${{ steps.tags.outputs.primary_tag }}"
         fi
-        if [[ "${{ inputs.include-app-environment }}" == "true" ]]; then
+        if [[ "$INCLUDE_APP_ENVIRONMENT" == "true" ]]; then
           BUILD_ARGS="${BUILD_ARGS}${BUILD_ARGS:+$'\n'}APP_ENVIRONMENT=${{ steps.tags.outputs.app_environment }}"
         fi
-        EXTRA_ARGS="${{ inputs.build-args }}"
-        if [[ -n "$EXTRA_ARGS" ]]; then
-          BUILD_ARGS="${BUILD_ARGS}${BUILD_ARGS:+$'\n'}${EXTRA_ARGS}"
+        if [[ -n "$EXTRA_BUILD_ARGS" ]]; then
+          BUILD_ARGS="${BUILD_ARGS}${BUILD_ARGS:+$'\n'}${EXTRA_BUILD_ARGS}"
         fi
         {
           echo "args<<ARGS_EOF"
@@ -155,7 +158,11 @@ runs:
     - name: Image digest
       if: github.event_name != 'pull_request'
       shell: bash
+      env:
+        IMAGE_NAME: ${{ inputs.image-name }}
+        IMAGE_TAGS: ${{ steps.tags.outputs.tags }}
+        IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
       run: |
-        echo "${{ inputs.image-name }} image pushed with tags: ${{ steps.tags.outputs.tags }}"
+        echo "$IMAGE_NAME image pushed with tags: $IMAGE_TAGS"
         echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
-        echo "Digest: ${{ steps.build.outputs.digest }}"
+        echo "Digest: $IMAGE_DIGEST"

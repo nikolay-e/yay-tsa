@@ -719,7 +719,7 @@ export const usePlayerStore = create<PlayerStore>()(
           const { useSessionStore } = await import('./session-store');
           const sessionState = useSessionStore.getState();
           if (sessionState.activeSession) {
-            void sessionState.endSession();
+            sessionState.endSession().catch(() => {});
           }
 
           const { queue, isShuffle, repeatMode } = get();
@@ -742,7 +742,7 @@ export const usePlayerStore = create<PlayerStore>()(
           const { useSessionStore } = await import('./session-store');
           const sessionState = useSessionStore.getState();
           if (sessionState.activeSession) {
-            void sessionState.endSession();
+            sessionState.endSession().catch(() => {});
           }
 
           const itemsService = new ItemsService(currentClient);

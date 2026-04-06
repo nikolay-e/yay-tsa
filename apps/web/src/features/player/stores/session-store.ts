@@ -110,6 +110,26 @@ async function mergeNewTracksIntoQueue(djQueue: AdaptiveQueueTrack[]) {
   if (appendItems.length > 0) usePlayerStore.getState().appendToQueue(appendItems);
 }
 
+async function populateQueueFromDjSession(
+  service: AdaptiveDjService,
+  sessionId: string,
+  seedTrackId: string | undefined,
+  signal: AbortSignal
+): Promise<void> {
+  await service.refreshQueue(sessionId);
+  if (signal.aborted) return;
+  const djQueue = await service.getQueue(sessionId);
+  if (signal.aborted) return;
+  const audioItems = await resolveAudioItems(djQueue);
+  if (signal.aborted) return;
+  if (audioItems.length === 0) return;
+  if (seedTrackId) {
+    await usePlayerStore.getState().playTracks(audioItems);
+  } else {
+    usePlayerStore.getState().appendToQueue(audioItems);
+  }
+}
+
 let refreshDebounce = false;
 let restoreInProgress = false;
 let consecutiveRefreshErrors = 0;
@@ -144,19 +164,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       const session = await service.startSession(sessionState, seedTrackId);
       if (signal.aborted) return;
 
-      await service.refreshQueue(session.id);
+      await populateQueueFromDjSession(service, session.id, seedTrackId, signal);
       if (signal.aborted) return;
-      const djQueue = await service.getQueue(session.id);
-      if (signal.aborted) return;
-      const audioItems = await resolveAudioItems(djQueue);
-      if (signal.aborted) return;
-      if (audioItems.length > 0) {
-        if (seedTrackId) {
-          await usePlayerStore.getState().playTracks(audioItems);
-        } else {
-          usePlayerStore.getState().appendToQueue(audioItems);
-        }
-      }
       set({ activeSession: session, isStarting: false });
       saveSession(session.id);
     } catch (error) {

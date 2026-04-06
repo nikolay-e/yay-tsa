@@ -51,6 +51,85 @@ type MobileFullPlayerProps = Readonly<{
   onThumbsDown: () => void;
 }>;
 
+type SecondaryPillControlsProps = Readonly<{
+  isKaraokeMode: boolean;
+  isKaraokeTransitioning: boolean;
+  karaokeStatus: { state: string } | null | undefined;
+  showLyrics: boolean;
+  hasSleepTimer: boolean;
+  sleepMinutesLeft: number;
+  onToggleKaraoke: () => void;
+  onToggleLyrics: () => void;
+  onOpenSleepTimer: () => void;
+}>;
+
+function SecondaryPillControls({
+  isKaraokeMode,
+  isKaraokeTransitioning,
+  karaokeStatus,
+  showLyrics,
+  hasSleepTimer,
+  sleepMinutesLeft,
+  onToggleKaraoke,
+  onToggleLyrics,
+  onOpenSleepTimer,
+}: SecondaryPillControlsProps) {
+  return (
+    <div
+      className="flex justify-center gap-3 px-8 pt-4"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
+    >
+      <button
+        type="button"
+        onClick={onToggleKaraoke}
+        className={cn(
+          'focus-visible:ring-accent flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
+          isKaraokeMode || karaokeStatus?.state === 'PROCESSING'
+            ? 'bg-accent/20 text-accent'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary',
+          (isKaraokeTransitioning || karaokeStatus?.state === 'PROCESSING') && 'animate-pulse'
+        )}
+        aria-label={isKaraokeMode ? 'Disable karaoke' : 'Enable karaoke'}
+        aria-pressed={isKaraokeMode}
+      >
+        {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleLyrics}
+        className={cn(
+          'focus-visible:ring-accent flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
+          showLyrics
+            ? 'bg-accent/20 text-accent'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+        )}
+        aria-label={showLyrics ? 'Hide lyrics' : 'Show lyrics'}
+        aria-pressed={showLyrics}
+      >
+        <AlignLeft className="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenSleepTimer}
+        className={cn(
+          'focus-visible:ring-accent relative flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
+          hasSleepTimer
+            ? 'bg-accent/20 text-accent'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+        )}
+        aria-label="Sleep timer"
+      >
+        <Timer className="h-4 w-4" />
+        {hasSleepTimer && sleepMinutesLeft > 0 && (
+          <span className="text-xs">{sleepMinutesLeft}m</span>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function MobileTimeRow() {
   const currentRef = useRef<HTMLSpanElement>(null);
   const totalRef = useRef<HTMLSpanElement>(null);
@@ -255,58 +334,17 @@ export function MobileFullPlayer({
       </div>
 
       {/* Secondary pill controls */}
-      <div
-        className="flex justify-center gap-3 px-8 pt-4"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
-      >
-        <button
-          type="button"
-          onClick={onToggleKaraoke}
-          className={cn(
-            'focus-visible:ring-accent flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
-            isKaraokeMode || karaokeStatus?.state === 'PROCESSING'
-              ? 'bg-accent/20 text-accent'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary',
-            (isKaraokeTransitioning || karaokeStatus?.state === 'PROCESSING') && 'animate-pulse'
-          )}
-          aria-label={isKaraokeMode ? 'Disable karaoke' : 'Enable karaoke'}
-          aria-pressed={isKaraokeMode}
-        >
-          {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowLyrics(v => !v)}
-          className={cn(
-            'focus-visible:ring-accent flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
-            showLyrics
-              ? 'bg-accent/20 text-accent'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
-          )}
-          aria-label={showLyrics ? 'Hide lyrics' : 'Show lyrics'}
-          aria-pressed={showLyrics}
-        >
-          <AlignLeft className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onOpenSleepTimer}
-          className={cn(
-            'focus-visible:ring-accent relative flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
-            hasSleepTimer
-              ? 'bg-accent/20 text-accent'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
-          )}
-          aria-label="Sleep timer"
-        >
-          <Timer className="h-4 w-4" />
-          {hasSleepTimer && sleepMinutesLeft > 0 && (
-            <span className="text-xs">{sleepMinutesLeft}m</span>
-          )}
-        </button>
-      </div>
+      <SecondaryPillControls
+        isKaraokeMode={isKaraokeMode}
+        isKaraokeTransitioning={isKaraokeTransitioning}
+        karaokeStatus={karaokeStatus}
+        showLyrics={showLyrics}
+        hasSleepTimer={hasSleepTimer}
+        sleepMinutesLeft={sleepMinutesLeft}
+        onToggleKaraoke={onToggleKaraoke}
+        onToggleLyrics={() => setShowLyrics(v => !v)}
+        onOpenSleepTimer={onOpenSleepTimer}
+      />
     </div>,
     document.body
   );

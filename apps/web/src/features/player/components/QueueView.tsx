@@ -108,18 +108,11 @@ function QueueTrackItem({
   feedbackSlot?: ReactNode;
 }>) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       onClick={onPlay}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onPlay();
-        }
-      }}
       className={cn(
-        'flex w-full cursor-pointer items-center rounded-lg px-3 py-2 transition-colors',
+        'flex w-full items-center rounded-lg px-3 py-2 transition-colors',
         'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
         isCurrent ? 'bg-accent/10' : 'hover:bg-bg-hover'
       )}
@@ -166,7 +159,7 @@ function QueueTrackItem({
           {formatTicks(track.RunTimeTicks)}
         </span>
       )}
-    </div>
+    </button>
   );
 }
 

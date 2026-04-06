@@ -336,7 +336,11 @@ export class MediaServerClient {
         searchParams.append(key, value.join(','));
       } else if (typeof value === 'object') {
         searchParams.append(key, JSON.stringify(value));
-      } else {
+      } else if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
         searchParams.append(key, String(value));
       }
     }

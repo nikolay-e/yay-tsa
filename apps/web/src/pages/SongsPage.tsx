@@ -35,7 +35,7 @@ export function SongsPage() {
 
   const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
     useInfiniteTracks({
-      searchTerm: !isSemanticActive ? deferredSearchTerm.trim() || undefined : undefined,
+      searchTerm: isSemanticActive ? undefined : deferredSearchTerm.trim() || undefined,
       sortBy: activeOption.sortBy,
       sortOrder: activeOption.sortOrder,
     });
