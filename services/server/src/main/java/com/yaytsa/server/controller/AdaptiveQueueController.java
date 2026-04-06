@@ -38,14 +38,14 @@ public class AdaptiveQueueController {
   @GetMapping
   public ResponseEntity<AdaptiveQueueResponse> getQueue(
       @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(sessionId, user);
+    sessionService.verifyOwnership(sessionId, user);
     return ResponseEntity.ok(toResponse(sessionId, queueManager.getQueue(sessionId)));
   }
 
   @PostMapping("/refresh")
   public ResponseEntity<AdaptiveQueueResponse> refreshQueue(
       @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(sessionId, user);
+    sessionService.verifyOwnership(sessionId, user);
     queueService.refreshQueue(sessionId);
     var response = toResponse(sessionId, queueManager.getQueue(sessionId));
     sseService.broadcast(sessionId, "queue_updated", response);
@@ -55,14 +55,8 @@ public class AdaptiveQueueController {
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamQueueUpdates(
       @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(sessionId, user);
+    sessionService.verifyOwnership(sessionId, user);
     return sseService.createEmitter(sessionId);
-  }
-
-  private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
-    UUID ownerId = sessionService.getSessionOwnerId(sessionId);
-    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId()))
-      throw new org.springframework.security.access.AccessDeniedException("Access denied");
   }
 
   private AdaptiveQueueResponse toResponse(

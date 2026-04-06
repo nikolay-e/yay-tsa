@@ -1,0 +1,161 @@
+name: Docker Build and Push
+description: Build and push a Docker image to GHCR with standardized tag generation
+
+inputs:
+  image-name:
+    description: Image name suffix (e.g., frontend, backend)
+    required: true
+  context:
+    description: Docker build context path
+    required: true
+  dockerfile:
+    description: Path to Dockerfile (relative to repo root)
+    default: ''
+  target:
+    description: Docker build target stage
+    default: ''
+  build-args:
+    description: Additional Docker build args (newline-separated)
+    default: ''
+  include-git-sha:
+    description: Inject GIT_SHA build arg from generated primary tag
+    default: 'true'
+  include-app-environment:
+    description: Inject APP_ENVIRONMENT build arg (staging/production)
+    default: 'false'
+  platforms:
+    description: Target platforms
+    default: linux/amd64,linux/arm64
+  registry-username:
+    description: Container registry username
+    required: true
+  registry-password:
+    description: Container registry password
+    required: true
+  free-disk-space:
+    description: Free disk space before build (for large images)
+    default: 'false'
+  cache-from:
+    description: Custom cache-from config (overrides default GHA cache)
+    default: ''
+  cache-to:
+    description: Custom cache-to config (overrides default GHA cache)
+    default: ''
+
+outputs:
+  tags:
+    description: Generated image tags
+    value: ${{ steps.tags.outputs.tags }}
+  primary-tag:
+    description: Primary image tag (main-<sha7> or version)
+    value: ${{ steps.tags.outputs.primary_tag }}
+  app-environment:
+    description: Resolved environment (staging or production)
+    value: ${{ steps.tags.outputs.app_environment }}
+  digest:
+    description: Image digest
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Free disk space
+      if: inputs.free-disk-space == 'true'
+      shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        df -h
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+      with:
+        registry: ghcr.io
+        username: ${{ inputs.registry-username }}
+        password: ${{ inputs.registry-password }}
+
+    - name: Generate image tags
+      id: tags
+      shell: bash
+      env:
+        GIT_REF: ${{ github.ref }}
+        GIT_REF_NAME: ${{ github.ref_name }}
+        GIT_SHA: ${{ github.sha }}
+        IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.image-name }}
+      run: |
+        SHORT_SHA="${GIT_SHA:0:7}"
+        PRIMARY_TAG="main-${SHORT_SHA}"
+        TAGS="${IMAGE}:${PRIMARY_TAG}"
+        APP_ENVIRONMENT="staging"
+
+        if [[ "$GIT_REF" == refs/tags/v* ]]; then
+          TAGS="${TAGS},${IMAGE}:${GIT_REF_NAME}"
+          TAGS="${TAGS},${IMAGE}:latest"
+          APP_ENVIRONMENT="production"
+        fi
+
+        {
+          echo "tags=${TAGS}"
+          echo "primary_tag=${PRIMARY_TAG}"
+          echo "app_environment=${APP_ENVIRONMENT}"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Prepare build args
+      id: prepare-args
+      shell: bash
+      run: |
+        BUILD_ARGS=""
+        if [[ "${{ inputs.include-git-sha }}" == "true" ]]; then
+          BUILD_ARGS="GIT_SHA=${{ steps.tags.outputs.primary_tag }}"
+        fi
+        if [[ "${{ inputs.include-app-environment }}" == "true" ]]; then
+          BUILD_ARGS="${BUILD_ARGS}${BUILD_ARGS:+$'\n'}APP_ENVIRONMENT=${{ steps.tags.outputs.app_environment }}"
+        fi
+        EXTRA_ARGS="${{ inputs.build-args }}"
+        if [[ -n "$EXTRA_ARGS" ]]; then
+          BUILD_ARGS="${BUILD_ARGS}${BUILD_ARGS:+$'\n'}${EXTRA_ARGS}"
+        fi
+        {
+          echo "args<<ARGS_EOF"
+          echo "$BUILD_ARGS"
+          echo "ARGS_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Extract metadata (labels)
+      id: meta
+      uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+      with:
+        images: ghcr.io/${{ github.repository }}/${{ inputs.image-name }}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile || '' }}
+        target: ${{ inputs.target || '' }}
+        push: ${{ github.event_name != 'pull_request' }}
+        provenance: false
+        tags: ${{ steps.tags.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: ${{ steps.prepare-args.outputs.args }}
+        cache-from: ${{ inputs.cache-from || format('type=gha,scope={0}', inputs.image-name) }}
+        cache-to: ${{ inputs.cache-to || format('type=gha,mode=max,scope={0}', inputs.image-name) }}
+        platforms: ${{ inputs.platforms }}
+
+    - name: Image digest
+      if: github.event_name != 'pull_request'
+      shell: bash
+      run: |
+        echo "${{ inputs.image-name }} image pushed with tags: ${{ steps.tags.outputs.tags }}"
+        echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
+        echo "Digest: ${{ steps.build.outputs.digest }}"

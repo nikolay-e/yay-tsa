@@ -50,7 +50,7 @@ public class PlaybackSignalController {
       @PathVariable UUID sessionId,
       @RequestBody SubmitPlaybackSignalRequest request,
       @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(sessionId, user);
+    sessionService.verifyOwnership(sessionId, user);
     if (request.signalType() == null || request.signalType().isBlank())
       return ResponseEntity.badRequest().build();
     UUID trackId = UuidUtils.parseUuid(request.trackId());
@@ -73,12 +73,6 @@ public class PlaybackSignalController {
           "Unexpected optimistic lock conflict for session {}: {}", sessionId, e.getMessage());
       return ResponseEntity.status(HttpStatus.CREATED).build();
     }
-  }
-
-  private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
-    UUID ownerId = sessionService.getSessionOwnerId(sessionId);
-    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId()))
-      throw new org.springframework.security.access.AccessDeniedException("Access denied");
   }
 
   private PlaybackSignalResponse toResponse(SignalProcessingService.SignalResult result) {

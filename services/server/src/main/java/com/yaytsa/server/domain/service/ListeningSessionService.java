@@ -9,6 +9,7 @@ import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.GenreRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ListeningSessionRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
+import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +123,13 @@ public class ListeningSessionService {
             .orElseThrow(
                 () -> new ResourceNotFoundException(ResourceType.ListeningSession, sessionId));
     return session.getUser().getId();
+  }
+
+  public void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
+    UUID ownerId = getSessionOwnerId(sessionId);
+    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId())) {
+      throw new org.springframework.security.access.AccessDeniedException("Access denied");
+    }
   }
 
   @Scheduled(fixedDelay = 3600_000)

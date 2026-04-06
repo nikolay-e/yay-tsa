@@ -14,12 +14,6 @@ export interface ClientInfo {
   token?: string;
 }
 
-export interface ServerConfig {
-  serverUrl: string;
-  userId?: string;
-  token?: string;
-}
-
 // ============================================================================
 // Authentication
 // ============================================================================
@@ -46,52 +40,12 @@ export interface MediaServerUser {
   EnableAutoLogin?: boolean;
   LastLoginDate?: string;
   LastActivityDate?: string;
-  Configuration: UserConfiguration;
+  Configuration?: Record<string, unknown>;
   Policy: UserPolicy;
-}
-
-export interface UserConfiguration {
-  AudioLanguagePreference?: string;
-  PlayDefaultAudioTrack: boolean;
-  SubtitleLanguagePreference?: string;
-  DisplayMissingEpisodes: boolean;
-  GroupedFolders: string[];
-  SubtitleMode: string;
-  DisplayCollectionsView: boolean;
-  EnableLocalPassword: boolean;
-  OrderedViews: string[];
-  LatestItemsExcludes: string[];
-  MyMediaExcludes: string[];
-  HidePlayedInLatest: boolean;
-  RememberAudioSelections: boolean;
-  RememberSubtitleSelections: boolean;
-  EnableNextEpisodeAutoPlay: boolean;
 }
 
 export interface UserPolicy {
   IsAdministrator: boolean;
-  IsHidden: boolean;
-  IsDisabled: boolean;
-  EnableRemoteAccess: boolean;
-  EnableMediaPlayback: boolean;
-  EnableAudioPlaybackTranscoding: boolean;
-  EnableVideoPlaybackTranscoding: boolean;
-  EnablePlaybackRemuxing: boolean;
-  EnableContentDeletion: boolean;
-  EnableContentDownloading: boolean;
-  EnableSyncTranscoding: boolean;
-  EnableMediaConversion: boolean;
-  EnableAllDevices: boolean;
-  EnableAllChannels: boolean;
-  EnableAllFolders: boolean;
-  InvalidLoginAttemptCount: number;
-  EnablePublicSharing: boolean;
-  BlockedMediaFolders: string[];
-  BlockedChannels: string[];
-  RemoteClientBitrateLimit: number;
-  AuthenticationProviderId: string;
-  PasswordResetProviderId: string;
-  SyncPlayAccess: string;
 }
 
 export interface SessionUserInfo {
@@ -168,7 +122,7 @@ export interface BaseItem {
   UserData?: UserItemData;
   ImageTags?: ImageTags;
   BackdropImageTags?: string[];
-  ImageBlurHashes?: ImageBlurHashes;
+  ImageBlurHashes?: Record<string, Record<string, string>>;
   LocationType?: string;
   MediaType?: string;
 }
@@ -180,7 +134,7 @@ export interface AudioItem extends BaseItem {
   AlbumPrimaryImageTag?: string;
   Artists?: string[];
   ArtistItems?: NameIdPair[];
-  MediaSources?: MediaSourceInfo[];
+  MediaSources?: unknown[];
   PlaylistItemId?: string;
   Lyrics?: string;
   NormalizationGain?: number | null;
@@ -228,101 +182,7 @@ export interface UserItemData {
 
 export interface ImageTags {
   Primary?: string;
-  Art?: string;
-  Banner?: string;
-  Logo?: string;
-  Thumb?: string;
-  Disc?: string;
-  Box?: string;
-  Screenshot?: string;
-  Menu?: string;
-  Chapter?: string;
-  BoxRear?: string;
-  Profile?: string;
-}
-
-export interface ImageBlurHashes {
-  Primary?: Record<string, string>;
-  Art?: Record<string, string>;
-  Backdrop?: Record<string, string>;
-  Banner?: Record<string, string>;
-  Logo?: Record<string, string>;
-  Thumb?: Record<string, string>;
-  Disc?: Record<string, string>;
-  Box?: Record<string, string>;
-  Screenshot?: Record<string, string>;
-  Menu?: Record<string, string>;
-  Chapter?: Record<string, string>;
-  BoxRear?: Record<string, string>;
-  Profile?: Record<string, string>;
-}
-
-export interface MediaSourceInfo {
-  Protocol: string;
-  Id: string;
-  Path: string;
-  Type: string;
-  Container: string;
-  Size: number;
-  Name: string;
-  IsRemote: boolean;
-  ETag?: string;
-  RunTimeTicks?: number;
-  ReadAtNativeFramerate: boolean;
-  IgnoreDts: boolean;
-  IgnoreIndex: boolean;
-  GenPtsInput: boolean;
-  SupportsTranscoding: boolean;
-  SupportsDirectStream: boolean;
-  SupportsDirectPlay: boolean;
-  IsInfiniteStream: boolean;
-  RequiresOpening: boolean;
-  RequiresClosing: boolean;
-  RequiresLooping: boolean;
-  SupportsProbing: boolean;
-  VideoType?: string;
-  MediaStreams?: MediaStream[];
-  MediaAttachments?: Record<string, unknown>[];
-  Formats?: string[];
-  Bitrate?: number;
-  RequiredHttpHeaders?: Record<string, string>;
-  DefaultAudioStreamIndex?: number;
-}
-
-export interface MediaStream {
-  Codec: string;
-  TimeBase?: string;
-  CodecTimeBase?: string;
-  Title?: string;
-  VideoRange?: string;
-  DisplayTitle?: string;
-  NalLengthSize?: string;
-  IsInterlaced: boolean;
-  IsAVC?: boolean;
-  BitRate?: number;
-  BitDepth?: number;
-  RefFrames?: number;
-  IsDefault: boolean;
-  IsForced: boolean;
-  Height?: number;
-  Width?: number;
-  AverageFrameRate?: number;
-  RealFrameRate?: number;
-  Profile?: string;
-  Type: string;
-  AspectRatio?: string;
-  Index: number;
-  IsExternal: boolean;
-  IsTextSubtitleStream: boolean;
-  SupportsExternalStream: boolean;
-  Protocol?: string;
-  PixelFormat?: string;
-  Level?: number;
-  IsAnamorphic?: boolean;
-  Language?: string;
-  Channels?: number;
-  ChannelLayout?: string;
-  SampleRate?: number;
+  [key: string]: string | undefined;
 }
 
 // ============================================================================

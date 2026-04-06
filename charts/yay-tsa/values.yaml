@@ -88,12 +88,6 @@ probes:
     timeoutSeconds: 3
     failureThreshold: 3
 
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
-
 nodeSelector: {}
 
 tolerations: []

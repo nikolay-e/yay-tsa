@@ -1,8 +1,7 @@
 package com.yaytsa.server.domain.service;
 
-import com.yaytsa.server.error.ItemNotFoundException;
-import com.yaytsa.server.error.PlaylistEntryNotFoundException;
-import com.yaytsa.server.error.PlaylistNotFoundException;
+import com.yaytsa.server.error.ResourceNotFoundException;
+import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaylistEntity;
@@ -79,7 +78,8 @@ public class PlaylistService {
       return;
     }
     if (!playlistRepository.existsById(playlistId)) {
-      throw new PlaylistNotFoundException("Playlist not found: " + playlistId);
+      throw new ResourceNotFoundException(
+          ResourceType.Playlist, "Playlist not found: " + playlistId);
     }
 
     Set<UUID> existingItemIds =
@@ -90,7 +90,7 @@ public class PlaylistService {
     List<UUID> missingIds = itemIds.stream().filter(id -> !existingItemIds.contains(id)).toList();
 
     if (!missingIds.isEmpty()) {
-      throw new ItemNotFoundException(missingIds);
+      throw new ResourceNotFoundException(ResourceType.Item, missingIds);
     }
 
     int maxPosition = playlistEntryRepository.findMaxPositionByPlaylistId(playlistId).orElse(-1);
@@ -122,7 +122,9 @@ public class PlaylistService {
         playlistEntryRepository
             .findById(entryId)
             .orElseThrow(
-                () -> new PlaylistEntryNotFoundException("Playlist entry not found: " + entryId));
+                () ->
+                    new ResourceNotFoundException(
+                        ResourceType.PlaylistEntry, "Playlist entry not found: " + entryId));
 
     if (!entry.getPlaylistId().equals(playlistId)) {
       throw new IllegalArgumentException("Entry does not belong to this playlist");

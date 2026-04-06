@@ -165,73 +165,16 @@ jobs:
         if: needs.build-android-apk.result == 'success'
         run: mv apps/web/public/downloads/app-release.apk apps/web/public/downloads/yay-tsa.apk
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+      - name: Build and push
+        uses: ./.github/actions/docker-build
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate image tags
-        id: tags
-        env:
-          GIT_REF: ${{ github.ref }}
-          GIT_REF_NAME: ${{ github.ref_name }}
-          GIT_SHA: ${{ github.sha }}
-        run: |
-          SHORT_SHA="${GIT_SHA:0:7}"
-          PRIMARY_TAG="main-${SHORT_SHA}"
-          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${PRIMARY_TAG}"
-          APP_ENVIRONMENT="staging"
-
-          if [[ "$GIT_REF" == refs/tags/v* ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:${GIT_REF_NAME}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/frontend:latest"
-            APP_ENVIRONMENT="production"
-          fi
-
-          {
-            echo "tags=${TAGS}"
-            echo "primary_tag=${PRIMARY_TAG}"
-            echo "app_environment=${APP_ENVIRONMENT}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Extract metadata (labels)
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/frontend
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
+          image-name: frontend
           context: .
-          file: apps/web/Dockerfile
+          dockerfile: apps/web/Dockerfile
           target: production
-          push: ${{ github.event_name != 'pull_request' }}
-          provenance: false
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            GIT_SHA=${{ steps.tags.outputs.primary_tag }}
-            APP_ENVIRONMENT=${{ steps.tags.outputs.app_environment }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-          platforms: linux/amd64,linux/arm64
-
-      - name: Image digest
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "Frontend image pushed with tags: ${{ steps.tags.outputs.tags }}"
-          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
-          echo "Digest: ${{ steps.build.outputs.digest }}"
+          include-app-environment: 'true'
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   docker-build-backend:
     name: Build Backend Image
@@ -244,67 +187,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+      - name: Build and push
+        uses: ./.github/actions/docker-build
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate image tags
-        id: tags
-        env:
-          GIT_REF: ${{ github.ref }}
-          GIT_REF_NAME: ${{ github.ref_name }}
-          GIT_SHA: ${{ github.sha }}
-        run: |
-          SHORT_SHA="${GIT_SHA:0:7}"
-          PRIMARY_TAG="main-${SHORT_SHA}"
-          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/backend:${PRIMARY_TAG}"
-
-          if [[ "$GIT_REF" == refs/tags/v* ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:${GIT_REF_NAME}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/backend:latest"
-          fi
-
-          {
-            echo "tags=${TAGS}"
-            echo "primary_tag=${PRIMARY_TAG}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Extract metadata (labels)
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
+          image-name: backend
           context: ./services/server
-          push: ${{ github.event_name != 'pull_request' }}
-          provenance: false
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            GIT_SHA=${{ steps.tags.outputs.primary_tag }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-          platforms: linux/amd64,linux/arm64
-
-      - name: Image digest
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "Backend image pushed with tags: ${{ steps.tags.outputs.tags }}"
-          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
-          echo "Digest: ${{ steps.build.outputs.digest }}"
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   docker-build-audio-separator:
     name: Build Audio Separator Image
@@ -314,81 +203,23 @@ jobs:
       packages: write
 
     steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h
-
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+      - name: Build and push
+        uses: ./.github/actions/docker-build
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate image tags
-        id: tags
-        env:
-          GIT_REF: ${{ github.ref }}
-          GIT_REF_NAME: ${{ github.ref_name }}
-          GIT_SHA: ${{ github.sha }}
-        run: |
-          SHORT_SHA="${GIT_SHA:0:7}"
-          PRIMARY_TAG="main-${SHORT_SHA}"
-          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${PRIMARY_TAG}"
-
-          if [[ "$GIT_REF" == refs/tags/v* ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:${GIT_REF_NAME}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:latest"
-          fi
-
-          {
-            echo "tags=${TAGS}"
-            echo "primary_tag=${PRIMARY_TAG}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Extract metadata (labels)
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/audio-separator
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
+          image-name: audio-separator
           context: ./services/audio-separator
-          push: ${{ github.event_name != 'pull_request' }}
-          provenance: false
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VARIANT=gpu
+          build-args: VARIANT=gpu
+          include-git-sha: 'false'
+          free-disk-space: 'true'
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:buildcache-gpu
+            type=registry,ref=ghcr.io/${{ github.repository }}/audio-separator:buildcache-gpu
             type=gha,scope=audio-separator
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/audio-separator:buildcache-gpu,mode=max,image-manifest=true
-          platforms: linux/amd64,linux/arm64
-
-      - name: Image digest
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "Audio Separator image pushed with tags: ${{ steps.tags.outputs.tags }}"
-          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
-          echo "Digest: ${{ steps.build.outputs.digest }}"
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/audio-separator:buildcache-gpu,mode=max,image-manifest=true
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   docker-build-feature-extractor:
     name: Build Feature Extractor Image
@@ -398,81 +229,23 @@ jobs:
       packages: write
 
     steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h
-
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+      - name: Build and push
+        uses: ./.github/actions/docker-build
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate image tags
-        id: tags
-        env:
-          GIT_REF: ${{ github.ref }}
-          GIT_REF_NAME: ${{ github.ref_name }}
-          GIT_SHA: ${{ github.sha }}
-        run: |
-          SHORT_SHA="${GIT_SHA:0:7}"
-          PRIMARY_TAG="main-${SHORT_SHA}"
-          TAGS="${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:${PRIMARY_TAG}"
-
-          if [[ "$GIT_REF" == refs/tags/v* ]]; then
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:${GIT_REF_NAME}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:latest"
-          fi
-
-          {
-            echo "tags=${TAGS}"
-            echo "primary_tag=${PRIMARY_TAG}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Extract metadata (labels)
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
+          image-name: feature-extractor
           context: ./services/audio-separator
-          push: ${{ github.event_name != 'pull_request' }}
-          provenance: false
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VARIANT=essentia
+          build-args: VARIANT=essentia
+          include-git-sha: 'false'
+          free-disk-space: 'true'
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:buildcache-essentia
+            type=registry,ref=ghcr.io/${{ github.repository }}/feature-extractor:buildcache-essentia
             type=gha,scope=feature-extractor
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/feature-extractor:buildcache-essentia,mode=max,image-manifest=true
-          platforms: linux/amd64,linux/arm64
-
-      - name: Image digest
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "Feature Extractor image pushed with tags: ${{ steps.tags.outputs.tags }}"
-          echo "Primary tag: ${{ steps.tags.outputs.primary_tag }}"
-          echo "Digest: ${{ steps.build.outputs.digest }}"
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/feature-extractor:buildcache-essentia,mode=max,image-manifest=true
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   integration-tests:
     name: Integration Tests

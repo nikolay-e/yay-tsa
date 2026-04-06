@@ -1,10 +1,12 @@
 package com.yaytsa.server.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record BaseItemResponse(
     // Core identification
     @JsonProperty("Name") String name,
@@ -81,39 +83,15 @@ public record BaseItemResponse(
     // Playback info
     @JsonProperty("CanDownload") Boolean canDownload,
     @JsonProperty("CanDelete") Boolean canDelete,
-    @JsonProperty("HasSubtitles") Boolean hasSubtitles,
 
     // Music-specific
     @JsonProperty("ProductionYear") Integer productionYear,
     @JsonProperty("Lyrics") String lyrics,
-    @JsonProperty("IsPlaceHolder") Boolean isPlaceHolder,
-    @JsonProperty("RemoteTrailers") List<Object> remoteTrailers,
     @JsonProperty("ProviderIds") Map<String, String> providerIds,
     @JsonProperty("Tags") List<String> tags,
 
-    // Series/Season info (for TV, but included for completeness)
-    @JsonProperty("SeriesName") String seriesName,
-    @JsonProperty("SeriesId") String seriesId,
-    @JsonProperty("SeasonId") String seasonId,
-    @JsonProperty("SeasonName") String seasonName,
-
     // Location type
     @JsonProperty("LocationType") String locationType,
-    @JsonProperty("IsoType") String isoType,
-    @JsonProperty("Video3DFormat") String video3DFormat,
-
-    // Chapters
-    @JsonProperty("Chapters") List<ChapterInfoDto> chapters,
-
-    // Locked fields
-    @JsonProperty("LockData") Boolean lockData,
-    @JsonProperty("LockedFields") List<String> lockedFields,
-
-    // Channel info (for live TV)
-    @JsonProperty("ChannelId") String channelId,
-    @JsonProperty("ChannelName") String channelName,
-    @JsonProperty("ChannelNumber") String channelNumber,
-    @JsonProperty("ChannelPrimaryImageTag") String channelPrimaryImageTag,
 
     // Child count (for albums: track count, for artists: album count)
     @JsonProperty("ChildCount") Integer childCount,
@@ -186,12 +164,6 @@ public record BaseItemResponse(
       @JsonProperty("DefaultAudioStreamIndex") Integer defaultAudioStreamIndex,
       @JsonProperty("DefaultSubtitleStreamIndex") Integer defaultSubtitleStreamIndex) {}
 
-  public record ChapterInfoDto(
-      @JsonProperty("StartPositionTicks") Long startPositionTicks,
-      @JsonProperty("Name") String name,
-      @JsonProperty("ImageTag") String imageTag,
-      @JsonProperty("ImageDateModified") OffsetDateTime imageDateModified) {}
-
   public static Builder builder() {
     return new Builder();
   }
@@ -247,27 +219,11 @@ public record BaseItemResponse(
     private Long size;
     private Boolean canDownload = true;
     private Boolean canDelete = false;
-    private Boolean hasSubtitles = false;
     private Integer productionYear;
     private String lyrics;
-    private Boolean isPlaceHolder = false;
-    private List<Object> remoteTrailers;
     private Map<String, String> providerIds;
     private List<String> tags;
-    private String seriesName;
-    private String seriesId;
-    private String seasonId;
-    private String seasonName;
     private String locationType = "FileSystem";
-    private String isoType;
-    private String video3DFormat;
-    private List<ChapterInfoDto> chapters;
-    private Boolean lockData = false;
-    private List<String> lockedFields;
-    private String channelId;
-    private String channelName;
-    private String channelNumber;
-    private String channelPrimaryImageTag;
     private Integer childCount;
     private Boolean isComplete;
     private Integer totalTracks;
@@ -490,27 +446,11 @@ public record BaseItemResponse(
           size,
           canDownload,
           canDelete,
-          hasSubtitles,
           productionYear,
           lyrics,
-          isPlaceHolder,
-          remoteTrailers,
           providerIds,
           tags,
-          seriesName,
-          seriesId,
-          seasonId,
-          seasonName,
           locationType,
-          isoType,
-          video3DFormat,
-          chapters,
-          lockData,
-          lockedFields,
-          channelId,
-          channelName,
-          channelNumber,
-          channelPrimaryImageTag,
           childCount,
           isComplete,
           totalTracks,
@@ -584,27 +524,11 @@ public record BaseItemResponse(
         null, // size
         true, // canDownload
         false, // canDelete
-        false, // hasSubtitles
         null, // productionYear
         null, // lyrics
-        false, // isPlaceHolder
-        List.of(), // remoteTrailers
         Map.of(), // providerIds
         List.of(), // tags
-        null, // seriesName
-        null, // seriesId
-        null, // seasonId
-        null, // seasonName
         "FileSystem",
-        null, // isoType
-        null, // video3DFormat
-        List.of(), // chapters
-        false, // lockData
-        List.of(), // lockedFields
-        null, // channelId
-        null, // channelName
-        null, // channelNumber
-        null, // channelPrimaryImageTag
         null, // childCount
         null, // isComplete
         null, // totalTracks
@@ -624,38 +548,38 @@ public record BaseItemResponse(
       Integer totalTracks) {
     return new BaseItemResponse(
         name,
-        null,
+        null, // originalTitle
         "yaytsa-server",
         id,
-        null,
+        null, // etag
         "Library",
-        null,
-        null,
-        null,
-        null,
+        null, // playlistItemId
+        null, // dateCreated
+        null, // dateLastMediaAdded
+        null, // extraType
         sortName != null ? sortName : name,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        null, // forcedSortName
+        null, // premiereDate
+        null, // overview
+        null, // officialRating
+        null, // customRating
+        null, // communityRating
+        null, // criticRating
+        null, // indexNumber
+        null, // parentIndexNumber
+        null, // indexNumberEnd
+        null, // runTimeTicks
         "MusicAlbum",
         true, // isFolder
         "Audio",
         "music",
         null, // parentId
-        null,
-        null,
-        null,
+        null, // parentLogoItemId
+        null, // parentBackdropItemId
+        null, // parentBackdropImageTags
         null, // userData
         null, // albumId (self)
-        null,
+        null, // albumPrimaryImageTag
         artists != null && !artists.isEmpty() ? artists.get(0).name() : null,
         artists,
         artists != null ? artists.stream().map(NameGuidPair::name).toList() : List.of(),
@@ -664,39 +588,23 @@ public record BaseItemResponse(
         genres,
         genres != null ? genres.stream().map(g -> new NameGuidPair(g, g)).toList() : List.of(),
         imageTags,
-        List.of(),
-        1.0,
-        null,
-        null,
-        null,
-        null,
-        null,
-        true,
-        false,
-        false,
-        year,
+        List.of(), // backdropImageTags
+        1.0, // primaryImageAspectRatio
+        null, // mediaStreams
+        null, // mediaSources
+        null, // path
+        null, // container
+        null, // size
+        true, // canDownload
+        false, // canDelete
+        year, // productionYear
         null, // lyrics
-        false,
-        List.of(),
-        Map.of(),
-        List.of(),
-        null,
-        null,
-        null,
-        null,
+        Map.of(), // providerIds
+        List.of(), // tags
         "FileSystem",
-        null,
-        null,
-        List.of(),
-        false,
-        List.of(),
-        null,
-        null,
-        null,
-        null,
         null, // childCount
-        isComplete, // isComplete
-        totalTracks, // totalTracks
+        isComplete,
+        totalTracks,
         null // normalizationGain
         );
   }

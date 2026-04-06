@@ -1,29 +1,33 @@
 package com.yaytsa.server.controller;
 
-import com.yaytsa.server.domain.service.TrackFeaturesService;
 import com.yaytsa.server.dto.response.TrackFeaturesResponse;
+import com.yaytsa.server.error.ResourceNotFoundException;
+import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackFeaturesEntity;
-import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/tracks")
+@Transactional(readOnly = true)
 public class TrackFeaturesController {
 
-  private final TrackFeaturesService featuresService;
+  private final TrackFeaturesRepository featuresRepository;
 
-  public TrackFeaturesController(TrackFeaturesService featuresService) {
-    this.featuresService = featuresService;
+  public TrackFeaturesController(TrackFeaturesRepository featuresRepository) {
+    this.featuresRepository = featuresRepository;
   }
 
   @GetMapping("/{trackId}/features")
-  public ResponseEntity<TrackFeaturesResponse> getFeatures(
-      @PathVariable UUID trackId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+  public ResponseEntity<TrackFeaturesResponse> getFeatures(@PathVariable UUID trackId) {
 
-    TrackFeaturesEntity entity = featuresService.getFeatures(trackId);
+    TrackFeaturesEntity entity =
+        featuresRepository
+            .findByTrackId(trackId)
+            .orElseThrow(() -> new ResourceNotFoundException(ResourceType.TrackFeatures, trackId));
 
     return ResponseEntity.ok(toResponse(entity));
   }

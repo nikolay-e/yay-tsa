@@ -5,7 +5,6 @@
 
 import {
   type ClientInfo,
-  type ServerConfig,
   type ServerInfo,
   MediaServerError,
   NetworkError,
@@ -129,17 +128,6 @@ export class MediaServerClient {
       throw new AuthenticationError('Not authenticated');
     }
     return this.userId;
-  }
-
-  /**
-   * Get server configuration
-   */
-  getConfig(): ServerConfig {
-    return {
-      serverUrl: this.serverUrl,
-      userId: this.userId ?? undefined,
-      token: this.token ?? undefined,
-    };
   }
 
   /**
@@ -474,15 +462,6 @@ export class MediaServerClient {
   async postRequired<T>(endpoint: string, data?: unknown, errorMessage?: string): Promise<T> {
     const result = await this.post<T>(endpoint, data);
     return this.requireResponse(result, 'POST', endpoint, errorMessage);
-  }
-
-  /**
-   * DELETE request that requires a non-empty response
-   * Throws an error if the response is empty
-   */
-  async deleteRequired<T>(endpoint: string, errorMessage?: string): Promise<T> {
-    const result = await this.delete<T>(endpoint);
-    return this.requireResponse(result, 'DELETE', endpoint, errorMessage);
   }
 
   /**

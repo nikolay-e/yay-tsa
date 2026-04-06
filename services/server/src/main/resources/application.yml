@@ -49,10 +49,6 @@ spring:
     baseline-version: 0
     out-of-order: false
 
-  # Security Configuration
-  security:
-    require-ssl: ${REQUIRE_SSL:false}
-
   # Jackson JSON Configuration
   jackson:
     default-property-inclusion: non_null
@@ -152,10 +148,6 @@ yaytsa:
 
     # Streaming configuration
     streaming:
-      buffer-size: ${STREAM_BUFFER_SIZE:65536}
-      direct-stream-enabled: true
-      byte-range-support: true
-      etag-enabled: true
       # X-Accel-Redirect for nginx (sidecar mode)
       x-accel-redirect:
         enabled: ${X_ACCEL_REDIRECT_ENABLED:false}
@@ -170,10 +162,6 @@ yaytsa:
     # Image processing configuration
     images:
       cache-directory: ${IMAGE_CACHE_DIR:./temp/images}
-      max-width: 1920
-      max-height: 1080
-      quality: 85
-      cache-max-age: 604800 # 7 days in seconds
 
     # Karaoke (vocal removal) configuration
     karaoke:
@@ -213,13 +201,6 @@ yaytsa:
       max-size: 200
       trigger-threshold: 8
       no-repeat-hours: ${DJ_NO_REPEAT_HOURS:6}
-
-    # Session configuration
-    sessions:
-      timeout-minutes: ${SESSION_TIMEOUT:30}
-      progress-report-interval-seconds: 10
-      scrobble-threshold-percent: 50
-      scrobble-minimum-seconds: 240
 
   # Metadata enrichment configuration
   metadata:
@@ -262,7 +243,6 @@ yaytsa:
       # Yay-Tsa uses token-in-header/query, not cookies, so credentials aren't needed
       allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
       max-age: 3600
-    https-required-in-production: true
 
 # Logging Configuration
 logging:
@@ -322,7 +302,6 @@ yaytsa:
   security:
     cors:
       allowed-origins: ${CORS_ORIGINS:http://localhost:*,https://localhost:*,http://frontend:*}
-    https-required-in-production: false
 
 ---
 # Test Profile
@@ -382,4 +361,3 @@ yaytsa:
       # Production should use explicit allowed origins
       # Override with environment variable: CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
       allowed-origins: ${CORS_ORIGINS:}
-    https-required-in-production: true

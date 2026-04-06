@@ -55,7 +55,7 @@ public class ListeningSessionController {
       @PathVariable UUID id,
       @RequestBody UpdateSessionStateRequest request,
       @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(id, user);
+    sessionService.verifyOwnership(id, user);
     var session = sessionService.updateState(id, request.state());
     CompletableFuture.runAsync(
         () -> adaptiveQueueService.triggerDjDecision(session, "MOOD_CHANGE", null),
@@ -66,7 +66,7 @@ public class ListeningSessionController {
   @DeleteMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> endSession(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(id, user);
+    sessionService.verifyOwnership(id, user);
     return ResponseEntity.ok(toResponse(sessionService.endSession(id)));
   }
 
@@ -84,14 +84,8 @@ public class ListeningSessionController {
   @GetMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> getSession(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
-    verifyOwnership(id, user);
+    sessionService.verifyOwnership(id, user);
     return ResponseEntity.ok(toResponse(sessionService.getSession(id)));
-  }
-
-  private void verifyOwnership(UUID sessionId, AuthenticatedUser user) {
-    UUID ownerId = sessionService.getSessionOwnerId(sessionId);
-    if (!user.getUserEntity().isAdmin() && !ownerId.equals(user.getUserEntity().getId()))
-      throw new org.springframework.security.access.AccessDeniedException("Access denied");
   }
 
   private ListeningSessionResponse toResponse(ListeningSessionEntity entity) {
