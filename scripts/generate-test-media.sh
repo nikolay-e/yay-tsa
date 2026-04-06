@@ -26,10 +26,10 @@ generate_track() {
   album="$4"
   freq="$5"
   duration="$6"
+  output="$dir/$(printf '%02d' "$track_num") - $title.mp3"
+  tmp="${output}.tmp.mp3"
   ffmpeg -y \
     -f lavfi -i "sine=frequency=${freq}:duration=${duration}" \
-    -i "$COVER_IMG" \
-    -map 0:a -map 1:v \
     -metadata title="$title" \
     -metadata artist="$ARTIST" \
     -metadata album="$album" \
@@ -37,12 +37,19 @@ generate_track() {
     -metadata date="2024" \
     -metadata genre="Electronic" \
     -codec:a libmp3lame -b:a 128k \
-    -codec:v mjpeg -q:v 5 -frames:v 1 \
+    "$tmp" 2>/dev/null || return 0
+  ffmpeg -y \
+    -i "$tmp" \
+    -i "$COVER_IMG" \
+    -map 0:a -map 1 \
+    -codec:a copy \
+    -codec:v mjpeg -q:v 5 \
+    -disposition:v attached_pic \
     -id3v2_version 3 \
     -metadata:s:v title="Cover" \
     -metadata:s:v comment="Cover (front)" \
-    "$dir/$(printf '%02d' "$track_num") - $title.mp3" 2>/dev/null
-  return 0
+    "$output" 2>/dev/null || mv "$tmp" "$output"
+  rm -f "$tmp"
 }
 
 generate_track "$ALBUM1_DIR" 1 "Morning Light" "$ALBUM1" 440 15
