@@ -17,8 +17,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTestData() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
     ResponseEntity<String> response =
         restTemplate.exchange(
@@ -42,8 +40,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Server running, When: GET /Karaoke/enabled, Then: Returns enabled status")
     void checkKaraokeEnabled() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       ResponseEntity<String> response =
           restTemplate.getForEntity(
               BASE_URL + "/Karaoke/enabled?api_key=" + authToken, String.class);
@@ -63,7 +59,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Valid track ID, When: GET /Karaoke/{id}/status, Then: Returns processing status")
     void getKaraokeStatus() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       ResponseEntity<String> response =
@@ -81,8 +76,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
         "Given: Non-existent track ID, When: GET /Karaoke/{id}/status, Then: Returns status (no"
             + " error)")
     void getKaraokeStatusNonExistent() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       ResponseEntity<String> response =
           restTemplate.getForEntity(
               BASE_URL
@@ -101,7 +94,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid track ID, When: POST /Karaoke/{id}/process, Then: Starts processing")
     void requestKaraokeProcessing() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       HttpHeaders headers = authHeaders();
@@ -127,7 +119,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Track without stems, When: GET /Karaoke/{id}/instrumental, Then: Returns 404")
     void streamInstrumentalNotReady() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       ResponseEntity<byte[]> response =
@@ -141,7 +132,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Track without stems, When: GET /Karaoke/{id}/vocals, Then: Returns 404")
     void streamVocalsNotReady() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       ResponseEntity<byte[]> response =
@@ -160,8 +150,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Invalid UUID format, When: GET /Karaoke/{id}/status, Then: Returns 400 or 401")
     void invalidTrackIdFormat() {
-      assumeTrue(authToken != null, "Auth token required");
-
       ResponseEntity<String> response =
           restTemplate.getForEntity(
               BASE_URL + "/Karaoke/not-a-uuid/status?api_key=" + authToken, String.class);

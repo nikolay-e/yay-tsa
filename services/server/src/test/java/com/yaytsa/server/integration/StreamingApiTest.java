@@ -17,8 +17,6 @@ class StreamingApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTrack() throws Exception {
-    if (authToken == null) return;
-
     HttpHeaders headers = new HttpHeaders();
     headers.set(
         "X-Emby-Authorization",
@@ -48,7 +46,6 @@ class StreamingApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid track ID, When: GET /Audio/{id}/stream, Then: Returns audio stream")
     void streamAudioFile() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       ResponseEntity<byte[]> response =
@@ -66,7 +63,6 @@ class StreamingApiTest extends BaseIntegrationTest {
         "Given: Valid track ID with Range header, When: GET /Audio/{id}/stream, Then: Returns 206"
             + " Partial Content")
     void streamAudioFileWithRange() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       HttpHeaders headers = new HttpHeaders();
@@ -92,8 +88,6 @@ class StreamingApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Non-existent track ID, When: GET /Audio/{id}/stream, Then: Returns 404")
     void streamNonExistentTrack() {
-      assumeTrue(authToken != null, "Auth token required");
-
       ResponseEntity<String> response =
           restTemplate.getForEntity(
               BASE_URL

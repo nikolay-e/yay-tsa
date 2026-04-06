@@ -2,24 +2,23 @@
 
 Framework-agnostic business logic for Yay-Tsa music player.
 
-## Installation
-
-```bash
-npm install @yay-tsa/core
-```
-
 ## Usage
 
 ```typescript
-import { MediaServerClient, PlaybackQueue } from '@yay-tsa/core';
+import { MediaServerClient, ItemsService, AuthService } from '@yay-tsa/core';
 
-const client = new MediaServerClient({
-  serverUrl: 'https://your-server.com',
-  clientInfo: { name: 'Yay-Tsa', version: '1.0.0' },
+const client = new MediaServerClient('https://your-server.com', {
+  name: 'Yay-Tsa',
+  version: '1.0.0',
+  deviceId: 'device-id',
+  deviceName: 'My Device',
 });
 
-await client.authenticate(username, password);
-const albums = await client.items.getAlbums();
+const authService = new AuthService(client);
+const session = await authService.authenticate(username, password, deviceId, deviceName);
+
+const itemsService = new ItemsService(client);
+const albums = await itemsService.getAlbums();
 ```
 
 ## Modules

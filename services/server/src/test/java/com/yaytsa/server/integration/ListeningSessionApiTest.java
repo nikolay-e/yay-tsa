@@ -14,8 +14,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findSeedTrack() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
     ResponseEntity<String> response =
         restTemplate.exchange(
@@ -61,7 +59,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
   @Test
   @DisplayName("POST /v1/sessions with seed track → 201 with session data")
   void createSessionWithSeedTrack() throws Exception {
-    assumeTrue(authToken != null, "Auth token required");
     assumeTrue(firstTrackId != null, "Track ID required");
 
     HttpHeaders headers = authHeaders();
@@ -90,8 +87,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
   @Test
   @DisplayName("POST /v1/sessions null body → 201, isRadioMode=false")
   void createSessionNullBody() throws Exception {
-    assumeTrue(authToken != null, "Auth token required");
-
     HttpHeaders headers = authHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -110,7 +105,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
   @Test
   @DisplayName("GET /v1/sessions/active → 200 with latest session")
   void getActiveSession() throws Exception {
-    assumeTrue(authToken != null, "Auth token required");
     assumeTrue(firstTrackId != null, "Track ID required");
 
     String sessionId = createRadioSession();
@@ -131,7 +125,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
   @Test
   @DisplayName("DELETE /v1/sessions/{id} → 200, endedAt non-null")
   void endSession() throws Exception {
-    assumeTrue(authToken != null, "Auth token required");
     assumeTrue(firstTrackId != null, "Track ID required");
 
     String sessionId = createRadioSession();
@@ -150,8 +143,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
   @Test
   @DisplayName("GET /v1/sessions/{random UUID} → 404")
   void getSessionNotFound() {
-    assumeTrue(authToken != null, "Auth token required");
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
     ResponseEntity<String> response =
         restTemplate.exchange(

@@ -16,7 +16,7 @@ npm run dev                    # Build core+platform, start Vite dev server with
 npm run build                  # Production build (core → platform → web)
 
 # Code Quality
-npm run type-check             # TypeScript type checking (strict mode)
+npm run type-check             # TypeScript type checking (core + platform + web)
 npm run lint                   # Prettier check
 npm run format                 # Prettier write
 npm run pre-commit             # Run all pre-commit hooks manually
@@ -103,16 +103,16 @@ The server follows a layered architecture: controllers handle HTTP, domain servi
 
 ### Karaoke: Optional Audio Separation
 
-Vocal-instrumental separation is provided by an optional sidecar service running Meta's Hybrid Demucs model via Python FastAPI. The backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API.
+Vocal-instrumental separation is provided by an optional sidecar service running BS-Roformer (default) or Hybrid Demucs via Python FastAPI. The backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API.
 
 **Why a separate service**: The ML model requires ~5GB download and 4GB RAM. Making it optional (Docker Compose profile) means the core system stays lightweight. GPU acceleration is supported but not required — ARM-native CPU mode works on Apple Silicon.
 
 ## Technology Stack
 
 - **Frontend**: React 19, Zustand, TanStack Query, Tailwind CSS 4, React Router 7, Vite
-- **Backend**: Java 21 (virtual threads), Spring Boot 3.3, Spring Data JPA + Specifications, PostgreSQL 15+ (trigram, pgvector), Flyway, Caffeine, jaudiotagger, FFmpeg
+- **Backend**: Java 21 (virtual threads), Spring Boot 3.4, Spring Data JPA + Specifications, PostgreSQL 16 (trigram, pgvector), Flyway, Caffeine, jaudiotagger, FFmpeg
 - **Auth**: Opaque device-bound tokens (not JWT) — immediate revocation, no cross-service validation needed
-- **ML/Experimental**: MERT/CLAP embeddings, Demucs vocal separation, Claude Haiku DJ (all optional)
+- **ML/Experimental**: MERT/CLAP embeddings, BS-Roformer vocal separation, Claude Haiku DJ (all optional)
 
 ### API: Jellyfin Music Subset
 
@@ -144,7 +144,7 @@ Dark mode only — intentional design choice for a music player typically used i
 
 ## Deployment Topology
 
-**Development**: Docker Compose with four services — PostgreSQL, Java backend (port 8096), Vite dev server with HMR (port 5173), and optional audio separator (karaoke profile). Service health checks gate startup ordering.
+**Development**: Docker Compose with 8 services — PostgreSQL, Java backend (port 8096), Vite dev server with HMR (port 5173), audio separator, feature extractor, and test services. Service health checks gate startup ordering.
 
 **Production**: Multi-stage Docker builds produce minimal images (nginx:alpine for frontend, eclipse-temurin:21-jre-alpine for backend). Frontend entrypoint injects runtime configuration (backend URL, CSP hashes) via envsubst — same image runs on dev/staging/production. Non-root users in both containers. Nginx thread pool with async I/O and direct I/O for large files enables efficient concurrent streaming.
 

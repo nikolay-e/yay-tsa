@@ -18,8 +18,6 @@ class UsersApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTestData() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
 
     ResponseEntity<String> albumsResponse =
@@ -58,7 +56,6 @@ class UsersApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid user ID, When: GET /Users/{userId}, Then: Returns user info")
     void getUserById() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
@@ -76,8 +73,6 @@ class UsersApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Invalid user ID, When: GET /Users/{userId}, Then: Returns 404")
     void getUserByIdNotFound() {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
@@ -97,7 +92,6 @@ class UsersApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid user ID, When: GET /Users/{userId}/Items, Then: Returns items list")
     void getUserItems() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
@@ -121,7 +115,6 @@ class UsersApiTest extends BaseIntegrationTest {
         "Given: Valid user ID with pagination, When: GET /Users/{userId}/Items, Then: Returns"
             + " paginated results")
     void getUserItemsWithPagination() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
@@ -152,7 +145,6 @@ class UsersApiTest extends BaseIntegrationTest {
         "Given: Valid item ID, When: GET /Users/{userId}/Items/{itemId}, Then: Returns item with"
             + " user data")
     void getUserItem() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
@@ -176,7 +168,6 @@ class UsersApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Invalid item ID, When: GET /Users/{userId}/Items/{itemId}, Then: Returns 404")
     void getUserItemNotFound() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
@@ -200,7 +191,6 @@ class UsersApiTest extends BaseIntegrationTest {
         "Given: Valid user ID, When: GET /Users/{userId}/FavoriteItems, Then: Returns favorites"
             + " list")
     void getUserFavorites() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
@@ -228,7 +218,6 @@ class UsersApiTest extends BaseIntegrationTest {
         "Given: Valid user ID, When: GET /Users/{userId}/Items/Resume, Then: Returns recently"
             + " played")
     void getResumeItems() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
@@ -256,7 +245,6 @@ class UsersApiTest extends BaseIntegrationTest {
         "Given: Valid track, When: POST favorite then DELETE unfavorite, Then: Item appears and"
             + " disappears from favorites")
     void toggleFavorite() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
       assumeTrue(firstTrackId != null, "Track ID required");
 

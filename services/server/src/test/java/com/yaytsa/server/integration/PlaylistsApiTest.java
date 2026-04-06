@@ -14,8 +14,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTestData() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
     ResponseEntity<String> response =
         restTemplate.exchange(
@@ -66,8 +64,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Authenticated user, When: GET /Playlists, Then: Returns playlists list")
     void getPlaylists() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(BASE_URL + "/Playlists", HttpMethod.GET, request, String.class);
@@ -87,7 +83,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid request, When: POST /Playlists, Then: Creates playlist")
     void createPlaylist() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       String playlistId = createTestPlaylist("Test Create");
@@ -101,7 +96,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Created playlist, When: GET /Playlists/{id}, Then: Returns playlist")
     void getPlaylistById() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       String playlistId = createTestPlaylist("Test Get By Id");
@@ -128,7 +122,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid playlist ID, When: GET /Playlists/{id}/Items, Then: Returns items")
     void getPlaylistItems() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       String playlistId = createTestPlaylist("Test Get Items");
@@ -155,7 +148,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Valid track ID, When: POST /Playlists/{id}/Items, Then: Adds item to playlist")
     void addItemToPlaylist() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
@@ -183,7 +175,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid playlist ID, When: PUT /Playlists/{id}, Then: Updates playlist")
     void updatePlaylist() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       String playlistId = createTestPlaylist("Test Update");
@@ -215,7 +206,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Valid playlist ID, When: DELETE /Playlists/{id}, Then: Deletes playlist")
     void deletePlaylist() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(userId != null, "User ID required");
 
       String playlistId = createTestPlaylist("Test Delete");

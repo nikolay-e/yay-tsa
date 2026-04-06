@@ -18,8 +18,6 @@ class ImagesApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTestData() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
 
     ResponseEntity<String> albumsResponse =
@@ -59,7 +57,6 @@ class ImagesApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Album with image, When: GET /Items/{id}/Images/Primary, Then: Returns image")
     void getAlbumPrimaryImage() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
       ResponseEntity<byte[]> response =
@@ -67,13 +64,11 @@ class ImagesApiTest extends BaseIntegrationTest {
               BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
               byte[].class);
 
-      HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
-          "Expected 2xx or 404 but got " + status);
-      if (status.is2xxSuccessful() && response.getBody() != null) {
-        assertTrue(response.getBody().length > 0);
-      }
+          response.getStatusCode().is2xxSuccessful(),
+          "Expected 2xx but got " + response.getStatusCode());
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().length > 0);
     }
 
     @Test
@@ -81,7 +76,6 @@ class ImagesApiTest extends BaseIntegrationTest {
         "Given: Album with image, When: GET /Items/{id}/Images/Primary with size params, Then:"
             + " Returns resized image")
     void getAlbumImageResized() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
       ResponseEntity<byte[]> response =
@@ -94,10 +88,9 @@ class ImagesApiTest extends BaseIntegrationTest {
                   + "&maxWidth=100&maxHeight=100",
               byte[].class);
 
-      HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
-          "Expected 2xx or 404 but got " + status);
+          response.getStatusCode().is2xxSuccessful(),
+          "Expected 2xx but got " + response.getStatusCode());
     }
 
     @Test
@@ -105,7 +98,6 @@ class ImagesApiTest extends BaseIntegrationTest {
         "Given: Album with image, When: GET /Items/{id}/Images/Primary with format, Then: Returns"
             + " image in format")
     void getAlbumImageWebp() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
       ResponseEntity<byte[]> response =
@@ -118,13 +110,11 @@ class ImagesApiTest extends BaseIntegrationTest {
                   + "&format=webp",
               byte[].class);
 
-      HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
-          "Expected 2xx or 404 but got " + status);
-      if (status.is2xxSuccessful() && response.getHeaders().getContentType() != null) {
-        assertEquals("image/webp", response.getHeaders().getContentType().toString());
-      }
+          response.getStatusCode().is2xxSuccessful(),
+          "Expected 2xx but got " + response.getStatusCode());
+      assertNotNull(response.getHeaders().getContentType());
+      assertEquals("image/webp", response.getHeaders().getContentType().toString());
     }
   }
 
@@ -136,7 +126,6 @@ class ImagesApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Item ID, When: GET /Items/{id}/Images/Primary/0, Then: Returns first image")
     void getImageByIndex() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
       ResponseEntity<byte[]> response =
@@ -144,10 +133,9 @@ class ImagesApiTest extends BaseIntegrationTest {
               BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary/0?api_key=" + authToken,
               byte[].class);
 
-      HttpStatus status = (HttpStatus) response.getStatusCode();
       assertTrue(
-          status.is2xxSuccessful() || status == HttpStatus.NOT_FOUND,
-          "Expected 2xx or 404 but got " + status);
+          response.getStatusCode().is2xxSuccessful(),
+          "Expected 2xx but got " + response.getStatusCode());
     }
   }
 
@@ -159,7 +147,6 @@ class ImagesApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Valid item ID, When: GET /Items/{id}/Images, Then: Returns available types")
     void getImageTypes() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
       ResponseEntity<String> response =
@@ -178,8 +165,6 @@ class ImagesApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Non-existent item ID, When: GET /Items/{id}/Images/Primary, Then: Returns 404")
     void getImageNotFound() {
-      assumeTrue(authToken != null, "Auth token required");
-
       ResponseEntity<byte[]> response =
           restTemplate.getForEntity(
               BASE_URL
@@ -198,7 +183,6 @@ class ImagesApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Image with ETag, When: GET with If-None-Match, Then: Returns 304 or image")
     void imageCaching() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstAlbumId != null, "Album ID required");
 
       ResponseEntity<byte[]> firstResponse =
@@ -206,25 +190,27 @@ class ImagesApiTest extends BaseIntegrationTest {
               BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
               byte[].class);
 
-      if (firstResponse.getStatusCode().is2xxSuccessful()) {
-        String etag = firstResponse.getHeaders().getETag();
-        if (etag != null) {
-          HttpHeaders headers = new HttpHeaders();
-          headers.setIfNoneMatch(etag);
-          HttpEntity<Void> request = new HttpEntity<>(headers);
+      assertTrue(
+          firstResponse.getStatusCode().is2xxSuccessful(),
+          "Expected 2xx but got " + firstResponse.getStatusCode());
+      String etag = firstResponse.getHeaders().getETag();
+      assertNotNull(etag, "ETag header must be present for cache validation");
 
-          ResponseEntity<byte[]> secondResponse =
-              restTemplate.exchange(
-                  BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
-                  HttpMethod.GET,
-                  request,
-                  byte[].class);
+      HttpHeaders headers = new HttpHeaders();
+      headers.setIfNoneMatch(etag);
+      HttpEntity<Void> request = new HttpEntity<>(headers);
 
-          assertTrue(
-              secondResponse.getStatusCode() == HttpStatus.NOT_MODIFIED
-                  || secondResponse.getStatusCode() == HttpStatus.OK);
-        }
-      }
+      ResponseEntity<byte[]> secondResponse =
+          restTemplate.exchange(
+              BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
+              HttpMethod.GET,
+              request,
+              byte[].class);
+
+      assertTrue(
+          secondResponse.getStatusCode() == HttpStatus.NOT_MODIFIED
+              || secondResponse.getStatusCode() == HttpStatus.OK,
+          "Expected 304 or 200 but got " + secondResponse.getStatusCode());
     }
   }
 

@@ -80,10 +80,7 @@ describe('Integration: Library Queries', () => {
     it('should fetch album by ID', async () => {
       const albumsResponse = await itemsService.getAlbums();
 
-      if (albumsResponse.Items.length === 0) {
-        console.warn('No albums found in library, skipping album detail test');
-        return;
-      }
+      expect(albumsResponse.Items.length).toBeGreaterThan(0);
 
       const albumId = albumsResponse.Items[0].Id;
       const album = await itemsService.getItem(albumId);
@@ -115,10 +112,7 @@ describe('Integration: Library Queries', () => {
     it('should fetch tracks for an album', async () => {
       const albumsResponse = await itemsService.getAlbums();
 
-      if (albumsResponse.Items.length === 0) {
-        console.warn('No albums found in library, skipping tracks test');
-        return;
-      }
+      expect(albumsResponse.Items.length).toBeGreaterThan(0);
 
       const albumId = albumsResponse.Items[0].Id;
       const tracks = await itemsService.getAlbumTracks(albumId);
@@ -138,10 +132,7 @@ describe('Integration: Library Queries', () => {
     it('should fetch tracks for an artist', async () => {
       const artistsResponse = await itemsService.getArtists();
 
-      if (artistsResponse.Items.length === 0) {
-        console.warn('No artists found in library, skipping artist tracks test');
-        return;
-      }
+      expect(artistsResponse.Items.length).toBeGreaterThan(0);
 
       const artistId = artistsResponse.Items[0].Id;
       const albums = await itemsService.getArtistAlbums(artistId);
@@ -162,10 +153,7 @@ describe('Integration: Library Queries', () => {
       // Get an album name to search for
       const albumsResponse = await itemsService.getAlbums();
 
-      if (albumsResponse.Items.length === 0) {
-        console.warn('No albums found in library, skipping search test');
-        return;
-      }
+      expect(albumsResponse.Items.length).toBeGreaterThan(0);
 
       const albumName = albumsResponse.Items[0].Name;
       const searchQuery = albumName.split(' ')[0]; // Use first word of album name
@@ -207,18 +195,12 @@ describe('Integration: Library Queries', () => {
     it('should generate valid stream URL with authentication', async () => {
       const albumsResponse = await itemsService.getAlbums();
 
-      if (albumsResponse.Items.length === 0) {
-        console.warn('No albums found in library, skipping stream URL test');
-        return;
-      }
+      expect(albumsResponse.Items.length).toBeGreaterThan(0);
 
       const albumId = albumsResponse.Items[0].Id;
       const tracks = await itemsService.getAlbumTracks(albumId);
 
-      if (tracks.length === 0) {
-        console.warn('No tracks found in album, skipping stream URL test');
-        return;
-      }
+      expect(tracks.length).toBeGreaterThan(0);
 
       const trackId = tracks[0].Id;
       const streamUrl = client.getStreamUrl(trackId);

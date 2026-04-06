@@ -39,11 +39,16 @@ public abstract class BaseIntegrationTest {
     ResponseEntity<String> response =
         restTemplate.postForEntity(BASE_URL + "/Users/AuthenticateByName", request, String.class);
 
-    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-      JsonNode json = objectMapper.readTree(response.getBody());
-      authToken = json.get("AccessToken").asText();
-      userId = json.get("User").get("Id").asText();
+    if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+      throw new IllegalStateException(
+          "Authentication failed ("
+              + response.getStatusCode()
+              + "). "
+              + "Set YAYTSA_SERVER_URL, YAYTSA_TEST_USERNAME, YAYTSA_TEST_PASSWORD env vars.");
     }
+    JsonNode json = objectMapper.readTree(response.getBody());
+    authToken = json.get("AccessToken").asText();
+    userId = json.get("User").get("Id").asText();
   }
 
   protected static HttpHeaders authHeaders() {

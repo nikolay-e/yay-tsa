@@ -62,9 +62,9 @@ See [charts/yay-tsa/values.yaml](charts/yay-tsa/values.yaml) for all configurati
 
 ## Stack
 
-- **Frontend**: React 19, Vite 7, TailwindCSS 4, React Router 7
-- **Backend**: Java 21 Spring Boot, PostgreSQL 16, Virtual Threads
-- **Karaoke**: Python FastAPI, Meta Hybrid Demucs
+- **Frontend**: React 19, Vite 8, TailwindCSS 4, React Router 7
+- **Backend**: Java 21 Spring Boot 3.4, PostgreSQL 16, Virtual Threads
+- **Karaoke**: Python FastAPI, BS-Roformer / Hybrid Demucs
 - **Infrastructure**: Docker, Helm, Argo CD, GitHub Actions
 
 ## Structure

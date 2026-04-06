@@ -81,7 +81,7 @@ http {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), screen-wake-lock=(self)" always;
         add_header Cross-Origin-Opener-Policy "same-origin" always;
-        # CSP: Inline scripts allowed via hash for SvelteKit hydration
+        # CSP: Inline scripts allowed via hash for React app bootstrap
         # Runtime hashes computed at startup (__CSP_SCRIPT_HASHES__)
         # img-src/media-src use same domains as connect-src (backend serves images/audio)
         add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;

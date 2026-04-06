@@ -14,8 +14,6 @@ class SessionsApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTestData() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
     ResponseEntity<String> response =
         restTemplate.exchange(
@@ -49,8 +47,6 @@ class SessionsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Authenticated user, When: GET /Sessions, Then: Returns sessions list")
     void getSessions() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(BASE_URL + "/Sessions", HttpMethod.GET, request, String.class);
@@ -68,7 +64,6 @@ class SessionsApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Valid track ID, When: POST /Sessions/Playing, Then: Reports playback start")
     void reportPlaybackStart() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       HttpHeaders headers = authHeaders();
@@ -87,7 +82,6 @@ class SessionsApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Playing track, When: POST /Sessions/Playing/Progress, Then: Reports progress")
     void reportPlaybackProgress() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       reportPlayingStart(firstTrackId);
@@ -110,7 +104,6 @@ class SessionsApiTest extends BaseIntegrationTest {
     @Test
     @DisplayName("Given: Playing track, When: POST /Sessions/Playing/Stopped, Then: Reports stop")
     void reportPlaybackStopped() {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackId != null, "Track ID required");
 
       reportPlayingStart(firstTrackId);
@@ -136,8 +129,6 @@ class SessionsApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Active session, When: POST /Sessions/Playing/Ping, Then: Keeps session alive")
     void pingSession() {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpHeaders headers = authHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
 

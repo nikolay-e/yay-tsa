@@ -17,8 +17,6 @@ class ItemsApiTest extends BaseIntegrationTest {
 
   @BeforeAll
   static void findTestData() throws Exception {
-    if (authToken == null) return;
-
     HttpEntity<Void> request = new HttpEntity<>(authHeaders());
     ResponseEntity<String> response =
         restTemplate.exchange(
@@ -44,8 +42,6 @@ class ItemsApiTest extends BaseIntegrationTest {
         "Given: Authenticated user, When: GET /Items with MusicAlbum filter, Then: Returns albums"
             + " list")
     void getAlbums() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
@@ -67,8 +63,6 @@ class ItemsApiTest extends BaseIntegrationTest {
         "Given: Authenticated user, When: GET /Items with pagination, Then: Returns paginated"
             + " results")
     void getAlbumsWithPagination() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
@@ -93,8 +87,6 @@ class ItemsApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Authenticated user, When: GET /Items with Audio filter, Then: Returns tracks list")
     void getTracks() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
@@ -120,8 +112,6 @@ class ItemsApiTest extends BaseIntegrationTest {
         "Given: Authenticated user, When: GET /Items with MusicArtist filter, Then: Returns artists"
             + " list")
     void getArtists() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
@@ -146,7 +136,6 @@ class ItemsApiTest extends BaseIntegrationTest {
     @DisplayName(
         "Given: Known track name, When: GET /Items with SearchTerm, Then: Returns matching results")
     void searchByTerm() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
       assumeTrue(firstTrackName != null, "Track name required");
 
       String searchTerm =
@@ -174,8 +163,6 @@ class ItemsApiTest extends BaseIntegrationTest {
         "Given: Nonsense search term, When: GET /Items with SearchTerm, Then: Returns empty"
             + " results")
     void searchByNonsenseTerm() throws Exception {
-      assumeTrue(authToken != null, "Auth token required");
-
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
