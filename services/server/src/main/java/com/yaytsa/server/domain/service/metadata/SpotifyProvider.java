@@ -10,8 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.Cacheable;
@@ -27,9 +26,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
+@Slf4j
 public class SpotifyProvider implements MetadataProvider {
-
-  private static final Logger log = LoggerFactory.getLogger(SpotifyProvider.class);
 
   private static final String API_BASE = "https://api.spotify.com/v1";
   private static final String AUTH_URL = "https://accounts.spotify.com/api/token";

@@ -1,15 +1,13 @@
 package com.yaytsa.server.domain.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class FeatureExtractionJobScheduler {
-
-  private static final Logger log = LoggerFactory.getLogger(FeatureExtractionJobScheduler.class);
 
   private final FeatureExtractionService featureExtractionService;
   private final TasteProfileService tasteProfileService;

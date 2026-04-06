@@ -14,15 +14,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class MediaScannerTransactionalService {
-
-  private static final Logger log = LoggerFactory.getLogger(MediaScannerTransactionalService.class);
 
   private final JAudioTaggerExtractor metadataExtractor;
   private final ItemRepository itemRepository;
@@ -474,11 +472,7 @@ public class MediaScannerTransactionalService {
     try {
       MessageDigest md = MessageDigest.getInstance("MD5");
       byte[] hash = md.digest(data);
-      StringBuilder sb = new StringBuilder();
-      for (byte b : hash) {
-        sb.append(String.format("%02x", b));
-      }
-      return sb.toString().substring(0, 8);
+      return HexFormat.of().formatHex(hash).substring(0, 8);
     } catch (Exception e) {
       return String.valueOf(data.length);
     }

@@ -19,7 +19,7 @@ public final class EmbyAuthHeaderParser {
       content = content.substring("MediaBrowser ".length());
     }
 
-    String[] pairs = content.split(",");
+    String[] pairs = content.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
     for (String pair : pairs) {
       String trimmed = pair.trim();
       int equalPos = trimmed.indexOf('=');

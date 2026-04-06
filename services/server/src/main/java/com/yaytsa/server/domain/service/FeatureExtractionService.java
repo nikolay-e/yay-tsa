@@ -15,8 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -24,9 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
+@Slf4j
 public class FeatureExtractionService {
 
-  private static final Logger log = LoggerFactory.getLogger(FeatureExtractionService.class);
   private static final int MAX_ATTEMPTS = 3;
   private static final int EXPECTED_DISCOGS_DIM = 1280;
   private static final int EXPECTED_MUSICNN_DIM = 200;

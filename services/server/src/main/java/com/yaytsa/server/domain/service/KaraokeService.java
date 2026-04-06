@@ -8,7 +8,6 @@ import com.yaytsa.server.infrastructure.persistence.entity.AudioTrackEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.ItemEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
-import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,22 +17,21 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
+@Slf4j
 public class KaraokeService {
 
-  private static final Logger log = LoggerFactory.getLogger(KaraokeService.class);
   private static final long JOB_TTL_MS = 3600_000; // 1 hour TTL for completed jobs
   private static final long SEPARATION_TIMEOUT_MINUTES = 10;
   private static final long STALE_PROCESSING_TIMEOUT_MS =
@@ -50,8 +48,6 @@ public class KaraokeService {
   private final Cache<UUID, JobEntry> processingJobs =
       Caffeine.newBuilder().maximumSize(1_000).expireAfterWrite(2, TimeUnit.HOURS).build();
   private final ExecutorService separationExecutor = Executors.newFixedThreadPool(2);
-  private final ScheduledExecutorService cleanupScheduler =
-      Executors.newSingleThreadScheduledExecutor();
 
   private record JobEntry(ProcessingStatus status, Instant createdAt, Instant updatedAt) {
     JobEntry withStatus(ProcessingStatus newStatus) {
@@ -96,8 +92,6 @@ public class KaraokeService {
     this.libraryRootsConfig = libraryRootsConfig;
     this.stemsRootPath = Paths.get(stemsPath).toAbsolutePath().normalize();
     initStemsRoot();
-
-    cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredJobs, 5, 5, TimeUnit.MINUTES);
   }
 
   @Lazy
@@ -129,7 +123,8 @@ public class KaraokeService {
     }
   }
 
-  private void cleanupExpiredJobs() {
+  @Scheduled(fixedRate = 300_000, initialDelay = 300_000)
+  public void cleanupExpiredJobs() {
     long now = Instant.now().toEpochMilli();
     processingJobs
         .asMap()
@@ -150,25 +145,6 @@ public class KaraokeService {
                 log.debug("Cleaned up {} job: {}", reason, trackId);
               }
             });
-  }
-
-  @PreDestroy
-  public void shutdown() {
-    log.info("Shutting down KaraokeService executors");
-    cleanupScheduler.shutdown();
-    separationExecutor.shutdown();
-    try {
-      if (!separationExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-        separationExecutor.shutdownNow();
-      }
-      if (!cleanupScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-        cleanupScheduler.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      separationExecutor.shutdownNow();
-      cleanupScheduler.shutdownNow();
-      Thread.currentThread().interrupt();
-    }
   }
 
   public ProcessingStatus getStatus(UUID trackId) {

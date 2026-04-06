@@ -13,17 +13,15 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
+@Slf4j
 public class ListeningSessionService {
-
-  private static final Logger log = LoggerFactory.getLogger(ListeningSessionService.class);
 
   private final ListeningSessionRepository sessionRepository;
   private final UserRepository userRepository;

@@ -22,16 +22,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
+@Slf4j
 public class FallbackQueueService {
 
-  private static final Logger log = LoggerFactory.getLogger(FallbackQueueService.class);
   private static final int MAX_TRACKS_PER_ARTIST = 3;
   private static final Set<String> KNOWN_ROOT_GENRES =
       Set.of(

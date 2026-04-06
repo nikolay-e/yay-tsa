@@ -3,13 +3,14 @@ package com.yaytsa.server.util;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import org.apache.commons.io.FilenameUtils;
 
 public final class PathUtils {
 
   private PathUtils() {}
 
   public static String getFilenameWithoutExtension(Path filePath) {
-    return filePath.getFileName().toString().replaceFirst("\\.[^.]+$", "");
+    return FilenameUtils.removeExtension(filePath.getFileName().toString());
   }
 
   public static String encodePathForHeader(String path) {

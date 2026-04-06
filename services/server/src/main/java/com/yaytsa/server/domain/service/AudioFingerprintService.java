@@ -8,15 +8,13 @@ import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class AudioFingerprintService {
-
-  private static final Logger log = LoggerFactory.getLogger(AudioFingerprintService.class);
 
   private static final int COMMAND_TIMEOUT_SECONDS = 30;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

@@ -19,8 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -29,9 +28,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "Authentication", description = "User authentication and management")
+@Slf4j
 public class AuthController {
-
-  private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
   private final AuthService authService;
   private final UserMapper userMapper;
@@ -65,7 +63,7 @@ public class AuthController {
       @RequestHeader(value = "X-Emby-Authorization", required = false) String embyAuth,
       HttpServletRequest httpRequest) {
 
-    String clientIp = httpRequest.getRemoteAddr();
+    String clientIp = resolveClientIp(httpRequest);
     if (loginRateLimiter.isBlocked(clientIp, request.username())) {
       log.warn("Rate limit exceeded for IP: {} / user: {}", clientIp, request.username());
       return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
@@ -156,5 +154,17 @@ public class AuthController {
       return EmbyAuthHeaderParser.parse(embyAuth).get("Token");
     }
     return apiKey;
+  }
+
+  private static String resolveClientIp(HttpServletRequest request) {
+    String forwarded = request.getHeader("X-Forwarded-For");
+    if (forwarded != null && !forwarded.isBlank()) {
+      return forwarded.split(",")[0].trim();
+    }
+    String realIp = request.getHeader("X-Real-IP");
+    if (realIp != null && !realIp.isBlank()) {
+      return realIp.trim();
+    }
+    return request.getRemoteAddr();
   }
 }

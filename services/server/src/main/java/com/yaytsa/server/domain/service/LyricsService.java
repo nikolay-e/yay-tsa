@@ -12,14 +12,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class LyricsService {
 
-  private static final Logger log = LoggerFactory.getLogger(LyricsService.class);
   private static final String NEGATIVE_CACHE_MARKER = "[no lyrics found]";
 
   private final ItemRepository itemRepository;

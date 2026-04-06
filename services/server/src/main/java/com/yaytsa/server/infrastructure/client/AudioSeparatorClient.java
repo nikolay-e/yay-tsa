@@ -5,8 +5,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.MediaType;
@@ -16,9 +15,8 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 @Component
+@Slf4j
 public class AudioSeparatorClient {
-
-  private static final Logger log = LoggerFactory.getLogger(AudioSeparatorClient.class);
 
   private static final int CONNECT_TIMEOUT_SECONDS = 10;
   private static final int READ_TIMEOUT_MINUTES = 10;

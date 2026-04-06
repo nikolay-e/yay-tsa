@@ -12,14 +12,13 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class FfmpegTranscoder {
-
-  private static final org.slf4j.Logger log =
-      org.slf4j.LoggerFactory.getLogger(FfmpegTranscoder.class);
 
   private static final List<String> BROWSER_NATIVE_CODEC_PREFIXES =
       List.of("mp3", "aac", "flac", "opus", "ogg", "vorbis", "wav", "pcm", "mpeg");

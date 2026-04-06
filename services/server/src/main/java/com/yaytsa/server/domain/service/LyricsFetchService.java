@@ -8,15 +8,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class LyricsFetchService {
-
-  private static final Logger log = LoggerFactory.getLogger(LyricsFetchService.class);
 
   private final LrcLibClient lrcLibClient;
   private final AudioTrackRepository audioTrackRepository;

@@ -8,20 +8,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
+import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.jaudiotagger.tag.images.Artwork;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class JAudioTaggerExtractor {
 
-  private static final Logger log = LoggerFactory.getLogger(JAudioTaggerExtractor.class);
   private static final int DEFAULT_CHANNELS = 2;
   private static final Charset WINDOWS_1251 = Charset.forName("windows-1251");
 

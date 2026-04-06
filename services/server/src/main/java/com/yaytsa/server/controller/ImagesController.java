@@ -15,8 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,9 +26,8 @@ import org.springframework.web.context.request.WebRequest;
 
 @RestController
 @Tag(name = "Images", description = "Image serving and processing")
+@Slf4j
 public class ImagesController {
-
-  private static final Logger log = LoggerFactory.getLogger(ImagesController.class);
 
   private final ImageService imageService;
   private final ImageRepository imageRepository;

@@ -9,11 +9,11 @@ import com.yaytsa.server.dto.request.SubmitPlaybackSignalRequest;
 import com.yaytsa.server.dto.response.PlaybackSignalResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import com.yaytsa.server.util.UuidUtils;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +23,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/sessions/{sessionId}/signals")
+@Slf4j
 public class PlaybackSignalController {
-
-  private static final Logger log = LoggerFactory.getLogger(PlaybackSignalController.class);
 
   private final SignalProcessingService signalService;
   private final ListeningSessionService sessionService;
@@ -54,9 +53,10 @@ public class PlaybackSignalController {
     verifyOwnership(sessionId, user);
     if (request.signalType() == null || request.signalType().isBlank())
       return ResponseEntity.badRequest().build();
-    UUID trackId = parseUuid(request.trackId());
+    UUID trackId = UuidUtils.parseUuid(request.trackId());
     if (trackId == null) return ResponseEntity.badRequest().build();
-    UUID queueEntryId = request.queueEntryId() != null ? parseUuid(request.queueEntryId()) : null;
+    UUID queueEntryId =
+        request.queueEntryId() != null ? UuidUtils.parseUuid(request.queueEntryId()) : null;
 
     try {
       var result =
@@ -101,14 +101,5 @@ public class PlaybackSignalController {
         parsedContext,
         signal.getCreatedAt(),
         result.triggerFired());
-  }
-
-  private UUID parseUuid(String value) {
-    if (value == null) return null;
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
   }
 }

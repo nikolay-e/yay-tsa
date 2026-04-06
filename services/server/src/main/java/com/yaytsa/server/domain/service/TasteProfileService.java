@@ -10,15 +10,15 @@ import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepo
 import com.yaytsa.server.infrastructure.persistence.repository.UserRepository;
 import java.time.OffsetDateTime;
 import java.util.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class TasteProfileService {
 
-  private static final Logger log = LoggerFactory.getLogger(TasteProfileService.class);
   private static final int TOP_TRACKS_LIMIT = 200;
   private static final int TOP_ARTISTS_LIMIT = 10;
   private static final int TOP_GENRES_LIMIT = 10;
@@ -95,10 +95,8 @@ public class TasteProfileService {
   }
 
   private Map<UUID, TrackFeaturesEntity> loadFeatures(List<UUID> trackIds) {
-    Map<UUID, TrackFeaturesEntity> map = new HashMap<>();
-    for (UUID id : trackIds)
-      trackFeaturesRepository.findByTrackId(id).ifPresent(f -> map.put(id, f));
-    return map;
+    return trackFeaturesRepository.findByTrackIdIn(trackIds).stream()
+        .collect(Collectors.toMap(TrackFeaturesEntity::getTrackId, f -> f));
   }
 
   private record Agg(

@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.domain.util.EmbeddingUtils;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackFeaturesEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayHistoryRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
@@ -8,18 +9,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.IntStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
+@Slf4j
 public class CandidateRetrievalService {
 
-  private static final Logger log = LoggerFactory.getLogger(CandidateRetrievalService.class);
   private static final long FEATURE_COUNT_TTL_MS = 300_000;
 
   private final TrackFeaturesRepository trackFeaturesRepository;
@@ -139,7 +138,7 @@ public class CandidateRetrievalService {
 
     long featureCount = getFeatureCount();
     boolean useExact = featureCount < exactSearchThreshold;
-    String embedding = formatEmbedding(features.getEmbeddingDiscogs());
+    String embedding = EmbeddingUtils.format(features.getEmbeddingDiscogs());
 
     if (useExact) {
       log.debug(
@@ -266,12 +265,6 @@ public class CandidateRetrievalService {
       featureCountTimestamp = now;
     }
     return cachedFeatureCount;
-  }
-
-  private static String formatEmbedding(float[] embedding) {
-    return IntStream.range(0, embedding.length)
-        .mapToObj(i -> String.valueOf(embedding[i]))
-        .collect(java.util.stream.Collectors.joining(",", "[", "]"));
   }
 
   static TrackCandidate mapEmbeddingSimilarityRow(Object[] row) {

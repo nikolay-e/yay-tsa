@@ -1,5 +1,6 @@
 package com.yaytsa.server.domain.service;
 
+import com.yaytsa.server.domain.util.EmbeddingUtils;
 import com.yaytsa.server.dto.response.RadioSeedsResponse;
 import com.yaytsa.server.dto.response.RadioSeedsResponse.RadioSeed;
 import com.yaytsa.server.infrastructure.client.RadioSeedClient;
@@ -16,15 +17,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class RadioSeedService {
 
-  private static final Logger log = LoggerFactory.getLogger(RadioSeedService.class);
   private static final int MIN_USER_TRACKS_FOR_SEEDS = 5;
   private static final int SEED_CANDIDATES = 100;
   private static final double TEMPERATURE = 0.7;
@@ -84,7 +84,7 @@ public class RadioSeedService {
     Set<UUID> seenTrackIds = new HashSet<>();
     for (var row : affinityTracks) {
       UUID trackId = (UUID) row[0];
-      float[] embedding = parseEmbedding(row[1]);
+      float[] embedding = EmbeddingUtils.parse(row[1]);
       double affinity = ((Number) row[2]).doubleValue();
       if (embedding == null) continue;
       seenTrackIds.add(trackId);
@@ -98,7 +98,7 @@ public class RadioSeedService {
     for (var row : playHistoryTracks) {
       UUID trackId = (UUID) row[0];
       if (seenTrackIds.contains(trackId)) continue;
-      float[] embedding = parseEmbedding(row[1]);
+      float[] embedding = EmbeddingUtils.parse(row[1]);
       double affinity = ((Number) row[2]).doubleValue();
       if (embedding == null) continue;
       seenTrackIds.add(trackId);
@@ -128,7 +128,7 @@ public class RadioSeedService {
       return;
     }
 
-    String userEmbedding = formatEmbedding(profile.getEmbeddingMert());
+    String userEmbedding = EmbeddingUtils.format(profile.getEmbeddingMert());
     List<UUID> excludeIds =
         seenTrackIds.isEmpty() ? List.of(EMPTY_UUID) : new ArrayList<>(seenTrackIds);
 
@@ -140,7 +140,7 @@ public class RadioSeedService {
     for (var row : discoveryRows) {
       UUID trackId = (UUID) row[0];
       if (seenTrackIds.contains(trackId)) continue;
-      float[] embedding = parseEmbedding(row[1]);
+      float[] embedding = EmbeddingUtils.parse(row[1]);
       if (embedding == null) continue;
       seenTrackIds.add(trackId);
       trackInputs.add(
@@ -199,31 +199,6 @@ public class RadioSeedService {
 
   private static int countDiscovery(List<RadioSeedClient.SeedTrackInput> inputs) {
     return (int) inputs.stream().filter(t -> t.affinityScore() == DISCOVERY_AFFINITY).count();
-  }
-
-  private static String formatEmbedding(float[] embedding) {
-    return IntStream.range(0, embedding.length)
-        .mapToObj(i -> String.valueOf(embedding[i]))
-        .collect(Collectors.joining(",", "[", "]"));
-  }
-
-  private static float[] parseEmbedding(Object raw) {
-    if (raw instanceof float[] arr) return arr;
-    if (raw == null) return null;
-    try {
-      String str = raw.toString();
-      if (str.startsWith("[")) str = str.substring(1);
-      if (str.endsWith("]")) str = str.substring(0, str.length() - 1);
-      String[] parts = str.split(",");
-      float[] result = new float[parts.length];
-      for (int i = 0; i < parts.length; i++) {
-        result[i] = Float.parseFloat(parts[i].trim());
-      }
-      return result;
-    } catch (NumberFormatException e) {
-      log.warn("Malformed embedding data: {}", e.getMessage());
-      return null;
-    }
   }
 
   private static List<Float> floatArrayToList(float[] arr) {

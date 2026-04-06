@@ -15,8 +15,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,9 +30,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/tracks")
 @PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Upload", description = "Track upload operations (admin only)")
+@Slf4j
 public class UploadController {
-
-  private static final Logger log = LoggerFactory.getLogger(UploadController.class);
 
   private static final List<String> SUPPORTED_EXTENSIONS =
       List.of("mp3", "flac", "m4a", "aac", "ogg", "opus", "wav", "wma");
@@ -158,9 +157,6 @@ public class UploadController {
   }
 
   private String formatFileSize(long bytes) {
-    if (bytes < 1024) return bytes + " B";
-    int exp = (int) (Math.log(bytes) / Math.log(1024));
-    String pre = "KMGTPE".charAt(exp - 1) + "";
-    return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    return FileUtils.byteCountToDisplaySize(bytes);
   }
 }

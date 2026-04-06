@@ -3,8 +3,7 @@ package com.yaytsa.server.infrastructure.client;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Duration;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -12,9 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 @Component
+@Slf4j
 public class RadioSeedClient {
-
-  private static final Logger log = LoggerFactory.getLogger(RadioSeedClient.class);
 
   private final RestClient restClient;
 

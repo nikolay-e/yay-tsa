@@ -2,6 +2,7 @@ package com.yaytsa.server.domain.service;
 
 import com.yaytsa.server.domain.service.CandidateRetrievalService.NeverPlayedFilters;
 import com.yaytsa.server.domain.service.CandidateRetrievalService.TrackCandidate;
+import com.yaytsa.server.domain.util.EmbeddingUtils;
 import com.yaytsa.server.infrastructure.persistence.entity.TasteProfileEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserTrackAffinityEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
@@ -12,15 +13,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.stream.IntStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class RecommendationService {
 
-  private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
   private static final UUID EMPTY_UUID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
   private static final double W_AFFINITY = 0.25;
@@ -243,7 +242,7 @@ public class RecommendationService {
     if (queryEmbedding == null) return List.of();
 
     int limit = (int) (count * 2.5);
-    String embedding = formatEmbedding(queryEmbedding);
+    String embedding = EmbeddingUtils.format(queryEmbedding);
     List<UUID> excludeList =
         ctx.excludeIds().isEmpty() ? List.of(EMPTY_UUID) : new ArrayList<>(ctx.excludeIds());
 
@@ -296,12 +295,12 @@ public class RecommendationService {
 
     List<Object[]> rows;
     if (features.getEmbeddingMert() != null) {
-      String embedding = formatEmbedding(features.getEmbeddingMert());
+      String embedding = EmbeddingUtils.format(features.getEmbeddingMert());
       rows =
           trackFeaturesRepository.findSimilarTracksByMert(
               ctx.lastPlayedTrackId(), embedding, (int) (count * 1.5));
     } else if (features.getEmbeddingDiscogs() != null) {
-      String embedding = formatEmbedding(features.getEmbeddingDiscogs());
+      String embedding = EmbeddingUtils.format(features.getEmbeddingDiscogs());
       rows =
           trackFeaturesRepository.findSimilarTracksExact(
               ctx.lastPlayedTrackId(), embedding, (int) (count * 1.5));
@@ -351,13 +350,13 @@ public class RecommendationService {
     float weight = ctx.anchorWeight();
 
     if (anchor == null || weight <= 0) return userEmb;
-    if (userEmb == null) return l2Normalize(anchor);
+    if (userEmb == null) return EmbeddingUtils.l2Normalize(anchor);
     if (anchor.length != userEmb.length) {
       log.warn(
           "Embedding dimension mismatch: anchor={}, user={}. Using anchor only.",
           anchor.length,
           userEmb.length);
-      return l2Normalize(anchor);
+      return EmbeddingUtils.l2Normalize(anchor);
     }
     return blendEmbeddings(anchor, userEmb, weight);
   }
@@ -367,17 +366,7 @@ public class RecommendationService {
     for (int i = 0; i < anchor.length; i++) {
       result[i] = alpha * anchor[i] + (1 - alpha) * user[i];
     }
-    return l2Normalize(result);
-  }
-
-  private static float[] l2Normalize(float[] vec) {
-    float norm = 0;
-    for (float v : vec) norm += v * v;
-    norm = (float) Math.sqrt(norm);
-    if (norm < 1e-9f) return vec.clone();
-    float[] result = new float[vec.length];
-    for (int i = 0; i < vec.length; i++) result[i] = vec[i] / norm;
-    return result;
+    return EmbeddingUtils.l2Normalize(result);
   }
 
   private double computeScore(
@@ -542,31 +531,12 @@ public class RecommendationService {
     var rows = trackFeaturesRepository.findMertEmbeddingsByTrackIds(trackIds);
     for (var row : rows) {
       UUID trackId = (UUID) row[0];
-      float[] embedding = parseRawEmbedding(row[1]);
+      float[] embedding = EmbeddingUtils.parse(row[1]);
       if (embedding != null) {
         embeddings.put(trackId, embedding);
       }
     }
     return embeddings;
-  }
-
-  private static float[] parseRawEmbedding(Object raw) {
-    if (raw instanceof float[] arr) return arr;
-    if (raw == null) return null;
-    try {
-      String str = raw.toString();
-      if (str.startsWith("[")) str = str.substring(1);
-      if (str.endsWith("]")) str = str.substring(0, str.length() - 1);
-      String[] parts = str.split(",");
-      float[] result = new float[parts.length];
-      for (int i = 0; i < parts.length; i++) {
-        result[i] = Float.parseFloat(parts[i].trim());
-      }
-      return result;
-    } catch (Exception e) {
-      log.warn("Failed to parse embedding: {}", e.getMessage());
-      return null;
-    }
   }
 
   private static double cosineSimilarity(float[] a, float[] b) {
@@ -625,11 +595,5 @@ public class RecommendationService {
         .findById(trackId)
         .map(at -> at.getDurationMs() != null ? at.getDurationMs() : 0L)
         .orElse(0L);
-  }
-
-  private static String formatEmbedding(float[] embedding) {
-    return IntStream.range(0, embedding.length)
-        .mapToObj(i -> String.valueOf(embedding[i]))
-        .collect(java.util.stream.Collectors.joining(",", "[", "]"));
   }
 }

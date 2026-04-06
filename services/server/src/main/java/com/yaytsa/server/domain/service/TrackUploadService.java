@@ -20,17 +20,16 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
+@Slf4j
 public class TrackUploadService {
-
-  private static final Logger log = LoggerFactory.getLogger(TrackUploadService.class);
 
   private final JAudioTaggerExtractor metadataExtractor;
   private final MediaScannerTransactionalService scannerService;
@@ -427,8 +426,7 @@ public class TrackUploadService {
   }
 
   private String getFilenameWithoutExtension(String filename) {
-    int lastDot = filename.lastIndexOf('.');
-    return lastDot > 0 ? filename.substring(0, lastDot) : filename;
+    return FilenameUtils.removeExtension(filename);
   }
 
   private record ParsedFilename(String artist, String title) {}

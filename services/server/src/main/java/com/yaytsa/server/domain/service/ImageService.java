@@ -29,19 +29,18 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
+import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.tag.Tag;
 import org.jaudiotagger.tag.images.Artwork;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class ImageService {
-  private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
 
   private static final Semaphore CWEBP_SEMAPHORE =
       new Semaphore(Runtime.getRuntime().availableProcessors());
@@ -88,7 +87,7 @@ public class ImageService {
             .build();
     initRealImageCacheDir();
     if (xAccelRedirectEnabled) {
-      logger.info("Image X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
+      log.info("Image X-Accel-Redirect enabled with internal path: {}", xAccelInternalPath);
     }
   }
 
@@ -96,9 +95,9 @@ public class ImageService {
     try {
       Files.createDirectories(imageCacheDirectory);
       this.realImageCacheDir = imageCacheDirectory.toRealPath();
-      logger.info("Initialized image cache directory: {}", realImageCacheDir);
+      log.info("Initialized image cache directory: {}", realImageCacheDir);
     } catch (IOException e) {
-      logger.warn("Image cache directory not accessible at startup: {}", imageCacheDirectory);
+      log.warn("Image cache directory not accessible at startup: {}", imageCacheDirectory);
       this.realImageCacheDir = null;
     }
   }
@@ -107,7 +106,7 @@ public class ImageService {
     try {
       Optional<ImageType> imageTypeOpt = ImageType.parse(imageTypeStr);
       if (imageTypeOpt.isEmpty()) {
-        logger.warn("Invalid image type: itemId={}, type={}", itemId, imageTypeStr);
+        log.warn("Invalid image type: itemId={}, type={}", itemId, imageTypeStr);
         return Optional.empty();
       }
       ImageType imageType = imageTypeOpt.get();
@@ -115,13 +114,13 @@ public class ImageService {
 
       byte[] cached = imageCache.getIfPresent(cacheKey);
       if (cached != null) {
-        logger.debug("Cache hit for image: {}", cacheKey);
+        log.debug("Cache hit for image: {}", cacheKey);
         return Optional.of(cached);
       }
 
       Optional<byte[]> imageData = loadImageData(itemId, imageType);
       if (imageData.isEmpty()) {
-        logger.debug("Image not found: itemId={}, type={}", itemId, imageType);
+        log.debug("Image not found: itemId={}, type={}", itemId, imageType);
         return Optional.empty();
       }
 
@@ -131,7 +130,7 @@ public class ImageService {
       return Optional.of(processedImage);
 
     } catch (Exception e) {
-      logger.error(
+      log.error(
           "Error processing image: itemId={}, type={}, error={}",
           itemId,
           imageTypeStr,
@@ -144,7 +143,7 @@ public class ImageService {
   public Optional<String> getImageTag(UUID itemId, String imageTypeStr) {
     Optional<ImageType> imageTypeOpt = ImageType.parse(imageTypeStr);
     if (imageTypeOpt.isEmpty()) {
-      logger.warn("Invalid image type: {}", imageTypeStr);
+      log.warn("Invalid image type: {}", imageTypeStr);
       return Optional.empty();
     }
     return imageRepository
@@ -154,7 +153,7 @@ public class ImageService {
 
   public Optional<byte[]> extractAlbumArt(Path audioFilePath) {
     if (!isPathSafe(audioFilePath)) {
-      logger.warn("Audio file not accessible: {}", audioFilePath);
+      log.warn("Audio file not accessible: {}", audioFilePath);
       return Optional.empty();
     }
 
@@ -165,16 +164,15 @@ public class ImageService {
       if (tag != null && tag.getFirstArtwork() != null) {
         Artwork artwork = tag.getFirstArtwork();
         byte[] imageData = artwork.getBinaryData();
-        logger.debug(
-            "Extracted album art from: {}, size: {} bytes", audioFilePath, imageData.length);
+        log.debug("Extracted album art from: {}, size: {} bytes", audioFilePath, imageData.length);
         return Optional.of(imageData);
       }
 
-      logger.debug("No embedded artwork found in: {}", audioFilePath);
+      log.debug("No embedded artwork found in: {}", audioFilePath);
       return Optional.empty();
 
     } catch (Exception e) {
-      logger.error("Failed to extract album art from: {}", audioFilePath, e);
+      log.error("Failed to extract album art from: {}", audioFilePath, e);
       return Optional.empty();
     }
   }
@@ -198,7 +196,7 @@ public class ImageService {
   public Optional<Path> getImagePath(UUID itemId, String imageTypeStr) {
     Optional<ImageType> imageTypeOpt = ImageType.parse(imageTypeStr);
     if (imageTypeOpt.isEmpty()) {
-      logger.warn("Invalid image type: {}", imageTypeStr);
+      log.warn("Invalid image type: {}", imageTypeStr);
       return Optional.empty();
     }
     return findImagePath(itemId, imageTypeOpt.get());
@@ -216,7 +214,7 @@ public class ImageService {
     Optional<ImageEntity> imageEntity =
         imageRepository.findFirstByItem_IdAndType(itemId, imageType);
 
-    logger.debug(
+    log.debug(
         "findImagePath: itemId={}, type={}, imageEntity present={}",
         itemId,
         imageType,
@@ -224,42 +222,42 @@ public class ImageService {
 
     if (imageEntity.isPresent()) {
       String storedPath = imageEntity.get().getPath();
-      logger.debug("Found stored path: {}", storedPath);
+      log.debug("Found stored path: {}", storedPath);
       if (storedPath != null) {
         Path imagePath = Paths.get(storedPath).toAbsolutePath().normalize();
         boolean pathSafe = isPathSafe(imagePath);
         boolean exists = Files.exists(imagePath);
-        logger.debug("Image path checks: path={}, safe={}, exists={}", imagePath, pathSafe, exists);
+        log.debug("Image path checks: path={}, safe={}, exists={}", imagePath, pathSafe, exists);
         if (pathSafe && exists) {
-          logger.debug("Using stored image path: {}", imagePath);
+          log.debug("Using stored image path: {}", imagePath);
           return Optional.of(imagePath);
         } else {
-          logger.warn(
+          log.warn(
               "Stored image path not accessible: path={}, safe={}, exists={}",
               imagePath,
               pathSafe,
               exists);
         }
       }
-      logger.debug("Stored image path not usable: {}, falling back to folder artwork", storedPath);
+      log.debug("Stored image path not usable: {}, falling back to folder artwork", storedPath);
     } else {
-      logger.debug("No image entity found for itemId={}, type={}", itemId, imageType);
+      log.debug("No image entity found for itemId={}, type={}", itemId, imageType);
     }
 
     if (imageType == ImageType.Primary) {
       Optional<ItemEntity> item = itemRepository.findById(itemId);
       if (item.isPresent()) {
-        logger.debug(
+        log.debug(
             "Looking for folder artwork: itemId={}, type={}, itemType={}",
             itemId,
             imageType,
             item.get().getType());
         Optional<Path> folderArtPath = findFolderArtworkPath(item.get());
         if (folderArtPath.isPresent()) {
-          logger.debug("Found folder artwork: {}", folderArtPath.get());
+          log.debug("Found folder artwork: {}", folderArtPath.get());
           return folderArtPath;
         }
-        logger.debug("No folder artwork found for itemId={}", itemId);
+        log.debug("No folder artwork found for itemId={}", itemId);
       }
     }
 
@@ -273,7 +271,7 @@ public class ImageService {
     if (imagePath.isPresent()) {
       long fileSize = Files.size(imagePath.get());
       if (fileSize > MAX_IMAGE_FILE_SIZE) {
-        logger.warn("Image file exceeds size limit: {} bytes for itemId={}", fileSize, itemId);
+        log.warn("Image file exceeds size limit: {} bytes for itemId={}", fileSize, itemId);
         return Optional.empty();
       }
       return Optional.of(Files.readAllBytes(imagePath.get()));
@@ -299,48 +297,48 @@ public class ImageService {
   private Optional<Path> findFolderArtworkPath(ItemEntity item) {
     try {
       Path folder = getFolderForItem(item);
-      logger.debug(
+      log.debug(
           "getFolderForItem returned: {} for item={}, type={}",
           folder,
           item.getName(),
           item.getType());
 
       if (folder == null) {
-        logger.debug("No folder found for item: {}", item.getName());
+        log.debug("No folder found for item: {}", item.getName());
         return Optional.empty();
       }
 
       if (!Files.exists(folder)) {
-        logger.debug("Folder does not exist: {}", folder);
+        log.debug("Folder does not exist: {}", folder);
         return Optional.empty();
       }
 
       if (!Files.isDirectory(folder)) {
-        logger.debug("Path is not a directory: {}", folder);
+        log.debug("Path is not a directory: {}", folder);
         return Optional.empty();
       }
 
       for (String artworkName : ARTWORK_NAMES) {
         Path artworkPath = folder.resolve(artworkName);
         if (Files.exists(artworkPath) && isPathSafe(artworkPath)) {
-          logger.debug("Found named artwork: {}", artworkPath);
+          log.debug("Found named artwork: {}", artworkPath);
           return Optional.of(artworkPath);
         }
       }
 
-      logger.debug("No standard artwork names found, scanning folder: {}", folder);
+      log.debug("No standard artwork names found, scanning folder: {}", folder);
       try (var stream = Files.newDirectoryStream(folder)) {
         for (Path file : stream) {
           if (Files.isRegularFile(file) && isImageFile(file) && isPathSafe(file)) {
-            logger.debug("Found image file: {}", file);
+            log.debug("Found image file: {}", file);
             return Optional.of(file);
           }
         }
       }
 
-      logger.debug("No images found in folder: {}", folder);
+      log.debug("No images found in folder: {}", folder);
     } catch (Exception e) {
-      logger.warn(
+      log.warn(
           "Error finding folder artwork: itemId={}, itemType={}, error={}",
           item.getId(),
           item.getType(),
@@ -362,31 +360,30 @@ public class ImageService {
   private Path getFolderForItem(ItemEntity item) {
     if (item.getType() == ItemType.MusicAlbum) {
       var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(item.getId());
-      logger.debug("Album {} has {} tracks", item.getName(), tracks.size());
+      log.debug("Album {} has {} tracks", item.getName(), tracks.size());
       if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
         String trackPath = tracks.get(0).getItem().getPath();
-        logger.debug("First track path: {}", trackPath);
+        log.debug("First track path: {}", trackPath);
         return Paths.get(trackPath).getParent();
       }
     } else if (item.getType() == ItemType.MusicArtist) {
       var albums = itemRepository.findAllByParentId(item.getId());
-      logger.debug("Artist {} has {} albums", item.getName(), albums.size());
+      log.debug("Artist {} has {} albums", item.getName(), albums.size());
       for (ItemEntity album : albums) {
         var tracks = audioTrackRepository.findByAlbumIdOrderByDiscNoAscTrackNoAsc(album.getId());
         if (!tracks.isEmpty() && tracks.get(0).getItem().getPath() != null) {
           String trackPath = tracks.get(0).getItem().getPath();
-          logger.debug("First track path for artist: {}", trackPath);
+          log.debug("First track path for artist: {}", trackPath);
           return Paths.get(trackPath).getParent().getParent();
         }
       }
     } else if (item.getPath() != null
         && !item.getPath().startsWith("artist:")
         && !item.getPath().startsWith("album:")) {
-      logger.debug("Using item path directly: {}", item.getPath());
+      log.debug("Using item path directly: {}", item.getPath());
       return Paths.get(item.getPath()).getParent();
     }
-    logger.debug(
-        "Could not determine folder for item: {}, type={}", item.getName(), item.getType());
+    log.debug("Could not determine folder for item: {}, type={}", item.getName(), item.getType());
     return null;
   }
 
@@ -397,7 +394,7 @@ public class ImageService {
         return Optional.of(Files.readAllBytes(artworkPath.get()));
       }
     } catch (Exception e) {
-      logger.warn(
+      log.warn(
           "Failed to read folder artwork: itemId={}, itemType={}, error={}",
           item.getId(),
           item.getType(),
@@ -434,7 +431,7 @@ public class ImageService {
         return extractAlbumArt(audioFilePath);
       }
     } catch (Exception e) {
-      logger.warn(
+      log.warn(
           "Failed to extract embedded artwork: itemId={}, itemType={}, error={}",
           item.getId(),
           item.getType(),
@@ -500,7 +497,7 @@ public class ImageService {
       try {
         return encodeToWebpViaProcess(image, quality);
       } catch (Exception e) {
-        logger.warn("WebP encoding failed ({}), falling back to JPEG", e.getMessage());
+        log.warn("WebP encoding failed ({}), falling back to JPEG", e.getMessage());
         return encodeImage(image, "jpeg", quality);
       }
     } else if ("png".equals(outputFormat)) {

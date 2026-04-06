@@ -7,16 +7,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class EmbeddingBackfillService {
 
-  private static final Logger log = LoggerFactory.getLogger(EmbeddingBackfillService.class);
   private static final int BATCH_SIZE = 50;
 
   private final TrackFeaturesRepository featuresRepository;

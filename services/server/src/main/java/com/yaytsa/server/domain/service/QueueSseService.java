@@ -6,16 +6,15 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
+@Slf4j
 public class QueueSseService {
 
-  private static final Logger log = LoggerFactory.getLogger(QueueSseService.class);
   private static final long SSE_TIMEOUT_MS = 30 * 60 * 1000L;
   private static final int MAX_SESSIONS = 100;
 

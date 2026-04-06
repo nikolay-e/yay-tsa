@@ -5,8 +5,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -16,9 +15,8 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 @Component
+@Slf4j
 public class FeatureExtractionClient {
-
-  private static final Logger log = LoggerFactory.getLogger(FeatureExtractionClient.class);
   private static final int MAX_RETRIES = 2;
   private static final long INITIAL_RETRY_DELAY_MS = 2000;
   private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =

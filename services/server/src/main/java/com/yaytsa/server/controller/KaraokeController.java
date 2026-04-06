@@ -28,8 +28,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -39,9 +38,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/Karaoke")
 @Tag(name = "Karaoke", description = "Vocal removal and karaoke mode endpoints")
+@Slf4j
 public class KaraokeController {
 
-  private static final Logger log = LoggerFactory.getLogger(KaraokeController.class);
   private static final long SSE_TIMEOUT_MS = 300_000; // 5 minutes
   private static final long POLL_INTERVAL_MS = 500; // Poll every 500ms
   private static final int SSE_THREAD_POOL_SIZE = 2;

@@ -3,8 +3,7 @@ package com.yaytsa.server.infrastructure.client;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -14,9 +13,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
+@Slf4j
 public class LrcLibClient {
 
-  private static final Logger log = LoggerFactory.getLogger(LrcLibClient.class);
   private static final String BASE_URL = "https://lrclib.net/api";
 
   private final RestClient restClient;

@@ -6,8 +6,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
@@ -15,9 +14,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
+@Slf4j
 public class MusicBrainzProvider implements MetadataProvider {
-
-  private static final Logger log = LoggerFactory.getLogger(MusicBrainzProvider.class);
 
   private static final String API_BASE = "https://musicbrainz.org/ws/2";
   private static final String USER_AGENT = "Yay-Tsa/0.1.0 (https://github.com/yay-tsa)";

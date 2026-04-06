@@ -3,8 +3,16 @@ package com.yaytsa.server.infrastructure.persistence.entity;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(
     name = "api_tokens",
@@ -40,78 +48,6 @@ public class ApiTokenEntity {
 
   @Column(nullable = false)
   private boolean revoked;
-
-  public UUID getId() {
-    return id;
-  }
-
-  public void setId(UUID id) {
-    this.id = id;
-  }
-
-  public UserEntity getUser() {
-    return user;
-  }
-
-  public void setUser(UserEntity user) {
-    this.user = user;
-  }
-
-  public String getToken() {
-    return token;
-  }
-
-  public void setToken(String token) {
-    this.token = token;
-  }
-
-  public String getDeviceId() {
-    return deviceId;
-  }
-
-  public void setDeviceId(String deviceId) {
-    this.deviceId = deviceId;
-  }
-
-  public String getDeviceName() {
-    return deviceName;
-  }
-
-  public void setDeviceName(String deviceName) {
-    this.deviceName = deviceName;
-  }
-
-  public OffsetDateTime getCreatedAt() {
-    return createdAt;
-  }
-
-  public void setCreatedAt(OffsetDateTime createdAt) {
-    this.createdAt = createdAt;
-  }
-
-  public OffsetDateTime getLastUsedAt() {
-    return lastUsedAt;
-  }
-
-  public void setLastUsedAt(OffsetDateTime lastUsedAt) {
-    this.lastUsedAt = lastUsedAt;
-  }
-
-  public OffsetDateTime getExpiresAt() {
-    return expiresAt;
-  }
-
-  public void setExpiresAt(OffsetDateTime expiresAt) {
-    this.expiresAt = expiresAt;
-  }
-
-  public boolean isRevoked() {
-    return revoked;
-  }
-
-  public void setRevoked(boolean revoked) {
-    this.revoked = revoked;
-  }
 
   public boolean isValid() {
     if (revoked) {
