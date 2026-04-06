@@ -76,6 +76,8 @@ test.describe('Queue Management', () => {
     const secondTrack = await playerBar.getCurrentTrackTitle();
 
     await playerBar.clickNextAndWait();
+    await playerBar.waitForAudioReady();
+    await playerBar.seek(0);
 
     await playerBar.clickPreviousAndWait();
     await expect(playerBar.playerBar).toBeVisible();

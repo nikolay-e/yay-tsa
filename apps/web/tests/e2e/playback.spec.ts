@@ -48,6 +48,8 @@ test.describe('Playback and Player Controls', () => {
 
     await albumPage.playTrack(1);
     await playerBar.waitForPlayerToLoad();
+    await playerBar.waitForAudioReady();
+    await playerBar.seek(0);
 
     const secondTrack = await playerBar.getCurrentTrackTitle();
 

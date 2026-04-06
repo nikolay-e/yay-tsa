@@ -16,6 +16,9 @@ fi
 
 mkdir -p "$ALBUM1_DIR" "$ALBUM2_DIR"
 
+COVER_IMG="$MEDIA_DIR/cover.jpg"
+ffmpeg -y -f lavfi -i "color=c=steelblue:s=200x200:d=1" -vframes 1 "$COVER_IMG" 2>/dev/null
+
 generate_track() {
   dir="$1"
   track_num="$2"
@@ -23,7 +26,10 @@ generate_track() {
   album="$4"
   freq="$5"
   duration="$6"
-  ffmpeg -y -f lavfi -i "sine=frequency=${freq}:duration=${duration}" \
+  ffmpeg -y \
+    -f lavfi -i "sine=frequency=${freq}:duration=${duration}" \
+    -i "$COVER_IMG" \
+    -map 0:a -map 1:v \
     -metadata title="$title" \
     -metadata artist="$ARTIST" \
     -metadata album="$album" \
@@ -31,6 +37,10 @@ generate_track() {
     -metadata date="2024" \
     -metadata genre="Electronic" \
     -codec:a libmp3lame -b:a 128k \
+    -codec:v mjpeg -q:v 5 -frames:v 1 \
+    -id3v2_version 3 \
+    -metadata:s:v title="Cover" \
+    -metadata:s:v comment="Cover (front)" \
     "$dir/$(printf '%02d' "$track_num") - $title.mp3" 2>/dev/null
   return 0
 }

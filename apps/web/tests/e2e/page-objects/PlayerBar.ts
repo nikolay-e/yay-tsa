@@ -78,9 +78,16 @@ export class PlayerBar {
   }
 
   async setVolume(percentage: number): Promise<void> {
-    await this.page.evaluate(vol => {
-      const audio = document.querySelector('audio');
-      if (audio) audio.volume = vol / 100;
+    await this.volumeSlider.evaluate((el, pct) => {
+      const input = el as HTMLInputElement;
+      const value = pct / 100;
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!;
+      nativeInputValueSetter.call(input, value.toString());
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
     }, percentage);
   }
 
