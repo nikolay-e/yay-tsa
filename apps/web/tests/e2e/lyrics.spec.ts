@@ -2,12 +2,8 @@ import { test, expect } from './fixtures/playback.fixture';
 import { LYRICS_TEST_IDS } from './helpers/test-ids';
 
 test.describe('Lyrics', () => {
-  test.skip(
-    ({}, testInfo) => testInfo.project.name === 'mobile',
-    'Lyrics button requires desktop viewport'
-  );
-
   test.beforeEach(async ({ playAlbumFromLibrary }) => {
+    test.skip(test.info().project.name === 'mobile', 'Lyrics button requires desktop viewport');
     await playAlbumFromLibrary();
   });
 
