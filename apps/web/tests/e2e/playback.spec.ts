@@ -22,6 +22,7 @@ test.describe('Playback and Player Controls', () => {
   });
 
   test('should skip to next track', async ({ libraryPage, albumPage, playerBar }) => {
+    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -40,6 +41,7 @@ test.describe('Playback and Player Controls', () => {
   });
 
   test('should skip to previous track', async ({ libraryPage, albumPage, playerBar }) => {
+    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -68,6 +70,7 @@ test.describe('Playback and Player Controls', () => {
   });
 
   test('should seek forward in track', async ({ playAlbumFromLibrary, playerBar }) => {
+    test.skip(test.info().project.name === 'mobile', 'Seek controls require desktop viewport');
     await playAlbumFromLibrary();
 
     // Wait for audio to be ready for seeking
@@ -138,6 +141,7 @@ test.describe('Playback and Player Controls', () => {
     playerBar,
     authenticatedPage,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Seek controls require desktop viewport');
     await playAlbumFromLibrary();
     await playerBar.waitForAudioReady();
 
@@ -170,6 +174,7 @@ test.describe('Playback and Player Controls', () => {
     albumPage,
     playerBar,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Seek controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -200,6 +205,7 @@ test.describe('Playback and Player Controls', () => {
     playAlbumFromLibrary,
     playerBar,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Keyboard controls require desktop viewport');
     await playAlbumFromLibrary();
     await playerBar.waitForPlayingState();
 

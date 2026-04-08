@@ -382,10 +382,13 @@ export function PlayerBar() {
             className="h-11 w-11 shrink-0 rounded object-cover"
           />
           <div className="min-w-0 flex-1">
-            <MarqueeText className="text-text-primary text-sm font-medium">
+            <MarqueeText
+              data-testid="current-track-title"
+              className="text-text-primary text-sm font-medium"
+            >
               {currentTrack.Name}
             </MarqueeText>
-            <p className="text-text-secondary truncate text-xs">
+            <p data-testid="current-track-artist" className="text-text-secondary truncate text-xs">
               {currentTrack.Artists?.[0] ?? 'Unknown Artist'}
             </p>
           </div>
@@ -397,6 +400,7 @@ export function PlayerBar() {
           />
           <button
             type="button"
+            data-testid="play-pause-button"
             onClick={handlePlayPause}
             className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label={isPlaying ? 'Pause' : 'Play'}

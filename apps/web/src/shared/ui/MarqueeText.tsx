@@ -5,9 +5,15 @@ type MarqueeTextProps = Readonly<{
   children: string;
   className?: string;
   speed?: number;
+  'data-testid'?: string;
 }>;
 
-export function MarqueeText({ children, className, speed = 25 }: MarqueeTextProps) {
+export function MarqueeText({
+  children,
+  className,
+  speed = 25,
+  'data-testid': testId,
+}: MarqueeTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [shift, setShift] = useState(0);
@@ -32,7 +38,7 @@ export function MarqueeText({ children, className, speed = 25 }: MarqueeTextProp
   const totalDuration = isAnimating ? (shift / speed / 0.4).toFixed(1) : '0';
 
   return (
-    <div ref={containerRef} className={cn('overflow-hidden', className)}>
+    <div ref={containerRef} className={cn('overflow-hidden', className)} data-testid={testId}>
       <span
         ref={textRef}
         className="inline-block whitespace-nowrap"

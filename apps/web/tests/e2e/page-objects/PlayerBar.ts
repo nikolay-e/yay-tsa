@@ -19,13 +19,19 @@ export class PlayerBar {
   constructor(page: Page) {
     this.page = page;
     this.playerBar = page.getByTestId(PLAYER_TEST_IDS.PLAYER_BAR);
-    this.playPauseButton = page.getByTestId(PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON);
+    this.playPauseButton = page.locator(
+      `[data-testid="${PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON}"]:visible`
+    );
     this.nextButton = page.getByTestId(PLAYER_TEST_IDS.NEXT_BUTTON);
     this.previousButton = page.getByTestId(PLAYER_TEST_IDS.PREVIOUS_BUTTON);
     this.volumeSlider = page.getByTestId(PLAYER_TEST_IDS.VOLUME_SLIDER);
     this.seekSlider = page.getByTestId(PLAYER_TEST_IDS.SEEK_SLIDER);
-    this.currentTrackTitle = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TRACK_TITLE);
-    this.currentTrackArtist = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TRACK_ARTIST);
+    this.currentTrackTitle = page.locator(
+      `[data-testid="${PLAYER_TEST_IDS.CURRENT_TRACK_TITLE}"]:visible`
+    );
+    this.currentTrackArtist = page.locator(
+      `[data-testid="${PLAYER_TEST_IDS.CURRENT_TRACK_ARTIST}"]:visible`
+    );
     this.currentTime = page.getByTestId(PLAYER_TEST_IDS.CURRENT_TIME);
     this.totalTime = page.getByTestId(PLAYER_TEST_IDS.TOTAL_TIME);
     this.queueButton = page.getByTestId(PLAYER_TEST_IDS.QUEUE_BUTTON);
@@ -34,7 +40,9 @@ export class PlayerBar {
   async waitForPlayerToLoad(): Promise<void> {
     await expect(this.playerBar).toBeVisible({ timeout: 10000 });
     await expect(this.currentTrackTitle).toBeVisible({ timeout: 5000 });
-    await expect(this.totalTime).not.toHaveText('0:00', { timeout: 10000 });
+    if (await this.totalTime.isVisible().catch(() => false)) {
+      await expect(this.totalTime).not.toHaveText('0:00', { timeout: 10000 });
+    }
   }
 
   async isVisible(): Promise<boolean> {

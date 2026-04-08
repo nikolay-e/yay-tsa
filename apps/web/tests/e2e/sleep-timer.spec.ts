@@ -7,6 +7,11 @@ import { PLAYER_TEST_IDS } from './helpers/test-ids';
 const test = baseTest;
 
 test.describe('Sleep Timer', () => {
+  test.skip(
+    ({}, testInfo) => testInfo.project.name === 'mobile',
+    'Sleep timer controls require desktop viewport'
+  );
+
   let libraryPage: LibraryPage;
   let albumPage: AlbumPage;
   let playerBar: PlayerBar;

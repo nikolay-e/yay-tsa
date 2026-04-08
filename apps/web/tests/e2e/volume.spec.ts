@@ -2,6 +2,10 @@ import { test, expect } from './fixtures/playback.fixture';
 import { getVolumeFromLocalStorage } from './helpers/audio-helpers';
 
 test.describe('Volume Control', () => {
+  test.skip(
+    ({}, testInfo) => testInfo.project.name === 'mobile',
+    'Volume controls require desktop viewport'
+  );
   test('Given: Track playing, When: User sets volume to 50%, Then: Audio element volume updates', async ({
     playAlbumFromLibrary,
     playerBar,
@@ -130,6 +134,7 @@ test.describe('Volume Control', () => {
     playAlbumFromLibrary,
     playerBar,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await playAlbumFromLibrary();
     await playerBar.waitForAudioReady();
 

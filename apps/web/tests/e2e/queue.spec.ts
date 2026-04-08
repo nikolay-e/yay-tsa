@@ -22,6 +22,7 @@ test.describe('Queue Management', () => {
     albumPage,
     playerBar,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -62,6 +63,7 @@ test.describe('Queue Management', () => {
     albumPage,
     playerBar,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -110,6 +112,7 @@ test.describe('Queue Management', () => {
     playerBar,
     authenticatedPage,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
