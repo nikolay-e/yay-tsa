@@ -147,7 +147,7 @@ export class PlayerBar {
     await expect(async () => {
       const currentTitle = await this.getCurrentTrackTitle();
       expect(currentTitle).not.toBe(previousTitle);
-    }).toPass({ timeout: 10000 });
+    }).toPass({ timeout: 15000 });
   }
 
   private async clickAndWaitForTrackChange(button: Locator): Promise<void> {

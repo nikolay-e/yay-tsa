@@ -170,10 +170,10 @@ test.describe('Queue Management', () => {
     playAlbumFromLibrary,
     authenticatedPage,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Shuffle button requires desktop viewport');
     await playAlbumFromLibrary();
 
     const shuffleButton = authenticatedPage.getByRole('button', { name: 'Shuffle' });
-    // Shuffle button has hidden sm:flex — only visible on desktop
     const isVisible = await shuffleButton.isVisible().catch(() => false);
     test.skip(!isVisible, 'Shuffle button not visible at current viewport size');
 
