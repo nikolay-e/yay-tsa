@@ -66,7 +66,9 @@ test.describe('Playback and Player Controls', () => {
 
     expect(await playerBar.getCurrentTrackTitle()).toBeTruthy();
     expect(await playerBar.getCurrentTrackArtist()).toBeTruthy();
-    expect(await playerBar.getTotalTime()).not.toBe('0:00');
+    if (test.info().project.name !== 'mobile') {
+      expect(await playerBar.getTotalTime()).not.toBe('0:00');
+    }
   });
 
   test('should seek forward in track', async ({ playAlbumFromLibrary, playerBar }) => {

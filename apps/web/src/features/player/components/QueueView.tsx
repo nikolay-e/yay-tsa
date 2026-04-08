@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { AlertTriangle, Loader2, Music, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -108,16 +107,20 @@ function QueueTrackItem({
   feedbackSlot?: ReactNode;
 }>) {
   return (
-    <button
-      type="button"
-      onClick={onPlay}
+    <div
       className={cn(
         'flex w-full items-center rounded-lg px-3 py-2 transition-colors',
-        'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
         isCurrent ? 'bg-accent/10' : 'hover:bg-bg-hover'
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <button
+        type="button"
+        onClick={onPlay}
+        className={cn(
+          'flex min-w-0 flex-1 cursor-pointer items-center gap-3',
+          'focus-visible:ring-accent rounded focus-visible:ring-2 focus-visible:outline-none'
+        )}
+      >
         <div className="flex h-7 w-7 shrink-0 items-center justify-center">
           {(() => {
             if (isCurrent && isPlaying)
@@ -130,27 +133,17 @@ function QueueTrackItem({
         <div className="min-w-0 flex-1">
           <div
             className={cn(
-              'truncate text-sm',
+              'truncate text-left text-sm',
               isCurrent ? 'text-accent font-medium' : 'text-text-primary'
             )}
           >
             {track.Name}
           </div>
-          <div className="text-text-secondary truncate text-xs">
-            {track.ArtistItems?.[0]?.Id ? (
-              <Link
-                to={`/artists/${track.ArtistItems[0].Id}`}
-                onClick={e => e.stopPropagation()}
-                className="hover:text-text-primary hover:underline"
-              >
-                {track.Artists?.join(', ') ?? 'Unknown Artist'}
-              </Link>
-            ) : (
-              (track.Artists?.join(', ') ?? 'Unknown Artist')
-            )}
+          <div className="text-text-secondary truncate text-left text-xs">
+            {track.Artists?.join(', ') ?? 'Unknown Artist'}
           </div>
         </div>
-      </div>
+      </button>
 
       {feedbackSlot}
 
@@ -159,7 +152,7 @@ function QueueTrackItem({
           {formatTicks(track.RunTimeTicks)}
         </span>
       )}
-    </button>
+    </div>
   );
 }
 
