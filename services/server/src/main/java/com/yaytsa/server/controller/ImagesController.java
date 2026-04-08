@@ -11,6 +11,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -94,10 +97,16 @@ public class ImagesController {
         return ResponseEntity.notFound().build();
       }
 
+      String resolvedETag = etag.orElseGet(() -> contentETag(imageData.get()));
+
+      if (webRequest.checkNotModified(resolvedETag)) {
+        return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(resolvedETag).build();
+      }
+
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(getMediaTypeForFormat(params.format()));
       headers.setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
-      etag.ifPresent(headers::setETag);
+      headers.setETag(resolvedETag);
 
       return ResponseEntity.ok().headers(headers).body(imageData.get());
 
@@ -215,6 +224,15 @@ public class ImagesController {
       case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
       default -> MediaType.IMAGE_JPEG;
     };
+  }
+
+  private String contentETag(byte[] data) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("MD5");
+      return "\"" + HexFormat.of().formatHex(digest.digest(data)) + "\"";
+    } catch (NoSuchAlgorithmException e) {
+      return "\"" + data.length + "\"";
+    }
   }
 
   private String getFormatFromPath(Path path) {
