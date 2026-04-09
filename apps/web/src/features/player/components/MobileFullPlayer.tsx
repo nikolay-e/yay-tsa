@@ -120,6 +120,7 @@ function SecondaryPillControls({
             : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
         )}
         aria-label="Sleep timer"
+        data-testid="sleep-timer-button"
       >
         <Timer className="h-4 w-4" />
         {hasSleepTimer && sleepMinutesLeft > 0 && (
@@ -290,6 +291,7 @@ export function MobileFullPlayer({
 
         <button
           type="button"
+          data-testid="previous-button"
           onClick={onPrevious}
           className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Previous"
@@ -299,6 +301,7 @@ export function MobileFullPlayer({
 
         <button
           type="button"
+          data-testid="play-pause-button"
           onClick={onPlayPause}
           className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent rounded-full p-4 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -312,6 +315,7 @@ export function MobileFullPlayer({
 
         <button
           type="button"
+          data-testid="next-button"
           onClick={onNext}
           className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Next"

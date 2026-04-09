@@ -22,7 +22,6 @@ test.describe('Queue Management', () => {
     albumPage,
     playerBar,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -63,7 +62,6 @@ test.describe('Queue Management', () => {
     albumPage,
     playerBar,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -79,6 +77,7 @@ test.describe('Queue Management', () => {
 
     await playerBar.clickNextAndWait();
     await playerBar.waitForAudioReady();
+    await playerBar.pause();
     await playerBar.seek(0);
 
     await playerBar.clickPreviousAndWait();
@@ -110,9 +109,7 @@ test.describe('Queue Management', () => {
     libraryPage,
     albumPage,
     playerBar,
-    authenticatedPage,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -124,17 +121,12 @@ test.describe('Queue Management', () => {
 
     const lastTrackTitle = await playerBar.getCurrentTrackTitle();
 
-    // Click next on the last track - should stay on last track or stop
     await playerBar.clickNext();
 
-    // Wait and verify track title remains stable (no looping)
     await expect(playerBar.currentTrackTitle).toHaveText(lastTrackTitle, { timeout: 2000 });
 
-    // Verify we haven't looped back to first track (no repeat)
     const currentTrackAfterNext = await playerBar.getCurrentTrackTitle();
 
-    // Expected behavior: either stays on last track or playback stops
-    // It should NOT jump to first track when repeat is off
     if (trackCount > 1) {
       expect(currentTrackAfterNext).toBe(lastTrackTitle);
     }
@@ -158,8 +150,6 @@ test.describe('Queue Management', () => {
 
     await libraryPage.navigateHome();
 
-    // Queue tracks should be visible on the home page
-    // The current track name should appear somewhere in the queue view
     await expect(async () => {
       const queueText = await libraryPage.page.locator('main').textContent();
       expect(queueText).toContain(currentTrack);
@@ -170,7 +160,6 @@ test.describe('Queue Management', () => {
     playAlbumFromLibrary,
     authenticatedPage,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Shuffle button requires desktop viewport');
     await playAlbumFromLibrary();
 
     const shuffleButton = authenticatedPage.getByRole('button', { name: 'Shuffle' });
@@ -194,25 +183,20 @@ test.describe('Queue Management', () => {
     await playAlbumFromLibrary();
 
     const repeatButton = authenticatedPage.getByRole('button', { name: /Repeat/ });
-    // Repeat button has hidden sm:flex — only visible on desktop
     const isVisible = await repeatButton.isVisible().catch(() => false);
     test.skip(!isVisible, 'Repeat button not visible at current viewport size');
 
-    // Initial state: off
     await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: off');
     await expect(repeatButton).toHaveAttribute('aria-pressed', 'false');
 
-    // First click: repeat all
     await repeatButton.click();
     await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: all');
     await expect(repeatButton).toHaveAttribute('aria-pressed', 'true');
 
-    // Second click: repeat one
     await repeatButton.click();
     await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: one');
     await expect(repeatButton).toHaveAttribute('aria-pressed', 'true');
 
-    // Third click: back to off
     await repeatButton.click();
     await expect(repeatButton).toHaveAttribute('aria-label', 'Repeat: off');
     await expect(repeatButton).toHaveAttribute('aria-pressed', 'false');

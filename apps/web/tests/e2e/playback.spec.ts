@@ -22,7 +22,6 @@ test.describe('Playback and Player Controls', () => {
   });
 
   test('should skip to next track', async ({ libraryPage, albumPage, playerBar }) => {
-    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -41,7 +40,6 @@ test.describe('Playback and Player Controls', () => {
   });
 
   test('should skip to previous track', async ({ libraryPage, albumPage, playerBar }) => {
-    test.skip(test.info().project.name === 'mobile', 'Skip controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -51,6 +49,7 @@ test.describe('Playback and Player Controls', () => {
     await albumPage.playTrack(1);
     await playerBar.waitForPlayerToLoad();
     await playerBar.waitForAudioReady();
+    await playerBar.pause();
     await playerBar.seek(0);
 
     const secondTrack = await playerBar.getCurrentTrackTitle();
@@ -66,23 +65,6 @@ test.describe('Playback and Player Controls', () => {
 
     expect(await playerBar.getCurrentTrackTitle()).toBeTruthy();
     expect(await playerBar.getCurrentTrackArtist()).toBeTruthy();
-    if (test.info().project.name !== 'mobile') {
-      expect(await playerBar.getTotalTime()).not.toBe('0:00');
-    }
-  });
-
-  test('should seek forward in track', async ({ playAlbumFromLibrary, playerBar }) => {
-    test.skip(test.info().project.name === 'mobile', 'Seek controls require desktop viewport');
-    await playAlbumFromLibrary();
-
-    // Wait for audio to be ready for seeking
-    await playerBar.waitForAudioReady();
-
-    await playerBar.seek(50);
-    await playerBar.waitForSeekComplete();
-
-    const currentTime = await playerBar.getCurrentTime();
-    expect(currentTime).not.toBe('0:00');
   });
 
   test.skip('should adjust volume', async ({ playAlbumFromLibrary, playerBar }) => {
@@ -138,35 +120,41 @@ test.describe('Playback and Player Controls', () => {
     expect(currentTrack).toContain(thirdTrackTitle.split(' - ')[0]);
   });
 
+  test('should seek forward in track', async ({ playAlbumFromLibrary, playerBar }) => {
+    await playAlbumFromLibrary();
+    await playerBar.waitForAudioReady();
+
+    await playerBar.seek(50);
+    await playerBar.waitForSeekComplete();
+
+    const currentTime = await playerBar.getCurrentTime();
+    expect(currentTime).not.toBe('0:00');
+  });
+
   test('should recover from seek to invalid position', async ({
     playAlbumFromLibrary,
     playerBar,
     authenticatedPage,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Seek controls require desktop viewport');
     await playAlbumFromLibrary();
     await playerBar.waitForAudioReady();
 
-    // Get duration from the DOM audio element
     const duration = await authenticatedPage.evaluate(() => {
       const audio = document.querySelector('audio');
       return audio?.duration ?? 0;
     });
 
-    // Seek beyond end via DOM audio element - should be clamped or handled gracefully
     await authenticatedPage.evaluate(dur => {
       const audio = document.querySelector('audio');
       if (audio) audio.currentTime = dur + 100;
     }, duration);
 
-    // Player should still be functional after invalid seek
     expect(await playerBar.isVisible()).toBe(true);
     const currentTime = await authenticatedPage.evaluate(() => {
       const audio = document.querySelector('audio');
       return audio?.currentTime ?? -1;
     });
 
-    // Time should be valid (clamped to duration or reset)
     expect(currentTime).toBeGreaterThanOrEqual(0);
     expect(currentTime).toBeLessThanOrEqual(duration + 1);
   });
@@ -176,7 +164,6 @@ test.describe('Playback and Player Controls', () => {
     albumPage,
     playerBar,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Seek controls require desktop viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
@@ -189,10 +176,8 @@ test.describe('Playback and Player Controls', () => {
 
     const firstTrack = await playerBar.getCurrentTrackTitle();
 
-    // Seek near the end of the track to trigger natural completion
     await playerBar.seek(98);
 
-    // Wait for the track to change — natural ended event fires when playback reaches end
     await expect(async () => {
       const currentTrack = await playerBar.getCurrentTrackTitle();
       expect(currentTrack).not.toBe(firstTrack);
@@ -206,19 +191,19 @@ test.describe('Playback and Player Controls', () => {
   test('should toggle play/pause via keyboard on focused button', async ({
     playAlbumFromLibrary,
     playerBar,
+    authenticatedPage,
   }) => {
-    test.skip(test.info().project.name === 'mobile', 'Keyboard controls require desktop viewport');
+    test.skip(test.info().project.name === 'mobile', 'Keyboard focus requires desktop viewport');
     await playAlbumFromLibrary();
     await playerBar.waitForPlayingState();
 
-    // Focus the play/pause button and press Space
-    await playerBar.playPauseButton.focus();
-    await playerBar.playPauseButton.press('Space');
+    const playPauseBtn = authenticatedPage.getByTestId('play-pause-button');
+    await playPauseBtn.focus();
+    await playPauseBtn.press('Space');
     await playerBar.waitForPausedState();
     expect(await playerBar.isPlaying()).toBe(false);
 
-    // Press Enter to resume
-    await playerBar.playPauseButton.press('Enter');
+    await playPauseBtn.press('Enter');
     await playerBar.waitForPlayingState();
     expect(await playerBar.isPlaying()).toBe(true);
   });

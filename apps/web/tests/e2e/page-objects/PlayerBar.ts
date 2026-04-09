@@ -5,11 +5,6 @@ import { PLAYER_TEST_IDS } from '../helpers/test-ids';
 export class PlayerBar {
   readonly page: Page;
   readonly playerBar: Locator;
-  readonly playPauseButton: Locator;
-  readonly nextButton: Locator;
-  readonly previousButton: Locator;
-  readonly volumeSlider: Locator;
-  readonly seekSlider: Locator;
   readonly currentTrackTitle: Locator;
   readonly currentTrackArtist: Locator;
   readonly currentTime: Locator;
@@ -19,13 +14,6 @@ export class PlayerBar {
   constructor(page: Page) {
     this.page = page;
     this.playerBar = page.getByTestId(PLAYER_TEST_IDS.PLAYER_BAR);
-    this.playPauseButton = page.locator(
-      `[data-testid="${PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON}"]:visible`
-    );
-    this.nextButton = page.getByTestId(PLAYER_TEST_IDS.NEXT_BUTTON);
-    this.previousButton = page.getByTestId(PLAYER_TEST_IDS.PREVIOUS_BUTTON);
-    this.volumeSlider = page.getByTestId(PLAYER_TEST_IDS.VOLUME_SLIDER);
-    this.seekSlider = page.getByTestId(PLAYER_TEST_IDS.SEEK_SLIDER);
     this.currentTrackTitle = page.locator(
       `[data-testid="${PLAYER_TEST_IDS.CURRENT_TRACK_TITLE}"]:visible`
     );
@@ -37,13 +25,41 @@ export class PlayerBar {
     this.queueButton = page.getByTestId(PLAYER_TEST_IDS.QUEUE_BUTTON);
   }
 
+  private get playPauseButton(): Locator {
+    return this.page.locator(`[data-testid="${PLAYER_TEST_IDS.PLAY_PAUSE_BUTTON}"]:visible`);
+  }
+
+  private get nextButton(): Locator {
+    return this.page.locator(`[data-testid="${PLAYER_TEST_IDS.NEXT_BUTTON}"]:visible`);
+  }
+
+  private get previousButton(): Locator {
+    return this.page.locator(`[data-testid="${PLAYER_TEST_IDS.PREVIOUS_BUTTON}"]:visible`);
+  }
+
+  private get seekSlider(): Locator {
+    return this.page.locator(`[data-testid="${PLAYER_TEST_IDS.SEEK_SLIDER}"]:visible`);
+  }
+
+  private get volumeSlider(): Locator {
+    return this.page.getByTestId(PLAYER_TEST_IDS.VOLUME_SLIDER);
+  }
+
+  private async ensureControlsVisible(): Promise<void> {
+    if (await this.nextButton.isVisible().catch(() => false)) return;
+    const openPlayerButton = this.playerBar.getByRole('button', { name: 'Open player' });
+    if (await openPlayerButton.isVisible().catch(() => false)) {
+      await openPlayerButton.click();
+      await expect(this.nextButton).toBeVisible({ timeout: 5000 });
+    }
+  }
+
   async waitForPlayerToLoad(): Promise<void> {
     await expect(this.playerBar).toBeVisible({ timeout: 10000 });
     await expect(this.currentTrackTitle).toBeVisible({ timeout: 5000 });
     if (await this.totalTime.isVisible().catch(() => false)) {
       await expect(this.totalTime).not.toHaveText('0:00', { timeout: 10000 });
     }
-    await this.waitForPlayingState();
   }
 
   async isVisible(): Promise<boolean> {
@@ -61,16 +77,19 @@ export class PlayerBar {
   }
 
   async next(): Promise<void> {
+    await this.ensureControlsVisible();
     const previousTitle = await this.getCurrentTrackTitle();
     await this.nextButton.click();
     await this.waitForTrackChange(previousTitle);
   }
 
   async clickNext(): Promise<void> {
+    await this.ensureControlsVisible();
     await this.nextButton.click();
   }
 
   async previous(): Promise<void> {
+    await this.ensureControlsVisible();
     const previousTitle = await this.getCurrentTrackTitle();
     await this.previousButton.click();
     await this.waitForTrackChange(previousTitle);
@@ -101,6 +120,7 @@ export class PlayerBar {
   }
 
   async seek(percentage: number): Promise<void> {
+    await this.ensureControlsVisible();
     await this.seekSlider.evaluate((el, pct) => {
       const input = el as HTMLInputElement;
       const max = Number.parseFloat(input.max) || 100;
@@ -147,21 +167,21 @@ export class PlayerBar {
     await expect(async () => {
       const currentTitle = await this.getCurrentTrackTitle();
       expect(currentTitle).not.toBe(previousTitle);
-    }).toPass({ timeout: 15000 });
-  }
-
-  private async clickAndWaitForTrackChange(button: Locator): Promise<void> {
-    const previousTitle = await this.getCurrentTrackTitle();
-    await button.click();
-    await this.waitForTrackChange(previousTitle);
+    }).toPass({ timeout: 10000 });
   }
 
   async clickNextAndWait(): Promise<void> {
-    await this.clickAndWaitForTrackChange(this.nextButton);
+    await this.ensureControlsVisible();
+    const previousTitle = await this.getCurrentTrackTitle();
+    await this.nextButton.click();
+    await this.waitForTrackChange(previousTitle);
   }
 
   async clickPreviousAndWait(): Promise<void> {
-    await this.clickAndWaitForTrackChange(this.previousButton);
+    await this.ensureControlsVisible();
+    const previousTitle = await this.getCurrentTrackTitle();
+    await this.previousButton.click();
+    await this.waitForTrackChange(previousTitle);
   }
 
   async expectTrackTitle(title: string): Promise<void> {

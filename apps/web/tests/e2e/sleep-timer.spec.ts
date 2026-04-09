@@ -6,16 +6,22 @@ import { PLAYER_TEST_IDS } from './helpers/test-ids';
 
 const test = baseTest;
 
+async function openFullPlayerIfMobile(page: import('@playwright/test').Page): Promise<void> {
+  const openButton = page.locator('[data-testid="player-bar"] button[aria-label="Open player"]');
+  if (await openButton.isVisible().catch(() => false)) {
+    await openButton.click();
+    await expect(page.locator('[data-testid="sleep-timer-button"]:visible')).toBeVisible({
+      timeout: 5000,
+    });
+  }
+}
+
 test.describe('Sleep Timer', () => {
   let libraryPage: LibraryPage;
   let albumPage: AlbumPage;
   let playerBar: PlayerBar;
 
   test.beforeEach(async ({ authenticatedPage }) => {
-    test.skip(
-      test.info().project.name === 'mobile',
-      'Sleep timer controls require desktop viewport'
-    );
     libraryPage = new LibraryPage(authenticatedPage);
     albumPage = new AlbumPage(authenticatedPage);
     playerBar = new PlayerBar(authenticatedPage);
@@ -28,7 +34,11 @@ test.describe('Sleep Timer', () => {
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    const sleepTimerButton = authenticatedPage.getByTestId(PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON);
+    await openFullPlayerIfMobile(authenticatedPage);
+
+    const sleepTimerButton = authenticatedPage.locator(
+      `[data-testid="${PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}"]:visible`
+    );
     await expect(sleepTimerButton).toBeVisible({ timeout: 5000 });
     await sleepTimerButton.click();
 
@@ -42,7 +52,11 @@ test.describe('Sleep Timer', () => {
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    const sleepTimerButton = authenticatedPage.getByTestId(PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON);
+    await openFullPlayerIfMobile(authenticatedPage);
+
+    const sleepTimerButton = authenticatedPage.locator(
+      `[data-testid="${PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}"]:visible`
+    );
     await sleepTimerButton.click();
 
     const modal = authenticatedPage.getByRole('dialog');
@@ -64,7 +78,11 @@ test.describe('Sleep Timer', () => {
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    const sleepTimerButton = authenticatedPage.getByTestId(PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON);
+    await openFullPlayerIfMobile(authenticatedPage);
+
+    const sleepTimerButton = authenticatedPage.locator(
+      `[data-testid="${PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}"]:visible`
+    );
     await sleepTimerButton.click();
 
     const modal = authenticatedPage.getByRole('dialog');
@@ -87,7 +105,11 @@ test.describe('Sleep Timer', () => {
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    const sleepTimerButton = authenticatedPage.getByTestId(PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON);
+    await openFullPlayerIfMobile(authenticatedPage);
+
+    const sleepTimerButton = authenticatedPage.locator(
+      `[data-testid="${PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}"]:visible`
+    );
     await sleepTimerButton.click();
 
     const modal = authenticatedPage.getByRole('dialog');
@@ -115,7 +137,11 @@ test.describe('Sleep Timer', () => {
     await albumPage.playAlbum();
     await playerBar.waitForPlayerToLoad();
 
-    const sleepTimerButton = authenticatedPage.getByTestId(PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON);
+    await openFullPlayerIfMobile(authenticatedPage);
+
+    const sleepTimerButton = authenticatedPage.locator(
+      `[data-testid="${PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}"]:visible`
+    );
     await sleepTimerButton.click();
 
     const modal = authenticatedPage.getByRole('dialog');
