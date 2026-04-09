@@ -362,7 +362,10 @@ export function PlayerBar() {
   return (
     <div
       data-testid="player-bar"
-      className="z-player border-border bg-bg-secondary px-safe md:left-sidebar md:pb-safe bottom-above-tab-bar fixed right-0 left-0 border-t"
+      className={cn(
+        'z-player border-border bg-bg-secondary px-safe md:left-sidebar md:pb-safe bottom-above-tab-bar fixed right-0 left-0 border-t',
+        showFullPlayer && 'invisible'
+      )}
     >
       <div className="hidden md:block">
         <SeekBar onSeek={handleSeek} />

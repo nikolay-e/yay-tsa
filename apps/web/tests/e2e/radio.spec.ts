@@ -15,9 +15,10 @@ async function fetchRealSeeds(
   }>
 > {
   return page.evaluate(async lim => {
-    const token = sessionStorage.getItem('yaytsa_token') || '';
+    const token = sessionStorage.getItem('yaytsa_session') || '';
+    const userId = sessionStorage.getItem('yaytsa_user_id') || '';
     const res = await fetch(
-      `/Items?Recursive=true&IncludeItemTypes=Audio&Limit=${lim}&Fields=Genres&api_key=${token}`
+      `/Users/${userId}/Items?Recursive=true&IncludeItemTypes=Audio&Limit=${lim}&Fields=Genres&api_key=${token}`
     );
     const data = await res.json();
     return (data.Items ?? []).map((item: Record<string, unknown>) => ({
