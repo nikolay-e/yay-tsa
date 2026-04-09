@@ -14,22 +14,23 @@ async function fetchRealSeeds(
     imageTag: string | null;
   }>
 > {
-  return page.evaluate(async lim => {
-    const token = sessionStorage.getItem('yaytsa_session') || '';
-    const userId = sessionStorage.getItem('yaytsa_user_id') || '';
-    const res = await fetch(
-      `/Users/${userId}/Items?Recursive=true&IncludeItemTypes=Audio&Limit=${lim}&Fields=Genres&api_key=${token}`
-    );
-    const data = await res.json();
-    return (data.Items ?? []).map((item: Record<string, unknown>) => ({
-      trackId: item.Id as string,
-      name: item.Name as string,
-      artistName: ((item.Artists as string[]) ?? ['Unknown'])[0],
-      albumName: (item.Album as string) ?? '',
-      albumId: (item.AlbumId as string) ?? '',
-      imageTag: (item.AlbumPrimaryImageTag as string) ?? null,
-    }));
-  }, limit);
+  const { token, userId } = await page.evaluate(() => ({
+    token: sessionStorage.getItem('yaytsa_session') || '',
+    userId: sessionStorage.getItem('yaytsa_user_id') || '',
+  }));
+  const baseUrl = page.url().replace(/\/[^/]*$/, '');
+  const res = await page.request.get(
+    `${baseUrl}/api/Users/${userId}/Items?Recursive=true&IncludeItemTypes=Audio&Limit=${limit}&Fields=Genres&api_key=${token}`
+  );
+  const data = await res.json();
+  return ((data.Items as Array<Record<string, unknown>>) ?? []).map(item => ({
+    trackId: item.Id as string,
+    name: item.Name as string,
+    artistName: ((item.Artists as string[]) ?? ['Unknown'])[0],
+    albumName: (item.Album as string) ?? '',
+    albumId: (item.AlbumId as string) ?? '',
+    imageTag: (item.AlbumPrimaryImageTag as string) ?? null,
+  }));
 }
 
 test.describe('Radio', () => {

@@ -60,6 +60,7 @@ export class PlayerBar {
     if (await this.totalTime.isVisible().catch(() => false)) {
       await expect(this.totalTime).not.toHaveText('0:00', { timeout: 10000 });
     }
+    await this.waitForPlayingState();
   }
 
   async isVisible(): Promise<boolean> {

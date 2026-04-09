@@ -197,7 +197,7 @@ test.describe('Playback and Player Controls', () => {
     await playAlbumFromLibrary();
     await playerBar.waitForPlayingState();
 
-    const playPauseBtn = authenticatedPage.getByTestId('play-pause-button');
+    const playPauseBtn = authenticatedPage.locator('[data-testid="play-pause-button"]:visible');
     await playPauseBtn.focus();
     await playPauseBtn.press('Space');
     await playerBar.waitForPausedState();
