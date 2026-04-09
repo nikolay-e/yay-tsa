@@ -111,4 +111,86 @@ class StreamingApiTest extends BaseIntegrationTest {
       assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
   }
+
+  @Nested
+  @DisplayName("Scenario: Streaming response integrity")
+  class StreamResponseIntegrity {
+
+    @Test
+    @DisplayName(
+        "Given: Range request, When: GET /Audio/{id}/stream, Then: Response body length matches"
+            + " Content-Range")
+    void rangeResponseBodyMatchesContentRange() {
+      assumeTrue(firstTrackId != null, "Track ID required");
+
+      HttpHeaders headers = new HttpHeaders();
+      headers.set("Range", "bytes=0-4095");
+      HttpEntity<Void> request = new HttpEntity<>(headers);
+
+      ResponseEntity<byte[]> response =
+          restTemplate.exchange(
+              BASE_URL + "/Audio/" + firstTrackId + "/stream?api_key=" + authToken + "&static=true",
+              HttpMethod.GET,
+              request,
+              byte[].class);
+
+      assertEquals(HttpStatus.PARTIAL_CONTENT, response.getStatusCode());
+
+      String contentRange = response.getHeaders().getFirst("Content-Range");
+      assertNotNull(contentRange, "Content-Range header must be present");
+
+      byte[] body = response.getBody();
+      assertNotNull(body);
+
+      long contentLength = response.getHeaders().getContentLength();
+      if (contentLength > 0) {
+        assertEquals(contentLength, body.length, "Body length must match Content-Length header");
+      }
+    }
+
+    @Test
+    @DisplayName(
+        "Given: HEAD request, When: HEAD /Audio/{id}/stream, Then: Returns Content-Length > 0")
+    void headRequestReturnsContentLength() {
+      assumeTrue(firstTrackId != null, "Track ID required");
+
+      HttpEntity<Void> request = new HttpEntity<>(new HttpHeaders());
+
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Audio/" + firstTrackId + "/stream?api_key=" + authToken + "&static=true",
+              HttpMethod.HEAD,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      assertTrue(
+          response.getHeaders().getContentLength() > 0,
+          "HEAD response must have Content-Length > 0");
+    }
+
+    @Test
+    @DisplayName(
+        "Given: Range beyond file size, When: GET /Audio/{id}/stream, Then: Returns 416 or partial"
+            + " content")
+    void rangeBeyondFileSize() {
+      assumeTrue(firstTrackId != null, "Track ID required");
+
+      HttpHeaders headers = new HttpHeaders();
+      headers.set("Range", "bytes=999999999999-999999999999");
+      HttpEntity<Void> request = new HttpEntity<>(headers);
+
+      ResponseEntity<byte[]> response =
+          restTemplate.exchange(
+              BASE_URL + "/Audio/" + firstTrackId + "/stream?api_key=" + authToken + "&static=true",
+              HttpMethod.GET,
+              request,
+              byte[].class);
+
+      assertTrue(
+          response.getStatusCode() == HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE
+              || response.getStatusCode() == HttpStatus.PARTIAL_CONTENT,
+          "Should return 416 or 206 for out-of-range request");
+    }
+  }
 }

@@ -111,4 +111,26 @@ test.describe('Favorites', () => {
       await albumPage.toggleFavorite();
     }
   });
+
+  test('should handle rapid double-click on favorite button', async ({
+    libraryPage,
+    albumPage,
+  }) => {
+    await libraryPage.goto();
+    const firstAlbum = libraryPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD).first();
+    await expect(firstAlbum).toBeVisible({ timeout: 10000 });
+    await firstAlbum.click();
+    await expect(albumPage.albumTitle).toBeVisible({ timeout: 10000 });
+
+    const initialFavState = await albumPage.isFavorite();
+    const favButton = albumPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_FAVORITE_BUTTON);
+
+    await favButton.click();
+    await favButton.click();
+
+    await albumPage.page.waitForTimeout(2000);
+
+    const finalState = await albumPage.isFavorite();
+    expect(finalState).toBe(initialFavState);
+  });
 });

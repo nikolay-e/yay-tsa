@@ -223,8 +223,12 @@ public class StreamingService {
     long remaining = count;
     while (remaining > 0) {
       long transferred = fileChannel.transferTo(position, remaining, target);
-      if (transferred <= 0) {
+      if (transferred < 0) {
         break;
+      }
+      if (transferred == 0) {
+        Thread.onSpinWait();
+        continue;
       }
       position += transferred;
       remaining -= transferred;

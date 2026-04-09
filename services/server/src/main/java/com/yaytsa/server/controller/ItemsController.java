@@ -170,7 +170,7 @@ public class ItemsController {
       return ResponseEntity.badRequest().build();
     }
 
-    int validLimit = Math.max(0, Math.min(limit, MAX_PAGE_SIZE));
+    int validLimit = Math.max(1, Math.min(limit, MAX_PAGE_SIZE));
 
     ItemService.ItemsQueryParams params =
         new ItemService.ItemsQueryParams(

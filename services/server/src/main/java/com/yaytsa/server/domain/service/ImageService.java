@@ -112,22 +112,23 @@ public class ImageService {
       ImageType imageType = imageTypeOpt.get();
       String cacheKey = params.cacheKey(itemId.toString(), imageTypeStr);
 
-      byte[] cached = imageCache.getIfPresent(cacheKey);
-      if (cached != null) {
-        log.debug("Cache hit for image: {}", cacheKey);
-        return Optional.of(cached);
-      }
+      byte[] result =
+          imageCache.get(
+              cacheKey,
+              key -> {
+                try {
+                  Optional<byte[]> imageData = loadImageData(itemId, imageType);
+                  if (imageData.isEmpty()) {
+                    log.debug("Image not found: itemId={}, type={}", itemId, imageType);
+                    return null;
+                  }
+                  return processImage(imageData.get(), params);
+                } catch (IOException e) {
+                  throw new java.io.UncheckedIOException(e);
+                }
+              });
 
-      Optional<byte[]> imageData = loadImageData(itemId, imageType);
-      if (imageData.isEmpty()) {
-        log.debug("Image not found: itemId={}, type={}", itemId, imageType);
-        return Optional.empty();
-      }
-
-      byte[] processedImage = processImage(imageData.get(), params);
-      imageCache.put(cacheKey, processedImage);
-
-      return Optional.of(processedImage);
+      return Optional.ofNullable(result);
 
     } catch (Exception e) {
       log.error(

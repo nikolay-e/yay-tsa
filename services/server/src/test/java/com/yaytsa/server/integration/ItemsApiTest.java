@@ -213,4 +213,95 @@ class ItemsApiTest extends BaseIntegrationTest {
       assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
   }
+
+  @Nested
+  @DisplayName("Scenario: Edge cases and boundary conditions")
+  class EdgeCases {
+
+    @Test
+    @DisplayName("Given: Limit=0, When: GET /Items, Then: Returns 200 with results (not 500)")
+    void getItemsWithZeroLimit() throws Exception {
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=0",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      JsonNode json = objectMapper.readTree(response.getBody());
+      assertTrue(json.has("TotalRecordCount"));
+      assertTrue(json.has("Items"));
+    }
+
+    @Test
+    @DisplayName("Given: Negative limit, When: GET /Items, Then: Returns 200 (not 500)")
+    void getItemsWithNegativeLimit() throws Exception {
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=-1",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    @DisplayName(
+        "Given: Unknown IncludeItemTypes, When: GET /Items, Then: Returns 200 with empty or all"
+            + " results (not 500)")
+    void getItemsWithUnknownType() throws Exception {
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Items?IncludeItemTypes=Video&Recursive=true",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      JsonNode json = objectMapper.readTree(response.getBody());
+      assertTrue(json.has("TotalRecordCount"));
+    }
+
+    @Test
+    @DisplayName(
+        "Given: StartIndex beyond total, When: GET /Items, Then: Returns empty items with valid"
+            + " TotalRecordCount")
+    void getItemsWithStartIndexBeyondTotal() throws Exception {
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&StartIndex=999999&Limit=10",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      JsonNode json = objectMapper.readTree(response.getBody());
+      assertEquals(0, json.get("Items").size());
+      assertTrue(json.get("TotalRecordCount").asInt() >= 0);
+    }
+
+    @Test
+    @DisplayName(
+        "Given: Mixed valid and invalid IncludeItemTypes, When: GET /Items, Then: Returns results"
+            + " for valid types only")
+    void getItemsWithMixedTypes() throws Exception {
+      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+      ResponseEntity<String> response =
+          restTemplate.exchange(
+              BASE_URL + "/Items?IncludeItemTypes=Audio,InvalidType&Recursive=true",
+              HttpMethod.GET,
+              request,
+              String.class);
+
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      JsonNode json = objectMapper.readTree(response.getBody());
+      assertTrue(json.has("TotalRecordCount"));
+    }
+  }
 }

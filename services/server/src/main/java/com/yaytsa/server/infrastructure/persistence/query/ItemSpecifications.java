@@ -15,7 +15,14 @@ public final class ItemSpecifications {
       if (types == null || types.isEmpty()) {
         return cb.conjunction();
       }
-      List<ItemType> itemTypes = types.stream().map(ItemSpecifications::mapJellyfinType).toList();
+      List<ItemType> itemTypes =
+          types.stream()
+              .map(ItemSpecifications::mapJellyfinType)
+              .filter(java.util.Objects::nonNull)
+              .toList();
+      if (itemTypes.isEmpty()) {
+        return cb.conjunction();
+      }
 
       if (itemTypes.size() == 1) {
         return cb.equal(root.get("type"), itemTypes.get(0));
@@ -36,7 +43,13 @@ public final class ItemSpecifications {
       case "MusicArtist" -> ItemType.MusicArtist;
       case "Folder" -> ItemType.Folder;
       case "Playlist" -> ItemType.Playlist;
-      default -> ItemType.valueOf(jellyfinType);
+      default -> {
+        try {
+          yield ItemType.valueOf(jellyfinType);
+        } catch (IllegalArgumentException e) {
+          yield null;
+        }
+      }
     };
   }
 

@@ -10,14 +10,8 @@ public class OffsetBasedPageRequest implements Pageable {
   private final Sort sort;
 
   public OffsetBasedPageRequest(int offset, int limit, Sort sort) {
-    if (offset < 0) {
-      throw new IllegalArgumentException("Offset must be non-negative");
-    }
-    if (limit < 1) {
-      throw new IllegalArgumentException("Limit must be positive");
-    }
-    this.offset = offset;
-    this.limit = limit;
+    this.offset = Math.max(0, offset);
+    this.limit = Math.max(1, limit);
     this.sort = sort != null ? sort : Sort.unsorted();
   }
 
