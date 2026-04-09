@@ -2,3 +2,5 @@
 -keepattributes *Annotation*
 -dontwarn androidx.**
 -dontwarn com.google.android.material.**
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.GuardedBy
