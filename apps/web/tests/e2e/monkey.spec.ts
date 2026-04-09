@@ -242,6 +242,159 @@ function injectDomEvents(page: Page): void {
     .catch(() => {});
 }
 
+const MALICIOUS_PAYLOADS = [
+  "'; DROP TABLE items; --",
+  '"><script>alert(1)</script>',
+  '../../../etc/passwd',
+  '{{7*7}}',
+  '${7*7}',
+  '%00%0d%0aX-Injected: header',
+  'UNION SELECT * FROM api_tokens--',
+  '\x00\x01\x02\x03',
+  'a'.repeat(10000),
+  '日本語メタル',
+  '{"$gt":""}',
+  '-1 OR 1=1',
+  '00000000-0000-0000-0000-000000000000',
+  'not-a-uuid',
+  '../../audio/stream',
+  '%2e%2e%2f%2e%2e%2f',
+  'null',
+  'undefined',
+  'NaN',
+  'Infinity',
+  '-Infinity',
+  '0',
+  '-1',
+  '99999999999999',
+  Array(50).fill('A').join(','),
+];
+
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
+const API_CHAOS_ENDPOINTS = [
+  // Items — boundary params
+  { method: 'GET', path: '/Items?IncludeItemTypes=INVALID&Recursive=true' },
+  { method: 'GET', path: '/Items?IncludeItemTypes=Audio,Video,FAKE,,,&Recursive=true' },
+  { method: 'GET', path: '/Items?Limit=0&Recursive=true' },
+  { method: 'GET', path: '/Items?Limit=-1&Recursive=true' },
+  { method: 'GET', path: '/Items?Limit=-999999&Recursive=true' },
+  { method: 'GET', path: '/Items?Limit=999999&Recursive=true' },
+  { method: 'GET', path: '/Items?StartIndex=-1&Recursive=true' },
+  { method: 'GET', path: '/Items?StartIndex=999999999&Recursive=true' },
+  { method: 'GET', path: '/Items?Recursive=true&SortBy=NONEXISTENT' },
+  { method: 'GET', path: '/Items?Recursive=true&SortOrder=BACKWARDS' },
+  { method: 'GET', path: '/Items?Recursive=true&Fields=Everything,Nothing' },
+  { method: 'GET', path: `/Items?Recursive=true&ArtistIds=${ZERO_UUID},not-uuid,${ZERO_UUID}` },
+  { method: 'GET', path: `/Items?Recursive=true&AlbumIds=${ZERO_UUID}` },
+  { method: 'GET', path: `/Items?Recursive=true&GenreIds=${ZERO_UUID}` },
+  { method: 'GET', path: '/Items?Recursive=true&IsFavorite=maybe' },
+  { method: 'GET', path: `/Items?Recursive=true&Ids=${Array(100).fill(ZERO_UUID).join(',')}` },
+
+  // Items — malformed IDs
+  { method: 'GET', path: '/Items/not-a-uuid' },
+  { method: 'GET', path: `/Items/${ZERO_UUID}` },
+  { method: 'GET', path: '/Items/../../etc/passwd' },
+  { method: 'GET', path: "/Items/'; DROP TABLE items;--" },
+  { method: 'GET', path: '/Items/' + 'A'.repeat(1000) },
+
+  // Streaming — path traversal, malformed
+  { method: 'GET', path: '/Audio/not-a-uuid/stream' },
+  { method: 'GET', path: `/Audio/${ZERO_UUID}/stream` },
+  { method: 'GET', path: '/Audio/../../etc/passwd/stream' },
+  { method: 'HEAD', path: `/Audio/${ZERO_UUID}/stream` },
+
+  // Images — malformed
+  { method: 'GET', path: `/Items/${ZERO_UUID}/Images/Primary` },
+  { method: 'GET', path: `/Items/${ZERO_UUID}/Images/NONEXISTENT` },
+  { method: 'GET', path: `/Items/${ZERO_UUID}/Images/Primary?maxWidth=-1&maxHeight=-1` },
+  { method: 'GET', path: `/Items/${ZERO_UUID}/Images/Primary?maxWidth=99999&quality=999` },
+  { method: 'GET', path: `/Items/${ZERO_UUID}/Images/Primary?tag=../../../../etc/passwd` },
+
+  // Sessions — malformed bodies
+  { method: 'POST', path: '/Sessions/Playing', body: '{}' },
+  { method: 'POST', path: '/Sessions/Playing', body: '{"invalid": true}' },
+  { method: 'POST', path: '/Sessions/Playing', body: 'NOT JSON AT ALL' },
+  { method: 'POST', path: '/Sessions/Playing', body: '{' },
+  { method: 'POST', path: '/Sessions/Playing/Progress', body: '{"PositionTicks": -1}' },
+  {
+    method: 'POST',
+    path: '/Sessions/Playing/Progress',
+    body: '{"PositionTicks": 9999999999999999}',
+  },
+  { method: 'POST', path: '/Sessions/Playing/Stopped', body: '{"PositionTicks": -999}' },
+  { method: 'POST', path: '/Sessions/Logout' },
+
+  // Auth — injection
+  { method: 'POST', path: '/Users/AuthenticateByName', body: '{"Username":"","Pw":""}' },
+  {
+    method: 'POST',
+    path: '/Users/AuthenticateByName',
+    body: `{"Username":"${MALICIOUS_PAYLOADS[0]}","Pw":"x"}`,
+  },
+  { method: 'POST', path: '/Users/AuthenticateByName', body: '{"Username":null,"Pw":null}' },
+  {
+    method: 'POST',
+    path: '/Users/AuthenticateByName',
+    body: `{"Username":"${'A'.repeat(10000)}","Pw":"x"}`,
+  },
+
+  // Users — unauthorized access attempts
+  { method: 'GET', path: '/Users/not-a-uuid' },
+  { method: 'GET', path: `/Users/${ZERO_UUID}` },
+  { method: 'GET', path: `/Users/${ZERO_UUID}/FavoriteItems` },
+  { method: 'GET', path: `/Users/${ZERO_UUID}/Items` },
+  { method: 'GET', path: `/Users/${ZERO_UUID}/Items/Resume` },
+  { method: 'POST', path: `/Users/Me/FavoriteItems/${ZERO_UUID}` },
+  { method: 'DELETE', path: `/Users/Me/FavoriteItems/${ZERO_UUID}` },
+  { method: 'DELETE', path: `/Users/${ZERO_UUID}/FavoriteItems/${ZERO_UUID}` },
+
+  // Playlists — CRUD chaos
+  { method: 'GET', path: '/Playlists/not-a-uuid/Items' },
+  { method: 'GET', path: `/Playlists/${ZERO_UUID}/Items` },
+  { method: 'POST', path: '/Playlists', body: '{"Name":""}' },
+  { method: 'POST', path: '/Playlists', body: '{}' },
+  { method: 'POST', path: '/Playlists', body: `{"Name":"${'X'.repeat(5000)}"}` },
+  { method: 'DELETE', path: `/Playlists/${ZERO_UUID}` },
+  { method: 'POST', path: `/Playlists/${ZERO_UUID}/Items`, body: `{"Ids":["${ZERO_UUID}"]}` },
+  { method: 'POST', path: `/Playlists/${ZERO_UUID}/Items/${ZERO_UUID}/Move/0` },
+  { method: 'POST', path: `/Playlists/${ZERO_UUID}/Items/${ZERO_UUID}/Move/-1` },
+  { method: 'POST', path: `/Playlists/${ZERO_UUID}/Items/${ZERO_UUID}/Move/999999` },
+
+  // Karaoke / Lyrics
+  { method: 'GET', path: `/Karaoke/${ZERO_UUID}/status` },
+  { method: 'POST', path: `/Karaoke/${ZERO_UUID}/process` },
+  { method: 'GET', path: `/Karaoke/${ZERO_UUID}/status/stream` },
+  { method: 'GET', path: `/Lyrics/${ZERO_UUID}` },
+  { method: 'POST', path: `/Lyrics/${ZERO_UUID}/fetch` },
+  { method: 'POST', path: `/Lyrics/${ZERO_UUID}/fetch?force=true` },
+
+  // Radio / DJ
+  { method: 'POST', path: '/v1/sessions', body: '{}' },
+  { method: 'POST', path: '/v1/sessions', body: '{"invalid":true}' },
+  { method: 'GET', path: `/v1/sessions/${ZERO_UUID}/queue` },
+  { method: 'POST', path: `/v1/sessions/${ZERO_UUID}/queue/refresh` },
+  { method: 'POST', path: `/v1/sessions/${ZERO_UUID}/signals`, body: '{}' },
+  { method: 'POST', path: `/v1/sessions/${ZERO_UUID}/signals`, body: '{"type":"FAKE_SIGNAL"}' },
+  { method: 'GET', path: '/v1/radio/seeds' },
+  { method: 'GET', path: '/v1/preferences' },
+  { method: 'PUT', path: '/v1/preferences', body: '{"garbage": true}' },
+
+  // Admin — privilege escalation attempts
+  { method: 'POST', path: '/Admin/Users', body: '{"Username":"hacker","Password":"pwn"}' },
+  { method: 'POST', path: `/Admin/Users/${ZERO_UUID}/ResetPassword` },
+  { method: 'DELETE', path: `/Admin/Users/${ZERO_UUID}` },
+  { method: 'POST', path: '/Admin/Library/Scan' },
+  { method: 'POST', path: '/Admin/Cache/Invalidate' },
+
+  // System
+  { method: 'GET', path: '/System/Info/Public' },
+  { method: 'GET', path: '/manage/health' },
+
+  // Upload — malformed
+  { method: 'POST', path: '/Upload/Track', body: 'not-multipart-data' },
+];
+
 const PROTECTED_KEYS = ['yaytsa_session', 'yaytsa_dj_session'];
 
 function storageChaos(page: Page): void {
@@ -440,6 +593,210 @@ async function executeInteractiveAction(
   return { iterationDelta: added, failed: false };
 }
 
+function apiChaos(page: Page, serverErrors: string[]): void {
+  const endpoints = Array.from({ length: 3 + Math.floor(Math.random() * 5) }, () =>
+    pick(API_CHAOS_ENDPOINTS)
+  );
+  const searchPayload = pick(MALICIOUS_PAYLOADS);
+
+  page
+    .evaluate(
+      async ({
+        endpoints: eps,
+        searchPayload: sp,
+        maliciousPayloads,
+      }: {
+        endpoints: typeof API_CHAOS_ENDPOINTS;
+        searchPayload: string;
+        maliciousPayloads: string[];
+      }) => {
+        const token = sessionStorage.getItem('yaytsa_session') || '';
+        const authHeader = `MediaBrowser Client=MonkeyTest, Device=Chaos, DeviceId=monkey-${Date.now()}, Version=1.0, Token=${token}`;
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Emby-Authorization': authHeader,
+        };
+
+        const requests: Promise<Response>[] = [];
+
+        for (const ep of eps) {
+          requests.push(
+            fetch(ep.path, {
+              method: ep.method,
+              headers,
+              body: ep.method !== 'GET' && ep.method !== 'HEAD' ? ep.body || null : undefined,
+            }).catch(() => new Response(null, { status: 0 }))
+          );
+        }
+
+        requests.push(
+          fetch(
+            `/Items?SearchTerm=${encodeURIComponent(sp)}&Recursive=true&IncludeItemTypes=Audio`,
+            { headers }
+          ).catch(() => new Response(null, { status: 0 }))
+        );
+
+        const toxicSearch = maliciousPayloads[Math.floor(Math.random() * maliciousPayloads.length)];
+        requests.push(
+          fetch(
+            `/Items?SearchTerm=${encodeURIComponent(toxicSearch)}&Recursive=true&IncludeItemTypes=Audio,MusicAlbum,MusicArtist`,
+            { headers }
+          ).catch(() => new Response(null, { status: 0 }))
+        );
+
+        if (Math.random() < 0.3) {
+          requests.push(
+            fetch('/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1', {
+              headers: {
+                ...headers,
+                'Content-Type': 'text/xml',
+                'X-Forwarded-For': '127.0.0.1',
+                'X-Real-IP': '10.0.0.1',
+              },
+            }).catch(() => new Response(null, { status: 0 }))
+          );
+        }
+
+        if (Math.random() < 0.2) {
+          requests.push(
+            fetch('/Sessions/Playing', {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'text/plain' },
+              body: 'AAAA'.repeat(2500),
+            }).catch(() => new Response(null, { status: 0 }))
+          );
+        }
+
+        if (Math.random() < 0.4) {
+          const burst = Array.from({ length: 20 }, () =>
+            fetch(`/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1&_bust=${Math.random()}`, {
+              headers,
+            }).catch(() => new Response(null, { status: 0 }))
+          );
+          requests.push(...burst);
+        }
+
+        const results = await Promise.allSettled(requests);
+        return results
+          .filter(r => r.status === 'fulfilled')
+          .map(r => {
+            const resp = (r as PromiseFulfilledResult<Response>).value;
+            return { status: resp.status, url: resp.url };
+          })
+          .filter(r => r.status >= 500);
+      },
+      { endpoints, searchPayload, maliciousPayloads: MALICIOUS_PAYLOADS }
+    )
+    .then(errors => {
+      errors.forEach(e => {
+        const msg = `[API 5xx] ${e.status} ${e.url}`;
+        serverErrors.push(msg);
+        console.log(`  ${msg}`);
+      });
+    })
+    .catch(() => {});
+}
+
+function concurrentMutationStorm(page: Page, serverErrors: string[]): void {
+  page
+    .evaluate(async () => {
+      const token = sessionStorage.getItem('yaytsa_session') || '';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Emby-Authorization': `MediaBrowser Client=MonkeyTest, Device=Chaos, DeviceId=monkey-storm, Version=1.0, Token=${token}`,
+      };
+
+      const resp = await fetch('/Items?IncludeItemTypes=Audio&Recursive=true&Limit=5', {
+        headers,
+      }).catch(() => null);
+      if (!resp || !resp.ok) return [];
+
+      const data = await resp.json().catch(() => null);
+      if (!data?.Items?.length) return [];
+
+      const trackIds = data.Items.map((i: { Id: string }) => i.Id);
+      const trackId = trackIds[0];
+
+      const mutations: Promise<Response>[] = [];
+
+      // Favorite toggle storm — 10 concurrent POST + 10 concurrent DELETE on same track
+      for (let i = 0; i < 10; i++) {
+        mutations.push(
+          fetch(`/Users/Me/FavoriteItems/${trackId}`, { method: 'POST', headers }).catch(
+            () => new Response(null, { status: 0 })
+          )
+        );
+        mutations.push(
+          fetch(`/Users/Me/FavoriteItems/${trackId}`, { method: 'DELETE', headers }).catch(
+            () => new Response(null, { status: 0 })
+          )
+        );
+      }
+
+      // Playlist create + delete storm
+      for (let i = 0; i < 3; i++) {
+        mutations.push(
+          fetch('/Playlists', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ Name: `monkey-storm-${Date.now()}-${i}` }),
+          }).catch(() => new Response(null, { status: 0 }))
+        );
+      }
+
+      // Session reporting storm — concurrent progress reports
+      for (const tid of trackIds.slice(0, 3)) {
+        mutations.push(
+          fetch('/Sessions/Playing', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ItemId: tid, PositionTicks: 0 }),
+          }).catch(() => new Response(null, { status: 0 }))
+        );
+        mutations.push(
+          fetch('/Sessions/Playing/Progress', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ItemId: tid, PositionTicks: Math.floor(Math.random() * 1e10) }),
+          }).catch(() => new Response(null, { status: 0 }))
+        );
+        mutations.push(
+          fetch('/Sessions/Playing/Stopped', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ItemId: tid, PositionTicks: Math.floor(Math.random() * 1e10) }),
+          }).catch(() => new Response(null, { status: 0 }))
+        );
+      }
+
+      // Favorite toggle on ALL tracks simultaneously
+      for (const tid of trackIds) {
+        mutations.push(
+          fetch(`/Users/Me/FavoriteItems/${tid}`, { method: 'POST', headers }).catch(
+            () => new Response(null, { status: 0 })
+          )
+        );
+      }
+
+      const results = await Promise.allSettled(mutations);
+      return results
+        .filter(r => r.status === 'fulfilled')
+        .map(r => {
+          const res = (r as PromiseFulfilledResult<Response>).value;
+          return { status: res.status, url: res.url };
+        })
+        .filter(r => r.status >= 500);
+    })
+    .then(errors => {
+      (errors || []).forEach((e: { status: number; url: string }) => {
+        const msg = `[MUTATION 5xx] ${e.status} ${e.url}`;
+        serverErrors.push(msg);
+        console.log(`  ${msg}`);
+      });
+    })
+    .catch(() => {});
+}
+
 function collectJsErrors(page: Page, jsErrors: string[], uncaughtExceptions: string[]): void {
   page.on('pageerror', err => {
     uncaughtExceptions.push(err.message);
@@ -454,10 +811,22 @@ function collectJsErrors(page: Page, jsErrors: string[], uncaughtExceptions: str
   });
 }
 
+function trackNetworkErrors(page: Page, serverErrors: string[]): void {
+  page.on('response', response => {
+    if (response.status() >= 500) {
+      const msg = `[NET 5xx] ${response.status()} ${response.url()}`;
+      serverErrors.push(msg);
+      console.log(`  ${msg}`);
+    }
+  });
+}
+
 authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   const jsErrors: string[] = [];
   const uncaughtExceptions: string[] = [];
+  const serverErrors: string[] = [];
   collectJsErrors(page, jsErrors, uncaughtExceptions);
+  trackNetworkErrors(page, serverErrors);
 
   await page.goto('/', { waitUntil: 'commit' });
 
@@ -467,7 +836,10 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   const RECOVER_AFTER_FAILS = 5;
 
   while (iteration < MAX) {
-    if (iteration % 100 === 0) console.log(`[iter ${iteration}/${MAX}] errors=${jsErrors.length}`);
+    if (iteration % 100 === 0)
+      console.log(
+        `[iter ${iteration}/${MAX}] jsErrors=${jsErrors.length} serverErrors=${serverErrors.length}`
+      );
 
     if (page.url().includes('/login')) {
       console.log(`[iter ${iteration}] landed on /login (session lost) — re-authenticating`);
@@ -487,6 +859,14 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
       page.goto(pick(RANDOM_PATHS), { waitUntil: 'commit', timeout: 4000 }).catch(() => {});
     }
 
+    if (iteration > 0 && iteration % 20 === 0) {
+      apiChaos(page, serverErrors);
+    }
+
+    if (iteration > 0 && iteration % 100 === 0) {
+      concurrentMutationStorm(page, serverErrors);
+    }
+
     const actionIdx = weighted(ACTION_WEIGHTS);
 
     if (dispatchSimpleAction(page, actionIdx)) {
@@ -500,11 +880,26 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
     iteration += iterationDelta;
   }
 
+  // Final backend health check
+  const healthOk = await page.evaluate(async () => {
+    try {
+      const resp = await fetch('/System/Info/Public');
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  });
+
   console.log(
-    `\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors, ${uncaughtExceptions.length} uncaught ===`
+    `\n=== DONE: ${iteration} iterations, ${jsErrors.length} JS errors, ` +
+      `${uncaughtExceptions.length} uncaught, ${serverErrors.length} server 5xx, ` +
+      `backend health=${healthOk ? 'OK' : 'DOWN'} ===`
   );
   uncaughtExceptions.forEach((e, i) => console.log(`  UNCAUGHT[${i + 1}]: ${e}`));
+  serverErrors.forEach((e, i) => console.log(`  SERVER[${i + 1}]: ${e}`));
 
   expect(uncaughtExceptions).toHaveLength(0);
+  expect(serverErrors).toHaveLength(0);
+  expect(healthOk).toBe(true);
   await expect(page.locator('body')).toBeVisible();
 });
