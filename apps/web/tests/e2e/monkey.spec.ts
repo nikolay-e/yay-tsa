@@ -821,6 +821,25 @@ function trackNetworkErrors(page: Page, serverErrors: string[]): void {
   });
 }
 
+async function handleLoginRecovery(page: Page, iteration: number): Promise<{ recovered: boolean }> {
+  if (!page.url().includes('/login')) return { recovered: false };
+  console.log(`[iter ${iteration}] landed on /login (session lost) — re-authenticating`);
+  await reAuthenticate(page);
+  return { recovered: true };
+}
+
+function triggerPeriodicActions(page: Page, iteration: number, serverErrors: string[]): void {
+  if (iteration > 0 && iteration % 150 === 0) {
+    page.goto(pick(RANDOM_PATHS), { waitUntil: 'commit', timeout: 4000 }).catch(() => {});
+  }
+  if (iteration > 0 && iteration % 20 === 0) {
+    apiChaos(page, serverErrors);
+  }
+  if (iteration > 0 && iteration % 100 === 0) {
+    concurrentMutationStorm(page, serverErrors);
+  }
+}
+
 authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
   const jsErrors: string[] = [];
   const uncaughtExceptions: string[] = [];
@@ -841,9 +860,8 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
         `[iter ${iteration}/${MAX}] jsErrors=${jsErrors.length} serverErrors=${serverErrors.length}`
       );
 
-    if (page.url().includes('/login')) {
-      console.log(`[iter ${iteration}] landed on /login (session lost) — re-authenticating`);
-      await reAuthenticate(page);
+    const { recovered } = await handleLoginRecovery(page, iteration);
+    if (recovered) {
       consecutiveFails = 0;
       iteration++;
       continue;
@@ -855,17 +873,7 @@ authTest('monkey testing - pure chaos', async ({ authenticatedPage: page }) => {
       consecutiveFails = 0;
     }
 
-    if (iteration > 0 && iteration % 150 === 0) {
-      page.goto(pick(RANDOM_PATHS), { waitUntil: 'commit', timeout: 4000 }).catch(() => {});
-    }
-
-    if (iteration > 0 && iteration % 20 === 0) {
-      apiChaos(page, serverErrors);
-    }
-
-    if (iteration > 0 && iteration % 100 === 0) {
-      concurrentMutationStorm(page, serverErrors);
-    }
+    triggerPeriodicActions(page, iteration, serverErrors);
 
     const actionIdx = weighted(ACTION_WEIGHTS);
 
