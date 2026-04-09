@@ -116,9 +116,9 @@ class AuthApiTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName(
-        "Given: Valid token, When: Logout called twice with same token,"
-            + " Then: Both calls return 204 (idempotent)")
-    void doubleLogoutIsIdempotent() {
+        "Given: Revoked token, When: Logout called again with same token,"
+            + " Then: Returns 401 (token already invalidated)")
+    void logoutWithRevokedTokenReturns401() {
       ResponseEntity<String> firstLogout =
           restTemplate.exchange(
               BASE_URL + "/Sessions/Logout",
@@ -133,7 +133,7 @@ class AuthApiTest extends BaseIntegrationTest {
               HttpMethod.POST,
               new HttpEntity<>(freshAuthHeaders()),
               String.class);
-      assertEquals(HttpStatus.NO_CONTENT, secondLogout.getStatusCode());
+      assertEquals(HttpStatus.UNAUTHORIZED, secondLogout.getStatusCode());
     }
 
     @Test
