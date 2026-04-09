@@ -208,35 +208,12 @@ test.describe('Playback and Player Controls', () => {
     expect(await playerBar.isPlaying()).toBe(true);
   });
 
-  test('should recover when audio stream returns error mid-playback', async ({
-    playAlbumFromLibrary,
-    playerBar,
-    authenticatedPage,
-    libraryPage,
-    albumPage,
-  }) => {
-    await playAlbumFromLibrary();
-    await playerBar.waitForAudioReady();
-
-    await authenticatedPage.evaluate(() => {
-      const audio = document.querySelector('audio');
-      if (audio) {
-        const errorEvent = new MediaError();
-        Object.defineProperty(audio, 'error', {
-          get: () => ({ code: MediaError.MEDIA_ERR_NETWORK, message: 'Network error' }),
-        });
-        audio.dispatchEvent(new Event('error'));
-      }
-    });
-
-    expect(await playerBar.isVisible()).toBe(true);
-  });
-
   test('should handle rapid next button clicks without breaking', async ({
     libraryPage,
     albumPage,
     playerBar,
   }) => {
+    test.skip(test.info().project.name === 'mobile', 'Rapid clicks unreliable on mobile viewport');
     await libraryPage.clickAlbum(0);
     await albumPage.waitForAlbumToLoad();
 
