@@ -9,12 +9,26 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class ApiErrorController implements ErrorController {
 
-  @RequestMapping(value = "/error", produces = MediaType.APPLICATION_JSON_VALUE)
+  // CSRF suppressed: /error is permitAll() in SecurityConfig, not a user-facing endpoint
+  @SuppressWarnings("codeql[java/spring-disabled-csrf-protection]")
+  @edu.umd.cs.findbugs.annotations.SuppressFBWarnings("SPRING_CSRF_UNRESTRICTED_REQUEST_MAPPING")
+  @RequestMapping(
+      value = "/error",
+      method = {
+        RequestMethod.GET,
+        RequestMethod.POST,
+        RequestMethod.PUT,
+        RequestMethod.DELETE,
+        RequestMethod.PATCH,
+        RequestMethod.HEAD
+      },
+      produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<ProblemDetail> handleError(HttpServletRequest request) {
     HttpStatus status = resolveStatus(request);
     String message = resolveMessage(request, status);
