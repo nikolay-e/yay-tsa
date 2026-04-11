@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -75,6 +76,17 @@ public class GlobalExceptionHandler {
         request.getRequestURI(),
         ex.getName(),
         ex.getValue());
+
+    return ResponseEntity.badRequest().body(problem);
+  }
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ProblemDetail> handleHttpMessageNotReadable(
+      HttpMessageNotReadableException ex, HttpServletRequest request) {
+    ProblemDetail problem =
+        createProblemDetail(HttpStatus.BAD_REQUEST, "Malformed request body", request);
+
+    log.warn("Malformed request body: path={}, error={}", request.getRequestURI(), ex.getMessage());
 
     return ResponseEntity.badRequest().body(problem);
   }

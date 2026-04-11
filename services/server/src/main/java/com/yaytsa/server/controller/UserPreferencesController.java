@@ -12,6 +12,10 @@ import com.yaytsa.server.error.ResourceType;
 import com.yaytsa.server.infrastructure.persistence.entity.TasteProfileEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserPreferenceContractEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/users/{userId}")
+@Tag(name = "User Preferences", description = "User DJ preferences and taste profiles")
 public class UserPreferencesController {
 
   private final UserPreferencesService preferencesService;
@@ -34,6 +39,13 @@ public class UserPreferencesController {
     this.objectMapper = objectMapper;
   }
 
+  @Operation(summary = "Get user preferences")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Preferences returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping("/preferences")
   public ResponseEntity<UserPreferencesResponse> getPreferences(
       @PathVariable UUID userId, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -41,6 +53,13 @@ public class UserPreferencesController {
     return ResponseEntity.ok(toPreferencesResponse(preferencesService.getPreferences(userId)));
   }
 
+  @Operation(summary = "Update user preferences")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Preferences updated"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PutMapping("/preferences")
   public ResponseEntity<UserPreferencesResponse> updatePreferences(
       @PathVariable UUID userId,
@@ -57,6 +76,14 @@ public class UserPreferencesController {
     return ResponseEntity.ok(toPreferencesResponse(entity));
   }
 
+  @Operation(summary = "Get user taste profile")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Taste profile returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden"),
+        @ApiResponse(responseCode = "404", description = "Taste profile not found")
+      })
   @GetMapping("/taste-profile")
   public ResponseEntity<TasteProfileResponse> getTasteProfile(
       @PathVariable UUID userId, @AuthenticationPrincipal AuthenticatedUser user) {

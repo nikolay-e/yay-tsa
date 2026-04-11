@@ -264,6 +264,7 @@ logging:
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
     path: /swagger-ui.html
     enabled: ${SWAGGER_ENABLED:false}
@@ -296,6 +297,12 @@ logging:
     com.yaytsa.server: TRACE
     org.springframework.web: DEBUG
     org.springframework.security: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
 
 yaytsa:
   security:
@@ -347,12 +354,12 @@ server:
     include-binding-errors: never
     include-stacktrace: never
 
-# Disable Swagger/API docs in production
+# Swagger/API docs controlled by SWAGGER_ENABLED env var (default: false)
 springdoc:
   api-docs:
-    enabled: false
+    enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
-    enabled: false
+    enabled: ${SWAGGER_ENABLED:false}
 
 yaytsa:
   security:

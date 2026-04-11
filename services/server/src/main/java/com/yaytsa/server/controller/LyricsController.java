@@ -32,6 +32,7 @@ public class LyricsController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Lyrics search completed"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Track not found"),
         @ApiResponse(responseCode = "503", description = "Lyrics service unavailable")
       })

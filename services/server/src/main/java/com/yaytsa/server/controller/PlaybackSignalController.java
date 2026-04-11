@@ -10,6 +10,10 @@ import com.yaytsa.server.dto.response.PlaybackSignalResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.PlaybackSignalEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.util.UuidUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/sessions/{sessionId}/signals")
+@Tag(name = "Playback Signals", description = "Playback signal submission for adaptive DJ")
 @Slf4j
 public class PlaybackSignalController {
 
@@ -45,6 +50,14 @@ public class PlaybackSignalController {
     this.objectMapper = objectMapper;
   }
 
+  @Operation(summary = "Submit playback signal")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "201", description = "Signal recorded"),
+        @ApiResponse(responseCode = "400", description = "Invalid signal data"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PostMapping
   public ResponseEntity<PlaybackSignalResponse> submitSignal(
       @PathVariable UUID sessionId,

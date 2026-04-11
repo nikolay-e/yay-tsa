@@ -47,6 +47,8 @@ public class ImagesController {
       value = {
         @ApiResponse(responseCode = "200", description = "Image retrieved successfully"),
         @ApiResponse(responseCode = "304", description = "Not modified (cached)"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Image not found")
       })
   @GetMapping("/Items/{itemId}/Images/{imageType}")
@@ -156,7 +158,11 @@ public class ImagesController {
   }
 
   @Operation(summary = "Upload image for item", description = "Upload a new image for a media item")
-  @ApiResponse(responseCode = "501", description = "Not implemented")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "501", description = "Not implemented")
+      })
   @PostMapping("/Items/{itemId}/Images/{imageType}")
   public ResponseEntity<Void> uploadItemImage(
       @PathVariable String itemId,
@@ -169,7 +175,11 @@ public class ImagesController {
   }
 
   @Operation(summary = "Delete item image", description = "Delete an image for a media item")
-  @ApiResponse(responseCode = "501", description = "Not implemented")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "501", description = "Not implemented")
+      })
   @DeleteMapping("/Items/{itemId}/Images/{imageType}")
   public ResponseEntity<Void> deleteItemImage(
       @PathVariable String itemId,
@@ -186,7 +196,8 @@ public class ImagesController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Image types retrieved successfully"),
-        @ApiResponse(responseCode = "400", description = "Invalid item ID")
+        @ApiResponse(responseCode = "400", description = "Invalid item ID"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
       })
   @GetMapping("/Items/{itemId}/Images")
   public ResponseEntity<List<ImageTypeInfo>> getItemImageTypes(

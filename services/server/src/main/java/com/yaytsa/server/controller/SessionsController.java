@@ -120,6 +120,11 @@ public class SessionsController {
   }
 
   @Operation(summary = "Get active sessions", description = "Retrieve all active playback sessions")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Sessions returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping
   public ResponseEntity<List<Map<String, Object>>> getSessions(
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
@@ -141,6 +146,14 @@ public class SessionsController {
   }
 
   @Operation(summary = "Get session by ID", description = "Retrieve a specific playback session")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Session returned"),
+        @ApiResponse(responseCode = "400", description = "Invalid session ID"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden"),
+        @ApiResponse(responseCode = "404", description = "Session not found")
+      })
   @GetMapping("/{sessionId}")
   public ResponseEntity<Map<String, Object>> getSession(
       @PathVariable String sessionId,

@@ -11,6 +11,7 @@ import com.yaytsa.server.infrastructure.fs.MediaScannerTransactionalService;
 import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -78,6 +79,13 @@ public class AdminController {
       @JsonProperty("DisplayName") String displayName,
       @JsonProperty("IsAdmin") boolean isAdmin) {}
 
+  @Operation(summary = "List all users")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Users listed"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping("/Users")
   public ResponseEntity<List<UserSummary>> listUsers() {
     List<UserSummary> users =
@@ -85,6 +93,14 @@ public class AdminController {
     return ResponseEntity.ok(users);
   }
 
+  @Operation(summary = "Create new user")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "User created"),
+        @ApiResponse(responseCode = "400", description = "Invalid request body"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PostMapping("/Users")
   public ResponseEntity<Map<String, Object>> createUser(@RequestBody CreateUserRequest request) {
     var created =
@@ -96,6 +112,13 @@ public class AdminController {
             "initialPassword", created.plainPassword()));
   }
 
+  @Operation(summary = "Delete user")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "User deleted"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @DeleteMapping("/Users/{userId}")
   public ResponseEntity<Void> deleteUser(@PathVariable UUID userId, Authentication authentication) {
     UUID currentUserId = resolveCurrentUserId(authentication);
@@ -103,6 +126,13 @@ public class AdminController {
     return ResponseEntity.noContent().build();
   }
 
+  @Operation(summary = "Reset user password")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Password reset"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PostMapping("/Users/{userId}/ResetPassword")
   public ResponseEntity<Map<String, Object>> resetPassword(
       @PathVariable UUID userId, Authentication authentication) {

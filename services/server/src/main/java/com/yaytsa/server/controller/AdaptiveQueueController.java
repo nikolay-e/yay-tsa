@@ -7,6 +7,10 @@ import com.yaytsa.server.domain.service.QueueSseService;
 import com.yaytsa.server.dto.response.AdaptiveQueueEntryResponse;
 import com.yaytsa.server.dto.response.AdaptiveQueueResponse;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.MediaType;
@@ -17,6 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/v1/sessions/{sessionId}/queue")
+@Tag(name = "Adaptive Queue", description = "DJ queue management")
 public class AdaptiveQueueController {
 
   private final AdaptiveQueueService queueService;
@@ -35,6 +40,13 @@ public class AdaptiveQueueController {
     this.sseService = sseService;
   }
 
+  @Operation(summary = "Get session queue")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Queue returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping
   public ResponseEntity<AdaptiveQueueResponse> getQueue(
       @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -42,6 +54,13 @@ public class AdaptiveQueueController {
     return ResponseEntity.ok(toResponse(sessionId, queueManager.getQueue(sessionId)));
   }
 
+  @Operation(summary = "Refresh session queue")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Queue refreshed"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PostMapping("/refresh")
   public ResponseEntity<AdaptiveQueueResponse> refreshQueue(
       @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -52,6 +71,13 @@ public class AdaptiveQueueController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(summary = "Stream queue updates via SSE")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "SSE stream started"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamQueueUpdates(
       @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {

@@ -3,6 +3,7 @@ package com.yaytsa.server.controller;
 import com.yaytsa.server.dto.response.SystemInfoResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -51,6 +52,11 @@ public class SystemController {
   @Operation(
       summary = "Get full system information",
       description = "Retrieve complete server information (requires authentication)")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "System info returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/Info")
   public ResponseEntity<SystemInfoResponse> getSystemInfo(
       @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -62,6 +68,11 @@ public class SystemController {
   }
 
   @Operation(summary = "Ping server", description = "Simple health check endpoint")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Pong"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/Ping")
   public ResponseEntity<String> ping() {
     return ResponseEntity.ok("Yay-Tsa Media Server");

@@ -9,6 +9,10 @@ import com.yaytsa.server.dto.request.UpdateSessionStateRequest;
 import com.yaytsa.server.dto.response.ListeningSessionResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.ListeningSessionEntity;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/sessions")
+@Tag(name = "Listening Sessions", description = "Adaptive DJ listening session management")
 public class ListeningSessionController {
 
   private final ListeningSessionService sessionService;
@@ -38,6 +43,12 @@ public class ListeningSessionController {
     this.applicationTaskExecutor = applicationTaskExecutor;
   }
 
+  @Operation(summary = "Create listening session")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "201", description = "Session created"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @PostMapping
   public ResponseEntity<ListeningSessionResponse> createSession(
       @RequestBody(required = false) CreateListeningSessionRequest request,
@@ -50,6 +61,13 @@ public class ListeningSessionController {
     return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session));
   }
 
+  @Operation(summary = "Update session state")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "State updated"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PatchMapping("/{id}/state")
   public ResponseEntity<ListeningSessionResponse> updateState(
       @PathVariable UUID id,
@@ -63,6 +81,13 @@ public class ListeningSessionController {
     return ResponseEntity.ok(toResponse(session));
   }
 
+  @Operation(summary = "End listening session")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Session ended"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @DeleteMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> endSession(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -70,6 +95,13 @@ public class ListeningSessionController {
     return ResponseEntity.ok(toResponse(sessionService.endSession(id)));
   }
 
+  @Operation(summary = "Get active listening session")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Active session found"),
+        @ApiResponse(responseCode = "204", description = "No active session"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/active")
   public ResponseEntity<ListeningSessionResponse> getActiveSession(
       @AuthenticationPrincipal AuthenticatedUser user) {
@@ -81,6 +113,13 @@ public class ListeningSessionController {
     return ResponseEntity.ok(toResponse(session));
   }
 
+  @Operation(summary = "Get listening session by ID")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Session found"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping("/{id}")
   public ResponseEntity<ListeningSessionResponse> getSession(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {

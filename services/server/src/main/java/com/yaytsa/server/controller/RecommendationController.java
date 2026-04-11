@@ -11,6 +11,10 @@ import com.yaytsa.server.dto.response.RadioSeedsResponse;
 import com.yaytsa.server.dto.response.RecommendedTrackResponse;
 import com.yaytsa.server.dto.response.RecommendedTrackResponse.TrackFeaturesSnippet;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/recommend")
+@Tag(name = "Recommendations", description = "Music recommendation and radio seeds")
 public class RecommendationController {
 
   private final RecommendationService recommendationService;
@@ -39,6 +44,12 @@ public class RecommendationController {
     this.radioSeedService = radioSeedService;
   }
 
+  @Operation(summary = "Get track recommendations")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Recommendations returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping
   public ResponseEntity<List<RecommendedTrackResponse>> recommend(
       @AuthenticationPrincipal AuthenticatedUser user,
@@ -78,6 +89,12 @@ public class RecommendationController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(summary = "Semantic search for tracks")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Search results"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/search")
   public ResponseEntity<List<RecommendedTrackResponse>> semanticSearch(
       @AuthenticationPrincipal AuthenticatedUser user,
@@ -104,6 +121,12 @@ public class RecommendationController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(summary = "Get radio seed tracks")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Radio seeds returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/radio/seeds")
   public ResponseEntity<RadioSeedsResponse> getRadioSeeds(
       @AuthenticationPrincipal AuthenticatedUser user) {

@@ -2,6 +2,8 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.AppSettingsService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -33,6 +35,12 @@ public class AppSettingsController {
   }
 
   @Operation(summary = "Get metadata provider settings")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Settings returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping("/metadata")
   public ResponseEntity<Map<String, String>> getMetadataSettings() {
     return ResponseEntity.ok(
@@ -51,6 +59,13 @@ public class AppSettingsController {
   }
 
   @Operation(summary = "Update metadata provider settings")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Settings updated"),
+        @ApiResponse(responseCode = "400", description = "Invalid settings"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PutMapping("/metadata")
   public ResponseEntity<Map<String, String>> updateMetadataSettings(
       @RequestBody Map<String, String> settings) {
@@ -68,6 +83,12 @@ public class AppSettingsController {
   }
 
   @Operation(summary = "Get service URL settings")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Settings returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @GetMapping("/services")
   public ResponseEntity<Map<String, String>> getServiceSettings() {
     return ResponseEntity.ok(
@@ -78,6 +99,13 @@ public class AppSettingsController {
   }
 
   @Operation(summary = "Update service URL settings")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Settings updated"),
+        @ApiResponse(responseCode = "400", description = "Invalid URL"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden")
+      })
   @PutMapping("/services")
   public ResponseEntity<Map<String, String>> updateServiceSettings(
       @RequestBody Map<String, String> settings) {

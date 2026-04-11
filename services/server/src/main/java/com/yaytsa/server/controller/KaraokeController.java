@@ -82,6 +82,11 @@ public class KaraokeController {
   @Operation(
       summary = "Check karaoke feature availability",
       description = "Returns whether the karaoke feature is enabled on this server")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Karaoke status returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/enabled")
   public ResponseEntity<Map<String, Boolean>> isEnabled() {
     return ResponseEntity.ok(Map.of("enabled", true));
@@ -93,6 +98,7 @@ public class KaraokeController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Status returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Track not found")
       })
   @GetMapping("/{trackId}/status")
@@ -104,7 +110,11 @@ public class KaraokeController {
   @Operation(
       summary = "Stream karaoke processing status via SSE",
       description = "Real-time status updates via Server-Sent Events until processing completes")
-  @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "SSE stream started")})
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "SSE stream started"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping(value = "/{trackId}/status/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamStatus(
       @Parameter(description = "Audio track ID") @PathVariable UUID trackId) {
@@ -201,6 +211,7 @@ public class KaraokeController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "202", description = "Processing started"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Track not found")
       })
   @PostMapping("/{trackId}/process")
@@ -217,6 +228,7 @@ public class KaraokeController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Streaming instrumental"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Track or instrumental not found")
       })
   @GetMapping("/{trackId}/instrumental")
@@ -238,6 +250,7 @@ public class KaraokeController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Streaming vocals"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Track or vocals not found")
       })
   @GetMapping("/{trackId}/vocals")

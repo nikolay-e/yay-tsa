@@ -1,6 +1,10 @@
 package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.StreamingService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
@@ -12,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@Tag(name = "Streaming", description = "Audio streaming endpoints")
 public class StreamingController {
 
   private final StreamingService streamingService;
@@ -20,6 +25,14 @@ public class StreamingController {
     this.streamingService = streamingService;
   }
 
+  @Operation(summary = "Stream audio file", description = "Stream audio with byte-range support")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Audio stream"),
+        @ApiResponse(responseCode = "206", description = "Partial content"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "404", description = "Track not found")
+      })
   @GetMapping("/Audio/{itemId}/stream")
   public void streamAudio(
       @PathVariable UUID itemId,
@@ -30,6 +43,13 @@ public class StreamingController {
     streamingService.streamAudio(itemId, range, response);
   }
 
+  @Operation(summary = "Get audio stream headers")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Headers returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "404", description = "Track not found")
+      })
   @RequestMapping(value = "/Audio/{itemId}/stream", method = RequestMethod.HEAD)
   public ResponseEntity<Void> streamAudioHead(@PathVariable UUID itemId) {
 
@@ -49,6 +69,13 @@ public class StreamingController {
     return ResponseEntity.ok().headers(headers).build();
   }
 
+  @Operation(summary = "Get stream URL for audio")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Stream URL returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "404", description = "Track not found")
+      })
   @GetMapping("/Audio/{itemId}/stream/url")
   public ResponseEntity<Map<String, String>> getStreamUrl(@PathVariable UUID itemId) {
 

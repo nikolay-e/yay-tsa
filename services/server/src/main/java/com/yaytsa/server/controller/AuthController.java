@@ -112,6 +112,11 @@ public class AuthController {
   @Operation(
       summary = "Get current user",
       description = "Retrieve the currently authenticated user's profile")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Current user returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/Users/Me")
   public ResponseEntity<UserResponse> getCurrentUser() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
