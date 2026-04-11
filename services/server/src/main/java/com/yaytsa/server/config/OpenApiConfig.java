@@ -61,6 +61,7 @@ public class OpenApiConfig {
                   new MediaType()
                       .schema(new Schema<>().$ref("#/components/schemas/ProblemDetail")));
 
+      ApiResponse badRequest = new ApiResponse().description("Bad request").content(errorContent);
       ApiResponse unauthorized =
           new ApiResponse().description("Unauthorized").content(errorContent);
       ApiResponse forbidden = new ApiResponse().description("Forbidden").content(errorContent);
@@ -78,6 +79,7 @@ public class OpenApiConfig {
                     .forEach(
                         operation -> {
                           if (operation.getResponses() == null) return;
+                          operation.getResponses().putIfAbsent("400", badRequest);
                           operation.getResponses().putIfAbsent("401", unauthorized);
                           operation.getResponses().putIfAbsent("403", forbidden);
                         });
