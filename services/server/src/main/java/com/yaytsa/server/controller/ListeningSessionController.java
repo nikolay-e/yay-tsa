@@ -47,7 +47,8 @@ public class ListeningSessionController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "201", description = "Session created"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "409", description = "Conflict")
       })
   @PostMapping
   public ResponseEntity<ListeningSessionResponse> createSession(
@@ -65,6 +66,7 @@ public class ListeningSessionController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "State updated"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "403", description = "Forbidden")
       })

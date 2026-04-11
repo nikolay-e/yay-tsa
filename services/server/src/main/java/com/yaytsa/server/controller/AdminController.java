@@ -246,6 +246,12 @@ public class AdminController {
     return ResponseEntity.ok(Map.of("scanInProgress", libraryScanService.isScanInProgress()));
   }
 
+  @Operation(summary = "Start embedding backfill")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Backfill started"),
+        @ApiResponse(responseCode = "409", description = "Backfill already in progress")
+      })
   @PostMapping("/Embeddings/Backfill")
   public ResponseEntity<Map<String, Object>> startEmbeddingBackfill() {
     if (embeddingBackfillService.isRunning()) {
@@ -263,6 +269,8 @@ public class AdminController {
     return ResponseEntity.ok(Map.of("success", true, "message", "Embedding backfill started"));
   }
 
+  @Operation(summary = "Get embedding backfill status")
+  @ApiResponse(responseCode = "200", description = "Backfill status returned")
   @GetMapping("/Embeddings/Backfill/Status")
   public ResponseEntity<Map<String, Object>> getBackfillStatus() {
     return ResponseEntity.ok(
@@ -271,6 +279,8 @@ public class AdminController {
             "processed", embeddingBackfillService.getProcessedCount()));
   }
 
+  @Operation(summary = "Stop embedding backfill")
+  @ApiResponse(responseCode = "200", description = "Backfill stop requested")
   @DeleteMapping("/Embeddings/Backfill")
   public ResponseEntity<Map<String, Object>> stopEmbeddingBackfill() {
     embeddingBackfillService.stopBackfill();
@@ -284,6 +294,12 @@ public class AdminController {
             embeddingBackfillService.getProcessedCount()));
   }
 
+  @Operation(summary = "Start karaoke backfill")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Backfill started"),
+        @ApiResponse(responseCode = "409", description = "Backfill already in progress")
+      })
   @PostMapping("/Karaoke/Backfill")
   public ResponseEntity<Map<String, Object>> startKaraokeBackfill() {
     if (karaokeBackfillService.isRunning()) {
@@ -301,6 +317,8 @@ public class AdminController {
     return ResponseEntity.ok(Map.of("success", true, "message", "Karaoke backfill started"));
   }
 
+  @Operation(summary = "Get karaoke backfill status")
+  @ApiResponse(responseCode = "200", description = "Backfill status returned")
   @GetMapping("/Karaoke/Backfill/Status")
   public ResponseEntity<Map<String, Object>> getKaraokeBackfillStatus() {
     return ResponseEntity.ok(
@@ -310,6 +328,8 @@ public class AdminController {
             "remaining", karaokeBackfillService.getRemainingCount()));
   }
 
+  @Operation(summary = "Stop karaoke backfill")
+  @ApiResponse(responseCode = "200", description = "Backfill stop requested")
   @DeleteMapping("/Karaoke/Backfill")
   public ResponseEntity<Map<String, Object>> stopKaraokeBackfill() {
     karaokeBackfillService.stopBackfill();

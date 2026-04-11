@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -87,6 +88,21 @@ public class GlobalExceptionHandler {
         createProblemDetail(HttpStatus.BAD_REQUEST, "Malformed request body", request);
 
     log.warn("Malformed request body: path={}, error={}", request.getRequestURI(), ex.getMessage());
+
+    return ResponseEntity.badRequest().body(problem);
+  }
+
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  public ResponseEntity<ProblemDetail> handleMethodArgumentNotValid(
+      MethodArgumentNotValidException ex, HttpServletRequest request) {
+    String message =
+        ex.getBindingResult().getFieldErrors().stream()
+            .map(error -> error.getField() + ": " + error.getDefaultMessage())
+            .reduce((a, b) -> a + "; " + b)
+            .orElse("Validation failed");
+    ProblemDetail problem = createProblemDetail(HttpStatus.BAD_REQUEST, message, request);
+
+    log.warn("Validation failed: path={}, errors={}", request.getRequestURI(), message);
 
     return ResponseEntity.badRequest().body(problem);
   }

@@ -7,6 +7,13 @@ import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.annotations.security.SecuritySchemes;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.responses.ApiResponse;
+import java.util.Set;
+import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
@@ -27,4 +34,54 @@ import org.springframework.context.annotation.Configuration;
       paramName = "api_key",
       description = "API key query parameter for streaming endpoints")
 })
-public class OpenApiConfig {}
+public class OpenApiConfig {
+
+  private static final Set<String> PUBLIC_PATHS =
+      Set.of("/Users/AuthenticateByName", "/System/Info/Public");
+
+  @Bean
+  public OpenApiCustomizer globalErrorResponseCustomizer() {
+    return openApi -> {
+      Schema<?> problemSchema =
+          new Schema<>()
+              .type("object")
+              .addProperty("type", new Schema<>().type("string"))
+              .addProperty("title", new Schema<>().type("string"))
+              .addProperty("status", new Schema<>().type("integer"))
+              .addProperty("detail", new Schema<>().type("string"))
+              .addProperty("path", new Schema<>().type("string"))
+              .addProperty("timestamp", new Schema<>().type("string"));
+
+      openApi.getComponents().addSchemas("ProblemDetail", problemSchema);
+
+      Content errorContent =
+          new Content()
+              .addMediaType(
+                  "application/json",
+                  new MediaType()
+                      .schema(new Schema<>().$ref("#/components/schemas/ProblemDetail")));
+
+      ApiResponse unauthorized =
+          new ApiResponse().description("Unauthorized").content(errorContent);
+      ApiResponse forbidden = new ApiResponse().description("Forbidden").content(errorContent);
+
+      if (openApi.getPaths() == null) return;
+
+      openApi
+          .getPaths()
+          .forEach(
+              (path, pathItem) -> {
+                if (PUBLIC_PATHS.contains(path)) return;
+
+                pathItem
+                    .readOperations()
+                    .forEach(
+                        operation -> {
+                          if (operation.getResponses() == null) return;
+                          operation.getResponses().putIfAbsent("401", unauthorized);
+                          operation.getResponses().putIfAbsent("403", forbidden);
+                        });
+              });
+    };
+  }
+}

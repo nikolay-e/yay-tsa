@@ -3,14 +3,17 @@ package com.yaytsa.server.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaytsa.server.infrastructure.security.EmbyAuthFilter;
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Instant;
 import java.util.Arrays;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -62,32 +65,17 @@ public class SecurityConfig {
                     .authenticationEntryPoint(
                         (request, response, authException) -> {
                           if (response.isCommitted()) return;
-                          response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                          response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                          objectMapper.writeValue(
-                              response.getOutputStream(),
-                              Map.of(
-                                  "status",
-                                  401,
-                                  "error",
-                                  "Unauthorized",
-                                  "path",
-                                  request.getServletPath()));
+                          writeErrorResponse(
+                              request,
+                              response,
+                              HttpStatus.UNAUTHORIZED,
+                              "Authentication required");
                         })
                     .accessDeniedHandler(
                         (request, response, accessDeniedException) -> {
                           if (response.isCommitted()) return;
-                          response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                          response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                          objectMapper.writeValue(
-                              response.getOutputStream(),
-                              Map.of(
-                                  "status",
-                                  403,
-                                  "error",
-                                  "Forbidden",
-                                  "path",
-                                  request.getServletPath()));
+                          writeErrorResponse(
+                              request, response, HttpStatus.FORBIDDEN, "Access denied");
                         }))
         .headers(
             headers ->
@@ -158,5 +146,17 @@ public class SecurityConfig {
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);
     return source;
+  }
+
+  private void writeErrorResponse(
+      HttpServletRequest request, HttpServletResponse response, HttpStatus status, String detail)
+      throws java.io.IOException {
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+    problem.setTitle(status.getReasonPhrase());
+    problem.setProperty("path", request.getServletPath());
+    problem.setProperty("timestamp", Instant.now().toString());
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    response.setStatus(status.value());
+    objectMapper.writeValue(response.getOutputStream(), problem);
   }
 }

@@ -56,31 +56,35 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
       @NonNull FilterChain filterChain)
       throws ServletException, IOException {
 
-    Optional<EmbyAuthCredentials> credentials = extractCredentials(request);
+    try {
+      Optional<EmbyAuthCredentials> credentials = extractCredentials(request);
 
-    if (credentials.isPresent()) {
-      String token = credentials.get().token();
-      String deviceId = credentials.get().deviceId();
-      String deviceName = credentials.get().deviceName();
+      if (credentials.isPresent()) {
+        String token = credentials.get().token();
+        String deviceId = credentials.get().deviceId();
+        String deviceName = credentials.get().deviceName();
 
-      Optional<UserEntity> userEntity = authService.validateToken(token);
+        Optional<UserEntity> userEntity = authService.validateToken(token);
 
-      if (userEntity.isPresent()) {
-        AuthenticatedUser authenticatedUser =
-            new AuthenticatedUser(userEntity.get(), token, deviceId, deviceName);
+        if (userEntity.isPresent()) {
+          AuthenticatedUser authenticatedUser =
+              new AuthenticatedUser(userEntity.get(), token, deviceId, deviceName);
 
-        UsernamePasswordAuthenticationToken authentication =
-            new UsernamePasswordAuthenticationToken(
-                authenticatedUser, null, authenticatedUser.getAuthorities());
+          UsernamePasswordAuthenticationToken authentication =
+              new UsernamePasswordAuthenticationToken(
+                  authenticatedUser, null, authenticatedUser.getAuthorities());
 
-        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+          authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+          SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        log.debug(
-            "Authenticated user: {} with device: {}", authenticatedUser.getUsername(), deviceId);
-      } else {
-        log.debug("Invalid token provided");
+          log.debug(
+              "Authenticated user: {} with device: {}", authenticatedUser.getUsername(), deviceId);
+        } else {
+          log.debug("Invalid token provided");
+        }
       }
+    } catch (Exception e) {
+      log.warn("Authentication processing failed: {}", e.getMessage());
     }
 
     filterChain.doFilter(request, response);
