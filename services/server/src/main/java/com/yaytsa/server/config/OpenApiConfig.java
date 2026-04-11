@@ -79,8 +79,8 @@ public class OpenApiConfig {
                         operation -> {
                           if (operation.getResponses() == null) return;
                           operation.getResponses().putIfAbsent("400", badRequest);
-                          operation.getResponses().putIfAbsent("401", unauthorized);
-                          operation.getResponses().putIfAbsent("403", forbidden);
+                          operation.getResponses().put("401", unauthorized);
+                          operation.getResponses().put("403", forbidden);
                         });
               });
     };

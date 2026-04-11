@@ -54,7 +54,8 @@ public class AuthController {
             content =
                 @Content(schema = @Schema(implementation = AuthenticationResultResponse.class))),
         @ApiResponse(responseCode = "401", description = "Invalid credentials"),
-        @ApiResponse(responseCode = "400", description = "Bad request")
+        @ApiResponse(responseCode = "400", description = "Bad request"),
+        @ApiResponse(responseCode = "429", description = "Too many requests")
       })
   @PostMapping("/Users/AuthenticateByName")
   public ResponseEntity<?> authenticateByName(

@@ -4,6 +4,7 @@ import com.yaytsa.server.dto.response.SystemInfoResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,7 @@ public class SystemController {
           "Retrieve server information without authentication. "
               + "Used by clients to verify server compatibility.")
   @ApiResponse(responseCode = "200", description = "Server information retrieved successfully")
+  @SecurityRequirements
   @GetMapping("/Info/Public")
   public ResponseEntity<SystemInfoResponse> getPublicSystemInfo() {
     SystemInfoResponse info =
