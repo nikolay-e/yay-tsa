@@ -8,6 +8,7 @@ import com.yaytsa.server.dto.response.AdaptiveQueueEntryResponse;
 import com.yaytsa.server.dto.response.AdaptiveQueueResponse;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -75,8 +76,14 @@ public class AdaptiveQueueController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "SSE stream started"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized"),
-        @ApiResponse(responseCode = "403", description = "Forbidden")
+        @ApiResponse(
+            responseCode = "401",
+            description = "Unauthorized",
+            content = @Content(mediaType = "application/json")),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Forbidden",
+            content = @Content(mediaType = "application/json"))
       })
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamQueueUpdates(

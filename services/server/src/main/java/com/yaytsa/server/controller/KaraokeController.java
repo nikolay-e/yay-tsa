@@ -7,6 +7,7 @@ import com.yaytsa.server.domain.service.KaraokeService.ProcessingStatus;
 import com.yaytsa.server.util.PathUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -113,7 +114,10 @@ public class KaraokeController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "SSE stream started"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
+        @ApiResponse(
+            responseCode = "401",
+            description = "Unauthorized",
+            content = @Content(mediaType = "application/json"))
       })
   @GetMapping(value = "/{trackId}/status/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamStatus(
