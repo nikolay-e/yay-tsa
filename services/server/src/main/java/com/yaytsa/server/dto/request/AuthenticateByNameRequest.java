@@ -9,4 +9,8 @@ public record AuthenticateByNameRequest(
         @NotBlank(message = "Username is required")
         @Pattern(regexp = "^[^\u0000]+$", message = "Username contains invalid characters")
         String username,
-    @JsonProperty("Pw") @NotBlank(message = "Password is required") String password) {}
+    @JsonProperty("Pw") @NotBlank(message = "Password is required") String password,
+    @JsonProperty("DeviceId") String deviceId,
+    @JsonProperty("DeviceName") String deviceName,
+    @JsonProperty("ClientName") String clientName,
+    @JsonProperty("ClientVersion") String clientVersion) {}

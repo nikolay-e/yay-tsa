@@ -12,9 +12,8 @@ import org.springframework.http.*;
 @DisplayName("Feature: Authentication API")
 class AuthApiTest extends BaseIntegrationTest {
 
-  private static final String AUTH_HEADER = "X-Emby-Authorization";
-  private static final String AUTH_VALUE =
-      "MediaBrowser Client=TestClient, Device=TestDevice, DeviceId=test-123, Version=1.0";
+  private static final String AUTH_HEADER = "Authorization";
+  private static final String AUTH_PREFIX = "Bearer ";
 
   @Nested
   @DisplayName("Scenario: User authenticates with valid credentials")
@@ -30,7 +29,6 @@ class AuthApiTest extends BaseIntegrationTest {
 
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.set(AUTH_HEADER, AUTH_VALUE);
 
       String body = String.format("{\"Username\":\"%s\",\"Pw\":\"%s\"}", username, password);
       HttpEntity<String> request = new HttpEntity<>(body, headers);
@@ -63,7 +61,6 @@ class AuthApiTest extends BaseIntegrationTest {
 
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.set(AUTH_HEADER, AUTH_VALUE + ", DeviceId=lifecycle-test-device");
 
       String body = String.format("{\"Username\":\"%s\",\"Pw\":\"%s\"}", username, password);
       HttpEntity<String> request = new HttpEntity<>(body, headers);
@@ -78,9 +75,7 @@ class AuthApiTest extends BaseIntegrationTest {
 
     private HttpHeaders freshAuthHeaders() {
       HttpHeaders headers = new HttpHeaders();
-      headers.set(
-          "X-Emby-Authorization",
-          AUTH_VALUE + ", DeviceId=lifecycle-test-device, Token=" + freshToken);
+      headers.set(AUTH_HEADER, AUTH_PREFIX + freshToken);
       return headers;
     }
 
@@ -157,7 +152,6 @@ class AuthApiTest extends BaseIntegrationTest {
     void authenticateWithWrongPassword() {
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.set(AUTH_HEADER, AUTH_VALUE);
 
       String username = System.getenv().getOrDefault("YAYTSA_TEST_USERNAME", "admin");
       String body = String.format("{\"Username\":\"%s\",\"Pw\":\"wrongpassword\"}", username);
@@ -175,7 +169,6 @@ class AuthApiTest extends BaseIntegrationTest {
     void authenticateWithNonExistentUser() {
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.set(AUTH_HEADER, AUTH_VALUE);
 
       String body = "{\"Username\":\"nonexistent\",\"Pw\":\"password\"}";
       HttpEntity<String> request = new HttpEntity<>(body, headers);

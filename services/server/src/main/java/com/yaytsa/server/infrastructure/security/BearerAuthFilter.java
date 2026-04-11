@@ -1,7 +1,6 @@
 package com.yaytsa.server.infrastructure.security;
 
 import com.yaytsa.server.domain.service.AuthService;
-import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,9 +20,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 @Slf4j
-public class EmbyAuthFilter extends OncePerRequestFilter {
+public class BearerAuthFilter extends OncePerRequestFilter {
 
-  private static final String EMBY_AUTH_HEADER = "X-Emby-Authorization";
+  private static final String BEARER_PREFIX = "Bearer ";
   private static final String API_KEY_PARAM = "api_key";
 
   private static final List<RequestMatcher> PUBLIC_PATH_MATCHERS =
@@ -40,7 +39,7 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
 
   private final AuthService authService;
 
-  public EmbyAuthFilter(AuthService authService) {
+  public BearerAuthFilter(AuthService authService) {
     this.authService = authService;
   }
 
@@ -57,18 +56,16 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
 
     try {
-      Optional<EmbyAuthCredentials> credentials = extractCredentials(request);
+      Optional<String> token = extractToken(request);
 
-      if (credentials.isPresent()) {
-        String token = credentials.get().token();
-        String deviceId = credentials.get().deviceId();
-        String deviceName = credentials.get().deviceName();
+      if (token.isPresent()) {
+        Optional<AuthService.TokenValidationResult> result = authService.validateToken(token.get());
 
-        Optional<UserEntity> userEntity = authService.validateToken(token);
-
-        if (userEntity.isPresent()) {
+        if (result.isPresent()) {
+          AuthService.TokenValidationResult validated = result.get();
           AuthenticatedUser authenticatedUser =
-              new AuthenticatedUser(userEntity.get(), token, deviceId, deviceName);
+              new AuthenticatedUser(
+                  validated.user(), token.get(), validated.deviceId(), validated.deviceName());
 
           UsernamePasswordAuthenticationToken authentication =
               new UsernamePasswordAuthenticationToken(
@@ -78,7 +75,9 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
           SecurityContextHolder.getContext().setAuthentication(authentication);
 
           log.debug(
-              "Authenticated user: {} with device: {}", authenticatedUser.getUsername(), deviceId);
+              "Authenticated user: {} with device: {}",
+              authenticatedUser.getUsername(),
+              validated.deviceId());
         } else {
           log.debug("Invalid token provided");
         }
@@ -90,18 +89,18 @@ public class EmbyAuthFilter extends OncePerRequestFilter {
     filterChain.doFilter(request, response);
   }
 
-  private Optional<EmbyAuthCredentials> extractCredentials(HttpServletRequest request) {
-    String embyAuthHeader = request.getHeader(EMBY_AUTH_HEADER);
-    if (embyAuthHeader != null && !embyAuthHeader.isBlank()) {
-      return Optional.of(EmbyAuthHeaderParser.parseToCredentials(embyAuthHeader));
+  private Optional<String> extractToken(HttpServletRequest request) {
+    String authHeader = request.getHeader("Authorization");
+    if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
+      String token = authHeader.substring(BEARER_PREFIX.length()).trim();
+      if (!token.isBlank()) {
+        return Optional.of(token);
+      }
     }
 
     String apiKeyParam = request.getParameter(API_KEY_PARAM);
-    String deviceIdParam = request.getParameter("deviceId");
     if (apiKeyParam != null && !apiKeyParam.isBlank()) {
-      return Optional.of(
-          EmbyAuthCredentials.fromQueryParams(
-              apiKeyParam, deviceIdParam != null ? deviceIdParam : "unknown"));
+      return Optional.of(apiKeyParam);
     }
 
     return Optional.empty();

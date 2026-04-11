@@ -611,10 +611,9 @@ function apiChaos(page: Page, serverErrors: string[]): void {
         maliciousPayloads: string[];
       }) => {
         const token = sessionStorage.getItem('yaytsa_session') || '';
-        const authHeader = `MediaBrowser Client=MonkeyTest, Device=Chaos, DeviceId=monkey-${Date.now()}, Version=1.0, Token=${token}`;
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          'X-Emby-Authorization': authHeader,
+          Authorization: `Bearer ${token}`,
         };
 
         const requests: Promise<Response>[] = [];
@@ -703,7 +702,7 @@ function concurrentMutationStorm(page: Page, serverErrors: string[]): void {
       const token = sessionStorage.getItem('yaytsa_session') || '';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-Emby-Authorization': `MediaBrowser Client=MonkeyTest, Device=Chaos, DeviceId=monkey-storm, Version=1.0, Token=${token}`,
+        Authorization: `Bearer ${token}`,
       };
 
       const resp = await fetch('/Items?IncludeItemTypes=Audio&Recursive=true&Limit=5', {

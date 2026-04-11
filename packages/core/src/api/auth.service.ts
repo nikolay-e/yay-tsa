@@ -18,13 +18,16 @@ export class AuthService {
    * Note: Uses "Pw" field name for compatibility with Media Server API
    */
   async login(username: string, password: string): Promise<AuthResponse> {
-    // Clear any existing token
     this.client.clearToken();
 
-    // Build auth payload with correct field names
+    const clientInfo = this.client.getClientInfo();
     const payload: AuthPayload = {
       Username: username,
-      Pw: password, // "Pw" not "Password" per Media Server API
+      Pw: password,
+      DeviceId: clientInfo.deviceId,
+      DeviceName: clientInfo.device,
+      ClientName: clientInfo.name,
+      ClientVersion: clientInfo.version,
     };
 
     try {

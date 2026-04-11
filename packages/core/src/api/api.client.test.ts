@@ -68,8 +68,7 @@ describe('MediaServerClient', () => {
     expect(url).toContain('Recursive=true');
 
     const headers = (options as RequestInit).headers as Record<string, string>;
-    expect(headers['X-Emby-Authorization']).toContain('Token="my-token"');
-    expect(headers['X-Emby-Token']).toBe('my-token');
+    expect(headers['Authorization']).toBe('Bearer my-token');
   });
 
   it('POST sends JSON body', async () => {
@@ -167,14 +166,12 @@ describe('MediaServerClient', () => {
     expect(result).toBeUndefined();
   });
 
-  it('buildAuthHeader format is Emby-compatible PascalCase', () => {
-    client.setToken('abc');
-    const header = client.buildAuthHeader();
-    expect(header).toContain('MediaBrowser Client="TestApp"');
-    expect(header).toContain('Device="TestDevice"');
-    expect(header).toContain('DeviceId="test-device-123"');
-    expect(header).toContain('Version="1.0.0"');
-    expect(header).toContain('Token="abc"');
+  it('getClientInfo returns client metadata', () => {
+    const info = client.getClientInfo();
+    expect(info.name).toBe('TestApp');
+    expect(info.device).toBe('TestDevice');
+    expect(info.deviceId).toBe('test-device-123');
+    expect(info.version).toBe('1.0.0');
   });
 
   it('requireAuth throws when not authenticated', () => {

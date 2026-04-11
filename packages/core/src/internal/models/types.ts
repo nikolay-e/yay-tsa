@@ -20,7 +20,11 @@ export interface ClientInfo {
 
 export interface AuthPayload {
   Username: string;
-  Pw: string; // Note: "Pw" not "Password" per Media Server API
+  Pw: string;
+  DeviceId?: string;
+  DeviceName?: string;
+  ClientName?: string;
+  ClientVersion?: string;
 }
 
 export interface AuthResponse {

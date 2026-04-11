@@ -4,6 +4,7 @@ import com.yaytsa.server.domain.service.StreamingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "Streaming", description = "Audio streaming endpoints")
+@SecurityRequirement(name = "apiKey")
 public class StreamingController {
 
   private final StreamingService streamingService;

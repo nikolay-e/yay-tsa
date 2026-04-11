@@ -46,24 +46,8 @@ export class MediaServerClient {
     return url.replace(/\/$/, '');
   }
 
-  /**
-   * Build Emby/Media Server authorization header
-   * Required for authentication and authenticated requests
-   */
-  buildAuthHeader(token?: string): string {
-    const parts = [
-      `MediaBrowser Client="${this.clientInfo.name}"`,
-      `Device="${this.clientInfo.device}"`,
-      `DeviceId="${this.clientInfo.deviceId}"`,
-      `Version="${this.clientInfo.version}"`,
-    ];
-
-    const authToken = token ?? this.token;
-    if (authToken) {
-      parts.push(`Token="${authToken}"`);
-    }
-
-    return parts.join(', ');
+  getClientInfo(): ClientInfo {
+    return this.clientInfo;
   }
 
   /**
@@ -138,19 +122,16 @@ export class MediaServerClient {
     includeContentType: boolean = false
   ): Record<string, string> {
     const headers: Record<string, string> = {
-      'X-Emby-Authorization': this.buildAuthHeader(),
       ...this.headersFromInit(additionalHeaders),
     };
 
-    // Only set Content-Type when we actually send a body to avoid CORS preflights on GETs
-    // Use case-insensitive check since Headers API normalizes to lowercase
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
     const hasContentType = Object.keys(headers).some(k => k.toLowerCase() === 'content-type');
     if (includeContentType && !hasContentType) {
       headers['Content-Type'] = 'application/json';
-    }
-
-    if (this.token) {
-      headers['X-Emby-Token'] = this.token;
     }
 
     return headers;

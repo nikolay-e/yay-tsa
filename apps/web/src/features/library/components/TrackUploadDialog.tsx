@@ -195,7 +195,10 @@ export function TrackUploadDialog({
 
       activeXhrRef.current = xhr;
       xhr.open('POST', `${client.getServerUrl()}/tracks/upload`);
-      xhr.setRequestHeader('X-Emby-Authorization', client.buildAuthHeader());
+      const token = client.getToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
       xhr.send(formData);
     });
   };

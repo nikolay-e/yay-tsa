@@ -19,20 +19,19 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @OpenAPIDefinition(
     info = @Info(title = "Yay-Tsa Media Server API", version = "1.0"),
-    security = {@SecurityRequirement(name = "embyAuth"), @SecurityRequirement(name = "apiKey")})
+    security = {@SecurityRequirement(name = "bearerAuth")})
 @SecuritySchemes({
   @SecurityScheme(
-      name = "embyAuth",
-      type = SecuritySchemeType.APIKEY,
-      in = SecuritySchemeIn.HEADER,
-      paramName = "X-Emby-Authorization",
-      description = "Emby-compatible auth header with Token parameter"),
+      name = "bearerAuth",
+      type = SecuritySchemeType.HTTP,
+      scheme = "bearer",
+      description = "Opaque token obtained from /Users/AuthenticateByName"),
   @SecurityScheme(
       name = "apiKey",
       type = SecuritySchemeType.APIKEY,
       in = SecuritySchemeIn.QUERY,
       paramName = "api_key",
-      description = "API key query parameter for streaming endpoints")
+      description = "Token as query parameter for streaming endpoints (browser limitation)")
 })
 public class OpenApiConfig {
 

@@ -29,9 +29,6 @@ public abstract class BaseIntegrationTest {
 
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.set(
-        "X-Emby-Authorization",
-        "MediaBrowser Client=TestClient, Device=TestDevice, DeviceId=test-123, Version=1.0");
 
     String body = String.format("{\"Username\":\"%s\",\"Pw\":\"%s\"}", username, password);
     HttpEntity<String> request = new HttpEntity<>(body, headers);
@@ -53,10 +50,7 @@ public abstract class BaseIntegrationTest {
 
   protected static HttpHeaders authHeaders() {
     HttpHeaders headers = new HttpHeaders();
-    headers.set(
-        "X-Emby-Authorization",
-        "MediaBrowser Client=TestClient, Device=TestDevice, DeviceId=test-123, Version=1.0, Token="
-            + authToken);
+    headers.set("Authorization", "Bearer " + authToken);
     return headers;
   }
 }

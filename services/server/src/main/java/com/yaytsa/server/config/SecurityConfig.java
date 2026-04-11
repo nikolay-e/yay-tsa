@@ -1,7 +1,7 @@
 package com.yaytsa.server.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yaytsa.server.infrastructure.security.EmbyAuthFilter;
+import com.yaytsa.server.infrastructure.security.BearerAuthFilter;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,7 +29,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
-  private final EmbyAuthFilter embyAuthFilter;
+  private final BearerAuthFilter bearerAuthFilter;
   private final ObjectMapper objectMapper;
 
   @Value("${yaytsa.security.cors.enabled:true}")
@@ -38,8 +38,8 @@ public class SecurityConfig {
   @Value("${yaytsa.security.cors.allowed-origins:*}")
   private String allowedOrigins;
 
-  public SecurityConfig(EmbyAuthFilter embyAuthFilter, ObjectMapper objectMapper) {
-    this.embyAuthFilter = embyAuthFilter;
+  public SecurityConfig(BearerAuthFilter bearerAuthFilter, ObjectMapper objectMapper) {
+    this.bearerAuthFilter = bearerAuthFilter;
     this.objectMapper = objectMapper;
   }
 
@@ -105,7 +105,7 @@ public class SecurityConfig {
                     .permitAll()
                     .anyRequest()
                     .authenticated())
-        .addFilterBefore(embyAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(bearerAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
   }
@@ -134,12 +134,7 @@ public class SecurityConfig {
         Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
     configuration.setAllowedHeaders(Arrays.asList("*"));
     configuration.setExposedHeaders(
-        Arrays.asList(
-            "Content-Range",
-            "Accept-Ranges",
-            "X-Total-Count",
-            "Content-Disposition",
-            "X-Emby-Authorization"));
+        Arrays.asList("Content-Range", "Accept-Ranges", "X-Total-Count", "Content-Disposition"));
     configuration.setAllowCredentials(allowCredentials);
     configuration.setMaxAge(3600L);
 

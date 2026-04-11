@@ -6,7 +6,6 @@ import com.yaytsa.server.dto.response.AuthenticationResultResponse;
 import com.yaytsa.server.dto.response.SessionInfoResponse;
 import com.yaytsa.server.dto.response.UserResponse;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
-import com.yaytsa.server.infrastructure.security.EmbyAuthHeaderParser;
 import com.yaytsa.server.infrastructure.security.LoginRateLimiter;
 import com.yaytsa.server.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +16,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -60,9 +58,7 @@ public class AuthController {
       })
   @PostMapping("/Users/AuthenticateByName")
   public ResponseEntity<?> authenticateByName(
-      @Valid @RequestBody AuthenticateByNameRequest request,
-      @RequestHeader(value = "X-Emby-Authorization", required = false) String embyAuth,
-      HttpServletRequest httpRequest) {
+      @Valid @RequestBody AuthenticateByNameRequest request, HttpServletRequest httpRequest) {
 
     String clientIp = resolveClientIp(httpRequest);
     if (loginRateLimiter.isBlocked(clientIp, request.username())) {
@@ -70,11 +66,11 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
     }
 
-    Map<String, String> headerParts = EmbyAuthHeaderParser.parse(embyAuth);
-    String deviceId = headerParts.getOrDefault("DeviceId", UUID.randomUUID().toString());
-    String deviceName = headerParts.getOrDefault("Device", "Web Browser");
-    String client = headerParts.getOrDefault("Client", "Yay-Tsa Web");
-    String version = headerParts.getOrDefault("Version", "0.1.0");
+    String deviceId =
+        request.deviceId() != null ? request.deviceId() : UUID.randomUUID().toString();
+    String deviceName = request.deviceName() != null ? request.deviceName() : "Web Browser";
+    String client = request.clientName() != null ? request.clientName() : "Yay-Tsa Web";
+    String version = request.clientVersion() != null ? request.clientVersion() : "0.1.0";
 
     try {
       AuthService.AuthenticationResult result =
@@ -145,10 +141,10 @@ public class AuthController {
       })
   @PostMapping("/Sessions/Logout")
   public ResponseEntity<Void> logout(
-      @RequestHeader(value = "X-Emby-Authorization", required = false) String embyAuth,
+      @RequestHeader(value = "Authorization", required = false) String authHeader,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
-    String token = extractToken(embyAuth, apiKey);
+    String token = extractBearerToken(authHeader, apiKey);
 
     if (token != null && !token.isBlank()) {
       authService.logout(token);
@@ -158,9 +154,9 @@ public class AuthController {
     return ResponseEntity.noContent().build();
   }
 
-  private String extractToken(String embyAuth, String apiKey) {
-    if (embyAuth != null && !embyAuth.isBlank()) {
-      return EmbyAuthHeaderParser.parse(embyAuth).get("Token");
+  private String extractBearerToken(String authHeader, String apiKey) {
+    if (authHeader != null && authHeader.startsWith("Bearer ")) {
+      return authHeader.substring("Bearer ".length()).trim();
     }
     return apiKey;
   }

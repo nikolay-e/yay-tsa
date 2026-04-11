@@ -18,10 +18,7 @@ class StreamingApiTest extends BaseIntegrationTest {
   @BeforeAll
   static void findTrack() throws Exception {
     HttpHeaders headers = new HttpHeaders();
-    headers.set(
-        "X-Emby-Authorization",
-        "MediaBrowser Client=TestClient, Device=TestDevice, DeviceId=test-123, Version=1.0, Token="
-            + authToken);
+    headers.set("Authorization", "Bearer " + authToken);
     HttpEntity<Void> request = new HttpEntity<>(headers);
 
     ResponseEntity<String> response =

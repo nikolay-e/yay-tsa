@@ -97,7 +97,7 @@ public class AuthService {
 
   @Cacheable(value = "api-tokens", key = "#rawToken", unless = "#result == null")
   @Transactional(readOnly = true)
-  public Optional<UserEntity> validateToken(String rawToken) {
+  public Optional<TokenValidationResult> validateToken(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
       return Optional.empty();
     }
@@ -106,7 +106,10 @@ public class AuthService {
     return apiTokenRepository
         .findByTokenAndNotRevoked(tokenHash)
         .filter(ApiTokenEntity::isValid)
-        .map(ApiTokenEntity::getUser);
+        .map(
+            tokenEntity ->
+                new TokenValidationResult(
+                    tokenEntity.getUser(), tokenEntity.getDeviceId(), tokenEntity.getDeviceName()));
   }
 
   @Transactional
@@ -137,6 +140,8 @@ public class AuthService {
       super(message);
     }
   }
+
+  public record TokenValidationResult(UserEntity user, String deviceId, String deviceName) {}
 
   public record AuthenticationResult(
       UserEntity user,

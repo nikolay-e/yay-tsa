@@ -198,9 +198,7 @@ class ItemsApiTest extends BaseIntegrationTest {
     @DisplayName("Given: Invalid token, When: GET /Items, Then: Returns 401")
     void getItemsWithInvalidToken() {
       HttpHeaders headers = new HttpHeaders();
-      headers.set(
-          "X-Emby-Authorization",
-          "MediaBrowser Client=Test, Device=Test, DeviceId=test, Version=1.0, Token=invalid");
+      headers.set("Authorization", "Bearer invalid");
       HttpEntity<Void> request = new HttpEntity<>(headers);
 
       ResponseEntity<String> response =
