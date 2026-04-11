@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -172,6 +173,17 @@ public class GlobalExceptionHandler {
   public void handleAsyncRequestTimeout(
       AsyncRequestTimeoutException ex, HttpServletRequest request) {
     log.debug("SSE connection timed out: path={}", request.getRequestURI());
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<ProblemDetail> handleMethodNotSupported(
+      HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+    ProblemDetail problem =
+        createProblemDetail(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), request);
+
+    log.debug("Method not allowed: path={}, method={}", request.getRequestURI(), ex.getMethod());
+
+    return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(problem);
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)
