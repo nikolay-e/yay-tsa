@@ -1,8 +1,8 @@
 package com.yaytsa.server.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.OffsetDateTimeSerializer;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
@@ -19,10 +19,15 @@ public class JacksonConfig {
         new DateTimeFormatterBuilder()
             .appendPattern("yyyy-MM-dd'T'HH:mm:ss")
             .appendFraction(ChronoField.MILLI_OF_SECOND, 0, 3, true)
-            .appendLiteral('Z')
+            .appendOffsetId()
             .toFormatter();
 
-    return builder ->
-        builder.serializers(new OffsetDateTimeSerializer(OffsetDateTimeSerializer.INSTANCE, false, formatter));
+    return builder -> {
+      JavaTimeModule module = new JavaTimeModule();
+      module.addSerializer(
+          OffsetDateTime.class,
+          new OffsetDateTimeSerializer(OffsetDateTimeSerializer.INSTANCE, false, formatter) {});
+      builder.modules(module);
+    };
   }
 }
