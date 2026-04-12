@@ -106,10 +106,17 @@ public class BearerAuthFilter extends OncePerRequestFilter {
     }
 
     String authHeader = request.getHeader("Authorization");
-    if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
-      String token = authHeader.substring(BEARER_PREFIX.length()).trim();
-      if (!token.isBlank()) {
-        return Optional.of(token);
+    if (authHeader != null) {
+      if (authHeader.startsWith(BEARER_PREFIX)) {
+        String token = authHeader.substring(BEARER_PREFIX.length()).trim();
+        if (!token.isBlank()) {
+          return Optional.of(token);
+        }
+      } else if (authHeader.startsWith("MediaBrowser ")) {
+        Optional<String> extracted = extractTokenFromEmbyAuth(authHeader);
+        if (extracted.isPresent()) {
+          return extracted;
+        }
       }
     }
 
