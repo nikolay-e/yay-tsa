@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class UserViewsController {
 
-  @GetMapping("/UserViews")
+  @GetMapping({"/UserViews", "/Users/{userId}/Views"})
   public ResponseEntity<Map<String, Object>> getUserViews() {
     var musicLibrary =
         Map.of(
