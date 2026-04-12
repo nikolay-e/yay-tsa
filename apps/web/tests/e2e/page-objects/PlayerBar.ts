@@ -77,11 +77,15 @@ export class PlayerBar {
     await this.waitForPausedState();
   }
 
-  async next(): Promise<void> {
+  private async clickAndWaitForTrackChange(button: Locator): Promise<void> {
     await this.ensureControlsVisible();
     const previousTitle = await this.getCurrentTrackTitle();
-    await this.nextButton.click();
+    await button.click();
     await this.waitForTrackChange(previousTitle);
+  }
+
+  async next(): Promise<void> {
+    await this.clickAndWaitForTrackChange(this.nextButton);
   }
 
   async clickNext(): Promise<void> {
@@ -90,10 +94,7 @@ export class PlayerBar {
   }
 
   async previous(): Promise<void> {
-    await this.ensureControlsVisible();
-    const previousTitle = await this.getCurrentTrackTitle();
-    await this.previousButton.click();
-    await this.waitForTrackChange(previousTitle);
+    await this.clickAndWaitForTrackChange(this.previousButton);
   }
 
   async getCurrentTrackTitle(): Promise<string> {
@@ -172,17 +173,11 @@ export class PlayerBar {
   }
 
   async clickNextAndWait(): Promise<void> {
-    await this.ensureControlsVisible();
-    const previousTitle = await this.getCurrentTrackTitle();
-    await this.nextButton.click();
-    await this.waitForTrackChange(previousTitle);
+    await this.clickAndWaitForTrackChange(this.nextButton);
   }
 
   async clickPreviousAndWait(): Promise<void> {
-    await this.ensureControlsVisible();
-    const previousTitle = await this.getCurrentTrackTitle();
-    await this.previousButton.click();
-    await this.waitForTrackChange(previousTitle);
+    await this.clickAndWaitForTrackChange(this.previousButton);
   }
 
   async expectTrackTitle(title: string): Promise<void> {

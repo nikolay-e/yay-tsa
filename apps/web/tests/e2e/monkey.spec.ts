@@ -267,7 +267,7 @@ const MALICIOUS_PAYLOADS = [
   '0',
   '-1',
   '99999999999999',
-  Array(50).fill('A').join(','),
+  new Array(50).fill('A').join(','),
 ];
 
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
@@ -289,7 +289,7 @@ const API_CHAOS_ENDPOINTS = [
   { method: 'GET', path: `/Items?Recursive=true&AlbumIds=${ZERO_UUID}` },
   { method: 'GET', path: `/Items?Recursive=true&GenreIds=${ZERO_UUID}` },
   { method: 'GET', path: '/Items?Recursive=true&IsFavorite=maybe' },
-  { method: 'GET', path: `/Items?Recursive=true&Ids=${Array(100).fill(ZERO_UUID).join(',')}` },
+  { method: 'GET', path: `/Items?Recursive=true&Ids=${new Array(100).fill(ZERO_UUID).join(',')}` },
 
   // Items — malformed IDs
   { method: 'GET', path: '/Items/not-a-uuid' },
@@ -679,7 +679,7 @@ function apiChaos(page: Page, serverErrors: string[]): void {
         return results
           .filter(r => r.status === 'fulfilled')
           .map(r => {
-            const resp = (r as PromiseFulfilledResult<Response>).value;
+            const resp = r.value;
             return { status: resp.status, url: resp.url };
           })
           .filter(r => r.status >= 500);
@@ -708,7 +708,7 @@ function concurrentMutationStorm(page: Page, serverErrors: string[]): void {
       const resp = await fetch('/Items?IncludeItemTypes=Audio&Recursive=true&Limit=5', {
         headers,
       }).catch(() => null);
-      if (!resp || !resp.ok) return [];
+      if (!resp?.ok) return [];
 
       const data = await resp.json().catch(() => null);
       if (!data?.Items?.length) return [];
@@ -723,9 +723,7 @@ function concurrentMutationStorm(page: Page, serverErrors: string[]): void {
         mutations.push(
           fetch(`/Users/Me/FavoriteItems/${trackId}`, { method: 'POST', headers }).catch(
             () => new Response(null, { status: 0 })
-          )
-        );
-        mutations.push(
+          ),
           fetch(`/Users/Me/FavoriteItems/${trackId}`, { method: 'DELETE', headers }).catch(
             () => new Response(null, { status: 0 })
           )
@@ -750,16 +748,12 @@ function concurrentMutationStorm(page: Page, serverErrors: string[]): void {
             method: 'POST',
             headers,
             body: JSON.stringify({ ItemId: tid, PositionTicks: 0 }),
-          }).catch(() => new Response(null, { status: 0 }))
-        );
-        mutations.push(
+          }).catch(() => new Response(null, { status: 0 })),
           fetch('/Sessions/Playing/Progress', {
             method: 'POST',
             headers,
             body: JSON.stringify({ ItemId: tid, PositionTicks: Math.floor(Math.random() * 1e10) }),
-          }).catch(() => new Response(null, { status: 0 }))
-        );
-        mutations.push(
+          }).catch(() => new Response(null, { status: 0 })),
           fetch('/Sessions/Playing/Stopped', {
             method: 'POST',
             headers,
@@ -781,7 +775,7 @@ function concurrentMutationStorm(page: Page, serverErrors: string[]): void {
       return results
         .filter(r => r.status === 'fulfilled')
         .map(r => {
-          const res = (r as PromiseFulfilledResult<Response>).value;
+          const res = r.value;
           return { status: res.status, url: res.url };
         })
         .filter(r => r.status >= 500);

@@ -66,12 +66,10 @@ class WebViewActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    private val pollRunnable = object : Runnable {
-        override fun run() {
-            if (!polling) return
-            pollMediaSession()
-            handler.postDelayed(this, POLL_INTERVAL_MS)
-        }
+    private val pollRunnable: Runnable = Runnable {
+        if (!polling) return@Runnable
+        pollMediaSession()
+        handler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
     }
 
     private fun pollMediaSession() {

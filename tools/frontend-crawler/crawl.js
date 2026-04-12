@@ -4,8 +4,8 @@ import AxeBuilder from '@axe-core/playwright';
 const BASE_URL = process.env.CRAWL_URL || 'https://yay-tsa.com';
 const USERNAME = process.env.CRAWL_USERNAME || 'test';
 const PASSWORD = process.env.CRAWL_PASSWORD || '';
-const MAX_PAGES = parseInt(process.env.CRAWL_MAX_PAGES || '50', 10);
-const WAIT_MS = parseInt(process.env.CRAWL_WAIT_MS || '2000', 10);
+const MAX_PAGES = Number.parseInt(process.env.CRAWL_MAX_PAGES || '50', 10);
+const WAIT_MS = Number.parseInt(process.env.CRAWL_WAIT_MS || '2000', 10);
 
 const visited = new Set();
 const queue = [];
@@ -147,33 +147,25 @@ async function crawlPage(page, path) {
   page.removeAllListeners('response');
 }
 
-async function main() {
-  if (!PASSWORD) {
-    console.error('CRAWL_PASSWORD required');
-    process.exit(1);
-  }
-
-  console.log(`\nCrawling ${BASE_URL} (max ${MAX_PAGES} pages)\n`);
-
+async function setupBrowser() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     ignoreHTTPSErrors: true,
   });
   const page = await context.newPage();
+  return { browser, page };
+}
 
-  await login(page);
-  console.log('Logged in\n');
-
+async function runCrawlLoop(page) {
   queue.push('/', '/albums', '/artists', '/songs', '/favorites', '/settings');
-
   while (queue.length > 0 && visited.size < MAX_PAGES) {
     const path = queue.shift();
     await crawlPage(page, path);
   }
+}
 
-  await browser.close();
-
+function printReport() {
   console.log('\n========== CRAWL REPORT ==========');
   console.log(`Pages visited: ${results.pagesVisited}`);
   console.log(`JS errors: ${results.jsErrors.length}`);
@@ -195,7 +187,7 @@ async function main() {
       const key = `${e.status} ${new URL(e.url).pathname}`;
       if (!unique.has(key)) unique.set(key, e);
     }
-    for (const [key, e] of unique) {
+    for (const [, e] of unique) {
       console.log(`  [${e.path}] ${e.status} ${e.url}`);
     }
   }
@@ -204,11 +196,10 @@ async function main() {
     console.log('\n--- ACCESSIBILITY VIOLATIONS ---');
     const grouped = new Map();
     for (const v of results.axeViolations) {
-      const key = v.id;
-      if (!grouped.has(key)) {
-        grouped.set(key, { ...v, totalNodes: 0, pages: [] });
+      if (!grouped.has(v.id)) {
+        grouped.set(v.id, { ...v, totalNodes: 0, pages: [] });
       }
-      const g = grouped.get(key);
+      const g = grouped.get(v.id);
       g.totalNodes += v.nodes;
       g.pages.push(v.path);
     }
@@ -227,6 +218,25 @@ async function main() {
   }
 
   console.log('\n==================================');
+}
+
+async function main() {
+  if (!PASSWORD) {
+    console.error('CRAWL_PASSWORD required');
+    process.exit(1);
+  }
+
+  console.log(`\nCrawling ${BASE_URL} (max ${MAX_PAGES} pages)\n`);
+
+  const { browser, page } = await setupBrowser();
+
+  await login(page);
+  console.log('Logged in\n');
+
+  await runCrawlLoop(page);
+  await browser.close();
+
+  printReport();
 
   const hasFailures =
     results.jsErrors.length > 0 ||

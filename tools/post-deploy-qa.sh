@@ -17,7 +17,10 @@ REPORT_DIR="/tmp/qa-report-${TARGET_SHA}"
 
 mkdir -p "$REPORT_DIR"
 
-log() { echo "[$(date '+%H:%M:%S')] $*"; }
+log() {
+  echo "[$(date '+%H:%M:%S')] $*"
+  return 0
+}
 fail() {
   log "FAIL: $*"
   exit 1
@@ -30,7 +33,7 @@ log "Reports: ${REPORT_DIR}"
 log "Phase 1: Waiting for ${EXPECTED_TAG} on prod..."
 
 elapsed=0
-while [ "$elapsed" -lt "$MAX_WAIT" ]; do
+while [[ "$elapsed" -lt "$MAX_WAIT" ]]; do
   backend_img=$(kubectl get deployment "$BACKEND_DEPLOY" -n "$NAMESPACE" \
     -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
   frontend_img=$(kubectl get deployment "$FRONTEND_DEPLOY" -n "$NAMESPACE" \
@@ -46,7 +49,7 @@ while [ "$elapsed" -lt "$MAX_WAIT" ]; do
   elapsed=$((elapsed + POLL_INTERVAL))
 done
 
-if [ "$elapsed" -ge "$MAX_WAIT" ]; then
+if [[ "$elapsed" -ge "$MAX_WAIT" ]]; then
   fail "Timeout waiting for ${EXPECTED_TAG} to deploy"
 fi
 
@@ -57,7 +60,7 @@ kubectl rollout status deployment "$FRONTEND_DEPLOY" -n "$NAMESPACE" --timeout=1
 
 # Health check
 health=$(curl -sf "${PROD_URL}/api/manage/health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','UNKNOWN'))" 2>/dev/null || echo "DOWN")
-if [ "$health" != "UP" ]; then
+if [[ "$health" != "UP" ]]; then
   fail "Health check failed: ${health}"
 fi
 log "Health: UP"
@@ -68,7 +71,7 @@ TOKEN=$(curl -sf -X POST "${PROD_URL}/api/Users/AuthenticateByName" \
   -d "{\"Username\":\"${QA_USERNAME}\",\"Pw\":\"${QA_PASSWORD}\"}" |
   python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
 
-if [ -z "$TOKEN" ]; then
+if [[ -z "$TOKEN" ]]; then
   fail "Authentication failed"
 fi
 log "Authenticated as ${QA_USERNAME}"
@@ -130,9 +133,9 @@ sleep 30
 log "Phase 4: Frontend crawler (Playwright + axe)..."
 
 crawler_exit=0
-if [ -f "${SCRIPT_DIR}/frontend-crawler/crawl.js" ]; then
+if [[ -f "${SCRIPT_DIR}/frontend-crawler/crawl.js" ]]; then
   cd "${SCRIPT_DIR}/frontend-crawler"
-  [ -d node_modules ] || npm ci --silent
+  [[ -d node_modules ]] || npm ci --silent
   CRAWL_URL="${PROD_URL}" \
     CRAWL_USERNAME="${QA_USERNAME}" \
     CRAWL_PASSWORD="${QA_PASSWORD}" \
@@ -161,14 +164,14 @@ log "=========================================="
 log ""
 log "  Rollout:      OK"
 log "  Health:       UP"
-log "  Schemathesis: $([ "$schemathesis_exit" -eq 0 ] && echo 'PASS' || echo 'FAIL')"
-log "  ZAP:          $([ "$zap_exit" -eq 0 ] && echo 'PASS' || echo 'FAIL')"
-log "  Crawler:      $([ "$crawler_exit" -eq 0 ] && echo 'PASS' || echo 'WARN (JS errors or a11y)')"
+log "  Schemathesis: $([[ "$schemathesis_exit" -eq 0 ]] && echo 'PASS' || echo 'FAIL')"
+log "  ZAP:          $([[ "$zap_exit" -eq 0 ]] && echo 'PASS' || echo 'FAIL')"
+log "  Crawler:      $([[ "$crawler_exit" -eq 0 ]] && echo 'PASS' || echo 'WARN (JS errors or a11y)')"
 log "  Backend logs: ${backend_errors} errors"
 log ""
 log "  Reports: ${REPORT_DIR}/"
 log "=========================================="
 
-if [ "$schemathesis_exit" -ne 0 ] || [ "$zap_exit" -ne 0 ]; then
+if [[ "$schemathesis_exit" -ne 0 ]] || [[ "$zap_exit" -ne 0 ]]; then
   exit 1
 fi
