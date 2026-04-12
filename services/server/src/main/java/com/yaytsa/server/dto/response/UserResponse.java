@@ -2,6 +2,7 @@ package com.yaytsa.server.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record UserResponse(
     @JsonProperty("Name") String name,
@@ -25,7 +26,11 @@ public record UserResponse(
       @JsonProperty("EnableSubtitleManagement") boolean enableSubtitleManagement,
       @JsonProperty("EnableLyricManagement") boolean enableLyricManagement,
       @JsonProperty("IsDisabled") boolean isDisabled,
+      @JsonProperty("BlockedTags") List<String> blockedTags,
+      @JsonProperty("AllowedTags") List<String> allowedTags,
       @JsonProperty("EnableUserPreferenceAccess") boolean enableUserPreferenceAccess,
+      @JsonProperty("AccessSchedules") List<Object> accessSchedules,
+      @JsonProperty("BlockUnratedItems") List<String> blockUnratedItems,
       @JsonProperty("EnableRemoteControlOfOtherUsers") boolean enableRemoteControlOfOtherUsers,
       @JsonProperty("EnableSharedDeviceControl") boolean enableSharedDeviceControl,
       @JsonProperty("EnableRemoteAccess") boolean enableRemoteAccess,
@@ -37,16 +42,23 @@ public record UserResponse(
       @JsonProperty("EnablePlaybackRemuxing") boolean enablePlaybackRemuxing,
       @JsonProperty("ForceRemoteSourceTranscoding") boolean forceRemoteSourceTranscoding,
       @JsonProperty("EnableContentDeletion") boolean enableContentDeletion,
+      @JsonProperty("EnableContentDeletionFromFolders") List<String> enableContentDeletionFromFolders,
       @JsonProperty("EnableContentDownloading") boolean enableContentDownloading,
       @JsonProperty("EnableSyncTranscoding") boolean enableSyncTranscoding,
       @JsonProperty("EnableMediaConversion") boolean enableMediaConversion,
+      @JsonProperty("EnabledDevices") List<String> enabledDevices,
       @JsonProperty("EnableAllDevices") boolean enableAllDevices,
+      @JsonProperty("EnabledChannels") List<String> enabledChannels,
       @JsonProperty("EnableAllChannels") boolean enableAllChannels,
+      @JsonProperty("EnabledFolders") List<String> enabledFolders,
       @JsonProperty("EnableAllFolders") boolean enableAllFolders,
-      @JsonProperty("EnablePublicSharing") boolean enablePublicSharing,
       @JsonProperty("InvalidLoginAttemptCount") int invalidLoginAttemptCount,
       @JsonProperty("LoginAttemptsBeforeLockout") int loginAttemptsBeforeLockout,
       @JsonProperty("MaxActiveSessions") int maxActiveSessions,
+      @JsonProperty("EnablePublicSharing") boolean enablePublicSharing,
+      @JsonProperty("BlockedMediaFolders") List<String> blockedMediaFolders,
+      @JsonProperty("BlockedChannels") List<String> blockedChannels,
+      @JsonProperty("RemoteClientBitrateLimit") int remoteClientBitrateLimit,
       @JsonProperty("AuthenticationProviderId") String authenticationProviderId,
       @JsonProperty("PasswordResetProviderId") String passwordResetProviderId,
       @JsonProperty("SyncPlayAccess") String syncPlayAccess) {}
@@ -86,15 +98,23 @@ public record UserResponse(
   }
 
   private static UserPolicy defaultPolicy() {
+    return jellyfinPolicy(false, false, false);
+  }
+
+  static UserPolicy jellyfinPolicy(boolean isAdmin, boolean isDisabled, boolean enableContentDeletion) {
     return new UserPolicy(
-        false, // isAdministrator
+        isAdmin,
         false, // isHidden
         false, // enableCollectionManagement
         false, // enableSubtitleManagement
         false, // enableLyricManagement
-        false, // isDisabled
+        isDisabled,
+        List.of(), // blockedTags
+        List.of(), // allowedTags
         true, // enableUserPreferenceAccess
-        false, // enableRemoteControlOfOtherUsers
+        List.of(), // accessSchedules
+        List.of(), // blockUnratedItems
+        isAdmin, // enableRemoteControlOfOtherUsers
         true, // enableSharedDeviceControl
         true, // enableRemoteAccess
         false, // enableLiveTvManagement
@@ -104,17 +124,24 @@ public record UserResponse(
         true, // enableVideoPlaybackTranscoding
         true, // enablePlaybackRemuxing
         false, // forceRemoteSourceTranscoding
-        false, // enableContentDeletion
+        enableContentDeletion,
+        List.of(), // enableContentDeletionFromFolders
         true, // enableContentDownloading
         true, // enableSyncTranscoding
         false, // enableMediaConversion
+        List.of(), // enabledDevices
         true, // enableAllDevices
+        List.of(), // enabledChannels
         true, // enableAllChannels
+        List.of(), // enabledFolders
         true, // enableAllFolders
-        false, // enablePublicSharing
         0, // invalidLoginAttemptCount
-        3, // loginAttemptsBeforeLockout
+        -1, // loginAttemptsBeforeLockout
         0, // maxActiveSessions (0 = unlimited)
+        false, // enablePublicSharing
+        List.of(), // blockedMediaFolders
+        List.of(), // blockedChannels
+        0, // remoteClientBitrateLimit
         "YayTsa.Server.Auth.DefaultAuthenticationProvider",
         "YayTsa.Server.Auth.DefaultPasswordResetProvider",
         "CreateAndJoinGroups");

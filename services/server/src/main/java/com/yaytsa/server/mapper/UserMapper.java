@@ -32,38 +32,7 @@ public class UserMapper {
   }
 
   private UserResponse.UserPolicy createPolicy(UserEntity entity) {
-    return new UserResponse.UserPolicy(
-        entity.isAdmin(),
-        false,
-        false, // enableCollectionManagement
-        false, // enableSubtitleManagement
-        false, // enableLyricManagement
-        !entity.isActive(),
-        true,
-        entity.isAdmin(),
-        true,
-        true,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        entity.isAdmin(),
-        true,
-        true,
-        false,
-        true,
-        true,
-        true,
-        false, // enablePublicSharing
-        0,
-        3,
-        0,
-        "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
-        "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider",
-        "CreateAndJoinGroups");
+    return UserResponse.jellyfinPolicy(entity.isAdmin(), !entity.isActive(), entity.isAdmin());
   }
 
   private UserResponse.UserConfiguration createConfiguration() {
