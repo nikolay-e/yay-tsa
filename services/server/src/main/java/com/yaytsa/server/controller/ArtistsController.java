@@ -30,7 +30,7 @@ public class ArtistsController {
   public ResponseEntity<QueryResultResponse<BaseItemResponse>> getAlbumArtists(
       @RequestParam(value = "StartIndex", defaultValue = "0") int startIndex,
       @RequestParam(value = "Limit", defaultValue = "100") int limit) {
-    List<ArtistEntity> artists = artistRepository.findAllByOrderBySortNameAsc();
+    List<ArtistEntity> artists = artistRepository.findAllByOrderByItem_SortNameAsc();
     int total = artists.size();
     List<BaseItemResponse> items =
         artists.stream()

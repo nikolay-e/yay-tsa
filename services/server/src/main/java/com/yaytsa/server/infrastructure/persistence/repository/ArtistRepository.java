@@ -9,5 +9,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ArtistRepository extends JpaRepository<ArtistEntity, UUID> {
 
-  List<ArtistEntity> findAllByOrderBySortNameAsc();
+  List<ArtistEntity> findAllByOrderByItem_SortNameAsc();
 }
