@@ -367,4 +367,3 @@ yaytsa:
       # Production should use explicit allowed origins
       # Override with environment variable: CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
       allowed-origins: ${CORS_ORIGINS:}
-// trigger rebuild
