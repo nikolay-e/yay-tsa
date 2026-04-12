@@ -125,9 +125,16 @@ export class MediaServerClient {
       ...this.headersFromInit(additionalHeaders),
     };
 
+    const authParts = [
+      `Client="${this.clientInfo.name}"`,
+      `Device="${this.clientInfo.device}"`,
+      `DeviceId="${this.clientInfo.deviceId}"`,
+      `Version="${this.clientInfo.version}"`,
+    ];
     if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      authParts.push(`Token="${this.token}"`);
     }
+    headers['X-Emby-Authorization'] = `MediaBrowser ${authParts.join(', ')}`;
 
     const hasContentType = Object.keys(headers).some(k => k.toLowerCase() === 'content-type');
     if (includeContentType && !hasContentType) {

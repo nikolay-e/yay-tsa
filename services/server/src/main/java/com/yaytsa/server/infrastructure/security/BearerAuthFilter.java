@@ -23,6 +23,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class BearerAuthFilter extends OncePerRequestFilter {
 
   private static final String BEARER_PREFIX = "Bearer ";
+  private static final String EMBY_TOKEN_HEADER = "X-Emby-Token";
+  private static final String EMBY_AUTH_HEADER = "X-Emby-Authorization";
   private static final String API_KEY_PARAM = "api_key";
 
   private static final List<RequestMatcher> PUBLIC_PATH_MATCHERS =
@@ -90,6 +92,19 @@ public class BearerAuthFilter extends OncePerRequestFilter {
   }
 
   private Optional<String> extractToken(HttpServletRequest request) {
+    String embyToken = request.getHeader(EMBY_TOKEN_HEADER);
+    if (embyToken != null && !embyToken.isBlank()) {
+      return Optional.of(embyToken);
+    }
+
+    String embyAuth = request.getHeader(EMBY_AUTH_HEADER);
+    if (embyAuth != null) {
+      Optional<String> extracted = extractTokenFromEmbyAuth(embyAuth);
+      if (extracted.isPresent()) {
+        return extracted;
+      }
+    }
+
     String authHeader = request.getHeader("Authorization");
     if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
       String token = authHeader.substring(BEARER_PREFIX.length()).trim();
@@ -103,6 +118,15 @@ public class BearerAuthFilter extends OncePerRequestFilter {
       return Optional.of(apiKeyParam);
     }
 
+    return Optional.empty();
+  }
+
+  private Optional<String> extractTokenFromEmbyAuth(String header) {
+    java.util.regex.Matcher m =
+        java.util.regex.Pattern.compile("Token=\"([^\"]+)\"").matcher(header);
+    if (m.find()) {
+      return Optional.of(m.group(1));
+    }
     return Optional.empty();
   }
 }

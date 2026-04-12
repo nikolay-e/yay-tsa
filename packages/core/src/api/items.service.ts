@@ -204,8 +204,10 @@ export class ItemsService extends BaseService {
   }
 
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {
+    const userId = this.requireAuth();
     const result = await this.client.get<AudioItem | MusicAlbum | MusicArtist>(
-      this.buildUserUrl(`/Items/${itemId}`)
+      `/Items/${itemId}`,
+      { userId }
     );
     if (!result) {
       throw new MediaServerError(`Failed to get item ${itemId}: Empty response`);
@@ -219,8 +221,13 @@ export class ItemsService extends BaseService {
    */
   async getAlbumTracks(albumId: string): Promise<AudioItem[]> {
     const userId = this.requireAuth();
-    const result = await this.client.get<ItemsResult<AudioItem>>(`/Items/${albumId}/Tracks`, {
+    const result = await this.client.get<ItemsResult<AudioItem>>('/Items', {
       userId,
+      ParentId: albumId,
+      IncludeItemTypes: 'Audio',
+      Recursive: true,
+      SortBy: 'ParentIndexNumber,IndexNumber,SortName',
+      SortOrder: 'Ascending',
       Fields: 'MediaSources,Artists,Album,AlbumId,AlbumPrimaryImageTag,RunTimeTicks',
     });
     return result?.Items ?? [];

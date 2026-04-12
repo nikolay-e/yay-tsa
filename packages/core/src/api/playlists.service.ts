@@ -57,7 +57,7 @@ export class PlaylistsService extends BaseService {
   async getPlaylist(playlistId: string): Promise<Playlist> {
     const userId = this.requireAuth();
 
-    const result = await this.client.get<Playlist>(`/Users/${userId}/Items/${playlistId}`);
+    const result = await this.client.get<Playlist>(`/Items/${playlistId}`, { userId });
     if (!result) {
       throw new MediaServerError(`Failed to get playlist ${playlistId}: Empty response`);
     }
@@ -164,7 +164,7 @@ export class PlaylistsService extends BaseService {
       params.Limit = options.limit;
     }
 
-    const result = await this.client.get<ItemsResult<Playlist>>(`/Users/${userId}/Items`, params);
+    const result = await this.client.get<ItemsResult<Playlist>>('/Items', { ...params, userId });
     if (!result) {
       throw new MediaServerError('Failed to get playlists: Empty response');
     }
