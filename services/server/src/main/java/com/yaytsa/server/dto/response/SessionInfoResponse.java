@@ -56,7 +56,10 @@ public record SessionInfoResponse(
       @JsonProperty("SupportedCommands") List<String> supportedCommands,
       @JsonProperty("SupportsMediaControl") boolean supportsMediaControl,
       @JsonProperty("SupportsPersistentIdentifier") boolean supportsPersistentIdentifier,
+      @JsonProperty("SupportsSync") boolean supportsSync,
+      @JsonProperty("SupportsContentUploading") boolean supportsContentUploading,
       @JsonProperty("DeviceProfile") Object deviceProfile,
+      @JsonProperty("MessageCallbackUrl") String messageCallbackUrl,
       @JsonProperty("AppStoreUrl") String appStoreUrl,
       @JsonProperty("IconUrl") String iconUrl) {}
 
@@ -94,6 +97,9 @@ public record SessionInfoResponse(
             List.of("PlayState", "DisplayMessage", "PlayNext"),
             true,
             true,
+            false,
+            false,
+            null,
             null,
             null,
             null),
