@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/Items")
+@RequestMapping({"/Items", "/Users/{userId}/Items"})
 @Tag(name = "Items", description = "Media library item management")
 @Transactional(readOnly = true)
 public class ItemsController {
