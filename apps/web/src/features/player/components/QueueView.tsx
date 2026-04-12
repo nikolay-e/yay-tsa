@@ -204,9 +204,10 @@ export function QueueView() {
   }, [activeSession, isStarting, queueItems.length]);
 
   const listRef = useRef<HTMLDivElement>(null);
+  const currentTrackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: 0 });
+    currentTrackRef.current?.scrollIntoView({ block: 'center', behavior: 'instant' });
   }, [currentTrack?.Id]);
 
   const isSessionExpired = !activeSession && sessionError != null;
@@ -259,19 +260,20 @@ export function QueueView() {
       {isSessionExpired && <SessionExpiredBanner />}
       <div ref={listRef} className="flex-1 overflow-y-auto px-1 py-1">
         {queueItems.map((track, index) => (
-          <QueueTrackItem
-            key={`${track.Id}-${index}`}
-            track={track}
-            index={index}
-            isCurrent={index === queueIndex}
-            isPlaying={isPlaying && index === queueIndex}
-            onPlay={() => handleTrackClick(track)}
-            feedbackSlot={
-              activeSession ? (
-                <DjFeedbackButtons trackId={track.Id} onThumbsDown={handleThumbsDown} />
-              ) : undefined
-            }
-          />
+          <div key={`${track.Id}-${index}`} ref={index === queueIndex ? currentTrackRef : null}>
+            <QueueTrackItem
+              track={track}
+              index={index}
+              isCurrent={index === queueIndex}
+              isPlaying={isPlaying && index === queueIndex}
+              onPlay={() => handleTrackClick(track)}
+              feedbackSlot={
+                activeSession ? (
+                  <DjFeedbackButtons trackId={track.Id} onThumbsDown={handleThumbsDown} />
+                ) : undefined
+              }
+            />
+          </div>
         ))}
       </div>
     </div>

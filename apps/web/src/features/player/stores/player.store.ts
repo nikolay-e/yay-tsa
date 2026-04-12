@@ -489,7 +489,6 @@ export const usePlayerStore = create<PlayerStore>()(
       // --- Side effects ---
       engine.setNormalizationGain?.(track.NormalizationGain ?? null);
       get().queue.advanceTo(track.Id);
-      get().queue.trimBeforeCurrent();
       syncQueueState();
       updateSessionMetadata(track);
       startPlaybackReporter(track.Id);
@@ -1105,7 +1104,6 @@ export const usePlayerStore = create<PlayerStore>()(
           if (!target) return;
           const targetIndex = items.indexOf(target);
           queue.advanceTo(trackId);
-          queue.trimBeforeCurrent();
           syncQueueState();
           try {
             await loadAndPlay(target, signal);
