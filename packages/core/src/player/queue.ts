@@ -283,9 +283,6 @@ export class PlaybackQueue {
         this.currentIndex = idx;
         return this.getCurrentItem();
       }
-      this.items.splice(this.currentIndex, 0, prev);
-      this.originalOrder.push(prev);
-      return this.getCurrentItem();
     }
 
     if (this.currentIndex > 0) {
@@ -305,16 +302,6 @@ export class PlaybackQueue {
     this.recordCurrentToHistory();
     this.currentIndex = index;
     return true;
-  }
-
-  trimBeforeCurrent(): void {
-    if (this.currentIndex <= 0) return;
-    const removed = this.items.splice(0, this.currentIndex);
-    for (const item of removed) {
-      const idx = this.originalOrder.findIndex(o => o.Id === item.Id);
-      if (idx !== -1) this.originalOrder.splice(idx, 1);
-    }
-    this.currentIndex = 0;
   }
 
   jumpTo(index: number): AudioItem | null {

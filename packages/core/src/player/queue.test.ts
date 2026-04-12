@@ -180,19 +180,6 @@ describe('PlaybackQueue', () => {
       expect(queue.previous()?.Id).toBe('t1');
     });
 
-    it('previous after trimBeforeCurrent re-inserts history track', () => {
-      queue.setQueue(tracks(10));
-      queue.next();
-      queue.next();
-      expect(queue.getCurrentItem()?.Id).toBe('t3');
-
-      queue.trimBeforeCurrent();
-      expect(queue.getCurrentIndex()).toBe(0);
-
-      const prev = queue.previous();
-      expect(prev?.Id).toBe('t2');
-    });
-
     it('previous with empty history at start returns null', () => {
       expect(queue.previous()).toBeNull();
       expect(queue.getCurrentIndex()).toBe(0);
@@ -365,7 +352,7 @@ describe('PlaybackQueue', () => {
     }
   });
 
-  describe('advanceTo and trimBeforeCurrent', () => {
+  describe('advanceTo', () => {
     it('advanceTo by trackId', () => {
       queue.setQueue(tracks(5));
       expect(queue.advanceTo('t3')).toBe(true);
@@ -375,20 +362,6 @@ describe('PlaybackQueue', () => {
     it('advanceTo returns false for missing id', () => {
       queue.setQueue(tracks(3));
       expect(queue.advanceTo('nonexistent')).toBe(false);
-    });
-
-    it('trimBeforeCurrent removes previous items', () => {
-      queue.setQueue(tracks(5), 3);
-      queue.trimBeforeCurrent();
-      expect(queue.getLength()).toBe(2);
-      expect(queue.getCurrentIndex()).toBe(0);
-      expect(queue.getCurrentItem()?.Id).toBe('t4');
-    });
-
-    it('trimBeforeCurrent at index 0 is no-op', () => {
-      queue.setQueue(tracks(3));
-      queue.trimBeforeCurrent();
-      expect(queue.getLength()).toBe(3);
     });
   });
 
@@ -424,13 +397,6 @@ describe('PlaybackQueue', () => {
 
       queue.setRepeatMode('all');
       expect(queue.peekNext()?.Id).toBe('t1');
-    });
-
-    it('trimBeforeCurrent on large queue at index 500', () => {
-      queue.setQueue(tracks(1000), 500);
-      queue.trimBeforeCurrent();
-      expect(queue.getLength()).toBe(500);
-      expect(queue.getCurrentIndex()).toBe(0);
     });
   });
 
