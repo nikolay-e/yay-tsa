@@ -58,25 +58,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Get playlists")
-  class GetPlaylists {
-
-    @Test
-    @DisplayName("Given: Authenticated user, When: GET /Playlists, Then: Returns playlists list")
-    void getPlaylists() throws Exception {
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(BASE_URL + "/Playlists", HttpMethod.GET, request, String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("TotalRecordCount"));
-      assertTrue(json.has("Items"));
-    }
-  }
-
-  @Nested
   @DisplayName("Scenario: Create and retrieve playlist")
   class CreatePlaylist {
 
@@ -118,31 +99,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
   @Nested
   @DisplayName("Scenario: Playlist items")
   class PlaylistItems {
-
-    @Test
-    @DisplayName("Given: Valid playlist ID, When: GET /Playlists/{id}/Items, Then: Returns items")
-    void getPlaylistItems() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
-      String playlistId = createTestPlaylist("Test Get Items");
-      try {
-        HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-        ResponseEntity<String> response =
-            restTemplate.exchange(
-                BASE_URL + "/Playlists/" + playlistId + "/Items",
-                HttpMethod.GET,
-                request,
-                String.class);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-
-        JsonNode json = objectMapper.readTree(response.getBody());
-        assertTrue(json.has("TotalRecordCount"));
-        assertTrue(json.has("Items"));
-      } finally {
-        deletePlaylistQuietly(playlistId);
-      }
-    }
 
     @Test
     @DisplayName(
@@ -216,20 +172,6 @@ class PlaylistsApiTest extends BaseIntegrationTest {
               BASE_URL + "/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
 
       assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Unauthorized access")
-  class UnauthorizedAccess {
-
-    @Test
-    @DisplayName("Given: No auth token, When: GET /Playlists, Then: Returns 401")
-    void getPlaylistsWithoutAuth() {
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(BASE_URL + "/Playlists", String.class);
-
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
   }
 }

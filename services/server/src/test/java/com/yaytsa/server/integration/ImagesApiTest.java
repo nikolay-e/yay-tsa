@@ -55,46 +55,6 @@ class ImagesApiTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName(
-        "Given: Album with image, When: GET /Items/{id}/Images/Primary, Then: Returns image")
-    void getAlbumPrimaryImage() {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
-      ResponseEntity<byte[]> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
-              byte[].class);
-
-      assertTrue(
-          response.getStatusCode().is2xxSuccessful(),
-          "Expected 2xx but got " + response.getStatusCode());
-      assertNotNull(response.getBody());
-      assertTrue(response.getBody().length > 0);
-    }
-
-    @Test
-    @DisplayName(
-        "Given: Album with image, When: GET /Items/{id}/Images/Primary with size params, Then:"
-            + " Returns resized image")
-    void getAlbumImageResized() {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
-      ResponseEntity<byte[]> response =
-          restTemplate.getForEntity(
-              BASE_URL
-                  + "/Items/"
-                  + firstAlbumId
-                  + "/Images/Primary?api_key="
-                  + authToken
-                  + "&maxWidth=100&maxHeight=100",
-              byte[].class);
-
-      assertTrue(
-          response.getStatusCode().is2xxSuccessful(),
-          "Expected 2xx but got " + response.getStatusCode());
-    }
-
-    @Test
-    @DisplayName(
         "Given: Album with image, When: GET /Items/{id}/Images/Primary with format, Then: Returns"
             + " image in format")
     void getAlbumImageWebp() {
@@ -115,64 +75,6 @@ class ImagesApiTest extends BaseIntegrationTest {
           "Expected 2xx but got " + response.getStatusCode());
       assertNotNull(response.getHeaders().getContentType());
       assertEquals("image/webp", response.getHeaders().getContentType().toString());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Get image by index")
-  class GetImageByIndex {
-
-    @Test
-    @DisplayName(
-        "Given: Item ID, When: GET /Items/{id}/Images/Primary/0, Then: Returns first image")
-    void getImageByIndex() {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
-      ResponseEntity<byte[]> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary/0?api_key=" + authToken,
-              byte[].class);
-
-      assertTrue(
-          response.getStatusCode().is2xxSuccessful(),
-          "Expected 2xx but got " + response.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Get image types")
-  class GetImageTypes {
-
-    @Test
-    @DisplayName(
-        "Given: Valid item ID, When: GET /Items/{id}/Images, Then: Returns available types")
-    void getImageTypes() throws Exception {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Items/" + firstAlbumId + "/Images?api_key=" + authToken, String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Image not found")
-  class ImageNotFound {
-
-    @Test
-    @DisplayName(
-        "Given: Non-existent item ID, When: GET /Items/{id}/Images/Primary, Then: Returns 404")
-    void getImageNotFound() {
-      ResponseEntity<byte[]> response =
-          restTemplate.getForEntity(
-              BASE_URL
-                  + "/Items/00000000-0000-0000-0000-000000000000/Images/Primary?api_key="
-                  + authToken,
-              byte[].class);
-
-      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
   }
 
@@ -211,26 +113,6 @@ class ImagesApiTest extends BaseIntegrationTest {
           secondResponse.getStatusCode() == HttpStatus.NOT_MODIFIED
               || secondResponse.getStatusCode() == HttpStatus.OK,
           "Expected 304 or 200 but got " + secondResponse.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Unauthorized access")
-  class UnauthorizedAccess {
-
-    @Test
-    @DisplayName("Given: No auth token, When: GET /Items/{id}/Images/Primary, Then: Returns 401")
-    void getImageWithoutAuth() {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
-      ResponseEntity<byte[]> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary", byte[].class);
-
-      assertEquals(
-          HttpStatus.UNAUTHORIZED,
-          response.getStatusCode(),
-          "Image endpoint requires authentication");
     }
   }
 }

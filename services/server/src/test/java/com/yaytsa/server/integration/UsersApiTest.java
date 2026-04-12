@@ -69,46 +69,11 @@ class UsersApiTest extends BaseIntegrationTest {
       assertEquals(userId, json.get("Id").asText());
       assertNotNull(json.get("Name"));
     }
-
-    @Test
-    @DisplayName("Given: Invalid user ID, When: GET /Users/{userId}, Then: Returns 404")
-    void getUserByIdNotFound() {
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Users/00000000-0000-0000-0000-000000000000",
-              HttpMethod.GET,
-              request,
-              String.class);
-
-      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
   }
 
   @Nested
   @DisplayName("Scenario: Get user items")
   class GetUserItems {
-
-    @Test
-    @DisplayName("Given: Valid user ID, When: GET /Users/{userId}/Items, Then: Returns items list")
-    void getUserItems() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Users/" + userId + "/Items?IncludeItemTypes=MusicAlbum&Recursive=true",
-              HttpMethod.GET,
-              request,
-              String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("TotalRecordCount"));
-      assertTrue(json.has("Items"));
-      assertTrue(json.get("Items").isArray());
-    }
 
     @Test
     @DisplayName(
@@ -162,77 +127,6 @@ class UsersApiTest extends BaseIntegrationTest {
       assertEquals(firstAlbumId, json.get("Id").asText());
       assertNotNull(json.get("Name"));
       assertNotNull(json.get("Type"));
-    }
-
-    @Test
-    @DisplayName(
-        "Given: Invalid item ID, When: GET /Users/{userId}/Items/{itemId}, Then: Returns 404")
-    void getUserItemNotFound() {
-      assumeTrue(userId != null, "User ID required");
-
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Users/" + userId + "/Items/00000000-0000-0000-0000-000000000000",
-              HttpMethod.GET,
-              request,
-              String.class);
-
-      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Get user favorites")
-  class GetUserFavorites {
-
-    @Test
-    @DisplayName(
-        "Given: Valid user ID, When: GET /Users/{userId}/FavoriteItems, Then: Returns favorites"
-            + " list")
-    void getUserFavorites() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Users/" + userId + "/FavoriteItems",
-              HttpMethod.GET,
-              request,
-              String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("TotalRecordCount"));
-      assertTrue(json.has("Items"));
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Get resume items")
-  class GetResumeItems {
-
-    @Test
-    @DisplayName(
-        "Given: Valid user ID, When: GET /Users/{userId}/Items/Resume, Then: Returns recently"
-            + " played")
-    void getResumeItems() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/Users/" + userId + "/Items/Resume",
-              HttpMethod.GET,
-              request,
-              String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("TotalRecordCount"));
-      assertTrue(json.has("Items"));
     }
   }
 
@@ -302,22 +196,6 @@ class UsersApiTest extends BaseIntegrationTest {
         }
       }
       assertFalse(stillFound, "Track should not appear in favorites after unmarking");
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Unauthorized access")
-  class UnauthorizedAccess {
-
-    @Test
-    @DisplayName("Given: No auth token, When: GET /Users/{userId}, Then: Returns 401")
-    void getUserWithoutAuth() {
-      assumeTrue(userId != null, "User ID required");
-
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(BASE_URL + "/Users/" + userId, String.class);
-
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
   }
 }

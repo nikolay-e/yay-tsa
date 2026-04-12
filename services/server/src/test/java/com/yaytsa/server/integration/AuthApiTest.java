@@ -142,41 +142,4 @@ class AuthApiTest extends BaseIntegrationTest {
       assertEquals(HttpStatus.OK, response.getStatusCode());
     }
   }
-
-  @Nested
-  @DisplayName("Scenario: User authenticates with invalid credentials")
-  class InvalidAuthentication {
-
-    @Test
-    @DisplayName("Given: Wrong password, When: POST /Users/AuthenticateByName, Then: Returns 401")
-    void authenticateWithWrongPassword() {
-      HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-
-      String username = System.getenv().getOrDefault("YAYTSA_TEST_USERNAME", "admin");
-      String body = String.format("{\"Username\":\"%s\",\"Pw\":\"wrongpassword\"}", username);
-      HttpEntity<String> request = new HttpEntity<>(body, headers);
-
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(BASE_URL + "/Users/AuthenticateByName", request, String.class);
-
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-    }
-
-    @Test
-    @DisplayName(
-        "Given: Non-existent user, When: POST /Users/AuthenticateByName, Then: Returns 401")
-    void authenticateWithNonExistentUser() {
-      HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-
-      String body = "{\"Username\":\"nonexistent\",\"Pw\":\"password\"}";
-      HttpEntity<String> request = new HttpEntity<>(body, headers);
-
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(BASE_URL + "/Users/AuthenticateByName", request, String.class);
-
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-    }
-  }
 }

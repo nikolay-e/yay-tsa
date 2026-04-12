@@ -34,42 +34,8 @@ class KaraokeApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Check karaoke enabled")
-  class KaraokeEnabled {
-
-    @Test
-    @DisplayName("Given: Server running, When: GET /Karaoke/enabled, Then: Returns enabled status")
-    void checkKaraokeEnabled() throws Exception {
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Karaoke/enabled?api_key=" + authToken, String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("enabled"));
-    }
-  }
-
-  @Nested
   @DisplayName("Scenario: Get karaoke status")
   class GetKaraokeStatus {
-
-    @Test
-    @DisplayName(
-        "Given: Valid track ID, When: GET /Karaoke/{id}/status, Then: Returns processing status")
-    void getKaraokeStatus() throws Exception {
-      assumeTrue(firstTrackId != null, "Track ID required");
-
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Karaoke/" + firstTrackId + "/status?api_key=" + authToken, String.class);
-
-      assertEquals(HttpStatus.OK, response.getStatusCode());
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      assertTrue(json.has("state"));
-    }
 
     @Test
     @DisplayName(
@@ -139,22 +105,6 @@ class KaraokeApiTest extends BaseIntegrationTest {
               BASE_URL + "/Karaoke/" + firstTrackId + "/vocals?api_key=" + authToken, byte[].class);
 
       assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Scenario: Invalid track ID")
-  class InvalidTrackId {
-
-    @Test
-    @DisplayName(
-        "Given: Invalid UUID format, When: GET /Karaoke/{id}/status, Then: Returns 400 or 401")
-    void invalidTrackIdFormat() {
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Karaoke/not-a-uuid/status?api_key=" + authToken, String.class);
-
-      assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
   }
 }

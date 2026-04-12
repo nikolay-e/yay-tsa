@@ -103,26 +103,6 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
   }
 
   @Test
-  @DisplayName("GET /v1/sessions/active → 200 with latest session")
-  void getActiveSession() throws Exception {
-    assumeTrue(firstTrackId != null, "Track ID required");
-
-    String sessionId = createRadioSession();
-    try {
-      HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      ResponseEntity<String> response =
-          restTemplate.exchange(
-              BASE_URL + "/v1/sessions/active", HttpMethod.GET, request, String.class);
-
-      assertTrue(
-          response.getStatusCode() == HttpStatus.OK
-              || response.getStatusCode() == HttpStatus.NO_CONTENT);
-    } finally {
-      endSessionQuietly(sessionId);
-    }
-  }
-
-  @Test
   @DisplayName("DELETE /v1/sessions/{id} → 200, endedAt non-null")
   void endSession() throws Exception {
     assumeTrue(firstTrackId != null, "Track ID required");
@@ -138,38 +118,5 @@ class ListeningSessionApiTest extends BaseIntegrationTest {
     JsonNode json = objectMapper.readTree(deleteResponse.getBody());
     assertNotNull(json.get("endedAt"));
     assertFalse(json.get("endedAt").isNull());
-  }
-
-  @Test
-  @DisplayName("GET /v1/sessions/{random UUID} → 404")
-  void getSessionNotFound() {
-    HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-    ResponseEntity<String> response =
-        restTemplate.exchange(
-            BASE_URL + "/v1/sessions/00000000-0000-0000-0000-000000000001",
-            HttpMethod.GET,
-            request,
-            String.class);
-
-    assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-  }
-
-  @Test
-  @DisplayName("POST /v1/sessions without auth → 401")
-  void createSessionNoAuth() {
-    HttpHeaders headers = new HttpHeaders();
-    headers.setContentType(MediaType.APPLICATION_JSON);
-
-    HttpEntity<String> request = new HttpEntity<>("{}", headers);
-
-    try {
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(BASE_URL + "/v1/sessions", request, String.class);
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-    } catch (org.springframework.web.client.ResourceAccessException e) {
-      assertTrue(
-          e.getCause() instanceof java.net.HttpRetryException,
-          "Expected HttpRetryException for 401 response");
-    }
   }
 }

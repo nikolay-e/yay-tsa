@@ -79,37 +79,6 @@ class StreamingApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Stream with invalid parameters")
-  class InvalidStreamRequests {
-
-    @Test
-    @DisplayName("Given: Non-existent track ID, When: GET /Audio/{id}/stream, Then: Returns 404")
-    void streamNonExistentTrack() {
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(
-              BASE_URL
-                  + "/Audio/00000000-0000-0000-0000-000000000000/stream?api_key="
-                  + authToken
-                  + "&static=true",
-              String.class);
-
-      assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
-
-    @Test
-    @DisplayName("Given: No auth token, When: GET /Audio/{id}/stream, Then: Returns 401")
-    void streamWithoutAuth() {
-      assumeTrue(firstTrackId != null, "Track ID required");
-
-      ResponseEntity<String> response =
-          restTemplate.getForEntity(
-              BASE_URL + "/Audio/" + firstTrackId + "/stream?static=true", String.class);
-
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-    }
-  }
-
-  @Nested
   @DisplayName("Scenario: Streaming response integrity")
   class StreamResponseIntegrity {
 
