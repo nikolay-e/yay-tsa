@@ -21,7 +21,7 @@ log() {
   echo "[$(date '+%H:%M:%S')] $*"
   return 0
 }
-fail() {
+fail() { # NOSONAR - exit terminates script, return unreachable
   log "FAIL: $*"
   exit 1
 }
