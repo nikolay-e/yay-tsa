@@ -205,10 +205,9 @@ export class ItemsService extends BaseService {
 
   async getItem(itemId: string): Promise<AudioItem | MusicAlbum | MusicArtist> {
     const userId = this.requireAuth();
-    const result = await this.client.get<AudioItem | MusicAlbum | MusicArtist>(
-      `/Items/${itemId}`,
-      { userId }
-    );
+    const result = await this.client.get<AudioItem | MusicAlbum | MusicArtist>(`/Items/${itemId}`, {
+      userId,
+    });
     if (!result) {
       throw new MediaServerError(`Failed to get item ${itemId}: Empty response`);
     }

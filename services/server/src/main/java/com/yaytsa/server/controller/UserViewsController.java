@@ -1,6 +1,5 @@
 package com.yaytsa.server.controller;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;

@@ -42,7 +42,8 @@ public record UserResponse(
       @JsonProperty("EnablePlaybackRemuxing") boolean enablePlaybackRemuxing,
       @JsonProperty("ForceRemoteSourceTranscoding") boolean forceRemoteSourceTranscoding,
       @JsonProperty("EnableContentDeletion") boolean enableContentDeletion,
-      @JsonProperty("EnableContentDeletionFromFolders") List<String> enableContentDeletionFromFolders,
+      @JsonProperty("EnableContentDeletionFromFolders")
+          List<String> enableContentDeletionFromFolders,
       @JsonProperty("EnableContentDownloading") boolean enableContentDownloading,
       @JsonProperty("EnableSyncTranscoding") boolean enableSyncTranscoding,
       @JsonProperty("EnableMediaConversion") boolean enableMediaConversion,
@@ -101,7 +102,8 @@ public record UserResponse(
     return jellyfinPolicy(false, false, false);
   }
 
-  static UserPolicy jellyfinPolicy(boolean isAdmin, boolean isDisabled, boolean enableContentDeletion) {
+  public static UserPolicy jellyfinPolicy(
+      boolean isAdmin, boolean isDisabled, boolean enableContentDeletion) {
     return new UserPolicy(
         isAdmin,
         false, // isHidden

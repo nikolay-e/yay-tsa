@@ -27,8 +27,7 @@ public class UserFavoriteItemsController {
   @Transactional
   @PostMapping("/{itemId}")
   public ResponseEntity<Void> markFavorite(
-      @PathVariable String itemId,
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+      @PathVariable String itemId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
@@ -48,8 +47,7 @@ public class UserFavoriteItemsController {
   @Transactional
   @DeleteMapping("/{itemId}")
   public ResponseEntity<Void> unmarkFavorite(
-      @PathVariable String itemId,
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+      @PathVariable String itemId, @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
