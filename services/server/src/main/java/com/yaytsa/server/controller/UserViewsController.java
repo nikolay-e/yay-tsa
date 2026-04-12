@@ -19,6 +19,7 @@ public class UserViewsController {
             "CollectionType", "music",
             "ServerId", "yaytsa-server",
             "IsFolder", true);
-    return ResponseEntity.ok(Map.of("Items", List.of(musicLibrary), "TotalRecordCount", 1));
+    return ResponseEntity.ok(
+        Map.of("Items", List.of(musicLibrary), "TotalRecordCount", 1, "StartIndex", 0));
   }
 }
