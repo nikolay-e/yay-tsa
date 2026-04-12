@@ -23,10 +23,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/Items")
@@ -130,19 +132,19 @@ public class ItemsController {
 
     UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
     if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     if (ids != null && !ids.isBlank()) {
       List<UUID> idList = UuidUtils.parseUuidList(ids);
       if (idList == null) {
-        return ResponseEntity.badRequest().build();
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item IDs");
       }
       if (idList.size() > MAX_PAGE_SIZE) {
-        return ResponseEntity.badRequest().build();
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Too many item IDs requested");
       }
       List<ItemEntity> items = itemService.findAllByIds(idList);
       Map<UUID, ItemEntity> itemMap =
@@ -158,7 +160,7 @@ public class ItemsController {
 
     UUID parentUuid = parentId != null ? UuidUtils.parseUuid(parentId) : null;
     if (parentId != null && parentUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid parent ID");
     }
 
     List<String> itemTypes = parseCommaSeparatedList(includeItemTypes);
@@ -167,7 +169,7 @@ public class ItemsController {
     List<UUID> genreUuids = UuidUtils.parseUuidList(genreIds);
 
     if (artistUuids == null || albumUuids == null || genreUuids == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid filter IDs");
     }
 
     int validLimit = Math.max(1, Math.min(limit, MAX_PAGE_SIZE));
@@ -283,20 +285,20 @@ public class ItemsController {
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
     if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     Optional<ItemEntity> itemOpt = itemService.findById(itemUuid);
     if (itemOpt.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
     }
 
     ItemEntity item = itemOpt.get();
@@ -323,15 +325,15 @@ public class ItemsController {
 
     UUID albumUuid = UuidUtils.parseUuid(albumId);
     if (albumUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid album ID");
     }
 
     UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
     if (userId != null && userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
     if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     List<AudioTrackEntity> tracks = itemService.getAlbumTracks(albumUuid);
@@ -386,20 +388,20 @@ public class ItemsController {
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     if (itemService.findById(itemUuid).isEmpty()) {
-      return ResponseEntity.status(404).build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
     }
 
     playStateService.setFavorite(userUuid, itemUuid, true);
@@ -424,20 +426,20 @@ public class ItemsController {
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     if (itemService.findById(itemUuid).isEmpty()) {
-      return ResponseEntity.status(404).build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
     }
 
     playStateService.setFavorite(userUuid, itemUuid, false);
@@ -463,27 +465,27 @@ public class ItemsController {
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
     if (request.userId() == null || request.itemIds() == null || request.itemIds().isEmpty()) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "userId and itemIds are required");
     }
 
     if (request.itemIds().size() > MAX_PAGE_SIZE) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Too many item IDs requested");
     }
 
     UUID userUuid = UuidUtils.parseUuid(request.userId());
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     List<UUID> itemUuids =
         request.itemIds().stream().map(UuidUtils::parseUuid).filter(Objects::nonNull).toList();
 
     if (itemUuids.size() != request.itemIds().size()) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item IDs");
     }
 
     playStateService.reorderFavorites(userUuid, itemUuids);
@@ -514,22 +516,22 @@ public class ItemsController {
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     Optional<ItemEntity> itemOptional = itemService.findById(itemUuid);
     if (itemOptional.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
     }
 
     ItemEntity item = itemOptional.get();
     if (item.getType() != ItemType.Playlist) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     Optional<PlaylistEntity> playlist = playlistService.getPlaylist(itemUuid);
     if (playlist.isPresent() && !isOwnerOrAdmin(playlist.get().getUserId(), authenticatedUser)) {
-      return ResponseEntity.status(403).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     playlistService.deletePlaylist(itemUuid);

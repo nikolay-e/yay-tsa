@@ -26,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @Tag(name = "Images", description = "Image serving and processing")
@@ -96,7 +97,7 @@ public class ImagesController {
 
       if (imageData.isEmpty()) {
         log.debug("Image not found: itemId={}, type={}", itemId, imageType);
-        return ResponseEntity.notFound().build();
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Image not found");
       }
 
       String resolvedETag = etag.orElseGet(() -> contentETag(imageData.get()));
@@ -115,7 +116,7 @@ public class ImagesController {
     } catch (IllegalArgumentException e) {
       log.warn(
           "Invalid image request: itemId={}, type={}, error={}", itemId, imageType, e.getMessage());
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID format");
     }
   }
 
@@ -219,7 +220,7 @@ public class ImagesController {
       return ResponseEntity.ok(imageTypes);
     } catch (IllegalArgumentException e) {
       log.warn("Invalid item ID: {}", itemId);
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID format");
     }
   }
 

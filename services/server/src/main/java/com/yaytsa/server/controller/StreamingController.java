@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "Streaming", description = "Audio streaming endpoints")
-@SecurityRequirement(name = "apiKey")
 public class StreamingController {
 
   private final StreamingService streamingService;
@@ -28,6 +27,7 @@ public class StreamingController {
   }
 
   @Operation(summary = "Stream audio file", description = "Stream audio with byte-range support")
+  @SecurityRequirement(name = "apiKey")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Audio stream"),
@@ -46,6 +46,7 @@ public class StreamingController {
   }
 
   @Operation(summary = "Get audio stream headers")
+  @SecurityRequirement(name = "apiKey")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Headers returned"),

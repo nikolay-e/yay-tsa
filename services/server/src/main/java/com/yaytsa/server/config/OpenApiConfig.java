@@ -53,12 +53,12 @@ public class OpenApiConfig {
 
       openApi.getComponents().addSchemas("ProblemDetail", problemSchema);
 
+      MediaType problemMediaType =
+          new MediaType().schema(new Schema<>().$ref("#/components/schemas/ProblemDetail"));
       Content errorContent =
           new Content()
-              .addMediaType(
-                  "application/json",
-                  new MediaType()
-                      .schema(new Schema<>().$ref("#/components/schemas/ProblemDetail")));
+              .addMediaType("application/json", problemMediaType)
+              .addMediaType("application/problem+json", problemMediaType);
 
       ApiResponse badRequest = new ApiResponse().description("Bad request").content(errorContent);
       ApiResponse unauthorized =

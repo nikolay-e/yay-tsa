@@ -57,7 +57,7 @@ public class StreamingService {
   }
 
   public String getStreamUrl(UUID itemId) {
-    return String.format("%s/Audio/%s/stream", baseUrl, itemId);
+    return String.format("/Audio/%s/stream", itemId);
   }
 
   private record ResolvedFile(Path filePath, String container) {}

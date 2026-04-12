@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/Sessions")
@@ -50,7 +51,7 @@ public class SessionsController {
 
     UUID itemId = UuidUtils.parseUuid(playbackInfo.getItemId());
     if (itemId == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     UUID userId = authenticatedUser.getUserEntity().getId();
@@ -75,7 +76,7 @@ public class SessionsController {
 
     UUID itemId = UuidUtils.parseUuid(progressInfo.getItemId());
     if (itemId == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     UUID userId = authenticatedUser.getUserEntity().getId();
@@ -106,7 +107,7 @@ public class SessionsController {
 
     UUID itemId = UuidUtils.parseUuid(stopInfo.getItemId());
     if (itemId == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     UUID userId = authenticatedUser.getUserEntity().getId();
@@ -163,13 +164,13 @@ public class SessionsController {
 
     UUID sessionUuid = UuidUtils.parseUuid(sessionId);
     if (sessionUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid session ID");
     }
 
     Optional<SessionEntity> sessionOpt = sessionService.getSession(sessionUuid);
 
     if (sessionOpt.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found");
     }
 
     SessionEntity session = sessionOpt.get();
@@ -177,7 +178,7 @@ public class SessionsController {
     boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
 
     if (!isAdmin && !session.getUser().getId().equals(currentUserId)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     return ResponseEntity.ok(mapSessionToResponse(session));

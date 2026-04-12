@@ -82,7 +82,7 @@ public class UsersController {
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     UserEntity user =
@@ -147,12 +147,12 @@ public class UsersController {
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     UUID parentUuid = parentId != null ? UuidUtils.parseUuid(parentId) : null;
     if (parentId != null && parentUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid parent item ID");
     }
 
     List<String> itemTypesList =
@@ -209,12 +209,12 @@ public class UsersController {
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     UUID itemUuid = UuidUtils.parseUuid(itemId);
     if (itemUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     ItemEntity item =
@@ -265,7 +265,7 @@ public class UsersController {
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     List<String> itemTypesList =
@@ -317,7 +317,7 @@ public class UsersController {
 
     UUID userUuid = UuidUtils.parseUuid(userId);
     if (userUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     List<String> itemTypesList =

@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/Playlists")
@@ -64,13 +65,13 @@ public class PlaylistsController {
     if (userId != null) {
       UUID requestedUserId = UuidUtils.parseUuid(userId);
       if (requestedUserId == null) {
-        return ResponseEntity.badRequest().build();
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
       }
       UUID currentUserId = authenticatedUser.getUserEntity().getId();
       boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
 
       if (!isAdmin && !requestedUserId.equals(currentUserId)) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
       }
 
       List<PlaylistEntity> playlists = playlistService.getUserPlaylists(requestedUserId);
@@ -117,14 +118,14 @@ public class PlaylistsController {
 
     UUID requestedUserId = UuidUtils.parseUuid(request.userId());
     if (requestedUserId == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
     }
 
     UUID currentUserId = authenticatedUser.getUserEntity().getId();
     boolean isAdmin = authenticatedUser.getUserEntity().isAdmin();
 
     if (!isAdmin && !requestedUserId.equals(currentUserId)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     List<UUID> itemIds = null;
@@ -132,7 +133,7 @@ public class PlaylistsController {
       try {
         itemIds = request.ids().stream().map(UUID::fromString).collect(Collectors.toList());
       } catch (IllegalArgumentException e) {
-        return ResponseEntity.badRequest().build();
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID format");
       }
     }
 
@@ -155,19 +156,19 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     Optional<PlaylistEntity> optionalPlaylist = playlistService.getPlaylist(playlistUuid);
 
     if (optionalPlaylist.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     PlaylistEntity playlistEntity = optionalPlaylist.get();
 
     if (!isOwnerOrAdmin(playlistEntity, authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
     Map<String, Object> playlist = new HashMap<>();
     playlist.put("Id", playlistEntity.getId().toString());
@@ -192,24 +193,24 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
 
     if (existing.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     String name = playlistData.get("Name") != null ? playlistData.get("Name").toString() : null;
     Optional<PlaylistEntity> updated = playlistService.updatePlaylist(playlistUuid, name);
 
     if (updated.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     PlaylistEntity playlistEntity = updated.get();
@@ -232,17 +233,17 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
 
     if (existing.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     playlistService.deletePlaylist(playlistUuid);
@@ -271,7 +272,7 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     int validStartIndex = Math.max(0, startIndex);
@@ -279,11 +280,11 @@ public class PlaylistsController {
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     Page<PlaylistEntryEntity> page =
@@ -351,21 +352,21 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     List<UUID> itemIds = UuidUtils.parseUuidList(ids);
     if (itemIds == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item IDs");
     }
 
     playlistService.addItemsToPlaylist(playlistUuid, itemIds);
@@ -391,21 +392,21 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     List<UUID> entryIdsList = UuidUtils.parseUuidList(entryIds);
     if (entryIdsList == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid entry IDs");
     }
 
     playlistService.removeItemsFromPlaylist(playlistUuid, entryIdsList);
@@ -428,21 +429,21 @@ public class PlaylistsController {
 
     UUID playlistUuid = UuidUtils.parseUuid(playlistId);
     if (playlistUuid == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid playlist ID");
     }
 
     UUID entryId = UuidUtils.parseUuid(itemId);
     if (entryId == null) {
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
     }
 
     Optional<PlaylistEntity> existing = playlistService.getPlaylist(playlistUuid);
     if (existing.isEmpty()) {
-      return ResponseEntity.notFound().build();
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
     }
 
     if (!isOwnerOrAdmin(existing.get(), authenticatedUser)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     playlistService.movePlaylistItem(playlistUuid, entryId, newIndex);

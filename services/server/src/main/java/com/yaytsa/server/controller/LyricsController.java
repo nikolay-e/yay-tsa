@@ -2,6 +2,8 @@ package com.yaytsa.server.controller;
 
 import com.yaytsa.server.domain.service.LyricsFetchService;
 import com.yaytsa.server.domain.service.LyricsFetchService.OnDemandLyricsResult;
+import com.yaytsa.server.error.ResourceNotFoundException;
+import com.yaytsa.server.error.ResourceType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -10,8 +12,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/Lyrics")
@@ -47,11 +51,11 @@ public class LyricsController {
               "lyrics", result.lyrics() != null ? result.lyrics() : "",
               "source", result.source() != null ? result.source() : ""));
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.status(404).body(Map.of("found", false, "error", "Track not found"));
+      throw new ResourceNotFoundException(ResourceType.Item, trackId);
     } catch (Exception e) {
       log.error("Lyrics fetch failed for track {}: {}", trackId, e.getMessage());
-      return ResponseEntity.status(503)
-          .body(Map.of("found", false, "error", "Lyrics service unavailable"));
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE, "Lyrics service unavailable");
     }
   }
 }

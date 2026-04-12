@@ -24,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/v1/sessions/{sessionId}/signals")
@@ -65,9 +66,10 @@ public class PlaybackSignalController {
       @AuthenticationPrincipal AuthenticatedUser user) {
     sessionService.verifyOwnership(sessionId, user);
     if (request.signalType() == null || request.signalType().isBlank())
-      return ResponseEntity.badRequest().build();
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Signal type is required");
     UUID trackId = UuidUtils.parseUuid(request.trackId());
-    if (trackId == null) return ResponseEntity.badRequest().build();
+    if (trackId == null)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid track ID");
     UUID queueEntryId =
         request.queueEntryId() != null ? UuidUtils.parseUuid(request.queueEntryId()) : null;
 

@@ -30,6 +30,17 @@ public class ApiErrorController implements ErrorController {
       },
       produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<ProblemDetail> handleError(HttpServletRequest request) {
+    Object statusCode = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
+    if (statusCode == null) {
+      ProblemDetail notFound = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Not Found");
+      notFound.setTitle(HttpStatus.NOT_FOUND.getReasonPhrase());
+      notFound.setProperty("path", request.getRequestURI());
+      notFound.setProperty("timestamp", Instant.now().toString());
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(notFound);
+    }
+
     HttpStatus status = resolveStatus(request);
     String message = resolveMessage(request, status);
     String path = resolvePath(request);
