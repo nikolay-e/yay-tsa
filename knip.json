@@ -33,7 +33,7 @@
     "dotenv",
     "prettier-plugin-tailwindcss"
   ],
-  "ignoreBinaries": ["pre-commit", "tsc"],
+  "ignoreBinaries": ["pre-commit", "tsc", "playwright"],
   "ignoreExportsUsedInFile": true,
   "ignore": [
     "apps/web/src/features/**/stores/*.ts",

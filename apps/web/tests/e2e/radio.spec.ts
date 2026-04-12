@@ -33,6 +33,17 @@ async function fetchRealSeeds(
   }));
 }
 
+async function hasRecommendationSupport(page: import('@playwright/test').Page): Promise<boolean> {
+  const { token } = await page.evaluate(() => ({
+    token: sessionStorage.getItem('yaytsa_session') || '',
+  }));
+  const baseUrl = page.url().replace(/\/[^/]*$/, '');
+  const res = await page.request.get(`${baseUrl}/api/v1/recommend?limit=1&api_key=${token}`);
+  if (!res.ok()) return false;
+  const data = await res.json();
+  return Array.isArray(data) && data.length > 0;
+}
+
 test.describe('Radio', () => {
   test('should display seed cards on home page', async ({ authenticatedPage }) => {
     const seeds = await fetchRealSeeds(authenticatedPage);
@@ -62,6 +73,8 @@ test.describe('Radio', () => {
   test('should start DJ session when seed card clicked', async ({ authenticatedPage }) => {
     const seeds = await fetchRealSeeds(authenticatedPage);
     test.skip(seeds.length < 2, 'Not enough tracks in test library for radio seeds');
+    const hasRecs = await hasRecommendationSupport(authenticatedPage);
+    test.skip(!hasRecs, 'No embeddings available for recommendations');
 
     await authenticatedPage.route('**/v1/recommend/radio/seeds', route => {
       route.fulfill({
@@ -91,6 +104,8 @@ test.describe('Radio', () => {
   test('should populate queue after DJ session start', async ({ authenticatedPage }) => {
     const seeds = await fetchRealSeeds(authenticatedPage);
     test.skip(seeds.length < 2, 'Not enough tracks in test library for radio seeds');
+    const hasRecs = await hasRecommendationSupport(authenticatedPage);
+    test.skip(!hasRecs, 'No embeddings available for recommendations');
 
     await authenticatedPage.route('**/v1/recommend/radio/seeds', route => {
       route.fulfill({
@@ -124,6 +139,8 @@ test.describe('Radio', () => {
   test('should show karaoke button that toggles gracefully', async ({ authenticatedPage }) => {
     const seeds = await fetchRealSeeds(authenticatedPage);
     test.skip(seeds.length < 2, 'Not enough tracks in test library for radio seeds');
+    const hasRecs = await hasRecommendationSupport(authenticatedPage);
+    test.skip(!hasRecs, 'No embeddings available for recommendations');
 
     await authenticatedPage.route('**/v1/recommend/radio/seeds', route => {
       route.fulfill({
