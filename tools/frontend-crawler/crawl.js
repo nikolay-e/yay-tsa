@@ -18,15 +18,24 @@ const results = {
   consoleWarnings: [],
 };
 
-async function login(page) {
-  await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
-  await page.fill('input[type="text"]', USERNAME);
-  await page.fill('input[type="password"]', PASSWORD);
-  await page.click('button');
-  await page.waitForURL(url => !url.toString().includes('/login'), {
-    timeout: 15000,
-  });
-  await page.waitForTimeout(1000);
+async function login(page, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.fill('input[type="text"]', USERNAME);
+      await page.fill('input[type="password"]', PASSWORD);
+      await page.click('button');
+      await page.waitForURL(url => !url.toString().includes('/login'), {
+        timeout: 30000,
+      });
+      await page.waitForTimeout(1000);
+      return;
+    } catch (err) {
+      console.log(`Login attempt ${i + 1}/${retries} failed: ${err.message}`);
+      if (i < retries - 1) await page.waitForTimeout(5000);
+    }
+  }
+  throw new Error('Login failed after retries');
 }
 
 function extractLinks(page) {
