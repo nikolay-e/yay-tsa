@@ -93,24 +93,18 @@ http {
             add_header Content-Type text/plain;
         }
 
-        # Vite assets - content-hashed JS/CSS, safe to cache forever
+        # Vite assets - content-hashed, no CDN caching to avoid stale 404s during deploys
         location /assets/ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
             include /var/cache/nginx/security-headers.conf;
         }
 
-        # Workbox runtime - content-hashed, safe to cache forever
+        # Workbox runtime
         location ~ ^/workbox-[a-f0-9]+\.js$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
             include /var/cache/nginx/security-headers.conf;
         }
 
-        # Static assets - images, fonts (not in _app/, so safe to cache)
+        # Static assets - images, fonts
         location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
             include /var/cache/nginx/security-headers.conf;
         }
 
