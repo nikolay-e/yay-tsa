@@ -23,7 +23,7 @@ http {
     access_log /dev/stdout main;
 
     limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
-    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=30r/m;
     limit_req_zone $binary_remote_addr zone=stream_limit:10m rate=10r/s;
     limit_conn_zone $binary_remote_addr zone=stream_conn:10m;
 
