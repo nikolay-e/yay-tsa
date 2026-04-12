@@ -21,6 +21,9 @@ public record UserResponse(
   public record UserPolicy(
       @JsonProperty("IsAdministrator") boolean isAdministrator,
       @JsonProperty("IsHidden") boolean isHidden,
+      @JsonProperty("EnableCollectionManagement") boolean enableCollectionManagement,
+      @JsonProperty("EnableSubtitleManagement") boolean enableSubtitleManagement,
+      @JsonProperty("EnableLyricManagement") boolean enableLyricManagement,
       @JsonProperty("IsDisabled") boolean isDisabled,
       @JsonProperty("EnableUserPreferenceAccess") boolean enableUserPreferenceAccess,
       @JsonProperty("EnableRemoteControlOfOtherUsers") boolean enableRemoteControlOfOtherUsers,
@@ -40,6 +43,7 @@ public record UserResponse(
       @JsonProperty("EnableAllDevices") boolean enableAllDevices,
       @JsonProperty("EnableAllChannels") boolean enableAllChannels,
       @JsonProperty("EnableAllFolders") boolean enableAllFolders,
+      @JsonProperty("EnablePublicSharing") boolean enablePublicSharing,
       @JsonProperty("InvalidLoginAttemptCount") int invalidLoginAttemptCount,
       @JsonProperty("LoginAttemptsBeforeLockout") int loginAttemptsBeforeLockout,
       @JsonProperty("MaxActiveSessions") int maxActiveSessions,
@@ -85,6 +89,9 @@ public record UserResponse(
     return new UserPolicy(
         false, // isAdministrator
         false, // isHidden
+        false, // enableCollectionManagement
+        false, // enableSubtitleManagement
+        false, // enableLyricManagement
         false, // isDisabled
         true, // enableUserPreferenceAccess
         false, // enableRemoteControlOfOtherUsers
@@ -104,6 +111,7 @@ public record UserResponse(
         true, // enableAllDevices
         true, // enableAllChannels
         true, // enableAllFolders
+        false, // enablePublicSharing
         0, // invalidLoginAttemptCount
         3, // loginAttemptsBeforeLockout
         0, // maxActiveSessions (0 = unlimited)

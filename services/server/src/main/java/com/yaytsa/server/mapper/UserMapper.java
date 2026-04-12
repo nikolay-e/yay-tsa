@@ -35,6 +35,9 @@ public class UserMapper {
     return new UserResponse.UserPolicy(
         entity.isAdmin(),
         false,
+        false, // enableCollectionManagement
+        false, // enableSubtitleManagement
+        false, // enableLyricManagement
         !entity.isActive(),
         true,
         entity.isAdmin(),
@@ -54,6 +57,7 @@ public class UserMapper {
         true,
         true,
         true,
+        false, // enablePublicSharing
         0,
         3,
         0,
