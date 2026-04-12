@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping({"/Items", "/Users/{userId}/Items"})
+@RequestMapping("/Items")
 @Tag(name = "Items", description = "Media library item management")
 @Transactional(readOnly = true)
 public class ItemsController {
@@ -305,6 +305,146 @@ public class ItemsController {
     BaseItemResponse dto = convertToDto(item, userUuid, true);
 
     return ResponseEntity.ok(dto);
+  }
+
+  @Operation(summary = "Get album tracks", description = "Retrieve all tracks for a specific album")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully retrieved tracks"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format")
+      })
+  @GetMapping("/{albumId}/Tracks")
+  public ResponseEntity<QueryResultResponse<BaseItemResponse>> getAlbumTracks(
+      @PathVariable String albumId,
+      @RequestParam(value = "userId", required = false) String userId,
+      @RequestParam(defaultValue = "0") int startIndex,
+      @RequestParam(defaultValue = "100") int limit,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
+
+    UUID albumUuid = UuidUtils.parseUuid(albumId);
+    if (albumUuid == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid album ID");
+    }
+
+    UUID userUuid = userId != null ? UuidUtils.parseUuid(userId) : null;
+    if (userId != null && userUuid == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
+    }
+    if (userUuid != null && !isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+    }
+
+    List<AudioTrackEntity> tracks = itemService.getAlbumTracks(albumUuid);
+
+    List<AudioTrackEntity> paginatedTracks = tracks.stream().skip(startIndex).limit(limit).toList();
+
+    List<UUID> trackItemIds = paginatedTracks.stream().map(AudioTrackEntity::getItemId).toList();
+
+    Map<UUID, PlayStateEntity> playStateMap =
+        (userUuid != null && !trackItemIds.isEmpty())
+            ? playStateService.getPlayStatesForItems(userUuid, trackItemIds)
+            : Collections.emptyMap();
+
+    Map<UUID, String> lyricsMap =
+        paginatedTracks.isEmpty()
+            ? Collections.emptyMap()
+            : lyricsService.getLyricsForTracks(paginatedTracks);
+
+    List<BaseItemResponse> dtos =
+        paginatedTracks.stream()
+            .map(
+                track ->
+                    itemMapper.toDto(
+                        track.getItem(),
+                        playStateMap.get(track.getItemId()),
+                        track,
+                        null,
+                        null,
+                        lyricsMap.get(track.getItemId())))
+            .collect(Collectors.toList());
+
+    QueryResultResponse<BaseItemResponse> result =
+        new QueryResultResponse<>(dtos, tracks.size(), startIndex);
+
+    return ResponseEntity.ok(result);
+  }
+
+  @Operation(summary = "Mark item as favorite", description = "Add item to user's favorites")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully marked as favorite"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format")
+      })
+  @Transactional
+  @PostMapping("/{itemId}/Favorite")
+  public ResponseEntity<Void> markFavorite(
+      @PathVariable String itemId,
+      @RequestParam(value = "userId", required = true) String userId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
+
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
+    if (itemUuid == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
+    }
+
+    UUID userUuid = UuidUtils.parseUuid(userId);
+    if (userUuid == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
+    }
+
+    if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+    }
+
+    if (itemService.findById(itemUuid).isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
+    }
+
+    playStateService.setFavorite(userUuid, itemUuid, true);
+
+    return ResponseEntity.ok().build();
+  }
+
+  @Operation(summary = "Unmark item as favorite", description = "Remove item from user's favorites")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Successfully unmarked as favorite"),
+        @ApiResponse(responseCode = "400", description = "Invalid ID format")
+      })
+  @Transactional
+  @DeleteMapping("/{itemId}/Favorite")
+  public ResponseEntity<Void> unmarkFavorite(
+      @PathVariable String itemId,
+      @RequestParam(value = "userId", required = true) String userId,
+      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestParam(value = "api_key", required = false) String apiKey) {
+
+    UUID itemUuid = UuidUtils.parseUuid(itemId);
+    if (itemUuid == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid item ID");
+    }
+
+    UUID userUuid = UuidUtils.parseUuid(userId);
+    if (userUuid == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user ID");
+    }
+
+    if (!isOwnerOrAdmin(userUuid, authenticatedUser)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+    }
+
+    if (itemService.findById(itemUuid).isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
+    }
+
+    playStateService.setFavorite(userUuid, itemUuid, false);
+
+    return ResponseEntity.ok().build();
   }
 
   @Operation(
