@@ -362,3 +362,121 @@ jobs:
       - name: Cleanup
         if: always()
         run: docker compose --profile e2e-test down -v
+
+  post-deploy-qa:
+    name: Post-Deploy QA
+    needs: [docker-build-frontend, docker-build-backend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '22'
+
+      - name: Install Schemathesis
+        run: pip install schemathesis
+
+      - name: Install crawler dependencies
+        working-directory: tools/frontend-crawler
+        run: npm ci && npx playwright install chromium
+
+      - name: Generate image tags
+        id: tags
+        run: echo "expected_tag=main-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for rollout
+        env:
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          PROD_URL: https://yay-tsa.com
+        run: |
+          EXPECTED="${{ steps.tags.outputs.expected_tag }}"
+          echo "Waiting for backend version: $EXPECTED"
+          for i in $(seq 1 40); do
+            VERSION=$(curl -sf "$PROD_URL/api/System/Info/Public" | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version',''))" 2>/dev/null || echo "")
+            if [ "$VERSION" = "$EXPECTED" ]; then
+              echo "Backend deployed: $VERSION"
+              break
+            fi
+            echo "Attempt $i/40: got '$VERSION', expected '$EXPECTED'"
+            sleep 15
+          done
+          if [ "$VERSION" != "$EXPECTED" ]; then
+            echo "::warning::Backend version mismatch: got '$VERSION', expected '$EXPECTED'. Running QA anyway."
+          fi
+          HEALTH=$(curl -sf "$PROD_URL/api/manage/health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "DOWN")
+          if [ "$HEALTH" != "UP" ]; then
+            echo "::error::Health check failed: $HEALTH"
+            exit 1
+          fi
+          echo "Health: UP"
+
+      - name: Run Schemathesis
+        continue-on-error: true
+        env:
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          PROD_URL: https://yay-tsa.com
+        run: |
+          TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
+            -H "Content-Type: application/json" \
+            -d "{\"Username\":\"test\",\"Pw\":\"$QA_PASSWORD\"}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
+          curl -sf "$PROD_URL/api/api-docs" > /tmp/openapi.json
+          python3 -c "
+          import json
+          with open('/tmp/openapi.json') as f: spec = json.load(f)
+          spec['servers'] = [{'url': '$PROD_URL/api'}]
+          with open('/tmp/openapi.json', 'w') as f: json.dump(spec, f)
+          "
+          st run /tmp/openapi.json \
+            --url "$PROD_URL/api" \
+            -H "Authorization: Bearer $TOKEN" \
+            --checks all \
+            --exclude-checks ignored_auth,unsupported_method \
+            2>&1 | tee /tmp/schemathesis.txt
+
+      - name: Run ZAP
+        continue-on-error: true
+        env:
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          PROD_URL: https://yay-tsa.com
+        run: |
+          TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
+            -H "Content-Type: application/json" \
+            -d "{\"Username\":\"test\",\"Pw\":\"$QA_PASSWORD\"}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
+          docker run --rm -v /tmp:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
+            -t /zap/wrk/openapi.json \
+            -f openapi \
+            -z "-config replacer.full_list(0).description=auth -config replacer.full_list(0).enabled=true -config replacer.full_list(0).matchtype=REQ_HEADER -config replacer.full_list(0).matchstr=Authorization -config replacer.full_list(0).regex=false -config replacer.full_list(0).replacement='Bearer $TOKEN'" \
+            -J /zap/wrk/zap-report.json \
+            -I \
+            2>&1 | tee /tmp/zap.txt
+
+      - name: Cooldown after API scans
+        run: sleep 30
+
+      - name: Run frontend crawler
+        continue-on-error: true
+        env:
+          CRAWL_URL: https://yay-tsa.com
+          CRAWL_USERNAME: test
+          CRAWL_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          CRAWL_MAX_PAGES: '30'
+        working-directory: tools/frontend-crawler
+        run: node crawl.js 2>&1 | tee /tmp/crawler.txt
+
+      - name: Upload QA reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: post-deploy-qa-reports
+          path: /tmp/*.txt
+          retention-days: 7

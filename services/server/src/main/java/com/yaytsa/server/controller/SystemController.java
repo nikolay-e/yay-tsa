@@ -18,7 +18,7 @@ public class SystemController {
   @Value("${yaytsa.server.name:Yay-Tsa Media Server}")
   private String serverName;
 
-  @Value("${yaytsa.server.version:0.1.0}")
+  @Value("${yaytsa.server.version:${APP_VERSION:0.1.0}}")
   private String version;
 
   @Value("${yaytsa.server.id:yaytsa-default}")
