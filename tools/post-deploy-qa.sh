@@ -124,6 +124,9 @@ fi
 
 # --- Phase 4: Frontend Crawler ---
 log ""
+log "Cooling down after API scans (30s)..."
+sleep 30
+
 log "Phase 4: Frontend crawler (Playwright + axe)..."
 
 crawler_exit=0
