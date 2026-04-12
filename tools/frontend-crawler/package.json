@@ -1,0 +1,14 @@
+{
+  "name": "@yay-tsa/frontend-crawler",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawl": "node crawl.js",
+    "crawl:prod": "CRAWL_URL=https://yay-tsa.com node crawl.js"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "playwright": "^1.52.0"
+  }
+}

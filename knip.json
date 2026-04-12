@@ -35,5 +35,9 @@
   ],
   "ignoreBinaries": ["pre-commit", "tsc"],
   "ignoreExportsUsedInFile": true,
-  "ignore": ["apps/web/src/features/**/stores/*.ts", "apps/web/src/features/**/hooks/*.ts"]
+  "ignore": [
+    "apps/web/src/features/**/stores/*.ts",
+    "apps/web/src/features/**/hooks/*.ts",
+    "tools/**"
+  ]
 }

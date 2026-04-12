@@ -17,17 +17,18 @@ export function useDjAutoRefill() {
       const { activeSession, error } = useSessionStore.getState();
       if (!activeSession || refillPendingRef.current) return;
 
-      if (error) {
-        consecutiveErrorsRef.current++;
-        return;
-      }
-
       const backoffMs = Math.min(
         BASE_INTERVAL_MS * Math.pow(2, consecutiveErrorsRef.current),
         MAX_BACKOFF_MS
       );
       const now = Date.now();
       if (now - lastAttemptRef.current < backoffMs) return;
+
+      if (error) {
+        consecutiveErrorsRef.current++;
+        lastAttemptRef.current = now;
+        return;
+      }
 
       const { queueItems, queueIndex } = usePlayerStore.getState();
       if (queueItems.length === 0 || queueIndex < 0) return;

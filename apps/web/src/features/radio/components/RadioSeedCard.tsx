@@ -48,7 +48,7 @@ export function RadioSeedCard({ seed }: Readonly<{ seed: RadioSeed }>) {
           className="h-full w-full object-cover"
           onError={onError}
         />
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
           <div
             className={cn(
               'flex h-10 w-10 items-center justify-center',

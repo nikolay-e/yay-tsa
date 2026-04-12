@@ -44,12 +44,12 @@ export const ArtistCard = memo(
             onError={onImageError}
           />
         </div>
-        <h3
+        <h2
           data-testid="artist-name"
           className="text-text-primary truncate text-center font-medium"
         >
           {artist.Name}
-        </h3>
+        </h2>
         <p className="text-text-secondary truncate text-center text-sm">
           {albumCount} {albumCount === 1 ? 'album' : 'albums'}
         </p>
