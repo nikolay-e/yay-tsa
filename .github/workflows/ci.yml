@@ -143,8 +143,6 @@ jobs:
 
   docker-build-frontend:
     name: Build Frontend Image
-    needs: [build-android-apk]
-    if: ${{ !cancelled() && needs.build-android-apk.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -155,14 +153,15 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download Android APK
-        if: needs.build-android-apk.result == 'success'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        continue-on-error: true
+        id: apk-download
         with:
           name: android-apk
           path: apps/web/public/downloads
 
       - name: Rename APK
-        if: needs.build-android-apk.result == 'success'
+        if: steps.apk-download.outcome == 'success'
         run: mv apps/web/public/downloads/app-release.apk apps/web/public/downloads/yay-tsa.apk
 
       - name: Build and push
