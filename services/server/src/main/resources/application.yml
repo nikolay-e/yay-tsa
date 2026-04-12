@@ -50,7 +50,7 @@ spring:
 
   # Jackson JSON Configuration
   jackson:
-    default-property-inclusion: non_null
+    default-property-inclusion: always
     deserialization:
       fail-on-unknown-properties: false
     serialization:
