@@ -31,6 +31,8 @@ public class BearerAuthFilter extends OncePerRequestFilter {
       List.of(
           new AntPathRequestMatcher("/Users/AuthenticateByName"),
           new AntPathRequestMatcher("/System/Info/Public"),
+          new AntPathRequestMatcher("/System/Ping"),
+          new AntPathRequestMatcher("/Items/*/Images/**"),
           new AntPathRequestMatcher("/error"),
           new AntPathRequestMatcher("/api-docs/**"),
           new AntPathRequestMatcher("/swagger-ui/**"),
