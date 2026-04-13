@@ -37,7 +37,11 @@ public class ItemMapper {
       Integer childCount,
       String lyrics) {
     String type = mapItemType(item.getType());
-    BaseItemResponse.UserItemDataDto userData = playState != null ? mapUserData(playState) : null;
+    BaseItemResponse.UserItemDataDto userData =
+        playState != null
+            ? mapUserData(playState)
+            : new BaseItemResponse.UserItemDataDto(
+                null, null, null, 0L, 0, false, null, null, false, null, null);
 
     var builder =
         BaseItemResponse.builder()
