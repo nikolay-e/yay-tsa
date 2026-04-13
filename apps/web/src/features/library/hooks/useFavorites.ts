@@ -23,7 +23,15 @@ function patchFavoriteInData(data: unknown, itemId: string, isFavorite: boolean)
 
   const record = data as Record<string, unknown>;
 
-  if (record.Id === itemId && record.UserData && typeof record.UserData === 'object') {
+  if (record.Id === itemId) {
+    if (!record.UserData || typeof record.UserData !== 'object') {
+      record.UserData = {
+        PlaybackPositionTicks: 0,
+        PlayCount: 0,
+        IsFavorite: false,
+        Played: false,
+      };
+    }
     (record.UserData as Record<string, unknown>).IsFavorite = isFavorite;
     return true;
   }

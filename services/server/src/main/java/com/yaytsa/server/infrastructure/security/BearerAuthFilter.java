@@ -123,6 +123,9 @@ public class BearerAuthFilter extends OncePerRequestFilter {
     }
 
     String apiKeyParam = request.getParameter(API_KEY_PARAM);
+    if (apiKeyParam == null || apiKeyParam.isBlank()) {
+      apiKeyParam = request.getParameter("ApiKey");
+    }
     if (apiKeyParam != null && !apiKeyParam.isBlank()) {
       return Optional.of(apiKeyParam);
     }

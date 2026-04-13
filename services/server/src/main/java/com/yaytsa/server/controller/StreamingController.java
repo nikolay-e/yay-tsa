@@ -35,7 +35,7 @@ public class StreamingController {
         @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "404", description = "Track not found")
       })
-  @GetMapping("/Audio/{itemId}/stream")
+  @GetMapping({"/Audio/{itemId}/stream", "/Items/{itemId}/File"})
   public void streamAudio(
       @PathVariable UUID itemId,
       @RequestHeader(value = "Range", required = false) String range,
