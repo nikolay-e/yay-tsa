@@ -30,7 +30,10 @@ public class GenresController {
         genres.stream()
             .skip(startIndex)
             .limit(limit)
-            .map(g -> Map.<String, Object>of("Name", g.getName(), "Id", g.getId().toString(), "Type", "Genre"))
+            .map(
+                g ->
+                    Map.<String, Object>of(
+                        "Name", g.getName(), "Id", g.getId().toString(), "Type", "Genre"))
             .toList();
     return ResponseEntity.ok(new QueryResultResponse<>(items, total, startIndex));
   }

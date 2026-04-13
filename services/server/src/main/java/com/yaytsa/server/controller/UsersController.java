@@ -158,6 +158,8 @@ public class UsersController {
     List<String> itemTypesList =
         includeItemTypes != null ? Arrays.asList(includeItemTypes.split(",")) : null;
 
+    Boolean effectiveFavorite = mergeIsFavoriteFilter(isFavorite, filters);
+
     ItemService.ItemsQueryParams params =
         new ItemService.ItemsQueryParams(
             userUuid,
@@ -172,7 +174,7 @@ public class UsersController {
             null,
             null,
             null,
-            isFavorite);
+            effectiveFavorite);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
     List<BaseItemResponse> itemDtos =
@@ -346,6 +348,17 @@ public class UsersController {
         new QueryResultResponse<>(itemDtos, Math.toIntExact(itemsPage.getTotalElements()), 0);
 
     return ResponseEntity.ok(result);
+  }
+
+  private static Boolean mergeIsFavoriteFilter(Boolean isFavorite, String filters) {
+    if (isFavorite != null) return isFavorite;
+    if (filters != null
+        && Arrays.stream(filters.split(","))
+            .map(String::trim)
+            .anyMatch(f -> f.equalsIgnoreCase("IsFavorite"))) {
+      return true;
+    }
+    return null;
   }
 
   private List<BaseItemResponse> mapItemsToResponses(

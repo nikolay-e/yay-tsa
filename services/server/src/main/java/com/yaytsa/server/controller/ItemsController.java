@@ -174,6 +174,8 @@ public class ItemsController {
 
     int validLimit = Math.max(1, Math.min(limit, MAX_PAGE_SIZE));
 
+    Boolean effectiveFavorite = mergeIsFavoriteFilter(isFavorite, filters);
+
     ItemService.ItemsQueryParams params =
         new ItemService.ItemsQueryParams(
             userUuid,
@@ -188,7 +190,7 @@ public class ItemsController {
             artistUuids,
             albumUuids,
             genreUuids,
-            isFavorite);
+            effectiveFavorite);
 
     Page<ItemEntity> itemsPage = itemService.queryItems(params);
     List<ItemEntity> items = itemsPage.getContent();
@@ -536,6 +538,17 @@ public class ItemsController {
 
     playlistService.deletePlaylist(itemUuid);
     return ResponseEntity.noContent().build();
+  }
+
+  private static Boolean mergeIsFavoriteFilter(Boolean isFavorite, String filters) {
+    if (isFavorite != null) return isFavorite;
+    if (filters != null
+        && Arrays.stream(filters.split(","))
+            .map(String::trim)
+            .anyMatch(f -> f.equalsIgnoreCase("IsFavorite"))) {
+      return true;
+    }
+    return null;
   }
 
   private List<String> parseCommaSeparatedList(String value) {
