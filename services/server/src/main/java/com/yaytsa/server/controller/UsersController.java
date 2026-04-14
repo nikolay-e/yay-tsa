@@ -152,9 +152,6 @@ public class UsersController {
     }
 
     UUID parentUuid = parentId != null ? UuidUtils.parseUuid(parentId) : null;
-    if (parentId != null && parentUuid == null) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid parent item ID");
-    }
 
     List<String> itemTypesList =
         includeItemTypes != null ? Arrays.asList(includeItemTypes.split(",")) : null;
