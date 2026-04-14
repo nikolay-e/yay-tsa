@@ -110,7 +110,8 @@ public class UsersController {
   @GetMapping("/{userId}/Items")
   public ResponseEntity<QueryResultResponse<BaseItemResponse>> getUserItems(
       @Parameter(description = "User ID") @PathVariable String userId,
-      @Parameter(description = "Parent item ID") @RequestParam(required = false) String parentId,
+      @Parameter(description = "Parent item ID") @RequestParam(value = "ParentId", required = false)
+          String parentId,
       @Parameter(description = "Item types to include (e.g., Playlist, MusicAlbum)")
           @RequestParam(value = "IncludeItemTypes", required = false)
           String includeItemTypes,
