@@ -152,15 +152,6 @@ public class ListeningSessionService {
     }
   }
 
-  @Scheduled(fixedDelay = 86400_000)
-  public void purgeOldSessions() {
-    OffsetDateTime cutoff = OffsetDateTime.now().minusDays(7);
-    int deleted = sessionRepository.deleteEndedBefore(cutoff);
-    if (deleted > 0) {
-      log.info("Purged {} ended listening sessions older than 7 days", deleted);
-    }
-  }
-
   private void applyTypedFields(ListeningSessionEntity session, Map<String, Object> stateMap) {
     session.setEnergy(extractFloat(stateMap, "energy"));
     session.setIntensity(extractFloat(stateMap, "intensity"));
