@@ -1,5 +1,8 @@
 replicaCount: 1
 
+autoscaling:
+  enabled: false
+
 frontend:
   image:
     repository: ghcr.io/nikolay-e/yay-tsa/frontend
