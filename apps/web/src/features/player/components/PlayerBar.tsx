@@ -11,6 +11,7 @@ import {
   Pause,
   Radio,
   MonitorSmartphone,
+  Users,
 } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -41,6 +42,7 @@ import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
+import { useGroupSyncStore } from '../stores/group-sync-store';
 import { MobileFullPlayer } from './MobileFullPlayer';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
@@ -48,6 +50,7 @@ import { SleepTimerModal } from './SleepTimerModal';
 import { VolumeControls } from './VolumeControls';
 import { PlaybackControls } from './PlaybackControls';
 import { DevicesPanel } from './DevicesPanel';
+import { GroupSyncPanel } from './GroupSyncPanel';
 
 function TrackInfo({
   track,
@@ -131,6 +134,8 @@ export function PlayerBar() {
   const [showLyricsView, setShowLyricsView] = useState(false);
   const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
+  const [showGroupSync, setShowGroupSync] = useState(false);
+  const groupMode = useGroupSyncStore(s => s.mode);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const activeSession = useActiveSession();
   const { sendSignal } = useSessionActions();
@@ -524,6 +529,19 @@ export function PlayerBar() {
 
           <button
             type="button"
+            onClick={() => setShowGroupSync(true)}
+            className={cn(
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+              groupMode === 'group' ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+            )}
+            aria-label="Group listen"
+            title={groupMode === 'group' ? 'In group' : 'Group listen'}
+          >
+            <Users className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowDevices(true)}
             className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Devices"
@@ -537,6 +555,7 @@ export function PlayerBar() {
       </div>
 
       <DevicesPanel isOpen={showDevices} onClose={() => setShowDevices(false)} />
+      <GroupSyncPanel isOpen={showGroupSync} onClose={() => setShowGroupSync(false)} />
       <SleepTimerModal
         isOpen={showSleepModal}
         onClose={() => setShowSleepModal(false)}

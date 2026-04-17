@@ -82,5 +82,16 @@ export {
   type LogLevel,
 } from './internal/utils/logger.js';
 
+// Sync
+export { ServerClock } from './sync/server-clock.js';
+export { GroupSyncService } from './sync/group-sync.service.js';
+export type {
+  PlaybackSchedule,
+  GroupMember,
+  GroupSnapshot,
+  ScheduleUpdateResponse,
+  ScheduleAction,
+} from './sync/group-sync.types.js';
+
 // Types and models
 export * from './internal/models/types.js';
