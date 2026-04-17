@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AudioItem } from '@yay-tsa/core';
-import { Mic, Timer, AlignLeft, ThumbsUp, ThumbsDown, Play, Pause, Radio } from 'lucide-react';
+import {
+  Mic,
+  Timer,
+  AlignLeft,
+  ThumbsUp,
+  ThumbsDown,
+  Play,
+  Pause,
+  Radio,
+  MonitorSmartphone,
+} from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
@@ -31,12 +41,16 @@ import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
+import { useDeviceHeartbeat } from '../hooks/useDeviceHeartbeat';
+import { useRemoteCommands } from '../hooks/useRemoteCommands';
+import { useDeviceEvents } from '../hooks/useDeviceEvents';
 import { MobileFullPlayer } from './MobileFullPlayer';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
 import { SleepTimerModal } from './SleepTimerModal';
 import { VolumeControls } from './VolumeControls';
 import { PlaybackControls } from './PlaybackControls';
+import { DevicesPanel } from './DevicesPanel';
 
 function TrackInfo({
   track,
@@ -119,6 +133,7 @@ export function PlayerBar() {
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [showLyricsView, setShowLyricsView] = useState(false);
   const [showFullPlayer, setShowFullPlayer] = useState(false);
+  const [showDevices, setShowDevices] = useState(false);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const activeSession = useActiveSession();
   const { sendSignal } = useSessionActions();
@@ -137,6 +152,9 @@ export function PlayerBar() {
   useAlbumColors();
   useSignalEmitter();
   useDjAutoRefill();
+  useDeviceHeartbeat();
+  useRemoteCommands();
+  useDeviceEvents();
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     currentTrack?.Id ?? '',
     currentTrack?.AlbumPrimaryImageTag,
@@ -510,10 +528,21 @@ export function PlayerBar() {
             )}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowDevices(true)}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Devices"
+            title="My devices"
+          >
+            <MonitorSmartphone className="h-4 w-4" />
+          </button>
+
           <VolumeControls volume={volume} onVolumeChange={handleSetVolume} />
         </div>
       </div>
 
+      <DevicesPanel isOpen={showDevices} onClose={() => setShowDevices(false)} />
       <SleepTimerModal
         isOpen={showSleepModal}
         onClose={() => setShowSleepModal(false)}

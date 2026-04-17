@@ -21,6 +21,14 @@ export {
   type CreateUserResult,
 } from './api/admin.service.js';
 export { AdaptiveDjService } from './api/adaptive-dj.service.js';
+export { DeviceService } from './api/device.service.js';
+export type {
+  DeviceInfo,
+  DeviceStateEvent,
+  TransferPayload,
+  RemoteCommand,
+  RemoteCommandType,
+} from './api/device.types.js';
 export type {
   ListeningSession,
   SessionState,
