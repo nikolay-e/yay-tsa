@@ -138,4 +138,9 @@ export interface AudioEngine {
    * Apply ReplayGain normalization (null = reset to 0 dB)
    */
   setNormalizationGain?(gainDb: number | null): void;
+
+  /**
+   * Set playback rate for drift correction (1.0 = normal, 0.98-1.02 typical range)
+   */
+  setPlaybackRate?(rate: number): void;
 }

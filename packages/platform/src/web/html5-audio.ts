@@ -485,6 +485,13 @@ export class HTML5AudioEngine implements AudioEngine {
     }
   }
 
+  setPlaybackRate(rate: number): void {
+    this.ensureNotDisposed();
+    const clamped = Math.max(0.5, Math.min(2.0, rate));
+    this.audio.playbackRate = clamped;
+    this.audio.preservesPitch = true;
+  }
+
   setNormalizationGain(gainDb: number | null): void {
     this.normalizationFactor = gainDb === null ? 1 : Math.pow(10, gainDb / 20);
     if (this.inputBus && this.audioContext) {

@@ -110,7 +110,6 @@ public class DevicePresenceService {
   }
 
   @Scheduled(fixedRate = 30000)
-  @Transactional
   public void markOfflineDevices() {
     OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(OFFLINE_TIMEOUT_SECONDS);
 
