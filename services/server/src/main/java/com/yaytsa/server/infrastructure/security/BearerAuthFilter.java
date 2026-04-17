@@ -39,7 +39,8 @@ public class BearerAuthFilter extends OncePerRequestFilter {
           new AntPathRequestMatcher("/swagger-ui.html"),
           new AntPathRequestMatcher("/v3/api-docs/**"),
           new AntPathRequestMatcher("/manage/health"),
-          new AntPathRequestMatcher("/manage/health/**"));
+          new AntPathRequestMatcher("/manage/health/**"),
+          new AntPathRequestMatcher("/v1/time"));
 
   private final AuthService authService;
 

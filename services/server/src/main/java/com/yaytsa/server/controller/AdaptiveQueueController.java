@@ -87,9 +87,11 @@ public class AdaptiveQueueController {
       })
   @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamQueueUpdates(
-      @PathVariable UUID sessionId, @AuthenticationPrincipal AuthenticatedUser user) {
+      @PathVariable UUID sessionId,
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {
     sessionService.verifyOwnership(sessionId, user);
-    return sseService.createEmitter(sessionId);
+    return sseService.createEmitter(sessionId, lastEventId);
   }
 
   private AdaptiveQueueResponse toResponse(

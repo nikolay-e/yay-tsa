@@ -46,6 +46,12 @@ public class ListeningSessionService {
 
   public ListeningSessionEntity createSession(
       UUID userId, Map<String, Object> initialState, UUID seedTrackId) {
+    var existing = findActiveSession(userId);
+    if (existing != null) {
+      log.info("Returning existing active session {} for user {}", existing.getId(), userId);
+      return existing;
+    }
+
     UserEntity user =
         userRepository
             .findById(userId)
