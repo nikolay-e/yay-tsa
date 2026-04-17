@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -126,6 +127,15 @@ public class SessionService {
   @Transactional(readOnly = true)
   public Optional<SessionEntity> getSession(UUID sessionId) {
     return sessionRepository.findByIdWithUserAndItem(sessionId);
+  }
+
+  @Scheduled(fixedDelay = 86400_000)
+  public void cleanupOldSessions() {
+    OffsetDateTime cutoff = OffsetDateTime.now().minusDays(7);
+    int deleted = sessionRepository.deleteByLastUpdateBefore(cutoff);
+    if (deleted > 0) {
+      log.info("Deleted {} device sessions inactive for >7 days", deleted);
+    }
   }
 
   public void pingSession(UUID userId, String deviceId) {

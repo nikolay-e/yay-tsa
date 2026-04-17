@@ -41,4 +41,8 @@ public interface SessionRepository extends JpaRepository<SessionEntity, UUID> {
   @EntityGraph(attributePaths = {"user"})
   @Query("SELECT s FROM SessionEntity s WHERE s.online = true" + " AND s.lastHeartbeatAt < :cutoff")
   List<SessionEntity> findOnlineBeforeCutoff(@Param("cutoff") OffsetDateTime cutoff);
+
+  @Modifying
+  @Query(value = "DELETE FROM sessions WHERE last_update < :cutoff", nativeQuery = true)
+  int deleteByLastUpdateBefore(@Param("cutoff") OffsetDateTime cutoff);
 }
