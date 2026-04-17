@@ -259,6 +259,15 @@ public class PlaybackGroupService {
     return groupRepository.findById(groupId).map(g -> g.getListeningSession().getId()).orElse(null);
   }
 
+  @Transactional(readOnly = true)
+  public long computeCurrentPositionMs(UUID groupId) {
+    var schedule = scheduleRepository.findById(groupId).orElse(null);
+    if (schedule == null) return 0;
+    if (schedule.isPaused()) return schedule.getAnchorPositionMs();
+    long elapsed = System.currentTimeMillis() - schedule.getAnchorServerMs();
+    return schedule.getAnchorPositionMs() + Math.max(0, elapsed);
+  }
+
   public int getAdaptiveResumeBufferMs(UUID groupId) {
     var members = memberRepository.findActiveMembers(groupId);
     if (members.isEmpty()) return 300;

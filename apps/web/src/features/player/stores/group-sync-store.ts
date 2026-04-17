@@ -354,6 +354,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
                   player.seek(nowExpected / 1000);
                 } else {
                   player.seek(schedule.anchorPositionMs / 1000);
+                  player.pause();
                 }
               });
             }

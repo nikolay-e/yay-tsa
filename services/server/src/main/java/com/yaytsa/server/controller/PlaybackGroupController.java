@@ -99,6 +99,7 @@ public class PlaybackGroupController {
       @AuthenticationPrincipal AuthenticatedUser user) {
 
     int resumeBuffer = groupService.getAdaptiveResumeBufferMs(id);
+    long currentPositionMs = groupService.computeCurrentPositionMs(id);
 
     long anchorPositionMs;
     boolean isPaused;
@@ -107,11 +108,11 @@ public class PlaybackGroupController {
     switch (request.action()) {
       case "PAUSE" -> {
         isPaused = true;
-        anchorPositionMs = request.positionMs() != null ? request.positionMs() : 0;
+        anchorPositionMs = request.positionMs() != null ? request.positionMs() : currentPositionMs;
       }
       case "PLAY" -> {
         isPaused = false;
-        anchorPositionMs = request.positionMs() != null ? request.positionMs() : 0;
+        anchorPositionMs = request.positionMs() != null ? request.positionMs() : currentPositionMs;
       }
       case "SEEK" -> {
         isPaused = request.paused() != null && request.paused();
