@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @Slf4j
@@ -27,6 +28,7 @@ public class DevicePresenceService {
   private final SessionRepository sessionRepository;
   private final DeviceSseService deviceSseService;
   private final ListeningSessionService listeningSessionService;
+  private final TransactionTemplate transactionTemplate;
 
   private final Cache<String, Queue<Object>> pendingCommands =
       Caffeine.newBuilder().expireAfterWrite(60, TimeUnit.SECONDS).maximumSize(1000).build();
@@ -34,10 +36,12 @@ public class DevicePresenceService {
   public DevicePresenceService(
       SessionRepository sessionRepository,
       DeviceSseService deviceSseService,
-      ListeningSessionService listeningSessionService) {
+      ListeningSessionService listeningSessionService,
+      TransactionTemplate transactionTemplate) {
     this.sessionRepository = sessionRepository;
     this.deviceSseService = deviceSseService;
     this.listeningSessionService = listeningSessionService;
+    this.transactionTemplate = transactionTemplate;
   }
 
   public List<Map<String, Object>> listDevices(UUID userId) {
@@ -113,10 +117,17 @@ public class DevicePresenceService {
   public void markOfflineDevices() {
     OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(OFFLINE_TIMEOUT_SECONDS);
 
-    var goingOffline = sessionRepository.findOnlineBeforeCutoff(cutoff);
-    if (goingOffline.isEmpty()) return;
+    var goingOffline =
+        transactionTemplate.execute(
+            status -> {
+              var sessions = sessionRepository.findOnlineBeforeCutoff(cutoff);
+              if (!sessions.isEmpty()) {
+                sessionRepository.markOffline(cutoff);
+              }
+              return sessions;
+            });
 
-    sessionRepository.markOffline(cutoff);
+    if (goingOffline == null || goingOffline.isEmpty()) return;
 
     for (SessionEntity session : goingOffline) {
       deviceSseService.broadcastToUser(
