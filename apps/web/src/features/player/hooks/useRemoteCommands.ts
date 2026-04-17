@@ -3,6 +3,7 @@ import { DeviceService, type RemoteCommand } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 import { usePlayerStore } from '../stores/player.store';
+import { useGroupSyncStore } from '../stores/group-sync-store';
 
 export function useRemoteCommands() {
   useEffect(() => {
@@ -25,7 +26,28 @@ export function useRemoteCommands() {
     const handleCommand = (event: MessageEvent) => {
       try {
         const cmd = JSON.parse(event.data as string) as RemoteCommand;
+        const groupSync = useGroupSyncStore.getState();
         const store = usePlayerStore.getState();
+
+        // In group mode, only volume is local — everything else goes through schedule
+        if (groupSync.mode === 'group' && cmd.type !== 'SET_VOLUME') {
+          const actionMap: Record<string, string> = {
+            PAUSE: 'PAUSE',
+            PLAY: 'PLAY',
+            NEXT: 'NEXT',
+            PREV: 'PREV',
+          };
+          const action = actionMap[cmd.type];
+          if (action) {
+            void groupSync.sendAction(
+              action as 'PAUSE' | 'PLAY' | 'NEXT' | 'PREV',
+              undefined,
+              cmd.type === 'SEEK' && cmd.payload ? (cmd.payload.positionMs as number) : undefined
+            );
+          }
+          return;
+        }
+
         switch (cmd.type) {
           case 'PAUSE':
             store.pause();

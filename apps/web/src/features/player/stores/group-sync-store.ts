@@ -87,6 +87,9 @@ function computeExpectedPosition(schedule: PlaybackSchedule, clock: ServerClock)
   return schedule.anchorPositionMs + Math.max(0, elapsed);
 }
 
+let lastHardSeekAt = 0;
+const HARD_SEEK_COOLDOWN_MS = 2000;
+
 function startDriftCorrection(store: typeof useGroupSyncStore) {
   if (driftIntervalId) return;
 
@@ -95,7 +98,13 @@ function startDriftCorrection(store: typeof useGroupSyncStore) {
     if (mode !== 'group' || !schedule || schedule.isPaused || !serverClock) return;
 
     const engine = (globalThis as Record<string, unknown>).__playerStore__ as
-      | { readonly audioEngine: { getCurrentTime: () => number; seek: (s: number) => void } | null }
+      | {
+          readonly audioEngine: {
+            getCurrentTime: () => number;
+            seek: (s: number) => void;
+            setPlaybackRate?: (rate: number) => void;
+          } | null;
+        }
       | undefined;
     if (!engine?.audioEngine) return;
 
@@ -106,19 +115,26 @@ function startDriftCorrection(store: typeof useGroupSyncStore) {
     store.setState({ driftMs: Math.round(drift) });
 
     if (Math.abs(drift) < DRIFT_DEAD_ZONE_MS) {
+      if (engine.audioEngine.setPlaybackRate) {
+        engine.audioEngine.setPlaybackRate(1.0);
+      }
       return;
     }
 
+    const now = performance.now();
     if (Math.abs(drift) >= DRIFT_HARD_SEEK_MS) {
+      if (now - lastHardSeekAt < HARD_SEEK_COOLDOWN_MS) return;
       engine.audioEngine.seek(expectedMs / 1000);
+      lastHardSeekAt = now;
       log.player.warn('Hard seek drift correction', { driftMs: Math.round(drift) });
       return;
     }
 
-    // Soft correction via playbackRate — not available through current engine API
-    // Would need: engine.audioEngine.setPlaybackRate(1 - drift/5000)
-    // For now, just log
-    log.player.debug('Soft drift detected', { driftMs: Math.round(drift) });
+    // Soft correction: adjust playbackRate ±2%
+    if (engine.audioEngine.setPlaybackRate) {
+      const rate = Math.max(0.98, Math.min(1.02, 1 - drift / 5000));
+      engine.audioEngine.setPlaybackRate(rate);
+    }
   }, DRIFT_CHECK_MS);
 }
 
@@ -129,7 +145,7 @@ function startHeartbeat(store: typeof useGroupSyncStore) {
     if (mode !== 'group' || !groupId) return;
     const services = getServices();
     if (!services) return;
-    const rttMs = serverClock ? Math.round(serverClock.getOffset()) : undefined;
+    const rttMs = serverClock ? Math.round(serverClock.getRtt()) : undefined;
     services.sync.heartbeat(groupId, rttMs).catch(() => {});
   }, HEARTBEAT_INTERVAL_MS);
 }
@@ -225,6 +241,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
         mode: 'group',
       });
 
+      get().applySchedule(snapshot.schedule);
       connectSSE(result.id, useGroupSyncStore);
       startDriftCorrection(useGroupSyncStore);
       startHeartbeat(useGroupSyncStore);
@@ -323,8 +340,11 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
             const track = items[0];
             if (track) {
               void player.playTrack(track).then(() => {
-                if (!schedule.isPaused) {
-                  player.seek(expectedMs / 1000);
+                if (!schedule.isPaused && serverClock) {
+                  const nowExpected = computeExpectedPosition(schedule, serverClock);
+                  player.seek(nowExpected / 1000);
+                } else {
+                  player.seek(schedule.anchorPositionMs / 1000);
                 }
               });
             }

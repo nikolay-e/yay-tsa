@@ -5,6 +5,7 @@ const RESYNC_INTERVAL_MS = 30_000;
 
 export class ServerClock {
   private offset = 0;
+  private medianRtt = 0;
   private initialized = false;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private timeUrl: string;
@@ -42,6 +43,10 @@ export class ServerClock {
     return this.offset;
   }
 
+  getRtt(): number {
+    return this.medianRtt;
+  }
+
   isReady(): boolean {
     return this.initialized;
   }
@@ -74,6 +79,9 @@ export class ServerClock {
     const trimmed = samples.slice(trimCount, samples.length - trimCount);
 
     if (trimmed.length === 0) return;
+
+    const medianRttSample = trimmed[Math.floor(trimmed.length / 2)];
+    this.medianRtt = medianRttSample.rtt;
 
     trimmed.sort((a, b) => a.offset - b.offset);
     const medianOffset = trimmed[Math.floor(trimmed.length / 2)].offset;
