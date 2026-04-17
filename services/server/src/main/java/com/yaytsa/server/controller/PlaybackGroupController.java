@@ -66,6 +66,14 @@ public class PlaybackGroupController {
         groupService.joinGroup(
             request.joinCode(), user.getDeviceId(), user.getUserEntity().getId());
     var snapshot = groupService.getSnapshot(group.getId());
+    UUID sessionId = group.getListeningSession().getId();
+    sseService.broadcast(
+        sessionId,
+        "member_joined",
+        Map.of(
+            "groupId", group.getId().toString(),
+            "deviceId", user.getDeviceId(),
+            "userId", user.getUserEntity().getId().toString()));
     return ResponseEntity.ok(snapshotToMap(snapshot));
   }
 
@@ -91,9 +99,7 @@ public class PlaybackGroupController {
       @AuthenticationPrincipal AuthenticatedUser user) {
 
     int resumeBuffer = groupService.getAdaptiveResumeBufferMs(id);
-    long now = System.currentTimeMillis();
 
-    long anchorServerMs;
     long anchorPositionMs;
     boolean isPaused;
     UUID trackId = request.trackId();
@@ -102,23 +108,19 @@ public class PlaybackGroupController {
       case "PAUSE" -> {
         isPaused = true;
         anchorPositionMs = request.positionMs() != null ? request.positionMs() : 0;
-        anchorServerMs = now;
       }
       case "PLAY" -> {
         isPaused = false;
         anchorPositionMs = request.positionMs() != null ? request.positionMs() : 0;
-        anchorServerMs = now + resumeBuffer;
       }
       case "SEEK" -> {
         isPaused = request.paused() != null && request.paused();
         anchorPositionMs = request.positionMs() != null ? request.positionMs() : 0;
-        anchorServerMs = isPaused ? now : now + resumeBuffer;
       }
       default -> {
         // NEXT, PREV, JUMP — new track
         isPaused = false;
         anchorPositionMs = 0;
-        anchorServerMs = now + resumeBuffer;
       }
     }
 
@@ -128,7 +130,7 @@ public class PlaybackGroupController {
             user.getDeviceId(),
             request.expectedEpoch(),
             trackId,
-            anchorServerMs,
+            resumeBuffer,
             anchorPositionMs,
             isPaused,
             null,
@@ -136,6 +138,13 @@ public class PlaybackGroupController {
 
     if (!result.success()) {
       return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "epoch_conflict"));
+    }
+
+    if (result.sessionId() != null && result.schedule() != null) {
+      sseService.broadcast(
+          result.sessionId(),
+          "schedule_changed",
+          PlaybackGroupService.scheduleToMap(result.schedule()));
     }
 
     return ResponseEntity.ok(Map.of("scheduleEpoch", result.schedule().getScheduleEpoch()));
@@ -147,7 +156,23 @@ public class PlaybackGroupController {
       @PathVariable UUID id,
       @RequestBody(required = false) HeartbeatRequest request,
       @AuthenticationPrincipal AuthenticatedUser user) {
-    groupService.heartbeat(id, user.getDeviceId(), request != null ? request.rttMs() : null);
+    var result =
+        groupService.heartbeat(id, user.getDeviceId(), request != null ? request.rttMs() : null);
+    if (result == PlaybackGroupService.HeartbeatResult.NOT_FOUND) {
+      return ResponseEntity.notFound().build();
+    }
+    if (result == PlaybackGroupService.HeartbeatResult.REJOINED) {
+      UUID sessionId = groupService.getSessionIdForGroup(id);
+      if (sessionId != null) {
+        sseService.broadcast(
+            sessionId,
+            "member_rejoined",
+            Map.of(
+                "groupId", id.toString(),
+                "deviceId", user.getDeviceId(),
+                "userId", user.getUserEntity().getId().toString()));
+      }
+    }
     return ResponseEntity.noContent().build();
   }
 
@@ -157,7 +182,17 @@ public class PlaybackGroupController {
       @PathVariable UUID id,
       @PathVariable String deviceId,
       @AuthenticationPrincipal AuthenticatedUser user) {
+    UUID sessionId = groupService.getSessionIdForGroup(id);
     groupService.leaveGroup(id, deviceId, user.getUserEntity().getId());
+    if (sessionId != null) {
+      sseService.broadcast(
+          sessionId,
+          "member_left",
+          Map.of(
+              "groupId", id.toString(),
+              "deviceId", deviceId,
+              "userId", user.getUserEntity().getId().toString()));
+    }
     return ResponseEntity.noContent().build();
   }
 
@@ -165,7 +200,11 @@ public class PlaybackGroupController {
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> endGroup(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
+    UUID sessionId = groupService.getSessionIdForGroup(id);
     groupService.endGroup(id, user.getUserEntity().getId());
+    if (sessionId != null) {
+      sseService.broadcast(sessionId, "group_ended", id.toString());
+    }
     return ResponseEntity.noContent().build();
   }
 

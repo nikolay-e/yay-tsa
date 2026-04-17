@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class PlaybackGroupService {
 
-  private static final int JOIN_CODE_LENGTH = 6;
   private static final long STALE_TIMEOUT_MINUTES = 3;
   private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -30,19 +29,16 @@ public class PlaybackGroupService {
   private final PlaybackGroupMemberRepository memberRepository;
   private final PlaybackScheduleRepository scheduleRepository;
   private final ListeningSessionService sessionService;
-  private final QueueSseService sseService;
 
   public PlaybackGroupService(
       PlaybackGroupRepository groupRepository,
       PlaybackGroupMemberRepository memberRepository,
       PlaybackScheduleRepository scheduleRepository,
-      ListeningSessionService sessionService,
-      QueueSseService sseService) {
+      ListeningSessionService sessionService) {
     this.groupRepository = groupRepository;
     this.memberRepository = memberRepository;
     this.scheduleRepository = scheduleRepository;
     this.sessionService = sessionService;
-    this.sseService = sseService;
   }
 
   @Transactional
@@ -102,11 +98,6 @@ public class PlaybackGroupService {
       addMember(group.getId(), deviceId, userId);
     }
 
-    sseService.broadcast(
-        group.getListeningSession().getId(),
-        "member_joined",
-        new MemberEvent(group.getId().toString(), deviceId, userId.toString()));
-
     log.info("Device {} joined group {}", deviceId, group.getId());
     return group;
   }
@@ -133,6 +124,7 @@ public class PlaybackGroupService {
             .orElseThrow(() -> new ResourceNotFoundException(ResourceType.Item, groupId));
 
     memberRepository.deleteByGroupIdAndDeviceId(groupId, deviceId);
+    memberRepository.flush();
 
     if (deviceId.equals(group.getCanonicalDeviceId())) {
       var remaining =
@@ -158,11 +150,6 @@ public class PlaybackGroupService {
       return;
     }
 
-    sseService.broadcast(
-        group.getListeningSession().getId(),
-        "member_left",
-        new MemberEvent(groupId.toString(), deviceId, requestingUserId.toString()));
-
     log.info("Device {} left group {}", deviceId, groupId);
   }
 
@@ -182,9 +169,11 @@ public class PlaybackGroupService {
   }
 
   @Transactional
-  public void heartbeat(UUID groupId, String deviceId, Integer rttMs) {
+  public HeartbeatResult heartbeat(UUID groupId, String deviceId, Integer rttMs) {
     var member = memberRepository.findByGroupIdAndDeviceId(groupId, deviceId).orElse(null);
-    if (member == null) return;
+    if (member == null) {
+      return HeartbeatResult.NOT_FOUND;
+    }
 
     boolean wasStale = member.isStale();
     member.setLastHeartbeatAt(OffsetDateTime.now());
@@ -193,22 +182,29 @@ public class PlaybackGroupService {
     memberRepository.save(member);
 
     if (wasStale) {
-      var group = groupRepository.findById(groupId).orElse(null);
-      if (group != null) {
-        sseService.broadcast(
-            group.getListeningSession().getId(),
-            "member_rejoined",
-            new MemberEvent(groupId.toString(), deviceId, member.getUserId().toString()));
-        log.info("Stale device {} rejoined group {}", deviceId, groupId);
-      }
+      log.info("Stale device {} rejoined group {}", deviceId, groupId);
+      return HeartbeatResult.REJOINED;
     }
+    return HeartbeatResult.OK;
   }
 
   public void verifyMembership(UUID groupId, String deviceId) {
-    if (!memberRepository.findByGroupIdAndDeviceId(groupId, deviceId).isPresent()) {
+    var member = memberRepository.findByGroupIdAndDeviceId(groupId, deviceId).orElse(null);
+    if (member == null) {
       throw new org.springframework.security.access.AccessDeniedException(
           "Not a member of this group");
     }
+    if (member.isStale()) {
+      member.setStale(false);
+      member.setLastHeartbeatAt(OffsetDateTime.now());
+      memberRepository.save(member);
+    }
+  }
+
+  public enum HeartbeatResult {
+    OK,
+    REJOINED,
+    NOT_FOUND
   }
 
   @Transactional
@@ -217,7 +213,7 @@ public class PlaybackGroupService {
       String deviceId,
       long expectedEpoch,
       UUID trackId,
-      long anchorServerMs,
+      int resumeBufferMs,
       long anchorPositionMs,
       boolean isPaused,
       UUID nextTrackId,
@@ -230,26 +226,26 @@ public class PlaybackGroupService {
             groupId,
             expectedEpoch,
             trackId,
-            anchorServerMs,
+            resumeBufferMs,
             anchorPositionMs,
             isPaused,
             nextTrackId,
             nextTrackAnchorMs);
 
     if (updated == 0) {
-      return new ScheduleUpdateResult(false, null);
+      return new ScheduleUpdateResult(false, null, null);
     }
 
     var schedule = scheduleRepository.findById(groupId).orElse(null);
-    if (schedule != null) {
-      var group = groupRepository.findById(groupId).orElse(null);
-      if (group != null) {
-        sseService.broadcast(
-            group.getListeningSession().getId(), "schedule_changed", scheduleToMap(schedule));
-      }
-    }
+    var group = groupRepository.findById(groupId).orElse(null);
+    UUID sessionId = group != null ? group.getListeningSession().getId() : null;
 
-    return new ScheduleUpdateResult(true, schedule);
+    return new ScheduleUpdateResult(true, schedule, sessionId);
+  }
+
+  @Transactional(readOnly = true)
+  public UUID getSessionIdForGroup(UUID groupId) {
+    return groupRepository.findById(groupId).map(g -> g.getListeningSession().getId()).orElse(null);
   }
 
   public int getAdaptiveResumeBufferMs(UUID groupId) {
@@ -292,8 +288,6 @@ public class PlaybackGroupService {
   private void endGroupInternal(PlaybackGroupEntity group) {
     group.setEndedAt(OffsetDateTime.now());
     groupRepository.save(group);
-    sseService.broadcast(
-        group.getListeningSession().getId(), "group_ended", group.getId().toString());
     log.info("Group {} ended", group.getId());
   }
 
@@ -307,7 +301,7 @@ public class PlaybackGroupService {
     return String.valueOf(RANDOM.nextInt(900_000) + 100_000);
   }
 
-  private static java.util.Map<String, Object> scheduleToMap(PlaybackScheduleEntity s) {
+  public static java.util.Map<String, Object> scheduleToMap(PlaybackScheduleEntity s) {
     var map = new java.util.LinkedHashMap<String, Object>();
     map.put("groupId", s.getGroupId().toString());
     map.put("trackId", s.getTrackId().toString());
@@ -325,7 +319,8 @@ public class PlaybackGroupService {
       PlaybackScheduleEntity schedule,
       List<PlaybackGroupMemberEntity> members) {}
 
-  public record ScheduleUpdateResult(boolean success, PlaybackScheduleEntity schedule) {}
+  public record ScheduleUpdateResult(
+      boolean success, PlaybackScheduleEntity schedule, UUID sessionId) {}
 
   public record MemberEvent(String groupId, String deviceId, String userId) {}
 }

@@ -15,7 +15,8 @@ public interface PlaybackScheduleRepository extends JpaRepository<PlaybackSchedu
   @Query(
       value =
           "UPDATE playback_schedule SET track_id = COALESCE(:trackId, track_id),"
-              + " anchor_server_ms = :anchorServerMs,"
+              + " anchor_server_ms = (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT"
+              + " + CASE WHEN :isPaused THEN 0 ELSE :resumeBufferMs END,"
               + " anchor_position_ms = :anchorPositionMs,"
               + " is_paused = :isPaused,"
               + " schedule_epoch = schedule_epoch + 1,"
@@ -28,7 +29,7 @@ public interface PlaybackScheduleRepository extends JpaRepository<PlaybackSchedu
       @Param("groupId") UUID groupId,
       @Param("expectedEpoch") long expectedEpoch,
       @Param("trackId") UUID trackId,
-      @Param("anchorServerMs") long anchorServerMs,
+      @Param("resumeBufferMs") int resumeBufferMs,
       @Param("anchorPositionMs") long anchorPositionMs,
       @Param("isPaused") boolean isPaused,
       @Param("nextTrackId") UUID nextTrackId,
