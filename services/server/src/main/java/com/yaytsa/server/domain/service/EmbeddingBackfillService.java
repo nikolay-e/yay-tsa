@@ -41,29 +41,36 @@ public class EmbeddingBackfillService {
 
   @EventListener(ApplicationReadyEvent.class)
   public void onApplicationReady() {
-    Thread.startVirtualThread(
-        () -> {
-          try {
-            Thread.sleep(5000);
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-          }
+    Thread.startVirtualThread(this::waitForExtractorAndBackfill);
+  }
 
-          if (!embeddingClient.isAvailable()) {
-            log.info("Embedding extractor not available, skipping startup backfill");
-            return;
-          }
+  private void waitForExtractorAndBackfill() {
+    int[] delaysSeconds = {5, 30, 60, 120};
+    for (int i = 0; i < delaysSeconds.length; i++) {
+      try {
+        Thread.sleep(delaysSeconds[i] * 1000L);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      }
 
-          long missing = getRemainingCount();
-          if (missing == 0) {
-            log.info("All tracks have embeddings, no backfill needed");
-            return;
-          }
+      if (!embeddingClient.isAvailable()) {
+        if (i < delaysSeconds.length - 1) {
+          log.info("Embedding extractor not available, retrying in {}s", delaysSeconds[i + 1]);
+        }
+        continue;
+      }
 
-          log.info("Found {} tracks without embeddings, starting automatic backfill", missing);
-          startBackfill();
-        });
+      long missing = getRemainingCount();
+      if (missing == 0) {
+        log.info("All tracks have embeddings, no backfill needed");
+        return;
+      }
+      log.info("Found {} tracks without embeddings, starting automatic backfill", missing);
+      startBackfill();
+      return;
+    }
+    log.warn("Embedding extractor not available after all retries, skipping startup backfill");
   }
 
   public boolean isRunning() {

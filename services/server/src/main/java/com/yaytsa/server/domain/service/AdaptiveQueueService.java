@@ -99,9 +99,10 @@ public class AdaptiveQueueService {
   public void triggerDjDecision(
       ListeningSessionEntity session, String triggerType, PlaybackSignalEntity triggerSignal) {
 
-    List<AdaptiveQueueEntity> currentQueue =
-        queueRepository.findBySessionIdAndStatusInOrderByPositionAsc(
-            session.getId(), List.of("QUEUED", "PLAYING"));
+    int currentQueueSize =
+        (int)
+            queueRepository.countBySessionIdAndStatusIn(
+                session.getId(), List.of("QUEUED", "PLAYING"));
 
     boolean manualRefresh = "MANUAL_REFRESH".equals(triggerType);
     long now = System.currentTimeMillis();
@@ -110,7 +111,6 @@ public class AdaptiveQueueService {
         !manualRefresh && lastAttempt != null && (now - lastAttempt) < llmCooldownMs;
 
     Optional<DjSessionParams> params = Optional.empty();
-    int currentQueueSize = currentQueue.size();
     if (!coolingDown) {
       lastLlmAttemptMs.put(session.getId(), now);
 

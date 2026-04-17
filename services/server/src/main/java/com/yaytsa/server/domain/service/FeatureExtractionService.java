@@ -88,7 +88,7 @@ public class FeatureExtractionService {
     }
     var jobs = jobRepository.findByStatusWithItem("PENDING", PageRequest.of(0, batchSize));
     if (jobs.isEmpty()) return;
-    log.info("Processing {} pending feature extraction jobs", jobs.size());
+    log.debug("Processing {} pending feature extraction jobs", jobs.size());
     for (var job : jobs) {
       UUID jobId = job.getId();
       UUID trackId = job.getItem().getId();

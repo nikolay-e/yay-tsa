@@ -27,6 +27,11 @@ public class FeatureExtractionJobScheduler {
     if (pending == 0) {
       return;
     }
+    long processing = featureExtractionService.getProcessingCount();
+    if (processing > 0) {
+      log.debug("{} jobs still processing, {} pending — skipping this cycle", processing, pending);
+      return;
+    }
     log.debug("Processing pending feature extraction jobs, {} in queue", pending);
     featureExtractionService.processPendingJobs(batchSize);
   }

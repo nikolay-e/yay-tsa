@@ -233,7 +233,7 @@ public class ImageService {
           log.debug("Using stored image path: {}", imagePath);
           return Optional.of(imagePath);
         } else {
-          log.warn(
+          log.debug(
               "Stored image path not accessible: path={}, safe={}, exists={}",
               imagePath,
               pathSafe,
