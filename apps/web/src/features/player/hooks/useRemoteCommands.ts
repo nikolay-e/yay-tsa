@@ -6,8 +6,9 @@ import { usePlayerStore } from '../stores/player.store';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 
 export function useRemoteCommands() {
+  const client = useAuthStore(s => s.client);
+
   useEffect(() => {
-    const client = useAuthStore.getState().client;
     if (!client) return;
 
     const service = new DeviceService(client);
@@ -103,5 +104,5 @@ export function useRemoteCommands() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       es?.close();
     };
-  }, []);
+  }, [client]);
 }

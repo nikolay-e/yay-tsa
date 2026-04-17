@@ -4,8 +4,9 @@ import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useDeviceStore } from '../stores/device-store';
 
 export function useDeviceEvents() {
+  const client = useAuthStore(s => s.client);
+
   useEffect(() => {
-    const client = useAuthStore.getState().client;
     if (!client) return;
 
     const service = new DeviceService(client);
@@ -69,5 +70,5 @@ export function useDeviceEvents() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       es?.close();
     };
-  }, []);
+  }, [client]);
 }
