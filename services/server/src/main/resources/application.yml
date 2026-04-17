@@ -121,7 +121,7 @@ yaytsa:
   # Server identification
   server:
     name: 'Yay-Tsa Media Server'
-    version: '10.10.0'
+    version: ${APP_VERSION:0.0.0-dev}
     id: 'yaytsa-4f8a3e2c-9d1b-4a5e-8c7f-3e9d1b4a5e8c'
 
   # Public URL for client connections (used in SystemInfo.LocalAddress)
