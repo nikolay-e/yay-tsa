@@ -18,8 +18,10 @@ public class SystemController {
   @Value("${yaytsa.server.name:Yay-Tsa Media Server}")
   private String serverName;
 
-  @Value("${yaytsa.server.version:${APP_VERSION:0.1.0}}")
-  private String version;
+  private static final String JELLYFIN_COMPAT_VERSION = "10.10.0";
+
+  @Value("${yaytsa.server.version:${APP_VERSION:0.0.0-dev}}")
+  private String appVersion;
 
   @Value("${yaytsa.server.id:yaytsa-default}")
   private String serverId;
@@ -45,9 +47,13 @@ public class SystemController {
   @ApiResponse(responseCode = "200", description = "Server information retrieved successfully")
   @SecurityRequirements
   @GetMapping("/Info/Public")
-  public ResponseEntity<SystemInfoResponse> getPublicSystemInfo() {
+  public ResponseEntity<SystemInfoResponse> getPublicSystemInfo(
+      @RequestHeader(value = "Authorization", required = false) String authorization,
+      @RequestHeader(value = "X-Emby-Authorization", required = false) String embyAuth) {
+    String resolvedVersion =
+        isEmbyClient(authorization, embyAuth) ? JELLYFIN_COMPAT_VERSION : appVersion;
     SystemInfoResponse info =
-        SystemInfoResponse.publicInfo(serverName, version, serverId, getLocalAddress());
+        SystemInfoResponse.publicInfo(serverName, resolvedVersion, serverId, getLocalAddress());
     return ResponseEntity.ok(info);
   }
 
@@ -64,9 +70,17 @@ public class SystemController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestParam(value = "api_key", required = false) String apiKey) {
 
+    String resolvedVersion =
+        isEmbyClient(authorization, null) ? JELLYFIN_COMPAT_VERSION : appVersion;
     SystemInfoResponse info =
-        SystemInfoResponse.fullInfo(serverName, version, serverId, getLocalAddress(), null);
+        SystemInfoResponse.fullInfo(serverName, resolvedVersion, serverId, getLocalAddress(), null);
     return ResponseEntity.ok(info);
+  }
+
+  private static boolean isEmbyClient(String authorization, String embyAuth) {
+    if (embyAuth != null && !embyAuth.isBlank()) return true;
+    if (authorization != null && authorization.startsWith("MediaBrowser ")) return true;
+    return false;
   }
 
   @Operation(summary = "Ping server", description = "Simple health check endpoint")

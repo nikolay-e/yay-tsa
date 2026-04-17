@@ -400,7 +400,16 @@ jobs:
           EXPECTED="${{ steps.tags.outputs.expected_tag }}"
           echo "Waiting for backend version: $EXPECTED"
           for i in $(seq 1 40); do
-            VERSION=$(curl -sf "$PROD_URL/api/System/Info/Public" | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version',''))" 2>/dev/null || echo "")
+            TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
+              -H "Content-Type: application/json" \
+              -d "{\"Username\":\"test\",\"Pw\":\"$QA_PASSWORD\"}" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])" 2>/dev/null || echo "")
+            if [ -n "$TOKEN" ]; then
+              VERSION=$(curl -sf -H "Authorization: Bearer $TOKEN" "$PROD_URL/api/System/Info/Public" \
+                | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version',''))" 2>/dev/null || echo "")
+            else
+              VERSION=""
+            fi
             if [ "$VERSION" = "$EXPECTED" ]; then
               echo "Backend deployed: $VERSION"
               break
