@@ -33,6 +33,11 @@ public class DeviceController {
   }
 
   @Operation(summary = "List my devices")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Device list returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping("/devices")
   public ResponseEntity<List<Map<String, Object>>> getDevices(
       @AuthenticationPrincipal AuthenticatedUser user) {
@@ -40,12 +45,22 @@ public class DeviceController {
   }
 
   @Operation(summary = "Stream device state updates")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "SSE stream started"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping(value = "/devices/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamDeviceEvents(@AuthenticationPrincipal AuthenticatedUser user) {
     return deviceSseService.createDeviceListEmitter(user.getUserEntity().getId());
   }
 
   @Operation(summary = "Send heartbeat for this device")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "Heartbeat recorded"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @PostMapping("/devices/heartbeat")
   public ResponseEntity<Void> heartbeat(@AuthenticationPrincipal AuthenticatedUser user) {
     presenceService.heartbeat(user.getUserEntity().getId(), user.getDeviceId());
@@ -56,6 +71,7 @@ public class DeviceController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "202", description = "Command accepted"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "403", description = "Not your device"),
         @ApiResponse(responseCode = "404", description = "Device not found")
       })
@@ -73,6 +89,11 @@ public class DeviceController {
   }
 
   @Operation(summary = "Subscribe to incoming commands for this device")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "SSE stream started"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+      })
   @GetMapping(value = "/devices/commands", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamCommands(@AuthenticationPrincipal AuthenticatedUser user) {
     String deviceKey = DeviceSseService.deviceKey(user.getUserEntity().getId(), user.getDeviceId());
@@ -85,6 +106,7 @@ public class DeviceController {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Transfer initiated"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
         @ApiResponse(responseCode = "403", description = "Not your device"),
         @ApiResponse(responseCode = "404", description = "Source device not found")
       })

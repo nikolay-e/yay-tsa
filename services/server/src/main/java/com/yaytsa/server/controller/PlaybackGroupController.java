@@ -78,6 +78,12 @@ public class PlaybackGroupController {
   }
 
   @Operation(summary = "Get group snapshot")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Group snapshot returned"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Not a member")
+      })
   @GetMapping("/{id}")
   public ResponseEntity<Map<String, Object>> getGroup(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -187,6 +193,12 @@ public class PlaybackGroupController {
   }
 
   @Operation(summary = "Leave or kick from group")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "Left group"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "404", description = "Group not found")
+      })
   @DeleteMapping("/{id}/members/{deviceId}")
   public ResponseEntity<Void> leaveGroup(
       @PathVariable UUID id,
@@ -210,6 +222,12 @@ public class PlaybackGroupController {
   }
 
   @Operation(summary = "End group (owner only)")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "Group ended"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Only owner can end group")
+      })
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> endGroup(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -222,6 +240,12 @@ public class PlaybackGroupController {
   }
 
   @Operation(summary = "Stream group events via SSE")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "SSE stream started"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Not a member")
+      })
   @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamEvents(
       @PathVariable UUID id,

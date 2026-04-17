@@ -36,7 +36,7 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
   private static final Set<String> PUBLIC_PATHS =
-      Set.of("/Users/AuthenticateByName", "/System/Info/Public");
+      Set.of("/Users/AuthenticateByName", "/System/Info/Public", "/System/Ping", "/v1/time");
 
   @Bean
   public OpenApiCustomizer globalErrorResponseCustomizer() {

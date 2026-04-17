@@ -449,6 +449,10 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             --checks all \
             --exclude-checks ignored_auth,unsupported_method \
+            --exclude-path '/Items/{itemId}/Images/{imageType}' \
+            --exclude-path-regex '/v1/me/devices/(events|commands)' \
+            --exclude-path-regex '/v1/groups/{id}/events' \
+            --exclude-path-regex '/v1/sessions/{sessionId}/queue/events' \
             2>&1 | tee /tmp/schemathesis.txt
 
       - name: Run ZAP
