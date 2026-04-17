@@ -41,9 +41,6 @@ import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
-import { useDeviceHeartbeat } from '../hooks/useDeviceHeartbeat';
-import { useRemoteCommands } from '../hooks/useRemoteCommands';
-import { useDeviceEvents } from '../hooks/useDeviceEvents';
 import { MobileFullPlayer } from './MobileFullPlayer';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
@@ -152,9 +149,6 @@ export function PlayerBar() {
   useAlbumColors();
   useSignalEmitter();
   useDjAutoRefill();
-  useDeviceHeartbeat();
-  useRemoteCommands();
-  useDeviceEvents();
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     currentTrack?.Id ?? '',
     currentTrack?.AlbumPrimaryImageTag,

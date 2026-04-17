@@ -4,6 +4,9 @@ import { Home, Disc3, Users, Music, Heart, Settings, type LucideIcon } from 'luc
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar } from '@/features/player/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
+import { useDeviceHeartbeat } from '@/features/player/hooks/useDeviceHeartbeat';
+import { useRemoteCommands } from '@/features/player/hooks/useRemoteCommands';
+import { useDeviceEvents } from '@/features/player/hooks/useDeviceEvents';
 import { cn } from '@/shared/utils/cn';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
 
@@ -40,6 +43,10 @@ export function RootLayout() {
   const locationKeyRef = useRef(location.key);
 
   const isLoginPage = location.pathname === '/login';
+
+  useDeviceHeartbeat();
+  useRemoteCommands();
+  useDeviceEvents();
 
   useEffect(() => {
     const main = mainRef.current;
