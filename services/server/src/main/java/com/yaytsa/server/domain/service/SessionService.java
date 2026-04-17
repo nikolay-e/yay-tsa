@@ -17,12 +17,15 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
+@Slf4j
 public class SessionService {
 
   private static final long SCROBBLE_DURATION_THRESHOLD_MS = 240_000L;
@@ -188,6 +191,15 @@ public class SessionService {
     }
     long threshold = Math.min(durationMs / 2, SCROBBLE_DURATION_THRESHOLD_MS);
     return playedMs >= threshold;
+  }
+
+  @Scheduled(fixedRate = 30000)
+  public void markOfflineDevices() {
+    OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(30);
+    int marked = sessionRepository.markOffline(cutoff);
+    if (marked > 0) {
+      log.debug("Marked {} devices offline", marked);
+    }
   }
 
   private SessionEntity findOrCreateSession(UUID userId, String deviceId, String deviceName) {

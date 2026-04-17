@@ -76,6 +76,12 @@ public class SessionEntity {
   @Column(name = "last_update", nullable = false)
   private OffsetDateTime lastUpdate;
 
+  @Column(name = "is_online", nullable = false)
+  private boolean online;
+
+  @Column(name = "last_heartbeat_at")
+  private OffsetDateTime lastHeartbeatAt;
+
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
   private OffsetDateTime createdAt;

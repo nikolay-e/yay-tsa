@@ -1,5 +1,6 @@
 package com.yaytsa.server.controller;
 
+import com.yaytsa.server.domain.service.DeviceSseService;
 import com.yaytsa.server.domain.service.SessionService;
 import com.yaytsa.server.dto.request.PlaybackProgressInfo;
 import com.yaytsa.server.dto.request.PlaybackStartInfo;
@@ -31,9 +32,11 @@ public class SessionsController {
   private static final long TICKS_PER_SECOND = 10_000_000L;
 
   private final SessionService sessionService;
+  private final DeviceSseService deviceSseService;
 
-  public SessionsController(SessionService sessionService) {
+  public SessionsController(SessionService sessionService, DeviceSseService deviceSseService) {
     this.sessionService = sessionService;
+    this.deviceSseService = deviceSseService;
   }
 
   @Operation(
@@ -59,6 +62,7 @@ public class SessionsController {
     String deviceName = authenticatedUser.getDeviceName();
 
     sessionService.reportPlaybackStart(userId, deviceId, deviceName, itemId);
+    broadcastDeviceState(userId, deviceId, itemId, 0L, false);
 
     return ResponseEntity.noContent().build();
   }
@@ -88,6 +92,7 @@ public class SessionsController {
 
     sessionService.reportPlaybackProgress(
         userId, deviceId, deviceName, itemId, positionMs, isPaused);
+    broadcastDeviceState(userId, deviceId, itemId, positionMs, isPaused);
 
     return ResponseEntity.noContent().build();
   }
@@ -116,6 +121,7 @@ public class SessionsController {
     long positionMs = ticks != null ? Math.max(0, ticks / (TICKS_PER_SECOND / 1000)) : 0;
 
     sessionService.reportPlaybackStopped(userId, deviceId, itemId, positionMs);
+    broadcastDeviceState(userId, deviceId, null, positionMs, true);
 
     return ResponseEntity.noContent().build();
   }
@@ -227,5 +233,16 @@ public class SessionsController {
     sessionService.pingSession(userId, deviceId);
 
     return ResponseEntity.noContent().build();
+  }
+
+  private void broadcastDeviceState(
+      UUID userId, String deviceId, UUID itemId, long positionMs, boolean isPaused) {
+    var state = new HashMap<String, Object>();
+    state.put("deviceId", deviceId);
+    if (itemId != null) state.put("nowPlayingItemId", itemId.toString());
+    state.put("positionMs", positionMs);
+    state.put("isPaused", isPaused);
+    state.put("timestamp", System.currentTimeMillis());
+    deviceSseService.broadcastToUser(userId, "device_state_changed", state);
   }
 }
