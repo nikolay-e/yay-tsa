@@ -73,6 +73,7 @@ public class PlaybackGroupController {
   @GetMapping("/{id}")
   public ResponseEntity<Map<String, Object>> getGroup(
       @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user) {
+    groupService.verifyMembership(id, user.getDeviceId());
     var snapshot = groupService.getSnapshot(id);
     return ResponseEntity.ok(snapshotToMap(snapshot));
   }
@@ -124,6 +125,7 @@ public class PlaybackGroupController {
     var result =
         groupService.updateSchedule(
             id,
+            user.getDeviceId(),
             request.expectedEpoch(),
             trackId,
             anchorServerMs,
@@ -173,6 +175,7 @@ public class PlaybackGroupController {
       @PathVariable UUID id,
       @AuthenticationPrincipal AuthenticatedUser user,
       @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {
+    groupService.verifyMembership(id, user.getDeviceId());
     var snapshot = groupService.getSnapshot(id);
     UUID sessionId = snapshot.group().getListeningSession().getId();
     return sseService.createEmitter(sessionId, lastEventId);

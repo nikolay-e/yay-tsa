@@ -14,7 +14,7 @@ public interface PlaybackScheduleRepository extends JpaRepository<PlaybackSchedu
   @Modifying
   @Query(
       value =
-          "UPDATE playback_schedule SET track_id = :trackId,"
+          "UPDATE playback_schedule SET track_id = COALESCE(:trackId, track_id),"
               + " anchor_server_ms = :anchorServerMs,"
               + " anchor_position_ms = :anchorPositionMs,"
               + " is_paused = :isPaused,"

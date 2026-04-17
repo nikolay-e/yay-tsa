@@ -60,7 +60,7 @@ public class PlaybackGroupService {
     group.setListeningSession(session);
     group.setCanonicalDeviceId(deviceId);
     group.setName(name);
-    group.setJoinCode(generateJoinCode());
+    group.setJoinCode(generateUniqueJoinCode());
     group.setCreatedAt(OffsetDateTime.now());
     group = groupRepository.save(group);
 
@@ -132,13 +132,32 @@ public class PlaybackGroupService {
             .findById(groupId)
             .orElseThrow(() -> new ResourceNotFoundException(ResourceType.Item, groupId));
 
-    boolean isOwner = group.getOwner().getId().equals(requestingUserId);
-    if (deviceId.equals(group.getCanonicalDeviceId()) && isOwner) {
+    memberRepository.deleteByGroupIdAndDeviceId(groupId, deviceId);
+
+    if (deviceId.equals(group.getCanonicalDeviceId())) {
+      var remaining =
+          memberRepository.findActiveMembers(groupId).stream()
+              .filter(m -> m.getUserId().equals(group.getOwner().getId()))
+              .findFirst();
+
+      if (remaining.isPresent()) {
+        group.setCanonicalDeviceId(remaining.get().getDeviceId());
+        groupRepository.save(group);
+        log.info(
+            "Canonical device reassigned to {} in group {}",
+            remaining.get().getDeviceId(),
+            groupId);
+      } else {
+        endGroupInternal(group);
+        return;
+      }
+    }
+
+    if (memberRepository.countByGroupIdAndStaleFalse(groupId) == 0) {
       endGroupInternal(group);
       return;
     }
 
-    memberRepository.deleteByGroupIdAndDeviceId(groupId, deviceId);
     sseService.broadcast(
         group.getListeningSession().getId(),
         "member_left",
@@ -185,9 +204,17 @@ public class PlaybackGroupService {
     }
   }
 
+  public void verifyMembership(UUID groupId, String deviceId) {
+    if (!memberRepository.findByGroupIdAndDeviceId(groupId, deviceId).isPresent()) {
+      throw new org.springframework.security.access.AccessDeniedException(
+          "Not a member of this group");
+    }
+  }
+
   @Transactional
   public ScheduleUpdateResult updateSchedule(
       UUID groupId,
+      String deviceId,
       long expectedEpoch,
       UUID trackId,
       long anchorServerMs,
@@ -195,6 +222,8 @@ public class PlaybackGroupService {
       boolean isPaused,
       UUID nextTrackId,
       Long nextTrackAnchorMs) {
+
+    verifyMembership(groupId, deviceId);
 
     int updated =
         scheduleRepository.updateSchedule(
@@ -241,14 +270,10 @@ public class PlaybackGroupService {
   @Scheduled(fixedRate = 60000)
   @Transactional
   public void markStaleMembers() {
-    var groups = groupRepository.findAll().stream().filter(g -> g.getEndedAt() == null).toList();
-
     OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(STALE_TIMEOUT_MINUTES);
-    for (var group : groups) {
-      int marked = memberRepository.markStaleMembers(group.getId(), cutoff);
-      if (marked > 0) {
-        log.debug("Marked {} members stale in group {}", marked, group.getId());
-      }
+    int marked = memberRepository.markAllStaleMembers(cutoff);
+    if (marked > 0) {
+      log.debug("Marked {} members stale across all active groups", marked);
     }
   }
 
@@ -272,9 +297,14 @@ public class PlaybackGroupService {
     log.info("Group {} ended", group.getId());
   }
 
-  private static String generateJoinCode() {
-    int code = RANDOM.nextInt(900_000) + 100_000;
-    return String.valueOf(code);
+  private String generateUniqueJoinCode() {
+    for (int attempt = 0; attempt < 5; attempt++) {
+      String code = String.valueOf(RANDOM.nextInt(900_000) + 100_000);
+      if (groupRepository.findActiveByJoinCode(code).isEmpty()) {
+        return code;
+      }
+    }
+    return String.valueOf(RANDOM.nextInt(900_000) + 100_000);
   }
 
   private static java.util.Map<String, Object> scheduleToMap(PlaybackScheduleEntity s) {

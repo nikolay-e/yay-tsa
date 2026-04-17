@@ -28,9 +28,10 @@ public interface PlaybackGroupMemberRepository
   @Query(
       value =
           "UPDATE playback_group_member SET stale = true"
-              + " WHERE group_id = :groupId AND last_heartbeat_at < :cutoff AND stale = false",
+              + " WHERE last_heartbeat_at < :cutoff AND stale = false"
+              + " AND group_id IN (SELECT id FROM playback_group WHERE ended_at IS NULL)",
       nativeQuery = true)
-  int markStaleMembers(@Param("groupId") UUID groupId, @Param("cutoff") OffsetDateTime cutoff);
+  int markAllStaleMembers(@Param("cutoff") OffsetDateTime cutoff);
 
   void deleteByGroupIdAndDeviceId(UUID groupId, String deviceId);
 
