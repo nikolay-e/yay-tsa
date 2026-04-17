@@ -31,19 +31,13 @@ export function useRemoteCommands() {
 
         // In group mode, only volume is local — everything else goes through schedule
         if (groupSync.mode === 'group' && cmd.type !== 'SET_VOLUME') {
-          const actionMap: Record<string, string> = {
-            PAUSE: 'PAUSE',
-            PLAY: 'PLAY',
-            NEXT: 'NEXT',
-            PREV: 'PREV',
-          };
-          const action = actionMap[cmd.type];
-          if (action) {
-            void groupSync.sendAction(
-              action as 'PAUSE' | 'PLAY' | 'NEXT' | 'PREV',
-              undefined,
-              cmd.type === 'SEEK' && cmd.payload ? (cmd.payload.positionMs as number) : undefined
-            );
+          const groupActions = ['PAUSE', 'PLAY', 'NEXT', 'PREV', 'SEEK'] as const;
+          type GroupAction = (typeof groupActions)[number];
+          if (groupActions.includes(cmd.type as GroupAction)) {
+            const posMs =
+              cmd.type === 'SEEK' && cmd.payload ? (cmd.payload.positionMs as number) : undefined;
+            const isPaused = groupSync.schedule?.isPaused;
+            void groupSync.sendAction(cmd.type as GroupAction, undefined, posMs, isPaused);
           }
           return;
         }

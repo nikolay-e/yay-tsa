@@ -32,7 +32,12 @@ interface GroupSyncActions {
   createGroup: (name: string) => Promise<void>;
   joinGroup: (joinCode: string) => Promise<void>;
   leaveGroup: () => Promise<void>;
-  sendAction: (action: ScheduleAction, trackId?: string, positionMs?: number) => Promise<void>;
+  sendAction: (
+    action: ScheduleAction,
+    trackId?: string,
+    positionMs?: number,
+    paused?: boolean
+  ) => Promise<void>;
   applySchedule: (schedule: PlaybackSchedule) => void;
   reset: () => void;
 }
@@ -175,7 +180,13 @@ function connectSSE(groupId: string, store: typeof useGroupSyncStore) {
 
   sseSource.addEventListener('member_joined', (event: MessageEvent) => {
     try {
-      const data = JSON.parse(event.data as string) as GroupMember;
+      const raw = JSON.parse(event.data as string) as { deviceId: string; userId: string };
+      const data: GroupMember = {
+        deviceId: raw.deviceId,
+        userId: raw.userId,
+        stale: false,
+        reportedLatencyMs: 0,
+      };
       store.setState(state => ({
         members: [...state.members.filter(m => m.deviceId !== data.deviceId), data],
       }));
@@ -195,13 +206,10 @@ function connectSSE(groupId: string, store: typeof useGroupSyncStore) {
     }
   });
 
+  // Let browser handle reconnect with Last-Event-Id automatically
+  // Only close manually on leaveGroup/reset via stopEngine()
   sseSource.onerror = () => {
-    sseSource?.close();
-    sseSource = null;
-    setTimeout(() => {
-      const { groupId: gid, mode } = store.getState();
-      if (mode === 'group' && gid) connectSSE(gid, store);
-    }, 3000);
+    log.player.debug('Group SSE error, browser will auto-reconnect');
   };
 }
 
@@ -296,7 +304,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
     get().reset();
   },
 
-  sendAction: async (action, trackId, positionMs) => {
+  sendAction: async (action, trackId, positionMs, paused) => {
     const { groupId, currentEpoch } = get();
     const services = getServices();
     if (!services || !groupId) return;
@@ -307,7 +315,8 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
         currentEpoch,
         action,
         trackId,
-        positionMs
+        positionMs,
+        paused
       );
       get().applySchedule(result.schedule);
     } catch (error) {
