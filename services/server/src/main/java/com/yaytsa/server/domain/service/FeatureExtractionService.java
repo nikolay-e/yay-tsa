@@ -196,13 +196,7 @@ public class FeatureExtractionService {
 
   private void markEmbeddingSkipped(UUID trackId) {
     transactionTemplate.executeWithoutResult(
-        status -> {
-          var entity = featuresRepository.findByTrackId(trackId).orElse(null);
-          if (entity == null) return;
-          if (entity.getEmbeddingClap() == null) entity.setEmbeddingClap(new float[0]);
-          if (entity.getEmbeddingMert() == null) entity.setEmbeddingMert(new float[0]);
-          featuresRepository.save(entity);
-        });
+        status -> featuresRepository.markEmbeddingsSkipped(trackId));
     log.info("Marked track {} as embedding-skipped (file too large)", trackId);
   }
 

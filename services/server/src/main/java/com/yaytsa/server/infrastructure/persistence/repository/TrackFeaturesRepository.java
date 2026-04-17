@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -407,4 +408,16 @@ public interface TrackFeaturesRepository extends JpaRepository<TrackFeaturesEnti
           """,
       nativeQuery = true)
   List<Object[]> findGenresByTrackIds(@Param("trackIds") List<UUID> trackIds);
+
+  @Modifying
+  @Query(
+      value =
+          "UPDATE track_features"
+              + " SET embedding_clap = COALESCE(embedding_clap,"
+              + " array_fill(0::real, ARRAY[512])::vector),"
+              + " embedding_mert = COALESCE(embedding_mert,"
+              + " array_fill(0::real, ARRAY[768])::vector)"
+              + " WHERE track_id = :trackId",
+      nativeQuery = true)
+  void markEmbeddingsSkipped(@Param("trackId") UUID trackId);
 }
