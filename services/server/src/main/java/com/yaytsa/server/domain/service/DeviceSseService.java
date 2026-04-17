@@ -65,18 +65,21 @@ public class DeviceSseService {
     emitters.removeAll(dead);
   }
 
-  public void sendCommand(String deviceKey, Object command) {
+  public boolean sendCommand(String deviceKey, Object command) {
     List<SseEmitter> emitters = deviceCommandEmitters.get(deviceKey);
-    if (emitters == null || emitters.isEmpty()) return;
+    if (emitters == null || emitters.isEmpty()) return false;
+    boolean delivered = false;
     List<SseEmitter> dead = new ArrayList<>();
     for (SseEmitter emitter : emitters) {
       try {
         emitter.send(SseEmitter.event().name("command").data(command));
+        delivered = true;
       } catch (IOException e) {
         dead.add(emitter);
       }
     }
     emitters.removeAll(dead);
+    return delivered;
   }
 
   @Scheduled(fixedRate = 15000)

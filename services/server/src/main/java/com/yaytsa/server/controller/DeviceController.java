@@ -1,15 +1,12 @@
 package com.yaytsa.server.controller;
 
+import com.yaytsa.server.domain.service.DevicePresenceService;
 import com.yaytsa.server.domain.service.DeviceSseService;
-import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
-import com.yaytsa.server.infrastructure.persistence.repository.SessionRepository;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,13 +23,12 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Tag(name = "Devices", description = "Device presence and remote control")
 public class DeviceController {
 
-  private static final long ONLINE_THRESHOLD_SECONDS = 30;
-
-  private final SessionRepository sessionRepository;
+  private final DevicePresenceService presenceService;
   private final DeviceSseService deviceSseService;
 
-  public DeviceController(SessionRepository sessionRepository, DeviceSseService deviceSseService) {
-    this.sessionRepository = sessionRepository;
+  public DeviceController(
+      DevicePresenceService presenceService, DeviceSseService deviceSseService) {
+    this.presenceService = presenceService;
     this.deviceSseService = deviceSseService;
   }
 
@@ -40,9 +36,7 @@ public class DeviceController {
   @GetMapping("/devices")
   public ResponseEntity<List<Map<String, Object>>> getDevices(
       @AuthenticationPrincipal AuthenticatedUser user) {
-    UUID userId = user.getUserEntity().getId();
-    var sessions = sessionRepository.findAllByUserIdWithItem(userId);
-    return ResponseEntity.ok(sessions.stream().map(this::sessionToDeviceMap).toList());
+    return ResponseEntity.ok(presenceService.listDevices(user.getUserEntity().getId()));
   }
 
   @Operation(summary = "Stream device state updates")
@@ -54,16 +48,7 @@ public class DeviceController {
   @Operation(summary = "Send heartbeat for this device")
   @PostMapping("/devices/heartbeat")
   public ResponseEntity<Void> heartbeat(@AuthenticationPrincipal AuthenticatedUser user) {
-    UUID userId = user.getUserEntity().getId();
-    String deviceId = user.getDeviceId();
-    sessionRepository
-        .findByUserIdAndDeviceId(userId, deviceId)
-        .ifPresent(
-            session -> {
-              session.setOnline(true);
-              session.setLastHeartbeatAt(OffsetDateTime.now());
-              sessionRepository.save(session);
-            });
+    presenceService.heartbeat(user.getUserEntity().getId(), user.getDeviceId());
     return ResponseEntity.noContent().build();
   }
 
@@ -79,17 +64,11 @@ public class DeviceController {
       @PathVariable UUID deviceSessionId,
       @RequestBody Map<String, Object> command,
       @AuthenticationPrincipal AuthenticatedUser user) {
-    var session =
-        sessionRepository
-            .findById(deviceSessionId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-
-    if (!session.getUser().getId().equals(user.getUserEntity().getId())) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your device");
+    boolean sent =
+        presenceService.sendCommand(deviceSessionId, user.getUserEntity().getId(), command);
+    if (!sent) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
-
-    String deviceKey = DeviceSseService.deviceKey(session.getUser().getId(), session.getDeviceId());
-    deviceSseService.sendCommand(deviceKey, command);
     return ResponseEntity.accepted().build();
   }
 
@@ -97,57 +76,26 @@ public class DeviceController {
   @GetMapping(value = "/devices/commands", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   public SseEmitter streamCommands(@AuthenticationPrincipal AuthenticatedUser user) {
     String deviceKey = DeviceSseService.deviceKey(user.getUserEntity().getId(), user.getDeviceId());
-    return deviceSseService.createCommandEmitter(deviceKey);
+    SseEmitter emitter = deviceSseService.createCommandEmitter(deviceKey);
+    presenceService.drainPendingCommands(deviceKey, deviceSseService);
+    return emitter;
   }
 
   @Operation(summary = "Transfer playback to this device")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "Transfer initiated"),
+        @ApiResponse(responseCode = "403", description = "Not your device"),
         @ApiResponse(responseCode = "404", description = "Source device not found")
       })
   @PostMapping("/devices/{sourceSessionId}/transfer")
   public ResponseEntity<Map<String, Object>> transferPlayback(
       @PathVariable UUID sourceSessionId, @AuthenticationPrincipal AuthenticatedUser user) {
-    var source =
-        sessionRepository
-            .findByIdWithUserAndItem(sourceSessionId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-
-    if (!source.getUser().getId().equals(user.getUserEntity().getId())) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your device");
+    var payload =
+        presenceService.buildTransferPayload(sourceSessionId, user.getUserEntity().getId());
+    if (payload == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
-
-    Map<String, Object> transferPayload = new LinkedHashMap<>();
-    if (source.getNowPlayingItem() != null) {
-      transferPayload.put("trackId", source.getNowPlayingItem().getId().toString());
-      transferPayload.put("trackName", source.getNowPlayingItem().getName());
-    }
-    transferPayload.put("positionMs", source.getPositionMs());
-    transferPayload.put("paused", source.getPaused());
-    transferPayload.put("volumeLevel", source.getVolumeLevel());
-
-    String sourceKey = DeviceSseService.deviceKey(source.getUser().getId(), source.getDeviceId());
-    deviceSseService.sendCommand(sourceKey, Map.of("type", "PAUSE"));
-
-    return ResponseEntity.ok(transferPayload);
-  }
-
-  private Map<String, Object> sessionToDeviceMap(SessionEntity s) {
-    var map = new LinkedHashMap<String, Object>();
-    map.put("sessionId", s.getId().toString());
-    map.put("deviceId", s.getDeviceId());
-    map.put("deviceName", s.getDeviceName());
-    map.put("clientName", s.getClientName());
-    map.put("isOnline", s.isOnline());
-    map.put("lastUpdate", s.getLastUpdate().toString());
-    if (s.getNowPlayingItem() != null) {
-      map.put("nowPlayingItemId", s.getNowPlayingItem().getId().toString());
-      map.put("nowPlayingItemName", s.getNowPlayingItem().getName());
-    }
-    map.put("positionMs", s.getPositionMs());
-    map.put("isPaused", s.getPaused());
-    map.put("volumeLevel", s.getVolumeLevel());
-    return map;
+    return ResponseEntity.ok(payload);
   }
 }

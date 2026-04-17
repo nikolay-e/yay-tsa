@@ -243,6 +243,7 @@ public class SessionsController {
     state.put("positionMs", positionMs);
     state.put("isPaused", isPaused);
     state.put("timestamp", System.currentTimeMillis());
+    // sessionId resolved lazily by client via deviceId match from GET /devices
     deviceSseService.broadcastToUser(userId, "device_state_changed", state);
   }
 }
