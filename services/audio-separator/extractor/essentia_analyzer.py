@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import threading
@@ -29,6 +30,7 @@ log = logging.getLogger(__name__)
 AUDIO_SAMPLE_RATE = 44100
 TF_SAMPLE_RATE = 16000
 MIN_AUDIO_DURATION_SEC = 5
+MAX_AUDIO_DURATION_SEC = 1800
 
 TF_INPUT_PLACEHOLDER = "model/Placeholder"
 TF_OUTPUT_SOFTMAX = "model/Softmax"
@@ -105,7 +107,25 @@ class EssentiaAnalyzer:
                 "processing_time_ms": elapsed_ms,
             }
 
+        if duration_sec > MAX_AUDIO_DURATION_SEC:
+            log.warning(
+                "Track too long (%.0fs > %ds limit), skipping: %s",
+                duration_sec,
+                MAX_AUDIO_DURATION_SEC,
+                Path(file_path).name,
+            )
+            elapsed_ms = int((time.time() - start) * 1000)
+            return {
+                "features": None,
+                "embedding_discogs": None,
+                "embedding_musicnn": None,
+                "processing_time_ms": elapsed_ms,
+            }
+
         features = self._extract_scalar_features(audio_44k)
+
+        del audio_44k
+        gc.collect()
 
         self._ensure_models()
 
@@ -113,6 +133,9 @@ class EssentiaAnalyzer:
 
         effnet_embeddings = self._effnet(audio_16k)
         musicnn_embeddings = self._musicnn(audio_16k)
+
+        del audio_16k
+        gc.collect()
 
         tf_features = self._classify_with_embeddings(effnet_embeddings, musicnn_embeddings)
         features.update(tf_features)

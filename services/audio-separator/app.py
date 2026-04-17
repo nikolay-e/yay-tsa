@@ -56,6 +56,9 @@ ALLOWED_MEDIA_ROOT = os.path.realpath(os.getenv("MEDIA_PATH", "/media"))
 STEMS_OUTPUT_ROOT = os.getenv("STEMS_OUTPUT_ROOT", "")
 FFMPEG_TIMEOUT_SECONDS = 300
 
+MAX_FILE_SIZE_MB = 200
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
 LRCLIB_BASE_URL = "https://lrclib.net/api"
 LRCLIB_USER_AGENT = "yay-tsa/1.0.0 (https://yay-tsa.com)"
 LRCLIB_TIMEOUT_SECONDS = 10
@@ -67,6 +70,7 @@ _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 ERR_INTERNAL = "Internal processing error"
 ERR_FEATURE_EXTRACTION_UNAVAILABLE = "Feature extraction not available"
 ERR_EMBEDDING_UNAVAILABLE = "Embedding extraction not available"
+ERR_FILE_TOO_LARGE = f"File exceeds {MAX_FILE_SIZE_MB}MB limit"
 
 
 def _sanitize(value) -> str:
@@ -1066,6 +1070,16 @@ def extract_features(request: ExtractionRequest):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
+    file_size = file_path.stat().st_size
+    if file_size > MAX_FILE_SIZE_BYTES:
+        log.warning(
+            "Skipping track %s: file too large (%dMB > %dMB limit)",
+            _sanitize(request.track_id),
+            file_size // (1024 * 1024),
+            MAX_FILE_SIZE_MB,
+        )
+        raise HTTPException(status_code=413, detail=ERR_FILE_TOO_LARGE)
+
     try:
         result = _analyzer.extract(str(file_path))
         return ExtractionResponse(
@@ -1101,6 +1115,16 @@ def extract_features_batch(request: BatchExtractionRequest):
             file_path = _validate_media_path(track.file_path)
             if not file_path.exists():
                 failed.append({"track_id": track.track_id, "error": "File not found"})
+                continue
+
+            file_size = file_path.stat().st_size
+            if file_size > MAX_FILE_SIZE_BYTES:
+                log.warning(
+                    "Skipping track %s: file too large (%dMB)",
+                    _sanitize(track.track_id),
+                    file_size // (1024 * 1024),
+                )
+                failed.append({"track_id": track.track_id, "error": ERR_FILE_TOO_LARGE})
                 continue
 
             result = _analyzer.extract(str(file_path))
@@ -1181,6 +1205,16 @@ def extract_embeddings(request: EmbedRequest):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
+    file_size = file_path.stat().st_size
+    if file_size > MAX_FILE_SIZE_BYTES:
+        log.warning(
+            "Skipping track %s: file too large (%dMB > %dMB limit)",
+            _sanitize(request.track_id),
+            file_size // (1024 * 1024),
+            MAX_FILE_SIZE_MB,
+        )
+        raise HTTPException(status_code=413, detail=ERR_FILE_TOO_LARGE)
+
     try:
         result = _embedding_extractor.extract(str(file_path))
         return EmbedResponse(
@@ -1215,6 +1249,16 @@ def extract_embeddings_batch(request: BatchEmbedRequest):
             file_path = _validate_media_path(track.file_path)
             if not file_path.exists():
                 failed.append({"track_id": track.track_id, "error": "File not found"})
+                continue
+
+            file_size = file_path.stat().st_size
+            if file_size > MAX_FILE_SIZE_BYTES:
+                log.warning(
+                    "Skipping track %s: file too large (%dMB)",
+                    _sanitize(track.track_id),
+                    file_size // (1024 * 1024),
+                )
+                failed.append({"track_id": track.track_id, "error": ERR_FILE_TOO_LARGE})
                 continue
 
             result = _embedding_extractor.extract(str(file_path))

@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import threading
@@ -18,6 +19,7 @@ MERT_CHUNK_SEC = 30
 CLAP_DIM = 512
 MERT_DIM = 768
 TEXT_MAX_CHARS = 300
+MAX_AUDIO_DURATION_SEC = 300
 
 
 class DualEmbeddingExtractor:
@@ -96,7 +98,9 @@ class DualEmbeddingExtractor:
         start = time.time()
 
         clap_embedding = self._extract_clap(file_path, librosa)
+        gc.collect()
         mert_embedding = self._extract_mert(file_path, librosa)
+        gc.collect()
 
         elapsed_ms = int((time.time() - start) * 1000)
         log.info("Embedding extraction completed in %dms", elapsed_ms)
@@ -132,7 +136,9 @@ class DualEmbeddingExtractor:
     def _extract_clap(self, file_path: str, librosa) -> list[float] | None:
         try:
             self._ensure_clap()
-            audio, _ = librosa.load(file_path, sr=CLAP_SAMPLE_RATE, mono=True)
+            audio, _ = librosa.load(
+                file_path, sr=CLAP_SAMPLE_RATE, mono=True, duration=MAX_AUDIO_DURATION_SEC
+            )
             chunk_size = CLAP_CHUNK_SEC * CLAP_SAMPLE_RATE
             chunks = [audio[i : i + chunk_size] for i in range(0, len(audio), chunk_size)]
             chunks = [c for c in chunks if len(c) >= CLAP_SAMPLE_RATE]
@@ -165,7 +171,9 @@ class DualEmbeddingExtractor:
     def _extract_mert(self, file_path: str, librosa) -> list[float] | None:
         try:
             self._ensure_mert()
-            audio, _ = librosa.load(file_path, sr=MERT_SAMPLE_RATE, mono=True)
+            audio, _ = librosa.load(
+                file_path, sr=MERT_SAMPLE_RATE, mono=True, duration=MAX_AUDIO_DURATION_SEC
+            )
             chunk_size = MERT_CHUNK_SEC * MERT_SAMPLE_RATE
             chunks = [audio[i : i + chunk_size] for i in range(0, len(audio), chunk_size)]
             chunks = [c for c in chunks if len(c) >= MERT_SAMPLE_RATE]
