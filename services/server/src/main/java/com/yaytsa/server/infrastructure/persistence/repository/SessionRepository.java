@@ -37,4 +37,8 @@ public interface SessionRepository extends JpaRepository<SessionEntity, UUID> {
               + " WHERE is_online = true AND last_heartbeat_at < :cutoff",
       nativeQuery = true)
   int markOffline(@Param("cutoff") OffsetDateTime cutoff);
+
+  @EntityGraph(attributePaths = {"user"})
+  @Query("SELECT s FROM SessionEntity s WHERE s.online = true" + " AND s.lastHeartbeatAt < :cutoff")
+  List<SessionEntity> findOnlineBeforeCutoff(@Param("cutoff") OffsetDateTime cutoff);
 }

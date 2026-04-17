@@ -26,14 +26,18 @@ public class DevicePresenceService {
 
   private final SessionRepository sessionRepository;
   private final DeviceSseService deviceSseService;
+  private final ListeningSessionService listeningSessionService;
 
   private final Cache<String, Queue<Object>> pendingCommands =
       Caffeine.newBuilder().expireAfterWrite(60, TimeUnit.SECONDS).maximumSize(1000).build();
 
   public DevicePresenceService(
-      SessionRepository sessionRepository, DeviceSseService deviceSseService) {
+      SessionRepository sessionRepository,
+      DeviceSseService deviceSseService,
+      ListeningSessionService listeningSessionService) {
     this.sessionRepository = sessionRepository;
     this.deviceSseService = deviceSseService;
+    this.listeningSessionService = listeningSessionService;
   }
 
   public List<Map<String, Object>> listDevices(UUID userId) {
@@ -94,6 +98,11 @@ public class DevicePresenceService {
     payload.put("sourceDeviceId", source.getDeviceId());
     payload.put("sourceSessionId", source.getId().toString());
 
+    var djSession = listeningSessionService.findActiveSession(source.getUser().getId());
+    if (djSession != null) {
+      payload.put("listeningSessionId", djSession.getId().toString());
+    }
+
     String sourceKey = DeviceSseService.deviceKey(source.getUser().getId(), source.getDeviceId());
     deviceSseService.sendCommand(sourceKey, Map.of("type", "PAUSE"));
 
@@ -105,20 +114,12 @@ public class DevicePresenceService {
   public void markOfflineDevices() {
     OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(OFFLINE_TIMEOUT_SECONDS);
 
-    var goingOffline =
-        sessionRepository.findAll().stream()
-            .filter(
-                s ->
-                    s.isOnline()
-                        && s.getLastHeartbeatAt() != null
-                        && s.getLastHeartbeatAt().isBefore(cutoff))
-            .toList();
-
+    var goingOffline = sessionRepository.findOnlineBeforeCutoff(cutoff);
     if (goingOffline.isEmpty()) return;
 
+    sessionRepository.markOffline(cutoff);
+
     for (SessionEntity session : goingOffline) {
-      session.setOnline(false);
-      sessionRepository.save(session);
       deviceSseService.broadcastToUser(
           session.getUser().getId(),
           "device_offline",
