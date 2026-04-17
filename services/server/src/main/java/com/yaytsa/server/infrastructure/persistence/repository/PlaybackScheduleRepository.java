@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PlaybackScheduleRepository extends JpaRepository<PlaybackScheduleEntity, UUID> {
 
-  @Modifying
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =
           "UPDATE playback_schedule SET track_id = COALESCE(:trackId, track_id),"

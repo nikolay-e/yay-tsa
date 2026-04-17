@@ -88,6 +88,11 @@ public class PlaybackGroupService {
             .orElseThrow(
                 () -> new ResourceNotFoundException(ResourceType.Item, "Invalid join code"));
 
+    if (group.getListeningSession().getEndedAt() != null) {
+      endGroupInternal(group);
+      throw new IllegalStateException("Group session has ended");
+    }
+
     var existing = memberRepository.findByGroupIdAndDeviceId(group.getId(), deviceId);
     if (existing.isPresent()) {
       var member = existing.get();
@@ -117,7 +122,7 @@ public class PlaybackGroupService {
   }
 
   @Transactional
-  public void leaveGroup(UUID groupId, String deviceId, UUID requestingUserId) {
+  public LeaveResult leaveGroup(UUID groupId, String deviceId, UUID requestingUserId) {
     var group =
         groupRepository
             .findById(groupId)
@@ -141,16 +146,22 @@ public class PlaybackGroupService {
             groupId);
       } else {
         endGroupInternal(group);
-        return;
+        return LeaveResult.GROUP_ENDED;
       }
     }
 
     if (memberRepository.countByGroupIdAndStaleFalse(groupId) == 0) {
       endGroupInternal(group);
-      return;
+      return LeaveResult.GROUP_ENDED;
     }
 
     log.info("Device {} left group {}", deviceId, groupId);
+    return LeaveResult.LEFT;
+  }
+
+  public enum LeaveResult {
+    LEFT,
+    GROUP_ENDED
   }
 
   @Transactional

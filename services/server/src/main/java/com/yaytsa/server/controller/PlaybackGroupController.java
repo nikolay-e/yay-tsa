@@ -147,10 +147,19 @@ public class PlaybackGroupController {
           PlaybackGroupService.scheduleToMap(result.schedule()));
     }
 
-    return ResponseEntity.ok(Map.of("scheduleEpoch", result.schedule().getScheduleEpoch()));
+    return ResponseEntity.ok(
+        Map.of(
+            "scheduleEpoch", result.schedule().getScheduleEpoch(),
+            "schedule", PlaybackGroupService.scheduleToMap(result.schedule()),
+            "serverTimeMs", System.currentTimeMillis()));
   }
 
   @Operation(summary = "Send heartbeat")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "Heartbeat recorded"),
+        @ApiResponse(responseCode = "404", description = "Not a member — rejoin or go solo")
+      })
   @PostMapping("/{id}/heartbeat")
   public ResponseEntity<Void> heartbeat(
       @PathVariable UUID id,
@@ -183,7 +192,7 @@ public class PlaybackGroupController {
       @PathVariable String deviceId,
       @AuthenticationPrincipal AuthenticatedUser user) {
     UUID sessionId = groupService.getSessionIdForGroup(id);
-    groupService.leaveGroup(id, deviceId, user.getUserEntity().getId());
+    var leaveResult = groupService.leaveGroup(id, deviceId, user.getUserEntity().getId());
     if (sessionId != null) {
       sseService.broadcast(
           sessionId,
@@ -192,6 +201,9 @@ public class PlaybackGroupController {
               "groupId", id.toString(),
               "deviceId", deviceId,
               "userId", user.getUserEntity().getId().toString()));
+      if (leaveResult == PlaybackGroupService.LeaveResult.GROUP_ENDED) {
+        sseService.broadcast(sessionId, "group_ended", id.toString());
+      }
     }
     return ResponseEntity.noContent().build();
   }
