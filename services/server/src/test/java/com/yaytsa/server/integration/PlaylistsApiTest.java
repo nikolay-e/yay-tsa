@@ -1,36 +1,19 @@
 package com.yaytsa.server.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
 
-@DisplayName("Feature: Playlists API")
+@DisplayName("Feature: Playlists API (FEAT-PLAYLISTS)")
+@Tag("playlists")
 class PlaylistsApiTest extends BaseIntegrationTest {
 
-  private static String firstTrackId;
-
-  @BeforeAll
-  static void findTestData() throws Exception {
-    HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-    ResponseEntity<String> response =
-        restTemplate.exchange(
-            BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1",
-            HttpMethod.GET,
-            request,
-            String.class);
-
-    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-      JsonNode json = objectMapper.readTree(response.getBody());
-      if (json.get("TotalRecordCount").asInt() > 0) {
-        firstTrackId = json.get("Items").get(0).get("Id").asText();
-      }
-    }
-  }
-
-  private static String createTestPlaylist(String name) throws Exception {
+  private String createTestPlaylist(String name) throws Exception {
     HttpHeaders headers = authHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -38,7 +21,7 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     HttpEntity<String> request = new HttpEntity<>(body, headers);
 
     ResponseEntity<String> response =
-        restTemplate.postForEntity(BASE_URL + "/Playlists", request, String.class);
+        restTemplate.postForEntity("/Playlists", request, String.class);
 
     assertTrue(
         response.getStatusCode() == HttpStatus.CREATED || response.getStatusCode() == HttpStatus.OK,
@@ -48,24 +31,22 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     return json.get("Id").asText();
   }
 
-  private static void deletePlaylistQuietly(String playlistId) {
+  private void deletePlaylistQuietly(String playlistId) {
     try {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-      restTemplate.exchange(
-          BASE_URL + "/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
+      restTemplate.exchange("/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
     } catch (Exception ignored) {
     }
   }
 
   @Nested
-  @DisplayName("Scenario: Create and retrieve playlist")
-  class CreatePlaylist {
+  @DisplayName("CreateAndRetrieve")
+  class CreateAndRetrieve {
 
     @Test
-    @DisplayName("Given: Valid request, When: POST /Playlists, Then: Creates playlist")
+    @DisplayName("AC-01: Create playlist")
+    @Feature(id = "FEAT-PLAYLISTS", ac = "AC-01")
     void createPlaylist() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
       String playlistId = createTestPlaylist("Test Create");
       try {
         assertNotNull(playlistId);
@@ -75,16 +56,15 @@ class PlaylistsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Given: Created playlist, When: GET /Playlists/{id}, Then: Returns playlist")
+    @DisplayName("AC-02: Get playlist by ID")
+    @Feature(id = "FEAT-PLAYLISTS", ac = "AC-02")
     void getPlaylistById() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
       String playlistId = createTestPlaylist("Test Get By Id");
       try {
         HttpEntity<Void> request = new HttpEntity<>(authHeaders());
         ResponseEntity<String> response =
             restTemplate.exchange(
-                BASE_URL + "/Playlists/" + playlistId, HttpMethod.GET, request, String.class);
+                "/Playlists/" + playlistId, HttpMethod.GET, request, String.class);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
@@ -97,22 +77,19 @@ class PlaylistsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Playlist items")
-  class PlaylistItems {
+  @DisplayName("ItemManagement")
+  class ItemManagement {
 
     @Test
-    @DisplayName(
-        "Given: Valid track ID, When: POST /Playlists/{id}/Items, Then: Adds item to playlist")
+    @DisplayName("AC-03: Add item to playlist")
+    @Feature(id = "FEAT-PLAYLISTS", ac = "AC-03")
     void addItemToPlaylist() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-      assumeTrue(firstTrackId != null, "Track ID required");
-
       String playlistId = createTestPlaylist("Test Add Item");
       try {
         HttpEntity<Void> request = new HttpEntity<>(authHeaders());
         ResponseEntity<String> response =
             restTemplate.exchange(
-                BASE_URL + "/Playlists/" + playlistId + "/Items?Ids=" + firstTrackId,
+                "/Playlists/" + playlistId + "/Items?Ids=" + testTrackId1,
                 HttpMethod.POST,
                 request,
                 String.class);
@@ -125,14 +102,13 @@ class PlaylistsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Update playlist")
-  class UpdatePlaylist {
+  @DisplayName("Update")
+  class Update {
 
     @Test
-    @DisplayName("Given: Valid playlist ID, When: PUT /Playlists/{id}, Then: Updates playlist")
+    @DisplayName("AC-04: Update playlist name")
+    @Feature(id = "FEAT-PLAYLISTS", ac = "AC-04")
     void updatePlaylist() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
       String playlistId = createTestPlaylist("Test Update");
       try {
         HttpHeaders headers = authHeaders();
@@ -143,7 +119,7 @@ class PlaylistsApiTest extends BaseIntegrationTest {
 
         ResponseEntity<String> response =
             restTemplate.exchange(
-                BASE_URL + "/Playlists/" + playlistId, HttpMethod.PUT, request, String.class);
+                "/Playlists/" + playlistId, HttpMethod.PUT, request, String.class);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
@@ -156,20 +132,19 @@ class PlaylistsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Delete playlist")
-  class DeletePlaylist {
+  @DisplayName("Delete")
+  class Delete {
 
     @Test
-    @DisplayName("Given: Valid playlist ID, When: DELETE /Playlists/{id}, Then: Deletes playlist")
+    @DisplayName("AC-05: Delete playlist")
+    @Feature(id = "FEAT-PLAYLISTS", ac = "AC-05")
     void deletePlaylist() throws Exception {
-      assumeTrue(userId != null, "User ID required");
-
       String playlistId = createTestPlaylist("Test Delete");
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
+              "/Playlists/" + playlistId, HttpMethod.DELETE, request, String.class);
 
       assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
     }

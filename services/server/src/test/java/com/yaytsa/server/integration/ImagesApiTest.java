@@ -1,73 +1,28 @@
 package com.yaytsa.server.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.*;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
 
-@DisplayName("Feature: Images API")
+@DisplayName("Feature: Images API (FEAT-IMAGES)")
+@Tag("images")
 class ImagesApiTest extends BaseIntegrationTest {
 
-  private static String firstAlbumId;
-  private static String firstArtistId;
-
-  @BeforeAll
-  static void findTestData() throws Exception {
-    HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-
-    ResponseEntity<String> albumsResponse =
-        restTemplate.exchange(
-            BASE_URL + "/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Limit=1",
-            HttpMethod.GET,
-            request,
-            String.class);
-
-    if (albumsResponse.getStatusCode().is2xxSuccessful() && albumsResponse.getBody() != null) {
-      JsonNode json = objectMapper.readTree(albumsResponse.getBody());
-      if (json.get("TotalRecordCount").asInt() > 0) {
-        firstAlbumId = json.get("Items").get(0).get("Id").asText();
-      }
-    }
-
-    ResponseEntity<String> artistsResponse =
-        restTemplate.exchange(
-            BASE_URL + "/Items?IncludeItemTypes=MusicArtist&Recursive=true&Limit=1",
-            HttpMethod.GET,
-            request,
-            String.class);
-
-    if (artistsResponse.getStatusCode().is2xxSuccessful() && artistsResponse.getBody() != null) {
-      JsonNode json = objectMapper.readTree(artistsResponse.getBody());
-      if (json.get("TotalRecordCount").asInt() > 0) {
-        firstArtistId = json.get("Items").get(0).get("Id").asText();
-      }
-    }
-  }
-
   @Nested
-  @DisplayName("Scenario: Get album image")
-  class GetAlbumImage {
+  @DisplayName("FormatConversion")
+  class FormatConversion {
 
     @Test
-    @DisplayName(
-        "Given: Album with image, When: GET /Items/{id}/Images/Primary with format, Then: Returns"
-            + " image in format")
-    void getAlbumImageWebp() {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
+    @DisplayName("AC-01: Get album image with format conversion")
+    @Feature(id = "FEAT-IMAGES", ac = "AC-01")
+    void getAlbumImageWithFormatConversion() {
       ResponseEntity<byte[]> response =
           restTemplate.getForEntity(
-              BASE_URL
-                  + "/Items/"
-                  + firstAlbumId
-                  + "/Images/Primary?api_key="
-                  + authToken
-                  + "&format=webp",
+              "/Items/" + testAlbumId + "/Images/Primary?api_key=" + authToken + "&format=webp",
               byte[].class);
 
       assertTrue(
@@ -79,18 +34,16 @@ class ImagesApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Image caching")
-  class ImageCaching {
+  @DisplayName("ETagCaching")
+  class ETagCaching {
 
     @Test
-    @DisplayName("Given: Image with ETag, When: GET with If-None-Match, Then: Returns 304 or image")
-    void imageCaching() {
-      assumeTrue(firstAlbumId != null, "Album ID required");
-
+    @DisplayName("AC-02: ETag caching returns 304")
+    @Feature(id = "FEAT-IMAGES", ac = "AC-02")
+    void etagCachingReturns304() {
       ResponseEntity<byte[]> firstResponse =
           restTemplate.getForEntity(
-              BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
-              byte[].class);
+              "/Items/" + testAlbumId + "/Images/Primary?api_key=" + authToken, byte[].class);
 
       assertTrue(
           firstResponse.getStatusCode().is2xxSuccessful(),
@@ -104,7 +57,7 @@ class ImagesApiTest extends BaseIntegrationTest {
 
       ResponseEntity<byte[]> secondResponse =
           restTemplate.exchange(
-              BASE_URL + "/Items/" + firstAlbumId + "/Images/Primary?api_key=" + authToken,
+              "/Items/" + testAlbumId + "/Images/Primary?api_key=" + authToken,
               HttpMethod.GET,
               request,
               byte[].class);

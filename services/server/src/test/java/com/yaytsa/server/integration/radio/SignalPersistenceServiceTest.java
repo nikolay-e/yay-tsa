@@ -4,42 +4,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.yaytsa.server.domain.service.ListeningSessionService;
 import com.yaytsa.server.domain.service.SignalPersistenceService;
-import com.yaytsa.server.infrastructure.client.RadioSeedClient;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.AdaptiveQueueRepository;
+import com.yaytsa.server.integration.Feature;
+import com.yaytsa.server.integration.MockExternalServicesConfig;
+import com.yaytsa.server.integration.TestcontainersConfig;
 import jakarta.persistence.EntityManager;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
-@Import({TestcontainersConfig.class, SignalPersistenceServiceTest.MockConfig.class})
+@Import({TestcontainersConfig.class, MockExternalServicesConfig.class})
 @ActiveProfiles("tc")
-@Tag("testcontainers")
-@DisplayName("SignalPersistenceService")
+@DisplayName("Feature: Signal persistence (FEAT-SIGNALS)")
 class SignalPersistenceServiceTest {
-
-  @TestConfiguration
-  static class MockConfig {
-    @Bean
-    @Primary
-    RadioSeedClient testRadioSeedClient() {
-      return new RadioSeedClient(
-          org.springframework.web.client.RestClient.builder(), "http://localhost:19999");
-    }
-  }
 
   @Autowired private SignalPersistenceService signalService;
   @Autowired private ListeningSessionService sessionService;
@@ -94,7 +81,8 @@ class SignalPersistenceServiceTest {
   }
 
   @Test
-  @DisplayName("persistSignal creates entity with correct fields")
+  @Feature(id = "FEAT-SIGNALS", ac = "AC-01")
+  @DisplayName("AC-01: Persisted signal has correct fields")
   void persistSignalCreatesEntity() {
     var result =
         signalService.persistSignal(
@@ -108,13 +96,15 @@ class SignalPersistenceServiceTest {
   }
 
   @Test
-  @DisplayName("isQueueLow with 0 entries and threshold 8 → true")
+  @Feature(id = "FEAT-SIGNALS", ac = "AC-02")
+  @DisplayName("AC-02: Queue with no entries is detected as low")
   void isQueueLowTrue() {
     assertThat(signalService.isQueueLow(sessionId, 8)).isTrue();
   }
 
   @Test
-  @DisplayName("hasSkipPattern with 2 skips in last 10 → true; diluted → false")
+  @Feature(id = "FEAT-SIGNALS", ac = "AC-03")
+  @DisplayName("AC-03: Skip pattern detected and diluted correctly")
   void hasSkipPattern() {
     signalService.persistSignal(sessionId, "SKIP_EARLY", trackId, null, Map.of());
     signalService.persistSignal(sessionId, "THUMBS_DOWN", trackId, null, Map.of());

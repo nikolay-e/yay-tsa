@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.yaytsa.server.domain.service.RadioSeedService;
 import com.yaytsa.server.dto.response.RadioSeedsResponse;
-import com.yaytsa.server.infrastructure.client.RadioSeedClient;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
+import com.yaytsa.server.integration.Feature;
+import com.yaytsa.server.integration.MockExternalServicesConfig;
+import com.yaytsa.server.integration.TestcontainersConfig;
 import jakarta.persistence.EntityManager;
 import java.time.OffsetDateTime;
 import java.util.Set;
@@ -13,34 +15,19 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
-@Import({TestcontainersConfig.class, RadioSeedServiceWithHistoryTest.MockClientConfig.class})
+@Import({TestcontainersConfig.class, MockExternalServicesConfig.class})
 @ActiveProfiles("tc")
-@Tag("testcontainers")
-@DisplayName("RadioSeedService with play history")
+@DisplayName("Feature: Radio seed generation with history (FEAT-RADIO)")
 class RadioSeedServiceWithHistoryTest {
-
-  @TestConfiguration
-  static class MockClientConfig {
-    @Bean
-    @Primary
-    RadioSeedClient testRadioSeedClient() {
-      return new RadioSeedClient(
-          org.springframework.web.client.RestClient.builder(), "http://localhost:19999");
-    }
-  }
 
   @Autowired private RadioSeedService radioSeedService;
   @Autowired private EntityManager em;
@@ -66,7 +53,8 @@ class RadioSeedServiceWithHistoryTest {
   }
 
   @Test
-  @DisplayName("6 tracks with affinity → seeds non-empty")
+  @Feature(id = "FEAT-RADIO", ac = "AC-03")
+  @DisplayName("AC-03: Affinity tracks produce non-empty seeds")
   void seedsFromAffinityTracks() {
     TransactionTemplate tx = new TransactionTemplate(txManager);
     tx.executeWithoutResult(
@@ -86,7 +74,8 @@ class RadioSeedServiceWithHistoryTest {
   }
 
   @Test
-  @DisplayName("<5 affinity but 5 play_state tracks → fallback to play history")
+  @Feature(id = "FEAT-RADIO", ac = "AC-04")
+  @DisplayName("AC-04: Fallback to play history when affinity is insufficient")
   void fallbackToPlayState() {
     TransactionTemplate tx = new TransactionTemplate(txManager);
     tx.executeWithoutResult(
@@ -111,7 +100,8 @@ class RadioSeedServiceWithHistoryTest {
   }
 
   @Test
-  @DisplayName("2 tracks from same album → dedup (max 1 seed per album)")
+  @Feature(id = "FEAT-RADIO", ac = "AC-05")
+  @DisplayName("AC-05: Album deduplication limits seeds per album")
   void albumDedup() {
     TransactionTemplate tx = new TransactionTemplate(txManager);
     tx.executeWithoutResult(
@@ -135,7 +125,8 @@ class RadioSeedServiceWithHistoryTest {
   }
 
   @Test
-  @DisplayName("Discovery: seeds include never-played tracks from library")
+  @Feature(id = "FEAT-RADIO", ac = "AC-06")
+  @DisplayName("AC-06: Discovery seeds include never-played tracks")
   void discoveryTracks() {
     TransactionTemplate tx = new TransactionTemplate(txManager);
     tx.executeWithoutResult(

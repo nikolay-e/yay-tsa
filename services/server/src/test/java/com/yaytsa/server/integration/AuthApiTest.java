@@ -6,35 +6,30 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
 
-@DisplayName("Feature: Authentication API")
+@DisplayName("Feature: Authentication (FEAT-AUTH)")
+@Tag("auth")
 class AuthApiTest extends BaseIntegrationTest {
 
-  private static final String AUTH_HEADER = "Authorization";
-  private static final String AUTH_PREFIX = "Bearer ";
-
   @Nested
-  @DisplayName("Scenario: User authenticates with valid credentials")
-  class ValidAuthentication {
+  @DisplayName("ValidCredentials")
+  class ValidCredentials {
 
     @Test
-    @DisplayName(
-        "Given: Valid credentials, When: POST /Users/AuthenticateByName, Then: Returns token and"
-            + " user info")
-    void authenticateWithValidCredentials() throws Exception {
-      String username = System.getenv().getOrDefault("YAYTSA_TEST_USERNAME", "admin");
-      String password = System.getenv().getOrDefault("YAYTSA_TEST_PASSWORD", "admin123");
-
+    @DisplayName("AC-01: Valid credentials return token and user info")
+    @Feature(id = "FEAT-AUTH", ac = "AC-01")
+    void validCredentialsReturnTokenAndUserInfo() throws Exception {
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
 
-      String body = String.format("{\"Username\":\"%s\",\"Pw\":\"%s\"}", username, password);
+      String body = "{\"Username\":\"admin\",\"Pw\":\"admin123\"}";
       HttpEntity<String> request = new HttpEntity<>(body, headers);
 
       ResponseEntity<String> response =
-          restTemplate.postForEntity(BASE_URL + "/Users/AuthenticateByName", request, String.class);
+          restTemplate.postForEntity("/Users/AuthenticateByName", request, String.class);
 
       assertEquals(HttpStatus.OK, response.getStatusCode());
 
@@ -48,97 +43,73 @@ class AuthApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Token lifecycle — revocation and api_key auth")
-  class TokenLifecycle {
+  @DisplayName("TokenRevocation")
+  class TokenRevocation {
 
-    private String freshToken;
-    private String freshUserId;
+    private TestDataFactory.AuthResult freshAuth;
 
     @BeforeEach
-    void loginFreshSession() throws Exception {
-      String username = System.getenv().getOrDefault("YAYTSA_TEST_USERNAME", "admin");
-      String password = System.getenv().getOrDefault("YAYTSA_TEST_PASSWORD", "admin123");
-
-      HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.APPLICATION_JSON);
-
-      String body = String.format("{\"Username\":\"%s\",\"Pw\":\"%s\"}", username, password);
-      HttpEntity<String> request = new HttpEntity<>(body, headers);
-
-      ResponseEntity<String> response =
-          restTemplate.postForEntity(BASE_URL + "/Users/AuthenticateByName", request, String.class);
-
-      JsonNode json = objectMapper.readTree(response.getBody());
-      freshToken = json.get("AccessToken").asText();
-      freshUserId = json.get("User").get("Id").asText();
-    }
-
-    private HttpHeaders freshAuthHeaders() {
-      HttpHeaders headers = new HttpHeaders();
-      headers.set(AUTH_HEADER, AUTH_PREFIX + freshToken);
-      return headers;
+    void loginFreshSession() {
+      freshAuth = freshLogin();
     }
 
     @Test
-    @DisplayName(
-        "Given: Valid token, When: Use token then logout then use token again,"
-            + " Then: Token is rejected with 401 after logout")
-    void tokenIsRejectedAfterLogout() {
+    @DisplayName("AC-03: Token revoked after logout")
+    @Feature(id = "FEAT-AUTH", ac = "AC-03")
+    void tokenRevokedAfterLogout() {
       ResponseEntity<String> beforeLogout =
           restTemplate.exchange(
-              BASE_URL + "/Users/" + freshUserId,
+              "/Users/" + freshAuth.userId(),
               HttpMethod.GET,
-              new HttpEntity<>(freshAuthHeaders()),
+              new HttpEntity<>(headersWithToken(freshAuth.rawToken())),
               String.class);
       assertEquals(HttpStatus.OK, beforeLogout.getStatusCode());
 
       ResponseEntity<String> logoutResponse =
           restTemplate.exchange(
-              BASE_URL + "/Sessions/Logout",
+              "/Sessions/Logout",
               HttpMethod.POST,
-              new HttpEntity<>(freshAuthHeaders()),
+              new HttpEntity<>(headersWithToken(freshAuth.rawToken())),
               String.class);
       assertEquals(HttpStatus.NO_CONTENT, logoutResponse.getStatusCode());
 
       ResponseEntity<String> afterLogout =
           restTemplate.exchange(
-              BASE_URL + "/Users/" + freshUserId,
+              "/Users/" + freshAuth.userId(),
               HttpMethod.GET,
-              new HttpEntity<>(freshAuthHeaders()),
+              new HttpEntity<>(headersWithToken(freshAuth.rawToken())),
               String.class);
       assertEquals(HttpStatus.UNAUTHORIZED, afterLogout.getStatusCode());
     }
 
     @Test
-    @DisplayName(
-        "Given: Revoked token, When: Logout called again with same token,"
-            + " Then: Returns 401 (token already invalidated)")
-    void logoutWithRevokedTokenReturns401() {
+    @DisplayName("AC-04: Double logout returns 401")
+    @Feature(id = "FEAT-AUTH", ac = "AC-04")
+    void doubleLogoutReturns401() {
       ResponseEntity<String> firstLogout =
           restTemplate.exchange(
-              BASE_URL + "/Sessions/Logout",
+              "/Sessions/Logout",
               HttpMethod.POST,
-              new HttpEntity<>(freshAuthHeaders()),
+              new HttpEntity<>(headersWithToken(freshAuth.rawToken())),
               String.class);
       assertEquals(HttpStatus.NO_CONTENT, firstLogout.getStatusCode());
 
       ResponseEntity<String> secondLogout =
           restTemplate.exchange(
-              BASE_URL + "/Sessions/Logout",
+              "/Sessions/Logout",
               HttpMethod.POST,
-              new HttpEntity<>(freshAuthHeaders()),
+              new HttpEntity<>(headersWithToken(freshAuth.rawToken())),
               String.class);
       assertEquals(HttpStatus.UNAUTHORIZED, secondLogout.getStatusCode());
     }
 
     @Test
-    @DisplayName(
-        "Given: Valid token, When: Request made with ?api_key=<token> query param,"
-            + " Then: Returns 200 (api_key auth path works)")
+    @DisplayName("AC-05: api_key query param auth works")
+    @Feature(id = "FEAT-AUTH", ac = "AC-05")
     void apiKeyQueryParamAuthWorks() {
       ResponseEntity<String> response =
           restTemplate.getForEntity(
-              BASE_URL + "/Users/" + freshUserId + "?api_key=" + freshToken, String.class);
+              "/Users/" + freshAuth.userId() + "?api_key=" + freshAuth.rawToken(), String.class);
       assertEquals(HttpStatus.OK, response.getStatusCode());
     }
   }

@@ -1,56 +1,64 @@
 package com.yaytsa.server.integration;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeAll;
+import java.nio.file.Path;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpEntity;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.ActiveProfiles;
 
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import({TestcontainersConfig.class, MockExternalServicesConfig.class})
+@ActiveProfiles("tc")
 public abstract class BaseIntegrationTest {
 
-  protected static final String BASE_URL;
-  protected static final ObjectMapper objectMapper = new ObjectMapper();
-  protected static TestRestTemplate restTemplate = new TestRestTemplate();
-  protected static String authToken;
-  protected static String userId;
+  protected static final Path MEDIA_ROOT = Path.of("/tmp/yaytsa-test-media");
 
-  static {
-    String host = System.getenv().getOrDefault("YAYTSA_SERVER_URL", "http://localhost:8096");
-    BASE_URL = host;
+  @Autowired protected TestRestTemplate restTemplate;
+  @Autowired protected ObjectMapper objectMapper;
+  @Autowired protected TestDataFactory data;
+  @Autowired protected DatabaseCleaner cleaner;
+
+  protected String authToken;
+  protected String userId;
+  protected String testArtistId;
+  protected String testAlbumId;
+  protected String testTrackId1;
+  protected String testTrackId2;
+  protected String testTrackId3;
+
+  @BeforeEach
+  void setupBaseData() {
+    cleaner.clean();
+
+    var admin = data.createAdmin();
+    authToken = admin.rawToken();
+    userId = admin.userId();
+
+    var library = data.createLibrary(MEDIA_ROOT);
+    testArtistId = library.artistId();
+    testAlbumId = library.albumId();
+    testTrackId1 = library.trackId1();
+    testTrackId2 = library.trackId2();
+    testTrackId3 = library.trackId3();
   }
 
-  @BeforeAll
-  static void authenticate() throws Exception {
-    String username = System.getenv().getOrDefault("YAYTSA_TEST_USERNAME", "admin");
-    String password = System.getenv().getOrDefault("YAYTSA_TEST_PASSWORD", "admin123");
-
-    HttpHeaders headers = new HttpHeaders();
-    headers.setContentType(MediaType.APPLICATION_JSON);
-
-    String body = String.format("{\"Username\":\"%s\",\"Pw\":\"%s\"}", username, password);
-    HttpEntity<String> request = new HttpEntity<>(body, headers);
-
-    ResponseEntity<String> response =
-        restTemplate.postForEntity(BASE_URL + "/Users/AuthenticateByName", request, String.class);
-
-    if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-      throw new IllegalStateException(
-          "Authentication failed ("
-              + response.getStatusCode()
-              + "). "
-              + "Set YAYTSA_SERVER_URL, YAYTSA_TEST_USERNAME, YAYTSA_TEST_PASSWORD env vars.");
-    }
-    JsonNode json = objectMapper.readTree(response.getBody());
-    authToken = json.get("AccessToken").asText();
-    userId = json.get("User").get("Id").asText();
-  }
-
-  protected static HttpHeaders authHeaders() {
+  protected HttpHeaders authHeaders() {
     HttpHeaders headers = new HttpHeaders();
     headers.set("Authorization", "Bearer " + authToken);
     return headers;
+  }
+
+  protected HttpHeaders headersWithToken(String token) {
+    HttpHeaders headers = new HttpHeaders();
+    headers.set("Authorization", "Bearer " + token);
+    return headers;
+  }
+
+  protected TestDataFactory.AuthResult freshLogin() {
+    return data.createAdmin("fresh_" + System.nanoTime(), "password123");
   }
 }

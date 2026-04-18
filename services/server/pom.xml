@@ -48,7 +48,7 @@
         <jacoco.version>0.8.12</jacoco.version>
         <dependency-check.version>11.1.1</dependency-check.version>
         <enforcer.version>3.5.0</enforcer.version>
-        <surefire.excludedGroups>testcontainers</surefire.excludedGroups>
+        <surefire.excludedGroups></surefire.excludedGroups>
     </properties>
 
     <dependencyManagement>

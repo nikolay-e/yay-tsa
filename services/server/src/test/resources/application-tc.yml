@@ -13,13 +13,21 @@ spring:
     baseline-version: 0
     out-of-order: false
 
+management:
+  server:
+    port: 0
+
 yaytsa:
   media:
     library:
-      roots: ./test-media
+      roots: /tmp/yaytsa-test-media
+      scan-on-startup: false
     images:
       cache-directory: /tmp/yaytsa-test-images
     karaoke:
       separator-url: http://localhost:19999
+      backfill-enabled: false
     feature-extraction:
+      url: http://localhost:19998
+    embedding-extraction:
       url: http://localhost:19998

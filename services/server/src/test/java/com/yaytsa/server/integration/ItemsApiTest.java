@@ -1,51 +1,30 @@
 package com.yaytsa.server.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
 
-@DisplayName("Feature: Items API")
+@DisplayName("Feature: Items API (FEAT-ITEMS)")
+@Tag("items")
 class ItemsApiTest extends BaseIntegrationTest {
 
-  private static String firstTrackName;
-
-  @BeforeAll
-  static void findTestData() throws Exception {
-    HttpEntity<Void> request = new HttpEntity<>(authHeaders());
-    ResponseEntity<String> response =
-        restTemplate.exchange(
-            BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1",
-            HttpMethod.GET,
-            request,
-            String.class);
-
-    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-      JsonNode json = objectMapper.readTree(response.getBody());
-      if (json.get("TotalRecordCount").asInt() > 0) {
-        firstTrackName = json.get("Items").get(0).get("Name").asText();
-      }
-    }
-  }
-
   @Nested
-  @DisplayName("Scenario: Get music albums")
-  class GetAlbums {
+  @DisplayName("Pagination")
+  class Pagination {
 
     @Test
-    @DisplayName(
-        "Given: Authenticated user, When: GET /Items with pagination, Then: Returns paginated"
-            + " results")
+    @DisplayName("AC-01: Paginated album listing")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-01")
     void getAlbumsWithPagination() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=MusicAlbum&Recursive=true&StartIndex=0&Limit=10",
+              "/Items?IncludeItemTypes=MusicAlbum&Recursive=true&StartIndex=0&Limit=10",
               HttpMethod.GET,
               request,
               String.class);
@@ -59,22 +38,19 @@ class ItemsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Search items")
-  class SearchItems {
+  @DisplayName("Search")
+  class Search {
 
     @Test
-    @DisplayName(
-        "Given: Known track name, When: GET /Items with SearchTerm, Then: Returns matching results")
+    @DisplayName("AC-02: Search by term returns matching")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-02")
     void searchByTerm() throws Exception {
-      assumeTrue(firstTrackName != null, "Track name required");
-
-      String searchTerm =
-          firstTrackName.length() > 3 ? firstTrackName.substring(0, 3) : firstTrackName;
+      String searchTerm = "Tes";
 
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=" + searchTerm,
+              "/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=" + searchTerm,
               HttpMethod.GET,
               request,
               String.class);
@@ -89,15 +65,13 @@ class ItemsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-        "Given: Nonsense search term, When: GET /Items with SearchTerm, Then: Returns empty"
-            + " results")
+    @DisplayName("AC-03: Nonsense search returns empty")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-03")
     void searchByNonsenseTerm() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL
-                  + "/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=zzzzxxxxxnonexistent99999",
+              "/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=zzzzxxxxxnonexistent99999",
               HttpMethod.GET,
               request,
               String.class);
@@ -111,16 +85,17 @@ class ItemsApiTest extends BaseIntegrationTest {
   }
 
   @Nested
-  @DisplayName("Scenario: Edge cases and boundary conditions")
-  class EdgeCases {
+  @DisplayName("BoundaryConditions")
+  class BoundaryConditions {
 
     @Test
-    @DisplayName("Given: Limit=0, When: GET /Items, Then: Returns 200 with results (not 500)")
+    @DisplayName("AC-04: Limit=0 returns 200")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-04")
     void getItemsWithZeroLimit() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=0",
+              "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=0",
               HttpMethod.GET,
               request,
               String.class);
@@ -132,12 +107,13 @@ class ItemsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Given: Negative limit, When: GET /Items, Then: Returns 200 (not 500)")
+    @DisplayName("AC-05: Negative limit returns 200")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-05")
     void getItemsWithNegativeLimit() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=-1",
+              "/Items?IncludeItemTypes=Audio&Recursive=true&Limit=-1",
               HttpMethod.GET,
               request,
               String.class);
@@ -146,14 +122,13 @@ class ItemsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-        "Given: Unknown IncludeItemTypes, When: GET /Items, Then: Returns 200 with empty or all"
-            + " results (not 500)")
+    @DisplayName("AC-06: Unknown type returns 200")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-06")
     void getItemsWithUnknownType() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=Video&Recursive=true",
+              "/Items?IncludeItemTypes=Video&Recursive=true",
               HttpMethod.GET,
               request,
               String.class);
@@ -164,14 +139,13 @@ class ItemsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-        "Given: StartIndex beyond total, When: GET /Items, Then: Returns empty items with valid"
-            + " TotalRecordCount")
+    @DisplayName("AC-07: StartIndex beyond total")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-07")
     void getItemsWithStartIndexBeyondTotal() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=Audio&Recursive=true&StartIndex=999999&Limit=10",
+              "/Items?IncludeItemTypes=Audio&Recursive=true&StartIndex=999999&Limit=10",
               HttpMethod.GET,
               request,
               String.class);
@@ -183,14 +157,13 @@ class ItemsApiTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-        "Given: Mixed valid and invalid IncludeItemTypes, When: GET /Items, Then: Returns results"
-            + " for valid types only")
+    @DisplayName("AC-08: Mixed valid/invalid types")
+    @Feature(id = "FEAT-ITEMS", ac = "AC-08")
     void getItemsWithMixedTypes() throws Exception {
       HttpEntity<Void> request = new HttpEntity<>(authHeaders());
       ResponseEntity<String> response =
           restTemplate.exchange(
-              BASE_URL + "/Items?IncludeItemTypes=Audio,InvalidType&Recursive=true",
+              "/Items?IncludeItemTypes=Audio,InvalidType&Recursive=true",
               HttpMethod.GET,
               request,
               String.class);

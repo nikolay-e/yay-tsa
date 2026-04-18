@@ -7,13 +7,14 @@ import com.yaytsa.server.infrastructure.persistence.entity.ItemType;
 import com.yaytsa.server.infrastructure.persistence.entity.TrackFeaturesEntity;
 import com.yaytsa.server.infrastructure.persistence.entity.UserEntity;
 import com.yaytsa.server.infrastructure.persistence.repository.TrackFeaturesRepository;
+import com.yaytsa.server.integration.Feature;
+import com.yaytsa.server.integration.TestcontainersConfig;
 import jakarta.persistence.EntityManager;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -25,8 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("tc")
-@Tag("testcontainers")
-@DisplayName("TrackFeatures native queries")
+@DisplayName("Feature: Track feature embeddings (FEAT-EMBEDDINGS)")
 class TrackFeaturesNativeQueryTest {
 
   @Autowired private TrackFeaturesRepository trackFeaturesRepository;
@@ -73,8 +73,8 @@ class TrackFeaturesNativeQueryTest {
   }
 
   @Test
-  @DisplayName(
-      "returns affinity tracks with embeddings, ordered by affinity, excludes no-embedding")
+  @Feature(id = "FEAT-EMBEDDINGS", ac = "AC-01")
+  @DisplayName("AC-01: Affinity query returns tracks ordered by score")
   void affinityQueryReturnsCorrectTracksInOrder() {
     List<Object[]> results =
         trackFeaturesRepository.findMertEmbeddingsForUserWithPositiveAffinity(userId);
@@ -89,7 +89,8 @@ class TrackFeaturesNativeQueryTest {
   }
 
   @Test
-  @DisplayName("returns empty for unknown user")
+  @Feature(id = "FEAT-EMBEDDINGS", ac = "AC-03")
+  @DisplayName("AC-03: Affinity query returns empty for unknown user")
   void affinityQueryEmptyForUnknownUser() {
     assertThat(
             trackFeaturesRepository.findMertEmbeddingsForUserWithPositiveAffinity(

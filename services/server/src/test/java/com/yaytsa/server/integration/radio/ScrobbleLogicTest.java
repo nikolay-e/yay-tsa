@@ -7,11 +7,13 @@ import com.yaytsa.server.infrastructure.persistence.entity.*;
 import com.yaytsa.server.infrastructure.persistence.repository.AudioTrackRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayHistoryRepository;
 import com.yaytsa.server.infrastructure.persistence.repository.PlayStateRepository;
+import com.yaytsa.server.integration.Feature;
+import com.yaytsa.server.integration.MockExternalServicesConfig;
+import com.yaytsa.server.integration.TestcontainersConfig;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,21 +23,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
-@Import({TestcontainersConfig.class, ScrobbleLogicTest.MockConfig.class})
+@Import({TestcontainersConfig.class, MockExternalServicesConfig.class})
 @ActiveProfiles("tc")
-@Tag("testcontainers")
-@DisplayName("Scrobble Logic")
+@DisplayName("Feature: Scrobble logic (FEAT-SCROBBLE)")
 class ScrobbleLogicTest {
-
-  @org.springframework.boot.test.context.TestConfiguration
-  static class MockConfig {
-    @org.springframework.context.annotation.Bean
-    @org.springframework.context.annotation.Primary
-    com.yaytsa.server.infrastructure.client.RadioSeedClient testRadioSeedClient() {
-      return new com.yaytsa.server.infrastructure.client.RadioSeedClient(
-          org.springframework.web.client.RestClient.builder(), "http://localhost:19999");
-    }
-  }
 
   @Autowired private SessionService sessionService;
   @Autowired private PlayHistoryRepository playHistoryRepository;
@@ -106,7 +97,8 @@ class ScrobbleLogicTest {
   }
 
   @Test
-  @DisplayName(">50% of 300s track → scrobbled, play_count=1")
+  @Feature(id = "FEAT-SCROBBLE", ac = "AC-01")
+  @DisplayName("AC-01: Track played over 50% is scrobbled")
   void scrobbleOverHalf() {
     UUID trackId = createTrack(300_000L);
     playAndStop(trackId, 160_000L);
@@ -127,7 +119,8 @@ class ScrobbleLogicTest {
   }
 
   @Test
-  @DisplayName(">240s of 600s track → scrobbled (threshold cap)")
+  @Feature(id = "FEAT-SCROBBLE", ac = "AC-02")
+  @DisplayName("AC-02: Track played over 240s is scrobbled regardless of percentage")
   void scrobbleOver240Seconds() {
     UUID trackId = createTrack(600_000L);
     playAndStop(trackId, 250_000L);
@@ -142,7 +135,8 @@ class ScrobbleLogicTest {
   }
 
   @Test
-  @DisplayName("Short track <30s → never scrobbled")
+  @Feature(id = "FEAT-SCROBBLE", ac = "AC-03")
+  @DisplayName("AC-03: Short track under 30s is never scrobbled")
   void shortTrackNoScrobble() {
     UUID trackId = createTrack(20_000L);
     playAndStop(trackId, 15_000L);
@@ -161,7 +155,8 @@ class ScrobbleLogicTest {
   }
 
   @Test
-  @DisplayName("95% of 200s track → completed")
+  @Feature(id = "FEAT-SCROBBLE", ac = "AC-04")
+  @DisplayName("AC-04: Track played to 95% is marked completed")
   void completedTrack() {
     UUID trackId = createTrack(200_000L);
     playAndStop(trackId, 195_000L);
@@ -177,7 +172,8 @@ class ScrobbleLogicTest {
   }
 
   @Test
-  @DisplayName("<50% of 300s track → skipped")
+  @Feature(id = "FEAT-SCROBBLE", ac = "AC-05")
+  @DisplayName("AC-05: Track played under 50% is marked skipped")
   void skippedTrack() {
     UUID trackId = createTrack(300_000L);
     playAndStop(trackId, 30_000L);
