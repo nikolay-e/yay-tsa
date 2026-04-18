@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: yaytsa
+      POSTGRES_USER: yaytsa
+      POSTGRES_PASSWORD: yaytsa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yaytsa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: yaytsa
+      DB_USERNAME: yaytsa
+      DB_PASSWORD: yaytsa
+      MUSIC_PATH: /music
+      MEDIA_ROOT_PATH: /music
+    volumes:
+      - ./music:/music
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

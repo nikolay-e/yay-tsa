@@ -1,0 +1,27 @@
+dependencies {
+    api(project(":core-domain:shared"))
+    api(project(":core-application:shared"))
+    api(project(":core-domain:auth"))
+    api(project(":core-application:auth"))
+    api(project(":core-domain:preferences"))
+    api(project(":core-application:preferences"))
+    api(project(":core-domain:playlists"))
+    api(project(":core-application:playlists"))
+    api(project(":core-domain:playback"))
+    api(project(":core-application:playback"))
+    api(project(":core-domain:library"))
+    api(project(":core-application:library"))
+    api(project(":core-domain:adaptive"))
+    api(project(":core-application:adaptive"))
+
+    implementation(libs.kotest.runner.junit5)
+    implementation(libs.kotest.assertions.core)
+    implementation(libs.kotest.property)
+    implementation(libs.kotlin.test)
+
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.property)
+    testImplementation(libs.kotlin.test)
+    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect")
+}

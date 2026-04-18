@@ -1,0 +1,30 @@
+complexity:
+  LongMethod:
+    threshold: 80
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 12
+  CyclomaticComplexMethod:
+    threshold: 20
+
+style:
+  MaxLineLength:
+    maxLineLength: 150
+  MagicNumber:
+    active: false
+  ReturnCount:
+    max: 5
+  WildcardImport:
+    active: false
+  ForbiddenComment:
+    active: false
+
+naming:
+  FunctionNaming:
+    functionPattern: '[a-zA-Z][a-zA-Z0-9 ]*'
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][A-Za-z0-9_]*|[a-z][a-zA-Z0-9]*'
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
