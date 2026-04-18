@@ -94,7 +94,7 @@ test.describe('Sleep Timer', () => {
     const badge = sleepTimerButton.locator('span');
     await expect(badge).toBeVisible({ timeout: 5000 });
     const badgeText = await badge.textContent();
-    const remainingMinutes = Number(badgeText);
+    const remainingMinutes = Number.parseInt(badgeText ?? '0', 10);
     expect(remainingMinutes).toBeGreaterThan(0);
     expect(remainingMinutes).toBeLessThanOrEqual(15);
   });

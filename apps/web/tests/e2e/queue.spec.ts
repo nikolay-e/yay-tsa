@@ -72,7 +72,7 @@ test.describe('Queue Management', () => {
     await playerBar.waitForPlayerToLoad();
 
     await playerBar.clickNextAndWait();
-    await expect(playerBar.playerBar).toBeVisible();
+    await expect(playerBar.currentTrackTitle).toBeVisible();
     const secondTrack = await playerBar.getCurrentTrackTitle();
 
     await playerBar.clickNextAndWait();
@@ -81,7 +81,7 @@ test.describe('Queue Management', () => {
     await playerBar.seek(0);
 
     await playerBar.clickPreviousAndWait();
-    await expect(playerBar.playerBar).toBeVisible();
+    await expect(playerBar.currentTrackTitle).toBeVisible();
     const backToSecond = await playerBar.getCurrentTrackTitle();
 
     expect(backToSecond).toBe(secondTrack);
@@ -162,7 +162,9 @@ test.describe('Queue Management', () => {
   }) => {
     await playAlbumFromLibrary();
 
-    const shuffleButton = authenticatedPage.getByRole('button', { name: 'Shuffle' });
+    const shuffleButton = authenticatedPage.locator(
+      'button[aria-label="Shuffle"][aria-pressed]:visible'
+    );
     const isVisible = await shuffleButton.isVisible().catch(() => false);
     test.skip(!isVisible, 'Shuffle button not visible at current viewport size');
 

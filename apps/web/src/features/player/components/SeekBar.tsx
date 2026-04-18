@@ -46,7 +46,11 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
   const handlePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
     isDragging.current = true;
     pendingValue.current = null;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointer events (e.g. from tests) may have invalid pointerIds
+    }
   };
 
   const handlePointerUp = () => {

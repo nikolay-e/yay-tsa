@@ -128,6 +128,7 @@ export class PlayerBar {
       const max = Number.parseFloat(input.max) || 100;
       const min = Number.parseFloat(input.min) || 0;
       const value = min + ((max - min) * pct) / 100;
+      input.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
         'value'
@@ -135,6 +136,7 @@ export class PlayerBar {
       nativeInputValueSetter.call(input, value.toString());
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
     }, percentage);
   }
 
