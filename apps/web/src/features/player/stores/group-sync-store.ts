@@ -121,7 +121,7 @@ function startDriftCorrection(store: typeof useGroupSyncStore) {
 
     if (Math.abs(drift) < DRIFT_DEAD_ZONE_MS) {
       if (engine.audioEngine.setPlaybackRate) {
-        engine.audioEngine.setPlaybackRate(1.0);
+        engine.audioEngine.setPlaybackRate(1);
       }
       return;
     }
@@ -348,15 +348,18 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
           .then(items => {
             const track = items[0];
             if (track) {
-              void player.playTrack(track).then(() => {
-                if (!schedule.isPaused && serverClock) {
-                  const nowExpected = computeExpectedPosition(schedule, serverClock);
-                  player.seek(nowExpected / 1000);
-                } else {
-                  player.seek(schedule.anchorPositionMs / 1000);
-                  player.pause();
-                }
-              });
+              player
+                .playTrack(track)
+                .then(() => {
+                  if (!schedule.isPaused && serverClock) {
+                    const nowExpected = computeExpectedPosition(schedule, serverClock);
+                    player.seek(nowExpected / 1000);
+                  } else {
+                    player.seek(schedule.anchorPositionMs / 1000);
+                    player.pause();
+                  }
+                })
+                .catch(() => {});
             }
           })
           .catch(() => {});

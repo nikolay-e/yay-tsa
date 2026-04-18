@@ -487,7 +487,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
   setPlaybackRate(rate: number): void {
     this.ensureNotDisposed();
-    const clamped = Math.max(0.5, Math.min(2.0, rate));
+    const clamped = Math.max(0.5, Math.min(2, rate));
     this.audio.playbackRate = clamped;
     this.audio.preservesPitch = true;
   }

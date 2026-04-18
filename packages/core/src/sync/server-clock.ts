@@ -8,7 +8,7 @@ export class ServerClock {
   private medianRtt = 0;
   private initialized = false;
   private intervalId: ReturnType<typeof setInterval> | null = null;
-  private timeUrl: string;
+  private readonly timeUrl: string;
 
   constructor(timeUrl: string) {
     this.timeUrl = timeUrl;
@@ -94,7 +94,7 @@ export class ServerClock {
     }
   }
 
-  private onVisibilityChange = (): void => {
+  private readonly onVisibilityChange = (): void => {
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
       this.sync().catch(() => {});
     }

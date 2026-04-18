@@ -230,17 +230,28 @@ export function MobileFullPlayer({
       {/* Track info + like + rating */}
       <div className="flex items-center justify-between px-8 py-3">
         <div className="min-w-0 flex-1">
-          <p className="text-text-primary truncate text-xl font-semibold">{track.Name}</p>
+          <p
+            data-testid="current-track-title"
+            className="text-text-primary truncate text-xl font-semibold"
+          >
+            {track.Name}
+          </p>
           {artistId ? (
             <Link
               to={`/artists/${artistId}`}
               onClick={onClose}
+              data-testid="current-track-artist"
               className="text-text-secondary hover:text-text-primary truncate text-base hover:underline"
             >
               {artistName}
             </Link>
           ) : (
-            <p className="text-text-secondary truncate text-base">{artistName}</p>
+            <p
+              data-testid="current-track-artist"
+              className="text-text-secondary truncate text-base"
+            >
+              {artistName}
+            </p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">

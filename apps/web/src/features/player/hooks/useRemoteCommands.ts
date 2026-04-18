@@ -24,57 +24,71 @@ export function useRemoteCommands() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectAttempts = 0;
 
+    const handleGroupCommand = (
+      cmd: RemoteCommand,
+      groupSync: ReturnType<typeof useGroupSyncStore.getState>
+    ) => {
+      const groupActions = ['PAUSE', 'PLAY', 'NEXT', 'PREV', 'SEEK'] as const;
+      type GroupAction = (typeof groupActions)[number];
+      if (!groupActions.includes(cmd.type as GroupAction)) return;
+
+      const posMs =
+        cmd.type === 'SEEK' && cmd.payload ? (cmd.payload.positionMs as number) : undefined;
+      groupSync
+        .sendAction(cmd.type as GroupAction, undefined, posMs, groupSync.schedule?.isPaused)
+        .catch(() => {});
+    };
+
+    const handleSoloCommand = (
+      cmd: RemoteCommand,
+      store: ReturnType<typeof usePlayerStore.getState>
+    ) => {
+      switch (cmd.type) {
+        case 'PAUSE':
+          store.pause();
+          break;
+        case 'PLAY':
+          store.resume().catch(() => {});
+          break;
+        case 'NEXT':
+          store.next().catch(() => {});
+          break;
+        case 'PREV':
+          store.previous().catch(() => {});
+          break;
+        case 'SEEK':
+          if (cmd.payload && typeof cmd.payload.positionMs === 'number') {
+            store.seek(cmd.payload.positionMs / 1000);
+          }
+          break;
+        case 'SET_VOLUME':
+          if (cmd.payload && typeof cmd.payload.volume === 'number') {
+            store.setVolume(cmd.payload.volume);
+          }
+          break;
+        case 'TOGGLE_SHUFFLE':
+          store.toggleShuffle();
+          break;
+        case 'TOGGLE_REPEAT':
+          store.toggleRepeat();
+          break;
+        default:
+          log.player.debug('Unknown remote command', { type: cmd.type });
+      }
+    };
+
     const handleCommand = (event: MessageEvent) => {
       try {
         const cmd = JSON.parse(event.data as string) as RemoteCommand;
         const groupSync = useGroupSyncStore.getState();
         const store = usePlayerStore.getState();
 
-        // In group mode, only volume is local — everything else goes through schedule
         if (groupSync.mode === 'group' && cmd.type !== 'SET_VOLUME') {
-          const groupActions = ['PAUSE', 'PLAY', 'NEXT', 'PREV', 'SEEK'] as const;
-          type GroupAction = (typeof groupActions)[number];
-          if (groupActions.includes(cmd.type as GroupAction)) {
-            const posMs =
-              cmd.type === 'SEEK' && cmd.payload ? (cmd.payload.positionMs as number) : undefined;
-            const isPaused = groupSync.schedule?.isPaused;
-            void groupSync.sendAction(cmd.type as GroupAction, undefined, posMs, isPaused);
-          }
+          handleGroupCommand(cmd, groupSync);
           return;
         }
 
-        switch (cmd.type) {
-          case 'PAUSE':
-            store.pause();
-            break;
-          case 'PLAY':
-            store.resume().catch(() => {});
-            break;
-          case 'NEXT':
-            store.next().catch(() => {});
-            break;
-          case 'PREV':
-            store.previous().catch(() => {});
-            break;
-          case 'SEEK':
-            if (cmd.payload && typeof cmd.payload.positionMs === 'number') {
-              store.seek(cmd.payload.positionMs / 1000);
-            }
-            break;
-          case 'SET_VOLUME':
-            if (cmd.payload && typeof cmd.payload.volume === 'number') {
-              store.setVolume(cmd.payload.volume);
-            }
-            break;
-          case 'TOGGLE_SHUFFLE':
-            store.toggleShuffle();
-            break;
-          case 'TOGGLE_REPEAT':
-            store.toggleRepeat();
-            break;
-          default:
-            log.player.debug('Unknown remote command', { type: cmd.type });
-        }
+        handleSoloCommand(cmd, store);
       } catch {
         // ignore malformed
       }

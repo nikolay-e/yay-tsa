@@ -48,17 +48,14 @@ function DeviceItem({
   onTransfer: (sessionId: string) => void;
 }>) {
   const Icon = deviceIcon(device.clientName);
-  const isPlaying = !device.isPaused && device.nowPlayingItemId;
 
   return (
     <div
       className={cn(
         'rounded-lg border p-3 transition-colors',
-        isCurrentDevice
-          ? 'border-accent/30 bg-accent/5'
-          : device.isOnline
-            ? 'border-border bg-bg-tertiary'
-            : 'border-border/50 bg-bg-tertiary/50 opacity-60'
+        isCurrentDevice && 'border-accent/30 bg-accent/5',
+        !isCurrentDevice && device.isOnline && 'border-border bg-bg-tertiary',
+        !isCurrentDevice && !device.isOnline && 'border-border/50 bg-bg-tertiary/50 opacity-60'
       )}
     >
       <div className="flex items-center gap-3">
@@ -84,7 +81,6 @@ function DeviceItem({
           </div>
           {device.nowPlayingItemName ? (
             <p className="text-text-secondary truncate text-xs">
-              {isPlaying ? '' : ''}
               {device.nowPlayingItemName}
               {' · '}
               {formatPosition(device.positionMs)}
@@ -115,11 +111,11 @@ function DeviceItem({
                 className="bg-accent text-text-on-accent hover:bg-accent-hover rounded-full p-1.5 transition-colors disabled:opacity-50"
                 aria-label={device.isPaused ? 'Play' : 'Pause'}
               >
-                {commandPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : device.isPaused ? (
+                {commandPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {!commandPending && device.isPaused && (
                   <Play className="h-3.5 w-3.5" fill="currentColor" />
-                ) : (
+                )}
+                {!commandPending && !device.isPaused && (
                   <Pause className="h-3.5 w-3.5" fill="currentColor" />
                 )}
               </button>
@@ -192,13 +188,15 @@ export function DevicesPanel({
           </button>
         </div>
 
-        {isLoading && devices.length === 0 ? (
+        {isLoading && devices.length === 0 && (
           <div className="flex justify-center py-8">
             <Loader2 className="text-accent h-6 w-6 animate-spin" />
           </div>
-        ) : devices.length === 0 ? (
+        )}
+        {!isLoading && devices.length === 0 && (
           <p className="text-text-tertiary py-8 text-center text-sm">No devices found</p>
-        ) : (
+        )}
+        {devices.length > 0 && (
           <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
             {devices.map(device => (
               <DeviceItem

@@ -1058,6 +1058,7 @@ class BatchExtractionResponse(BaseModel):
     responses={
         403: {"description": "Path traversal attempt"},
         404: {"description": "File not found"},
+        413: {"description": ERR_FILE_TOO_LARGE},
         500: {"description": ERR_INTERNAL},
         503: {"description": ERR_FEATURE_EXTRACTION_UNAVAILABLE},
     },
@@ -1193,6 +1194,7 @@ class TextEmbedResponse(BaseModel):
     responses={
         403: {"description": "Path traversal attempt"},
         404: {"description": "File not found"},
+        413: {"description": ERR_FILE_TOO_LARGE},
         500: {"description": ERR_INTERNAL},
         503: {"description": ERR_EMBEDDING_UNAVAILABLE},
     },
