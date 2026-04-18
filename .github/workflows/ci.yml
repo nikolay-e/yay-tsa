@@ -172,7 +172,7 @@ jobs:
           context: .
           dockerfile: apps/web/Dockerfile
           target: production
-          include-app-environment: 'true'
+          build-args: APP_ENVIRONMENT=production
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
 

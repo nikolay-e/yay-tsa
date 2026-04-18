@@ -138,6 +138,15 @@ export class PlayerBar {
       input.dispatchEvent(new Event('change', { bubbles: true }));
       input.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
     }, percentage);
+    await this.page
+      .waitForFunction(
+        () => {
+          const audio = document.querySelector('audio');
+          return !audio || !audio.seeking;
+        },
+        { timeout: 5000 }
+      )
+      .catch(() => {});
   }
 
   async getCurrentTime(): Promise<string> {

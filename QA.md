@@ -2,7 +2,6 @@
 
 ## CI Investigation
 
-- `gh run view --log-failed` only works after the ENTIRE run completes — use `gh api repos/owner/repo/actions/jobs/JOB_ID/logs` for individual job logs mid-run
 - Search job logs with `grep -E "passed|failed|exit code"` for quick test summary
 - E2E failures listed as `test-results/<test-name>-<project>/test-failed-N.png` — project suffix (`chromium`/`mobile`) shows which platform failed
 
@@ -17,16 +16,11 @@
 - Test IDs must be present in BOTH PlayerBar mini-bar AND MobileFullPlayer for `:visible` selectors to work across states
 - Modal components must use `createPortal` to escape invisible parent containers — otherwise dialogs are invisible when opened from MobileFullPlayer
 - `ensureControlsVisible()` opens the full player on mobile, which changes which elements are visible — test locators using `:visible` must account for this state change
-- `getByRole('button', { name: 'Shuffle' })` can match the AlbumDetailPage text-button "Shuffle" (no `aria-pressed`) — use `locator('button[aria-label="Shuffle"][aria-pressed]:visible')` to target only player controls
-- Badge text on mobile may include unit suffix (e.g., "15m") — use `Number.parseInt(text ?? '0', 10)`, not `Number(text)` which returns NaN
-- `setPointerCapture` throws `DOMException` for synthetic pointer events dispatched by tests — guard with try/catch in `handlePointerDown`
-- Monkey test 300s timeout on mobile CI is expected when iterations don't complete — fixing uncaught exceptions reduces failed recoveries and speeds up test
+- `getByRole('button', { name: 'Shuffle' })` can match AlbumDetailPage text-button — use `locator('button[aria-label="Shuffle"][aria-pressed]:visible')` to target player controls
+- Badge text on mobile may include unit suffix (e.g., "15m") — use `Number.parseInt(text ?? '0', 10)`, not `Number(text)`
+- `setPointerCapture` throws `DOMException` for synthetic pointer events — guard with try/catch in `handlePointerDown`
+- Monkey test 300s timeout on mobile CI is expected when iterations don't complete
 
 ## SonarCloud
 
 - `plsql:VarcharUsageCheck` on PostgreSQL migration files is a false positive (Oracle-specific rule)
-
-## General
-
-- Run type-check, lint, and format before committing to catch issues early
-- Pre-commit hooks auto-format with Prettier — run `npm run format` first to avoid surprises

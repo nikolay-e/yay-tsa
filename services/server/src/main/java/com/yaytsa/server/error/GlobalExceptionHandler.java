@@ -66,6 +66,17 @@ public class GlobalExceptionHandler {
     return ResponseEntity.badRequest().body(problem);
   }
 
+  @ExceptionHandler(IllegalStateException.class)
+  public ResponseEntity<ProblemDetail> handleIllegalState(
+      IllegalStateException ex, HttpServletRequest request) {
+    ProblemDetail problem = createProblemDetail(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+
+    log.warn(
+        "Bad request (illegal state): path={}, error={}", request.getRequestURI(), ex.getMessage());
+
+    return ResponseEntity.badRequest().body(problem);
+  }
+
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   public ResponseEntity<ProblemDetail> handleTypeMismatch(
       MethodArgumentTypeMismatchException ex, HttpServletRequest request) {

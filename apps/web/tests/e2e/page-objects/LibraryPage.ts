@@ -99,6 +99,12 @@ export class LibraryPage {
   }
 
   async waitForSearchResults(): Promise<void> {
+    const albumsContent = this.page.getByTestId('albums-content');
+    if (await albumsContent.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expect(albumsContent)
+        .not.toHaveAttribute('data-pending', 'true', { timeout: 5000 })
+        .catch(() => {});
+    }
     const albumCard = this.page.getByTestId('album-card').first();
     const noResults = this.page.getByText('No albums found');
     await expect(albumCard.or(noResults)).toBeVisible({ timeout: 10000 });

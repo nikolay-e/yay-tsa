@@ -40,7 +40,11 @@ export function AlbumsPage() {
   );
 
   const albumList = (
-    <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
+    <div
+      className={cn(isSearchPending && 'opacity-60 transition-opacity')}
+      data-testid="albums-content"
+      data-pending={isSearchPending}
+    >
       <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
