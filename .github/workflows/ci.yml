@@ -258,40 +258,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Generate test media files
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
-          bash scripts/generate-test-media.sh services/server/media
+      - name: Set up JDK 21
+        uses: actions/setup-java@c5195efecefacb22a3f704e3df4be30983b7923e # v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Build and run tests
-        run: |
-          docker compose --profile integration-test up --build -d
-          docker compose --profile integration-test logs -f backend-test integration-test &
-          LOGS_PID=$!
-          BACKEND_EXIT=$(docker wait yay-tsa-backend-test)
-          INTEGRATION_EXIT=$(docker wait yay-tsa-integration-test)
-          kill $LOGS_PID 2>/dev/null || true
-          echo ""
-          echo "Backend tests exit code: $BACKEND_EXIT"
-          echo "Integration tests exit code: $INTEGRATION_EXIT"
-          echo "::group::Backend test runner logs"
-          docker logs yay-tsa-backend-test 2>&1
-          echo "::endgroup::"
-          echo "::group::Integration test runner logs"
-          docker logs yay-tsa-integration-test 2>&1
-          echo "::endgroup::"
-          if [ "$BACKEND_EXIT" -ne 0 ] || [ "$INTEGRATION_EXIT" -ne 0 ]; then
-            echo "::group::Backend application logs"
-            docker logs yay-tsa-backend 2>&1
-            echo "::endgroup::"
-            exit 1
-          fi
-        env:
-          YAYTSA_TEST_USERNAME: admin
-          YAYTSA_TEST_PASSWORD: admin123
+      - name: Run backend integration tests (Testcontainers)
+        working-directory: services/server
+        run: mvn test -B -q
 
       - name: Upload test results
         if: always()
@@ -299,12 +275,8 @@ jobs:
         with:
           name: integration-test-results
           path: |
-            test-results/
+            services/server/target/surefire-reports/
           retention-days: 7
-
-      - name: Cleanup
-        if: always()
-        run: docker compose --profile integration-test down -v
 
   e2e-tests:
     name: E2E Tests
