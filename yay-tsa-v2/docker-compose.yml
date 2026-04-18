@@ -6,11 +6,11 @@ services:
       POSTGRES_USER: yaytsa
       POSTGRES_PASSWORD: yaytsa
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U yaytsa"]
+      test: ['CMD-SHELL', 'pg_isready -U yaytsa']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -18,7 +18,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - '8080:8080'
     environment:
       DB_HOST: postgres
       DB_PORT: 5432

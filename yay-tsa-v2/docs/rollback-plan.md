@@ -22,6 +22,7 @@
 ## Rollback Triggers
 
 Immediate rollback if ANY of:
+
 - Login fails for existing users
 - Library empty or missing >1% of tracks
 - Audio streaming returns 404/500

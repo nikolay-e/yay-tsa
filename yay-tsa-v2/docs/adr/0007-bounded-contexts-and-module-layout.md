@@ -10,16 +10,16 @@ The system covers several distinct functional areas -- authentication, media lib
 
 We define eight bounded contexts, each owning its data and command surface:
 
-| # | Context | Style | Scope |
-|---|---------|-------|-------|
-| 1 | `auth` | Write CQRS | Users, credentials, API tokens |
-| 2 | `library` | Read-only collection | Polymorphic entities (Track / Album / Artist / Folder), genres, images. Written only by scanner. |
-| 3 | `playback` | Write CQRS | PlaybackSessionAggregate with lease, queue, last-known-position |
-| 4 | `adaptive` | Write CQRS | AdaptiveQueueAggregate, ListeningSession, intent labels, signals |
-| 5 | `preferences` | Write CQRS | Favorites, preference contract (hard rules, soft prefs, DJ style, red lines) |
-| 6 | `playlists` | Write CQRS | Ordered track list, metadata, public flag |
-| 7 | `ml` | Read-only collection | track_features (embeddings), taste_profile, user_track_affinity. Written by ML worker. |
-| 8 | `karaoke` | Read-only collection | karaoke_assets. Written by Demucs / Spleeter worker. |
+| #   | Context       | Style                | Scope                                                                                            |
+| --- | ------------- | -------------------- | ------------------------------------------------------------------------------------------------ |
+| 1   | `auth`        | Write CQRS           | Users, credentials, API tokens                                                                   |
+| 2   | `library`     | Read-only collection | Polymorphic entities (Track / Album / Artist / Folder), genres, images. Written only by scanner. |
+| 3   | `playback`    | Write CQRS           | PlaybackSessionAggregate with lease, queue, last-known-position                                  |
+| 4   | `adaptive`    | Write CQRS           | AdaptiveQueueAggregate, ListeningSession, intent labels, signals                                 |
+| 5   | `preferences` | Write CQRS           | Favorites, preference contract (hard rules, soft prefs, DJ style, red lines)                     |
+| 6   | `playlists`   | Write CQRS           | Ordered track list, metadata, public flag                                                        |
+| 7   | `ml`          | Read-only collection | track_features (embeddings), taste_profile, user_track_affinity. Written by ML worker.           |
+| 8   | `karaoke`     | Read-only collection | karaoke_assets. Written by Demucs / Spleeter worker.                                             |
 
 ### Module layout
 

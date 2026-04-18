@@ -10,10 +10,7 @@
   "background_color": "#0f0f0f",
   "theme_color": "#0f0f0f",
   "lang": "en",
-  "categories": [
-    "music",
-    "entertainment"
-  ],
+  "categories": ["music", "entertainment"],
   "icons": [
     {
       "src": "/icons/icon-192.png",

@@ -2,16 +2,16 @@
 
 Auto-generated from source code. Do not edit manually.
 
-| Context | Aggregate | OCC | Idempotency | Outbox | Protocol Check | Deps Pattern | Lease |
-|---------|-----------|-----|-------------|--------|----------------|--------------|-------|
-| auth | UserAggregate | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
-| playback | PlaybackSessionAggregate | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| playlists | PlaylistAggregate | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
-| preferences | UserPreferencesAggregate | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
-| adaptive | AdaptiveSessionAggregate | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
-| library | _(read-only)_ | n/a | n/a | n/a | n/a | n/a | n/a |
-| ml | _(read-only)_ | n/a | n/a | n/a | n/a | n/a | n/a |
-| karaoke | _(read-only)_ | n/a | n/a | n/a | n/a | n/a | n/a |
+| Context     | Aggregate                | OCC | Idempotency | Outbox | Protocol Check | Deps Pattern | Lease |
+| ----------- | ------------------------ | --- | ----------- | ------ | -------------- | ------------ | ----- |
+| auth        | UserAggregate            | ✓   | ✓           | ✓      | ✓              | ✗            | ✗     |
+| playback    | PlaybackSessionAggregate | ✓   | ✓           | ✓      | ✓              | ✓            | ✓     |
+| playlists   | PlaylistAggregate        | ✓   | ✓           | ✓      | ✓              | ✓            | ✗     |
+| preferences | UserPreferencesAggregate | ✓   | ✓           | ✓      | ✓              | ✓            | ✗     |
+| adaptive    | AdaptiveSessionAggregate | ✓   | ✓           | ✓      | ✓              | ✓            | ✗     |
+| library     | _(read-only)_            | n/a | n/a         | n/a    | n/a            | n/a          | n/a   |
+| ml          | _(read-only)_            | n/a | n/a         | n/a    | n/a            | n/a          | n/a   |
+| karaoke     | _(read-only)_            | n/a | n/a         | n/a    | n/a            | n/a          | n/a   |
 
 ## Legend
 

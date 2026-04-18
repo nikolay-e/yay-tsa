@@ -95,7 +95,6 @@ The manifesto's time and lease claims are **fully substantiated** in code. This 
 
 **Action needed:** (1) Fix Rule 7 to block `dev.yaytsa.application.X.*` non-port classes from peer contexts. (2) Remove three unused `:core-application:library` Gradle deps from playback/playlists/preferences if the function-type pattern is intentional.
 
-
 ## Round 1 — Adapter Thinness Auditor
 
 **Verdict: MIXED. Jellyfin adapter (Yaytsa protocol) is exemplary; Jellyfin and MPD contain real business logic leaks.**
@@ -130,6 +129,7 @@ The manifesto's time and lease claims are **fully substantiated** in code. This 
 - Move `createPlaylist` orchestration into `PlaylistUseCases.createWithTracks`.
 
 Sources:
+
 - [Hexagonal Architecture - Alistair Cockburn](https://alistair.cockburn.us/hexagonal-architecture)
 - [Hexagonal Architecture - AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/hexagonal-architecture.html)
 - [Ports and Adapters Explained - Code Soapbox](https://codesoapbox.dev/ports-adapters-aka-hexagonal-architecture-explained/)
@@ -181,19 +181,20 @@ Sources:
 
 ### Structural (pre-production)
 
-4. **CQRS is claimed but not structurally enforced (Auditors 4, 5).** 4/5 write contexts serve reads from the same UseCases class. The manifesto says CQRS; the code says "commands and queries in one class." This matches the [common CQRS mistake](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs) of conflating separation of responsibility with separation of models.
+1. **CQRS is claimed but not structurally enforced (Auditors 4, 5).** 4/5 write contexts serve reads from the same UseCases class. The manifesto says CQRS; the code says "commands and queries in one class." This matches the [common CQRS mistake](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs) of conflating separation of responsibility with separation of models.
 
-5. **ArchUnit Rule 7 is vacuously true (Auditors 5, 8).** Guards a `usecase` subpackage that does not exist. Combined with `allowEmptyShould(true)` on some rules, architectural enforcement has blind spots — exactly the [pitfall JavaNexus warns about](https://javanexus.com/blog/common-pitfalls-archunit-code-validation).
+2. **ArchUnit Rule 7 is vacuously true (Auditors 5, 8).** Guards a `usecase` subpackage that does not exist. Combined with `allowEmptyShould(true)` on some rules, architectural enforcement has blind spots — exactly the [pitfall JavaNexus warns about](https://javanexus.com/blog/common-pitfalls-archunit-code-validation).
 
 ### Nice-to-Have
 
-6. **Application-layer test coverage is thin (~11 tests).** Idempotency edge cases, outbox atomicity under failure, and cross-context dep failures are underexercised. Not blocking, but the layer with the most moving parts has the least coverage.
+1. **Application-layer test coverage is thin (~11 tests).** Idempotency edge cases, outbox atomicity under failure, and cross-context dep failures are underexercised. Not blocking, but the layer with the most moving parts has the least coverage.
 
-7. **CommandContext construction duplicated across 4 adapters.** Not a correctness issue, but a maintainability drag that will compound with each new protocol.
+2. **CommandContext construction duplicated across 4 adapters.** Not a correctness issue, but a maintainability drag that will compound with each new protocol.
 
 **Anti-pattern check:** The codebase does NOT exhibit the "anemic domain model" anti-pattern (handlers contain real invariant logic) or "upfront database design" (domain is persistence-ignorant). It DOES exhibit "non-cohesive adapters" — the Jellyfin and Subsonic adapters have accumulated responsibilities that belong in core-application.
 
 Sources:
+
 - [Hexagonal Architecture: Common Pitfalls](https://medium.com/@allousas/hexagonal-architecture-common-pitfalls-f155e12388a3)
 - [Hexagonal Architecture in the Real World](https://dev.to/elpic/hexagonal-architecture-in-the-real-world-trade-offs-pitfalls-and-when-not-to-use-it-4a2p)
 - [CQRS Pattern - Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs)
@@ -217,6 +218,7 @@ Sources:
 Compared to peer open-source music servers, Yaytsa operates at a fundamentally different architectural tier. [Navidrome](https://github.com/navidrome/navidrome/) is a Go monolith with no domain/infrastructure separation — persistence logic lives alongside business rules. [Jellyfin](https://jellyfin.org/docs/general/contributing/source-tree/) uses .NET project separation but has no bounded contexts, no OCC, no idempotency, and no pure domain layer — `ApplicationHost` acts as a god-object composition root. [Funkwhale](https://docs.funkwhale.audio/developer/architecture.html) is a Django app with standard MVC structure and no domain purity guarantees. None of these projects implement externalized time, typed failure models, transactional outbox, or property-based invariant testing. The architectural rigor here is closer to fintech DDD reference implementations than to typical media servers.
 
 Sources:
+
 - [Navidrome - DeepWiki](https://deepwiki.com/navidrome/navidrome)
 - [Jellyfin Source Tree](https://jellyfin.org/docs/general/contributing/source-tree/)
 - [Funkwhale Architecture](https://docs.funkwhale.audio/developer/architecture.html)
@@ -242,21 +244,22 @@ Sources:
 
 ### Prioritized punch list
 
-| Priority | Item | Effort |
-|----------|------|--------|
-| **P0** | Add `@RestControllerAdvice` global error handler returning structured errors, not stack traces | Small |
-| **P0** | Add `OutboxCleanupJob` to delete published entries older than N hours | Small |
-| **P1** | Replace `jsonEscape()` with Jackson `ObjectMapper.writeValueAsString()` in `JpaOutboxPort` | Small |
-| **P1** | Fix ArchUnit Rule 7 vacuous-truth bug (no `usecase` subpackage exists) | Small |
-| **P2** | Add error mapping to Jellyfin/Subsonic adapters for unhandled exceptions | Medium |
-| **P2** | Extract scrobble-completion logic from `JellyfinSessionsController` into core-application | Medium |
-| **P2** | Add outbox poller `FOR UPDATE SKIP LOCKED` (future-proofing for multi-instance) | Small |
+| Priority | Item                                                                                           | Effort |
+| -------- | ---------------------------------------------------------------------------------------------- | ------ |
+| **P0**   | Add `@RestControllerAdvice` global error handler returning structured errors, not stack traces | Small  |
+| **P0**   | Add `OutboxCleanupJob` to delete published entries older than N hours                          | Small  |
+| **P1**   | Replace `jsonEscape()` with Jackson `ObjectMapper.writeValueAsString()` in `JpaOutboxPort`     | Small  |
+| **P1**   | Fix ArchUnit Rule 7 vacuous-truth bug (no `usecase` subpackage exists)                         | Small  |
+| **P2**   | Add error mapping to Jellyfin/Subsonic adapters for unhandled exceptions                       | Medium |
+| **P2**   | Extract scrobble-completion logic from `JellyfinSessionsController` into core-application      | Medium |
+| **P2**   | Add outbox poller `FOR UPDATE SKIP LOCKED` (future-proofing for multi-instance)                | Small  |
 
-### Verdict
+### Round 2 Verdict
 
 The system is **close to production-ready for a personal server**. The core invariants (OCC, idempotency, lease, pure domain, transactional outbox) are solid. The two P0 items -- missing global error handler and unbounded outbox growth -- are straightforward fixes that should be done before cutover. Everything else is hardening, not blocking.
 
 Sources:
+
 - [Spring Boot Graceful Shutdown](https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html)
 - [Production-Ready Spring Boot: 2025 Checklist](https://medium.com/@khawaraleem/production-ready-spring-boot-a-complete-2025-checklist-for-real-world-microservices-0618738cde01)
 - [Transactional Outbox Pattern](https://microservices.io/patterns/data/transactional-outbox.html)
@@ -266,32 +269,33 @@ Sources:
 
 Classification follows [arxiv.org/html/2602.07609v1](https://arxiv.org/html/2602.07609v1): **Compliant** = code proves it; **Not Compliant** = code contradicts it; **Aspirational** = not yet evaluable. Per [Fowler](https://martinfowler.com/bliki/ArchitectureDecisionRecord.html) and [AWS ADR best practices](https://aws.amazon.com/blogs/architecture/master-architecture-decision-records-adrs-best-practices-for-effective-decision-making/), manifestos should separate decided-and-implemented from decided-but-pending. CLAUDE.md does not make this distinction.
 
-| # | Manifesto Claim | Status | Evidence |
-|---|---|---|---|
-| 1 | Pure domain handlers, zero I/O | **FULL** | No framework imports, no clock reads, no I/O in core-domain |
-| 2 | Domain-persistence separation | **FULL** | JPA entities in infra only, bidirectional mappers |
-| 3 | Externalized time | **FULL** | Zero `Instant.now()` in domain/application production code |
-| 4 | Single-writer lease | **FULL** | Lease model with expiry, 13+ test cases |
-| 5 | OCC on all write contexts | **FULL** | Handler + persistence + executor triple-check |
-| 6 | Idempotency on all writes | **FULL** | Fingerprint + store + replay semantics |
-| 7 | Typed failures (all 6 subtypes) | **FULL** | Sealed interface, no business exceptions |
-| 8 | Transactional outbox | **PARTIAL** | Atomicity correct; poller lacks row locking, cleanup, dead-letter |
-| 9 | CQRS separation | **PARTIAL** | Only Library has dedicated query class; 4/5 write contexts mix reads into UseCases |
-| 10 | Bounded context isolation | **FULL** | Gradle enforces at compile time; ArchUnit Rule 2 solid |
-| 11 | Thin adapters, zero business logic | **PARTIAL** | Yaytsa clean; Jellyfin has scrobble logic, Subsonic has artist grouping |
-| 12 | 8 bounded contexts | **FULL** | All 8 schemas, migrations, entities, domain types present |
-| 13 | Adaptive queue / LLM-DJ | **FULL** | `LlmOrchestrator` polls, builds prompts, calls use cases |
-| 14 | ML Worker (Essentia, CLAP, MERT) | **PARTIAL** | Skeleton delegates to external script; no built-in extractors |
-| 15 | Karaoke Worker (Demucs + lyrics) | **PARTIAL** | Demucs invocation works; no lyrics timing as manifesto promises |
-| 16 | Preference contract consumed by LLM | **PARTIAL** | Domain fields exist; LLM prompt ignores them entirely |
-| 17 | Multi-protocol (Yaytsa, Sub, MPD, MCP) | **FULL** | All 4 adapters present with real protocol handling |
-| 18 | ArchUnit enforcement | **PARTIAL** | 38 rules but Rule 7 vacuously true; `allowEmptyShould` gaps |
-| 19 | Outbox poller concurrency-safe | **MISSING** | No row locking, no dedup, no retry mechanism |
-| 20 | `Instant.now()` nowhere in infra | **PARTIAL** | `PlaybackSessionEntity` defaults `lastKnownAt` to `Instant.now()` |
+| #   | Manifesto Claim                        | Status      | Evidence                                                                           |
+| --- | -------------------------------------- | ----------- | ---------------------------------------------------------------------------------- |
+| 1   | Pure domain handlers, zero I/O         | **FULL**    | No framework imports, no clock reads, no I/O in core-domain                        |
+| 2   | Domain-persistence separation          | **FULL**    | JPA entities in infra only, bidirectional mappers                                  |
+| 3   | Externalized time                      | **FULL**    | Zero `Instant.now()` in domain/application production code                         |
+| 4   | Single-writer lease                    | **FULL**    | Lease model with expiry, 13+ test cases                                            |
+| 5   | OCC on all write contexts              | **FULL**    | Handler + persistence + executor triple-check                                      |
+| 6   | Idempotency on all writes              | **FULL**    | Fingerprint + store + replay semantics                                             |
+| 7   | Typed failures (all 6 subtypes)        | **FULL**    | Sealed interface, no business exceptions                                           |
+| 8   | Transactional outbox                   | **PARTIAL** | Atomicity correct; poller lacks row locking, cleanup, dead-letter                  |
+| 9   | CQRS separation                        | **PARTIAL** | Only Library has dedicated query class; 4/5 write contexts mix reads into UseCases |
+| 10  | Bounded context isolation              | **FULL**    | Gradle enforces at compile time; ArchUnit Rule 2 solid                             |
+| 11  | Thin adapters, zero business logic     | **PARTIAL** | Yaytsa clean; Jellyfin has scrobble logic, Subsonic has artist grouping            |
+| 12  | 8 bounded contexts                     | **FULL**    | All 8 schemas, migrations, entities, domain types present                          |
+| 13  | Adaptive queue / LLM-DJ                | **FULL**    | `LlmOrchestrator` polls, builds prompts, calls use cases                           |
+| 14  | ML Worker (Essentia, CLAP, MERT)       | **PARTIAL** | Skeleton delegates to external script; no built-in extractors                      |
+| 15  | Karaoke Worker (Demucs + lyrics)       | **PARTIAL** | Demucs invocation works; no lyrics timing as manifesto promises                    |
+| 16  | Preference contract consumed by LLM    | **PARTIAL** | Domain fields exist; LLM prompt ignores them entirely                              |
+| 17  | Multi-protocol (Yaytsa, Sub, MPD, MCP) | **FULL**    | All 4 adapters present with real protocol handling                                 |
+| 18  | ArchUnit enforcement                   | **PARTIAL** | 38 rules but Rule 7 vacuously true; `allowEmptyShould` gaps                        |
+| 19  | Outbox poller concurrency-safe         | **MISSING** | No row locking, no dedup, no retry mechanism                                       |
+| 20  | `Instant.now()` nowhere in infra       | **PARTIAL** | `PlaybackSessionEntity` defaults `lastKnownAt` to `Instant.now()`                  |
 
 **Totals: 11 FULL, 7 PARTIAL, 1 MISSING.** Core domain guarantees (purity, OCC, idempotency, lease, time, typed failures) are fully delivered. Gaps cluster in operational infrastructure (outbox poller) and adapter discipline (business logic leaks). The ML worker and preference contract sections in CLAUDE.md read as implemented fact but are partially skeletal -- a documentation honesty issue per ADR best practice of separating "decided" from "pending."
 
 Sources:
+
 - [LLM-based ADR Compliance Evaluation](https://arxiv.org/html/2602.07609v1)
 - [Martin Fowler -- Architecture Decision Record](https://martinfowler.com/bliki/ArchitectureDecisionRecord.html)
 - [AWS -- Master ADRs Best Practices](https://aws.amazon.com/blogs/architecture/master-architecture-decision-records-adrs-best-practices-for-effective-decision-making/)
@@ -299,7 +303,7 @@ Sources:
 
 ## Round 3 — Attack
 
-*(Removed — the "overengineering for a personal server" framing was wrong. Yaytsa is designed for multi-protocol concurrent access and extensibility. The architecture pays for itself the moment a second protocol adapter is added — and there are already six.)*
+Removed — the "overengineering for a personal server" framing was wrong. Yaytsa is designed for multi-protocol concurrent access and extensibility. The architecture pays for itself the moment a second protocol adapter is added — and there are already six.
 
 ## Round 3 — Defense
 
@@ -307,7 +311,7 @@ Sources:
 
 **Overblown findings:**
 
-- **"CQRS is not structurally enforced."** The manifesto says "CQRS without event sourcing" -- meaning separate read/write *models*, not separate classes. Four UseCases classes exposing a `find()` method alongside commands is standard pragmatic CQRS. Splitting every context into `*CommandService` + `*QueryService` when queries are trivial repository delegates would be ceremony without value. Library, which has complex queries, correctly has a dedicated `LibraryQueries`.
+- **"CQRS is not structurally enforced."** The manifesto says "CQRS without event sourcing" -- meaning separate read/write _models_, not separate classes. Four UseCases classes exposing a `find()` method alongside commands is standard pragmatic CQRS. Splitting every context into `*CommandService` + `*QueryService` when queries are trivial repository delegates would be ceremony without value. Library, which has complex queries, correctly has a dedicated `LibraryQueries`.
 - **"ArchUnit Rule 7 vacuously true."** Valid observation, but Gradle module boundaries already enforce the same constraint at compile time. The ArchUnit rule is defense-in-depth, and its gap is covered by a stronger mechanism.
 - **Adapter business logic leaks.** The Jellyfin scrobble logic and Subsonic artist grouping are real but localized. Industry experience confirms adapter logic leakage is the [most common hexagonal architecture violation](https://www.mscharhag.com/architecture/leaking-domain-logic) -- finding 3 instances across 4 full protocol adapters is well below typical.
 
@@ -339,6 +343,6 @@ The 11 FULLs are the hard ones: domain purity, persistence separation, bounded c
 
 OCC, idempotency, and transactional outbox cost ~200 lines of shared infrastructure amortized across all contexts. They prevent entire categories of bugs that are impossible to retrofit later. With 6 protocol adapters serving Subsonic clients, Jellyfin clients, MPD terminals, and LLM agents simultaneously — concurrent access is not hypothetical, it's the product.
 
-### Verdict
+### Final Verdict
 
 The codebase is architecturally genuine — not cargo-cult DDD, not framework-driven scaffolding. The domain model is the real thing: pure, deterministic, independently testable. The manifesto overpromises on operational polish and worker completeness, but the structural foundation is sound and the identified gaps are all small-to-medium fixes. Ship it, fix the P0s, and update CLAUDE.md to separate "implemented" from "planned."
