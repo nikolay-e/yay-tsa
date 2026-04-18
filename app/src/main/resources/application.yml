@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: yaytsa
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:yaytsa}
+    username: ${DB_USERNAME:yaytsa}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL:20}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      leak-detection-threshold: 30000
+      pool-name: yaytsa-pool
+
+  flyway:
+    enabled: false
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+          order_inserts: true
+          order_updates: true
+        query:
+          fail_on_pagination_over_collection_fetch: true
+          in_clause_parameter_padding: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+yaytsa:
+  library:
+    music-path: ${MUSIC_PATH:#{null}}
+  media:
+    root-path: ${MEDIA_ROOT_PATH:#{null}}
+  mpd:
+    port: ${MPD_PORT:6600}
+    enabled: ${MPD_ENABLED:false}
+  llm:
+    enabled: ${LLM_ENABLED:false}
+    api-key: ${ANTHROPIC_API_KEY:#{null}}
+    model: ${LLM_MODEL:claude-sonnet-4-20250514}
+    api-url: ${LLM_API_URL:https://api.anthropic.com/v1/messages}
+  ml:
+    enabled: ${ML_ENABLED:false}
+    extractor-script: ${ML_EXTRACTOR_SCRIPT:#{null}}
+  karaoke:
+    enabled: ${KARAOKE_ENABLED:false}
+    output-path: ${KARAOKE_OUTPUT_PATH:#{null}}
+    demucs-command: ${DEMUCS_COMMAND:demucs}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /manage
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: yaytsa
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+  tomcat:
+    remoteip:
+      remote-ip-header: X-Forwarded-For
+      protocol-header: X-Forwarded-Proto
+
+logging:
+  level:
+    dev.yaytsa: INFO
+    org.hibernate.SQL: WARN
