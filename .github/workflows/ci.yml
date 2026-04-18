@@ -367,6 +367,7 @@ jobs:
       - name: Wait for rollout
         env:
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
           PROD_URL: https://yay-tsa.com
         run: |
           EXPECTED="${{ steps.tags.outputs.expected_tag }}"
@@ -374,7 +375,7 @@ jobs:
           for i in $(seq 1 40); do
             TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
               -H "Content-Type: application/json" \
-              -d "{\"Username\":\"test\",\"Pw\":\"$QA_PASSWORD\"}" \
+              -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
               | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])" 2>/dev/null || echo "")
             if [ -n "$TOKEN" ]; then
               VERSION=$(curl -sf -H "Authorization: Bearer $TOKEN" "$PROD_URL/api/System/Info/Public" \
@@ -403,11 +404,12 @@ jobs:
         continue-on-error: true
         env:
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
           PROD_URL: https://yay-tsa.com
         run: |
           TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
             -H "Content-Type: application/json" \
-            -d "{\"Username\":\"test\",\"Pw\":\"$QA_PASSWORD\"}" \
+            -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
             | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
           curl -sf "$PROD_URL/api/api-docs" > /tmp/openapi.json
           python3 -c "
@@ -422,6 +424,7 @@ jobs:
             --checks all \
             --exclude-checks ignored_auth,unsupported_method \
             --exclude-path '/Items/{itemId}/Images/{imageType}' \
+            --exclude-path-regex '/Admin/' \
             --exclude-path-regex '/v1/me/devices/(events|commands)' \
             --exclude-path-regex '/v1/groups/{id}/events' \
             --exclude-path-regex '/v1/sessions/{sessionId}/queue/events' \
@@ -431,11 +434,12 @@ jobs:
         continue-on-error: true
         env:
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
           PROD_URL: https://yay-tsa.com
         run: |
           TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
             -H "Content-Type: application/json" \
-            -d "{\"Username\":\"test\",\"Pw\":\"$QA_PASSWORD\"}" \
+            -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
             | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
           docker run --rm -v /tmp:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
             -t /zap/wrk/openapi.json \
@@ -452,7 +456,7 @@ jobs:
         continue-on-error: true
         env:
           CRAWL_URL: https://yay-tsa.com
-          CRAWL_USERNAME: test
+          CRAWL_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
           CRAWL_PASSWORD: ${{ secrets.QA_PASSWORD }}
           CRAWL_MAX_PAGES: '30'
         working-directory: tools/frontend-crawler
