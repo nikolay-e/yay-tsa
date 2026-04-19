@@ -827,7 +827,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
       previous: async () => {
         await controller.interrupt(async signal => {
-          const currentTime = engine.getCurrentTime();
+          const currentTime = useTimingStore.getState().currentTime;
           if (currentTime > 3) {
             engine.seek(0);
             return;
