@@ -846,8 +846,9 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       seek: seconds => {
-        if (controller.isActive) return;
-        engine.seek(seconds);
+        if (!controller.isActive) {
+          engine.seek(seconds);
+        }
         useTimingStore.getState().seekTo(seconds, engine.getDuration());
 
         if (playbackReporter && currentItemId) {
