@@ -21,6 +21,21 @@
 - `setPointerCapture` throws `DOMException` for synthetic pointer events — guard with try/catch in `handlePointerDown`
 - Monkey test 300s timeout on mobile CI is expected when iterations don't complete
 
+## Karaoke / Audio Separator
+
+- Stems PVC must be mounted in BOTH audio-separator AND backend deployments — separator writes stems, backend reads them
+- After separation completes, `getStatus()` validates stem files exist on disk via `validateStemFilesExist()` — if backend can't see files, it resets `karaokeReady=false`
+- `tryRecoverFromOrphanedFiles()` can recover DB state from existing stem files on disk without re-processing
+- Stem path pattern: `/app/stems/{trackId}/{filename}_instrumental.wav` and `_vocals.wav`
+- Separator health check shows model info and device (cuda/cpu) — useful for diagnosing GPU issues
+
+## E2E Test Flakiness
+
+- `previous()` in player store uses `engine.getCurrentTime()` which reads `audio.currentTime` — this can be stale after `seek(0)` in headless Chrome
+- Fix: read from timing store (`useTimingStore.getState().currentTime`) which is updated synchronously on seek
+- Lighthouse LCP budget of 2500ms is too tight for GitHub Actions runners — 3000ms is more realistic for CI
+
 ## SonarCloud
 
 - `plsql:VarcharUsageCheck` on PostgreSQL migration files is a false positive (Oracle-specific rule)
+- `yay-tsa-v2/` subtree docker-compose `PASSWORD` env vars are flagged as vulnerabilities — false positives for local dev credentials
