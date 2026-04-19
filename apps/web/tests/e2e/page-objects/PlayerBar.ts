@@ -141,8 +141,7 @@ export class PlayerBar {
     await this.page
       .waitForFunction(
         () => {
-          const audio = document.querySelector('audio');
-          return !audio || !audio.seeking;
+          return !document.querySelector('audio')?.seeking;
         },
         { timeout: 5000 }
       )

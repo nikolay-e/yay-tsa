@@ -848,7 +848,7 @@ export const usePlayerStore = create<PlayerStore>()(
       seek: seconds => {
         if (controller.isActive) return;
         engine.seek(seconds);
-        useTimingStore.getState().updateTiming(seconds, engine.getDuration());
+        useTimingStore.getState().seekTo(seconds, engine.getDuration());
 
         if (playbackReporter && currentItemId) {
           playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch(err => {

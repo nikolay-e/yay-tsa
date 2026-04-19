@@ -56,10 +56,13 @@ export function RemotePlaybackBanner({ hasLocalPlayer }: Readonly<{ hasLocalPlay
           type="button"
           onClick={() => void handleTransfer()}
           disabled={isTransferring}
+          aria-label="Listen here"
           className="text-accent hover:text-accent-hover flex shrink-0 items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
         >
           <ArrowDownToLine className="h-3 w-3" />
-          <span className="hidden sm:inline">Listen here</span>
+          <span className="hidden sm:inline" aria-hidden="true">
+            Listen here
+          </span>
         </button>
         <button
           type="button"

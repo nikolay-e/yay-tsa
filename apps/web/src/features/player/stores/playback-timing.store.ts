@@ -7,6 +7,7 @@ interface TimingState {
 
 interface TimingActions {
   updateTiming: (time: number, duration: number) => void;
+  seekTo: (time: number, duration: number) => void;
   reset: () => void;
 }
 
@@ -30,6 +31,15 @@ export const useTimingStore = create<TimingStore>(set => {
         }
         rafId = null;
       });
+    },
+
+    seekTo: (time: number, duration: number) => {
+      pendingUpdate = null;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      set({ currentTime: time, duration });
     },
 
     reset: () => {
