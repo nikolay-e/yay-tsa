@@ -9,7 +9,10 @@ export function useDeviceEvents() {
   useEffect(() => {
     if (!client) return;
 
-    void useDeviceStore.getState().fetchDevices();
+    useDeviceStore
+      .getState()
+      .fetchDevices()
+      .catch(() => {});
 
     const service = new DeviceService(client);
     let sseUrl: string;
@@ -38,7 +41,7 @@ export function useDeviceEvents() {
             isOnline: true,
           });
         } else {
-          void store.fetchDevices();
+          store.fetchDevices().catch(() => {});
         }
       } catch {
         // ignore

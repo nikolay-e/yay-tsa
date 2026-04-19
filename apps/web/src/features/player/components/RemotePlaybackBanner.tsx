@@ -38,13 +38,12 @@ export function RemotePlaybackBanner({ hasLocalPlayer }: Readonly<{ hasLocalPlay
   };
 
   return (
-    <div
+    <output
       className={cn(
         'z-remote-banner border-border bg-bg-secondary/95 px-safe fixed right-0 left-0 border-t backdrop-blur-sm',
         'md:left-sidebar',
         hasLocalPlayer ? 'bottom-above-player-and-tab' : 'bottom-above-tab-bar'
       )}
-      role="status"
     >
       <div className="flex items-center gap-2 px-3 py-2">
         <Icon className="text-accent h-4 w-4 shrink-0" />
@@ -71,6 +70,6 @@ export function RemotePlaybackBanner({ hasLocalPlayer }: Readonly<{ hasLocalPlay
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
+    </output>
   );
 }
