@@ -35,4 +35,15 @@ data:
 
   # Swagger/OpenAPI
   SWAGGER_ENABLED: "true"
+
+  # Karaoke backfill
+  {{- if .Values.backend.config.karaokeBackfillEnabled }}
+  KARAOKE_BACKFILL_ENABLED: {{ .Values.backend.config.karaokeBackfillEnabled | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.karaokeBackfillBatchSize }}
+  KARAOKE_BACKFILL_BATCH_SIZE: {{ .Values.backend.config.karaokeBackfillBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.karaokeBackfillDelayMs }}
+  KARAOKE_BACKFILL_DELAY_MS: {{ .Values.backend.config.karaokeBackfillDelayMs | quote }}
+  {{- end }}
 {{- end }}
