@@ -35,6 +35,17 @@
 - Fix: read from timing store (`useTimingStore.getState().currentTime`) which is updated synchronously on seek
 - Lighthouse LCP budget of 2500ms is too tight for GitHub Actions runners — 3000ms is more realistic for CI
 
+## Multi-Device Sync
+
+- SSE hook `useDeviceEvents` must fetch device list on mount — otherwise `updateDeviceState` maps over empty array and drops all events
+- When SSE event arrives for unknown `deviceId`, refetch full device list to pick up new devices
+- Backend `broadcastDeviceState` should include `nowPlayingItemName` alongside `nowPlayingItemId` — otherwise DevicesPanel shows position but no track name
+- Crawler timeout on SSE-heavy pages (`networkidle` never fires) is expected — not a real broken link
+
+## API Client Tests
+
+- `MediaServerClient` uses `X-Emby-Authorization` header (Jellyfin wire format), not `Authorization: Bearer` — tests must assert against `X-Emby-Authorization`
+
 ## SonarCloud
 
 - `plsql:VarcharUsageCheck` on PostgreSQL migration files is a false positive (Oracle-specific rule)
