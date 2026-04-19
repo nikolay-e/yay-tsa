@@ -2,7 +2,7 @@ import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { Home, Disc3, Users, Music, Heart, Settings, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
-import { PlayerBar } from '@/features/player/components';
+import { PlayerBar, RemotePlaybackBanner } from '@/features/player/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { useDeviceHeartbeat } from '@/features/player/hooks/useDeviceHeartbeat';
 import { useRemoteCommands } from '@/features/player/hooks/useRemoteCommands';
@@ -122,6 +122,7 @@ export function RootLayout() {
         <Outlet />
       </main>
       {showNavigation && <BottomTabBar />}
+      {showNavigation && <RemotePlaybackBanner hasLocalPlayer={!!showPlayer} />}
       {showPlayer && (
         <ErrorBoundary
           fallback={

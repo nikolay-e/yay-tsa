@@ -46,6 +46,7 @@
   /* Z-Index */
   --z-index-dropdown: 40;
   --z-index-bottom-tab: 50;
+  --z-index-remote-banner: 90;
   --z-index-player: 100;
   --z-index-modal-backdrop: 150;
   --z-index-modal: 200;
@@ -333,6 +334,15 @@
 
 @utility bottom-above-player {
   bottom: calc(var(--spacing-player-bar-mobile) + env(safe-area-inset-bottom, 0px));
+  @media (min-width: 768px) {
+    bottom: calc(var(--spacing-player-bar) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@utility bottom-above-player-and-tab {
+  bottom: calc(
+    var(--spacing-bottom-tab) + var(--spacing-player-bar-mobile) + env(safe-area-inset-bottom, 0px)
+  );
   @media (min-width: 768px) {
     bottom: calc(var(--spacing-player-bar) + env(safe-area-inset-bottom, 0px));
   }
