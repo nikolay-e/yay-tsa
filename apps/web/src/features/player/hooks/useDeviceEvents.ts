@@ -9,6 +9,8 @@ export function useDeviceEvents() {
   useEffect(() => {
     if (!client) return;
 
+    void useDeviceStore.getState().fetchDevices();
+
     const service = new DeviceService(client);
     let sseUrl: string;
     try {
@@ -22,32 +24,42 @@ export function useDeviceEvents() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectAttempts = 0;
 
+    const handleDeviceStateChanged = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as DeviceStateEvent;
+        const store = useDeviceStore.getState();
+        const knownDevice = store.devices.find(d => d.deviceId === data.deviceId);
+        if (knownDevice) {
+          store.updateDeviceState(data.deviceId, {
+            positionMs: data.positionMs,
+            isPaused: data.isPaused,
+            nowPlayingItemId: data.nowPlayingItemId,
+            nowPlayingItemName: data.nowPlayingItemName,
+            isOnline: true,
+          });
+        } else {
+          void store.fetchDevices();
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const handleDeviceOffline = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as { deviceId: string };
+        useDeviceStore.getState().setDeviceOffline(data.deviceId);
+      } catch {
+        // ignore
+      }
+    };
+
     const connect = () => {
       if (closed) return;
       es = new EventSource(sseUrl);
 
-      es.addEventListener('device_state_changed', (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data as string) as DeviceStateEvent;
-          useDeviceStore.getState().updateDeviceState(data.deviceId, {
-            positionMs: data.positionMs,
-            isPaused: data.isPaused,
-            nowPlayingItemId: data.nowPlayingItemId,
-            isOnline: true,
-          });
-        } catch {
-          // ignore
-        }
-      });
-
-      es.addEventListener('device_offline', (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data as string) as { deviceId: string };
-          useDeviceStore.getState().setDeviceOffline(data.deviceId);
-        } catch {
-          // ignore
-        }
-      });
+      es.addEventListener('device_state_changed', handleDeviceStateChanged);
+      es.addEventListener('device_offline', handleDeviceOffline);
 
       es.onerror = () => {
         es?.close();

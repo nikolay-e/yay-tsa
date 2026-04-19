@@ -15,6 +15,7 @@ export interface DeviceInfo {
 export interface DeviceStateEvent {
   deviceId: string;
   nowPlayingItemId?: string;
+  nowPlayingItemName?: string;
   positionMs: number;
   isPaused: boolean;
   timestamp: number;

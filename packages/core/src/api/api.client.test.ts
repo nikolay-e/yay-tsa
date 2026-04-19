@@ -68,7 +68,7 @@ describe('MediaServerClient', () => {
     expect(url).toContain('Recursive=true');
 
     const headers = (options as RequestInit).headers as Record<string, string>;
-    expect(headers['Authorization']).toBe('Bearer my-token');
+    expect(headers['X-Emby-Authorization']).toContain('Token="my-token"');
   });
 
   it('POST sends JSON body', async () => {

@@ -6,6 +6,7 @@ import com.yaytsa.server.dto.request.PlaybackProgressInfo;
 import com.yaytsa.server.dto.request.PlaybackStartInfo;
 import com.yaytsa.server.dto.request.PlaybackStopInfo;
 import com.yaytsa.server.infrastructure.persistence.entity.SessionEntity;
+import com.yaytsa.server.infrastructure.persistence.repository.ItemRepository;
 import com.yaytsa.server.infrastructure.security.AuthenticatedUser;
 import com.yaytsa.server.util.UuidUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,10 +34,15 @@ public class SessionsController {
 
   private final SessionService sessionService;
   private final DeviceSseService deviceSseService;
+  private final ItemRepository itemRepository;
 
-  public SessionsController(SessionService sessionService, DeviceSseService deviceSseService) {
+  public SessionsController(
+      SessionService sessionService,
+      DeviceSseService deviceSseService,
+      ItemRepository itemRepository) {
     this.sessionService = sessionService;
     this.deviceSseService = deviceSseService;
+    this.itemRepository = itemRepository;
   }
 
   @Operation(
@@ -239,11 +245,15 @@ public class SessionsController {
       UUID userId, String deviceId, UUID itemId, long positionMs, boolean isPaused) {
     var state = new HashMap<String, Object>();
     state.put("deviceId", deviceId);
-    if (itemId != null) state.put("nowPlayingItemId", itemId.toString());
+    if (itemId != null) {
+      state.put("nowPlayingItemId", itemId.toString());
+      itemRepository
+          .findById(itemId)
+          .ifPresent(item -> state.put("nowPlayingItemName", item.getName()));
+    }
     state.put("positionMs", positionMs);
     state.put("isPaused", isPaused);
     state.put("timestamp", System.currentTimeMillis());
-    // sessionId resolved lazily by client via deviceId match from GET /devices
     deviceSseService.broadcastToUser(userId, "device_state_changed", state);
   }
 }
