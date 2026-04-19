@@ -146,6 +146,10 @@ spec:
           mountPath: {{ .Values.backend.media.mountPath }}
           readOnly: true
         {{- end }}
+        {{- if and .Values.audioSeparator.enabled .Values.audioSeparator.stemsStorage.enabled }}
+        - name: stems-volume
+          mountPath: /app/stems
+        {{- end }}
         lifecycle:
           preStop:
             exec:
@@ -236,6 +240,11 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- end }}
+      {{- if and .Values.audioSeparator.enabled .Values.audioSeparator.stemsStorage.enabled }}
+      - name: stems-volume
+        persistentVolumeClaim:
+          claimName: {{ include "yay-tsa.fullname" . }}-audio-separator-stems
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
