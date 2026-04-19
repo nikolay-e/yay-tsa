@@ -10,13 +10,15 @@ WORKDIR /app
 COPY pom.xml .
 
 # Download dependencies (cached layer)
-RUN mvn dependency:go-offline -B
+RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    mvn dependency:go-offline -B
 
 # Copy source code
 COPY src ./src
 
 # Build the application
-RUN mvn clean package -DskipTests -B
+RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    mvn clean package -DskipTests -B
 
 # Stage 2: Test stage
 FROM maven:3.9-eclipse-temurin-21-alpine AS test
