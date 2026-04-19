@@ -33,6 +33,7 @@
 
 - `previous()` in player store uses `engine.getCurrentTime()` which reads `audio.currentTime` — this can be stale after `seek(0)` in headless Chrome
 - Fix: read from timing store (`useTimingStore.getState().currentTime`) which is updated synchronously on seek
+- Timing store `updateTiming()` uses `requestAnimationFrame` batching — seek must use synchronous `seekTo()` to avoid RAF race where audio timeupdate events overwrite the pending seek value before the frame fires
 - Lighthouse LCP budget of 2500ms is too tight for GitHub Actions runners — 3000ms is more realistic for CI
 
 ## Multi-Device Sync
@@ -46,7 +47,13 @@
 
 - `MediaServerClient` uses `X-Emby-Authorization` header (Jellyfin wire format), not `Authorization: Bearer` — tests must assert against `X-Emby-Authorization`
 
+## Accessibility
+
+- Buttons with responsive text (`hidden sm:inline`) need explicit `aria-label` — on mobile the text is hidden, leaving the button without accessible name
+- Add `aria-hidden="true"` to the visible text span to avoid duplicate announcements
+
 ## SonarCloud
 
 - `plsql:VarcharUsageCheck` on PostgreSQL migration files is a false positive (Oracle-specific rule)
 - `yay-tsa-v2/` subtree docker-compose `PASSWORD` env vars are flagged as vulnerabilities — false positives for local dev credentials
+- Quality gate may fail on `yay-tsa-v2/` subtree security hotspots — not actionable from main project
