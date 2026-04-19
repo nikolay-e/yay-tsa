@@ -198,6 +198,7 @@ Audio stem separation via BS-Roformer sidecar.
 | AC-02 | Process request returns 202 Accepted                            | API   |
 | AC-03 | Instrumental/vocals return 404 when stems unavailable           | API   |
 | AC-04 | Karaoke button toggles in player                                | E2E   |
+| AC-05 | Background backfill processes library prioritized by favorites  | API   |
 
 ---
 
