@@ -48,7 +48,7 @@
     "@lhci/cli": "^0.15.1",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.57.0",
-    "bundlewatch": "^0.4.1",
+    "bundlewatch": "^0.4.2",
     "dotenv": "^17.4.2",
     "eslint": "^9.39.4",
     "eslint-import-resolver-typescript": "^4.4.4",
@@ -60,12 +60,12 @@
     "globals": "^17.5.0",
     "jscpd": "^4.0.9",
     "jsdom": "^29.0.2",
-    "knip": "^6.5.0",
+    "knip": "^6.6.0",
     "madge": "^8.0.0",
     "prettier": "^3.8.3",
     "sharp": "^0.34.5",
     "type-coverage": "^2.29.7",
-    "vitest": "^4.1.4",
+    "vitest": "^4.1.5",
     "yaml": "2.8.3"
   },
   "engines": {
