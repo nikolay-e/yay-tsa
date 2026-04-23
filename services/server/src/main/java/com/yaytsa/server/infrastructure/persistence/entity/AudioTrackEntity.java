@@ -86,4 +86,7 @@ public class AudioTrackEntity {
 
   @Column(name = "replaygain_track_peak")
   private Double replaygainTrackPeak;
+
+  @Column(name = "karaoke_fail_count")
+  private Integer karaokeFailCount = 0;
 }

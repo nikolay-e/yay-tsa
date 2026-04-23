@@ -42,6 +42,9 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ImageService {
 
+  private static final int MAX_CONCURRENT_IMAGE_PROCESSING = 4;
+  private static final Semaphore IMAGE_PROCESSING_SEMAPHORE =
+      new Semaphore(MAX_CONCURRENT_IMAGE_PROCESSING);
   private static final Semaphore CWEBP_SEMAPHORE =
       new Semaphore(Runtime.getRuntime().availableProcessors());
 
@@ -117,6 +120,12 @@ public class ImageService {
               cacheKey,
               key -> {
                 try {
+                  IMAGE_PROCESSING_SEMAPHORE.acquire();
+                } catch (InterruptedException e) {
+                  Thread.currentThread().interrupt();
+                  return null;
+                }
+                try {
                   Optional<byte[]> imageData = loadImageData(itemId, imageType);
                   if (imageData.isEmpty()) {
                     log.debug("Image not found: itemId={}, type={}", itemId, imageType);
@@ -125,6 +134,8 @@ public class ImageService {
                   return processImage(imageData.get(), params);
                 } catch (IOException e) {
                   throw new java.io.UncheckedIOException(e);
+                } finally {
+                  IMAGE_PROCESSING_SEMAPHORE.release();
                 }
               });
 

@@ -32,10 +32,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Slf4j
 public class KaraokeService {
 
-  private static final long JOB_TTL_MS = 3600_000; // 1 hour TTL for completed jobs
+  private static final long JOB_TTL_MS = 3600_000;
   private static final long SEPARATION_TIMEOUT_MINUTES = 10;
   private static final long STALE_PROCESSING_TIMEOUT_MS =
       SEPARATION_TIMEOUT_MINUTES * 60 * 1000 + 60_000;
+  private static final int MAX_KARAOKE_FAILURES = 3;
 
   private final ItemRepository itemRepository;
   private final AudioTrackRepository audioTrackRepository;
@@ -226,6 +227,12 @@ public class KaraokeService {
     return true;
   }
 
+  private void incrementFailCount(AudioTrackEntity track) {
+    int current = track.getKaraokeFailCount() != null ? track.getKaraokeFailCount() : 0;
+    track.setKaraokeFailCount(current + 1);
+    audioTrackRepository.save(track);
+  }
+
   private void resetKaraokeState(AudioTrackEntity track, String reason) {
     log.warn("{} for track {}", reason, track.getItemId());
     track.setKaraokeReady(false);
@@ -278,6 +285,12 @@ public class KaraokeService {
       return;
     }
 
+    int failCount = track.getKaraokeFailCount() != null ? track.getKaraokeFailCount() : 0;
+    if (failCount >= MAX_KARAOKE_FAILURES) {
+      log.info("Track {} has failed {} times, skipping permanently", trackId, failCount);
+      return;
+    }
+
     ItemEntity item = itemRepository.findById(trackId).orElse(null);
     if (item == null || item.getPath() == null) {
       log.error("Track {} has no associated file path", trackId);
@@ -323,10 +336,20 @@ public class KaraokeService {
           "Karaoke processing completed for track {} in {}ms", trackId, result.processingTimeMs());
 
     } catch (TimeoutException e) {
-      log.error("Karaoke processing timed out for track {}", trackId);
+      incrementFailCount(track);
+      log.error(
+          "Karaoke processing timed out for track {} (failures: {})",
+          trackId,
+          track.getKaraokeFailCount());
       updateJobStatus(trackId, ProcessingStatus.failed("Processing timed out"));
     } catch (Exception e) {
-      log.error("Karaoke processing failed for track {}: {}", trackId, e.getMessage(), e);
+      incrementFailCount(track);
+      log.error(
+          "Karaoke processing failed for track {} (failures: {}): {}",
+          trackId,
+          track.getKaraokeFailCount(),
+          e.getMessage(),
+          e);
       updateJobStatus(trackId, ProcessingStatus.failed("Processing failed"));
     }
   }

@@ -83,6 +83,7 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
               + "LEFT JOIN play_state ps ON ps.item_id = at.item_id "
               + "LEFT JOIN user_track_affinity uta ON uta.track_id = at.item_id "
               + "WHERE at.karaoke_ready IS NOT TRUE "
+              + "AND COALESCE(at.karaoke_fail_count, 0) < 3 "
               + "GROUP BY at.item_id "
               + "ORDER BY "
               + "  BOOL_OR(ps.is_favorite) DESC NULLS LAST, "
@@ -94,7 +95,9 @@ public interface AudioTrackRepository extends JpaRepository<AudioTrackEntity, UU
   List<UUID> findUnprocessedKaraokeTrackIdsPrioritized(@Param("limit") int limit);
 
   @Query(
-      value = "SELECT COUNT(*) FROM audio_tracks WHERE karaoke_ready IS NOT TRUE",
+      value =
+          "SELECT COUNT(*) FROM audio_tracks WHERE karaoke_ready IS NOT TRUE"
+              + " AND COALESCE(karaoke_fail_count, 0) < 3",
       nativeQuery = true)
   long countUnprocessedKaraokeTracks();
 }
