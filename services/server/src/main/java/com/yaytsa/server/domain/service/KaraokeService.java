@@ -33,7 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class KaraokeService {
 
   private static final long JOB_TTL_MS = 3600_000;
-  private static final long SEPARATION_TIMEOUT_MINUTES = 10;
+  private static final long SEPARATION_TIMEOUT_MINUTES = 20;
   private static final long STALE_PROCESSING_TIMEOUT_MS =
       SEPARATION_TIMEOUT_MINUTES * 60 * 1000 + 60_000;
   private static final int MAX_KARAOKE_FAILURES = 3;

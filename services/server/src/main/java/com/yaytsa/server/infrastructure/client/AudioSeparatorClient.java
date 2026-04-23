@@ -19,7 +19,7 @@ import org.springframework.web.client.RestClient;
 public class AudioSeparatorClient {
 
   private static final int CONNECT_TIMEOUT_SECONDS = 10;
-  private static final int READ_TIMEOUT_MINUTES = 10;
+  private static final int READ_TIMEOUT_MINUTES = 20;
   private static final int HEALTH_CHECK_TIMEOUT_SECONDS = 5;
   private static final int MAX_RETRIES = 3;
   private static final long INITIAL_RETRY_DELAY_MS = 1000;
