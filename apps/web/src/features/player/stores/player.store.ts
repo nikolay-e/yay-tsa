@@ -586,6 +586,36 @@ export const usePlayerStore = create<PlayerStore>()(
       set({ error, isPlaying: false, isLoading: false });
     });
 
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        const { currentTrack, isPlaying } = get();
+        if (!currentTrack) return;
+
+        const currentTime = engine.getCurrentTime();
+        const duration = engine.getDuration();
+        const ended = duration > 0 && currentTime >= duration - 0.5;
+        const paused = !engine.isPlaying;
+
+        if (isPlaying && paused && ended) {
+          log.player.info('Recovering stalled track advance after background');
+          void controller.interrupt(async signal => {
+            const next = resolveNextItem(get().queue, get().repeatMode);
+            if (!next) {
+              set({ isPlaying: false });
+              return;
+            }
+            get().queue.advanceTo(next.Id);
+            try {
+              await loadAndPlay(next, signal);
+            } catch {
+              if (!signal.aborted) autoAdvanceOnError(get);
+            }
+          });
+        }
+      });
+    }
+
     session?.setActionHandlers({
       onPlay: () => {
         get()

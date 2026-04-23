@@ -415,10 +415,17 @@ export class HTML5AudioEngine implements AudioEngine {
     this.playPromiseChain = this.playPromiseChain
       .then(async () => {
         try {
+          // Resume AudioContext if suspended, but don't block playback on failure.
+          // Background tabs may reject resume() — HTMLAudioElement.play() still works
+          // and audio will route through AudioContext once it resumes on visibility change.
           if (this.audioContext) {
             const state = this.audioContext.state as string;
             if (state === 'suspended' || state === 'interrupted') {
-              await this.audioContext.resume();
+              this.audioContext.resume().catch(err => {
+                log.warn('AudioContext resume deferred (background tab)', {
+                  error: String(err),
+                });
+              });
             }
           }
 
@@ -877,6 +884,17 @@ export class HTML5AudioEngine implements AudioEngine {
     // as "video-only background media". muted=true is not subject to this policy.
     nextElement.muted = true;
 
+    if (this.audioContext) {
+      const ctxState = this.audioContext.state as string;
+      if (ctxState === 'suspended' || ctxState === 'interrupted') {
+        this.audioContext.resume().catch(err => {
+          log.warn('AudioContext resume deferred during seamless switch', {
+            error: String(err),
+          });
+        });
+      }
+    }
+
     // Start muted playback to prime the decode pipeline.
     // Secondary gain node is already at 0 — no audible output yet.
     await nextElement.play();
@@ -958,6 +976,17 @@ export class HTML5AudioEngine implements AudioEngine {
 
     if (!this.webAudioInitialized) {
       nextElement.volume = this.storedVolume;
+    }
+
+    if (this.audioContext) {
+      const state = this.audioContext.state as string;
+      if (state === 'suspended' || state === 'interrupted') {
+        this.audioContext.resume().catch(err => {
+          log.warn('AudioContext resume deferred during transition', {
+            error: String(err),
+          });
+        });
+      }
     }
 
     await nextElement.play();
