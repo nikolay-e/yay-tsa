@@ -53,6 +53,16 @@
 - Buttons with responsive text (`hidden sm:inline`) need explicit `aria-label` — on mobile the text is hidden, leaving the button without accessible name
 - Add `aria-hidden="true"` to the visible text span to avoid duplicate announcements
 
+## Background Tab Playback
+
+- Browser throttles `setTimeout`/`setInterval` in background tabs (Chrome: 1s minimum, frozen tabs: paused entirely)
+- `AudioContext` gets suspended in background — `linearRampToValueAtTime` stops processing, `currentTime` freezes
+- `audioContext.resume()` may reject in background tabs without user gesture — must not block `HTMLAudioElement.play()`
+- Fix: fire-and-forget `audioContext.resume()` (don't await), let `visibilitychange` handler recover on foreground
+- Recovery pattern: on `visibilitychange` to `visible`, check if `isPlaying && paused && ended` → force advance to next track via `controller.interrupt`
+- `HTMLAudioElement.play()` works in background tabs if user previously initiated playback with a gesture
+- `transitionToPreloaded()` and `seamlessSwitch()` must also attempt AudioContext resume before secondary element play
+
 ## Backend OOM / Playback Stability
 
 - Backend OOMKilled at 2Gi limit with JVM heap 1536m — idle consumption ~1112Mi leaves no room for burst image processing
