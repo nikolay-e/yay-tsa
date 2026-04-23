@@ -53,6 +53,16 @@
 - Buttons with responsive text (`hidden sm:inline`) need explicit `aria-label` — on mobile the text is hidden, leaving the button without accessible name
 - Add `aria-hidden="true"` to the visible text span to avoid duplicate announcements
 
+## Backend OOM / Playback Stability
+
+- Backend OOMKilled at 2Gi limit with JVM heap 1536m — idle consumption ~1112Mi leaves no room for burst image processing
+- Concurrent `/Images/Primary` requests (50+) each load full image into memory, decode to BufferedImage, resize, and convert to WebP — can exhaust heap rapidly
+- Fix: limit concurrent image processing with semaphore (MAX_CONCURRENT_IMAGE_PROCESSING=4), increase backend memory limit to 3Gi
+- Audio separator OOMKilled repeatedly (27 restarts) at 4Gi limit with BS-Roformer model — needs 6Gi
+- Karaoke backfill retries failed tracks indefinitely — add `karaoke_fail_count` column and skip tracks after 3 failures
+- Entrypoint computes JVM heap as 75% of container limit — increasing container limit automatically increases heap
+- When backend OOMKills, all active stream connections break mid-playback — this is the "sometimes plays, sometimes doesn't" symptom
+
 ## SonarCloud
 
 - `plsql:VarcharUsageCheck` on PostgreSQL migration files is a false positive (Oracle-specific rule)
