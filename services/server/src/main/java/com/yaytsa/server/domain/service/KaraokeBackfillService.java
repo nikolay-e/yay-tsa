@@ -49,16 +49,29 @@ public class KaraokeBackfillService {
     }
     Thread.startVirtualThread(
         () -> {
-          try {
-            Thread.sleep(10_000);
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-          }
+          long delayMs = 10_000;
+          for (int attempt = 1; attempt <= 10; attempt++) {
+            try {
+              Thread.sleep(delayMs);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+              return;
+            }
 
-          if (!karaokeService.isSeparatorHealthy()) {
-            log.info("Audio separator not available, skipping karaoke backfill auto-start");
-            return;
+            if (karaokeService.isSeparatorHealthy()) {
+              break;
+            }
+
+            if (attempt == 10) {
+              log.info(
+                  "Audio separator not available after {} attempts, giving up backfill", attempt);
+              return;
+            }
+            log.info(
+                "Audio separator not available (attempt {}), retrying in {}s",
+                attempt,
+                delayMs * 2 / 1000);
+            delayMs = Math.min(delayMs * 2, 120_000);
           }
 
           long remaining = getRemainingCount();
