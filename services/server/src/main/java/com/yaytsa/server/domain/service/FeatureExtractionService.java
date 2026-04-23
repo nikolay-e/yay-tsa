@@ -105,6 +105,20 @@ public class FeatureExtractionService {
     return jobRepository.countByStatus("PROCESSING");
   }
 
+  public int resetStaleJobs() {
+    java.time.OffsetDateTime cutoff = java.time.OffsetDateTime.now().minusMinutes(15);
+    int stale =
+        transactionTemplate.execute(status -> jobRepository.resetStaleProcessingJobs(cutoff));
+    int retried =
+        transactionTemplate.execute(
+            status -> jobRepository.retryRecoverableFailedJobs(MAX_ATTEMPTS));
+    if (stale > 0 || retried > 0) {
+      log.info(
+          "Reset {} stale processing jobs, retried {} recoverable failed jobs", stale, retried);
+    }
+    return stale + retried;
+  }
+
   private void createJob(ItemEntity item) {
     var job = new FeatureExtractionJobEntity();
     job.setItem(item);

@@ -23,6 +23,8 @@ public class FeatureExtractionJobScheduler {
 
   @Scheduled(fixedDelayString = "${yaytsa.media.feature-extraction.poll-interval-ms:30000}")
   public void processPendingJobs() {
+    featureExtractionService.resetStaleJobs();
+
     long pending = featureExtractionService.getPendingCount();
     if (pending == 0) {
       return;

@@ -1,12 +1,15 @@
 package com.yaytsa.server.infrastructure.persistence.repository;
 
 import com.yaytsa.server.infrastructure.persistence.entity.FeatureExtractionJobEntity;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -23,4 +26,17 @@ public interface FeatureExtractionJobRepository
   Optional<FeatureExtractionJobEntity> findByItemId(UUID itemId);
 
   long countByStatus(String status);
+
+  @Modifying
+  @Query(
+      "UPDATE FeatureExtractionJobEntity j SET j.status = 'PENDING', j.errorMessage = 'Reset:"
+          + " stale processing' WHERE j.status = 'PROCESSING' AND j.updatedAt < :cutoff")
+  int resetStaleProcessingJobs(@Param("cutoff") OffsetDateTime cutoff);
+
+  @Modifying
+  @Query(
+      "UPDATE FeatureExtractionJobEntity j SET j.status = 'PENDING', j.errorMessage = null"
+          + " WHERE j.status = 'FAILED' AND j.attempts < :maxAttempts"
+          + " AND j.errorMessage LIKE '%Connection refused%'")
+  int retryRecoverableFailedJobs(@Param("maxAttempts") int maxAttempts);
 }
