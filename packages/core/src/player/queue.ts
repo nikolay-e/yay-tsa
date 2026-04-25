@@ -276,8 +276,8 @@ export class PlaybackQueue {
       return this.getCurrentItem();
     }
 
-    if (this.playHistory.length > 0) {
-      const prev = this.playHistory.pop()!;
+    const prev = this.playHistory.pop();
+    if (prev) {
       const idx = this.items.findIndex(item => item.Id === prev.Id);
       if (idx !== -1) {
         this.currentIndex = idx;
@@ -299,14 +299,19 @@ export class PlaybackQueue {
   advanceTo(trackId: string): boolean {
     const index = this.items.findIndex(item => item.Id === trackId);
     if (index < 0) return false;
-    this.recordCurrentToHistory();
-    this.currentIndex = index;
+    if (index !== this.currentIndex) {
+      this.recordCurrentToHistory();
+      this.currentIndex = index;
+    }
     return true;
   }
 
   jumpTo(index: number): AudioItem | null {
     if (index < 0 || index >= this.items.length) {
       return null;
+    }
+    if (index === this.currentIndex) {
+      return this.getCurrentItem();
     }
 
     this.recordCurrentToHistory();
