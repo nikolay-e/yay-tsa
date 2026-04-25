@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-
-/**
- * Generate PNG icons from icon.svg
- * Converts SVG to multiple PNG sizes for PWA manifest
- */
+/* eslint-disable no-console */
 
 import sharp from 'sharp';
 import { readFileSync } from 'node:fs';

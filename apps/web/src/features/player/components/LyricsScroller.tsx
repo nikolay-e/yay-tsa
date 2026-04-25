@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { findActiveLineIndex } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { LYRICS_TEST_IDS } from '@/shared/testing/test-ids';
@@ -39,7 +39,7 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
     userScrollUntil.current = 0;
   }, [lines]);
 
-  const cacheOffsets = () => {
+  const cacheOffsets = useCallback(() => {
     const inner = innerRef.current;
     const container = containerRef.current;
     if (!inner || !container) return;
@@ -54,7 +54,7 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
       offsets.push(el.offsetTop - half + el.offsetHeight / 2);
     }
     offsetsRef.current = offsets;
-  };
+  }, [isTimeSynced]);
 
   useLayoutEffect(() => {
     cacheOffsets();
@@ -64,7 +64,7 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
     const observer = new ResizeObserver(cacheOffsets);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [lines, isTimeSynced]);
+  }, [lines, cacheOffsets]);
 
   useEffect(() => {
     const container = containerRef.current;

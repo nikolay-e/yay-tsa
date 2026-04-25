@@ -304,7 +304,8 @@ export const usePlayerStore = create<PlayerStore>()(
     ): Promise<void> {
       set({ isKaraokeTransitioning: true });
       try {
-        const url = currentClient!.getInstrumentalStreamUrl(trackId);
+        if (!currentClient) return;
+        const url = currentClient.getInstrumentalStreamUrl(trackId);
         await karaokeSwitchUrl(url, signal);
         if (!signal.aborted) {
           set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
@@ -639,7 +640,8 @@ export const usePlayerStore = create<PlayerStore>()(
     async function enableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
       set({ karaokeEnabled: true, isKaraokeTransitioning: true });
       try {
-        const status = await currentClient!.getKaraokeStatus(currentTrack.Id);
+        if (!currentClient) return;
+        const status = await currentClient.getKaraokeStatus(currentTrack.Id);
         if (signal.aborted) return;
 
         if (status.state === 'NOT_STARTED') {
@@ -647,7 +649,7 @@ export const usePlayerStore = create<PlayerStore>()(
             set({ karaokeEnabled: false });
             return;
           }
-          await currentClient!.requestKaraokeProcessing(currentTrack.Id);
+          await currentClient.requestKaraokeProcessing(currentTrack.Id);
           set({ karaokeStatus: { state: 'PROCESSING', message: null } });
           return;
         }
@@ -659,7 +661,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         if (status.state === 'READY') {
           set({ isKaraokeMode: true, karaokeStatus: status });
-          const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(currentTrack.Id);
+          const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
           await karaokeSwitchUrl(instrumentalUrl, signal);
           if (!signal.aborted) {
             preloader.invalidate();
@@ -1042,7 +1044,8 @@ export const usePlayerStore = create<PlayerStore>()(
 
           set({ isKaraokeTransitioning: true, isKaraokeMode: true });
           try {
-            const instrumentalUrl = currentClient!.getInstrumentalStreamUrl(ct2.Id);
+            if (!currentClient) return;
+            const instrumentalUrl = currentClient.getInstrumentalStreamUrl(ct2.Id);
             await karaokeSwitchUrl(instrumentalUrl, signal);
             if (!signal.aborted) {
               preloader.invalidate();

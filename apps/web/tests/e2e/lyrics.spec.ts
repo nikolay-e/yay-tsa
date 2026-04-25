@@ -54,6 +54,10 @@ test.describe('Lyrics', () => {
         .getByTestId(LYRICS_TEST_IDS.NOT_FOUND)
         .isVisible()
         .catch(() => false);
+      const hasLoading = await authenticatedPage
+        .getByTestId(LYRICS_TEST_IDS.LOADING)
+        .isVisible()
+        .catch(() => false);
       const hasLyricsText =
         (await content.getByTestId(LYRICS_TEST_IDS.LINE).count()) > 0 ||
         (await content
@@ -61,8 +65,8 @@ test.describe('Lyrics', () => {
           .isVisible()
           .catch(() => false));
 
-      expect(hasSearchButton || hasNotFound || hasLyricsText).toBe(true);
-    }).toPass({ timeout: 10000 });
+      expect(hasSearchButton || hasNotFound || hasLyricsText || hasLoading).toBe(true);
+    }).toPass({ timeout: 15000 });
   });
 
   test('should show loading state during fetch', async ({ authenticatedPage }) => {

@@ -146,6 +146,17 @@ export class PlayerBar {
         { timeout: 5000 }
       )
       .catch(() => {});
+    if (percentage === 0) {
+      await this.page
+        .waitForFunction(
+          () => {
+            const audio = document.querySelector('audio');
+            return audio && audio.currentTime < 1;
+          },
+          { timeout: 5000 }
+        )
+        .catch(() => {});
+    }
   }
 
   async getCurrentTime(): Promise<string> {

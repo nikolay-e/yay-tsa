@@ -391,14 +391,9 @@ jobs:
             sleep 15
           done
           if [ "$VERSION" != "$EXPECTED" ]; then
-            echo "::warning::Backend version mismatch: got '$VERSION', expected '$EXPECTED'. Running QA anyway."
-          fi
-          HEALTH=$(curl -sf "$PROD_URL/api/manage/health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "DOWN")
-          if [ "$HEALTH" != "UP" ]; then
-            echo "::error::Health check failed: $HEALTH"
+            echo "::error::Backend version mismatch after 10min: got '$VERSION', expected '$EXPECTED'"
             exit 1
           fi
-          echo "Health: UP"
 
       - name: Run Schemathesis
         continue-on-error: true
