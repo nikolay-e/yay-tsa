@@ -46,7 +46,7 @@
     "@commitlint/config-conventional": "^20.5.3",
     "@eslint/js": "^9.39.4",
     "@lhci/cli": "^0.15.1",
-    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
     "@typescript-eslint/parser": "^8.57.0",
     "bundlewatch": "^0.4.2",
     "dotenv": "^17.4.2",
@@ -60,13 +60,13 @@
     "globals": "^17.6.0",
     "jscpd": "^4.0.9",
     "jsdom": "^29.1.1",
-    "knip": "^6.10.0",
+    "knip": "^6.11.0",
     "madge": "^8.0.0",
     "prettier": "^3.8.3",
     "sharp": "^0.34.5",
     "type-coverage": "^2.29.7",
     "vitest": "^4.1.5",
-    "yaml": "2.8.3"
+    "yaml": "2.8.4"
   },
   "engines": {
     "node": ">=20.0.0"
