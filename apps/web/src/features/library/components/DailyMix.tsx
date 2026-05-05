@@ -1,12 +1,12 @@
 import { Sparkles } from 'lucide-react';
-import { useInfiniteTracks } from '../hooks/useTracks';
-import { TrackList } from './TrackList';
-import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import {
   usePlayerStore,
   useCurrentTrack,
   useIsPlaying,
 } from '@/features/player/stores/player.store';
+import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { useInfiniteTracks } from '../hooks/useTracks';
+import { TrackList } from './TrackList';
 
 const DAILY_MIX_LIMIT = 30;
 

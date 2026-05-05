@@ -67,14 +67,6 @@ test.describe('Playback and Player Controls', () => {
     expect(await playerBar.getCurrentTrackArtist()).toBeTruthy();
   });
 
-  test.skip('should adjust volume', async ({ playAlbumFromLibrary, playerBar }) => {
-    // Skipped: Volume slider UI not implemented yet
-    await playAlbumFromLibrary();
-
-    await playerBar.setVolume(50);
-    await playerBar.setVolume(80);
-  });
-
   test('should show player on all pages during playback', async ({
     playAlbumFromLibrary,
     libraryPage,

@@ -72,3 +72,17 @@ __pycache__/
 
 # Android APK builds (placed here before Docker build, not tracked in git)
 apps/web/public/downloads/*.apk
+
+# Hypothesis property-test cache (Schemathesis / pytest-hypothesis)
+.hypothesis/
+
+# Crawljax stray output (Java class write-out from autoqa crawler)
+com/
+
+# Transient QA artifacts (screenshots, fetched API specs, ad-hoc notes)
+ANALYSIS.md
+openapi.json
+login-page.png
+login-error.png
+qa-*.jpeg
+qa-*.png
