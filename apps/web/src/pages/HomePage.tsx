@@ -1,4 +1,4 @@
-import { QueueView } from '@/features/player/components/QueueView';
+import { DailyMix } from '@/features/library/components';
 import { RadioSeeds } from '@/features/radio';
 
 export function HomePage() {
@@ -6,7 +6,7 @@ export function HomePage() {
     <div className="p-4">
       <h1 className="sr-only">Home</h1>
       <RadioSeeds />
-      <QueueView />
+      <DailyMix />
     </div>
   );
 }
