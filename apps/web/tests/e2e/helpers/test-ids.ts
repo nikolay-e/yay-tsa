@@ -28,11 +28,6 @@ export const LIBRARY_TEST_IDS = {
   ARTIST_DETAIL_NAME: 'artist-detail-name',
 } as const;
 
-export const RADIO_TEST_IDS = {
-  SECTION: 'radio-section',
-  SEED_CARD: 'radio-seed-card',
-} as const;
-
 export const LYRICS_TEST_IDS = {
   OVERLAY: 'lyrics-overlay',
   CLOSE_BUTTON: 'lyrics-close-button',
