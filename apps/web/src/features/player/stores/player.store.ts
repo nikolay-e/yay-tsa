@@ -1133,10 +1133,8 @@ export const usePlayerStore = create<PlayerStore>()(
       jumpToQueueTrack: async (trackId: string) => {
         await controller.interrupt(async signal => {
           const { queue } = get();
-          const items = queue.getAllItems();
-          const target = items.find(item => item.Id === trackId);
+          const target = queue.getAllItems().find(item => item.Id === trackId);
           if (!target) return;
-          const targetIndex = items.indexOf(target);
           queue.advanceTo(trackId);
           syncQueueState();
           try {
@@ -1151,7 +1149,6 @@ export const usePlayerStore = create<PlayerStore>()(
           const { useSessionStore } = await import('./session-store');
           const sessionState = useSessionStore.getState();
           if (sessionState.activeSession) {
-            const remaining = items.length - targetIndex - 1;
             sessionState
               .sendSignal({
                 signalType: 'QUEUE_JUMP',
@@ -1165,9 +1162,6 @@ export const usePlayerStore = create<PlayerStore>()(
                 },
               })
               .catch(() => {});
-            if (remaining < 8) {
-              sessionState.refreshQueue().catch(() => {});
-            }
           }
         });
       },

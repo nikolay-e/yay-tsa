@@ -41,7 +41,6 @@ import {
 import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
-import { useDjAutoRefill } from '../hooks/useDjAutoRefill';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 import { MobileFullPlayer } from './MobileFullPlayer';
 import { SeekBar, TimeDisplay } from './SeekBar';
@@ -153,7 +152,6 @@ export function PlayerBar() {
   const sleepTimer = useSleepTimer();
   useAlbumColors();
   useSignalEmitter();
-  useDjAutoRefill();
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     currentTrack?.Id ?? '',
     currentTrack?.AlbumPrimaryImageTag,
