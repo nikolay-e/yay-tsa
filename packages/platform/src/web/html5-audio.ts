@@ -50,16 +50,24 @@ export class HTML5AudioEngine implements AudioEngine {
   private readonly approachingEndCallbacks = new Set<() => void>();
   private readonly approachingEndThresholdMs: number;
   private approachingEndFired: boolean = false;
+  // Background tabs throttle `timeupdate`, so we also schedule a `setTimeout`
+  // off the active duration. While audio plays the tab is exempt from
+  // throttling, so the timer fires reliably and the gapless transition can
+  // start before the current track ends.
+  private approachingEndTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Dispatch handlers — single handler per event type, iterates registered callbacks
   private readonly dispatchPlay = () => {
     this._isPlaying = true;
+    this.scheduleApproachingEndTimer();
   };
   private readonly dispatchPause = () => {
     this._isPlaying = false;
+    this.clearApproachingEndTimer();
   };
   private readonly dispatchEnded = () => {
     this._isPlaying = false;
+    this.clearApproachingEndTimer();
     for (const cb of this.endedCallbacks) cb();
   };
   private readonly dispatchTimeUpdate = () => {
@@ -74,6 +82,7 @@ export class HTML5AudioEngine implements AudioEngine {
         time >= duration - this.approachingEndThresholdMs / 1000
       ) {
         this.approachingEndFired = true;
+        this.clearApproachingEndTimer();
         for (const cb of this.approachingEndCallbacks) cb();
       }
     }
@@ -395,6 +404,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
           this.approachingEndFired = false;
           this.stableDuration = 0;
+          this.clearApproachingEndTimer();
           this.audio.src = absoluteUrl;
           this.audio.load();
         });
@@ -477,6 +487,8 @@ export class HTML5AudioEngine implements AudioEngine {
     const duration = this.getDuration();
     const clampedSeconds = duration > 0 ? Math.min(seconds, duration) : seconds;
     this.audio.currentTime = clampedSeconds;
+    if (this._isPlaying) this.scheduleApproachingEndTimer();
+    else this.clearApproachingEndTimer();
   }
 
   setVolume(level: number): void {
@@ -548,6 +560,32 @@ export class HTML5AudioEngine implements AudioEngine {
     };
   }
 
+  private scheduleApproachingEndTimer(): void {
+    this.clearApproachingEndTimer();
+    if (this.approachingEndFired) return;
+    if (this.approachingEndCallbacks.size === 0) return;
+
+    const duration = this.stableDuration > 0 ? this.stableDuration : this.audio.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+
+    const remainingMs = (duration - this.audio.currentTime) * 1000 - this.approachingEndThresholdMs;
+    if (remainingMs <= 0) return;
+
+    this.approachingEndTimer = setTimeout(() => {
+      this.approachingEndTimer = null;
+      if (this.approachingEndFired) return;
+      this.approachingEndFired = true;
+      for (const cb of this.approachingEndCallbacks) cb();
+    }, remainingMs);
+  }
+
+  private clearApproachingEndTimer(): void {
+    if (this.approachingEndTimer) {
+      clearTimeout(this.approachingEndTimer);
+      this.approachingEndTimer = null;
+    }
+  }
+
   onError(callback: (error: Error) => void): () => void {
     this.errorCallbacks.add(callback);
     return () => {
@@ -577,6 +615,8 @@ export class HTML5AudioEngine implements AudioEngine {
       cancel();
     }
     this.activeElementFades.clear();
+
+    this.clearApproachingEndTimer();
 
     // Cancel pending load operations
     this.cancelCurrentLoad();
@@ -826,6 +866,7 @@ export class HTML5AudioEngine implements AudioEngine {
     oldElement.load();
 
     this.approachingEndFired = false;
+    this.clearApproachingEndTimer();
 
     this.audio = newElement;
     this.audioSecondary = oldElement;
@@ -852,6 +893,11 @@ export class HTML5AudioEngine implements AudioEngine {
 
     this.preloadedUrl = null;
     this.preloadPromise = null;
+
+    if (!this.audio.paused) {
+      this._isPlaying = true;
+      this.scheduleApproachingEndTimer();
+    }
   }
 
   async seamlessSwitch(

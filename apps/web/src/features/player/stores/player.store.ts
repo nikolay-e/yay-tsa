@@ -588,8 +588,7 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
+      const recoverStalledAdvance = () => {
         const { currentTrack, isPlaying } = get();
         if (!currentTrack) return;
 
@@ -614,7 +613,19 @@ export const usePlayerStore = create<PlayerStore>()(
             }
           });
         }
+      };
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        recoverStalledAdvance();
       });
+
+      // visibilitychange fires only when the tab is hidden/shown. Switching
+      // window focus on desktop leaves the tab visible, so we also recover
+      // on window focus to catch advance stalls when the user alt-tabs back.
+      if (typeof window !== 'undefined') {
+        window.addEventListener('focus', recoverStalledAdvance);
+      }
     }
 
     session?.setActionHandlers({
