@@ -84,5 +84,22 @@
 
 ## SonarCloud
 
-- `yay-tsa-v2/` subtree docker-compose `PASSWORD` env vars are flagged as vulnerabilities — false positives for local dev credentials
-- Quality gate may fail on `yay-tsa-v2/` subtree security hotspots — not actionable from main project
+- `yay-tsa-v2/` subtree is excluded via `sonar.exclusions=yay-tsa-v2/**` in sonar-project.properties — Kotlin rewrite that has its own detekt config, mixing it into the main gate produces ~167 issues (Kotlin S1192/S6508/S6619/S117/S108…) that mask real findings
+- `plsql:VarcharUsageCheck` and `plsql:OrderByExplicitAscCheck` on Flyway migrations are PostgreSQL false positives — suppressed via multicriteria ignores against `**/db/migration/*.sql`
+- Quality gate fails on `new_security_rating` and `new_security_hotspots_reviewed` when v2 subtree is scanned — exclusion brings both back to passing without touching application code
+
+## ESLint / Pre-commit
+
+- `eslint --max-warnings=0` is enforced in pre-commit — `import/order` warnings fail CI (the hook auto-fixes locally and exits 1 on "files were modified", so the auto-fix never lands in CI)
+- `boundaries/element-types` deprecation warnings printed to stderr by `eslint-plugin-boundaries` v5 are not findings — they're plugin migration noise; ESLint exit code is what matters
+- After adding a new component that imports both `@/` aliases and relative paths, run `npx eslint <file>` before commit — Prettier alone won't catch import-order violations
+
+## Untracked Test Artifacts
+
+- Schemathesis/Hypothesis writes to `.hypothesis/` in CWD — must be in `.gitignore` at workspace root and inside any subdirectory where pytest runs (`packages/core/`, `services/server/`)
+- Crawljax leaves `com/crawljax/` Java class files in CWD when run as side-effect of autoqa container
+- One-shot QA artifacts (`openapi.json`, `ANALYSIS.md`, `login-*.png`, `qa-*.jpeg`) accumulate at repo root if not gitignored — pattern `qa-*.png` / `qa-*.jpeg` covers screenshot conventions
+
+## globalThis.window
+
+- `typescript:S7764` flags bare `window` references — prefer `globalThis.window` for SSR-safe checks. Same rule applies to `document`, `navigator`, `location`

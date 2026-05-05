@@ -15,7 +15,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   let env: Record<string, string | undefined>;
 
   if (hasImportMetaEnv) {
-    env = import.meta.env as Record<string, string | undefined>;
+    env = import.meta.env;
   } else if (isNode && typeof process !== 'undefined') {
     env = process.env;
   } else {

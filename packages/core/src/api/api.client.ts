@@ -365,14 +365,14 @@ export class MediaServerClient {
         }
       }
 
-      throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
+      throw new AuthenticationError(message, response.status, errorData);
     }
 
     if (response.status === 403) {
-      throw new AuthenticationError(message, response.status, errorData as Record<string, unknown>);
+      throw new AuthenticationError(message, response.status, errorData);
     }
 
-    throw new MediaServerError(message, response.status, errorData as Record<string, unknown>);
+    throw new MediaServerError(message, response.status, errorData);
   }
 
   /**
