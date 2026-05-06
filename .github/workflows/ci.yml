@@ -372,17 +372,28 @@ jobs:
         run: |
           EXPECTED="${{ steps.tags.outputs.expected_tag }}"
           echo "Waiting for backend version: $EXPECTED"
+          AUTH_FAILS=0
           for i in $(seq 1 40); do
-            TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
+            AUTH_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$PROD_URL/api/Users/AuthenticateByName" \
               -H "Content-Type: application/json" \
-              -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])" 2>/dev/null || echo "")
-            if [ -n "$TOKEN" ]; then
-              VERSION=$(curl -sf -H "Authorization: Bearer $TOKEN" "$PROD_URL/api/System/Info/Public" \
-                | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version',''))" 2>/dev/null || echo "")
-            else
-              VERSION=""
+              -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}")
+            AUTH_STATUS=$(echo "$AUTH_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+            AUTH_BODY=$(echo "$AUTH_RESPONSE" | sed '$d')
+            TOKEN=$(echo "$AUTH_BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('AccessToken',''))" 2>/dev/null || echo "")
+            if [ -z "$TOKEN" ]; then
+              AUTH_FAILS=$((AUTH_FAILS + 1))
+              echo "Attempt $i/40: auth failed (HTTP $AUTH_STATUS) — fail count $AUTH_FAILS"
+              # Persistent auth failure (>3 attempts) is a credential/user problem, not a rollout problem.
+              if [ "$AUTH_FAILS" -ge 4 ]; then
+                echo "::error::Auth failed 4+ times for QA_USERNAME='$QA_USERNAME' (HTTP $AUTH_STATUS). Check the QA test user exists and QA_PASSWORD secret is current."
+                exit 1
+              fi
+              sleep 15
+              continue
             fi
+            AUTH_FAILS=0
+            VERSION=$(curl -sf -H "Authorization: Bearer $TOKEN" "$PROD_URL/api/System/Info/Public" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version',''))" 2>/dev/null || echo "")
             if [ "$VERSION" = "$EXPECTED" ]; then
               echo "Backend deployed: $VERSION"
               break
