@@ -623,7 +623,7 @@ export const usePlayerStore = create<PlayerStore>()(
       // visibilitychange fires only when the tab is hidden/shown. Switching
       // window focus on desktop leaves the tab visible, so we also recover
       // on window focus to catch advance stalls when the user alt-tabs back.
-      if (typeof globalThis.window !== 'undefined') {
+      if (globalThis.window !== undefined) {
         globalThis.window.addEventListener('focus', recoverStalledAdvance);
       }
     }
