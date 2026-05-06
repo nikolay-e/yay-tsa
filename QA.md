@@ -85,9 +85,10 @@
 
 ## SonarCloud
 
-- `yay-tsa-v2/` subtree is excluded via `sonar.exclusions=yay-tsa-v2/**` in sonar-project.properties — Kotlin rewrite that has its own detekt config, mixing it into the main gate produces ~167 issues (Kotlin S1192/S6508/S6619/S117/S108…) that mask real findings
-- `plsql:VarcharUsageCheck` and `plsql:OrderByExplicitAscCheck` on Flyway migrations are PostgreSQL false positives — suppressed via multicriteria ignores against `**/db/migration/*.sql`
-- Quality gate fails on `new_security_rating` and `new_security_hotspots_reviewed` when v2 subtree is scanned — exclusion brings both back to passing without touching application code
+- yay-tsa uses **SonarCloud Automatic Analysis** (no `sonar-scanner` step in CI) — `sonar-project.properties` is **ignored** in this mode. Exclusions must be set via the SonarCloud web UI or API: `POST /api/settings/set?key=sonar.exclusions&values=...&values=...&component=<key>` (Bearer auth, repeat `values=` for multi-value lists; comma-separated single string is stored as one element and won't match)
+- `yay-tsa-v2/` subtree must stay excluded — Kotlin rewrite with its own detekt config; mixing it into the main gate adds ~167 Kotlin issues (S1192/S6508/S6619/S117/S108…) that mask real findings and force `new_security_rating=3`
+- `plsql:VarcharUsageCheck` and `plsql:OrderByExplicitAscCheck` on Flyway migrations are PostgreSQL false positives — kept in `sonar-project.properties` as documentation but the active suppression is via the web-UI rule-disable / project settings
+- `typescript:S7741` "Compare with `undefined` directly instead of using `typeof`" — use `if (globalThis.window !== undefined)`, not `if (typeof globalThis.window !== 'undefined')`. Standard ESLint/TS rules previously preferred `typeof` to dodge ReferenceError on truly undeclared globals; on `globalThis.window` (a property access, not a bare identifier) `=== undefined` is safe and Sonar requires it
 
 ## ESLint / Pre-commit
 
