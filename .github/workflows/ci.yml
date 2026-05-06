@@ -340,7 +340,10 @@ jobs:
     needs: [docker-build-frontend, docker-build-backend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Schemathesis with --checks all takes ~22min against the live backend
+    # (Coverage ~6min + Fuzzing ~16min before the Stateful phase even starts).
+    # ZAP and crawler add more, so 30min was too tight and silently truncated the run.
+    timeout-minutes: 60
     permissions:
       contents: read
 
