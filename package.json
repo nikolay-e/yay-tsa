@@ -58,7 +58,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",
-    "jscpd": "^4.1.1",
+    "jscpd": "^4.2.0",
     "jsdom": "^29.1.1",
     "knip": "^6.13.1",
     "madge": "^8.0.0",
