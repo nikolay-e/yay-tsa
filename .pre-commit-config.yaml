@@ -81,15 +81,6 @@ repos:
           - --skip-unknown-extensions
           - --metrics=off
         files: ^(packages|apps)/.*\.(js|ts|tsx)$
-      - id: semgrep
-        name: semgrep (Java security)
-        alias: semgrep-java
-        args:
-          - --config=p/java
-          - --error
-          - --skip-unknown-extensions
-          - --metrics=off
-        files: ^services/server/src/main/.*\.java$
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.2
@@ -172,14 +163,6 @@ repos:
             services/audio-separator/vulture_whitelist.py,
             --min-confidence=80,
           ]
-
-  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-    rev: v2.16.0
-    hooks:
-      - id: pretty-format-java
-        name: 'Google Java Format (autofix)'
-        args: [--autofix]
-        files: ^services/server/src/.*\.java$
 
   - repo: local
     hooks:
@@ -275,29 +258,6 @@ repos:
         language: system
         files: ^apps/web/src/.*\.tsx$
         pass_filenames: false
-
-      - id: maven-compile
-        name: 'Maven compile (Java backend)'
-        entry: bash -c 'cd services/server && mvn compile -B -q'
-        language: system
-        files: ^services/server/(pom\.xml|src/.*)$
-        pass_filenames: false
-
-      - id: maven-spotbugs
-        name: 'SpotBugs (Java static analysis)'
-        entry: bash -c 'cd services/server && mvn spotbugs:check -B -q'
-        language: system
-        files: ^services/server/src/main/.*\.java$
-        pass_filenames: false
-        stages: [pre-push]
-
-      - id: maven-pmd
-        name: 'PMD (Java code quality)'
-        entry: bash -c 'cd services/server && mvn pmd:check -B -q -Dpmd.failOnViolation=true'
-        language: system
-        files: ^services/server/src/main/.*\.java$
-        pass_filenames: false
-        stages: [pre-push]
 
   - repo: https://github.com/nikolay-e/pre-commit-hooks
     rev: v2.1.0

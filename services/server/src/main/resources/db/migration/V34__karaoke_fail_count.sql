@@ -1,1 +1,0 @@
-ALTER TABLE audio_tracks ADD COLUMN IF NOT EXISTS karaoke_fail_count INTEGER NOT NULL DEFAULT 0;

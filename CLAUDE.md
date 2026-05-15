@@ -4,45 +4,44 @@
 
 ## Project Overview
 
-Yay-Tsa is a self-hosted music streaming system: a custom media server implementing Jellyfin's music API subset, written in Java, paired with a React PWA client. The project is structured as an npm workspaces monorepo for the frontend layers, with a separate Maven backend and an optional Python karaoke service.
+Yay-Tsa is a self-hosted music streaming system: a multi-protocol Kotlin server (`yay-tsa-v2/`, Spring Boot 3.4 / JDK 21, hexagonal architecture with eight bounded contexts) paired with a React PWA client (`apps/web/`). The old Java Spring Boot v1 backend was retired on 2026-05-16; its code, chart templates, and CI jobs have been removed. The v2 backend speaks four protocols simultaneously — Jellyfin (custom Yaytsa extensions), OpenSubsonic, MPD, and MCP — over a single authoritative state engine.
 
-The system is designed around two hard problems: **fast, flexible queries over large music libraries** and **correct, efficient audio streaming with seek support**.
+The system is designed around two hard problems: **a single, consistent music state visible across every protocol and device**, and **correct, efficient audio streaming with seek support**.
 
 ## Common Commands
 
 ```bash
-# Development
+# Frontend (PWA)
 npm run dev                    # Build core+platform, start Vite dev server with HMR
 npm run build                  # Production build (core → platform → web)
-
-# Code Quality
-npm run type-check             # TypeScript type checking (core + platform + web)
+npm run type-check             # TypeScript type checking
 npm run lint                   # Prettier check
 npm run format                 # Prettier write
-npm run pre-commit             # Run all pre-commit hooks manually
+npm run pre-commit             # Run all pre-commit hooks
+
+# Backend (v2 Kotlin)
+cd yay-tsa-v2 && ./gradlew build        # Compile + test all modules
+cd yay-tsa-v2 && ./gradlew :app:bootRun  # Run locally against shared-postgres
+cd yay-tsa-v2 && ./gradlew spotlessApply # Format Kotlin
 
 # Testing
-cd packages/core && npm run test:integration    # Integration tests against local server
-cd apps/web && npm run test:e2e                 # Playwright E2E tests
-
-# Docker (starts frontend, backend, database)
-docker compose up              # Development with HMR
-docker compose --profile test up    # Run E2E tests
+cd packages/core && npm run test:integration    # PWA-core integration tests against a live server
+cd apps/web && npm run test:e2e                 # Playwright E2E (chromium + mobile + webkit)
+cd yay-tsa-v2 && ./gradlew test                 # Backend integration tests (Testcontainers)
 
 # Kubernetes (via GitOps)
-# See /Users/nikolay/code/gitops/helm-charts/yay-tsa/
-# Deployment managed via Argo CD (gitops repository)
+# Helm charts in this repo: charts/yay-tsa (PWA + audio-separator + feature-extractor)
+#                           charts/yay-tsa-v2 (backend)
+# Values + ArgoCD apps in the gitops repo (separate); ArgoCD Image Updater auto-bumps tags.
 ```
 
-## Architecture: Three-Layer Portability Model
+## Architecture: Three-Layer Portability Model (Frontend)
 
 The frontend is split into three npm packages with **strict unidirectional dependency flow**: Core → Platform → Web. This is not organizational convenience — it's a deliberate portability strategy.
 
 ### Layer 1: Core — Zero-Dependency Business Logic
 
-The core package has **zero production dependencies** (only TypeScript and test tooling as dev deps). It contains all business logic that is inherently platform-agnostic: the HTTP client with Emby-compatible auth headers, service abstractions for library queries and playback reporting, a PlaybackQueue state machine with shuffle/repeat logic, and all shared TypeScript types.
-
-**Why this matters**: The exact same queue logic, auth flow, and API client work identically whether consumed by a React web app, a React Native mobile app, or a Tauri desktop app. The core never imports anything browser-specific, framework-specific, or platform-specific. Type safety at the boundary prevents accidental coupling.
+The core package has **zero production dependencies** (only TypeScript and test tooling as dev deps). It contains all business logic that is inherently platform-agnostic: the HTTP client with Jellyfin-style `api_key`/Bearer auth, service abstractions for library queries and playback reporting, a PlaybackQueue state machine with shuffle/repeat logic, and all shared TypeScript types.
 
 **Key design decisions in core**:
 
@@ -55,8 +54,6 @@ The core package has **zero production dependencies** (only TypeScript and test 
 
 The platform package defines **contracts** (TypeScript interfaces) for platform-specific capabilities and provides implementations for each target. Currently only web (HTML5 Audio, Media Session API, Web Audio) is implemented.
 
-**Why interfaces, not just implementations**: The AudioEngine interface is the boundary between "what the player needs" and "how the browser does it." Future platforms (ExpoAudioEngine for React Native, TauriAudioEngine for desktop) implement the same interface without touching core or UI logic.
-
 **Non-obvious implementation details**:
 
 - **Promise chain serialization**: The HTML5 audio engine serializes load/play operations through a promise chain. Browsers can cancel play() during load(), or queue multiple play() calls — the chain ensures operations happen in order and stale loads are discarded via symbol-based cancellation tokens.
@@ -67,88 +64,75 @@ The platform package defines **contracts** (TypeScript interfaces) for platform-
 
 The React layer is deliberately thin — it composes core services and platform adapters via Zustand stores, handles routing, and renders UI. Almost no business logic lives here.
 
-**Feature-first organization**: Auth, player, and library are isolated feature modules with their own stores, hooks, and components. Features communicate only through store subscriptions and React Router navigation.
-
 **Three-tier state architecture**:
 
-- **Server state** (TanStack React Query): Library items, album details, search results — cached, deduplicated, with infinite pagination. Stale-while-revalidate keeps the UI responsive while background fetches update data.
-- **Client state** (Zustand): Authentication, playback, UI preferences — atomic stores with selective subscriptions that prevent unnecessary re-renders.
-- **High-frequency state** (separate timing store): Current playback position updates at ~60fps. This is isolated into its own micro-store with requestAnimationFrame batching to prevent the entire player from re-rendering every frame.
+- **Server state** (TanStack React Query): Library items, album details, search results — cached, deduplicated, with infinite pagination.
+- **Client state** (Zustand): Authentication, playback, UI preferences — atomic stores with selective subscriptions.
+- **High-frequency state** (separate timing store): Current playback position updates at ~60fps via a micro-store with requestAnimationFrame batching to prevent re-rendering the whole player every frame.
 
-## Architecture: Custom Jellyfin-Compatible Backend
+## Architecture: Yay-Tsa v2 Kotlin Backend (`yay-tsa-v2/`)
 
-### Why Not Just Use Jellyfin?
+The backend is a Kotlin hexagonal monolith composed of **eight bounded contexts** (auth, library, playback, adaptive, preferences, playlists, ml, karaoke). Each context owns its PostgreSQL schema (`core_v2_*`), its aggregates, and a single authoritative write-side. See [`yay-tsa-v2/CLAUDE.md`](yay-tsa-v2/CLAUDE.md) for the full architecture manifesto.
 
-Jellyfin is a monolithic media server supporting video, TV, movies, music, and books. Yay-Tsa replaces it entirely for the music streaming use case. The frontend doesn't know it's talking to a custom server — the API is identical at the surface level the client uses.
+**One core, many protocols.** Adapters translate external protocols into core commands without business logic:
 
-**Reasons for building from scratch**:
+- **`adapter-jellyfin`** — Yaytsa protocol (Jellyfin-compatible plus custom `/v1/sessions/*`, `/v1/users/*/preferences`, `/v1/me/devices/*` extensions). What the React PWA talks to.
+- **`adapter-opensubsonic`** — Subsonic/OpenSubsonic for clients like Symfonium, Finamp, Feishin.
+- **`adapter-mpd`** — Music Player Daemon protocol for ncmpcpp/mpc/Cantata.
+- **`adapter-mcp`** — Model Context Protocol tool surface for LLM agents (browse library, control playback, edit playlists/preferences).
 
-- **Scope reduction**: Music-only design eliminates video/TV/movie complexity. Fewer moving parts means fewer bugs, faster queries, and a smaller operational footprint.
-- **Query optimization**: Custom PostgreSQL schema with trigram indexes for fuzzy search, composite indexes tuned for the exact filter combinations the UI uses, and JPA Specifications for type-safe dynamic queries. Jellyfin's generic item store can't be this selective.
-- **Token model**: Device-bound opaque tokens with immediate revocation instead of stateless JWTs. For a single-service deployment, server-validated tokens are operationally safer and simpler. JWT can be introduced later if cross-service validation becomes a requirement.
-- **Virtual threads**: Java 21 virtual threads (JEP 444) enable thread-per-request that scales blocking I/O (filesystem, JDBC, FFmpeg) without reactive complexity. Imperative code with real stack traces, comparable throughput to async for I/O-bound workloads.
-- **Full code ownership**: No external upgrade dependencies, no plugin compatibility concerns, no inherited technical debt.
+**System guarantees enforced by the domain layer**: optimistic concurrency control (every aggregate carries a version), client-driven idempotency keys, single-writer device leases for playback sessions, pure functional handlers (no I/O), typed `Failure` results instead of exceptions, externalized time via `CommandContext.requestTime`, and a transactional outbox for notifications.
 
-### Backend Design: Layered Architecture
+**Workers populate read-only schemas**: `infra-library-scanner` walks the filesystem and writes the `library` schema; `infra-ml-worker` computes Discogs/MusicNN/CLAP/MERT embeddings into `ml` (HNSW indexes for similarity); `infra-karaoke-worker` runs Demucs for vocal/instrumental separation; `infra-llm` orchestrates the adaptive queue with Claude.
 
-The server follows a layered architecture: controllers handle HTTP, domain services contain business logic, and infrastructure adapters handle persistence, filesystem, transcoding, and image processing. Domain services depend directly on Spring Data JPA repositories and JPA entities — there are no abstract port interfaces between layers. This is a pragmatic choice for a single-developer project where the indirection of hexagonal architecture adds ceremony without payoff.
+**Database**: shared CNPG cluster (`shared-postgres` in `shared-database` namespace), single `yaytsa_production` DB with per-context schemas. pgvector for embeddings; pg_trgm + CITEXT for search.
 
-**Key architectural decisions**:
+## Karaoke: Optional Audio Separation
 
-- **PostgreSQL-only** (no multi-DB abstraction): Trigram indexes, recursive CTEs for hierarchies, CITEXT for case-insensitive usernames, partial indexes on non-revoked tokens. The database does what it's good at — no lowest-common-denominator SQL.
-- **RFC 9110-compliant streaming**: Zero-copy file serving via FileChannel.transferTo(), proper byte-range support (206 Partial Content), ETag-based caching, path traversal protection. Optional X-Accel-Redirect delegates to nginx for high-throughput Kubernetes deployments.
-- **Database-level cascade cleanup**: Triggers automatically delete orphaned albums when their last track is removed, orphaned artists when their last album is removed, and orphaned genres with no items. This is transactionally safe and race-condition free — no application-level coordination needed.
-- **Scrobble threshold**: Playback marked as "played" only if >50% of duration OR >240 seconds, whichever comes first. This matches industry-standard scrobble logic.
-- **Caffeine caching**: Token validation, item lookups, and image responses are cached with short TTL. Eliminates database round-trips for the hottest paths.
-
-### Karaoke: Optional Audio Separation
-
-Vocal-instrumental separation is provided by an optional sidecar service running BS-Roformer (default) or Hybrid Demucs via Python FastAPI. The backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API.
-
-**Why a separate service**: The ML model requires ~5GB download and 4GB RAM. Making it optional (Docker Compose profile) means the core system stays lightweight. GPU acceleration is supported but not required — ARM-native CPU mode works on Apple Silicon.
+Vocal-instrumental separation is provided by an optional sidecar service running BS-Roformer (default) or Hybrid Demucs via Python FastAPI (`services/audio-separator/`). The v2 backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API. v2 also has its own in-process Demucs path (disabled in production via `DEMUCS_COMMAND=unsupported` — production uses the GPU sidecar).
 
 ## Technology Stack
 
 - **Frontend**: React 19, Zustand, TanStack Query, Tailwind CSS 4, React Router 7, Vite
-- **Backend**: Java 21 (virtual threads), Spring Boot 3.4, Spring Data JPA + Specifications, PostgreSQL 16 (trigram, pgvector), Flyway, Caffeine, jaudiotagger, FFmpeg
-- **Auth**: Opaque device-bound tokens (not JWT) — immediate revocation, no cross-service validation needed
-- **ML/Experimental**: MERT/CLAP embeddings, BS-Roformer vocal separation, Claude Haiku DJ (all optional)
+- **Backend (v2)**: Kotlin 2.1, JDK 21, Spring Boot 3.4 (kotlin DSL Gradle), Spring Data JPA + Hibernate 6, PostgreSQL 17 (pgvector, pg_trgm, CITEXT, pgcrypto), Flyway (per-context schemas)
+- **Auth**: Opaque device-bound tokens (256-bit SecureRandom, SHA-256 at rest, Caffeine-cached validation)
+- **ML/Audio**: BS-Roformer / Demucs / Spleeter (karaoke), MERT / CLAP / Discogs / MusicNN embeddings, Claude (adaptive queue / DJ)
 
-### API: Jellyfin Music Subset
+### API: Jellyfin-Compatible Plus Yaytsa Extensions
 
-Implements the Jellyfin HTTP API subset used by music clients: auth, library browsing, audio streaming, sessions, favorites, playlists. PascalCase parameter names for wire compatibility.
+Standard Jellyfin paths the PWA uses: `/Users/AuthenticateByName`, `/Sessions/Logout`, `/Items`, `/Items/{id}/Images/{type}`, `/Audio/{id}/stream`, `/Playlists`, `/UserFavoriteItems/{itemId}`, `/Sessions/Playing[/Progress|/Stopped]`, `/Admin/Users`.
 
-**Key contract details**:
+Yaytsa extensions (`/v1/*`) handle device sync (`/v1/me/devices/*`), adaptive sessions (`/v1/sessions/*`), preference contracts (`/v1/users/{id}/preferences`), and karaoke (`/Karaoke/{trackId}/{status|instrumental|vocals}`).
 
-- `Recursive: true` is mandatory for library queries
-- Stream URLs pass `api_key` as query parameter (browsers don't send headers for `<audio src="">`)
-- Time positions use Jellyfin's 100-nanosecond "ticks" format (multiply seconds by 10,000,000)
-- `maxStreamingBitrate` must never be sent — triggers HTTP 500
-- `Fields` controls response expansion to minimize N+1 queries
+**Wire conventions**: PascalCase request/response keys for Jellyfin compatibility (camelCase aliases also accepted). `Recursive: true` on `/Items` traverses the polymorphic library hierarchy. Stream URLs pass `api_key` as a query parameter (browsers don't send headers for `<audio src="">`). Time positions use Jellyfin's 100-nanosecond "ticks" (`durationMs * 10_000`).
 
 ## Security Model
 
-**Frontend**: HTTPS enforced in production (allows localhost in dev). Session tokens stored in sessionStorage (tab-scoped, cleared on close) with optional localStorage for "Remember me." URL validation before use prevents client-side SSRF. Content Security Policy restricts script/media/connect sources. Script inline hashes prevent XSS.
+**Frontend**: HTTPS enforced in production. Session tokens stored in sessionStorage (tab-scoped) with optional localStorage for "Remember me." Content Security Policy restricts script/media/connect sources; inline script hashes prevent XSS.
 
-**Backend**: Device-bound opaque tokens (256-bit, SecureRandom) with Caffeine-cached validation. BCrypt password hashing. One token per user per device — re-authentication revokes and replaces. Streaming paths validated against media root to prevent path traversal.
+**Backend (v2)**: Device-bound opaque tokens (256-bit, SecureRandom, SHA-256 at rest, hashed cache key). BCrypt password hashing (strength 13). RFC 7807 Problem Details for all error responses via `@RestControllerAdvice`. Streaming paths validated against the configured library root with TOCTOU mitigation (NOFOLLOW_LINKS).
 
-**Quality gates**: 30+ pre-commit hooks enforce formatting (Prettier, Google Java Format), linting (ESLint, SpotBugs, PMD), security scanning (gitleaks, semgrep), type coverage (>90%), and copy-paste detection. Docker build validation runs on pre-push.
+**Quality gates**: Pre-commit hooks enforce formatting (Prettier, ktlint via Spotless), linting (ESLint, semgrep p/javascript+typescript+react), secrets (gitleaks), type coverage (>90%), copy-paste detection (jscpd). v2-ci runs `./gradlew build` plus a multi-arch Docker build/push.
 
 ## PWA and Mobile Strategy
 
 The web app is a Progressive Web App with service worker caching: NetworkFirst for navigation (10s timeout fallback to cache), StaleWhileRevalidate for album artwork (500 entries, 30-day expiry), and NetworkOnly for audio streams (no offline playback). The manifest enables standalone display mode with dark theme.
 
-Mobile-specific: safe area insets for notch devices, 44px minimum touch targets, momentum scrolling, bottom tab bar below `md:` breakpoint replacing the desktop sidebar. Infinite scroll with intersection observer for library pagination.
+Mobile-specific: safe area insets for notch devices, 44px minimum touch targets, momentum scrolling, bottom tab bar below `md:` breakpoint replacing the desktop sidecar. Infinite scroll with intersection observer for library pagination.
 
 Dark mode only — intentional design choice for a music player typically used in low-light environments.
 
 ## Deployment Topology
 
-**Development**: Docker Compose with 8 services — PostgreSQL, Java backend (port 8096), Vite dev server with HMR (port 5173), audio separator, feature extractor, and test services. Service health checks gate startup ordering.
+**Production**: Self-hosted K3s cluster.
 
-**Production**: Multi-stage Docker builds produce minimal images (nginx:alpine for frontend, eclipse-temurin:21-jre-alpine for backend). Frontend entrypoint injects runtime configuration (backend URL, CSP hashes) via envsubst — same image runs on dev/staging/production. Non-root users in both containers. Nginx thread pool with async I/O and direct I/O for large files enables efficient concurrent streaming.
+- `yay-tsa-production` namespace (`charts/yay-tsa`): PWA frontend (nginx), audio-separator sidecar, feature-extractor.
+- `yay-tsa-v2-production` namespace (`charts/yay-tsa-v2`): Kotlin backend; serves `/api` on `yay-tsa.com` via Traefik IngressClass + strip-prefix middleware. ServiceMonitor scrapes `/manage/prometheus`.
+- `shared-database` namespace: CNPG `shared-postgres` cluster with daily Barman backups to S3 (Minio). Schema list: `public` (legacy v1, no longer written), `core_v2_auth/library/playback/adaptive/preferences/playlists/ml/karaoke/shared`.
 
-**GitOps**: Strategy 1 (auto-deploy from main). Push → CI builds `main-<sha7>` image → Argo CD Image Updater detects → auto-sync to `yay-tsa-production` namespace. Managed in the separate gitops repository.
+**Production image flow**: Push to main → CI builds `main-<sha7>` image for the changed component → Argo CD Image Updater detects → writes back to gitops `values.images.yaml` → ArgoCD syncs.
+
+**ETL legacy**: v1 data was migrated 2026-05-16 via `yay-tsa-v2/scripts/etl-migrate.sql`. The v1 `public.*` schema remains read-only as a safety net. See `yay-tsa-v2/CUTOVER_RUNBOOK.md` for the procedure (run, validation, rollback).
 
 ## Performance Targets
 
@@ -164,4 +148,5 @@ Dark mode only — intentional design choice for a music player typically used i
 
 ## Additional Documentation
 
-- **services/server/CLAUDE.md** — Backend implementation plan, data model, and endpoint behavior specification
+- **`yay-tsa-v2/CLAUDE.md`** — Backend architecture manifesto: bounded contexts, OCC + idempotency + lease invariants, multi-protocol design.
+- **`yay-tsa-v2/CUTOVER_RUNBOOK.md`** — ETL + ingress flip + rollback procedure used on 2026-05-16.

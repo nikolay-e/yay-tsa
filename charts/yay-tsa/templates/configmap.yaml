@@ -8,9 +8,10 @@ data:
   {{- if .Values.config.serverUrl }}
   YAYTSA_SERVER_URL: {{ .Values.config.serverUrl | quote }}
   {{- end }}
-  {{- if .Values.backend.enabled }}
-  # Internal K8s service URL for nginx proxying (bypasses public ingress)
-  YAYTSA_BACKEND_URL: "http://{{ include "yay-tsa.fullname" . }}-backend:8096"
+  {{- if .Values.config.backendUrl }}
+  # Internal K8s service URL for nginx proxying (bypasses public ingress).
+  # Points cross-namespace at the v2 backend (yay-tsa-v2-production).
+  YAYTSA_BACKEND_URL: {{ .Values.config.backendUrl | quote }}
   {{- end }}
   YAYTSA_CLIENT_NAME: {{ .Values.config.clientName | quote }}
   YAYTSA_DEVICE_NAME: {{ .Values.config.deviceName | quote }}

@@ -40,7 +40,7 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS for external API access (Jellyfin or backend)
+  # Allow HTTPS / HTTP for external APIs and cross-namespace backend (v2)
   - to:
     - namespaceSelector: {}
     ports:
@@ -49,125 +49,7 @@ spec:
     - protocol: TCP
       port: 80
     - protocol: TCP
-      port: 8096
-{{- if .Values.backend.enabled }}
----
-# =============================================================================
-# BACKEND NETWORK POLICY
-# =============================================================================
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "yay-tsa.fullname" . }}-backend
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "yay-tsa.labels" . | nindent 4 }}
-    app.kubernetes.io/component: backend
-spec:
-  podSelector:
-    matchLabels:
-      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: backend
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  # Allow traffic from Traefik ingress controller
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: traefik
-    ports:
-    - protocol: TCP
-      {{- if .Values.backend.nginxSidecar.enabled }}
-      port: {{ .Values.backend.nginxSidecar.port }}
-      {{- else }}
-      port: 8096
-      {{- end }}
-  # Allow traffic from frontend pods in same namespace
-  - from:
-    - podSelector:
-        matchLabels:
-          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
-    ports:
-    - protocol: TCP
-      {{- if .Values.backend.nginxSidecar.enabled }}
-      port: {{ .Values.backend.nginxSidecar.port }}
-      {{- else }}
-      port: 8096
-      {{- end }}
-  egress:
-  # Allow DNS
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
-  # Allow PostgreSQL connection to shared-database namespace
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: shared-database
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: shared-postgres
-    ports:
-    - protocol: TCP
-      port: 5432
-  # Allow HTTPS for external APIs (metadata fetching, etc.)
-  - to:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-        except:
-        - 10.0.0.0/8
-        - 172.16.0.0/12
-        - 192.168.0.0/16
-    ports:
-    - protocol: TCP
-      port: 443
-  {{- if .Values.audioSeparator.enabled }}
-  # Allow connection to audio-separator for karaoke processing (local)
-  - to:
-    - podSelector:
-        matchLabels:
-          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
-          app.kubernetes.io/component: audio-separator
-    ports:
-    - protocol: TCP
-      port: 8000
-  {{- end }}
-  {{- if .Values.featureExtractor.enabled }}
-  # Allow connection to feature-extractor for audio feature extraction
-  - to:
-    - podSelector:
-        matchLabels:
-          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
-          app.kubernetes.io/component: feature-extractor
-    ports:
-    - protocol: TCP
-      port: 8000
-  {{- end }}
-  {{- if .Values.backend.config.karaokeSeparatorUrl }}
-  # Allow connection to audio-separator in shared namespace
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: yay-tsa-shared
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: audio-separator
-    ports:
-    - protocol: TCP
-      port: 8000
-  {{- end }}
-{{- end }}
+      port: 8080
 {{- if .Values.audioSeparator.enabled }}
 ---
 # =============================================================================
@@ -190,11 +72,13 @@ spec:
   - Ingress
   - Egress
   ingress:
-  # Allow traffic from backend pods for separation requests
+  # Allow traffic from v2 backend pods in yay-tsa-v2-production namespace
   - from:
-    - podSelector:
+    - namespaceSelector:
         matchLabels:
-          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
+          kubernetes.io/metadata.name: yay-tsa-v2-production
+      podSelector:
+        matchLabels:
           app.kubernetes.io/component: backend
     ports:
     - protocol: TCP
@@ -244,11 +128,13 @@ spec:
   - Ingress
   - Egress
   ingress:
-  # Allow traffic from backend pods for feature extraction requests
+  # Allow traffic from v2 backend pods in yay-tsa-v2-production namespace
   - from:
-    - podSelector:
+    - namespaceSelector:
         matchLabels:
-          {{- include "yay-tsa.selectorLabels" . | nindent 10 }}
+          kubernetes.io/metadata.name: yay-tsa-v2-production
+      podSelector:
+        matchLabels:
           app.kubernetes.io/component: backend
     ports:
     - protocol: TCP
