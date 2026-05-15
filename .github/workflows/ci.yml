@@ -413,7 +413,6 @@ jobs:
           fi
 
       - name: Run Schemathesis
-        continue-on-error: true
         env:
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
           QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
@@ -460,6 +459,20 @@ jobs:
             -J /zap/wrk/zap-report.json \
             -I \
             2>&1 | tee /tmp/zap.txt
+
+      - name: Gate on ZAP HIGH findings
+        run: |
+          if [ ! -f /tmp/zap-report.json ]; then
+            echo "::error::ZAP report not generated"
+            exit 1
+          fi
+          HIGH=$(jq '[.site[]?.alerts[]? | select(.riskcode=="3")] | length' /tmp/zap-report.json)
+          echo "ZAP HIGH findings: $HIGH"
+          if [ "$HIGH" -gt 0 ]; then
+            echo "::error::ZAP detected $HIGH HIGH-severity findings"
+            jq '.site[]?.alerts[]? | select(.riskcode=="3") | {name, riskdesc, url: (.instances[0]?.uri // "n/a")}' /tmp/zap-report.json
+            exit 1
+          fi
 
       - name: Cooldown after API scans
         run: sleep 30

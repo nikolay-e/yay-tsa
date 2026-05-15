@@ -3,6 +3,7 @@ package com.yaytsa.server.mapper;
 import com.yaytsa.server.dto.response.BaseItemResponse;
 import com.yaytsa.server.infrastructure.persistence.entity.*;
 import java.util.*;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
@@ -36,12 +37,29 @@ public class ItemMapper {
       AlbumEntity album,
       Integer childCount,
       String lyrics) {
+    return toDto(item, playState, audioTrack, album, childCount, lyrics, null);
+  }
+
+  public BaseItemResponse toDto(
+      ItemEntity item,
+      PlayStateEntity playState,
+      AudioTrackEntity audioTrack,
+      AlbumEntity album,
+      Integer childCount,
+      String lyrics,
+      Set<String> fields) {
     String type = mapItemType(item.getType());
     BaseItemResponse.UserItemDataDto userData =
         playState != null
             ? mapUserData(playState)
             : new BaseItemResponse.UserItemDataDto(
                 null, null, null, 0L, 0, false, null, null, false, null, null);
+
+    boolean includeGenres = fields == null || fields.contains("Genres");
+    boolean includeImageTags =
+        fields == null
+            || fields.contains("ImageTags")
+            || fields.contains("PrimaryImageAspectRatio");
 
     var builder =
         BaseItemResponse.builder()
@@ -60,10 +78,10 @@ public class ItemMapper {
             .overview(item.getOverview())
             .path(null)
             .container(item.getContainer())
-            .genres(extractGenres(item))
-            .genreItems(extractGenreItems(item));
+            .genres(includeGenres ? extractGenres(item) : List.of())
+            .genreItems(includeGenres ? extractGenreItems(item) : List.of());
 
-    Map<String, String> imageTags = extractImageTags(item);
+    Map<String, String> imageTags = includeImageTags ? extractImageTags(item) : Map.of();
     builder.imageTags(imageTags);
 
     if (album != null && album.getArtist() != null) {

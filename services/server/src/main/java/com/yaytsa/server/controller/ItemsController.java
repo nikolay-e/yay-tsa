@@ -149,11 +149,12 @@ public class ItemsController {
       List<ItemEntity> items = itemService.findAllByIds(idList);
       Map<UUID, ItemEntity> itemMap =
           items.stream().collect(Collectors.toMap(ItemEntity::getId, i -> i));
+      java.util.Set<String> requestedFields = parseFields(fields);
       List<BaseItemResponse> dtos =
           idList.stream()
               .map(itemMap::get)
               .filter(Objects::nonNull)
-              .map(item -> convertToDto(item, userUuid, enableUserData))
+              .map(item -> convertToDto(item, userUuid, enableUserData, requestedFields))
               .collect(Collectors.toList());
       return ResponseEntity.ok(new QueryResultResponse<>(dtos, dtos.size(), 0));
     }
@@ -247,6 +248,7 @@ public class ItemsController {
             : albumRepository.countByArtistIdIn(artistIds2).stream()
                 .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
 
+    java.util.Set<String> requestedFields = parseFields(fields);
     List<BaseItemResponse> dtos =
         items.stream()
             .map(
@@ -258,7 +260,8 @@ public class ItemsController {
                         albumMap.get(item.getId()),
                         trackCountByAlbum.get(item.getId()),
                         albumCountByArtist.get(item.getId()),
-                        lyricsMap.get(item.getId())))
+                        lyricsMap.get(item.getId()),
+                        requestedFields))
             .collect(Collectors.toList());
 
     QueryResultResponse<BaseItemResponse> result =
@@ -304,7 +307,7 @@ public class ItemsController {
     }
 
     ItemEntity item = itemOpt.get();
-    BaseItemResponse dto = convertToDto(item, userUuid, true);
+    BaseItemResponse dto = convertToDto(item, userUuid, true, parseFields(fields));
 
     return ResponseEntity.ok(dto);
   }
@@ -571,6 +574,22 @@ public class ItemsController {
     return resourceOwnerId.equals(user.getUserEntity().getId());
   }
 
+  // Jellyfin-compatible Fields parsing. Returns null when caller doesn't pass Fields, signalling
+  // "include everything" to ItemMapper (back-compat). Returns a non-empty set to gate expansions.
+  private static java.util.Set<String> parseFields(String fields) {
+    if (fields == null || fields.isBlank()) {
+      return null;
+    }
+    java.util.Set<String> parsed = new java.util.HashSet<>();
+    for (String token : fields.split(",")) {
+      String trimmed = token.trim();
+      if (!trimmed.isEmpty()) {
+        parsed.add(trimmed);
+      }
+    }
+    return parsed.isEmpty() ? null : java.util.Set.copyOf(parsed);
+  }
+
   private BaseItemResponse convertToDto(
       ItemEntity item,
       PlayStateEntity playState,
@@ -578,17 +597,19 @@ public class ItemsController {
       AlbumEntity album,
       Long trackCount,
       Long albumCount,
-      String lyrics) {
+      String lyrics,
+      java.util.Set<String> fields) {
     Integer childCount = null;
     if (item.getType() == ItemType.MusicAlbum && trackCount != null) {
       childCount = trackCount.intValue();
     } else if (item.getType() == ItemType.MusicArtist && albumCount != null) {
       childCount = albumCount.intValue();
     }
-    return itemMapper.toDto(item, playState, audioTrack, album, childCount, lyrics);
+    return itemMapper.toDto(item, playState, audioTrack, album, childCount, lyrics, fields);
   }
 
-  private BaseItemResponse convertToDto(ItemEntity item, UUID userId, boolean enableUserData) {
+  private BaseItemResponse convertToDto(
+      ItemEntity item, UUID userId, boolean enableUserData, java.util.Set<String> fields) {
     PlayStateEntity playState = null;
     if (userId != null && enableUserData) {
       playState = playStateService.getPlayState(userId, item.getId()).orElse(null);
@@ -611,6 +632,6 @@ public class ItemsController {
       childCount = (int) albumRepository.countByArtistId(item.getId());
     }
 
-    return itemMapper.toDto(item, playState, audioTrack, album, childCount, lyrics);
+    return itemMapper.toDto(item, playState, audioTrack, album, childCount, lyrics, fields);
   }
 }

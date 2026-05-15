@@ -101,8 +101,6 @@ public class SecurityConfig {
                     .denyAll()
                     .requestMatchers("/System/Info/Public", "/System/Ping")
                     .permitAll()
-                    .requestMatchers("/Items/*/Images/**")
-                    .permitAll()
                     .requestMatchers("/Users/AuthenticateByName")
                     .permitAll()
                     .anyRequest()
