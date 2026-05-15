@@ -455,7 +455,7 @@ INSERT INTO core_v2_library.images (
 SELECT
     id,
     item_id,
-    image_type::text,
+    type::text,
     path,
     COALESCE(is_primary, false)
 FROM public.images
