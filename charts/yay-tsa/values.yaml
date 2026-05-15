@@ -99,6 +99,10 @@ affinity: {}
 
 backend:
   enabled: false
+  # When false, the v1 /api ingress is suppressed so a v2 chart in a
+  # different namespace can take over `/api` on the same host. v1 backend
+  # pod stays running (or scale to 0) as a rollback target.
+  apiIngressEnabled: true
   image:
     repository: ghcr.io/nikolay-e/yay-tsa/backend
     pullPolicy: IfNotPresent

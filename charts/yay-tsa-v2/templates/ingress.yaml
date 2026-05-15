@@ -2,15 +2,24 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "yay-tsa-v2.fullname" . }}
+  name: {{ include "yay-tsa-v2.fullname" . }}-api
   labels:
     {{- include "yay-tsa-v2.labels" . | nindent 4 }}
   annotations:
     {{- if .Values.ingress.className }}
     kubernetes.io/ingress.class: {{ .Values.ingress.className }}
     {{- end }}
+    {{- if .Values.ingress.stripApiPrefix }}
+    {{- $namespace := .Release.Namespace }}
+    {{- $middlewares := list (printf "%s-%s-strip-api@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .)) }}
+    {{- range .Values.ingress.additionalMiddlewares }}
+    {{- $middlewares = append $middlewares . }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ join "," $middlewares }}
+    {{- else }}
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
     {{- end }}
 spec:
   {{- if .Values.ingress.className }}

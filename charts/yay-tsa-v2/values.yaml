@@ -95,14 +95,16 @@ backend:
 ingress:
   enabled: false
   className: traefik
+  stripApiPrefix: true
+  additionalMiddlewares: []
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    - host: yay-tsa-v2.nikolay-eremeev.com
+    - host: yay-tsa-v2.example.com
       paths:
-        - path: /
+        - path: /api
           pathType: Prefix
   tls:
     - hosts:
-        - yay-tsa-v2.nikolay-eremeev.com
+        - yay-tsa-v2.example.com
       secretName: yay-tsa-v2-tls

@@ -3,7 +3,7 @@ Separate ingress for backend API with StripPrefix middleware.
 Strips /api prefix before forwarding to backend (which no longer has context-path).
 API routes do NOT use oauth2-proxy - backend handles auth via X-Emby-Authorization header.
 */}}
-{{- if and .Values.ingress.enabled .Values.backend.enabled }}
+{{- if and .Values.ingress.enabled .Values.backend.enabled (default true .Values.backend.apiIngressEnabled) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
