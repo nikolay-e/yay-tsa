@@ -47,7 +47,9 @@ jobs:
             RELEASE_TYPE="stable"
           else
             BASE_VERSION=$(grep '^version:' charts/${{ matrix.chart }}/Chart.yaml | awk '{print $2}')
-            CHART_VERSION="${BASE_VERSION}-main.${SHORT_SHA}"
+            # Semver pre-release: numeric identifiers must not start with 0.
+            # Use a leading "g" (git-style) so "0531376" becomes "g0531376" — alphanumeric, no leading-zero issue.
+            CHART_VERSION="${BASE_VERSION}-main.g${SHORT_SHA}"
             APP_VERSION="main-${SHORT_SHA}"
             RELEASE_TYPE="dev"
           fi
