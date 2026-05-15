@@ -18,8 +18,9 @@ jobs:
           - yay-tsa
           - yay-tsa-v2
     runs-on: ubuntu-latest
+    # Serialize matrix legs on the shared gh-pages branch.
     concurrency:
-      group: release-chart-${{ matrix.chart }}
+      group: release-chart-gh-pages
       cancel-in-progress: false
     steps:
       - name: Checkout
@@ -96,4 +97,13 @@ jobs:
           git add .
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "Release ${{ matrix.chart }}-${{ steps.version.outputs.chart_version }}"
-          git push
+          # Defensive retry in case another matrix leg pushed first.
+          for i in 1 2 3; do
+            git pull --rebase origin gh-pages || true
+            if git push origin gh-pages; then
+              exit 0
+            fi
+            echo "Push attempt $i failed; retrying after 5s"
+            sleep 5
+          done
+          exit 1

@@ -53,11 +53,20 @@ class JellyfinAdminController(
         @RequestBody request: CreateUserRequest,
     ): ResponseEntity<Any> {
         val uid = UserId(UUID.randomUUID().toString())
-        val passwordHash = org.springframework.security.crypto.bcrypt.BCrypt.hashpw("changeme", org.springframework.security.crypto.bcrypt.BCrypt.gensalt())
+        val passwordHash =
+            org.springframework.security.crypto.bcrypt.BCrypt
+                .hashpw(
+                    "changeme",
+                    org.springframework.security.crypto.bcrypt.BCrypt
+                        .gensalt(),
+                )
         val cmd = CreateUser(uid, request.username, passwordHash, request.displayName, null, request.isAdmin)
         val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
         return when (val result = authUseCases.execute(cmd, ctx)) {
-            is CommandResult.Success -> ResponseEntity.ok(mapOf("user" to mapOf("Id" to uid.value, "Name" to request.username), "initialPassword" to "changeme"))
+            is CommandResult.Success ->
+                ResponseEntity.ok(
+                    mapOf("user" to mapOf("Id" to uid.value, "Name" to request.username), "initialPassword" to "changeme"),
+                )
             is CommandResult.Failed -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to result.failure.toString()))
         }
     }
@@ -68,7 +77,9 @@ class JellyfinAdminController(
     ): ResponseEntity<Void> {
         val uid = UserId(userId)
         val user = authQueries.findUser(uid) ?: return ResponseEntity.notFound().build()
-        val cmd = dev.yaytsa.domain.auth.DeactivateUser(uid)
+        val cmd =
+            dev.yaytsa.domain.auth
+                .DeactivateUser(uid)
         val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), user.version)
         authUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
@@ -81,8 +92,16 @@ class JellyfinAdminController(
         val uid = UserId(userId)
         val user = authQueries.findUser(uid) ?: return ResponseEntity.notFound().build()
         val newPassword = UUID.randomUUID().toString().take(12)
-        val newHash = org.springframework.security.crypto.bcrypt.BCrypt.hashpw(newPassword, org.springframework.security.crypto.bcrypt.BCrypt.gensalt())
-        val cmd = dev.yaytsa.domain.auth.ChangePassword(uid, newHash)
+        val newHash =
+            org.springframework.security.crypto.bcrypt.BCrypt
+                .hashpw(
+                    newPassword,
+                    org.springframework.security.crypto.bcrypt.BCrypt
+                        .gensalt(),
+                )
+        val cmd =
+            dev.yaytsa.domain.auth
+                .ChangePassword(uid, newHash)
         val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), user.version)
         authUseCases.execute(cmd, ctx)
         return ResponseEntity.ok(mapOf("newPassword" to newPassword))

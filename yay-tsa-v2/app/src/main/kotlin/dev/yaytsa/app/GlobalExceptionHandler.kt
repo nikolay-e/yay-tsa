@@ -76,15 +76,13 @@ class GlobalExceptionHandler {
     fun handleMissingParam(
         ex: MissingServletRequestParameterException,
         request: HttpServletRequest,
-    ): ResponseEntity<Map<String, Any>> =
-        problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Missing required parameter: ${ex.parameterName}", request)
+    ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Missing required parameter: ${ex.parameterName}", request)
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
     fun handleMethodNotAllowed(
         ex: HttpRequestMethodNotSupportedException,
         request: HttpServletRequest,
-    ): ResponseEntity<Map<String, Any>> =
-        problemDetail(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", "Method ${ex.method} not allowed", request)
+    ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", "Method ${ex.method} not allowed", request)
 
     @ExceptionHandler(InvalidDataAccessApiUsageException::class)
     fun handleInvalidDataAccess(

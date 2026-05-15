@@ -207,19 +207,23 @@ class JellyfinItemsController(
         val track = libraryQueries.getTrack(EntityId(itemId)) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(
             mapOf(
-                "MediaSources" to listOf(
-                    mapOf(
-                        "Id" to track.id.value,
-                        "Name" to track.name,
-                        "RunTimeTicks" to msToTicks(track.durationMs),
-                        "SupportsDirectStream" to true,
-                        "SupportsDirectPlay" to true,
-                        "SupportsTranscoding" to false,
-                        "Container" to (track.codec ?: "mp3"),
-                        "Type" to "Default",
+                "MediaSources" to
+                    listOf(
+                        mapOf(
+                            "Id" to track.id.value,
+                            "Name" to track.name,
+                            "RunTimeTicks" to msToTicks(track.durationMs),
+                            "SupportsDirectStream" to true,
+                            "SupportsDirectPlay" to true,
+                            "SupportsTranscoding" to false,
+                            "Container" to (track.codec ?: "mp3"),
+                            "Type" to "Default",
+                        ),
                     ),
-                ),
-                "PlaySessionId" to java.util.UUID.randomUUID().toString(),
+                "PlaySessionId" to
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
             ),
         )
     }

@@ -31,7 +31,8 @@ class PlaybackUseCasesTest :
         val deviceA = DeviceId("dev-A")
         val now = Instant.parse("2025-01-01T12:00:00Z")
 
-        fun ctx(v: AggregateVersion = AggregateVersion.INITIAL) = CommandContext(userId, ProtocolId("JELLYFIN"), now, IdempotencyKey("k-${System.nanoTime()}"), v)
+        fun ctx(v: AggregateVersion = AggregateVersion.INITIAL) =
+            CommandContext(userId, ProtocolId("JELLYFIN"), now, IdempotencyKey("k-${System.nanoTime()}"), v)
 
         test("successful command enqueues PlaybackStateChanged notification") {
             val outbox = RecordingOutbox()

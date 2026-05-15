@@ -10,7 +10,6 @@ import dev.yaytsa.domain.playback.Seek
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
-import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.IdempotencyKey
