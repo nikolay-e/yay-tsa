@@ -11,7 +11,16 @@ permissions:
 
 jobs:
   release:
+    strategy:
+      fail-fast: false
+      matrix:
+        chart:
+          - yay-tsa
+          - yay-tsa-v2
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-chart-${{ matrix.chart }}
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -36,7 +45,7 @@ jobs:
             APP_VERSION="${GITHUB_REF_NAME}"
             RELEASE_TYPE="stable"
           else
-            BASE_VERSION=$(grep '^version:' charts/yay-tsa/Chart.yaml | awk '{print $2}')
+            BASE_VERSION=$(grep '^version:' charts/${{ matrix.chart }}/Chart.yaml | awk '{print $2}')
             CHART_VERSION="${BASE_VERSION}-main.${SHORT_SHA}"
             APP_VERSION="main-${SHORT_SHA}"
             RELEASE_TYPE="dev"
@@ -50,17 +59,17 @@ jobs:
 
       - name: Package chart
         run: |
-          sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" charts/yay-tsa/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: '${{ steps.version.outputs.app_version }}'/" charts/yay-tsa/Chart.yaml
-          helm package charts/yay-tsa -d .packaged
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" charts/${{ matrix.chart }}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: '${{ steps.version.outputs.app_version }}'/" charts/${{ matrix.chart }}/Chart.yaml
+          helm package charts/${{ matrix.chart }} -d .packaged
 
       - name: Create GitHub Release (stable only)
         if: steps.version.outputs.release_type == 'stable'
         run: |
-          gh release create "yay-tsa-${{ steps.version.outputs.chart_version }}" \
-            .packaged/yay-tsa-${{ steps.version.outputs.chart_version }}.tgz \
-            --title "yay-tsa-${{ steps.version.outputs.chart_version }}" \
-            --notes "Helm chart release ${{ steps.version.outputs.chart_version }}"
+          gh release create "${{ matrix.chart }}-${{ steps.version.outputs.chart_version }}" \
+            .packaged/${{ matrix.chart }}-${{ steps.version.outputs.chart_version }}.tgz \
+            --title "${{ matrix.chart }}-${{ steps.version.outputs.chart_version }}" \
+            --notes "Helm chart release ${{ matrix.chart }} ${{ steps.version.outputs.chart_version }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -75,8 +84,8 @@ jobs:
           cp .packaged/*.tgz gh-pages/
           cd gh-pages
 
-          # Clean old dev tarballs (keep last 10)
-          find . -maxdepth 1 -name 'yay-tsa-*-main.*.tgz' -printf '%T@ %p\n' | sort -rn | tail -n +11 | cut -d' ' -f2- | xargs -r rm
+          # Clean old dev tarballs per chart (keep last 10)
+          find . -maxdepth 1 -name '${{ matrix.chart }}-*-main.*.tgz' -printf '%T@ %p\n' | sort -rn | tail -n +11 | cut -d' ' -f2- | xargs -r rm
 
           # Regenerate index from all tarballs in directory
           helm repo index . --url https://nikolay-e.github.io/yay-tsa
@@ -86,5 +95,5 @@ jobs:
           cd gh-pages
           git add .
           git diff --staged --quiet && echo "No changes" && exit 0
-          git commit -m "Release yay-tsa-${{ steps.version.outputs.chart_version }}"
+          git commit -m "Release ${{ matrix.chart }}-${{ steps.version.outputs.chart_version }}"
           git push

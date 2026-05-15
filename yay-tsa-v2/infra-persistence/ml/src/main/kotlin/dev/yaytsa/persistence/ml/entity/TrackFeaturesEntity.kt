@@ -44,16 +44,16 @@ class TrackFeaturesEntity(
     @Column(name = "intro_duration_sec")
     val introDurationSec: Float? = null,
     @Convert(converter = FloatArrayAttributeConverter::class)
-    @Column(name = "embedding_discogs", columnDefinition = "float[]")
+    @Column(name = "embedding_discogs", columnDefinition = "vector")
     val embeddingDiscogs: FloatArray? = null,
     @Convert(converter = FloatArrayAttributeConverter::class)
-    @Column(name = "embedding_musicnn", columnDefinition = "float[]")
+    @Column(name = "embedding_musicnn", columnDefinition = "vector")
     val embeddingMusicnn: FloatArray? = null,
     @Convert(converter = FloatArrayAttributeConverter::class)
-    @Column(name = "embedding_clap", columnDefinition = "float[]")
+    @Column(name = "embedding_clap", columnDefinition = "vector")
     val embeddingClap: FloatArray? = null,
     @Convert(converter = FloatArrayAttributeConverter::class)
-    @Column(name = "embedding_mert", columnDefinition = "float[]")
+    @Column(name = "embedding_mert", columnDefinition = "vector")
     val embeddingMert: FloatArray? = null,
     @Column(name = "extracted_at", nullable = false)
     val extractedAt: Instant = Instant.now(),

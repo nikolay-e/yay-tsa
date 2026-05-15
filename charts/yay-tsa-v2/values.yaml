@@ -1,0 +1,108 @@
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+backend:
+  enabled: true
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa-v2/backend
+    pullPolicy: IfNotPresent
+    tag: ''
+  replicaCount: 1
+  revisionHistoryLimit: 5
+
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    requests:
+      memory: '1Gi'
+      cpu: '500m'
+      ephemeral-storage: '1Gi'
+    limits:
+      memory: '2Gi'
+      cpu: '2'
+      ephemeral-storage: '5Gi'
+
+  jvm:
+    opts: >-
+      -XX:+UseContainerSupport
+      -XX:MaxRAMPercentage=75.0
+      -XX:+UseG1GC
+      -XX:MaxGCPauseMillis=200
+      -XX:+ExitOnOutOfMemoryError
+
+  probes:
+    liveness:
+      path: /manage/health/liveness
+      port: 8080
+      initialDelaySeconds: 60
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /manage/health/readiness
+      port: 8080
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+  database:
+    secretName: 'yay-tsa-postgres'
+    name: 'yaytsa_production'
+    hikari:
+      maximumPoolSize: 10
+      minimumIdle: 5
+
+  config:
+    profile: 'prod'
+    logLevel: 'INFO'
+    appLogLevel: 'INFO'
+    corsEnabled: true
+    corsOrigins: 'https://yay-tsa-v2.nikolay-eremeev.com'
+    karaokeSeparatorUrl: 'http://yay-tsa-production-audio-separator:8000'
+    demucsCommand: 'unsupported'
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+ingress:
+  enabled: false
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: yay-tsa-v2.nikolay-eremeev.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - yay-tsa-v2.nikolay-eremeev.com
+      secretName: yay-tsa-v2-tls

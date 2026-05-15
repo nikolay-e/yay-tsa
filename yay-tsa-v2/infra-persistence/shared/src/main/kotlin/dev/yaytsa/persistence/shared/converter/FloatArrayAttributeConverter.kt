@@ -2,32 +2,20 @@ package dev.yaytsa.persistence.shared.converter
 
 import jakarta.persistence.AttributeConverter
 import jakarta.persistence.Converter
-import java.sql.Array as SqlArray
 
 @Converter
-class FloatArrayAttributeConverter : AttributeConverter<FloatArray?, Any?> {
-    override fun convertToDatabaseColumn(attribute: FloatArray?): Any? = attribute
-
-    override fun convertToEntityAttribute(dbData: Any?): FloatArray? {
-        if (dbData == null) return null
-        return when (dbData) {
-            is SqlArray -> {
-                val array = dbData.array
-                when (array) {
-                    is Array<*> -> FloatArray(array.size) { (array[it] as Number).toFloat() }
-                    else -> null
-                }
-            }
-            is Array<*> -> FloatArray(dbData.size) { (dbData[it] as Number).toFloat() }
-            is String -> parseFloatArrayString(dbData)
-            else -> null
-        }
+class FloatArrayAttributeConverter : AttributeConverter<FloatArray?, String?> {
+    override fun convertToDatabaseColumn(attribute: FloatArray?): String? {
+        if (attribute == null) return null
+        return attribute.joinToString(prefix = "[", postfix = "]", separator = ",")
     }
 
-    private fun parseFloatArrayString(raw: String): FloatArray? {
-        val trimmed = raw.trim()
+    override fun convertToEntityAttribute(dbData: String?): FloatArray? {
+        if (dbData == null) return null
+        val trimmed = dbData.trim()
         if (trimmed == "{}" || trimmed == "[]") return floatArrayOf()
-        val inner = trimmed.removeSurrounding("{", "}").removeSurrounding("[", "]")
+        val inner = trimmed.removeSurrounding("[", "]").removeSurrounding("{", "}")
+        if (inner.isEmpty()) return floatArrayOf()
         return inner.split(",").map { it.trim().toFloat() }.toFloatArray()
     }
 }

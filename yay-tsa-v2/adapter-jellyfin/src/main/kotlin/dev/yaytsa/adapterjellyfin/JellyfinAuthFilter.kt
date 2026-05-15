@@ -29,6 +29,7 @@ class JellyfinAuthFilter(
             !path.startsWith("/Admin") &&
             !path.startsWith("/Karaoke") &&
             !path.startsWith("/Lyrics") &&
+            !path.startsWith("/tracks") &&
             !path.startsWith("/v1/")
     }
 

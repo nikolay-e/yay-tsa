@@ -127,10 +127,10 @@ class MlQueryPortTest : AbstractPersistenceTest() {
             dissonance = 0.3f,
             onsetRate = 2.5f,
             introDurationSec = 15.0f,
-            embeddingDiscogs = floatArrayOf(0.1f, 0.2f, 0.3f),
-            embeddingMusicnn = floatArrayOf(0.4f, 0.5f, 0.6f),
-            embeddingClap = floatArrayOf(0.7f, 0.8f, 0.9f),
-            embeddingMert = floatArrayOf(1.0f, 1.1f, 1.2f),
+            embeddingDiscogs = FloatArray(DISCOGS_DIM) { 0.1f },
+            embeddingMusicnn = FloatArray(MUSICNN_DIM) { 0.4f },
+            embeddingClap = FloatArray(CLAP_DIM) { 0.7f },
+            embeddingMert = FloatArray(MERT_DIM) { 1.0f },
             extractedAt = now,
             extractorVersion = "v1.0",
         )
@@ -142,9 +142,16 @@ class MlQueryPortTest : AbstractPersistenceTest() {
             summaryText = "Likes rock music",
             rebuiltAt = now,
             trackCount = 42,
-            embeddingMert = floatArrayOf(0.1f, 0.2f),
-            embeddingClap = floatArrayOf(0.3f, 0.4f),
+            embeddingMert = FloatArray(MERT_DIM) { 0.1f },
+            embeddingClap = FloatArray(CLAP_DIM) { 0.3f },
         )
+
+    companion object {
+        private const val DISCOGS_DIM = 1280
+        private const val MUSICNN_DIM = 200
+        private const val CLAP_DIM = 512
+        private const val MERT_DIM = 768
+    }
 
     private fun affinityEntity(
         userId: UUID,

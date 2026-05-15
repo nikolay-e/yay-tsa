@@ -100,8 +100,17 @@ class JellyfinAdminController(
     ): ResponseEntity<Any> = ResponseEntity.ok(mapOf("cleared" to true, "itemId" to itemId, "entriesCleared" to 0))
 
     @PostMapping("/Library/Rescan")
-    fun rescan(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("status" to "started"))
+    fun rescan(): ResponseEntity<Any> {
+        // TODO: wire to infra-library-scanner. The scanner is a worker module that adapter-jellyfin
+        // cannot depend on directly (architecture rule: adapters do not depend on workers).
+        // Proper fix: expose a port (e.g. LibraryScanTrigger) in core-application/library,
+        // implemented by infra-library-scanner, and inject the port here.
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(mapOf("status" to "started", "note" to "scanner trigger port not yet defined"))
+    }
 
     @GetMapping("/Library/ScanStatus")
-    fun scanStatus(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("isScanning" to false, "progress" to 100))
+    fun scanStatus(): ResponseEntity<Any> {
+        // TODO: no ScanRecord query port exists yet; return inert stub for the PWA.
+        return ResponseEntity.ok(mapOf("scanning" to false, "isScanning" to false, "progress" to 100))
+    }
 }

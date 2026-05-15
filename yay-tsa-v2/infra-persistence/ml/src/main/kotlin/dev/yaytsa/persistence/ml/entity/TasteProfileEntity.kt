@@ -24,9 +24,9 @@ class TasteProfileEntity(
     @Column(name = "track_count", nullable = false)
     val trackCount: Int = 0,
     @Convert(converter = FloatArrayAttributeConverter::class)
-    @Column(name = "embedding_mert", columnDefinition = "float[]")
+    @Column(name = "embedding_mert", columnDefinition = "vector")
     val embeddingMert: FloatArray? = null,
     @Convert(converter = FloatArrayAttributeConverter::class)
-    @Column(name = "embedding_clap", columnDefinition = "float[]")
+    @Column(name = "embedding_clap", columnDefinition = "vector")
     val embeddingClap: FloatArray? = null,
 )

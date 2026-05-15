@@ -2,12 +2,14 @@ package dev.yaytsa.persistence.shared
 
 import dev.yaytsa.persistence.shared.jpa.OutboxJpaRepository
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.temporal.ChronoUnit
 
 @Component
+@ConditionalOnProperty(value = ["yaytsa.outbox.cleanup.enabled"], matchIfMissing = true)
 class OutboxCleanupJob(
     private val jpa: OutboxJpaRepository,
     private val clock: dev.yaytsa.application.shared.port.Clock,
