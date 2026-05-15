@@ -81,7 +81,7 @@ spec:
                 name: {{ include "yay-tsa.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
-          {{- if $.Values.backend.enabled }}
+          {{- if and $.Values.backend.enabled (or (not (hasKey $.Values.backend "apiIngressEnabled")) $.Values.backend.apiIngressEnabled) }}
           - path: /api/Users/AuthenticateByName
             pathType: Exact
             backend:
