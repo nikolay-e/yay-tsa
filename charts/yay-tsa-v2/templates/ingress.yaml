@@ -16,6 +16,8 @@ metadata:
     {{- $middlewares = append $middlewares . }}
     {{- end }}
     traefik.ingress.kubernetes.io/router.middlewares: {{ join "," $middlewares }}
+    # Higher priority than v1's catch-all "/" ingress so /api hits v2 first.
+    traefik.ingress.kubernetes.io/router.priority: "10"
     {{- else }}
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
