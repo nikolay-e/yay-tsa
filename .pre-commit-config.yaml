@@ -81,6 +81,15 @@ repos:
           - --skip-unknown-extensions
           - --metrics=off
         files: ^(packages|apps)/.*\.(js|ts|tsx)$
+      - id: semgrep
+        name: semgrep (Java security)
+        alias: semgrep-java
+        args:
+          - --config=p/java
+          - --error
+          - --skip-unknown-extensions
+          - --metrics=off
+        files: ^services/server/src/main/.*\.java$
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.2

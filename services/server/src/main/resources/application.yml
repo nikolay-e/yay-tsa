@@ -38,6 +38,9 @@ spring:
         order_inserts: true
         order_updates: true
         jdbc.batch_versioned_data: true
+        # Batch lazy-collection loads (genres/images on /Items page) into IN (?,?,...) queries
+        # to prevent N+1 — ItemMapper accesses LAZY itemGenres/images per row.
+        default_batch_fetch_size: 50
     open-in-view: false
 
   # Flyway Database Migrations
@@ -55,17 +58,6 @@ spring:
       fail-on-unknown-properties: false
     serialization:
       write-dates-as-timestamps: false
-
-  # Caching Configuration
-  cache:
-    type: caffeine
-    caffeine:
-      spec: maximumSize=10000,expireAfterWrite=5m
-    cache-names:
-      - tokens
-      - items
-      - images
-      - users
 
   # File Upload Configuration
   servlet:
@@ -231,7 +223,7 @@ yaytsa:
     token-length: 64
     token:
       expiry-hours: ${TOKEN_EXPIRY_HOURS:720}
-    bcrypt-strength: ${BCRYPT_STRENGTH:12}
+    bcrypt-strength: ${BCRYPT_STRENGTH:13}
     cors:
       enabled: ${CORS_ENABLED:true}
       allowed-origins: ${CORS_ORIGINS:http://localhost:*,https://localhost:*}

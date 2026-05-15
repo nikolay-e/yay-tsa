@@ -9,7 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 public class PasswordEncoderConfig {
 
-  @Value("${yaytsa.security.bcrypt-strength:12}")
+  @Value("${yaytsa.security.bcrypt-strength:13}")
   private int bcryptStrength;
 
   @Bean

@@ -100,6 +100,9 @@ jobs:
       - name: Run Lighthouse CI
         run: lhci autorun
 
+      - name: Check bundle size budget
+        run: npx bundlewatch --config .bundlewatchrc.json
+
   build-android-apk:
     name: Build Android APK
     if: github.event_name == 'push'
@@ -462,7 +465,6 @@ jobs:
         run: sleep 30
 
       - name: Run frontend crawler
-        continue-on-error: true
         env:
           CRAWL_URL: https://yay-tsa.com
           CRAWL_USERNAME: ${{ vars.QA_USERNAME || 'test' }}

@@ -196,8 +196,11 @@ elif [[ "$CSP_MODE" = "auto" ]]; then
       echo "CSP Mode: AUTO → SAME-ORIGIN - connect-src restricted to 'self' (relative path)"
     fi
   else
-    CSP_CONNECT_SRC_DOMAINS="*"
-    echo "CSP Mode: AUTO → RELAXED - connect-src allows all domains (YAYTSA_SERVER_URL not set)"
+    # Defensive: by design YAYTSA_SERVER_URL is set above (auto-detect for k8s/compose,
+    # exit for unknown env). If we somehow land here, fail closed instead of opening
+    # connect-src to '*'. To opt into wide-open policy set CSP_MODE=relaxed explicitly.
+    echo "ERROR: CSP_MODE=auto requires YAYTSA_SERVER_URL to resolve; set CSP_MODE=relaxed explicitly for unrestricted policy" >&2
+    exit 1
   fi
 else
   echo "ERROR: Invalid CSP_MODE='$CSP_MODE'. Must be 'strict', 'relaxed', or 'auto'" >&2

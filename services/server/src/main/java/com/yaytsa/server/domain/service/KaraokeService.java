@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -44,6 +45,7 @@ public class KaraokeService {
   private final LibraryRootsConfig libraryRootsConfig;
   private final Path stemsRootPath;
   private volatile Path realStemsRoot;
+  private final ReentrantLock stemsRootLock = new ReentrantLock();
   private KaraokeBackfillService backfillService;
 
   private final Cache<UUID, JobEntry> processingJobs =
@@ -111,16 +113,25 @@ public class KaraokeService {
     }
   }
 
-  private synchronized Path getRealStemsRoot() {
-    if (realStemsRoot != null) {
-      return realStemsRoot;
+  private Path getRealStemsRoot() {
+    Path local = realStemsRoot;
+    if (local != null) {
+      return local;
     }
+    stemsRootLock.lock();
     try {
-      realStemsRoot = stemsRootPath.toRealPath();
-      return realStemsRoot;
-    } catch (IOException e) {
-      log.warn("Failed to resolve stems root path: {}", e.getMessage());
-      return null;
+      if (realStemsRoot != null) {
+        return realStemsRoot;
+      }
+      try {
+        realStemsRoot = stemsRootPath.toRealPath();
+        return realStemsRoot;
+      } catch (IOException e) {
+        log.warn("Failed to resolve stems root path: {}", e.getMessage());
+        return null;
+      }
+    } finally {
+      stemsRootLock.unlock();
     }
   }
 

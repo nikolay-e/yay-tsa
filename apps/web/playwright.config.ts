@@ -7,10 +7,10 @@ const baseURL = process.env.BASE_URL || 'http://localhost:5173';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 1,
-  workers: process.env.CI ? 1 : 4,
+  workers: process.env.CI ? 2 : 4,
   reporter: 'html',
   timeout: 45000,
   expect: {
@@ -43,6 +43,15 @@ export default defineConfig({
         launchOptions: {
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         },
+      },
+    },
+    // WebKit covers Safari MediaSession / Audio quirks that Chromium misses on iOS PWAs.
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        hasTouch: false,
+        isMobile: false,
       },
     },
   ],

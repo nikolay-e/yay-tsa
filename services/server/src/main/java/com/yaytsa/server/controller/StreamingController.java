@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,10 +40,11 @@ public class StreamingController {
   public void streamAudio(
       @PathVariable UUID itemId,
       @RequestHeader(value = "Range", required = false) String range,
+      @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch,
       HttpServletResponse response)
       throws IOException {
 
-    streamingService.streamAudio(itemId, range, response);
+    streamingService.streamAudio(itemId, range, ifNoneMatch, response);
   }
 
   @Operation(summary = "Get audio stream headers")
@@ -54,19 +56,27 @@ public class StreamingController {
         @ApiResponse(responseCode = "404", description = "Track not found")
       })
   @RequestMapping(value = "/Audio/{itemId}/stream", method = RequestMethod.HEAD)
-  public ResponseEntity<Void> streamAudioHead(@PathVariable UUID itemId) {
+  public ResponseEntity<Void> streamAudioHead(
+      @PathVariable UUID itemId,
+      @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch) {
 
     Resource resource = streamingService.getAudioResource(itemId);
     String mimeType = streamingService.getAudioMimeType(itemId);
+    String etag = streamingService.getAudioETag(itemId);
 
     HttpHeaders headers = new HttpHeaders();
     headers.add("Accept-Ranges", "bytes");
     headers.setContentType(MediaType.parseMediaType(mimeType));
+    headers.add("ETag", etag);
 
     try {
       headers.setContentLength(resource.contentLength());
     } catch (IOException e) {
       headers.setContentLength(0);
+    }
+
+    if (StreamingService.etagMatches(ifNoneMatch, etag)) {
+      return ResponseEntity.status(HttpStatus.NOT_MODIFIED).headers(headers).build();
     }
 
     return ResponseEntity.ok().headers(headers).build();

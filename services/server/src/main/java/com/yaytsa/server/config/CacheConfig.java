@@ -26,7 +26,7 @@ public class CacheConfig {
             buildCache("metadata-itunes", 5000, 7, TimeUnit.DAYS),
             buildCache("api-tokens", 1000, 5, TimeUnit.MINUTES),
             buildCache("items", 10000, 30, TimeUnit.MINUTES),
-            buildCache("images", 500, 1, TimeUnit.HOURS),
+            buildCache("images", 10000, 1, TimeUnit.HOURS),
             buildCache("audio-separator-url", 100, 5, TimeUnit.MINUTES)));
     return cacheManager;
   }

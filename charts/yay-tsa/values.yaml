@@ -104,6 +104,15 @@ backend:
     pullPolicy: IfNotPresent
     tag: ''
   replicaCount: 1
+  revisionHistoryLimit: 5
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
   service:
     type: ClusterIP
     port: 8096

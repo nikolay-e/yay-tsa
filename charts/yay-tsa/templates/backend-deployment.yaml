@@ -8,6 +8,7 @@ metadata:
     app.kubernetes.io/component: backend
 spec:
   replicas: {{ .Values.backend.replicaCount }}
+  revisionHistoryLimit: {{ .Values.backend.revisionHistoryLimit | default 5 }}
   selector:
     matchLabels:
       {{- include "yay-tsa.selectorLabels" . | nindent 6 }}

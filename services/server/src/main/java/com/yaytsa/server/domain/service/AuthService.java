@@ -78,7 +78,9 @@ public class AuthService {
         user, rawToken, tokenEntity.getId().toString(), deviceId, deviceName, client, version);
   }
 
-  @CacheEvict(value = "api-tokens", key = "#rawToken")
+  @CacheEvict(
+      value = "api-tokens",
+      key = "T(com.yaytsa.server.domain.service.AuthService).hashToken(#rawToken)")
   @Transactional
   public void logout(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
@@ -95,7 +97,10 @@ public class AuthService {
             });
   }
 
-  @Cacheable(value = "api-tokens", key = "#rawToken", unless = "#result == null")
+  @Cacheable(
+      value = "api-tokens",
+      key = "T(com.yaytsa.server.domain.service.AuthService).hashToken(#rawToken)",
+      unless = "#result == null")
   @Transactional(readOnly = true)
   public Optional<TokenValidationResult> validateToken(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
@@ -125,7 +130,7 @@ public class AuthService {
     return apiTokenRepository.deleteExpiredTokens(OffsetDateTime.now());
   }
 
-  static String hashToken(String rawToken) {
+  public static String hashToken(String rawToken) {
     return DigestUtils.sha256Hex(rawToken);
   }
 

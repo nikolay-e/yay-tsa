@@ -64,6 +64,12 @@ public class StreamingService {
 
   public void streamAudio(UUID itemId, String rangeHeader, HttpServletResponse response)
       throws IOException {
+    streamAudio(itemId, rangeHeader, null, response);
+  }
+
+  public void streamAudio(
+      UUID itemId, String rangeHeader, String ifNoneMatch, HttpServletResponse response)
+      throws IOException {
 
     ResolvedFile resolved = resolveFile(itemId);
 
@@ -74,6 +80,11 @@ public class StreamingService {
     response.setHeader("Accept-Ranges", "bytes");
     response.setHeader("ETag", etag);
 
+    if (ifNoneMatch != null && etagMatches(ifNoneMatch, etag)) {
+      response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+      return;
+    }
+
     if (xAccelRedirectEnabled) {
       handleXAccelRedirect(resolved.filePath(), fileSize, mimeType, response);
     } else if (rangeHeader != null) {
@@ -81,6 +92,37 @@ public class StreamingService {
     } else {
       handleFullRequest(resolved.filePath(), fileSize, mimeType, response);
     }
+  }
+
+  @Transactional(readOnly = true)
+  public String getAudioETag(UUID itemId) {
+    ResolvedFile resolved = resolveFile(itemId);
+    try {
+      long fileSize = Files.size(resolved.filePath());
+      return generateETag(resolved.filePath(), fileSize);
+    } catch (IOException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Audio file not found");
+    }
+  }
+
+  public static boolean etagMatches(String ifNoneMatch, String etag) {
+    if (ifNoneMatch == null || ifNoneMatch.isBlank()) {
+      return false;
+    }
+    String header = ifNoneMatch.trim();
+    if ("*".equals(header)) {
+      return true;
+    }
+    for (String candidate : header.split(",")) {
+      String trimmed = candidate.trim();
+      if (trimmed.startsWith("W/")) {
+        trimmed = trimmed.substring(2).trim();
+      }
+      if (etag.equals(trimmed)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private ResolvedFile resolveFile(UUID itemId) {
@@ -214,6 +256,11 @@ public class StreamingService {
     }
   }
 
+  // Some kernels/older JDKs misbehave when transferTo() is asked to copy more than ~2 GiB
+  // in a single call (see JDK-4770025, JDK-6431344). Cap each call to 1 GiB and loop —
+  // the fast path is unaffected for typical audio files which are well below the cap.
+  private static final long TRANSFER_CHUNK_LIMIT = 1L << 30;
+
   private void transferFully(
       FileChannel fileChannel,
       long position,
@@ -222,7 +269,8 @@ public class StreamingService {
       throws IOException {
     long remaining = count;
     while (remaining > 0) {
-      long transferred = fileChannel.transferTo(position, remaining, target);
+      long chunk = Math.min(remaining, TRANSFER_CHUNK_LIMIT);
+      long transferred = fileChannel.transferTo(position, chunk, target);
       if (transferred < 0) {
         break;
       }

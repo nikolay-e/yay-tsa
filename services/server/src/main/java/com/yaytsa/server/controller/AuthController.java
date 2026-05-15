@@ -163,14 +163,10 @@ public class AuthController {
   }
 
   private static String resolveClientIp(HttpServletRequest request) {
-    String forwarded = request.getHeader("X-Forwarded-For");
-    if (forwarded != null && !forwarded.isBlank()) {
-      return forwarded.split(",")[0].trim();
-    }
-    String realIp = request.getHeader("X-Real-IP");
-    if (realIp != null && !realIp.isBlank()) {
-      return realIp.trim();
-    }
+    // Trust Tomcat's RemoteIpValve (enabled via server.forward-headers-strategy=native).
+    // It rewrites remoteAddr from X-Forwarded-For only when the immediate caller matches
+    // server.tomcat.remoteip.internal-proxies (RFC 1918 by default). Manually parsing the
+    // header here would bypass that check and let any client rotate the IP-attempt cap.
     return request.getRemoteAddr();
   }
 }
