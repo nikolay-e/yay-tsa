@@ -5,6 +5,21 @@ export interface SessionData {
   userId: string;
 }
 
+const COOKIE_NAME = 'yay_token';
+
+function writeTokenCookie(token: string): void {
+  if (typeof document === 'undefined') return;
+  const isSecure = globalThis.location?.protocol === 'https:';
+  const attrs = ['Path=/', 'SameSite=Strict', 'Max-Age=2592000'];
+  if (isSecure) attrs.push('Secure');
+  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(token)}; ${attrs.join('; ')}`;
+}
+
+function clearTokenCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Strict`;
+}
+
 export function saveSession(data: SessionData): void {
   if (typeof sessionStorage === 'undefined') {
     return;
@@ -13,6 +28,7 @@ export function saveSession(data: SessionData): void {
   try {
     sessionStorage.setItem(STORAGE_KEYS.SESSION, data.token);
     sessionStorage.setItem(STORAGE_KEYS.USER_ID, data.userId);
+    writeTokenCookie(data.token);
   } catch {
     // QuotaExceededError or SecurityError in private mode
   }
@@ -59,6 +75,7 @@ export function saveSessionPersistent(data: SessionData): void {
     localStorage.setItem(STORAGE_KEYS.SESSION_PERSISTENT, data.token);
     localStorage.setItem(STORAGE_KEYS.USER_ID_PERSISTENT, data.userId);
     localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
+    writeTokenCookie(data.token);
   } catch {
     // QuotaExceededError or SecurityError
   }
@@ -105,12 +122,18 @@ function clearSessionPersistent(): void {
 export function loadSessionAuto(): SessionData | null {
   const persistentSession = loadSessionPersistent();
   if (persistentSession) {
+    writeTokenCookie(persistentSession.token);
     return persistentSession;
   }
-  return loadSession();
+  const session = loadSession();
+  if (session) {
+    writeTokenCookie(session.token);
+  }
+  return session;
 }
 
 export function clearAllSessions(): void {
   clearSession();
   clearSessionPersistent();
+  clearTokenCookie();
 }

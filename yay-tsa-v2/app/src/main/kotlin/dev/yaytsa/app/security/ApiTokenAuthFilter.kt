@@ -17,7 +17,7 @@ class ApiTokenAuthFilter(
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        val token = extractBearerToken(request)
+        val token = extractBearerToken(request) ?: extractTokenCookie(request.cookies)
         if (token != null) {
             val user = authQueries.findByApiToken(token)
             if (user != null && user.isActive) {
@@ -50,4 +50,7 @@ class ApiTokenAuthFilter(
         val header = request.getHeader("Authorization") ?: return null
         return if (header.startsWith("Bearer ")) header.substring(7) else null
     }
+
+    private fun extractTokenCookie(cookies: Array<jakarta.servlet.http.Cookie>?): String? =
+        cookies?.firstOrNull { it.name == "yay_token" }?.value?.takeIf { it.isNotBlank() }
 }

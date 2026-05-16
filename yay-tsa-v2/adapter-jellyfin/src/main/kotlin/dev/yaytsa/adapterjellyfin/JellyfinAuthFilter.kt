@@ -44,6 +44,7 @@ class JellyfinAuthFilter(
                 ?: extractTokenFromAuth(request.getHeader("X-Emby-Authorization"))
                 ?: extractBearerToken(request.getHeader("Authorization"))
                 ?: request.getParameter("api_key")
+                ?: extractTokenCookie(request.cookies)
 
         if (token != null && SecurityContextHolder.getContext().authentication == null) {
             val user = authQueries.findByApiToken(token)
@@ -79,6 +80,9 @@ class JellyfinAuthFilter(
         if (header == null || !header.startsWith("Bearer ")) return null
         return header.removePrefix("Bearer ").trim().ifBlank { null }
     }
+
+    private fun extractTokenCookie(cookies: Array<jakarta.servlet.http.Cookie>?): String? =
+        cookies?.firstOrNull { it.name == "yay_token" }?.value?.takeIf { it.isNotBlank() }
 }
 
 interface DeviceBoundAuthentication {
