@@ -274,7 +274,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
             | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
-          curl -sf "$PROD_URL/api/api-docs" > /tmp/openapi.json
+          curl -sf "$PROD_URL/api/v3/api-docs" > /tmp/openapi.json
           python3 -c "
           import json
           with open('/tmp/openapi.json') as f: spec = json.load(f)
