@@ -2,18 +2,21 @@ package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.shared.EntityId
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.nio.channels.Channels
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 
 @RestController
 class JellyfinMediaController(
@@ -55,7 +58,10 @@ class JellyfinMediaController(
         @RequestParam(name = "api_key", required = false) apiKey: String?,
         @RequestParam(required = false) deviceId: String?,
         @RequestHeader(HttpHeaders.RANGE, required = false) range: String?,
-    ): ResponseEntity<*> = streamAudio(itemId, apiKey, deviceId, range)
+        response: HttpServletResponse,
+    ) {
+        streamAudio(itemId, apiKey, deviceId, range, response)
+    }
 
     @GetMapping("/Audio/{itemId}/stream")
     fun streamAudio(
@@ -63,50 +69,75 @@ class JellyfinMediaController(
         @RequestParam(name = "api_key", required = false) apiKey: String?,
         @RequestParam(required = false) deviceId: String?,
         @RequestHeader(HttpHeaders.RANGE, required = false) range: String?,
-    ): ResponseEntity<*> {
-        val track =
-            libraryQueries.getTrack(EntityId(itemId))
-                ?: return ResponseEntity.notFound().build<Any>()
-
-        val sourcePath =
-            libraryQueries.resolveTrackFilePath(EntityId(itemId))
-                ?: return ResponseEntity.notFound().build<Any>()
-
+        response: HttpServletResponse,
+    ) {
+        val track = libraryQueries.getTrack(EntityId(itemId))
+        if (track == null) {
+            response.status = 404
+            return
+        }
+        val sourcePath = libraryQueries.resolveTrackFilePath(EntityId(itemId))
+        if (sourcePath == null) {
+            response.status = 404
+            return
+        }
         val filePath = Path.of(sourcePath)
         if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
-            return ResponseEntity.notFound().build<Any>()
+            response.status = 404
+            return
         }
 
-        val resource = FileSystemResource(filePath)
         val contentType = resolveAudioContentType(track.codec, filePath)
         val fileSize = Files.size(filePath)
 
-        // Range support
         if (range != null && range.startsWith("bytes=")) {
             val rangeSpec = range.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
             val start = parts[0].toLongOrNull() ?: 0L
-            val end = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
+            val end =
+                if (parts.size > 1 && parts[1].isNotEmpty()) {
+                    parts[1].toLongOrNull() ?: (fileSize - 1)
+                } else {
+                    fileSize - 1
+                }
+            if (start >= fileSize || end < start) {
+                response.status = 416
+                response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
+                return
+            }
             val length = end - start + 1
-
-            return ResponseEntity
-                .status(HttpStatus.PARTIAL_CONTENT)
-                .header(HttpHeaders.CONTENT_TYPE, contentType)
-                .header(HttpHeaders.CONTENT_LENGTH, length.toString())
-                .header(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
-                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .body(
-                    org.springframework.core.io.support
-                        .ResourceRegion(resource, start, length),
-                )
+            response.status = 206
+            response.contentType = contentType
+            response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
+            response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
+            response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+            FileChannel.open(filePath, StandardOpenOption.READ).use { channel ->
+                channel.position(start)
+                Channels.newInputStream(channel).use { input ->
+                    val out = response.outputStream
+                    val buffer = ByteArray(64 * 1024)
+                    var remaining = length
+                    while (remaining > 0) {
+                        val toRead = minOf(buffer.size.toLong(), remaining).toInt()
+                        val read = input.read(buffer, 0, toRead)
+                        if (read == -1) break
+                        out.write(buffer, 0, read)
+                        remaining -= read
+                    }
+                    out.flush()
+                }
+            }
+            return
         }
 
-        return ResponseEntity
-            .ok()
-            .header(HttpHeaders.CONTENT_TYPE, contentType)
-            .header(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
-            .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-            .body(resource)
+        response.status = 200
+        response.contentType = contentType
+        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+        Files.newInputStream(filePath).use { input ->
+            input.copyTo(response.outputStream, bufferSize = 64 * 1024)
+            response.outputStream.flush()
+        }
     }
 
     private fun resolveAudioContentType(
