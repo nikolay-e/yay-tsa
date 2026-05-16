@@ -1,5 +1,68 @@
 # QA Methodology Learnings
 
+## Mandatory Browser-QA User Flows (NEVER skip these)
+
+**Why this list exists.** Health endpoints, `/Items` HTTP 200, no-pod-restart, and "the page renders" are all liveness signals — they do not prove the product works. The audio-stream 500 bug shipped despite all four being green: `actuator/health=200`, `/Items=200`, no `OOMKilled`, login + albums page rendered. The only path that catches that class of defect is clicking the actual user buttons and asserting the externally-observable outcome. Run every flow below on every QA pass, on both the desktop viewport (default) and mobile (resize to 412×915, Pixel 7). For each: 0 console errors, 0 unexpected 4xx/5xx in network panel, and the listed positive signal — not "the request returned 200".
+
+1. **Login**
+   - Fill username + password → click Sign In → URL becomes `/`.
+   - `/api/Users/AuthenticateByName` returns 200; `AccessToken` is stored and the next API call carries it (`Authorization: Bearer` header).
+   - Negative path: wrong password → visible error message, no token written.
+2. **Library navigation**
+   - `/`, `/albums`, `/artists`, `/songs`, `/favorites`, `/settings` — every link in the side/bottom nav loads its page.
+   - Albums grid renders ≥10 thumbnails; verify with `Array.from(document.querySelectorAll('img')).filter(i => i.naturalWidth>50)` — counting `naturalWidth>0` alone is not enough because SVG placeholders pass that check (real album art has width >50). At least one network response to `/api/Items/<id>/Images/Primary` must be 200; if ALL of them are 404, image rendering is broken regardless of placeholder fallback.
+3. **Album detail → playback start (THE single most critical flow)**
+   - Open `/albums/<id>` of a track-bearing album.
+   - Click first track's Play button.
+   - Within 3 seconds: `<audio>` element exists, its `paused === false`, `currentTime > 0`, and **network shows `GET /api/Audio/<trackId>/stream` returning `206 Partial Content` (range request) or `200`** — anything 4xx/5xx here means streaming is broken and the user is staring at a frozen player.
+   - Console must NOT contain `MEDIA_ELEMENT_ERROR`, `Failed to load audio`, or `Audio engine error`. These usually mean the backend returned a non-audio body that the HTML5 element couldn't decode (e.g. JSON error page with `Content-Type: application/octet-stream`).
+   - Pause → `paused === true`, audio element stops. Resume → playback continues from same `currentTime`.
+4. **Seek**
+   - Move the progress bar (click 75% along the track or `audio.currentTime = audio.duration * 0.5`).
+   - Within 2 seconds: `audio.currentTime` is within ±1 s of the target AND network shows a fresh range request `Range: bytes=<offset>-` returning 206. If the same byte-0 request repeats, range support is broken.
+5. **Next / previous**
+   - Next: player switches to next track in album order, new track's `/api/Audio/<id>/stream` fires, `currentTrack.Id` changes in the player store.
+   - Previous (within first 3 s of playback): goes to actual previous track, not "restart current track". Previous (after 3 s into a track): seeks current to 0. Both behaviors are real product requirements and both must be checked.
+6. **Volume + mute**
+   - Volume slider changes `audio.volume`. Mute toggle sets `audio.muted=true` AND visually flips the icon. Unmute restores the previous volume, not 1.0.
+7. **Shuffle + repeat**
+   - Shuffle on → queue order in player store changes; turning off restores original order.
+   - Repeat one → end of track auto-restarts same track. Repeat all → end of last queue item plays the first item.
+8. **Favorites**
+   - Click heart on a track → POST `/api/UserFavoriteItems/<id>` returns 200, icon flips to filled, and `/api/Items?IncludeItemTypes=Audio&Filters=IsFavorite` includes it.
+   - Click again → DELETE returns 200, icon empties, item disappears from favorites.
+9. **Search**
+   - Type at least 3 chars into search box → `/api/Items?SearchTerm=…&Recursive=true` returns ≤50 items, results visible in dropdown, clicking a result navigates to its detail page.
+10. **Lyrics + karaoke (where applicable to track)**
+    - For a track with lyrics: open lyrics panel → see synchronized lines (the `[LYRICS_TEST_IDS.LOADING]` placeholder is acceptable in E2E for up to ~10 s, then real content). 501 on `/api/Lyrics/<id>/fetch` is acceptable only if the panel falls back gracefully — no toast spam, no exception in console.
+    - For a track with karaoke stems ready: toggle karaoke mode → secondary audio element loads `/api/Karaoke/<id>/instrumental` returning 200, vocals toggle switches between `/instrumental` and `/vocals`.
+11. **Queue panel**
+    - Open queue → current track highlighted, future entries listed in order. Click any future entry → player jumps to it. Drag-reorder → store order updates and persists across navigation.
+12. **Devices + multi-device**
+    - Open Devices panel → current browser appears with the right device name. With a second tab logged in as same user, the second tab also appears within ~15 s (heartbeat interval).
+    - EventSource: `new EventSource('/api/v1/me/devices/events')` opens (readyState 1) and receives a `ready` message within 5 s. SSE 500 here means the auth filter chain stripped the cookie — distinct bug class from streaming 500.
+13. **Settings**
+    - Theme toggle (if exposed) — does not exist on yay-tsa; verify intended dark-only behavior.
+    - Library scan button — POST returns 202/200, scan progress visible in admin/log feed.
+    - Logout button → token cleared from session/local storage, redirected to `/login`, subsequent `/api/Items` request returns 401.
+14. **Mobile-only assertions (resize viewport to 412×915 first)**
+    - Bottom tab bar visible, sidebar hidden.
+    - PlayerBar mini-bar visible above tab bar; clicking opens MobileFullPlayer.
+    - In MobileFullPlayer: shuffle/repeat/queue/lyrics buttons all reachable with thumb-sized hit areas (≥44 px).
+    - Pull-to-refresh on library pages does not destroy player state.
+15. **PWA + background tab**
+    - Service worker registers (`navigator.serviceWorker.getRegistrations()` non-empty).
+    - "Install" prompt available (PC) or manifest valid in DevTools Application tab.
+    - Start playing → switch to another tab for 30 s → return: playback continues (or `visibilitychange` recovery kicks in and within 2 s the next track starts). Do NOT accept "audio resumes 5 minutes later".
+
+If any of the above fails, the bug is shipped to production — `/qa` is not "complete" until every one of these is green on the deployed image whose tag matches `kubectl get deployment ... -o jsonpath='{.spec.template.spec.containers[0].image}'`.
+
+## Don't trust smoke endpoints alone
+
+- `actuator/health` only proves Tomcat started. It says nothing about whether `/Items` returns data, `/Audio/stream` returns audio bytes, `/Images/Primary` returns image bytes, or the JPA `EntityManager` is wired correctly. A green health probe with a broken streaming endpoint is the most common "deploy looks fine, users complain" scenario in this project.
+- After every deploy, exercise at least one **read** path (`/Items` with auth → ≥1 row), one **binary** path (`/Audio/<id>/stream` with Range header → 206 with `audio/*` Content-Type), and one **write** path (favorite + unfavorite). Anything less is theatre.
+- Backend log `Unhandled exception` + `HttpMessageNotWritableException` is the unambiguous signal of "server returned 5xx with body the client can't decode". Grep for it before declaring a release healthy: `kubectl logs -n yay-tsa-v2-production deployment/... --since=5m | grep -E "Unhandled|MessageNotWritable|MessageConversion"`.
+
 ## CI Investigation
 
 - Search job logs with `grep -E "passed|failed|exit code"` for quick test summary
