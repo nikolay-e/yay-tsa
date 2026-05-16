@@ -120,6 +120,33 @@ Health endpoints, `/Items` HTTP 200, no-pod-restart, and "the page renders" are 
 - yay-tsa uses **SonarCloud Automatic Analysis** (no `sonar-scanner` step in CI) — `sonar-project.properties` is **ignored**. Exclusions must be set via web UI or API.
 - `yay-tsa-v2/` subtree must stay excluded — Kotlin rewrite with own detekt config; mixing adds ~167 Kotlin issues that mask real findings and force `new_security_rating=3`.
 
+## Streaming relative-path bug + dedup follow-on (2026-05-16)
+
+- `JpaLibraryQueryPort.resolveTrackFilePath` originally returned `entity.sourcePath` raw. v1-ETL rows had `/media/...` absolute paths and worked; v2-scanner rows had `Artist/Album/file.flac` relative paths and resolved against the JVM CWD → `Files.exists` false → `/Audio/{id}/stream` 404, browser → `MEDIA_ELEMENT_ERROR: Format error`. Fix: when `sourcePath` does not start with `/`, prefix it with `entity.libraryRoot` before returning.
+- The lesson generalises: **any code that does `Path.of(entity.sourcePath)`** (image controller too) must consider relative vs absolute. v2 scanner inserts relative, v1 ETL inserted absolute.
+- `streamAudio` write loop now wraps `out.write()` in `try { ... } catch (IOException)` and logs at DEBUG. Without this every Pause/Skip surfaces as `AsyncRequestNotUsableException` → "Unhandled exception" ERROR in `GlobalExceptionHandler`. Pair the handler with a no-body `@ExceptionHandler(AsyncRequestNotUsableException)` returning `null` so async dispatch swallows it silently.
+- `MultipartException` from non-multipart bodies hitting `JellyfinTracksUploadController` was logged as "Unhandled exception" → fix by adding an explicit `@ExceptionHandler(MultipartException)` mapping to 400.
+
+## /Items pagination — TotalRecordCount must be a DB count, not `items.size`
+
+- `JellyfinItemsController` used `ItemsResult(items, items.size, startIndex)` for every paged branch. The PWA's infinite-scroll stops as soon as `loaded >= totalRecordCount`, so a 9k-track library reported "Showing 50 of 50 songs" with no way to scroll. Add `countTracks/countAlbums/countArtists` to `LibraryQueryPort` (backed by `JpaRepository.countByEntityType`) and pass the real value into the response.
+- Sanity smoke after any change to `/Items`: `curl -s "<base>/api/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1" -H "Authorization: Bearer ..." | jq .TotalRecordCount` must equal the row count from `SELECT count(*) FROM core_v2_library.entities WHERE entity_type='TRACK'`.
+
+## v1/v2 dedup — duplicate track keys per album, with cross-schema refs
+
+- After v1→v2 cutover the library held `(album_id, track_number, disc_number)` groups with two rows: one absolute-path (v1 ETL), one relative-path (v2 scanner). Every album rendered as `2 × track_count`. Dedup script: `yay-tsa-v2/scripts/dedup-tracks.sql`. Preserved 217/217 favorites and 2,868/2,868 play_history rows; track_features lost 41 redundant duplicates (keep row already had its own features).
+- PK-safe pattern for `track_features` / `karaoke.assets` (PK `track_id uuid`): single `INSERT INTO ... SELECT DISTINCT ON (dp.keep_id) ... ON CONFLICT (track_id) DO NOTHING` to transfer at most ONE drop's row per keep, then `DELETE` all drops. A loop-style `UPDATE ... WHERE NOT EXISTS` runs against the pre-statement snapshot — both UPDATEs see "keep has nothing" and the second one violates PK.
+- PK-safe pattern for `user_track_affinity` (PK `(user_id, track_id)`, counter columns): pre-aggregate per `(user_id, keep_id)` with SUM/MAX, then `INSERT ... ON CONFLICT DO UPDATE` to merge counters into the keep row. Avoids the same row-by-row UPSERT race.
+- Tracks with `track_number IS NULL` (no ID3 tag) cannot be deduped by this triple — they remain visible separately but are not actual file duplicates (each row corresponds to one filesystem path).
+
+## Orphan album image rows after disk reorganisation
+
+- 23 albums had `is_primary=true` image rows pointing at `/media/{Artist}/YYYY-MM-DD  {Album}/cover.jpg` while the actual folders on disk were renamed to `/media/{Artist}/YYYY - {Album}/`. The v2 scanner only walks audio files and never inserts image rows, so those stale image records lingered as 404s with no chance of replacement. Resolution: `DELETE FROM core_v2_library.images WHERE is_primary AND path ~ '/[0-9]{4}-[0-9]{2}-[0-9]{2}'`. Long-term fix needs scanner to discover `cover.jpg`/`folder.jpg` inside album directories.
+
+## Hibernate `ddl-auto: update` in prod is a foot-gun
+
+- `application-prod.yml` previously had `ddl-auto: update`. On every boot Hibernate tried to ALTER `core_v2_ml.taste_profiles.summary_text` from TEXT to varchar(255), which fails when actual rows exceed 255 chars and races with prepared-statement caches (`ERROR: cached plan must not change result type`). Set to `validate` and own DDL via Flyway, matching what `application.yml` already does outside of prod profile.
+
 ## v1 → v2 Cutover (historical, but informative for similar migrations)
 
 ### ResourceRegion + ResponseEntity<\*> erases type → 500 on Range requests
