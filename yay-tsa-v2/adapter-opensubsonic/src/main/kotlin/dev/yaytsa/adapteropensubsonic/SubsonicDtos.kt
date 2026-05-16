@@ -85,7 +85,7 @@ data class PlaylistElement(
     val id: String,
     val name: String,
     val songCount: Int = 0,
-    val public: Boolean = false,
+    @get:com.fasterxml.jackson.annotation.JsonProperty("public") val isPublic: Boolean = false,
     val owner: String? = null,
 )
 
@@ -94,7 +94,7 @@ data class PlaylistDetail(
     val name: String,
     val songCount: Int = 0,
     val entry: List<ChildElement> = emptyList(),
-    val public: Boolean = false,
+    @get:com.fasterxml.jackson.annotation.JsonProperty("public") val isPublic: Boolean = false,
     val owner: String? = null,
 )
 

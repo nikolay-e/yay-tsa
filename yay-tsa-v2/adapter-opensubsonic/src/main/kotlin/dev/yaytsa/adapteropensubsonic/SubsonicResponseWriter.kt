@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component
 
 @Component
 class SubsonicResponseWriter {
+    private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
+
     private val xmlMapper =
         XmlMapper().apply {
             registerKotlinModule()
@@ -41,7 +43,8 @@ class SubsonicResponseWriter {
                 val xml = xmlMapper.writeValueAsString(SubsonicXmlResponse.from(response.subsonicResponse))
                 ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(xml)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            log.error("Subsonic response serialization failed (format={})", format, e)
             val errorResponse = error(0, "Serialization error")
             val json = jsonMapper.writeValueAsString(errorResponse)
             ResponseEntity.status(500).contentType(MediaType.APPLICATION_JSON).body(json)

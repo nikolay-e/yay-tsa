@@ -99,7 +99,8 @@ class LibraryWriter(
                 ?.takeIf { pathSegments.size >= 3 && it.isNotBlank() }
                 ?.let { stripLeadingYear(it) }
 
-        val artistName = tagAlbumArtist ?: tagArtist ?: folderArtist
+        val rawArtist = tagAlbumArtist ?: tagArtist ?: folderArtist
+        val artistName = primaryArtist(rawArtist)
         val albumName = tagAlbum ?: folderAlbum
 
         val trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.toIntOrNull()
@@ -206,14 +207,14 @@ class LibraryWriter(
         val albumSourceKey = "album:${artistName?.lowercase() ?: "unknown"}:${albumName.lowercase()}"
         val existing = entityRepo.findBySourcePath(albumSourceKey)
         if (existing != null) {
-            // Repair album → artist link if it was created during the legacy "unknown" era
+            // Always realign album → primary artist (overwrite legacy compound or "unknown" links)
             if (artistId != null) {
-                if (existing.parentId == null) {
+                if (existing.parentId != artistId) {
                     existing.parentId = artistId
                     entityRepo.save(existing)
                 }
                 val albumRow = albumRepo.findById(existing.id).orElse(null)
-                if (albumRow != null && albumRow.artistId == null) {
+                if (albumRow != null && albumRow.artistId != artistId) {
                     albumRow.artistId = artistId
                     albumRepo.save(albumRow)
                 }
@@ -249,24 +250,24 @@ class LibraryWriter(
             trackRow.albumId = derivedAlbumId
             trackChanged = true
         }
-        if (trackRow.albumArtistId == null && derivedArtistId != null) {
+        if (derivedArtistId != null && trackRow.albumArtistId != derivedArtistId) {
             trackRow.albumArtistId = derivedArtistId
             trackChanged = true
         }
         if (trackChanged) trackRepo.save(trackRow)
 
         val effectiveAlbumId = trackRow.albumId
-        if (existingTrack.parentId == null && effectiveAlbumId != null) {
+        if (effectiveAlbumId != null && existingTrack.parentId != effectiveAlbumId) {
             existingTrack.parentId = effectiveAlbumId
             entityRepo.save(existingTrack)
         }
         if (effectiveAlbumId != null && derivedArtistId != null) {
             val albumRow = albumRepo.findById(effectiveAlbumId).orElse(null)
-            if (albumRow != null && albumRow.artistId == null) {
+            if (albumRow != null && albumRow.artistId != derivedArtistId) {
                 albumRow.artistId = derivedArtistId
                 albumRepo.save(albumRow)
                 val albumEntity = entityRepo.findById(effectiveAlbumId).orElse(null)
-                if (albumEntity != null && albumEntity.parentId == null) {
+                if (albumEntity != null && albumEntity.parentId != derivedArtistId) {
                     albumEntity.parentId = derivedArtistId
                     entityRepo.save(albumEntity)
                 }
@@ -311,6 +312,21 @@ class LibraryWriter(
     }
 
     private fun stripLeadingYear(folder: String): String = folder.replace(Regex("^\\d{4}\\s*-\\s*"), "").trim().ifBlank { folder }
+
+    private val artistDelimiters =
+        Regex(
+            "\\s*[,;/&]\\s+|\\s+(?:feat\\.|ft\\.|featuring|vs\\.|vs|with|x)\\s+",
+            RegexOption.IGNORE_CASE,
+        )
+
+    private fun primaryArtist(name: String?): String? =
+        name
+            ?.split(artistDelimiters)
+            ?.firstOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+    fun deleteOrphanArtists(): Int = entityRepo.deleteOrphanArtists()
 
     private fun Tag.safeGetFirst(field: FieldKey): String? =
         try {

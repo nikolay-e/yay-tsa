@@ -236,112 +236,47 @@ jobs:
     needs: [docker-build-frontend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Schemathesis with --checks all takes ~22min against the live backend
-    # (Coverage ~6min + Fuzzing ~16min before the Stateful phase even starts).
-    # ZAP and crawler add more, so 30min was too tight and silently truncated the run.
+    # Schemathesis with --checks all + ZAP + crawler can take ~30min against the
+    # live backend. 30min was too tight and silently truncated the run.
     timeout-minutes: 60
     permissions:
       contents: read
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: '22'
-
-      - name: Install Schemathesis
-        run: pip install schemathesis
-
-      - name: Install crawler dependencies
-        working-directory: tools/frontend-crawler
-        run: npm ci && npx playwright install chromium
-
       # Post-cutover (2026-05-16): live backend is v2 in yay-tsa-v2-production
       # and its image rolls out from yay-tsa-v2/.github/workflows/v2-ci.yml,
-      # not this workflow. We skip the rollout-wait probe and run Schemathesis
+      # not this workflow. We skip the rollout-wait probe and run autoqa
       # against whatever version is currently live.
+      - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
+        uses: nikolay-e/autoqa@9c2f6c04bfd7c6d4313f940b4d3b7adb8c0bb14c # v1.0.1
+        with:
+          url: https://yay-tsa.com
+          auth-url: /api/Users/AuthenticateByName
+          auth-body: '{"Username":"${{ vars.QA_USERNAME || ''test'' }}","Pw":"${{ secrets.QA_PASSWORD }}"}'
 
-      - name: Run Schemathesis
-        env:
-          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
-          QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
-          PROD_URL: https://yay-tsa.com
-        run: |
-          TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
-            -H "Content-Type: application/json" \
-            -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
-          curl -sf "$PROD_URL/api/v3/api-docs" > /tmp/openapi.json
-          python3 -c "
-          import json
-          with open('/tmp/openapi.json') as f: spec = json.load(f)
-          spec['servers'] = [{'url': '$PROD_URL/api'}]
-          with open('/tmp/openapi.json', 'w') as f: json.dump(spec, f)
-          "
-          st run /tmp/openapi.json \
-            --url "$PROD_URL/api" \
-            -H "Authorization: Bearer $TOKEN" \
-            --checks all \
-            --exclude-checks ignored_auth,unsupported_method \
-            --exclude-path '/Items/{itemId}/Images/{imageType}' \
-            --exclude-path-regex '/Admin/' \
-            --exclude-path-regex '/v1/me/devices/(events|commands)' \
-            --exclude-path-regex '/v1/groups/{id}/events' \
-            --exclude-path-regex '/v1/sessions/{sessionId}/queue/events' \
-            2>&1 | tee /tmp/schemathesis.txt
+          schemathesis-enabled: 'true'
+          openapi-url: /api/v3/api-docs
+          schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{id}/events,/v1/sessions/{sessionId}/queue/events'
 
-      - name: Run ZAP
-        continue-on-error: true
-        env:
-          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
-          QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
-          PROD_URL: https://yay-tsa.com
-        run: |
-          TOKEN=$(curl -sf -X POST "$PROD_URL/api/Users/AuthenticateByName" \
-            -H "Content-Type: application/json" \
-            -d "{\"Username\":\"$QA_USERNAME\",\"Pw\":\"$QA_PASSWORD\"}" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])")
-          docker run --rm -v /tmp:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
-            -t /zap/wrk/openapi.json \
-            -f openapi \
-            -z "-config replacer.full_list(0).description=auth -config replacer.full_list(0).enabled=true -config replacer.full_list(0).matchtype=REQ_HEADER -config replacer.full_list(0).matchstr=Authorization -config replacer.full_list(0).regex=false -config replacer.full_list(0).replacement='Bearer $TOKEN'" \
-            -J /zap/wrk/zap-report.json \
-            -I \
-            2>&1 | tee /tmp/zap.txt
+          zap-enabled: 'true'
+
+          crawler-enabled: 'true'
+          crawler-username: ${{ vars.QA_USERNAME || 'test' }}
+          crawler-password: ${{ secrets.QA_PASSWORD }}
+          crawler-max-pages: '30'
 
       - name: Gate on ZAP HIGH findings
+        if: always()
         run: |
-          if [ ! -f /tmp/zap-report.json ]; then
+          REPORT=/tmp/qa-reports/zap-report.json
+          if [ ! -f "$REPORT" ]; then
             echo "::error::ZAP report not generated"
             exit 1
           fi
-          HIGH=$(jq '[.site[]?.alerts[]? | select(.riskcode=="3")] | length' /tmp/zap-report.json)
+          HIGH=$(jq '[.site[]?.alerts[]? | select(.riskcode=="3")] | length' "$REPORT")
           echo "ZAP HIGH findings: $HIGH"
           if [ "$HIGH" -gt 0 ]; then
             echo "::error::ZAP detected $HIGH HIGH-severity findings"
-            jq '.site[]?.alerts[]? | select(.riskcode=="3") | {name, riskdesc, url: (.instances[0]?.uri // "n/a")}' /tmp/zap-report.json
+            jq '.site[]?.alerts[]? | select(.riskcode=="3") | {name, riskdesc, url: (.instances[0]?.uri // "n/a")}' "$REPORT"
             exit 1
           fi
-
-      - name: Cooldown after API scans
-        run: sleep 30
-
-      - name: Run frontend crawler
-        env:
-          CRAWL_URL: https://yay-tsa.com
-          CRAWL_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
-          CRAWL_PASSWORD: ${{ secrets.QA_PASSWORD }}
-          CRAWL_MAX_PAGES: '30'
-        working-directory: tools/frontend-crawler
-        run: node crawl.js 2>&1 | tee /tmp/crawler.txt
-
-      - name: Upload QA reports
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: post-deploy-qa-reports
-          path: /tmp/*.txt
-          retention-days: 7

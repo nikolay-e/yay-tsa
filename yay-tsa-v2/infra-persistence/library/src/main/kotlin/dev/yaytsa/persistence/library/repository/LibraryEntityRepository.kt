@@ -2,7 +2,9 @@ package dev.yaytsa.persistence.library.repository
 
 import dev.yaytsa.persistence.library.entity.LibraryEntityJpa
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
@@ -49,4 +51,18 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         pattern: String,
         entityType: String,
     ): Long
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.entities e
+            WHERE e.entity_type = 'ARTIST'
+              AND NOT EXISTS (SELECT 1 FROM core_v2_library.albums a WHERE a.artist_id = e.id)
+              AND NOT EXISTS (SELECT 1 FROM core_v2_library.audio_tracks t WHERE t.album_artist_id = e.id)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteOrphanArtists(): Int
 }

@@ -50,5 +50,14 @@ class LibraryScanner(
             }
 
         log.info("Library scan complete: {} tracks processed", count)
+
+        try {
+            val orphanedArtists = libraryWriter.deleteOrphanArtists()
+            if (orphanedArtists > 0) {
+                log.info("Removed {} orphan compound artist entities", orphanedArtists)
+            }
+        } catch (e: Exception) {
+            log.error("Failed to clean up orphan artists", e)
+        }
     }
 }
