@@ -57,6 +57,15 @@ class JpaLibraryQueryPort(
         return LibraryMappers.toArtist(entity, artist, imagePath)
     }
 
+    override fun getEntityNamesByIds(ids: Set<EntityId>): Map<EntityId, String> {
+        if (ids.isEmpty()) return emptyMap()
+        val uuids = ids.map { UUID.fromString(it.value) }
+        return entityRepo
+            .findAllByIdIn(uuids)
+            .mapNotNull { e -> e.name?.let { EntityId(e.id.toString()) to it } }
+            .toMap()
+    }
+
     override fun browseArtists(
         limit: Int,
         offset: Int,

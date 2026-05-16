@@ -154,6 +154,12 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun getArtist(artistId: EntityId) = artists[artistId]
 
+    override fun getEntityNamesByIds(ids: Set<EntityId>): Map<EntityId, String> =
+        ids
+            .mapNotNull { id ->
+                (tracks[id]?.name ?: albums[id]?.name ?: artists[id]?.name)?.let { id to it }
+            }.toMap()
+
     override fun browseArtists(
         limit: Int,
         offset: Int,

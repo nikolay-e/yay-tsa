@@ -19,6 +19,8 @@ class LibraryQueries(
 
     fun getArtist(artistId: EntityId): Artist? = libraryQuery.getArtist(artistId)
 
+    fun getEntityNamesByIds(ids: Set<EntityId>): Map<EntityId, String> = if (ids.isEmpty()) emptyMap() else libraryQuery.getEntityNamesByIds(ids)
+
     fun browseArtists(
         limit: Int,
         offset: Int,

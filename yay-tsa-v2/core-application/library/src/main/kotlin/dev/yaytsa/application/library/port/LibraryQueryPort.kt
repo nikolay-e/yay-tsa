@@ -16,6 +16,8 @@ interface LibraryQueryPort {
 
     fun getArtist(artistId: EntityId): Artist?
 
+    fun getEntityNamesByIds(ids: Set<EntityId>): Map<EntityId, String>
+
     fun browseArtists(
         limit: Int,
         offset: Int,

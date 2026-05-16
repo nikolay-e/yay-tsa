@@ -51,11 +51,17 @@ class JellyfinItemsController(
         // Handle specific IDs request
         if (ids != null) {
             val idList = ids.split(",")
+            val tracks = idList.mapNotNull { libraryQueries.getTrack(EntityId(it)) }
+            val trackLookups = tracksLookups(tracks)
             val items =
                 idList.mapNotNull { id ->
-                    libraryQueries.getTrack(EntityId(id))?.toBaseItem(favTrackIds)
-                        ?: libraryQueries.getAlbum(EntityId(id))?.toBaseItem(favTrackIds)
-                        ?: libraryQueries.getArtist(EntityId(id))?.toBaseItem()
+                    val asTrack = tracks.firstOrNull { it.id.value == id }
+                    if (asTrack != null) {
+                        asTrack.toBaseItem(favTrackIds, trackLookups)
+                    } else {
+                        libraryQueries.getAlbum(EntityId(id))?.toBaseItem(favTrackIds)
+                            ?: libraryQueries.getArtist(EntityId(id))?.toBaseItem()
+                    }
                 }
             return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
         }
@@ -63,19 +69,22 @@ class JellyfinItemsController(
         // Handle search
         if (!searchTerm.isNullOrBlank()) {
             val results = libraryQueries.searchText(searchTerm, limit, startIndex)
+            val trackLookups = tracksLookups(results.tracks)
             val items = mutableListOf<BaseItem>()
             results.artists.forEach { items.add(it.toBaseItem()) }
             results.albums.forEach { items.add(it.toBaseItem(favTrackIds)) }
-            results.tracks.forEach { items.add(it.toBaseItem(favTrackIds)) }
+            results.tracks.forEach { items.add(it.toBaseItem(favTrackIds, trackLookups)) }
             return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
         }
 
         // Handle favorites
         if (isFavorite == true && uid != null) {
-            val items =
+            val tracks =
                 (preferencesQueries.find(UserId(uid))?.favorites ?: emptyList()).mapNotNull { fav ->
-                    libraryQueries.getTrack(EntityId(fav.trackId.value))?.toBaseItem(favTrackIds)
+                    libraryQueries.getTrack(EntityId(fav.trackId.value))
                 }
+            val trackLookups = tracksLookups(tracks)
+            val items = tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
             return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
         }
 
@@ -85,7 +94,8 @@ class JellyfinItemsController(
         if (parentId != null) {
             // Browse children of parent
             val tracks = libraryQueries.browseTracksByAlbum(EntityId(parentId))
-            val items = tracks.map { it.toBaseItem(favTrackIds) }
+            val trackLookups = tracksLookups(tracks)
+            val items = tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
             return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
         }
 
@@ -108,7 +118,8 @@ class JellyfinItemsController(
             }
             "Audio" in types -> {
                 val results = libraryQueries.searchText("", limit, startIndex)
-                val items = results.tracks.map { it.toBaseItem(favTrackIds) }
+                val trackLookups = tracksLookups(results.tracks)
+                val items = results.tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
                 return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
             }
             "Playlist" in types && uid != null -> {
@@ -245,8 +256,9 @@ class JellyfinItemsController(
                 emptySet()
             }
 
+        val track = libraryQueries.getTrack(EntityId(itemId))
         val item =
-            libraryQueries.getTrack(EntityId(itemId))?.toBaseItem(favTrackIds)
+            track?.toBaseItem(favTrackIds, tracksLookups(listOf(track)))
                 ?: libraryQueries.getAlbum(EntityId(itemId))?.toBaseItem(favTrackIds)
                 ?: libraryQueries.getArtist(EntityId(itemId))?.toBaseItem()
                 ?: return ResponseEntity.notFound().build()
@@ -256,13 +268,38 @@ class JellyfinItemsController(
 
     // --- Mappers ---
 
-    private fun Track.toBaseItem(favTrackIds: Set<String> = emptySet()) =
-        BaseItem(
+    private data class TrackLookups(
+        val albumNames: Map<EntityId, String>,
+        val artistNames: Map<EntityId, String>,
+    )
+
+    private fun tracksLookups(tracks: List<Track>): TrackLookups {
+        val albumIds = tracks.mapNotNull { it.albumId }.toSet()
+        val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
+        return TrackLookups(
+            albumNames = libraryQueries.getEntityNamesByIds(albumIds),
+            artistNames = libraryQueries.getEntityNamesByIds(artistIds),
+        )
+    }
+
+    private fun Track.toBaseItem(
+        favTrackIds: Set<String> = emptySet(),
+        lookups: TrackLookups = TrackLookups(emptyMap(), emptyMap()),
+    ): BaseItem {
+        val artistName = albumArtistId?.let { lookups.artistNames[it] }
+        return BaseItem(
             id = id.value,
             name = name,
             type = "Audio",
-            album = albumId?.let { libraryQueries.getAlbum(it)?.name },
+            album = albumId?.let { lookups.albumNames[it] },
             albumId = albumId?.value,
+            artists = artistName?.let { listOf(it) },
+            artistItems =
+                if (artistName != null && albumArtistId != null) {
+                    listOf(NameIdPair(artistName, albumArtistId!!.value))
+                } else {
+                    null
+                },
             runTimeTicks = msToTicks(durationMs),
             imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
             userData = UserItemData(isFavorite = id.value in favTrackIds),
@@ -270,6 +307,7 @@ class JellyfinItemsController(
             sortName = sortName,
             parentId = albumId?.value,
         )
+    }
 
     private fun Album.toBaseItem(favTrackIds: Set<String> = emptySet()) =
         BaseItem(
