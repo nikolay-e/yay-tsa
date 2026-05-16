@@ -49,7 +49,7 @@
 
 ## API Client Tests
 
-- `MediaServerClient` uses `X-Emby-Authorization` header (Jellyfin wire format), not `Authorization: Bearer` — tests must assert against `X-Emby-Authorization`
+- `MediaServerClient` sends `Authorization: Bearer <token>` for the actual auth credential, and `X-Emby-Authorization: MediaBrowser Client="…", Device="…", …` purely as client-identity metadata (no token in it). Tests must assert against `Authorization: Bearer` for the token and against `X-Emby-Authorization` only for `Client="…"` / `Device="…"` / `Version="…"` substrings — never expect `Token="…"` in `X-Emby-Authorization`. Proxy chain strips non-Bearer auth, so the `Bearer` header is the only one that survives end-to-end
 
 ## Accessibility
 
@@ -116,6 +116,7 @@
 
 - Pre-release identifiers in semver sort **lexicographically**: random commit SHAs after a `-main.` prefix order non-chronologically. Example: `0.5.0-main.g0c3b64d` < `0.5.0-main.ge2733e1` because `'0' < 'e'`. ArgoCD with `targetRevision: ">=X-0"` then picks an OLDER chart and apparent gitops changes never propagate. Fix: prefix dev versions with the padded GitHub run number — `${BASE_VERSION}-main.r$(printf '%010d' $GITHUB_RUN_NUMBER)-g${SHORT_SHA}` — so each new build always sorts higher regardless of SHA.
 - Semver pre-release numeric identifiers must not start with 0 → use a leading `g` (git-style) on the SHA component so SHAs like `0531376` become `g0531376` and pass `helm package` validation.
+- Stray non-dev chart releases (e.g. `1-final-before-retirement` pushed during a v1 wind-down) sort **higher than any `0.1.x-*` pre-release** because Helm parses `1` as `1.0.0` and `1.0.0 > 0.1.0`. With an unbounded `targetRevision: ">=0.1.0-0"`, ArgoCD silently pins to the stray chart and every subsequent fix in `templates/` never reaches prod (newer `0.1.x-main.r…` charts get ignored). Symptom: gitops chart sources look right, gh-pages lists the new chart, but `kubectl get application <app> -n argocd -o yaml | grep revisions:` shows the stray version. Fix: in the gitops `Application` manifest, bound the range — `targetRevision: ">=0.1.0-0,<0.2.0-0"` — so prod tracks the intentional dev train. Optional cleanup: delete the bogus tarball from `gh-pages` and rerun `helm repo index`.
 
 ## Helm Template Conditionals
 
@@ -158,6 +159,12 @@
 ## Auth filter chain — multiple filters set auth
 
 - SecurityConfig adds `ApiTokenAuthFilter`, `JellyfinAuthFilter`, and `SubsonicAuthFilter` (in that order) before `UsernamePasswordAuthenticationFilter`. The first filter to see a valid token wins — subsequent filters short-circuit via `if (SecurityContextHolder.getContext().authentication == null)`. If you enrich one auth class with a new field (e.g., `deviceId`), the controller may still receive the OTHER auth type if its filter ran first. Either enrich all auth classes or extract a common interface (e.g., `DeviceBoundAuthentication`) implemented by each, then `as? DeviceBoundAuthentication` in the controller.
+
+## Images endpoint silently 404s when /media is not mounted
+
+- `/Items/{itemId}/Images/{imageType}` returns **404** (not 401) when auth passes but the on-disk image file is unreachable. `JpaLibraryQueryPort.getPrimaryImage` reads `path = /media/...` from `core_v2_library.images`; the controller then checks `Files.exists(filePath)` and returns 404 on miss. If the chart didn't mount the music library hostPath (`backend.media.enabled: false` or — see Helm Chart Versioning — ArgoCD pinned to an older chart that lacks the mount template), every album/artist image 404s in production even though album JSON includes `ImageTags.Primary`.
+- Reproduction: `kubectl exec <backend-pod> -- ls /media` showing the OS default contents (`cdrom`, `floppy`) instead of the music library is the unambiguous signal. Cross-check against `SELECT path FROM core_v2_library.images WHERE is_primary=true LIMIT 3` from the CNPG primary — if those paths are correct and the file system isn't, the bug is on the deployment side, not the data side.
+- Crawler signal: hundreds of `404 https://yay-tsa.com/api/Items/<uuid>/Images/Primary?...` lines from `tools/frontend-crawler/crawl.js` against the `/albums` and `/artists` routes — a clear and quick distinguisher from the 401-cascade-after-token-rotation pattern.
 
 ## Proxy chain strips non-Bearer auth methods
 

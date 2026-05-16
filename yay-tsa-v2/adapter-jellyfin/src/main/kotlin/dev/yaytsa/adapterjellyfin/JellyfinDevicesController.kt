@@ -63,7 +63,9 @@ class JellyfinDevicesController(
         // Real broadcast (DeviceStateChanged / PlaybackStateChanged) goes through
         // infra-notifications WebSocket; SSE keepalive is a quiet placeholder until
         // the bridge controller forwards those events here.
-        val emitter = org.springframework.web.servlet.mvc.method.annotation.SseEmitter(0L)
+        val emitter =
+            org.springframework.web.servlet.mvc.method.annotation
+                .SseEmitter(0L)
         try {
             emitter.send(
                 org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -81,7 +83,9 @@ class JellyfinDevicesController(
     fun commands(): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
         // Remote-control SSE stub. Real command delivery routes through
         // infra-notifications; this keeps the EventSource healthy in the meantime.
-        val emitter = org.springframework.web.servlet.mvc.method.annotation.SseEmitter(0L)
+        val emitter =
+            org.springframework.web.servlet.mvc.method.annotation
+                .SseEmitter(0L)
         try {
             emitter.send(
                 org.springframework.web.servlet.mvc.method.annotation.SseEmitter
