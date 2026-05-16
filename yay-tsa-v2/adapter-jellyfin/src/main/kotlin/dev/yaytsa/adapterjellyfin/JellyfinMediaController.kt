@@ -78,16 +78,7 @@ class JellyfinMediaController(
         }
 
         val resource = FileSystemResource(filePath)
-        val contentType =
-            when (track.codec?.lowercase()) {
-                "mp3" -> "audio/mpeg"
-                "flac" -> "audio/flac"
-                "ogg", "vorbis" -> "audio/ogg"
-                "opus" -> "audio/opus"
-                "aac", "m4a" -> "audio/mp4"
-                "wav" -> "audio/wav"
-                else -> "application/octet-stream"
-            }
+        val contentType = resolveAudioContentType(track.codec, filePath)
         val fileSize = Files.size(filePath)
 
         // Range support
@@ -116,5 +107,29 @@ class JellyfinMediaController(
             .header(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
             .header(HttpHeaders.ACCEPT_RANGES, "bytes")
             .body(resource)
+    }
+
+    private fun resolveAudioContentType(
+        codec: String?,
+        filePath: Path,
+    ): String {
+        val codecLower = codec?.lowercase().orEmpty()
+        val extension = filePath.toString().substringAfterLast('.', missingDelimiterValue = "").lowercase()
+        val hint = sequenceOf(codecLower, extension).firstOrNull { it.isNotBlank() }.orEmpty()
+        return when {
+            hint.contains("flac") -> "audio/flac"
+            hint.contains("mp3") || hint == "mpeg" -> "audio/mpeg"
+            hint.contains("opus") -> "audio/opus"
+            hint.contains("vorbis") || hint == "ogg" -> "audio/ogg"
+            hint == "aac" || hint == "m4a" || hint.contains("mp4") -> "audio/mp4"
+            hint.contains("wav") -> "audio/wav"
+            extension == "flac" -> "audio/flac"
+            extension == "mp3" -> "audio/mpeg"
+            extension == "opus" -> "audio/opus"
+            extension == "ogg" -> "audio/ogg"
+            extension == "m4a" -> "audio/mp4"
+            extension == "wav" -> "audio/wav"
+            else -> "audio/mpeg"
+        }
     }
 }

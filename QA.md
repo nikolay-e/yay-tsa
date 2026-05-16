@@ -151,6 +151,11 @@
 
 - v2 `JellyfinDevicesController.heartbeat` previously required `{deviceId, sessionId}` body. The PWA's `DeviceService.heartbeat()` sends no body — every 15s call returned 400 "Invalid request body" and `/v1/me/devices` stayed empty (no projection registration ever). Fix: enrich `JellyfinAuthentication` with `deviceId` resolved from the ApiToken at filter time, then accept `@RequestBody(required = false)` and fall back to `auth.deviceId` (sessionId defaults to deviceId — `SessionInfo.id` from login response is ephemeral, never persisted). Lesson: when a controller field is "obviously derivable" from auth context, prefer auth-derivation over forcing the client to round-trip values it received on login and may not have persisted.
 
+## ArgoCD `Application.spec` can lag gitops even when root-app is `Synced`
+
+- `gitops-root` (the app-of-apps Application) can report `Synced` to a gitops commit whose `kubernetes/argocd/applications/<app>.yaml` _should_ mutate a child Application's `spec.sources[0].targetRevision`, yet `kubectl get application <app> -n argocd -o jsonpath='{.spec.sources[0].targetRevision}'` still shows the old value. The root app's last `operationState.finishedAt` may pre-date the child-app edit, and a `argocd.argoproj.io/refresh=hard` annotation on the root app does **not** reliably re-evaluate manifests for unchanged-by-default child specs (server-side apply field ownership keeps the cluster-side value).
+- Workaround: `kubectl apply -f kubernetes/argocd/applications/<app>.yaml -n argocd` directly to force-propagate the new spec, then `kubectl annotate application <app> ... refresh=hard` on the child to re-resolve `targetRevision` chart selection. Verify with the jsonpath query above — only treat the spec as updated when the live `targetRevision` literally matches the file in git.
+
 ## ImageUpdater CR-mode vs annotations
 
 - argocd-image-updater in this cluster runs in CR-mode: the `kind: ImageUpdater` CR in `kubernetes/argocd/argocd-image-updater/image-updaters.yaml` is the authoritative source, NOT the `argocd-image-updater.argoproj.io/*` annotations on the `Application` (those are silently ignored). A new app that only ships annotations gets zero image reconciles. Symptom: deployment image tag never advances even though new images are pushed to GHCR and the Application is `Synced+Healthy`.
@@ -159,6 +164,12 @@
 ## Auth filter chain — multiple filters set auth
 
 - SecurityConfig adds `ApiTokenAuthFilter`, `JellyfinAuthFilter`, and `SubsonicAuthFilter` (in that order) before `UsernamePasswordAuthenticationFilter`. The first filter to see a valid token wins — subsequent filters short-circuit via `if (SecurityContextHolder.getContext().authentication == null)`. If you enrich one auth class with a new field (e.g., `deviceId`), the controller may still receive the OTHER auth type if its filter ran first. Either enrich all auth classes or extract a common interface (e.g., `DeviceBoundAuthentication`) implemented by each, then `as? DeviceBoundAuthentication` in the controller.
+
+## Audio streaming 500s on unrecognized codec strings
+
+- `JellyfinMediaController.streamAudio` historically did `when (track.codec?.lowercase()) { "flac" -> "audio/flac"; … else -> "application/octet-stream" }`. `audio_tracks.codec` in production is populated by the scanner with strings like `"FLAC 16 bits"` (codec name + bit-depth annotation), not the bare codec tag — the `when` falls through to `application/octet-stream`, then Spring's `ResourceRegionHttpMessageConverter` cannot encode a `ResourceRegion` with that media type and throws `HttpMessageNotWritableException: No converter for [class org.springframework.core.io.support.ResourceRegion] with preset Content-Type 'application/octet-stream'`. The browser then aborts the `<audio>` element with `MEDIA_ELEMENT_ERROR: Format error` — symptom looks like a frontend bug but is purely server-side.
+- Fix shape: do substring matching (`.contains("flac")`/`.contains("opus")` etc.) on the codec hint AND fall back to file-extension sniffing, with `audio/mpeg` as a generic last-resort instead of `application/octet-stream` — the converter exists for any `audio/*` type.
+- Catch this earlier: any time `/api/Audio/{id}/stream` returns a 5xx, grep `kubectl logs ... | grep "Audio.*stream\\|HttpMessageNotWritableException"` first — the exception class names this exact failure mode unambiguously.
 
 ## Images endpoint silently 404s when /media is not mounted
 
