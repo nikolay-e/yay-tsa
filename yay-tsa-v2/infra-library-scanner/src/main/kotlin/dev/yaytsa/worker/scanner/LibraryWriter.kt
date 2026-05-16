@@ -5,12 +5,14 @@ import dev.yaytsa.persistence.library.entity.AlbumJpa
 import dev.yaytsa.persistence.library.entity.ArtistJpa
 import dev.yaytsa.persistence.library.entity.AudioTrackJpa
 import dev.yaytsa.persistence.library.entity.EntityGenreJpa
+import dev.yaytsa.persistence.library.entity.ImageJpa
 import dev.yaytsa.persistence.library.entity.LibraryEntityJpa
 import dev.yaytsa.persistence.library.repository.AlbumRepository
 import dev.yaytsa.persistence.library.repository.ArtistRepository
 import dev.yaytsa.persistence.library.repository.AudioTrackRepository
 import dev.yaytsa.persistence.library.repository.EntityGenreRepository
 import dev.yaytsa.persistence.library.repository.GenreRepository
+import dev.yaytsa.persistence.library.repository.ImageRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
@@ -33,8 +35,29 @@ class LibraryWriter(
     private val albumRepo: AlbumRepository,
     private val genreRepo: GenreRepository,
     private val entityGenreRepo: EntityGenreRepository,
+    private val imageRepo: ImageRepository,
     private val clock: Clock,
 ) {
+    private val coverFilenames =
+        listOf(
+            "cover.jpg",
+            "cover.jpeg",
+            "cover.png",
+            "cover.webp",
+            "folder.jpg",
+            "folder.jpeg",
+            "folder.png",
+            "folder.webp",
+            "front.jpg",
+            "front.jpeg",
+            "front.png",
+            "front.webp",
+            "album.jpg",
+            "album.jpeg",
+            "album.png",
+            "album.webp",
+        )
+
     @Transactional
     fun upsertTrack(
         root: Path,
@@ -92,6 +115,10 @@ class LibraryWriter(
 
         val artistId = artistName?.let { ensureArtist(it, now) }
         val albumId = albumName?.let { ensureAlbum(it, artistName, artistId, now) }
+
+        if (albumId != null) {
+            ensureAlbumCover(albumId, file.parent, now)
+        }
 
         val existing = entityRepo.findBySourcePath(relativePath)
         if (existing != null) {
@@ -245,6 +272,40 @@ class LibraryWriter(
                 }
             }
         }
+    }
+
+    private fun ensureAlbumCover(
+        albumId: UUID,
+        albumDir: Path?,
+        now: OffsetDateTime,
+    ) {
+        if (albumDir == null) return
+        if (imageRepo.findByEntityIdAndIsPrimaryTrue(albumId) != null) return
+        val coverPath = findCoverFile(albumDir) ?: return
+        val sizeBytes = runCatching { Files.size(coverPath) }.getOrNull()
+        imageRepo.save(
+            ImageJpa(
+                id = UUID.randomUUID(),
+                entityId = albumId,
+                imageType = "Primary",
+                path = coverPath.toString(),
+                sizeBytes = sizeBytes,
+                isPrimary = true,
+                createdAt = now,
+            ),
+        )
+    }
+
+    private fun findCoverFile(dir: Path): Path? {
+        if (!Files.isDirectory(dir)) return null
+        val coverNamesLower = coverFilenames.toSet()
+        return runCatching {
+            Files.newDirectoryStream(dir).use { stream ->
+                stream.firstOrNull { p ->
+                    Files.isRegularFile(p) && p.fileName.toString().lowercase() in coverNamesLower
+                }
+            }
+        }.getOrNull()
     }
 
     private fun stripLeadingYear(folder: String): String = folder.replace(Regex("^\\d{4}\\s*-\\s*"), "").trim().ifBlank { folder }
