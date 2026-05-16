@@ -158,3 +158,8 @@
 ## Auth filter chain — multiple filters set auth
 
 - SecurityConfig adds `ApiTokenAuthFilter`, `JellyfinAuthFilter`, and `SubsonicAuthFilter` (in that order) before `UsernamePasswordAuthenticationFilter`. The first filter to see a valid token wins — subsequent filters short-circuit via `if (SecurityContextHolder.getContext().authentication == null)`. If you enrich one auth class with a new field (e.g., `deviceId`), the controller may still receive the OTHER auth type if its filter ran first. Either enrich all auth classes or extract a common interface (e.g., `DeviceBoundAuthentication`) implemented by each, then `as? DeviceBoundAuthentication` in the controller.
+
+## Proxy chain strips non-Bearer auth methods
+
+- Between Cloudflare/Traefik and the v2 backend, ONLY `Authorization: Bearer <token>` reaches the auth filter intact. `X-Emby-Token`, `X-Emby-Authorization: MediaBrowser Token="..."`, and `?api_key=<token>` query all return 401 through the proxy chain, while ALL FOUR succeed when hitting the pod directly via `kubectl port-forward`. Root cause not identified — Traefik middleware (`strip-api` only strips `/api` prefix) and Cloudflare don't show explicit header/query filtering. Workaround shipped: PWA sends `Authorization: Bearer` for all `fetch()` calls and writes the token to a `yay_token` cookie for HTML5 `<audio src>` and `EventSource` (neither can send custom headers). Backend `JellyfinAuthFilter` + `ApiTokenAuthFilter` accept the cookie as a 5th auth source.
+- Lesson: when the same code authenticates correctly via port-forward but fails through the public URL, the bug is in the proxy chain, not the code. Test step: pull a fresh login token → hit each auth surface twice (port-forward vs public URL) → diff statuses to localize.
