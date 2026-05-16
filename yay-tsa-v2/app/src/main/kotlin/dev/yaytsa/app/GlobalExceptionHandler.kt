@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.NoHandlerFoundException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 class FailureException(
     val failure: Failure,
@@ -50,6 +51,12 @@ class GlobalExceptionHandler {
         ex: NoHandlerFoundException,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Not found: ${ex.requestURL}", request)
+
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResource(
+        ex: NoResourceFoundException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Not found: ${request.requestURI}", request)
 
     @ExceptionHandler(AccessDeniedException::class)
     fun handleAccessDenied(
