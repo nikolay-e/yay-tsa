@@ -137,3 +137,15 @@
 
 - Atomic ingress flip = same gitops commit that enables `v2 ingress` AND disables `v1 ingress` (via apiIngressEnabled / equivalent). Two-step commits leave a ~30-90s window where both ingresses are active and traefik may route to v1 by priority.
 - v1 frontend nginx default for `YAYTSA_BACKEND_URL` is the in-namespace backend service (`yay-tsa-backend.<ns>.svc.cluster.local:8096`). When v1 backend is retired, the frontend CrashLoopBackOff on `host not found in upstream` until you set `config.backendUrl` explicitly to v2's cross-namespace service (`http://yay-tsa-v2-production-backend.yay-tsa-v2-production.svc.cluster.local:80`).
+
+## Post-cutover OpenAPI path
+
+- After v1 Spring Boot retirement, the v2 Kotlin backend exposes OpenAPI at the springdoc default `/v3/api-docs`, **not** Jellyfin's legacy `/api-docs`. Schemathesis/ZAP CI steps that hardcoded `$PROD_URL/api/api-docs` must be updated to `$PROD_URL/api/v3/api-docs`. Symptom: `curl -sf $PROD_URL/api/api-docs` returns 401 (auth-protected, since `/api-docs` is not a permitAll path) → file ends up empty → next `python3 -c "...json.load..."` line fails with `JSONDecodeError: Expecting value: line 1 column 1 (char 0)`. The traceback looks identical to a login parse failure; check the **previous** step (api-docs fetch) before suspecting QA_PASSWORD drift.
+
+## Stale token after schema cutover
+
+- After v1 → v2 backend swap, browsers carrying the old v1 access token will receive 401 on every API call (the token is unknown to the v2 `users.api_tokens` table). Symptom in browser: cascading 401s on `/api/Items`, `/api/Sessions/Logout`, `/api/v1/me/devices`, `/api/v1/me/devices/heartbeat`. Not a routing or filter bug — verify by curl-testing each auth header variant (`Authorization: Bearer`, `X-Emby-Token`, `X-Emby-Authorization: MediaBrowser Token="..."`, `?api_key=`) against `/api/Items` with both an invalid token (expect 401) and a fresh login token (expect 200). If all four return 200 with a fresh token, the system is fine — the user just needs to re-login.
+
+## Heartbeat body-less compatibility
+
+- v2 `JellyfinDevicesController.heartbeat` previously required `{deviceId, sessionId}` body. The PWA's `DeviceService.heartbeat()` sends no body — every 15s call returned 400 "Invalid request body" and `/v1/me/devices` stayed empty (no projection registration ever). Fix: enrich `JellyfinAuthentication` with `deviceId` resolved from the ApiToken at filter time, then accept `@RequestBody(required = false)` and fall back to `auth.deviceId` (sessionId defaults to deviceId — `SessionInfo.id` from login response is ephemeral, never persisted). Lesson: when a controller field is "obviously derivable" from auth context, prefer auth-derivation over forcing the client to round-trip values it received on login and may not have persisted.
