@@ -121,7 +121,15 @@ class LibraryWriter(
             ensureAlbumCover(albumId, file.parent, now)
         }
 
-        val existing = entityRepo.findBySourcePath(relativePath)
+        val existing =
+            entityRepo.findBySourcePath(relativePath)
+                ?: entityRepo.findTrackBySourcePathSuffix("%/$relativePath")?.also { stale ->
+                    // v1 ETL row with absolute path like "/media/.../track.flac";
+                    // rewrite to the canonical relative path so this stays idempotent.
+                    stale.sourcePath = relativePath
+                    if (stale.libraryRoot == null) stale.libraryRoot = root.toString()
+                    entityRepo.save(stale)
+                }
         if (existing != null) {
             repairExistingTrackLinkage(existing, albumId, artistId)
             return

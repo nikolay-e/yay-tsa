@@ -21,14 +21,14 @@ class LibraryEntityJpa(
     @Column(name = "parent_id")
     var parentId: UUID? = null,
     @Column(name = "source_path", unique = true)
-    val sourcePath: String? = null,
+    var sourcePath: String? = null,
     @Column(length = 50)
     val container: String? = null,
     @Column(name = "size_bytes")
     val sizeBytes: Long? = null,
     val mtime: OffsetDateTime? = null,
     @Column(name = "library_root")
-    val libraryRoot: String? = null,
+    var libraryRoot: String? = null,
     val overview: String? = null,
     @Column(name = "search_text")
     val searchText: String? = null,

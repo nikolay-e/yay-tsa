@@ -21,6 +21,30 @@ class SubsonicResponseWriter {
             setSerializationInclusion(JsonInclude.Include.NON_NULL)
             configure(SerializationFeature.INDENT_OUTPUT, false)
             configure(JsonGenerator.Feature.ESCAPE_NON_ASCII, true)
+            val module =
+                com.fasterxml.jackson.databind.module
+                    .SimpleModule()
+            module.addSerializer(
+                String::class.java,
+                object : com.fasterxml.jackson.databind.ser.std.StdScalarSerializer<String>(String::class.java) {
+                    override fun serialize(
+                        value: String,
+                        gen: JsonGenerator,
+                        provider: com.fasterxml.jackson.databind.SerializerProvider,
+                    ) = gen.writeString(stripInvalidXmlChars(value))
+                },
+            )
+            registerModule(module)
+        }
+
+    private fun stripInvalidXmlChars(s: String): String =
+        buildString(s.length) {
+            for (c in s) {
+                val code = c.code
+                if (code == 0x09 || code == 0x0A || code == 0x0D || code in 0x20..0xD7FF || code in 0xE000..0xFFFD) {
+                    append(c)
+                }
+            }
         }
 
     private val jsonMapper =
