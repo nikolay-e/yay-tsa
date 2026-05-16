@@ -3,7 +3,7 @@ entries:
   yay-tsa:
   - apiVersion: v2
     appVersion: main-60c9881
-    created: "2026-05-16T09:35:41.905826374Z"
+    created: "2026-05-16T10:09:12.281168132Z"
     description: A portable, minimal Jellyfin-inspired music server and client
     digest: 8e772ad639bb69de7b7c2ba00f86a5920bd2cbe6f51f0d050e4663e9df2e8858
     home: https://github.com/nikolay-e/yay-tsa
@@ -24,7 +24,7 @@ entries:
   yay-tsa-v2:
   - apiVersion: v2
     appVersion: v1-final-before-retirement
-    created: "2026-05-16T09:35:41.911802077Z"
+    created: "2026-05-16T10:09:12.287523308Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: aeba0d9ca2d5404f9ac96322cc4d8eb602e5cbfeaecda5a26089786d85efcadc
     home: https://github.com/nikolay-e/yay-tsa
@@ -44,8 +44,29 @@ entries:
     - https://nikolay-e.github.io/yay-tsa/yay-tsa-v2-1-final-before-retirement.tgz
     version: 1-final-before-retirement
   - apiVersion: v2
+    appVersion: main-e348b85
+    created: "2026-05-16T10:09:12.287047668Z"
+    description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
+    digest: ae1dc25b5b0f8fe7d667e7fc8de50fcd0266c748915367f6762919f6cc13983a
+    home: https://github.com/nikolay-e/yay-tsa
+    keywords:
+    - jellyfin
+    - music
+    - server
+    - media
+    - v2
+    maintainers:
+    - name: Nikolay Eremeev
+    name: yay-tsa-v2
+    sources:
+    - https://github.com/nikolay-e/yay-tsa
+    type: application
+    urls:
+    - https://nikolay-e.github.io/yay-tsa/yay-tsa-v2-0.1.0-main.r0000000449-ge348b85.tgz
+    version: 0.1.0-main.r0000000449-ge348b85
+  - apiVersion: v2
     appVersion: main-60c9881
-    created: "2026-05-16T09:35:41.910716075Z"
+    created: "2026-05-16T10:09:12.28623453Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: b610b40fa7692c1e0057a1feb0b239be1c3ae838d90f4c9f21e0ebf0e53d6ff0
     home: https://github.com/nikolay-e/yay-tsa
@@ -66,7 +87,7 @@ entries:
     version: 0.1.0-main.r0000000448-g60c9881
   - apiVersion: v2
     appVersion: main-a5ea371
-    created: "2026-05-16T09:35:41.91029851Z"
+    created: "2026-05-16T10:09:12.285029245Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 148040d862df9c12459f41ad1b41e5084684f690ab23971ebc2c8c15185706aa
     home: https://github.com/nikolay-e/yay-tsa
@@ -87,7 +108,7 @@ entries:
     version: 0.1.0-main.r0000000447-ga5ea371
   - apiVersion: v2
     appVersion: main-7ab7e7b
-    created: "2026-05-16T09:35:41.909819661Z"
+    created: "2026-05-16T10:09:12.28456708Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 5dd02a2f35788ba84b6698cdd1ba99808cf1e39d002be0f4596921bc52d981e8
     home: https://github.com/nikolay-e/yay-tsa
@@ -108,7 +129,7 @@ entries:
     version: 0.1.0-main.r0000000446-g7ab7e7b
   - apiVersion: v2
     appVersion: main-20ea397
-    created: "2026-05-16T09:35:41.909382098Z"
+    created: "2026-05-16T10:09:12.2840055Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 7fb07bbf83ae0b219d7a69ef007b90d0d79d77ef4fa3c9b6ca377fa5aafa1fa6
     home: https://github.com/nikolay-e/yay-tsa
@@ -129,7 +150,7 @@ entries:
     version: 0.1.0-main.r0000000445-g20ea397
   - apiVersion: v2
     appVersion: main-cecbd96
-    created: "2026-05-16T09:35:41.908875706Z"
+    created: "2026-05-16T10:09:12.283543225Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: b9a926868543b10985d60d8b27576d205bd8bf7402c33fc01d1b06b756a0fd92
     home: https://github.com/nikolay-e/yay-tsa
@@ -150,7 +171,7 @@ entries:
     version: 0.1.0-main.r0000000444-gcecbd96
   - apiVersion: v2
     appVersion: main-488cf5e
-    created: "2026-05-16T09:35:41.908359155Z"
+    created: "2026-05-16T10:09:12.283111548Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 9dcdb2e4f647b6d3d19cfcb1a63a2e4e92529e3b8d2b5e2f644bcdaa13a41865
     home: https://github.com/nikolay-e/yay-tsa
@@ -171,7 +192,7 @@ entries:
     version: 0.1.0-main.r0000000443-g488cf5e
   - apiVersion: v2
     appVersion: main-0fa7802
-    created: "2026-05-16T09:35:41.90757979Z"
+    created: "2026-05-16T10:09:12.28258343Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 4967006d48b0791a1909b78983642dca5d67fb68dee36d41f655497f09e471e7
     home: https://github.com/nikolay-e/yay-tsa
@@ -192,7 +213,7 @@ entries:
     version: 0.1.0-main.r0000000442-g0fa7802
   - apiVersion: v2
     appVersion: main-e2733e1
-    created: "2026-05-16T09:35:41.906841472Z"
+    created: "2026-05-16T10:09:12.282127848Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 350e5092f40bc343bdb135fb175f2828aa0465fb9e1e7fcb5e61e4d5e15b41f4
     home: https://github.com/nikolay-e/yay-tsa
@@ -213,7 +234,7 @@ entries:
     version: 0.1.0-main.ge2733e1
   - apiVersion: v2
     appVersion: main-b8d24d8
-    created: "2026-05-16T09:35:41.906351722Z"
+    created: "2026-05-16T10:09:12.281641468Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: 3909f428ed768f735f4f1ab8edc0f91989caafe3b8e2ec0a9ef24aae19afa555
     home: https://github.com/nikolay-e/yay-tsa
@@ -232,4 +253,4 @@ entries:
     urls:
     - https://nikolay-e.github.io/yay-tsa/yay-tsa-v2-0.1.0-main.gb8d24d8.tgz
     version: 0.1.0-main.gb8d24d8
-generated: "2026-05-16T09:35:41.904858445Z"
+generated: "2026-05-16T10:09:12.280217434Z"
