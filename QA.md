@@ -111,3 +111,29 @@
 ## globalThis.window
 
 - `typescript:S7764` flags bare `window` references — prefer `globalThis.window` for SSR-safe checks. Same rule applies to `document`, `navigator`, `location`
+
+## Helm Chart Versioning
+
+- Pre-release identifiers in semver sort **lexicographically**: random commit SHAs after a `-main.` prefix order non-chronologically. Example: `0.5.0-main.g0c3b64d` < `0.5.0-main.ge2733e1` because `'0' < 'e'`. ArgoCD with `targetRevision: ">=X-0"` then picks an OLDER chart and apparent gitops changes never propagate. Fix: prefix dev versions with the padded GitHub run number — `${BASE_VERSION}-main.r$(printf '%010d' $GITHUB_RUN_NUMBER)-g${SHORT_SHA}` — so each new build always sorts higher regardless of SHA.
+- Semver pre-release numeric identifiers must not start with 0 → use a leading `g` (git-style) on the SHA component so SHAs like `0531376` become `g0531376` and pass `helm package` validation.
+
+## Helm Template Conditionals
+
+- `default true .Values.x` returns `true` when `.Values.x` is **explicitly `false`** — Helm's `default` treats `false` as empty. To gate "default on, off when explicitly disabled", use `(or (not (hasKey .Values "x")) .Values.x)` instead.
+- A pwa-ingress / "static asset" sub-chart in v1 had hardcoded `/api/Users/AuthenticateByName` and `/api/System/Info/Public` Exact paths bypassing oauth2-proxy — routed to v1 backend. When retiring v1, these MUST also be gated off (or the whole pwa-ingress template guarded) — disabling the dedicated api-ingress alone leaves them dangling.
+
+## Traefik Ingress Routing
+
+- Traefik matches Ingress rules by router priority, not longest-path-wins. To give a `/api` ingress precedence over a catch-all `/` ingress on the same host, add `traefik.ingress.kubernetes.io/router.priority: "10"` to the more-specific ingress (any positive integer; default 0).
+
+## ETL / Postgres Cutover
+
+- `kubectl cp` to CNPG postgres pods fails (read-only filesystem). Use stdin: `kubectl exec -i ... -- env PGPASSWORD=$P psql -h pooler ... < script.sql`.
+- `pgcrypto` extension is installed in the **first schema in search_path with CREATE rights** — for non-superuser app roles this is often a context-owned schema (e.g. `core_v2_playlists`). `ALTER EXTENSION pgcrypto SET SCHEMA public` requires superuser (CNPG has `enableSuperuserAccess: false`). Workaround: prepend `SET search_path TO public, <ext-schema>;` to the ETL script body.
+- Hibernate `spring.jpa.hibernate.ddl-auto: update` in prod silently re-ALTERs `TEXT` columns to `VARCHAR(255)` (default JPA String length). Source rows exceeding 255 chars then fail ETL with "value too long for type character varying(255)". Set to `validate` in prod and own all DDL via Flyway; backfill an ALTER migration if Hibernate already corrupted the schema.
+- Cross-namespace ingress backend isn't supported in K8s `Ingress` v1 (only via `ExternalName` Service). To split frontend (v1 namespace) from backend (v2 namespace) on the same host, deploy a separate Ingress in each namespace, both with `host: yay-tsa.com`, different paths — traefik aggregates them.
+
+## v1 → v2 cutover
+
+- Atomic ingress flip = same gitops commit that enables `v2 ingress` AND disables `v1 ingress` (via apiIngressEnabled / equivalent). Two-step commits leave a ~30-90s window where both ingresses are active and traefik may route to v1 by priority.
+- v1 frontend nginx default for `YAYTSA_BACKEND_URL` is the in-namespace backend service (`yay-tsa-backend.<ns>.svc.cluster.local:8096`). When v1 backend is retired, the frontend CrashLoopBackOff on `host not found in upstream` until you set `config.backendUrl` explicitly to v2's cross-namespace service (`http://yay-tsa-v2-production-backend.yay-tsa-v2-production.svc.cluster.local:80`).
