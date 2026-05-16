@@ -1,12 +1,15 @@
 package dev.yaytsa.app.security
 
+import dev.yaytsa.adapterjellyfin.DeviceBoundAuthentication
 import dev.yaytsa.shared.UserId
 import org.springframework.security.authentication.AbstractAuthenticationToken
 
 class YaytsaAuthentication(
     val userId: UserId,
     private val tokenValue: String,
-) : AbstractAuthenticationToken(emptyList()) {
+    override val deviceId: String? = null,
+) : AbstractAuthenticationToken(emptyList()),
+    DeviceBoundAuthentication {
     init {
         isAuthenticated = true
     }

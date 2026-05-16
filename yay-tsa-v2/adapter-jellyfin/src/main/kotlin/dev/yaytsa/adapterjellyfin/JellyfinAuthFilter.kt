@@ -81,12 +81,17 @@ class JellyfinAuthFilter(
     }
 }
 
+interface DeviceBoundAuthentication {
+    val deviceId: String?
+}
+
 class JellyfinAuthentication(
     val userId: UserId,
     val isAdmin: Boolean,
     private val token: String,
-    val deviceId: String? = null,
-) : AbstractAuthenticationToken(emptyList()) {
+    override val deviceId: String? = null,
+) : AbstractAuthenticationToken(emptyList()),
+    DeviceBoundAuthentication {
     init {
         isAuthenticated = true
     }

@@ -38,6 +38,7 @@ class ApiTokenAuthFilter(
                         YaytsaAuthentication(
                             userId = user.id,
                             tokenValue = token,
+                            deviceId = apiToken?.deviceId?.value,
                         )
                 }
             }

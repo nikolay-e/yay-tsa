@@ -79,13 +79,15 @@ class JellyfinDevicesController(
     ): ResponseEntity<Any> {
         val uid = UserId(principal.name)
         val now = clock.now()
-        val auth =
-            org.springframework.security.core.context.SecurityContextHolder
-                .getContext()
-                .authentication as? JellyfinAuthentication
+        val authDeviceId =
+            (
+                org.springframework.security.core.context.SecurityContextHolder
+                    .getContext()
+                    .authentication as? DeviceBoundAuthentication
+            )?.deviceId
         val deviceIdValue =
             request?.deviceId?.takeIf { it.isNotBlank() }
-                ?: auth?.deviceId
+                ?: authDeviceId
                 ?: return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(mapOf("error" to "deviceId required (missing in body and auth context)"))
