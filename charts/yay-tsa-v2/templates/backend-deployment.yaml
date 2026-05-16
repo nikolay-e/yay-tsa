@@ -76,6 +76,10 @@ spec:
               value: {{ .Values.backend.config.karaokeSeparatorUrl | quote }}
             - name: DEMUCS_COMMAND
               value: {{ .Values.backend.config.demucsCommand | quote }}
+            {{- if .Values.backend.media.enabled }}
+            - name: MUSIC_PATH
+              value: {{ .Values.backend.config.libraryMusicPath | quote }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "yay-tsa-v2.fullname" . }}-backend
@@ -112,6 +116,11 @@ spec:
               mountPath: /tmp
             - name: logs-volume
               mountPath: /app/logs
+            {{- if .Values.backend.media.enabled }}
+            - name: media
+              mountPath: {{ .Values.backend.media.mountPath }}
+              readOnly: true
+            {{- end }}
           lifecycle:
             preStop:
               exec:
@@ -123,6 +132,12 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 256Mi
+        {{- if .Values.backend.media.enabled }}
+        - name: media
+          hostPath:
+            path: {{ .Values.backend.media.hostPath }}
+            type: Directory
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -78,6 +78,12 @@ backend:
     corsOrigins: 'https://yay-tsa-v2.nikolay-eremeev.com'
     karaokeSeparatorUrl: 'http://yay-tsa-production-audio-separator:8000'
     demucsCommand: 'unsupported'
+    libraryMusicPath: '/media'
+
+  media:
+    enabled: false
+    hostPath: ''
+    mountPath: /media
 
   securityContext:
     runAsNonRoot: true
