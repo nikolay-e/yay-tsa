@@ -14,9 +14,9 @@ class AudioTrackJpa(
     @Column(name = "entity_id")
     val entityId: UUID = UUID.randomUUID(),
     @Column(name = "album_id")
-    val albumId: UUID? = null,
+    var albumId: UUID? = null,
     @Column(name = "album_artist_id")
-    val albumArtistId: UUID? = null,
+    var albumArtistId: UUID? = null,
     @Column(name = "track_number")
     val trackNumber: Int? = null,
     @Column(name = "disc_number")

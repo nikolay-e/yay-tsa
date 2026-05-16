@@ -45,14 +45,6 @@ class LibraryWriter(
         val sizeBytes = Files.size(file)
         val mtime = OffsetDateTime.ofInstant(Files.getLastModifiedTime(file).toInstant(), ZoneOffset.UTC)
 
-        // Use sourcePath as the natural key — it has a unique constraint
-        val existing = entityRepo.findBySourcePath(relativePath)
-        if (existing != null) {
-            // Already indexed — skip (future: compare mtime for re-scan)
-            return
-        }
-
-        // Read audio tags
         val audioFile =
             try {
                 AudioFileIO.read(file.toFile())
@@ -66,8 +58,27 @@ class LibraryWriter(
         val trackName =
             audioTag?.safeGetFirst(FieldKey.TITLE)?.takeIf { it.isNotBlank() }
                 ?: file.nameWithoutExtension
-        val artistName = audioTag?.safeGetFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
-        val albumName = audioTag?.safeGetFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
+        val tagAlbumArtist = audioTag?.safeGetFirst(FieldKey.ALBUM_ARTIST)?.takeIf { it.isNotBlank() }
+        val tagArtist = audioTag?.safeGetFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
+        val tagAlbum = audioTag?.safeGetFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
+
+        val pathSegments =
+            root
+                .relativize(file)
+                .iterator()
+                .asSequence()
+                .map { it.toString() }
+                .toList()
+        val folderArtist = pathSegments.getOrNull(0)?.takeIf { pathSegments.size >= 3 && it.isNotBlank() }
+        val folderAlbum =
+            pathSegments
+                .getOrNull(1)
+                ?.takeIf { pathSegments.size >= 3 && it.isNotBlank() }
+                ?.let { stripLeadingYear(it) }
+
+        val artistName = tagAlbumArtist ?: tagArtist ?: folderArtist
+        val albumName = tagAlbum ?: folderAlbum
+
         val trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.toIntOrNull()
         val discNumber = audioTag?.safeGetFirst(FieldKey.DISC_NO)?.toIntOrNull() ?: 1
         val year = audioTag?.safeGetFirst(FieldKey.YEAR)?.toIntOrNull()
@@ -79,65 +90,15 @@ class LibraryWriter(
 
         val now = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
 
-        // Upsert artist
-        val artistId =
-            if (artistName != null) {
-                val artistSourceKey = "artist:${artistName.lowercase()}"
-                val existingArtist = entityRepo.findBySourcePath(artistSourceKey)
-                existingArtist?.id ?: run {
-                    val id = UUID.randomUUID()
-                    entityRepo.save(
-                        LibraryEntityJpa(
-                            id = id,
-                            entityType = "ARTIST",
-                            name = artistName,
-                            sortName = artistName.lowercase(),
-                            sourcePath = artistSourceKey,
-                            searchText = artistName.lowercase(),
-                            createdAt = now,
-                            updatedAt = now,
-                        ),
-                    )
-                    artistRepo.save(ArtistJpa(entityId = id))
-                    id
-                }
-            } else {
-                null
-            }
+        val artistId = artistName?.let { ensureArtist(it, now) }
+        val albumId = albumName?.let { ensureAlbum(it, artistName, artistId, now) }
 
-        // Upsert album
-        val albumId =
-            if (albumName != null) {
-                val albumSourceKey = "album:${artistName?.lowercase() ?: "unknown"}:${albumName.lowercase()}"
-                val existingAlbum = entityRepo.findBySourcePath(albumSourceKey)
-                existingAlbum?.id ?: run {
-                    val id = UUID.randomUUID()
-                    entityRepo.save(
-                        LibraryEntityJpa(
-                            id = id,
-                            entityType = "ALBUM",
-                            name = albumName,
-                            sortName = albumName.lowercase(),
-                            parentId = artistId,
-                            sourcePath = albumSourceKey,
-                            searchText = albumName.lowercase(),
-                            createdAt = now,
-                            updatedAt = now,
-                        ),
-                    )
-                    albumRepo.save(
-                        AlbumJpa(
-                            entityId = id,
-                            artistId = artistId,
-                        ),
-                    )
-                    id
-                }
-            } else {
-                null
-            }
+        val existing = entityRepo.findBySourcePath(relativePath)
+        if (existing != null) {
+            repairExistingTrackLinkage(existing, albumId, artistId)
+            return
+        }
 
-        // Save track entity
         val entityId = UUID.randomUUID()
         val searchText =
             listOfNotNull(trackName, artistName, albumName)
@@ -177,7 +138,6 @@ class LibraryWriter(
             ),
         )
 
-        // Upsert genre and link to track
         if (genre != null) {
             val candidateId = UUID.randomUUID()
             genreRepo.upsertByName(id = candidateId, name = genre)
@@ -185,6 +145,109 @@ class LibraryWriter(
             entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
         }
     }
+
+    private fun ensureArtist(
+        artistName: String,
+        now: OffsetDateTime,
+    ): UUID {
+        val artistSourceKey = "artist:${artistName.lowercase()}"
+        val existing = entityRepo.findBySourcePath(artistSourceKey)
+        if (existing != null) return existing.id
+        val id = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = id,
+                entityType = "ARTIST",
+                name = artistName,
+                sortName = artistName.lowercase(),
+                sourcePath = artistSourceKey,
+                searchText = artistName.lowercase(),
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+        artistRepo.save(ArtistJpa(entityId = id))
+        return id
+    }
+
+    private fun ensureAlbum(
+        albumName: String,
+        artistName: String?,
+        artistId: UUID?,
+        now: OffsetDateTime,
+    ): UUID {
+        val albumSourceKey = "album:${artistName?.lowercase() ?: "unknown"}:${albumName.lowercase()}"
+        val existing = entityRepo.findBySourcePath(albumSourceKey)
+        if (existing != null) {
+            // Repair album → artist link if it was created during the legacy "unknown" era
+            if (artistId != null) {
+                if (existing.parentId == null) {
+                    existing.parentId = artistId
+                    entityRepo.save(existing)
+                }
+                val albumRow = albumRepo.findById(existing.id).orElse(null)
+                if (albumRow != null && albumRow.artistId == null) {
+                    albumRow.artistId = artistId
+                    albumRepo.save(albumRow)
+                }
+            }
+            return existing.id
+        }
+        val id = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = id,
+                entityType = "ALBUM",
+                name = albumName,
+                sortName = albumName.lowercase(),
+                parentId = artistId,
+                sourcePath = albumSourceKey,
+                searchText = albumName.lowercase(),
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+        albumRepo.save(AlbumJpa(entityId = id, artistId = artistId))
+        return id
+    }
+
+    private fun repairExistingTrackLinkage(
+        existingTrack: LibraryEntityJpa,
+        derivedAlbumId: UUID?,
+        derivedArtistId: UUID?,
+    ) {
+        val trackRow = trackRepo.findById(existingTrack.id).orElse(null) ?: return
+        var trackChanged = false
+        if (trackRow.albumId == null && derivedAlbumId != null) {
+            trackRow.albumId = derivedAlbumId
+            trackChanged = true
+        }
+        if (trackRow.albumArtistId == null && derivedArtistId != null) {
+            trackRow.albumArtistId = derivedArtistId
+            trackChanged = true
+        }
+        if (trackChanged) trackRepo.save(trackRow)
+
+        val effectiveAlbumId = trackRow.albumId
+        if (existingTrack.parentId == null && effectiveAlbumId != null) {
+            existingTrack.parentId = effectiveAlbumId
+            entityRepo.save(existingTrack)
+        }
+        if (effectiveAlbumId != null && derivedArtistId != null) {
+            val albumRow = albumRepo.findById(effectiveAlbumId).orElse(null)
+            if (albumRow != null && albumRow.artistId == null) {
+                albumRow.artistId = derivedArtistId
+                albumRepo.save(albumRow)
+                val albumEntity = entityRepo.findById(effectiveAlbumId).orElse(null)
+                if (albumEntity != null && albumEntity.parentId == null) {
+                    albumEntity.parentId = derivedArtistId
+                    entityRepo.save(albumEntity)
+                }
+            }
+        }
+    }
+
+    private fun stripLeadingYear(folder: String): String = folder.replace(Regex("^\\d{4}\\s*-\\s*"), "").trim().ifBlank { folder }
 
     private fun Tag.safeGetFirst(field: FieldKey): String? =
         try {

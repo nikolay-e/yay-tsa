@@ -14,7 +14,7 @@ class AlbumJpa(
     @Column(name = "entity_id")
     val entityId: UUID = UUID.randomUUID(),
     @Column(name = "artist_id")
-    val artistId: UUID? = null,
+    var artistId: UUID? = null,
     @Column(name = "release_date")
     val releaseDate: LocalDate? = null,
     @Column(name = "total_tracks")

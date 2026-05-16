@@ -19,7 +19,7 @@ class LibraryEntityJpa(
     @Column(name = "sort_name", length = 500)
     val sortName: String? = null,
     @Column(name = "parent_id")
-    val parentId: UUID? = null,
+    var parentId: UUID? = null,
     @Column(name = "source_path", unique = true)
     val sourcePath: String? = null,
     @Column(length = 50)
