@@ -37,8 +37,8 @@ class JellyfinDevicesController(
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
     data class HeartbeatRequest(
-        val deviceId: String,
-        val sessionId: String,
+        val deviceId: String? = null,
+        val sessionId: String? = null,
     )
 
     data class CommandRequest(
@@ -74,12 +74,25 @@ class JellyfinDevicesController(
 
     @PostMapping("/heartbeat")
     fun heartbeat(
-        @RequestBody request: HeartbeatRequest,
+        @RequestBody(required = false) request: HeartbeatRequest?,
         principal: Principal,
-    ): ResponseEntity<Void> {
+    ): ResponseEntity<Any> {
         val uid = UserId(principal.name)
         val now = clock.now()
-        deviceSessionProjection.register(uid, SessionId(request.sessionId), DeviceId(request.deviceId), now)
+        val auth =
+            org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .authentication as? JellyfinAuthentication
+        val deviceIdValue =
+            request?.deviceId?.takeIf { it.isNotBlank() }
+                ?: auth?.deviceId
+                ?: return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(mapOf("error" to "deviceId required (missing in body and auth context)"))
+        val sessionIdValue =
+            request?.sessionId?.takeIf { it.isNotBlank() }
+                ?: deviceIdValue
+        deviceSessionProjection.register(uid, SessionId(sessionIdValue), DeviceId(deviceIdValue), now)
         return ResponseEntity.noContent().build()
     }
 

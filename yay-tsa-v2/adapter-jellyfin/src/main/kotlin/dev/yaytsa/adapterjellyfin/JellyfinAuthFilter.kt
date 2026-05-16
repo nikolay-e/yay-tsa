@@ -62,7 +62,7 @@ class JellyfinAuthFilter(
                     } ?: false
                 if (!expired) {
                     SecurityContextHolder.getContext().authentication =
-                        JellyfinAuthentication(user.id, user.isAdmin, token)
+                        JellyfinAuthentication(user.id, user.isAdmin, token, apiToken?.deviceId?.value)
                 }
             }
         }
@@ -85,6 +85,7 @@ class JellyfinAuthentication(
     val userId: UserId,
     val isAdmin: Boolean,
     private val token: String,
+    val deviceId: String? = null,
 ) : AbstractAuthenticationToken(emptyList()) {
     init {
         isAuthenticated = true
