@@ -57,6 +57,44 @@ class JellyfinDevicesController(
         val lastSeenAt: String,
     )
 
+    @GetMapping("/events", produces = [org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun events(): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
+        // Long-lived stub: streams keepalive heartbeats so the PWA EventSource stays open.
+        // Real broadcast (DeviceStateChanged / PlaybackStateChanged) goes through
+        // infra-notifications WebSocket; SSE keepalive is a quiet placeholder until
+        // the bridge controller forwards those events here.
+        val emitter = org.springframework.web.servlet.mvc.method.annotation.SseEmitter(0L)
+        try {
+            emitter.send(
+                org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+                    .event()
+                    .name("ready")
+                    .data(mapOf("ts" to clock.now().toString())),
+            )
+        } catch (_: java.io.IOException) {
+            emitter.completeWithError(java.lang.RuntimeException("SSE write failed on open"))
+        }
+        return emitter
+    }
+
+    @GetMapping("/commands", produces = [org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun commands(): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
+        // Remote-control SSE stub. Real command delivery routes through
+        // infra-notifications; this keeps the EventSource healthy in the meantime.
+        val emitter = org.springframework.web.servlet.mvc.method.annotation.SseEmitter(0L)
+        try {
+            emitter.send(
+                org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+                    .event()
+                    .name("ready")
+                    .data(mapOf("ts" to clock.now().toString())),
+            )
+        } catch (_: java.io.IOException) {
+            emitter.completeWithError(java.lang.RuntimeException("SSE write failed on open"))
+        }
+        return emitter
+    }
+
     @GetMapping
     fun listDevices(principal: Principal): ResponseEntity<List<DeviceSessionDto>> {
         val uid = UserId(principal.name)
