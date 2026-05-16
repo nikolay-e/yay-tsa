@@ -280,8 +280,10 @@ class LibraryWriter(
         now: OffsetDateTime,
     ) {
         if (albumDir == null) return
-        if (imageRepo.findByEntityIdAndIsPrimaryTrue(albumId) != null) return
+        val existing = imageRepo.findByEntityIdAndIsPrimaryTrue(albumId)
+        if (existing != null && Files.isRegularFile(Path.of(existing.path))) return
         val coverPath = findCoverFile(albumDir) ?: return
+        if (existing != null) imageRepo.delete(existing)
         val sizeBytes = runCatching { Files.size(coverPath) }.getOrNull()
         imageRepo.save(
             ImageJpa(
