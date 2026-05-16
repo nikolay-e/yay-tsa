@@ -57,6 +57,8 @@ class JellyfinPlaylistsController(
     fun createPlaylist(
         @RequestBody request: CreatePlaylistRequest,
     ): ResponseEntity<Any> {
+        require(request.UserId.isNotBlank()) { "UserId is required" }
+        require(request.Name.isNotBlank()) { "Name is required" }
         val uid = UserId(request.UserId)
         val pid = PlaylistId(UUID.randomUUID().toString())
         val now = clock.now()

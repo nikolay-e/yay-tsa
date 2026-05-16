@@ -68,6 +68,8 @@ class JellyfinFavoritesController(
     fun reorderFavorites(
         @RequestBody request: FavoriteOrderRequest,
     ): ResponseEntity<Void> {
+        require(request.UserId.isNotBlank()) { "UserId is required" }
+        request.ItemIds.forEach { require(it.isNotBlank()) { "ItemIds must not contain blank values" } }
         val uid = UserId(request.UserId)
         val prefs =
             preferencesQueries.find(uid) ?: dev.yaytsa.domain.preferences.UserPreferencesAggregate
