@@ -36,4 +36,17 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     fun findAllByIdIn(ids: Collection<UUID>): List<LibraryEntityJpa>
 
     fun findBySourcePath(sourcePath: String): LibraryEntityJpa?
+
+    fun countByEntityType(entityType: String): Long
+
+    @Query(
+        value =
+            "SELECT count(*) FROM core_v2_library.entities e " +
+                "WHERE e.name ILIKE :pattern AND e.entity_type = :entityType",
+        nativeQuery = true,
+    )
+    fun countByNameAndType(
+        pattern: String,
+        entityType: String,
+    ): Long
 }

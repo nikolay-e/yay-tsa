@@ -197,6 +197,17 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
     override fun getPrimaryImage(entityId: EntityId): Image? = images[entityId]
 
     override fun resolveTrackFilePath(trackId: EntityId): String? = trackFilePaths[trackId]
+
+    override fun countTracks(): Int = tracks.size
+
+    override fun countAlbums(): Int = albums.size
+
+    override fun countArtists(): Int = artists.size
+
+    override fun countTextSearchTracks(query: String): Int {
+        val q = query.lowercase()
+        return tracks.values.count { it.name.lowercase().contains(q) }
+    }
 }
 
 // --- Shared infrastructure ---

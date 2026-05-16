@@ -93,22 +93,23 @@ class JellyfinItemsController(
             "MusicArtist" in types -> {
                 val artists = libraryQueries.browseArtists(limit, startIndex)
                 val items = artists.map { it.toBaseItem() }
-                return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+                return ResponseEntity.ok(ItemsResult(items, libraryQueries.countArtists(), startIndex))
             }
             "MusicAlbum" in types -> {
-                val albums =
+                val (albums, total) =
                     if (artistIds != null) {
-                        libraryQueries.browseAlbumsByArtist(EntityId(artistIds.split(",").first()))
+                        val list = libraryQueries.browseAlbumsByArtist(EntityId(artistIds.split(",").first()))
+                        list to list.size
                     } else {
-                        libraryQueries.browseAlbums(limit, startIndex)
+                        libraryQueries.browseAlbums(limit, startIndex) to libraryQueries.countAlbums()
                     }
                 val items = albums.map { it.toBaseItem(favTrackIds) }
-                return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+                return ResponseEntity.ok(ItemsResult(items, total, startIndex))
             }
             "Audio" in types -> {
                 val results = libraryQueries.searchText("", limit, startIndex)
                 val items = results.tracks.map { it.toBaseItem(favTrackIds) }
-                return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+                return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
             }
             "Playlist" in types && uid != null -> {
                 val playlists = playlistQueries.findByOwner(UserId(uid))

@@ -47,6 +47,14 @@ class LibraryQueries(
 
     fun resolveTrackFilePath(trackId: EntityId): String? = libraryQuery.resolveTrackFilePath(trackId)
 
+    fun countTracks(): Int = libraryQuery.countTracks()
+
+    fun countAlbums(): Int = libraryQuery.countAlbums()
+
+    fun countArtists(): Int = libraryQuery.countArtists()
+
+    fun countTextSearchTracks(query: String): Int = libraryQuery.countTextSearchTracks(query)
+
     fun browseArtistsGroupedByLetter(): Map<String, List<Artist>> =
         libraryQuery
             .browseArtists(500, 0)

@@ -210,6 +210,14 @@ class JpaLibraryQueryPort(
         return genreRepo.findById(entityGenres.first().genreId).orElse(null)?.name
     }
 
+    override fun countTracks(): Int = entityRepo.countByEntityType(EntityType.TRACK.name).toInt()
+
+    override fun countAlbums(): Int = entityRepo.countByEntityType(EntityType.ALBUM.name).toInt()
+
+    override fun countArtists(): Int = entityRepo.countByEntityType(EntityType.ARTIST.name).toInt()
+
+    override fun countTextSearchTracks(query: String): Int = entityRepo.countByNameAndType("%$query%", EntityType.TRACK.name).toInt()
+
     override fun resolveTrackFilePath(trackId: EntityId): String? {
         val id = UUID.fromString(trackId.value)
         val entity = entityRepo.findById(id).orElse(null) ?: return null

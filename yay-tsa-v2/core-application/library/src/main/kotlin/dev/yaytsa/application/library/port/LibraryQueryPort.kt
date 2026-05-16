@@ -43,4 +43,12 @@ interface LibraryQueryPort {
     fun getPrimaryImage(entityId: EntityId): Image?
 
     fun resolveTrackFilePath(trackId: EntityId): String?
+
+    fun countTracks(): Int
+
+    fun countAlbums(): Int
+
+    fun countArtists(): Int
+
+    fun countTextSearchTracks(query: String): Int
 }
