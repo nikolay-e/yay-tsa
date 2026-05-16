@@ -33,6 +33,8 @@ spec:
         seccompProfile:
           type: {{ .Values.backend.securityContext.seccompProfile.type }}
       terminationGracePeriodSeconds: 60
+      # Pod doesn't call the Kubernetes API; suppress the auto-mounted SA token.
+      automountServiceAccountToken: false
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
