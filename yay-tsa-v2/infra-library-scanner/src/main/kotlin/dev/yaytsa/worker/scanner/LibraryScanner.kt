@@ -4,9 +4,11 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.nio.file.FileVisitOption
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
+import kotlin.io.path.name
 
 @Component
 class LibraryScanner(
@@ -34,8 +36,9 @@ class LibraryScanner(
         var count = 0
 
         Files
-            .walk(rootPath)
+            .walk(rootPath, FileVisitOption.FOLLOW_LINKS)
             .filter { Files.isRegularFile(it) }
+            .filter { path -> path.none { segment -> segment.name.startsWith(".") } }
             .filter { it.extension.lowercase() in audioExtensions }
             .forEach { file ->
                 try {

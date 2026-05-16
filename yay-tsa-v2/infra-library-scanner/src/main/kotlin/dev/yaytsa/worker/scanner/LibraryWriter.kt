@@ -14,6 +14,7 @@ import dev.yaytsa.persistence.library.repository.GenreRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
+import org.jaudiotagger.tag.Tag
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
@@ -63,16 +64,14 @@ class LibraryWriter(
         val audioTag = audioFile?.tag
 
         val trackName =
-            audioTag
-                ?.getFirst(FieldKey.TITLE)
-                ?.takeIf { it.isNotBlank() }
+            audioTag?.safeGetFirst(FieldKey.TITLE)?.takeIf { it.isNotBlank() }
                 ?: file.nameWithoutExtension
-        val artistName = audioTag?.getFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
-        val albumName = audioTag?.getFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
-        val trackNumber = audioTag?.getFirst(FieldKey.TRACK)?.toIntOrNull()
-        val discNumber = audioTag?.getFirst(FieldKey.DISC_NO)?.toIntOrNull() ?: 1
-        val year = audioTag?.getFirst(FieldKey.YEAR)?.toIntOrNull()
-        val genre = audioTag?.getFirst(FieldKey.GENRE)?.takeIf { it.isNotBlank() }
+        val artistName = audioTag?.safeGetFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
+        val albumName = audioTag?.safeGetFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
+        val trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.toIntOrNull()
+        val discNumber = audioTag?.safeGetFirst(FieldKey.DISC_NO)?.toIntOrNull() ?: 1
+        val year = audioTag?.safeGetFirst(FieldKey.YEAR)?.toIntOrNull()
+        val genre = audioTag?.safeGetFirst(FieldKey.GENRE)?.takeIf { it.isNotBlank() }
         val durationMs = audioHeader?.trackLength?.let { it * 1000L }
         val bitrate = audioHeader?.bitRateAsNumber?.toInt()
         val sampleRate = audioHeader?.sampleRateAsNumber?.toInt()
@@ -186,4 +185,13 @@ class LibraryWriter(
             entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
         }
     }
+
+    private fun Tag.safeGetFirst(field: FieldKey): String? =
+        try {
+            this.getFirst(field)
+        } catch (_: UnsupportedOperationException) {
+            null
+        } catch (_: Exception) {
+            null
+        }
 }
