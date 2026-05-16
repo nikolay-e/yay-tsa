@@ -214,7 +214,10 @@ class JpaLibraryQueryPort(
         val id = UUID.fromString(trackId.value)
         val entity = entityRepo.findById(id).orElse(null) ?: return null
         if (entity.entityType != EntityType.TRACK.name) return null
-        return entity.sourcePath
+        val raw = entity.sourcePath ?: return null
+        if (raw.startsWith("/")) return raw
+        val root = entity.libraryRoot ?: return raw
+        return "$root/$raw"
     }
 
     private fun findPrimaryGenreNames(entityIds: List<UUID>): Map<UUID, String> {

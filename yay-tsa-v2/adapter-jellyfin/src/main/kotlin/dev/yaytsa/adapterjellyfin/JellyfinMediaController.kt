@@ -3,6 +3,7 @@ package dev.yaytsa.adapterjellyfin
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.shared.EntityId
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.LoggerFactory
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpHeaders
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.io.IOException
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -22,6 +24,8 @@ import java.nio.file.StandardOpenOption
 class JellyfinMediaController(
     private val libraryQueries: LibraryQueries,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @GetMapping("/Items/{itemId}/Images/{imageType}")
     fun getImage(
         @PathVariable itemId: String,
@@ -111,6 +115,24 @@ class JellyfinMediaController(
             response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
             response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
             response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+            writeRangeQuietly(filePath, start, length, response)
+            return
+        }
+
+        response.status = 200
+        response.contentType = contentType
+        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+        writeFullFileQuietly(filePath, response)
+    }
+
+    private fun writeRangeQuietly(
+        filePath: Path,
+        start: Long,
+        length: Long,
+        response: HttpServletResponse,
+    ) {
+        try {
             FileChannel.open(filePath, StandardOpenOption.READ).use { channel ->
                 channel.position(start)
                 Channels.newInputStream(channel).use { input ->
@@ -127,16 +149,22 @@ class JellyfinMediaController(
                     out.flush()
                 }
             }
-            return
+        } catch (e: IOException) {
+            log.debug("Audio range stream aborted by client for {}: {}", filePath, e.message)
         }
+    }
 
-        response.status = 200
-        response.contentType = contentType
-        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
-        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
-        Files.newInputStream(filePath).use { input ->
-            input.copyTo(response.outputStream, bufferSize = 64 * 1024)
-            response.outputStream.flush()
+    private fun writeFullFileQuietly(
+        filePath: Path,
+        response: HttpServletResponse,
+    ) {
+        try {
+            Files.newInputStream(filePath).use { input ->
+                input.copyTo(response.outputStream, bufferSize = 64 * 1024)
+                response.outputStream.flush()
+            }
+        } catch (e: IOException) {
+            log.debug("Audio full stream aborted by client for {}: {}", filePath, e.message)
         }
     }
 
