@@ -149,3 +149,12 @@
 ## Heartbeat body-less compatibility
 
 - v2 `JellyfinDevicesController.heartbeat` previously required `{deviceId, sessionId}` body. The PWA's `DeviceService.heartbeat()` sends no body — every 15s call returned 400 "Invalid request body" and `/v1/me/devices` stayed empty (no projection registration ever). Fix: enrich `JellyfinAuthentication` with `deviceId` resolved from the ApiToken at filter time, then accept `@RequestBody(required = false)` and fall back to `auth.deviceId` (sessionId defaults to deviceId — `SessionInfo.id` from login response is ephemeral, never persisted). Lesson: when a controller field is "obviously derivable" from auth context, prefer auth-derivation over forcing the client to round-trip values it received on login and may not have persisted.
+
+## ImageUpdater CR-mode vs annotations
+
+- argocd-image-updater in this cluster runs in CR-mode: the `kind: ImageUpdater` CR in `kubernetes/argocd/argocd-image-updater/image-updaters.yaml` is the authoritative source, NOT the `argocd-image-updater.argoproj.io/*` annotations on the `Application` (those are silently ignored). A new app that only ships annotations gets zero image reconciles. Symptom: deployment image tag never advances even though new images are pushed to GHCR and the Application is `Synced+Healthy`.
+- The Application that owns ImageUpdater CRs has `ignoreDifferences` for `argocd-image-updater.argoproj.io/ImageUpdater` covering `jqPathExpressions: [".spec", ".status"]` — by design, since the controller mutates its own CR. ArgoCD will therefore NOT apply spec changes from git on its normal sync cycle. Force changes via `kubectl apply -f image-updaters.yaml` after pushing to gitops.
+
+## Auth filter chain — multiple filters set auth
+
+- SecurityConfig adds `ApiTokenAuthFilter`, `JellyfinAuthFilter`, and `SubsonicAuthFilter` (in that order) before `UsernamePasswordAuthenticationFilter`. The first filter to see a valid token wins — subsequent filters short-circuit via `if (SecurityContextHolder.getContext().authentication == null)`. If you enrich one auth class with a new field (e.g., `deviceId`), the controller may still receive the OTHER auth type if its filter ran first. Either enrich all auth classes or extract a common interface (e.g., `DeviceBoundAuthentication`) implemented by each, then `as? DeviceBoundAuthentication` in the controller.
