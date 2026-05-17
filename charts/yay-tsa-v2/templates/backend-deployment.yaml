@@ -128,6 +128,11 @@ spec:
               mountPath: {{ .Values.backend.media.mountPath }}
               readOnly: true
             {{- end }}
+            {{- if .Values.backend.stems.enabled }}
+            - name: stems
+              mountPath: {{ .Values.backend.stems.mountPath }}
+              readOnly: true
+            {{- end }}
           lifecycle:
             preStop:
               exec:
@@ -143,6 +148,12 @@ spec:
         - name: media
           hostPath:
             path: {{ .Values.backend.media.hostPath }}
+            type: Directory
+        {{- end }}
+        {{- if .Values.backend.stems.enabled }}
+        - name: stems
+          hostPath:
+            path: {{ .Values.backend.stems.hostPath }}
             type: Directory
         {{- end }}
       {{- with .Values.nodeSelector }}

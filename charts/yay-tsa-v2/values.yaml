@@ -103,6 +103,15 @@ backend:
     hostPath: ''
     mountPath: /media
 
+  # Read-only mount of the audio-separator stems directory (separator writes
+  # in `yay-tsa-production`, backend reads from the SAME host path in
+  # `yay-tsa-v2-production`). Cross-namespace PVC sharing is impossible —
+  # both pods mount the same hostPath directly.
+  stems:
+    enabled: false
+    hostPath: ''
+    mountPath: /app/stems
+
   securityContext:
     runAsNonRoot: true
     runAsUser: 1000
