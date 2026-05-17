@@ -22,6 +22,7 @@ class JellyfinItemsController(
     private val libraryQueries: LibraryQueries,
     private val preferencesQueries: PreferencesQueries,
     private val playlistQueries: PlaylistQueries,
+    private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
 ) {
     @GetMapping("/Items")
     fun getItems(
@@ -119,6 +120,19 @@ class JellyfinItemsController(
                 return ResponseEntity.ok(ItemsResult(items, total, startIndex))
             }
             "Audio" in types -> {
+                // Personalized order — used by frontend Daily Mix (SortBy=DatePlayed).
+                // Backend has no DatePlayed column on entities; instead we serve the
+                // user's top ML affinities (real "what you actually listened to"),
+                // then fold in favorites, then fill from a varied library sample.
+                val isPersonalized = uid != null && sortBy in setOf("DatePlayed", "Personalized", "PlayCount")
+                if (isPersonalized && startIndex == 0) {
+                    val personalized = buildPersonalizedTracks(UserId(uid!!), limit)
+                    if (personalized.isNotEmpty()) {
+                        val lookups = tracksLookups(personalized)
+                        val items = personalized.map { it.toBaseItem(favTrackIds, lookups) }
+                        return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
+                    }
+                }
                 val results = libraryQueries.searchText("", limit, startIndex)
                 val trackLookups = tracksLookups(results.tracks)
                 val items = results.tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
@@ -338,6 +352,38 @@ class JellyfinItemsController(
             parentId = artistId?.value,
             dateCreated = createdAt?.toString(),
         )
+
+    private fun buildPersonalizedTracks(
+        userId: UserId,
+        limit: Int,
+    ): List<dev.yaytsa.domain.library.Track> {
+        val seen = mutableSetOf<String>()
+        val out = mutableListOf<dev.yaytsa.domain.library.Track>()
+
+        mlQuery.getTopAffinities(userId, limit).forEach { aff ->
+            if (out.size >= limit) return@forEach
+            val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+            if (seen.add(track.id.value)) out.add(track)
+        }
+
+        if (out.size < limit) {
+            preferencesQueries.find(userId)?.favorites.orEmpty().forEach { fav ->
+                if (out.size >= limit) return@forEach
+                val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
+                if (seen.add(track.id.value)) out.add(track)
+            }
+        }
+
+        if (out.size < limit) {
+            // Fill from library; users with empty affinity+favorites still see something.
+            libraryQueries.searchText("", limit - out.size, 0).tracks.forEach { track ->
+                if (out.size >= limit) return@forEach
+                if (seen.add(track.id.value)) out.add(track)
+            }
+        }
+
+        return out.take(limit)
+    }
 
     private fun Artist.toBaseItem(albumCount: Int? = null) =
         BaseItem(

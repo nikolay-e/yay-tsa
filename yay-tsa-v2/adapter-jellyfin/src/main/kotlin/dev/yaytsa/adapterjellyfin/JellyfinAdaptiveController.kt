@@ -2,6 +2,8 @@ package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
+import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.application.shared.port.Clock
@@ -41,6 +43,8 @@ class JellyfinAdaptiveController(
     private val adaptiveQuery: AdaptiveQueryPort,
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
+    private val libraryQueries: LibraryQueries,
+    private val mlQuery: MlQueryPort,
     private val clock: Clock,
 ) {
     data class StartSessionRequest(
@@ -204,9 +208,20 @@ class JellyfinAdaptiveController(
     }
 
     @GetMapping("/recommend/radio/seeds")
-    fun getRadioSeeds(): ResponseEntity<Any> {
-        // TODO: wire to ML query port when available
-        return ResponseEntity.ok(mapOf("seeds" to emptyList<Any>(), "available" to false))
+    fun getRadioSeeds(principal: Principal?): ResponseEntity<Any> {
+        val uid = principal?.name ?: return ResponseEntity.status(401).build()
+        val seeds = buildRecommendedSeeds(UserId(uid), limit = 8)
+        return ResponseEntity.ok(mapOf("seeds" to seeds, "available" to seeds.isNotEmpty()))
+    }
+
+    @GetMapping("/recommend/daily-mix")
+    fun getDailyMix(
+        @RequestParam(defaultValue = "30") limit: Int,
+        principal: Principal?,
+    ): ResponseEntity<Any> {
+        val uid = principal?.name ?: return ResponseEntity.status(401).build()
+        val tracks = buildRecommendedTracks(UserId(uid), limit.coerceIn(1, 100))
+        return ResponseEntity.ok(mapOf("tracks" to tracks, "available" to tracks.isNotEmpty()))
     }
 
     @GetMapping("/recommend/search")
@@ -214,7 +229,58 @@ class JellyfinAdaptiveController(
         @RequestParam("q") query: String,
         @RequestParam(defaultValue = "20") limit: Int,
     ): ResponseEntity<Any> {
-        // TODO: wire to ML-based recommendation search
+        // TODO: wire to ML-based recommendation search (semantic / text)
         return ResponseEntity.ok(emptyList<Any>())
+    }
+
+    /**
+     * Pick recommendation tracks: top user-track affinities first, then favorites
+     * (in case affinities are still cold for a new user), then a varied sample
+     * across the library. Result is deduped by trackId.
+     */
+    private fun buildRecommendedTracks(
+        userId: UserId,
+        limit: Int,
+    ): List<Map<String, Any?>> {
+        val seen = mutableSetOf<String>()
+        val out = mutableListOf<dev.yaytsa.domain.library.Track>()
+
+        mlQuery.getTopAffinities(userId, limit).forEach { aff ->
+            if (out.size >= limit) return@forEach
+            val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+            if (seen.add(track.id.value)) out.add(track)
+        }
+
+        if (out.size < limit) {
+            val favorites = preferencesQueries.find(userId)?.favorites.orEmpty()
+            favorites.forEach { fav ->
+                if (out.size >= limit) return@forEach
+                val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
+                if (seen.add(track.id.value)) out.add(track)
+            }
+        }
+
+        return out.take(limit).map { trackToSeedMap(it) }
+    }
+
+    private fun buildRecommendedSeeds(
+        userId: UserId,
+        limit: Int,
+    ): List<Map<String, Any?>> = buildRecommendedTracks(userId, limit)
+
+    private fun trackToSeedMap(track: dev.yaytsa.domain.library.Track): Map<String, Any?> {
+        val albumName =
+            track.albumId?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
+        val artistName =
+            track.albumArtistId?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
+        return mapOf(
+            "trackId" to track.id.value,
+            "name" to track.name,
+            "artistId" to track.albumArtistId?.value,
+            "artistName" to artistName,
+            "albumId" to track.albumId?.value,
+            "albumName" to albumName,
+            "imageTag" to track.albumId?.value,
+        )
     }
 }
