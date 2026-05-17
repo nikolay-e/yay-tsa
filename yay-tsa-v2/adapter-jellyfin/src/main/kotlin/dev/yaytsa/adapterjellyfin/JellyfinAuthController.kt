@@ -29,7 +29,9 @@ class JellyfinAuthController(
     private val clock: dev.yaytsa.application.shared.port.Clock,
 ) {
     data class LoginRequest(
+        @com.fasterxml.jackson.annotation.JsonAlias("username")
         val Username: String,
+        @com.fasterxml.jackson.annotation.JsonAlias("pw")
         val Pw: String,
     )
 
