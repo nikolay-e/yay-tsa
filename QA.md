@@ -115,6 +115,36 @@ Health endpoints, `/Items` HTTP 200, no-pod-restart, and "the page renders" are 
   1. **Argo CD Image Updater write-back failing**. Check `kubectl logs -n argocd -l app.kubernetes.io/name=argocd-image-updater --since=15m | grep yay-tsa`. Common cause: annotation lists an image alias whose `helm.image-tag` parameter resolves to a key the rendered chart doesn't produce (disabled service). Image Updater errors "parameter not found" and aborts the **entire batch** — backend/frontend updates roll back too. Fix: drop disabled service from BOTH the `argocd-image-updater.argoproj.io/image-list` annotation in the gitops Application AND the `ImageUpdater` CR's `applicationRefs[].images[]`.
   2. **QA test user doesn't exist in prod DB or `QA_PASSWORD` is stale**. Script silently treats auth failure as `VERSION=''`. Verify with `kubectl exec -n shared-database <primary-pod> -c postgres -- psql -U postgres -d yaytsa_production -c "SELECT username, is_active FROM users WHERE username='test';"`. If absent, INSERT via the **primary** pod (replicas reject as "read-only transaction"); find primary with `kubectl get cluster -n shared-database -o jsonpath='{.items[0].status.targetPrimary}'`. Then `gh secret set QA_PASSWORD --repo nikolay-e/yay-tsa`; also stash in Keychain as `yay-tsa-qa-password`.
 
+## autoqa pipeline gotchas (2026-05-17 QA)
+
+- **Schemathesis hits the SPA shell when `--url` and crawler url share a value but API mounts on a path prefix.** With Traefik strip-prefix middleware, backend OpenAPI emits bare paths (`/Admin/Cache`, `/Items`, etc.) and `servers: [{url: "http://yay-tsa.com/api"}]`. autoqa unconditionally passed `--url ${inputs.url}` (i.e. `https://yay-tsa.com`), so Schemathesis joined that with `/Admin/Cache` → hit frontend nginx → got 405 (DELETE on static files) or 200 returning `index.html` → 159 false-positive failures, zero real backend coverage. Fix needs autoqa to support a separate `schemathesis-base-url` input (post-`9c2f6c0` autoqa: pin to `601af09` and set `schemathesis-base-url: https://yay-tsa.com/api`).
+- **autoqa composite step aborts on first tool failure unless each step has `continue-on-error`.** Schemathesis exit 1 silently killed ZAP + crawler + axe + AuthZ. Whole pipeline showed `Run AutoQA: failed`, ZAP-gate step then errored "ZAP report not generated", and crawler/axe never ran. Post-`601af09` autoqa wraps every tool step with `continue-on-error: true` + `if: always()` so they each run independently and consumers gate on report files (existing pattern for `zap-report.json`).
+- **Spring Boot springdoc emits `http://` in `servers[0].url` despite `forward-headers-strategy: framework` + `protocol-header: X-Forwarded-Proto`.** Behind Cloudflare → Traefik → backend the original scheme is `https` but the spec's `servers` block carries `http`. Hasn't bitten anything yet because Schemathesis is configured with explicit `--url`. Worth fixing if any future tool defers to the spec's scheme.
+
+## Backend bugs surfaced by `packages/core` integration tests (2026-05-17 QA)
+
+Run integration tests against deployed prod periodically — they catch missing endpoints that `/Items` smoke checks miss:
+
+```bash
+QA_PASSWORD=$(security find-generic-password -a "$USER" -s "yay-tsa-qa-password" -w) \
+  YAYTSA_SERVER_URL=https://yay-tsa.com/api YAYTSA_TEST_USERNAME=test YAYTSA_TEST_PASSWORD="$QA_PASSWORD" \
+  npm run test
+```
+
+Bugs found and fixed today:
+
+- **`GET /Items/{id}` returns 404 for Playlist UUIDs.** `JellyfinItemsController.getItem` only checks Track/Album/Artist via `libraryQueries`. Playlists live in `core_v2_playlists` so the PWA's `getPlaylist(id)` (which calls `/Items/{id}`) always 404'd after `POST /Playlists`. Fix: add `playlistQueries.find(PlaylistId(itemId))?.toBaseItem()` to the fallback chain with `Type: "Playlist"` and `childCount = tracks.size`.
+- **`POST /Sessions/Playing*` accepted any ItemId string and returned 204.** Garbage IDs like `"invalid-track-id-12345"` silently no-op'd. Fix: `UUID.fromString(info.itemId)` guard returning 400 on all three (`/Playing`, `/Playing/Progress`, `/Playing/Stopped`).
+- **Library scanner inserts zero-duration tracks.** CD pre-gap files (`00 - pregap.flac`) and corrupt FLAC headers have `audioHeader.trackLength == 0`. Result: clients see "0:00" duration tracks that can't be played and pollute album track lists. Fix: scanner now `return`s before inserting when `durationMs == null || durationMs <= 0L`. **Stale rows must be deleted manually after deploying the scanner change** — the scanner's existing-row branch only repairs linkage, not duration, so old zero-duration rows persist forever. Cleanup SQL:
+
+  ```sql
+  DELETE FROM core_v2_library.entities WHERE id IN (
+    SELECT entity_id FROM core_v2_library.audio_tracks WHERE duration_ms IS NULL OR duration_ms = 0
+  );
+  ```
+
+  CASCADE on `audio_tracks.entity_id_fkey` handles the audio_tracks row. Cross-schema refs (`play_history.item_id`, `favorites.track_id`, `playlist_tracks.track_id`, `track_features.track_id`, `karaoke.assets.track_id`) are by-value with no FK and may dangle — for `play_history` only (12 rows on 2026-05-17), this is acceptable.
+
 ## SonarCloud (project-specific)
 
 - yay-tsa uses **SonarCloud Automatic Analysis** (no `sonar-scanner` step in CI) — `sonar-project.properties` is **ignored**. Exclusions must be set via web UI or API.
