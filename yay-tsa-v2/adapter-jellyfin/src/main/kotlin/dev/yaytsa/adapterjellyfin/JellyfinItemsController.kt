@@ -6,6 +6,8 @@ import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.domain.library.Album
 import dev.yaytsa.domain.library.Artist
 import dev.yaytsa.domain.library.Track
+import dev.yaytsa.domain.playlists.PlaylistAggregate
+import dev.yaytsa.domain.playlists.PlaylistId
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.UserId
 import org.springframework.http.ResponseEntity
@@ -261,10 +263,19 @@ class JellyfinItemsController(
             track?.toBaseItem(favTrackIds, tracksLookups(listOf(track)))
                 ?: libraryQueries.getAlbum(EntityId(itemId))?.toBaseItem(favTrackIds)
                 ?: libraryQueries.getArtist(EntityId(itemId))?.toBaseItem()
+                ?: runCatching { playlistQueries.find(PlaylistId(itemId)) }.getOrNull()?.toBaseItem()
                 ?: return ResponseEntity.notFound().build()
 
         return ResponseEntity.ok(item)
     }
+
+    private fun PlaylistAggregate.toBaseItem(): BaseItem =
+        BaseItem(
+            id = id.value,
+            name = name,
+            type = "Playlist",
+            childCount = tracks.size,
+        )
 
     // --- Mappers ---
 

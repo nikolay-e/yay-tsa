@@ -32,6 +32,14 @@ class JellyfinSessionsController(
     private val playbackStarts = java.util.concurrent.ConcurrentHashMap<String, java.time.Instant>()
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
+    private fun isValidUuid(value: String): Boolean =
+        try {
+            UUID.fromString(value)
+            true
+        } catch (_: IllegalArgumentException) {
+            false
+        }
+
     data class PlaybackStartInfo(
         @JsonProperty("ItemId") val itemId: String,
         @JsonProperty("PositionTicks") val positionTicks: Long = 0,
@@ -57,6 +65,7 @@ class JellyfinSessionsController(
         @RequestBody info: PlaybackStartInfo,
         principal: Principal,
     ): ResponseEntity<Void> {
+        if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
         playbackStarts["${principal.name}:${info.itemId}"] = clock.now()
         recordSignal(principal, info.itemId, "PLAY_START")
         return ResponseEntity.noContent().build()
@@ -67,6 +76,7 @@ class JellyfinSessionsController(
         @RequestBody info: PlaybackProgressInfo,
         principal: Principal,
     ): ResponseEntity<Void> {
+        if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
         // Progress reports are too frequent to record as signals
         // Could be used for position tracking in the future
         return ResponseEntity.noContent().build()
@@ -77,6 +87,7 @@ class JellyfinSessionsController(
         @RequestBody info: PlaybackStopInfo,
         principal: Principal,
     ): ResponseEntity<Void> {
+        if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
         val positionMs = info.positionTicks / TICKS_PER_MS
         val uid = UserId(principal.name)
         val trackId = TrackId(info.itemId)

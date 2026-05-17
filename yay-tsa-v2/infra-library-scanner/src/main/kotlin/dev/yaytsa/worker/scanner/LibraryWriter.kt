@@ -112,6 +112,13 @@ class LibraryWriter(
         val sampleRate = audioHeader?.sampleRateAsNumber?.toInt()
         val channels = audioHeader?.channels?.toIntOrNull()
 
+        // Skip unplayable files: zero/missing duration usually means CD pre-gap files
+        // (e.g. "00 - pregap.flac") or audio the scanner couldn't decode. Clients can't
+        // play them and they pollute album track lists with phantom entries.
+        if (durationMs == null || durationMs <= 0L) {
+            return
+        }
+
         val now = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
 
         val artistId = artistName?.let { ensureArtist(it, now) }
