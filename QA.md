@@ -197,6 +197,8 @@ After v1 Spring Boot retirement, v2 Kotlin backend exposes OpenAPI at springdoc 
 
 - Traefik matches Ingress rules by router priority, not longest-path-wins. Give `/api` ingress precedence over catch-all `/` on same host: `traefik.ingress.kubernetes.io/router.priority: "10"`.
 - Cross-namespace ingress backend isn't supported in K8s `Ingress` v1 (only via `ExternalName` Service). For frontend (v1 ns) + backend (v2 ns) on same host, deploy separate Ingress in each namespace, both with `host: yay-tsa.com`, different paths.
+- **Subsonic adapter lives at `/rest/*`, NOT `/api/rest/*`** (controller uses class-level `@RequestMapping("/rest")`). Needs its own dedicated Ingress on the v2 backend without the `strip-api` middleware. `charts/yay-tsa-v2/templates/ingress-subsonic.yaml` gated by `ingress.subsonic.enabled` (default true). Without it, every `/rest/*` request returns the PWA `index.html` (HTTP 200, `Content-Type: text/html`) and Subsonic clients (Symfonium, Finamp, Feishin) silently appear "connected" but every endpoint returns the HTML shell. Schemathesis catches this as "API accepted schema-violating request" — the test sees 200 + HTML where 400/422 was expected.
+- Each protocol-specific path under the v2 backend needs explicit Ingress allowlisting. Currently shipped: `/api` (strip-prefix middleware), `/rest` (no middleware). If new protocols are added (`/mpd-http`, `/.well-known/...`), add them to the chart, not as runtime workarounds.
 
 ## ETL leaves dup track entities (v1 relative + v2 absolute paths)
 

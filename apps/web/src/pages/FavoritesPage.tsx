@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { type AudioItem, type MusicAlbum, type MusicArtist } from '@yay-tsa/core';
 import { useInfiniteAlbums, useInfiniteArtists, useInfiniteTracks } from '@/features/library/hooks';
 import { AlbumGrid, ArtistCard, TrackList, TrackListRow } from '@/features/library/components';
@@ -106,9 +107,12 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
 
   if (albums.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <p className="text-text-secondary">No favorite albums yet</p>
-      </div>
+      <FavoritesEmptyState
+        message="No favorite albums yet"
+        hint="Tap the heart on any album to add it here."
+        ctaLabel="Browse all albums"
+        ctaTo="/albums"
+      />
     );
   }
 
@@ -171,9 +175,12 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
 
   if (artists.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <p className="text-text-secondary">No favorite artists yet</p>
-      </div>
+      <FavoritesEmptyState
+        message="No favorite artists yet"
+        hint="Tap the heart on any artist to add them here."
+        ctaLabel="Browse all artists"
+        ctaTo="/artists"
+      />
     );
   }
 
@@ -240,9 +247,12 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
 
   if (tracks.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <p className="text-text-secondary">No favorite tracks yet</p>
-      </div>
+      <FavoritesEmptyState
+        message="No favorite tracks yet"
+        hint="Tap the heart on any track to add it here."
+        ctaLabel="Browse all songs"
+        ctaTo="/songs"
+      />
     );
   }
 
@@ -290,5 +300,25 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
         itemLabel="tracks"
       />
     </>
+  );
+}
+
+function FavoritesEmptyState({
+  message,
+  hint,
+  ctaLabel,
+  ctaTo,
+}: Readonly<{ message: string; hint: string; ctaLabel: string; ctaTo: string }>) {
+  return (
+    <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+      <p className="text-text-secondary">{message}</p>
+      <p className="text-text-tertiary text-sm">{hint}</p>
+      <Link
+        to={ctaTo}
+        className="text-accent text-sm font-medium underline-offset-4 hover:underline focus-visible:underline"
+      >
+        {ctaLabel}
+      </Link>
+    </div>
   );
 }
