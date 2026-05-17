@@ -194,6 +194,9 @@ export function SettingsPage() {
           <Sparkles className="h-4 w-4" />
           DJ Preferences
         </h2>
+        <p className="text-text-secondary mb-3 text-sm">
+          Energy ramp, genre weighting, and similarity thresholds for the auto-DJ queue.
+        </p>
         <div className="bg-bg-secondary border-border rounded-lg border">
           <DjPreferencesPanel />
         </div>
@@ -247,7 +250,7 @@ export function SettingsPage() {
         >
           <LogOut className="text-error h-5 w-5 shrink-0" />
           <div>
-            <div className="font-medium">Logout</div>
+            <div className="font-medium">Sign out</div>
             <div className="text-text-secondary text-sm">Sign out of your account</div>
           </div>
         </button>

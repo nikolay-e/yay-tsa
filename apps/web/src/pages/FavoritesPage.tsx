@@ -22,7 +22,7 @@ type FavoriteTab = 'albums' | 'artists' | 'tracks';
 type SortState = ReturnType<typeof useSortPreference>;
 
 const TABS: { key: FavoriteTab; label: string }[] = [
-  { key: 'tracks', label: 'Tracks' },
+  { key: 'tracks', label: 'Songs' },
   { key: 'albums', label: 'Albums' },
   { key: 'artists', label: 'Artists' },
 ];
@@ -248,7 +248,7 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
   if (tracks.length === 0) {
     return (
       <FavoritesEmptyState
-        message="No favorite tracks yet"
+        message="No favorite songs yet"
         hint="Tap the heart on any track to add it here."
         ctaLabel="Browse all songs"
         ctaTo="/songs"
@@ -297,7 +297,7 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
         onLoadMore={handleLoadMore}
         currentCount={tracks.length}
         totalCount={totalCount}
-        itemLabel="tracks"
+        itemLabel="songs"
       />
     </>
   );
