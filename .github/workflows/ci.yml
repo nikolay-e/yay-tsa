@@ -248,7 +248,7 @@ jobs:
       # not this workflow. We skip the rollout-wait probe and run autoqa
       # against whatever version is currently live.
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@9c2f6c04bfd7c6d4313f940b4d3b7adb8c0bb14c # v1.0.1
+        uses: nikolay-e/autoqa@601af09f8b5a675576acb3d6cf9f11914c4fef8e # main (post-9c2f6c0: schemathesis-base-url + continue-on-error)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
@@ -256,6 +256,10 @@ jobs:
 
           schemathesis-enabled: 'true'
           openapi-url: /api/v3/api-docs
+          # Backend mounts under /api/* behind strip-prefix middleware; OpenAPI paths
+          # are bare (e.g. /Admin/Cache). Without this override, schemathesis hits
+          # the PWA nginx (returns 405/200 HTML), not the backend.
+          schemathesis-base-url: https://yay-tsa.com/api
           schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{id}/events,/v1/sessions/{sessionId}/queue/events'
 
           zap-enabled: 'true'
