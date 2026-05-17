@@ -114,3 +114,9 @@ ingress:
     - hosts:
         - yay-tsa-v2.example.com
       secretName: yay-tsa-v2-tls
+  subsonic:
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    paths:
+      - /rest
