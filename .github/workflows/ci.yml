@@ -248,7 +248,7 @@ jobs:
       # not this workflow. We skip the rollout-wait probe and run autoqa
       # against whatever version is currently live.
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@1912545d44a3fb6c47727dabe04ee0bc0b71a3c4 # main (012f233 + QA_AUTH_TOKEN mask)
+        uses: nikolay-e/autoqa@191254522a2f916499a4a5868d4c9ab2be3d7f04 # main (012f233 + QA_AUTH_TOKEN mask)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
