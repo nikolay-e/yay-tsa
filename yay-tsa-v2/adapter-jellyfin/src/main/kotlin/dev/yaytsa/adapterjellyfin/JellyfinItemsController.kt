@@ -104,7 +104,7 @@ class JellyfinItemsController(
         when {
             "MusicArtist" in types -> {
                 val artists = libraryQueries.browseArtists(limit, startIndex)
-                val items = artists.map { it.toBaseItem() }
+                val items = artists.withAlbumCounts()
                 return ResponseEntity.ok(ItemsResult(items, libraryQueries.countArtists(), startIndex))
             }
             "MusicAlbum" in types -> {
@@ -141,7 +141,7 @@ class JellyfinItemsController(
 
         // Default: return artists
         val artists = libraryQueries.browseArtists(limit, startIndex)
-        val items = artists.map { it.toBaseItem() }
+        val items = artists.withAlbumCounts()
         return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
     }
 
@@ -175,7 +175,7 @@ class JellyfinItemsController(
             } else {
                 libraryQueries.browseArtists(limit, startIndex)
             }
-        val items = artists.map { it.toBaseItem() }
+        val items = artists.withAlbumCounts()
         return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
     }
 
@@ -186,7 +186,7 @@ class JellyfinItemsController(
         principal: Principal?,
     ): ResponseEntity<Any> {
         val artists = libraryQueries.browseArtists(limit, startIndex)
-        val items = artists.map { it.toBaseItem() }
+        val items = artists.withAlbumCounts()
         return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
     }
 
@@ -339,12 +339,19 @@ class JellyfinItemsController(
             dateCreated = createdAt?.toString(),
         )
 
-    private fun Artist.toBaseItem() =
+    private fun Artist.toBaseItem(albumCount: Int? = null) =
         BaseItem(
             id = id.value,
             name = name,
             type = "MusicArtist",
             imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
             sortName = sortName,
+            childCount = albumCount,
         )
+
+    private fun List<Artist>.withAlbumCounts(): List<BaseItem> {
+        if (isEmpty()) return emptyList()
+        val counts = libraryQueries.countAlbumsByArtistIds(map { it.id }.toSet())
+        return map { it.toBaseItem(albumCount = counts[it.id] ?: 0) }
+    }
 }

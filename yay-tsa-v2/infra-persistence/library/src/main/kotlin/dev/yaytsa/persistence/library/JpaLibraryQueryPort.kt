@@ -227,6 +227,14 @@ class JpaLibraryQueryPort(
 
     override fun countTextSearchTracks(query: String): Int = entityRepo.countByNameAndType("%$query%", EntityType.TRACK.name).toInt()
 
+    override fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int> {
+        if (artistIds.isEmpty()) return emptyMap()
+        val uuids = artistIds.map { UUID.fromString(it.value) }
+        return albumRepo
+            .countAlbumsByArtistIds(uuids)
+            .associate { EntityId(it.getArtistId().toString()) to it.getAlbumCount().toInt() }
+    }
+
     override fun resolveTrackFilePath(trackId: EntityId): String? {
         val id = UUID.fromString(trackId.value)
         val entity = entityRepo.findById(id).orElse(null) ?: return null

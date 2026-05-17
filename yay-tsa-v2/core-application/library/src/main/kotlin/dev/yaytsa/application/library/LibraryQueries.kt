@@ -57,6 +57,9 @@ class LibraryQueries(
 
     fun countTextSearchTracks(query: String): Int = libraryQuery.countTextSearchTracks(query)
 
+    fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int> =
+        if (artistIds.isEmpty()) emptyMap() else libraryQuery.countAlbumsByArtistIds(artistIds)
+
     fun browseArtistsGroupedByLetter(): Map<String, List<Artist>> =
         libraryQuery
             .browseArtists(500, 0)

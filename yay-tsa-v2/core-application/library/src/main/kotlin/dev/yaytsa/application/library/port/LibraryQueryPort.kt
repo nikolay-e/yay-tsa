@@ -53,4 +53,6 @@ interface LibraryQueryPort {
     fun countArtists(): Int
 
     fun countTextSearchTracks(query: String): Int
+
+    fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int>
 }
