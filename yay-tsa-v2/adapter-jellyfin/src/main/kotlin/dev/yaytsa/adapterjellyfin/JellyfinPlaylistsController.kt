@@ -76,13 +76,38 @@ class JellyfinPlaylistsController(
         val uid = UserId(request.UserId)
         val pid = PlaylistId(UUID.randomUUID().toString())
         val now = clock.now()
-        val cmd = CreatePlaylist(pid, uid, request.Name, null, request.IsPublic ?: false, now)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
-        val result = playlistUseCases.execute(cmd, ctx)
-        return when (result) {
-            is CommandResult.Success -> ResponseEntity.ok(mapOf("Id" to pid.value))
-            is CommandResult.Failed -> ResponseEntity.badRequest().body(mapOf("error" to result.failure.toString()))
+        val createCmd = CreatePlaylist(pid, uid, request.Name, null, request.IsPublic ?: false, now)
+        val createCtx = CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val createResult = playlistUseCases.execute(createCmd, createCtx)
+        if (createResult is CommandResult.Failed) {
+            log.warn("CreatePlaylist failed for owner={}: {}", uid.value, createResult.failure)
+            return ResponseEntity.badRequest().body(mapOf("error" to createResult.failure.toString()))
         }
+        createResult as CommandResult.Success
+
+        val initialIds =
+            request.Ids
+                ?.filter { it.isNotBlank() }
+                ?.map { TrackId(it.trim()) }
+                .orEmpty()
+        if (initialIds.isNotEmpty()) {
+            val addCmd = AddTracksToPlaylist(pid, initialIds, now)
+            val addCtx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), createResult.value.version)
+            val addResult = playlistUseCases.execute(addCmd, addCtx)
+            if (addResult is CommandResult.Failed) {
+                log.warn("Initial AddTracksToPlaylist failed for playlist={}: {}", pid.value, addResult.failure)
+                // Best-effort rollback so the caller doesn't see an empty playlist they didn't ask for.
+                val deleteCmd = DeletePlaylist(pid)
+                val deleteCtx =
+                    CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), createResult.value.version)
+                playlistUseCases.execute(deleteCmd, deleteCtx)
+                return statusFromFailure(addResult.failure).let { resp ->
+                    ResponseEntity.status(resp.statusCode).body(mapOf("error" to addResult.failure.toString()))
+                }
+            }
+        }
+
+        return ResponseEntity.ok(mapOf("Id" to pid.value))
     }
 
     @GetMapping("/Playlists/{playlistId}/Items")
