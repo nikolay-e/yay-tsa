@@ -298,6 +298,26 @@ After v1 Spring Boot retirement, v2 Kotlin backend exposes OpenAPI at springdoc 
 - Fix shape: `INSERT INTO dup_pairs` via `DISTINCT ON (drop_id)` from a `UNION` that prefers suffix-match (`v2.source_path = '/media/' || v1.source_path`) over fallback `(album_id, track_number, disc_number)` triple. For each cross-schema table: `UPDATE … SET col = keep WHERE col = drop AND NOT EXISTS (… already exists for same user/playlist)`, then `DELETE … WHERE col = drop` for collision losers. Finally `DELETE FROM core_v2_library.entities WHERE id IN drop_pairs` — CASCADE handles `audio_tracks`/`images`/`entity_genres`. Run as a single transaction with `SELECT 'metric:', COUNT(*)` after each step so you can validate counts before COMMIT.
 - Permanent prevention belongs in `infra-library-scanner`: before INSERT, look up any existing entity by **suffix-match** of the relative portion of the path (everything after `library_root`) and UPDATE its `source_path` to the new absolute form. Without that guard, every full rescan after a library-root change recreates the dup-set.
 
+## Duplicate albums + artists from featured-artist tags / case-mismatch ETL
+
+Three distinct classes of entity duplication, all surfacing as the same UI symptom (`Horus - Singles` 30x, `The Hatters - Singles` 12x, etc. on `/albums`; `SKYND` + `SKYND, Bill $Aber` + `SKYND, Jonathan Davis` on `/artists`). Discovered 2026-05-17 during `/qa` after the user pasted the rendered album list.
+
+1. **Featured-artist combinations** — pre-`b453b32e` scanner used the full FLAC `ARTIST` tag (e.g. `"луперкаль, oxxxymiron"`) verbatim when building `album:<artistName>:<albumName>` source_path. Each featured-artist combo produced a UNIQUE source_path → a separate `core_v2_library.entities` row → 30 album entities for the same logical "Horus - Singles". Fix `b453b32e` (`primaryArtist()` splitting on `,;/&|feat|ft|featuring|vs`) prevents new rows; cleanup of legacy rows is one-shot SQL.
+2. **Case-mismatch artists (Cyrillic)** — v1→v2 ETL inserted `entities.source_path = 'artist:Кино'` (capitalized). v2 scanner builds `'artist:' + name.lowercase()` → `'artist:кино'` (lowercase). `findBySourcePath` lookup misses → scanner creates a sibling artist entity. All affected: `Агата Кристи, Кино, Король и Шут, Кукрыниксы, Пневмослон, Рабфак, Сатанакозёл, Сектор Газа` (8 pairs).
+3. **Compound-artist entities still present after dedup** — `SKYND, Bill $Aber` and `XACV SQUAD feat Nekto BZ` survived because they were legitimately distinct artist rows (not just compound source_paths). Folding requires applying the same `primaryArtist` regex in SQL and merging into the primary.
+
+Scripts shipped (idempotent, transactional, with verification queries):
+
+- `yay-tsa-v2/scripts/dedup-albums.sql` — name+artist_id grouping, remaps `audio_tracks.album_id` + `entities.parent_id` + `play_statistics.item_id` (the only cross-schema by-value album ref — checked all schemas).
+- `yay-tsa-v2/scripts/dedup-artists.sql` — `LOWER(name)` grouping, prefers the canonical-lowercase-source_path keep, remaps `albums.artist_id` + `audio_tracks.album_artist_id` + `entities.parent_id`, then re-runs album dedup (collapsed parent artist may surface new album dups).
+- `yay-tsa-v2/scripts/dedup-compound-artists.sql` — regex `regexp_replace(name, '\s*[,;/&]\s+.*$|\s+(feat|ft|featuring|vs|with|x)\.?\s+.*$', '', 'i')` matches Kotlin's `primaryArtist`. Only merges when a primary with the same case-insensitive name already exists.
+
+Result: 803 albums → 594, 76 artists → 65, 0 orphans. Run all three in order; each dry-run via `sed 's/COMMIT;/ROLLBACK;/' | psql` first.
+
+## Artist `ChildCount` was always null → frontend shows "0 albums"
+
+`JellyfinItemsController.Artist.toBaseItem()` didn't populate `childCount`, so every artist on `/artists` showed "0 albums" even after the dedup. Fix: add `LibraryQueryPort.countAlbumsByArtistIds(Set<EntityId>) -> Map<EntityId, Int>` backed by `AlbumRepository.countAlbumsByArtistIds(@Query GROUP BY artist_id)`, pre-fetch in the controller for each batch of artists, populate `BaseItem.childCount`. Same N+1-avoidance pattern as the existing batch artist-name lookup. Frontend already reads `artist.ChildCount` — no UI change needed.
+
 ## ETL / Postgres Cutover (yay-tsa specific)
 
 - `kubectl cp` to CNPG postgres pods fails (read-only filesystem). Use stdin: `kubectl exec -i ... -- env PGPASSWORD=$P psql -h pooler ... < script.sql`.
