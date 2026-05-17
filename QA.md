@@ -298,6 +298,15 @@ After v1 Spring Boot retirement, v2 Kotlin backend exposes OpenAPI at springdoc 
 - Fix shape: `INSERT INTO dup_pairs` via `DISTINCT ON (drop_id)` from a `UNION` that prefers suffix-match (`v2.source_path = '/media/' || v1.source_path`) over fallback `(album_id, track_number, disc_number)` triple. For each cross-schema table: `UPDATE … SET col = keep WHERE col = drop AND NOT EXISTS (… already exists for same user/playlist)`, then `DELETE … WHERE col = drop` for collision losers. Finally `DELETE FROM core_v2_library.entities WHERE id IN drop_pairs` — CASCADE handles `audio_tracks`/`images`/`entity_genres`. Run as a single transaction with `SELECT 'metric:', COUNT(*)` after each step so you can validate counts before COMMIT.
 - Permanent prevention belongs in `infra-library-scanner`: before INSERT, look up any existing entity by **suffix-match** of the relative portion of the path (everything after `library_root`) and UPDATE its `source_path` to the new absolute form. Without that guard, every full rescan after a library-root change recreates the dup-set.
 
+## Feature-validation gotchas (2026-05-17 /qa pass #4)
+
+- **Bash `UID` is a readonly shell variable.** `UID=$(cat /tmp/qa-uid.txt)` silently fails with "UID: readonly variable" and `$UID` stays `""`. Test scripts then hit `/api/Users/` (no trailing UUID) and get a different response. Always pick a non-conflicting name (`UUID_`, `MY_UID`, `USER_ID`).
+- **`POST /Playlists` requires `UserId` field**, NOT optional. `{"Name":"x"}` alone returns generic `400 "Invalid request body"` without naming the missing field. Frontend sends `{Name, UserId, Ids[], IsPublic}` — full shape. Add a more specific 400 message (e.g. via `@Validated` + `MethodArgumentNotValidException` handler) so unknown clients aren't guessing.
+- **`/api/livez` does not exist as a Spring route.** Health probes hit `/manage/health/liveness` and `/manage/health/readiness` (Spring Actuator) — those ARE in `requestMatchers.permitAll()` in `SecurityConfig`. The "`/livez` pattern" in workspace-CLAUDE.md is a generic resilience suggestion; yay-tsa-v2 uses Actuator paths.
+- **Frontend version chip (`vmain-<sha>`) updates instantly on frontend rollout** (no service-worker stickiness in the chip itself — it reads injected `GIT_SHA`). Backend rollout lags 2–5 min after CI passes (Image Updater poll). Always check BOTH deployed images:
+  - `kubectl get deployment yay-tsa-production -n yay-tsa-production` (frontend)
+  - `kubectl get deployment yay-tsa-v2-production-backend -n yay-tsa-v2-production` (backend)
+
 ## Duplicate albums + artists from featured-artist tags / case-mismatch ETL
 
 Three distinct classes of entity duplication, all surfacing as the same UI symptom (`Horus - Singles` 30x, `The Hatters - Singles` 12x, etc. on `/albums`; `SKYND` + `SKYND, Bill $Aber` + `SKYND, Jonathan Davis` on `/artists`). Discovered 2026-05-17 during `/qa` after the user pasted the rendered album list.
