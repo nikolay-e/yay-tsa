@@ -2,8 +2,6 @@ package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.karaoke.port.KaraokeQueryPort
 import dev.yaytsa.shared.TrackId
-import org.springframework.core.io.FileSystemResource
-import org.springframework.core.io.Resource
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
