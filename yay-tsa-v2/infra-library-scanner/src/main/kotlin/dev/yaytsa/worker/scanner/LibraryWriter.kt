@@ -79,11 +79,11 @@ class LibraryWriter(
         val audioTag = audioFile?.tag
 
         val trackName =
-            audioTag?.safeGetFirst(FieldKey.TITLE)?.takeIf { it.isNotBlank() }
+            audioTag?.safeGetFirst(FieldKey.TITLE)?.usableTag()
                 ?: stripTrackNumberPrefix(file.nameWithoutExtension)
-        val tagAlbumArtist = audioTag?.safeGetFirst(FieldKey.ALBUM_ARTIST)?.takeIf { it.isNotBlank() }
-        val tagArtist = audioTag?.safeGetFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
-        val tagAlbum = audioTag?.safeGetFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
+        val tagAlbumArtist = audioTag?.safeGetFirst(FieldKey.ALBUM_ARTIST)?.usableTag()
+        val tagArtist = audioTag?.safeGetFirst(FieldKey.ARTIST)?.usableTag()
+        val tagAlbum = audioTag?.safeGetFirst(FieldKey.ALBUM)?.usableTag()
 
         val pathSegments =
             root
@@ -341,6 +341,11 @@ class LibraryWriter(
     // Filename-derived titles often start with a track-number prefix ("01 - Eyeless").
     // Strip it so the player shows "Eyeless" instead of leaking the filename pattern.
     private fun stripTrackNumberPrefix(filename: String): String = filename.replace(Regex("^\\d{1,3}\\s*[-._]\\s*"), "").trim().ifBlank { filename }
+
+    // Some FLAC rips carry placeholder tags like "##### ######" or "????" where the
+    // ripper failed to encode Cyrillic. Treat them as missing so folder/filename
+    // fallback kicks in.
+    private fun String.usableTag(): String? = takeIf { it.isNotBlank() && !it.matches(Regex("^[#?\\s]+$")) }
 
     private val artistDelimiters =
         Regex(
