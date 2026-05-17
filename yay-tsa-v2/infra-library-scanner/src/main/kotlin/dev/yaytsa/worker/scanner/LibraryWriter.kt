@@ -80,7 +80,7 @@ class LibraryWriter(
 
         val trackName =
             audioTag?.safeGetFirst(FieldKey.TITLE)?.takeIf { it.isNotBlank() }
-                ?: file.nameWithoutExtension
+                ?: stripTrackNumberPrefix(file.nameWithoutExtension)
         val tagAlbumArtist = audioTag?.safeGetFirst(FieldKey.ALBUM_ARTIST)?.takeIf { it.isNotBlank() }
         val tagArtist = audioTag?.safeGetFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
         val tagAlbum = audioTag?.safeGetFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
@@ -138,7 +138,7 @@ class LibraryWriter(
                     entityRepo.save(stale)
                 }
         if (existing != null) {
-            repairExistingTrackLinkage(existing, albumId, artistId)
+            repairExistingTrackLinkage(existing, albumId, artistId, trackName)
             return
         }
 
@@ -258,6 +258,7 @@ class LibraryWriter(
         existingTrack: LibraryEntityJpa,
         derivedAlbumId: UUID?,
         derivedArtistId: UUID?,
+        derivedName: String,
     ) {
         val trackRow = trackRepo.findById(existingTrack.id).orElse(null) ?: return
         var trackChanged = false
@@ -270,6 +271,15 @@ class LibraryWriter(
             trackChanged = true
         }
         if (trackChanged) trackRepo.save(trackRow)
+
+        // Repair filename-fallback titles: existing rows with leading track-number
+        // prefix get cleaned on next scan ("01 - Eyeless" -> "Eyeless").
+        val existingHasFilenamePrefix = Regex("^\\d{1,3}\\s*[-._]\\s*").containsMatchIn(existingTrack.name ?: "")
+        if (existingHasFilenamePrefix && derivedName != existingTrack.name) {
+            existingTrack.name = derivedName
+            existingTrack.sortName = derivedName.lowercase()
+            entityRepo.save(existingTrack)
+        }
 
         val effectiveAlbumId = trackRow.albumId
         if (effectiveAlbumId != null && existingTrack.parentId != effectiveAlbumId) {
@@ -327,6 +337,10 @@ class LibraryWriter(
     }
 
     private fun stripLeadingYear(folder: String): String = folder.replace(Regex("^\\d{4}\\s*-\\s*"), "").trim().ifBlank { folder }
+
+    // Filename-derived titles often start with a track-number prefix ("01 - Eyeless").
+    // Strip it so the player shows "Eyeless" instead of leaking the filename pattern.
+    private fun stripTrackNumberPrefix(filename: String): String = filename.replace(Regex("^\\d{1,3}\\s*[-._]\\s*"), "").trim().ifBlank { filename }
 
     private val artistDelimiters =
         Regex(
