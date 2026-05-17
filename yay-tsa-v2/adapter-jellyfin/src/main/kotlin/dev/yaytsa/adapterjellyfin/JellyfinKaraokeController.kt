@@ -51,14 +51,16 @@ class JellyfinKaraokeController(
         @PathVariable trackId: String,
         @RequestParam(name = "api_key", required = false) apiKey: String?,
         @RequestHeader(HttpHeaders.RANGE, required = false) range: String?,
-    ): ResponseEntity<*> = streamStem(trackId, range) { it.instrumentalPath }
+        response: jakarta.servlet.http.HttpServletResponse,
+    ) = streamStem(trackId, range, response) { it.instrumentalPath }
 
     @GetMapping("/{trackId}/vocals")
     fun getVocals(
         @PathVariable trackId: String,
         @RequestParam(name = "api_key", required = false) apiKey: String?,
         @RequestHeader(HttpHeaders.RANGE, required = false) range: String?,
-    ): ResponseEntity<*> = streamStem(trackId, range) { it.vocalPath }
+        response: jakarta.servlet.http.HttpServletResponse,
+    ) = streamStem(trackId, range, response) { it.vocalPath }
 
     @GetMapping("/{trackId}/status/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun statusStream(
@@ -81,24 +83,38 @@ class JellyfinKaraokeController(
         return emitter
     }
 
+    /**
+     * Stream a karaoke stem directly to [response]. We bypass Spring's
+     * message-converter pipeline because `ResponseEntity<*>` erases to
+     * `ResponseEntity<Any>` at runtime — `ResourceRegionHttpMessageConverter`
+     * then can't match against `Object`, throwing
+     * `HttpMessageNotWritableException: No converter for ResourceRegion`
+     * even when Content-Type is correct (same trap that bit `/Audio/stream`
+     * during the v1→v2 cutover — see QA.md). Writing bytes directly avoids
+     * the trap entirely.
+     */
     private fun streamStem(
         trackId: String,
         range: String?,
+        response: jakarta.servlet.http.HttpServletResponse,
         pathSelector: (dev.yaytsa.domain.karaoke.KaraokeAsset) -> String?,
-    ): ResponseEntity<*> {
-        val asset =
-            karaokeQueryPort.getAsset(TrackId(trackId))
-                ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to "Karaoke asset not found"))
-        val stemPath =
-            pathSelector(asset)
-                ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to "Stem not available"))
-
+    ) {
+        val asset = karaokeQueryPort.getAsset(TrackId(trackId))
+        if (asset == null) {
+            response.sendError(HttpStatus.NOT_FOUND.value(), "Karaoke asset not found")
+            return
+        }
+        val stemPath = pathSelector(asset)
+        if (stemPath == null) {
+            response.sendError(HttpStatus.NOT_FOUND.value(), "Stem not available")
+            return
+        }
         val filePath = Path.of(stemPath)
         if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to "Stem file missing on disk"))
+            response.sendError(HttpStatus.NOT_FOUND.value(), "Stem file missing on disk")
+            return
         }
 
-        val resource: Resource = FileSystemResource(filePath)
         val contentType =
             when (filePath.toString().substringAfterLast('.').lowercase()) {
                 "mp3" -> "audio/mpeg"
@@ -111,30 +127,62 @@ class JellyfinKaraokeController(
             }
         val fileSize = Files.size(filePath)
 
+        response.setHeader(HttpHeaders.CONTENT_TYPE, contentType)
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+
         if (range != null && range.startsWith("bytes=")) {
             val rangeSpec = range.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
             val start = parts[0].toLongOrNull() ?: 0L
-            val end = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
+            val end =
+                if (parts.size > 1 && parts[1].isNotEmpty()) {
+                    parts[1].toLongOrNull() ?: (fileSize - 1)
+                } else {
+                    fileSize - 1
+                }
+            if (start > end || start < 0 || end >= fileSize) {
+                response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
+                response.sendError(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value())
+                return
+            }
             val length = end - start + 1
-
-            return ResponseEntity
-                .status(HttpStatus.PARTIAL_CONTENT)
-                .header(HttpHeaders.CONTENT_TYPE, contentType)
-                .header(HttpHeaders.CONTENT_LENGTH, length.toString())
-                .header(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
-                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .body(
-                    org.springframework.core.io.support
-                        .ResourceRegion(resource, start, length),
-                )
+            response.status = HttpStatus.PARTIAL_CONTENT.value()
+            response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
+            response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
+            java.io.RandomAccessFile(filePath.toFile(), "r").use { raf ->
+                raf.seek(start)
+                val out = response.outputStream
+                val buf = ByteArray(64 * 1024)
+                var remaining = length
+                while (remaining > 0) {
+                    val read = raf.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
+                    if (read < 0) break
+                    try {
+                        out.write(buf, 0, read)
+                    } catch (_: java.io.IOException) {
+                        // Client disconnected mid-stream (pause/skip) — common, debug-level.
+                        return
+                    }
+                    remaining -= read
+                }
+            }
+            return
         }
 
-        return ResponseEntity
-            .ok()
-            .header(HttpHeaders.CONTENT_TYPE, contentType)
-            .header(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
-            .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-            .body(resource)
+        response.status = HttpStatus.OK.value()
+        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
+        Files.newInputStream(filePath).use { input ->
+            val out = response.outputStream
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                try {
+                    out.write(buf, 0, n)
+                } catch (_: java.io.IOException) {
+                    return
+                }
+            }
+        }
     }
 }

@@ -32,6 +32,14 @@ class KaraokeProcessor(
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 60_000)
     fun processUnready() {
+        // Production runs the audio-separator HTTP sidecar (BS-Roformer on GPU);
+        // the in-process Demucs path is gated off via DEMUCS_COMMAND=unsupported.
+        // The backend's stems mount is read-only there, so any write attempt
+        // would crash on FileSystemException. Bail early.
+        if (demucsCommand == "unsupported" || demucsCommand.isBlank()) {
+            log.debug("Karaoke processor disabled (demucsCommand={}); sidecar handles separation", demucsCommand)
+            return
+        }
         log.info("Karaoke processor checking for unprocessed tracks")
 
         val allTrackIds =

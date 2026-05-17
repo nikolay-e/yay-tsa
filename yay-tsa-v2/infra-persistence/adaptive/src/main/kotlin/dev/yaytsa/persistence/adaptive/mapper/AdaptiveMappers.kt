@@ -32,10 +32,12 @@ object AdaptiveMappers {
             sessionSummary = entity.sessionSummary,
             energy = entity.energy,
             intensity = entity.intensity,
-            moodTags = entity.moodTags,
-            attentionMode = entity.attentionMode,
+            // Legacy v1-ETL rows can ship NULL for these (column is nullable);
+            // the domain model requires non-null. Default to empty / a sensible mode.
+            moodTags = entity.moodTags ?: emptyList(),
+            attentionMode = entity.attentionMode ?: "background",
             seedTrackId = entity.seedTrackId?.let { EntityId(it.toString()) },
-            seedGenres = entity.seedGenres,
+            seedGenres = entity.seedGenres ?: emptyList(),
         )
 
     fun toDomain(entity: AdaptiveQueueEntryEntity): AdaptiveQueueEntry =
