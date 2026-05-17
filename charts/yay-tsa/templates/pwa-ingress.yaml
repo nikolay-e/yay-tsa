@@ -14,12 +14,9 @@ metadata:
     kubernetes.io/ingress.class: {{ .Values.ingress.className }}
     {{- end }}
     traefik.ingress.kubernetes.io/router.priority: "100"
-    {{- $namespace := .Release.Namespace }}
-    {{- $middlewares := list (printf "%s-%s-strip-api@kubernetescrd" $namespace (include "yay-tsa.fullname" .)) }}
-    {{- range .Values.ingress.additionalMiddlewares }}
-    {{- $middlewares = append $middlewares . }}
+    {{- with .Values.ingress.additionalMiddlewares }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ join "," . }}
     {{- end }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ join "," $middlewares }}
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
