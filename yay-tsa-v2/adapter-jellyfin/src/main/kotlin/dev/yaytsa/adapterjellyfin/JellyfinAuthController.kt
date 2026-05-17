@@ -5,10 +5,13 @@ import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.ApiTokenId
 import dev.yaytsa.domain.auth.CreateApiToken
 import dev.yaytsa.domain.auth.DeviceId
+import dev.yaytsa.domain.auth.RevokeApiToken
 import dev.yaytsa.shared.CommandContext
+import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
+import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -81,31 +84,11 @@ class JellyfinAuthController(
             org.springframework.security.core.context.SecurityContextHolder
                 .getContext()
                 .authentication
-        if (auth is JellyfinAuthentication) {
-            val uid = auth.userId
-            val user = authQueries.findUser(uid)
-            if (user != null) {
-                val tokenHash =
-                    java.security.MessageDigest
-                        .getInstance("SHA-256")
-                        .digest(auth.credentials.toByteArray(Charsets.UTF_8))
-                        .joinToString("") { "%02x".format(it) }
-                val apiToken = user.apiTokens.find { it.token == tokenHash }
-                if (apiToken != null) {
-                    val cmd =
-                        dev.yaytsa.domain.auth
-                            .RevokeApiToken(uid, apiToken.id)
-                    val ctx =
-                        CommandContext(
-                            uid,
-                            ProtocolId("JELLYFIN"),
-                            clock.now(),
-                            IdempotencyKey(UUID.randomUUID().toString()),
-                            user.version,
-                        )
-                    authUseCases.execute(cmd, ctx)
-                }
-            }
+        val rawToken = auth?.credentials?.toString()
+        val uidValue = auth?.name
+        if (auth?.isAuthenticated == true && !rawToken.isNullOrBlank() && !uidValue.isNullOrBlank()) {
+            val uid = UserId(uidValue)
+            revokeTokenForUser(uid, rawToken)
         }
         org.springframework.security.core.context.SecurityContextHolder
             .clearContext()
@@ -170,5 +153,38 @@ class JellyfinAuthController(
         val bytes = ByteArray(32)
         SecureRandom().nextBytes(bytes)
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun revokeTokenForUser(
+        uid: UserId,
+        rawToken: String,
+    ) {
+        // Retry once on OCC conflict — token write surface gets bumped by every
+        // login from other devices, so a single attempt under load races losing.
+        repeat(2) {
+            val user = authQueries.findUser(uid) ?: return
+            val tokenHash =
+                java.security.MessageDigest
+                    .getInstance("SHA-256")
+                    .digest(rawToken.toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+            val apiToken = user.apiTokens.find { it.token == tokenHash && !it.revoked } ?: return
+            val cmd = RevokeApiToken(uid, apiToken.id)
+            val ctx =
+                CommandContext(
+                    uid,
+                    ProtocolId("JELLYFIN"),
+                    clock.now(),
+                    IdempotencyKey(UUID.randomUUID().toString()),
+                    user.version,
+                )
+            val result = authUseCases.execute(cmd, ctx)
+            if (result is CommandResult.Success) return
+            log.warn("RevokeApiToken attempt failed for user {}: {}", uid.value, result)
+        }
+    }
+
+    companion object {
+        private val log = LoggerFactory.getLogger(JellyfinAuthController::class.java)
     }
 }
