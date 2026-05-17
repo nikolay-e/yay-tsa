@@ -114,6 +114,11 @@ ingress:
     - hosts:
         - yay-tsa-v2.example.com
       secretName: yay-tsa-v2-tls
+  secureHeaders:
+    enabled: true
+    stsSeconds: 63072000
+    stsIncludeSubdomains: true
+    stsPreload: true
   subsonic:
     enabled: true
     annotations:

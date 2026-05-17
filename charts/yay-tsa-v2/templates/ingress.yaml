@@ -12,6 +12,9 @@ metadata:
     {{- if .Values.ingress.stripApiPrefix }}
     {{- $namespace := .Release.Namespace }}
     {{- $middlewares := list (printf "%s-%s-strip-api@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .)) }}
+    {{- if .Values.ingress.secureHeaders.enabled }}
+    {{- $middlewares = append $middlewares (printf "%s-%s-secure-headers@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .)) }}
+    {{- end }}
     {{- range .Values.ingress.additionalMiddlewares }}
     {{- $middlewares = append $middlewares . }}
     {{- end }}
