@@ -11,6 +11,7 @@ import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -27,16 +28,30 @@ class JellyfinAdminController(
     private val authQueries: AuthQueries,
     private val clock: dev.yaytsa.application.shared.port.Clock,
 ) {
+    private fun requireAdmin(): ResponseEntity<Any>? {
+        val auth = SecurityContextHolder.getContext().authentication
+        val callerIsAdmin =
+            when {
+                auth is JellyfinAuthentication -> auth.isAdmin
+                auth != null && auth.isAuthenticated -> authQueries.findUser(UserId(auth.name))?.isAdmin == true
+                else -> false
+            }
+        return if (!callerIsAdmin) ResponseEntity.status(HttpStatus.FORBIDDEN).body(mapOf("error" to "Admin role required")) else null
+    }
     @GetMapping("/Users")
     fun listUsers(): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
         val users = authQueries.listAll()
         return ResponseEntity.ok(
             users.map { u ->
                 mapOf(
                     "Id" to u.id.value,
-                    "Name" to u.username,
+                    "Username" to u.username,
+                    "DisplayName" to u.displayName,
                     "IsAdmin" to u.isAdmin,
                     "IsActive" to u.isActive,
+                    "CreatedAt" to u.createdAt.toString(),
+                    "LastLoginAt" to u.lastLoginAt?.toString(),
                 )
             },
         )
@@ -52,6 +67,7 @@ class JellyfinAdminController(
     fun createUser(
         @RequestBody request: CreateUserRequest,
     ): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
         val uid = UserId(UUID.randomUUID().toString())
         val passwordHash =
             org.springframework.security.crypto.bcrypt.BCrypt
@@ -74,7 +90,8 @@ class JellyfinAdminController(
     @DeleteMapping("/Users/{userId}")
     fun deleteUser(
         @PathVariable userId: String,
-    ): ResponseEntity<Void> {
+    ): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
         val uid = UserId(userId)
         val user = authQueries.findUser(uid) ?: return ResponseEntity.notFound().build()
         val cmd =
@@ -89,6 +106,7 @@ class JellyfinAdminController(
     fun resetPassword(
         @PathVariable userId: String,
     ): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
         val uid = UserId(userId)
         val user = authQueries.findUser(uid) ?: return ResponseEntity.notFound().build()
         val newPassword = UUID.randomUUID().toString().take(12)
@@ -108,18 +126,28 @@ class JellyfinAdminController(
     }
 
     @GetMapping("/Cache/Stats")
-    fun cacheStats(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("imageCache" to mapOf("size" to 0, "hitCount" to 0, "missCount" to 0, "hitRate" to 0.0)))
+    fun cacheStats(): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
+        return ResponseEntity.ok(mapOf("imageCache" to mapOf("size" to 0, "hitCount" to 0, "missCount" to 0, "hitRate" to 0.0)))
+    }
 
     @DeleteMapping("/Cache")
-    fun clearCache(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("cleared" to true, "entriesCleared" to 0))
+    fun clearCache(): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
+        return ResponseEntity.ok(mapOf("cleared" to true, "entriesCleared" to 0))
+    }
 
     @DeleteMapping("/Cache/Images/{itemId}")
     fun clearItemCache(
         @PathVariable itemId: String,
-    ): ResponseEntity<Any> = ResponseEntity.ok(mapOf("cleared" to true, "itemId" to itemId, "entriesCleared" to 0))
+    ): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
+        return ResponseEntity.ok(mapOf("cleared" to true, "itemId" to itemId, "entriesCleared" to 0))
+    }
 
     @PostMapping("/Library/Rescan")
     fun rescan(): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
         // TODO: wire to infra-library-scanner. The scanner is a worker module that adapter-jellyfin
         // cannot depend on directly (architecture rule: adapters do not depend on workers).
         // Proper fix: expose a port (e.g. LibraryScanTrigger) in core-application/library,
@@ -129,6 +157,7 @@ class JellyfinAdminController(
 
     @GetMapping("/Library/ScanStatus")
     fun scanStatus(): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
         // TODO: no ScanRecord query port exists yet; return inert stub for the PWA.
         return ResponseEntity.ok(mapOf("scanning" to false, "isScanning" to false, "progress" to 100))
     }
