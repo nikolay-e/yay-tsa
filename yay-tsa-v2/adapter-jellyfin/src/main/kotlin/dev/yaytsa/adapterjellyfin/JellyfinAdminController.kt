@@ -38,6 +38,7 @@ class JellyfinAdminController(
             }
         return if (!callerIsAdmin) ResponseEntity.status(HttpStatus.FORBIDDEN).body(mapOf("error" to "Admin role required")) else null
     }
+
     @GetMapping("/Users")
     fun listUsers(): ResponseEntity<Any> {
         requireAdmin()?.let { return it }
