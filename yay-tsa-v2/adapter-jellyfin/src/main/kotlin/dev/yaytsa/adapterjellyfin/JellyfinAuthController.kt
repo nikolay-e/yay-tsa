@@ -29,10 +29,12 @@ class JellyfinAuthController(
     private val clock: dev.yaytsa.application.shared.port.Clock,
 ) {
     data class LoginRequest(
+        @com.fasterxml.jackson.annotation.JsonProperty("Username")
         @com.fasterxml.jackson.annotation.JsonAlias("username")
-        val Username: String,
+        val username: String,
+        @com.fasterxml.jackson.annotation.JsonProperty("Pw")
         @com.fasterxml.jackson.annotation.JsonAlias("pw")
-        val Pw: String,
+        val pw: String,
     )
 
     @PostMapping("/Users/AuthenticateByName")
@@ -40,7 +42,7 @@ class JellyfinAuthController(
         @RequestBody request: LoginRequest,
     ): ResponseEntity<Any> {
         val user =
-            authQueries.findByUsername(request.Username)
+            authQueries.findByUsername(request.username)
                 ?: return ResponseEntity.status(401).body(mapOf("error" to "Invalid credentials"))
 
         if (!user.isActive) return ResponseEntity.status(401).body(mapOf("error" to "User disabled"))
@@ -49,7 +51,7 @@ class JellyfinAuthController(
         val passwordValid =
             try {
                 org.springframework.security.crypto.bcrypt.BCrypt
-                    .checkpw(request.Pw, user.passwordHash)
+                    .checkpw(request.pw, user.passwordHash)
             } catch (_: IllegalArgumentException) {
                 false // Malformed hash = auth fails, not bypasses
             }
