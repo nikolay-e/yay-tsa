@@ -248,7 +248,7 @@ jobs:
       # not this workflow. We skip the rollout-wait probe and run autoqa
       # against whatever version is currently live.
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@7bcfbebdc08009d69e95328bc15b6c5bfa5d4b05 # main (auth + crawler: Cloudflare keep-alive resilience)
+        uses: nikolay-e/autoqa@6023ea896932b3c851eef19e583e76d47c69c2cb # main (auth + crawler: Cloudflare keep-alive resilience)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
