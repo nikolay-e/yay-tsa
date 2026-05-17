@@ -248,7 +248,7 @@ jobs:
       # not this workflow. We skip the rollout-wait probe and run autoqa
       # against whatever version is currently live.
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@601af09f8b5a675576acb3d6cf9f11914c4fef8e # main (post-9c2f6c0: schemathesis-base-url + continue-on-error)
+        uses: nikolay-e/autoqa@012f233bced81418ea3ced373505883f75ff1403 # main (601af09 + ZAP report-write fix)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
