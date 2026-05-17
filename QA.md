@@ -115,11 +115,59 @@ Health endpoints, `/Items` HTTP 200, no-pod-restart, and "the page renders" are 
   1. **Argo CD Image Updater write-back failing**. Check `kubectl logs -n argocd -l app.kubernetes.io/name=argocd-image-updater --since=15m | grep yay-tsa`. Common cause: annotation lists an image alias whose `helm.image-tag` parameter resolves to a key the rendered chart doesn't produce (disabled service). Image Updater errors "parameter not found" and aborts the **entire batch** — backend/frontend updates roll back too. Fix: drop disabled service from BOTH the `argocd-image-updater.argoproj.io/image-list` annotation in the gitops Application AND the `ImageUpdater` CR's `applicationRefs[].images[]`.
   2. **QA test user doesn't exist in prod DB or `QA_PASSWORD` is stale**. Script silently treats auth failure as `VERSION=''`. Verify with `kubectl exec -n shared-database <primary-pod> -c postgres -- psql -U postgres -d yaytsa_production -c "SELECT username, is_active FROM users WHERE username='test';"`. If absent, INSERT via the **primary** pod (replicas reject as "read-only transaction"); find primary with `kubectl get cluster -n shared-database -o jsonpath='{.items[0].status.targetPrimary}'`. Then `gh secret set QA_PASSWORD --repo nikolay-e/yay-tsa`; also stash in Keychain as `yay-tsa-qa-password`.
 
+## autoqa pipeline gotchas (2026-05-17 QA — Part 2)
+
+- **`QA_AUTH_TOKEN` leaks plaintext into the workflow run log** when the autoqa action writes it to `$GITHUB_ENV` without calling `::add-mask::` first. GitHub Actions only redacts the literal `secrets.QA_PASSWORD` value — anything _derived_ from it (the bearer token returned by `/Users/AuthenticateByName`) is visible in every subsequent step's `env:` group header. Public-repo workflow logs expose the token to the whole internet for the lifetime of that session token. Fix lives in autoqa `scripts/auth.sh`: add `echo "::add-mask::${TOKEN}"` BEFORE writing `QA_AUTH_TOKEN=` to `$GITHUB_ENV` (autoqa SHA `1912545+`). Always assume any QA-test-user token shown in a public CI log is compromised — rotate by calling `/Sessions/Logout` (once the next bullet's bug is fixed) or by `UPDATE core_v2_auth.api_tokens SET revoked=true WHERE token = encode(sha256(:hex), 'hex')` on the primary CNPG pod.
+- **`POST /Sessions/Logout` was a no-op for the only auth surface clients actually use (Bearer token).** Controller checked `auth is JellyfinAuthentication`, but `ApiTokenAuthFilter` runs FIRST in the chain and sets `YaytsaAuthentication` for any `Authorization: Bearer …` request. The Jellyfin filter's `if (auth == null)` short-circuit then prevented it from overriding. Controller saw `YaytsaAuthentication`, the `is JellyfinAuthentication` check returned false, `RevokeApiToken` was never dispatched, and the token stayed live forever. **Logout returned 204 in both branches**, so client SDKs and the PWA never noticed. Fix: read `auth.name` (user id) and `auth.credentials` (raw token) via the standard Spring `Authentication` interface so the path works for every filter — and surface the use-case Result instead of dropping it on the floor. Also retry once on OCC conflict (high-traffic users have their version bumped by concurrent CI logins, lock-step OCC otherwise loses).
+- **391 lingering tokens for the `test` QA user** after weeks of CI runs (only 5 revoked). Every CI run creates a new `api_tokens` row via login, none of them are ever revoked because of the bug above. After fixing logout, also consider an admin/job sweep that revokes tokens older than N days for service users. Quick count: `SELECT COUNT(*) FILTER (WHERE NOT revoked) FROM core_v2_auth.api_tokens WHERE user_id = '<test-user-id>';`.
+
 ## autoqa pipeline gotchas (2026-05-17 QA)
 
 - **Schemathesis hits the SPA shell when `--url` and crawler url share a value but API mounts on a path prefix.** With Traefik strip-prefix middleware, backend OpenAPI emits bare paths (`/Admin/Cache`, `/Items`, etc.) and `servers: [{url: "http://yay-tsa.com/api"}]`. autoqa unconditionally passed `--url ${inputs.url}` (i.e. `https://yay-tsa.com`), so Schemathesis joined that with `/Admin/Cache` → hit frontend nginx → got 405 (DELETE on static files) or 200 returning `index.html` → 159 false-positive failures, zero real backend coverage. Fix needs autoqa to support a separate `schemathesis-base-url` input (post-`9c2f6c0` autoqa: pin to `601af09` and set `schemathesis-base-url: https://yay-tsa.com/api`).
 - **autoqa composite step aborts on first tool failure unless each step has `continue-on-error`.** Schemathesis exit 1 silently killed ZAP + crawler + axe + AuthZ. Whole pipeline showed `Run AutoQA: failed`, ZAP-gate step then errored "ZAP report not generated", and crawler/axe never ran. Post-`601af09` autoqa wraps every tool step with `continue-on-error: true` + `if: always()` so they each run independently and consumers gate on report files (existing pattern for `zap-report.json`).
 - **Spring Boot springdoc emits `http://` in `servers[0].url` despite `forward-headers-strategy: framework` + `protocol-header: X-Forwarded-Proto`.** Behind Cloudflare → Traefik → backend the original scheme is `https` but the spec's `servers` block carries `http`. Hasn't bitten anything yet because Schemathesis is configured with explicit `--url`. Worth fixing if any future tool defers to the spec's scheme.
+
+## Scanner: placeholder tags vs missing tags (2026-05-17 QA — Part 2)
+
+- Some FLAC rips carry literal `##### ######` in TITLE/ARTIST/ALBUM where the ripper failed to encode Cyrillic. The scanner used those values verbatim, producing a separate `##### ######` artist + `######### # ######` album alongside the correct folder-derived entities. The track name fallback for tag-less files also leaked filenames like `01 - Eyeless` (Slipknot is the worst offender — no TITLE tag on any track). Fix shape in `LibraryWriter`:
+  - `String.usableTag()`: treat `^[#?\s]+$` as missing (returns null), so folder-derived fallback kicks in for artist/album and filename-derived fallback kicks in for title.
+  - `stripTrackNumberPrefix(filename)`: strip leading `\d{1,3}\s*[-._]\s*` when title falls back to `nameWithoutExtension`.
+  - `repairExistingTrackLinkage` extended to also flip `existingTrack.name` (and `sortName`) when the existing name matches the filename-prefix pattern and the freshly-derived value is different. Required flipping `LibraryEntityJpa.name`/`sortName` from `val` to `var`.
+- Detection pattern (drop-in SQL):
+
+  ```sql
+  SELECT name, source_path
+  FROM core_v2_library.entities
+  WHERE entity_type IN ('ARTIST','ALBUM','TRACK')
+    AND name ~ '^[#?\s]+$'
+  LIMIT 20;
+  ```
+
+  Also worth grepping the live `/api/Items?Recursive=true&Limit=N` response for `^[#\s]+$` names, since that's what the user actually sees.
+
+- Verifying the source: `kubectl exec -n yay-tsa-v2-production deployment/yay-tsa-v2-production-backend -- ffprobe -hide_banner -show_format "<file>"`. If `ffprobe` says `TITLE: #########`, the FLAC tag itself is the placeholder — code can only fall back, not "fix" it. Long-term cure is re-tagging the source files.
+
+## Browser-QA: known-good Slipknot fingerprint
+
+- The Slipknot album page (`/albums/f81c535f-0899-4bf9-a81f-6823906c7291`) is the canonical regression case for filename-fallback titles — every track on every album lacks ID3 TITLE. Before any scanner change, snapshot the visible `aria-label="Play …"` strings; after the change they should read `Eyeless`, `Spit It Out`, `Wait And Bleed`, … not `01 - Eyeless`, `06 - Spit It Out`, `04 - Wait And Bleed`.
+- The Агата Кристи album `/albums/436486a0-cb15-43a9-a0d7-d8a69d3fc2e0` is the canonical case for placeholder-tag rejection — the FLAC stores `TITLE/ARTIST/ALBUM` as `##### ######`, so the API must serve the folder-derived names (`Агата Кристи / Коварство и любовь / Viva Kalman!`). Run both immediately after a scanner deploy.
+
+## Cleanup pattern for orphan/broken artist+album rows
+
+- When the broken-artist/broken-album row has tracks pointing to it (cross-schema by-value refs in `play_history`, `favorites`, …), follow this order in a single transaction:
+  1. `UPDATE core_v2_playback.play_history SET item_id = <keep> WHERE item_id = <drop>;` (and analogous for every cross-schema table — see "ETL leaves dup track entities" further down for the full list).
+  2. `DELETE FROM core_v2_library.entities WHERE id IN (<drop track ids>);` — CASCADE drops `audio_tracks`, trigger `cleanup_empty_parent` drops the now-empty album then artist.
+- If the broken artist/album has NO tracks (orphan because the scanner re-linked the only track), the trigger won't fire (it only runs on delete of children with `parent_id IS NOT NULL`). Manually delete:
+
+  ```sql
+  DELETE FROM core_v2_library.entities WHERE id = '<broken-album-id>';
+  DELETE FROM core_v2_library.entities WHERE id = '<broken-artist-id>'
+    AND NOT EXISTS (SELECT 1 FROM core_v2_library.entities WHERE parent_id = '<broken-artist-id>');
+  ```
+
+## kubectl flakes on local control plane
+
+- `kubectl ... -> read: connection reset by peer` against `https://localhost:16443/api/...` from the laptop usually means the K3s API server / kubelet is restarting or WARP/VPN flipped state. Not actionable from this side — wait a minute and retry. Do not interpret as cluster-side outage unless cluster apps also stop responding through their public URLs.
 
 ## Backend bugs surfaced by `packages/core` integration tests (2026-05-17 QA)
 
