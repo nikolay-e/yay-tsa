@@ -194,7 +194,19 @@ class LibraryWriter(
         now: OffsetDateTime,
     ): UUID {
         val artistSourceKey = "artist:${artistName.lowercase()}"
-        val existing = entityRepo.findBySourcePath(artistSourceKey)
+        // Case-insensitive lookup heals legacy ETL rows whose source_path
+        // capitalization differs from the current scanner's `.lowercase()` key.
+        // Postgres `lower()` in default C locale does not case-fold Cyrillic;
+        // the repo method uses ICU collation. Without this, every scan of
+        // tracks like Кино/Король и Шут re-creates a sibling artist entity.
+        val existing =
+            entityRepo.findBySourcePath(artistSourceKey)
+                ?: entityRepo.findBySourcePathCaseInsensitive(artistSourceKey, "ARTIST")?.also { stale ->
+                    if (stale.sourcePath != artistSourceKey) {
+                        stale.sourcePath = artistSourceKey
+                        entityRepo.save(stale)
+                    }
+                }
         if (existing != null) return existing.id
         val id = UUID.randomUUID()
         entityRepo.save(
@@ -220,7 +232,15 @@ class LibraryWriter(
         now: OffsetDateTime,
     ): UUID {
         val albumSourceKey = "album:${artistName?.lowercase() ?: "unknown"}:${albumName.lowercase()}"
-        val existing = entityRepo.findBySourcePath(albumSourceKey)
+        // See ensureArtist comment — same ICU-aware healing for Cyrillic/casing.
+        val existing =
+            entityRepo.findBySourcePath(albumSourceKey)
+                ?: entityRepo.findBySourcePathCaseInsensitive(albumSourceKey, "ALBUM")?.also { stale ->
+                    if (stale.sourcePath != albumSourceKey) {
+                        stale.sourcePath = albumSourceKey
+                        entityRepo.save(stale)
+                    }
+                }
         if (existing != null) {
             // Always realign album → primary artist (overwrite legacy compound or "unknown" links)
             if (artistId != null) {

@@ -42,6 +42,19 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = :entityType " +
+                "AND lower(e.source_path COLLATE \"und-x-icu\") = lower(:sourcePath COLLATE \"und-x-icu\") " +
+                "LIMIT 1",
+        nativeQuery = true,
+    )
+    fun findBySourcePathCaseInsensitive(
+        sourcePath: String,
+        entityType: String,
+    ): LibraryEntityJpa?
+
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
                 "WHERE e.entity_type = 'TRACK' AND e.source_path LIKE :suffix " +
                 "ORDER BY length(e.source_path) ASC LIMIT 1",
         nativeQuery = true,
