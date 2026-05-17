@@ -80,6 +80,13 @@ spec:
             - name: MUSIC_PATH
               value: {{ .Values.backend.config.libraryMusicPath | quote }}
             {{- end }}
+            {{- if and .Values.backend.config.llm.enabled .Values.backend.config.llm.apiKeySecret }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.config.llm.apiKeySecret }}
+                  key: {{ .Values.backend.config.llm.apiKeySecretKey | default "ANTHROPIC_API_KEY" }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "yay-tsa-v2.fullname" . }}-backend

@@ -79,6 +79,24 @@ backend:
     karaokeSeparatorUrl: 'http://yay-tsa-production-audio-separator:8000'
     demucsCommand: 'unsupported'
     libraryMusicPath: '/media'
+    karaoke:
+      enabled: false
+      outputPath: '/app/stems'
+      failThreshold: 3
+    ml:
+      enabled: false
+      extractorScript: '' # path to in-container Python feature-extractor (absent = disabled)
+      processTimeoutSeconds: 600
+      batchSize: 50
+    llm:
+      enabled: false
+      apiKeySecret: '' # k8s Secret name with key ANTHROPIC_API_KEY (absent = disabled)
+      apiKeySecretKey: 'ANTHROPIC_API_KEY'
+      model: 'claude-sonnet-4-20250514'
+      apiUrl: 'https://api.anthropic.com/v1/messages'
+    mpd:
+      enabled: false
+      port: 6600
 
   media:
     enabled: false

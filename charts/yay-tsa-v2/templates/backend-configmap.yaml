@@ -14,4 +14,16 @@ data:
   CORS_ORIGINS: {{ .Values.backend.config.corsOrigins | quote }}
   HIKARI_MAX_POOL: {{ .Values.backend.database.hikari.maximumPoolSize | quote }}
   HIKARI_MIN_IDLE: {{ .Values.backend.database.hikari.minimumIdle | quote }}
+  KARAOKE_ENABLED: {{ default false .Values.backend.config.karaoke.enabled | quote }}
+  KARAOKE_OUTPUT_PATH: {{ .Values.backend.config.karaoke.outputPath | quote }}
+  KARAOKE_FAIL_THRESHOLD: {{ .Values.backend.config.karaoke.failThreshold | quote }}
+  ML_ENABLED: {{ default false .Values.backend.config.ml.enabled | quote }}
+  ML_EXTRACTOR_SCRIPT: {{ .Values.backend.config.ml.extractorScript | quote }}
+  ML_PROCESS_TIMEOUT_SECONDS: {{ .Values.backend.config.ml.processTimeoutSeconds | quote }}
+  ML_BATCH_SIZE: {{ .Values.backend.config.ml.batchSize | quote }}
+  LLM_ENABLED: {{ default false .Values.backend.config.llm.enabled | quote }}
+  LLM_MODEL: {{ .Values.backend.config.llm.model | quote }}
+  LLM_API_URL: {{ .Values.backend.config.llm.apiUrl | quote }}
+  MPD_ENABLED: {{ default false .Values.backend.config.mpd.enabled | quote }}
+  MPD_PORT: {{ .Values.backend.config.mpd.port | quote }}
 {{- end }}
