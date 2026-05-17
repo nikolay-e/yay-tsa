@@ -53,6 +53,15 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     ): LibraryEntityJpa?
 
     @Query(
+        value = "SELECT * FROM core_v2_library.entities WHERE entity_type = :entityType ORDER BY random() LIMIT :limit",
+        nativeQuery = true,
+    )
+    fun findRandomByEntityType(
+        entityType: String,
+        limit: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
                 "WHERE e.entity_type = 'TRACK' AND e.source_path LIKE :suffix " +

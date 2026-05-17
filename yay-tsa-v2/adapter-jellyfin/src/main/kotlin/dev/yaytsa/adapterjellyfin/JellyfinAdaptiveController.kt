@@ -260,6 +260,13 @@ class JellyfinAdaptiveController(
             }
         }
 
+        if (out.size < limit) {
+            libraryQueries.browseTracksRandom(limit - out.size).forEach { track ->
+                if (out.size >= limit) return@forEach
+                if (seen.add(track.id.value)) out.add(track)
+            }
+        }
+
         return out.take(limit).map { trackToSeedMap(it) }
     }
 

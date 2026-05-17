@@ -133,6 +133,21 @@ class JpaLibraryQueryPort(
             }.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
 
+    override fun browseTracksRandom(limit: Int): List<Track> {
+        val entities = entityRepo.findRandomByEntityType(EntityType.TRACK.name, maxOf(limit, 1))
+        val entityIds = entities.map { it.id }
+        val tracksByEntityId =
+            trackRepo
+                .findAllById(entityIds)
+                .associateBy { it.entityId }
+        val primaryImages = findPrimaryImages(entityIds)
+        val genreNames = findPrimaryGenreNames(entityIds)
+        return entities.mapNotNull { entity ->
+            val track = tracksByEntityId[entity.id] ?: return@mapNotNull null
+            LibraryMappers.toTrack(entity, track, primaryImages[entity.id], genreNames[entity.id])
+        }
+    }
+
     override fun searchText(
         query: String,
         limit: Int,

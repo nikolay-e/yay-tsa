@@ -375,8 +375,10 @@ class JellyfinItemsController(
         }
 
         if (out.size < limit) {
-            // Fill from library; users with empty affinity+favorites still see something.
-            libraryQueries.searchText("", limit - out.size, 0).tracks.forEach { track ->
+            // Random sample for users with empty affinity+favorites.
+            // Anything is better than the alphabetical SortName fallback —
+            // a homepage opening with "#1, '(515)", '(D)eath'..." reads as a bug.
+            libraryQueries.browseTracksRandom(limit - out.size).forEach { track ->
                 if (out.size >= limit) return@forEach
                 if (seen.add(track.id.value)) out.add(track)
             }

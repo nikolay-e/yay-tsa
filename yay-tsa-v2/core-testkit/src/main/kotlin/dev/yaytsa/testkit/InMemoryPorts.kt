@@ -180,6 +180,8 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun browseTracksByAlbum(albumId: EntityId) = tracks.values.filter { it.albumId == albumId }.sortedBy { it.trackNumber }
 
+    override fun browseTracksRandom(limit: Int) = tracks.values.shuffled().take(limit)
+
     override fun searchText(
         query: String,
         limit: Int,
