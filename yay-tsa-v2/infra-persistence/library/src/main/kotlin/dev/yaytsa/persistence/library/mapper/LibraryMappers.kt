@@ -56,6 +56,7 @@ object LibraryMappers {
             totalTracks = album.totalTracks,
             totalDiscs = album.totalDiscs,
             coverImagePath = primaryImagePath,
+            createdAt = entity.createdAt?.toInstant(),
         )
 
     fun toArtist(

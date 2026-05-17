@@ -3,6 +3,7 @@ package dev.yaytsa.domain.library
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.GenreId
 import dev.yaytsa.shared.ImageId
+import java.time.Instant
 import java.time.LocalDate
 
 enum class EntityType { TRACK, ALBUM, ARTIST, FOLDER }
@@ -43,6 +44,7 @@ data class Album(
     val totalTracks: Int?,
     val totalDiscs: Int,
     val coverImagePath: String?,
+    val createdAt: Instant?,
 ) : LibraryEntity
 
 data class Artist(

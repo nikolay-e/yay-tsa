@@ -336,6 +336,7 @@ class JellyfinItemsController(
             imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
             sortName = sortName,
             parentId = artistId?.value,
+            dateCreated = createdAt?.toString(),
         )
 
     private fun Artist.toBaseItem() =
