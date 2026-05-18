@@ -91,13 +91,19 @@ class LlmOrchestrator(
         val validSuggestions = trackSuggestions.filter { it.first in existingIds }
         if (validSuggestions.isEmpty()) return
 
-        val currentQueueVersion = queueEntries.maxOfOrNull { it.queueVersion } ?: 0
-        val keepPosition = queueEntries.size
+        // Reload aggregate AFTER the LLM call: queue may have changed during the round-trip
+        // (~seconds), and the source of truth for `baseQueueVersion` is the aggregate, not
+        // a max-of-entries snapshot taken before the LLM call. Without this, every overlap
+        // with another writer (user signal, parallel scheduler tick) returned
+        // `InvariantViolation: Stale queue version: expected N, got N-1`.
+        val aggregate = adaptiveSessionRepo.find(sessionId) ?: return
+        val freshEntries = adaptiveQuery.getQueueEntries(sessionId)
+        val keepPosition = freshEntries.size
 
         val cmd =
             RewriteQueueTail(
                 sessionId = sessionId,
-                baseQueueVersion = currentQueueVersion,
+                baseQueueVersion = aggregate.queueVersion,
                 keepFromPosition = keepPosition,
                 newTail =
                     validSuggestions.map { (trackId, reason) ->
@@ -110,7 +116,6 @@ class LlmOrchestrator(
                     },
             )
 
-        val aggregate = adaptiveSessionRepo.find(sessionId) ?: return
         val ctx =
             CommandContext(
                 userId = userId,

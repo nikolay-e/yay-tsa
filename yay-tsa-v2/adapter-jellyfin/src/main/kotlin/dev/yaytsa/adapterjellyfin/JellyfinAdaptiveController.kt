@@ -8,9 +8,12 @@ import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.application.shared.port.Clock
+import dev.yaytsa.domain.adaptive.AdaptiveQueueEntryId
 import dev.yaytsa.domain.adaptive.EndListeningSession
 import dev.yaytsa.domain.adaptive.ListeningSessionId
+import dev.yaytsa.domain.adaptive.NewQueueEntry
 import dev.yaytsa.domain.adaptive.RecordPlaybackSignal
+import dev.yaytsa.domain.adaptive.RewriteQueueTail
 import dev.yaytsa.domain.adaptive.StartListeningSession
 import dev.yaytsa.domain.adaptive.UpdateSessionContext
 import dev.yaytsa.domain.preferences.UpdatePreferenceContract
@@ -140,8 +143,53 @@ class JellyfinAdaptiveController(
     @PostMapping("/sessions/{sessionId}/queue/refresh")
     fun refreshQueue(
         @PathVariable sessionId: String,
+        principal: Principal,
     ): ResponseEntity<Void> {
-        // TODO: trigger LLM orchestrator for this session
+        // Empty-queue bootstrap: when a Radio seed launches a session, the LLM scheduler
+        // doesn't run for another ~30s. Fill the queue deterministically NOW with
+        // (seed + recommended tracks) so the user gets immediate playback. The LLM
+        // takes over on its next cycle.
+        val sid = ListeningSessionId(sessionId)
+        val aggregate = adaptiveSessionRepo.find(sid) ?: return ResponseEntity.notFound().build()
+        val entries = adaptiveQuery.getQueueEntries(sid)
+        if (entries.isNotEmpty()) return ResponseEntity.noContent().build()
+
+        val uid = UserId(principal.name)
+        val seedTrackId = aggregate.seedTrackId
+        val recommended = buildRecommendedTracks(uid, limit = REFRESH_QUEUE_BOOTSTRAP_SIZE)
+
+        val orderedTrackIds = mutableListOf<String>()
+        seedTrackId?.value?.let { orderedTrackIds += it }
+        for (rec in recommended) {
+            val rid = rec["trackId"] as? String ?: continue
+            if (rid !in orderedTrackIds) orderedTrackIds += rid
+        }
+        if (orderedTrackIds.isEmpty()) return ResponseEntity.noContent().build()
+
+        val cmd =
+            RewriteQueueTail(
+                sessionId = sid,
+                baseQueueVersion = aggregate.queueVersion,
+                keepFromPosition = 0,
+                newTail =
+                    orderedTrackIds.map { trackId ->
+                        NewQueueEntry(
+                            id = AdaptiveQueueEntryId(UUID.randomUUID().toString()),
+                            trackId = TrackId(trackId),
+                            addedReason = if (trackId == seedTrackId?.value) "seed-track" else "bootstrap-affinity",
+                            intentLabel = "bootstrap",
+                        )
+                    },
+            )
+        val ctx =
+            CommandContext(
+                uid,
+                ProtocolId("JELLYFIN"),
+                clock.now(),
+                IdempotencyKey(UUID.randomUUID().toString()),
+                aggregate.version,
+            )
+        adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
 
@@ -322,5 +370,9 @@ class JellyfinAdaptiveController(
             "albumName" to albumName,
             "imageTag" to track.albumId?.value,
         )
+    }
+
+    companion object {
+        private const val REFRESH_QUEUE_BOOTSTRAP_SIZE = 10
     }
 }
