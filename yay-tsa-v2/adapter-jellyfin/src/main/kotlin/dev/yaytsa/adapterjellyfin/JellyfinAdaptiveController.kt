@@ -48,6 +48,7 @@ class JellyfinAdaptiveController(
     private val libraryQueries: LibraryQueries,
     private val mlQuery: MlQueryPort,
     private val clock: Clock,
+    private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
 ) {
     data class StartSessionRequest(
         val userId: String,
@@ -209,16 +210,35 @@ class JellyfinAdaptiveController(
         val cmd =
             UpdatePreferenceContract(
                 uid,
-                body["hardRules"]?.toString() ?: "",
-                body["softPrefs"]?.toString() ?: "",
-                body["djStyle"]?.toString() ?: "",
-                body["redLines"]?.toString() ?: "",
+                normalizeJsonField(body["hardRules"]),
+                normalizeJsonField(body["softPrefs"]),
+                normalizeJsonField(body["djStyle"]),
+                normalizeRedLines(body["redLines"]),
                 clock.now(),
             )
         val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), prefs.version)
         preferencesUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
+
+    // Frontend may send the JSON object inline OR as a pre-stringified blob. Map<String,?> .toString()
+    // emits Java's "{key=val}" syntax which is not JSON — re-serialise via Jackson.
+    private fun normalizeJsonField(value: Any?): String =
+        when (value) {
+            null -> ""
+            is String -> value
+            else -> objectMapper.writeValueAsString(value)
+        }
+
+    // redLines is a list of strings on the wire and a comma-separated string in storage.
+    // Map<>.toString() on a list returns "[a, b]" — corrupts on round-trip.
+    private fun normalizeRedLines(value: Any?): String =
+        when (value) {
+            null -> ""
+            is String -> value
+            is List<*> -> value.filterNotNull().joinToString(",") { it.toString() }
+            else -> value.toString()
+        }
 
     @GetMapping("/recommend/radio/seeds")
     fun getRadioSeeds(principal: Principal?): ResponseEntity<Any> {
