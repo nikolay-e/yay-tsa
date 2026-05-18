@@ -2,6 +2,7 @@ package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
+import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.preferences.PreferencesQueries
@@ -41,6 +42,7 @@ import java.util.UUID
 class JellyfinAdaptiveController(
     private val adaptiveUseCases: AdaptiveUseCases,
     private val adaptiveQuery: AdaptiveQueryPort,
+    private val adaptiveSessionRepo: AdaptiveSessionRepository,
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val libraryQueries: LibraryQueries,
@@ -98,7 +100,7 @@ class JellyfinAdaptiveController(
         val uid = UserId(principal.name)
         adaptiveQuery.findSession(ListeningSessionId(sessionId)) ?: return ResponseEntity.notFound().build()
         val cmd = UpdateSessionContext(ListeningSessionId(sessionId), state.energy, state.intensity, state.moodTags, state.attentionMode)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
@@ -110,10 +112,21 @@ class JellyfinAdaptiveController(
     ): ResponseEntity<Void> {
         val uid = UserId(principal.name)
         val cmd = EndListeningSession(ListeningSessionId(sessionId), null)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
+
+    /**
+     * Read the session's current OCC version so [adaptiveUseCases.execute]
+     * passes the OCC check. Without this every update/signal/end is sent with
+     * [AggregateVersion.INITIAL] (0), the loaded snapshot has version ≥ 1,
+     * the handler returns [Failure.Conflict], and the controller silently
+     * swallows it (returns 204 without persisting the signal).
+     * Falls back to INITIAL for a fresh session (handled by StartListeningSession).
+     */
+    private fun currentSessionVersion(sessionId: String): AggregateVersion =
+        adaptiveSessionRepo.find(ListeningSessionId(sessionId))?.version ?: AggregateVersion.INITIAL
 
     @GetMapping("/sessions/{sessionId}/queue")
     fun getQueue(
@@ -147,7 +160,7 @@ class JellyfinAdaptiveController(
                 body["signal_type"] as? String ?: "UNKNOWN",
                 body["context"]?.toString(),
             )
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
