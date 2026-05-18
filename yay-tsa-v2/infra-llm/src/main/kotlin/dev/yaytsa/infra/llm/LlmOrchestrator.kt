@@ -46,6 +46,10 @@ class LlmOrchestrator(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+    }
+
     @Scheduled(fixedDelay = 30_000, initialDelay = 10_000)
     fun processActiveSessions() {
         if (!enabled) return
@@ -201,6 +205,11 @@ class LlmOrchestrator(
             if (!array.isArray) return emptyList()
             array.mapNotNull { node ->
                 val trackId = node.path("track_id").asText(null) ?: return@mapNotNull null
+                // Claude occasionally returns sentinel strings ("unable_to_suggest", "none",
+                // free text) instead of a UUID. Filter those before they reach
+                // `libraryQueries.trackIdsExist`, which throws IllegalArgumentException from
+                // UUID.fromString and explodes the whole orchestrator cycle.
+                if (!UUID_PATTERN.matches(trackId)) return@mapNotNull null
                 val reason = node.path("reason").asText("llm-suggestion")
                 TrackId(trackId) to reason
             }

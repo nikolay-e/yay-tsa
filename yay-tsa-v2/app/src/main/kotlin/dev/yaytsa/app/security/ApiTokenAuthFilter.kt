@@ -17,7 +17,14 @@ class ApiTokenAuthFilter(
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        val token = extractBearerToken(request) ?: extractTokenCookie(request.cookies)
+        // /Karaoke/{id}/instrumental and other stream endpoints serve audio via <audio src="">,
+        // which can't send Authorization headers — they auth via ?api_key=... query param.
+        // Without this, those URLs return 401 unless the browser happens to ship the yay_token
+        // cookie too (which it does for same-origin, hiding the bug from manual smoke).
+        val token =
+            extractBearerToken(request)
+                ?: request.getParameter("api_key")?.takeIf { it.isNotBlank() }
+                ?: extractTokenCookie(request.cookies)
         if (token != null) {
             val user = authQueries.findByApiToken(token)
             if (user != null && user.isActive) {
