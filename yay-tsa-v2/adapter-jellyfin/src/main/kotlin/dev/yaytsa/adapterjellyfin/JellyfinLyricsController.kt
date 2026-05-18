@@ -28,20 +28,24 @@ class JellyfinLyricsController(
         @PathVariable trackId: String,
     ): ResponseEntity<LyricsFetchResponse> = ResponseEntity.ok(loadLyrics(trackId))
 
+    // PWA parses LRC client-side (packages/core/src/lyrics/lrc-parser.ts), so we ship the
+    // raw file content and let the browser handle timestamp parsing + line indexing.
+    // Server-side parsed arrays leaked into the PWA earlier as `result.lyrics: LyricLine[]`
+    // where the client expected `result.lyrics: string`, silently breaking every overlay.
     private fun loadLyrics(trackId: String): LyricsFetchResponse {
         val filePath = libraryQueries.resolveTrackFilePath(EntityId(trackId))
         if (filePath == null) {
-            return LyricsFetchResponse(trackId = trackId, lyrics = emptyList())
+            return LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
         }
         val lrc =
             findSidecarLrc(Path.of(filePath))
-                ?: return LyricsFetchResponse(trackId = trackId, lyrics = emptyList())
+                ?: return LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
         return try {
             val content = Files.readString(lrc)
-            LyricsFetchResponse(trackId = trackId, lyrics = parseLrc(content))
+            LyricsFetchResponse(found = true, lyrics = content, source = SOURCE_SIDECAR)
         } catch (e: Exception) {
             log.warn("Failed to read LRC for track {} from {}: {}", trackId, lrc, e.message)
-            LyricsFetchResponse(trackId = trackId, lyrics = emptyList())
+            LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
         }
     }
 
@@ -73,57 +77,15 @@ class JellyfinLyricsController(
         return null
     }
 
-    /**
-     * Parse a single LRC file. Each timed line looks like `[mm:ss.xx] text` or `[mm:ss] text`.
-     * Multiple timestamps on one line (compact LRC) are expanded. ID3-like tags
-     * (`[ar:...]`, `[ti:...]`) are ignored.
-     *
-     * `endMs` is set to the next line's `startMs` so the UI can highlight the active
-     * line without separate logic. The last line's endMs is left null.
-     */
-    internal fun parseLrc(content: String): List<LyricLine> {
-        val timed = mutableListOf<Pair<Long, String>>()
-        val tsRegex = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?]""")
-        for (raw in content.lineSequence()) {
-            val matches = tsRegex.findAll(raw).toList()
-            if (matches.isEmpty()) continue
-            val text = raw.substring(matches.last().range.last + 1).trim()
-            if (text.isEmpty() && matches.size == 1) {
-                // header-only tag line like `[ar: Artist]` — skip
-                continue
-            }
-            for (m in matches) {
-                val (mm, ss, fracRaw) = m.destructured
-                val frac = fracRaw.ifEmpty { "0" }
-                val fracMs =
-                    when (frac.length) {
-                        1 -> frac.toLong() * 100
-                        2 -> frac.toLong() * 10
-                        else -> frac.padEnd(3, '0').take(3).toLong()
-                    }
-                val totalMs = mm.toLong() * 60_000 + ss.toLong() * 1000 + fracMs
-                timed += totalMs to text
-            }
-        }
-        if (timed.isEmpty()) return emptyList()
-        val sorted = timed.sortedBy { it.first }
-        return sorted.mapIndexed { i, (start, text) ->
-            LyricLine(text = text, startMs = start, endMs = sorted.getOrNull(i + 1)?.first)
-        }
-    }
-
     companion object {
         private val log = LoggerFactory.getLogger(JellyfinLyricsController::class.java)
+        private const val SOURCE_SIDECAR = "sidecar"
+        private const val SOURCE_NONE = "none"
     }
 }
 
 data class LyricsFetchResponse(
-    @JsonProperty("trackId") val trackId: String,
-    @JsonProperty("lyrics") val lyrics: List<LyricLine>,
-)
-
-data class LyricLine(
-    @JsonProperty("text") val text: String,
-    @JsonProperty("startMs") val startMs: Long? = null,
-    @JsonProperty("endMs") val endMs: Long? = null,
+    @JsonProperty("found") val found: Boolean,
+    @JsonProperty("lyrics") val lyrics: String,
+    @JsonProperty("source") val source: String,
 )
