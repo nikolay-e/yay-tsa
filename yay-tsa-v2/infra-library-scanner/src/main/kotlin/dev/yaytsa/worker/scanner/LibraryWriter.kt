@@ -78,9 +78,21 @@ class LibraryWriter(
         val audioHeader = audioFile?.audioHeader
         val audioTag = audioFile?.tag
 
+        // Issue #213: ~7000 FLAC files have ID3 titles that don't match their filenames
+        // (the tag for "01 - In The Heart Of Stone.flac" says "November 3023"). When the
+        // filename has a canonical track-number prefix AND the ID3 title disagrees with
+        // the filename body, treat the filename as authoritative — Yaytsa has no UI to
+        // edit track titles, so a tag/filename divergence is always corruption from an
+        // upstream tagging tool, never user intent.
+        val filenameTitle = stripTrackNumberPrefix(file.nameWithoutExtension)
+        val id3Title = audioTag?.safeGetFirst(FieldKey.TITLE)?.usableTag()
+        val filenameHasTrackPrefix = Regex("^\\d{1,3}\\s*[-._]\\s*").containsMatchIn(file.nameWithoutExtension)
         val trackName =
-            audioTag?.safeGetFirst(FieldKey.TITLE)?.usableTag()
-                ?: stripTrackNumberPrefix(file.nameWithoutExtension)
+            when {
+                id3Title == null -> filenameTitle
+                filenameHasTrackPrefix && !filenameTitle.equals(id3Title, ignoreCase = true) -> filenameTitle
+                else -> id3Title
+            }
         val tagAlbumArtist = audioTag?.safeGetFirst(FieldKey.ALBUM_ARTIST)?.usableTag()
         val tagArtist = audioTag?.safeGetFirst(FieldKey.ARTIST)?.usableTag()
         val tagAlbum = audioTag?.safeGetFirst(FieldKey.ALBUM)?.usableTag()
