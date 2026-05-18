@@ -3,6 +3,7 @@ package dev.yaytsa.adapterjellyfin
 import com.fasterxml.jackson.annotation.JsonProperty
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
+import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
 import dev.yaytsa.application.playback.ScrobbleService
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.adaptive.RecordPlaybackSignal
@@ -26,6 +27,7 @@ import java.util.UUID
 class JellyfinSessionsController(
     private val adaptiveUseCases: AdaptiveUseCases,
     private val adaptiveQuery: AdaptiveQueryPort,
+    private val adaptiveSessionRepo: AdaptiveSessionRepository,
     private val scrobbleService: ScrobbleService,
     private val clock: Clock,
 ) {
@@ -135,7 +137,7 @@ class JellyfinSessionsController(
                 ProtocolId("JELLYFIN"),
                 clock.now(),
                 IdempotencyKey(UUID.randomUUID().toString()),
-                AggregateVersion.INITIAL,
+                adaptiveSessionRepo.find(activeSession.id)?.version ?: AggregateVersion.INITIAL,
             )
         try {
             adaptiveUseCases.execute(cmd, ctx)
