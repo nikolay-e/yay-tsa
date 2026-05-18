@@ -19,6 +19,8 @@ import dev.yaytsa.domain.adaptive.SessionState
 import dev.yaytsa.domain.ml.TasteProfile
 import dev.yaytsa.domain.ml.UserTrackAffinity
 import dev.yaytsa.domain.preferences.PreferenceContract
+import dev.yaytsa.persistence.adaptive.entity.LlmDecisionEntity
+import dev.yaytsa.persistence.adaptive.jpa.LlmDecisionJpaRepository
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.IdempotencyKey
@@ -42,7 +44,9 @@ class LlmOrchestrator(
     private val llmClient: LlmClient,
     private val clock: Clock,
     private val objectMapper: ObjectMapper,
+    private val decisionRepo: LlmDecisionJpaRepository,
     @Value("\${yaytsa.llm.enabled:false}") private val enabled: Boolean,
+    @Value("\${yaytsa.llm.model:claude-sonnet-4-20250514}") private val modelId: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -81,7 +85,9 @@ class LlmOrchestrator(
         val preferenceContract = preferencesQuery.getPreferenceContract(userId)
 
         val prompt = buildPrompt(session, signals, queueEntries, tasteProfile, topAffinities, preferenceContract)
+        val callStartMs = System.currentTimeMillis()
         val response = llmClient.complete(prompt) ?: return
+        val latencyMs = (System.currentTimeMillis() - callStartMs).toInt()
 
         val trackSuggestions = parseTrackSuggestions(response)
         if (trackSuggestions.isEmpty()) return
@@ -125,10 +131,56 @@ class LlmOrchestrator(
                 expectedVersion = aggregate.version,
             )
 
-        when (val result = adaptiveUseCases.execute(cmd, ctx)) {
+        val result = adaptiveUseCases.execute(cmd, ctx)
+        when (result) {
             is CommandResult.Success -> log.info("LLM-DJ added {} tracks to session {}", validSuggestions.size, sessionId.value)
             is CommandResult.Failed -> log.warn("LLM-DJ queue rewrite failed: {}", result.failure)
         }
+
+        recordDecision(sessionId, signals, prompt, validSuggestions, aggregate.queueVersion, result, latencyMs)
+    }
+
+    private fun recordDecision(
+        sessionId: ListeningSessionId,
+        signals: List<PlaybackSignal>,
+        prompt: String,
+        validSuggestions: List<Pair<TrackId, String>>,
+        baseQueueVersion: Long,
+        result: CommandResult<*>,
+        latencyMs: Int,
+    ) {
+        try {
+            val (validation, appliedVersion, details) =
+                when (result) {
+                    is CommandResult.Success -> Triple("OK", baseQueueVersion + 1, null)
+                    is CommandResult.Failed -> Triple("FAILED", null, result.failure.toString())
+                }
+            val editsJson = objectMapper.writeValueAsString(validSuggestions.map { mapOf("track_id" to it.first.value, "reason" to it.second) })
+            decisionRepo.save(
+                LlmDecisionEntity(
+                    sessionId = UUID.fromString(sessionId.value),
+                    triggerType = signals.firstOrNull()?.signalType ?: "SCHEDULED",
+                    triggerSignalId = signals.firstOrNull()?.id?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+                    promptHash = sha256(prompt),
+                    modelId = modelId,
+                    latencyMs = latencyMs,
+                    intent = "llm-dj",
+                    edits = editsJson,
+                    baseQueueVersion = baseQueueVersion,
+                    appliedQueueVersion = appliedVersion,
+                    validationResult = validation,
+                    validationDetails = details,
+                    createdAt = clock.now(),
+                ),
+            )
+        } catch (e: Exception) {
+            log.warn("Failed to persist LLM decision audit row: {}", e.message)
+        }
+    }
+
+    private fun sha256(s: String): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        return md.digest(s.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
 
     private fun buildPrompt(
