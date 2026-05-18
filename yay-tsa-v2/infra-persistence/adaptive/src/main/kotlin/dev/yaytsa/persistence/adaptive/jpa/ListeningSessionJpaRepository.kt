@@ -5,7 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository
 import java.util.UUID
 
 interface ListeningSessionJpaRepository : JpaRepository<ListeningSessionEntity, UUID> {
-    fun findByUserIdAndEndedAtIsNull(userId: UUID): ListeningSessionEntity?
+    // v1-ETL + early bugs can leave multiple ACTIVE rows per user; return the most
+    // recent so /v1/sessions/active doesn't blow up with IncorrectResultSizeDataAccessException.
+    fun findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(userId: UUID): ListeningSessionEntity?
 
     fun findByEndedAtIsNull(): List<ListeningSessionEntity>
 }

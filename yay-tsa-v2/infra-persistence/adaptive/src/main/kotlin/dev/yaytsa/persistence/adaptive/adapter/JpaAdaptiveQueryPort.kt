@@ -29,7 +29,7 @@ class JpaAdaptiveQueryPort(
 
     override fun findActiveSession(userId: UserId): ListeningSession? {
         val uid = UUID.fromString(userId.value)
-        val entity = sessionJpa.findByUserIdAndEndedAtIsNull(uid) ?: return null
+        val entity = sessionJpa.findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(uid) ?: return null
         return AdaptiveMappers.toDomain(entity)
     }
 

@@ -38,7 +38,7 @@ class JpaAdaptiveSessionRepository(
     @Transactional(readOnly = true)
     override fun findActiveByUser(userId: UserId): AdaptiveSessionAggregate? {
         val uuid = UUID.fromString(userId.value)
-        val entity = sessionJpa.findByUserIdAndEndedAtIsNull(uuid) ?: return null
+        val entity = sessionJpa.findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(uuid) ?: return null
         val queueEntries = queueEntryJpa.findBySessionIdOrderByPositionAsc(entity.id)
         return toDomain(entity, queueEntries)
     }
