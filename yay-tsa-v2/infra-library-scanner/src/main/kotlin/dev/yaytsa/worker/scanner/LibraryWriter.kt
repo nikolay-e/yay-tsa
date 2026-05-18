@@ -292,10 +292,13 @@ class LibraryWriter(
         }
         if (trackChanged) trackRepo.save(trackRow)
 
-        // Repair filename-fallback titles: existing rows with leading track-number
-        // prefix get cleaned on next scan ("01 - Eyeless" -> "Eyeless").
-        val existingHasFilenamePrefix = Regex("^\\d{1,3}\\s*[-._]\\s*").containsMatchIn(existingTrack.name ?: "")
-        if (existingHasFilenamePrefix && derivedName != existingTrack.name) {
+        // Repair stale titles. Two cases overwrite the DB row from the freshly-read tag:
+        //   1) existing name is a filename-fallback ("01 - Eyeless")
+        //   2) existing name diverges from the file's actual ID3 title — v1 ETL rows
+        //      from earlier scans had titles that didn't match the filename (e.g. row
+        //      for "01 - In The Heart Of Stone.flac" had name="November 3023"), see
+        //      issue #213. The tag we just read is authoritative for the same file.
+        if (derivedName.isNotBlank() && derivedName != existingTrack.name) {
             existingTrack.name = derivedName
             existingTrack.sortName = derivedName.lowercase()
             entityRepo.save(existingTrack)
