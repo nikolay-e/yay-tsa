@@ -4,9 +4,9 @@ import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.ApiTokenId
 import dev.yaytsa.domain.auth.CreateApiToken
 import dev.yaytsa.domain.auth.CreateUser
-import dev.yaytsa.domain.auth.DeviceId
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId

@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation(libs.jackson.module.kotlin)
+    implementation(libs.caffeine)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotest.runner.junit5)

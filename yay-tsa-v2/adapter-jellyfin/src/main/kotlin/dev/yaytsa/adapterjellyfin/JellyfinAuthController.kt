@@ -4,10 +4,11 @@ import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.ApiTokenId
 import dev.yaytsa.domain.auth.CreateApiToken
-import dev.yaytsa.domain.auth.DeviceId
 import dev.yaytsa.domain.auth.RevokeApiToken
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
+import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
@@ -167,11 +168,7 @@ class JellyfinAuthController(
         // login from other devices, so a single attempt under load races losing.
         repeat(2) {
             val user = authQueries.findUser(uid) ?: return
-            val tokenHash =
-                java.security.MessageDigest
-                    .getInstance("SHA-256")
-                    .digest(rawToken.toByteArray(Charsets.UTF_8))
-                    .joinToString("") { "%02x".format(it) }
+            val tokenHash = Hashing.sha256Hex(rawToken)
             val apiToken = user.apiTokens.find { it.token == tokenHash && !it.revoked } ?: return
             val cmd = RevokeApiToken(uid, apiToken.id)
             val ctx =

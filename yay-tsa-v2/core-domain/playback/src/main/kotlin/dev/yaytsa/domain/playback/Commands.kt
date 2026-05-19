@@ -1,6 +1,7 @@
 package dev.yaytsa.domain.playback
 
 import dev.yaytsa.shared.Command
+import dev.yaytsa.shared.DeviceId
 import java.time.Duration
 
 sealed interface PlaybackCommand : Command {

@@ -1,6 +1,7 @@
 package dev.yaytsa.domain.playback
 
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import java.time.Duration

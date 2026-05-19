@@ -23,6 +23,7 @@ import dev.yaytsa.persistence.adaptive.entity.LlmDecisionEntity
 import dev.yaytsa.persistence.adaptive.jpa.LlmDecisionJpaRepository
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId
@@ -161,7 +162,7 @@ class LlmOrchestrator(
                     sessionId = UUID.fromString(sessionId.value),
                     triggerType = signals.firstOrNull()?.signalType ?: "SCHEDULED",
                     triggerSignalId = signals.firstOrNull()?.id?.let { runCatching { UUID.fromString(it) }.getOrNull() },
-                    promptHash = sha256(prompt),
+                    promptHash = Hashing.sha256Hex(prompt),
                     modelId = modelId,
                     latencyMs = latencyMs,
                     intent = "llm-dj",
@@ -176,11 +177,6 @@ class LlmOrchestrator(
         } catch (e: Exception) {
             log.warn("Failed to persist LLM decision audit row: {}", e.message)
         }
-    }
-
-    private fun sha256(s: String): String {
-        val md = java.security.MessageDigest.getInstance("SHA-256")
-        return md.digest(s.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
 
     private fun buildPrompt(

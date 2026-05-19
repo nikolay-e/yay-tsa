@@ -21,9 +21,8 @@ spec:
         {{- include "yay-tsa-v2.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: backend
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
+      {{- if .Values.imagePullSecrets }}
+      {{- include "yay-tsa-common.deployment.imagePullSecrets" . | nindent 6 }}
       {{- end }}
       securityContext:
         runAsNonRoot: {{ .Values.backend.securityContext.runAsNonRoot }}
@@ -90,22 +89,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "yay-tsa-v2.fullname" . }}-backend
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.backend.probes.liveness.path }}
-              port: {{ .Values.backend.probes.liveness.port }}
-            initialDelaySeconds: {{ .Values.backend.probes.liveness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.backend.probes.liveness.periodSeconds }}
-            timeoutSeconds: {{ .Values.backend.probes.liveness.timeoutSeconds }}
-            failureThreshold: {{ .Values.backend.probes.liveness.failureThreshold }}
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.backend.probes.readiness.path }}
-              port: {{ .Values.backend.probes.readiness.port }}
-            initialDelaySeconds: {{ .Values.backend.probes.readiness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.backend.probes.readiness.periodSeconds }}
-            timeoutSeconds: {{ .Values.backend.probes.readiness.timeoutSeconds }}
-            failureThreshold: {{ .Values.backend.probes.readiness.failureThreshold }}
+          {{- include "yay-tsa-common.deployment.standardProbes" (dict "liveness" .Values.backend.probes.liveness "readiness" .Values.backend.probes.readiness) | nindent 10 }}
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           securityContext:

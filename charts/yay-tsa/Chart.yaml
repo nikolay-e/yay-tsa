@@ -19,3 +19,8 @@ home: https://github.com/nikolay-e/yay-tsa
 
 sources:
   - https://github.com/nikolay-e/yay-tsa
+
+dependencies:
+  - name: yay-tsa-common
+    version: 0.1.0
+    repository: 'file://../yay-tsa-common'

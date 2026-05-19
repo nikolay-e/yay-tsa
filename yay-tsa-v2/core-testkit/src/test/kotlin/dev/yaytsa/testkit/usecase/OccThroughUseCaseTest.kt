@@ -3,13 +3,13 @@ package dev.yaytsa.testkit.usecase
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.shared.port.TransactionalCommandExecutor
 import dev.yaytsa.domain.playback.AcquireLease
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.PlaybackSessionAggregate
 import dev.yaytsa.domain.playback.RefreshLease
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId

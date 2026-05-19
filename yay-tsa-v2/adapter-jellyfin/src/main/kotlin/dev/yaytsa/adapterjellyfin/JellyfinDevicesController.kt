@@ -3,7 +3,6 @@ package dev.yaytsa.adapterjellyfin
 import dev.yaytsa.application.playback.DeviceSessionProjection
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.shared.port.Clock
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.Seek
@@ -12,6 +11,7 @@ import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId

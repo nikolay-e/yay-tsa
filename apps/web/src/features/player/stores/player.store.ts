@@ -150,11 +150,8 @@ function startPlaybackReporter(trackId: string): void {
   });
 }
 
-function resolveNextItem(queue: PlaybackQueue, repeatMode: RepeatMode): AudioItem | null {
-  const next = queue.peekNext();
-  if (next) return next;
-  if (repeatMode === 'all' && !queue.isEmpty()) return queue.getItemAt(0);
-  return null;
+function resolveNextItem(queue: PlaybackQueue, _repeatMode: RepeatMode): AudioItem | null {
+  return queue.peekNext();
 }
 
 function autoAdvanceOnError(get: () => PlayerStore): void {

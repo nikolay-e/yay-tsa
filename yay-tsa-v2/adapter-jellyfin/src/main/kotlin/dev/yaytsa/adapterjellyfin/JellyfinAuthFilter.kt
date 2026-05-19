@@ -1,6 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.auth.AuthQueries
+import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.UserId
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -49,11 +50,7 @@ class JellyfinAuthFilter(
         if (token != null && SecurityContextHolder.getContext().authentication == null) {
             val user = authQueries.findByApiToken(token)
             if (user != null && user.isActive) {
-                val hashedToken =
-                    java.security.MessageDigest
-                        .getInstance("SHA-256")
-                        .digest(token.toByteArray(Charsets.UTF_8))
-                        .joinToString("") { "%02x".format(it) }
+                val hashedToken = Hashing.sha256Hex(token)
                 val apiToken = user.apiTokens.find { it.token == hashedToken }
                 val expired =
                     apiToken?.expiresAt?.let {

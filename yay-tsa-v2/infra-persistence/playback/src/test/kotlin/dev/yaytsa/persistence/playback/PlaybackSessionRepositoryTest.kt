@@ -2,7 +2,6 @@ package dev.yaytsa.persistence.playback
 
 import dev.yaytsa.application.playback.port.PlaybackSessionRepository
 import dev.yaytsa.application.shared.port.OptimisticLockException
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.PlaybackLease
 import dev.yaytsa.domain.playback.PlaybackSessionAggregate
 import dev.yaytsa.domain.playback.PlaybackState
@@ -10,6 +9,7 @@ import dev.yaytsa.domain.playback.QueueEntry
 import dev.yaytsa.domain.playback.QueueEntryId
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.junit.jupiter.api.Assertions.assertEquals

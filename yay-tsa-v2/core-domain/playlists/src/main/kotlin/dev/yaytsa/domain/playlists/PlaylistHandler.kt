@@ -6,6 +6,7 @@ import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.asCommandFailure
 import dev.yaytsa.shared.asSuccess
+import dev.yaytsa.shared.guardOcc
 
 object PlaylistHandler {
     fun handle(
@@ -19,9 +20,7 @@ object PlaylistHandler {
         if (snapshot == null) {
             return Failure.NotFound("Playlist", cmd.playlistId.value).asCommandFailure()
         }
-        if (snapshot.version != ctx.expectedVersion) {
-            return CommandResult.Failed(Failure.Conflict(ctx.expectedVersion, snapshot.version))
-        }
+        guardOcc(snapshot.version, ctx.expectedVersion)?.let { return it }
         if (snapshot.owner != ctx.userId) {
             return Failure.Unauthorized("Not the playlist owner").asCommandFailure()
         }

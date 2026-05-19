@@ -1,7 +1,6 @@
 package dev.yaytsa.testkit.property
 
 import dev.yaytsa.domain.playback.AcquireLease
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.PlaybackDeps
 import dev.yaytsa.domain.playback.PlaybackHandler
 import dev.yaytsa.domain.playback.PlaybackSessionAggregate
@@ -22,6 +21,7 @@ import dev.yaytsa.domain.preferences.UserPreferencesAggregate
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId

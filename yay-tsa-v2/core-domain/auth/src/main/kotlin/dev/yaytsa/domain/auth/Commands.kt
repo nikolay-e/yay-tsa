@@ -1,6 +1,7 @@
 package dev.yaytsa.domain.auth
 
 import dev.yaytsa.shared.Command
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.UserId
 import java.time.Instant
 

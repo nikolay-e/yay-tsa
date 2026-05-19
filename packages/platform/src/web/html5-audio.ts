@@ -1,4 +1,4 @@
-import { createLogger } from '@yay-tsa/core';
+import { createLogger, redactSecrets } from '@yay-tsa/core';
 import { type AudioEngine } from '../audio.interface.js';
 import { createFade } from './fade.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';
@@ -294,9 +294,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
   private sanitizeError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
-    return message
-      .replaceAll(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
-      .replaceAll(/token=[^&\s]+/gi, 'token=[REDACTED]');
+    return redactSecrets(message);
   }
 
   private ensureNotDisposed(): void {

@@ -4,7 +4,6 @@ import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.shared.port.Clock
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.SessionId
@@ -14,6 +13,7 @@ import dev.yaytsa.domain.playback.Stop
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId

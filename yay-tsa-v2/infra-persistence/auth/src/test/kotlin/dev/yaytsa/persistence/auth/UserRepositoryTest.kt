@@ -4,9 +4,9 @@ import dev.yaytsa.application.auth.port.UserRepository
 import dev.yaytsa.application.shared.port.OptimisticLockException
 import dev.yaytsa.domain.auth.ApiToken
 import dev.yaytsa.domain.auth.ApiTokenId
-import dev.yaytsa.domain.auth.DeviceId
 import dev.yaytsa.domain.auth.UserAggregate
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.UserId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull

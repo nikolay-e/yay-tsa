@@ -13,6 +13,8 @@ spotless = "7.0.2"
 detekt = "1.23.7"
 jackson = "2.18.2"
 springdoc = "2.8.6"
+bucket4j-spring-boot-starter = "0.12.10"
+caffeine = "3.1.8"
 
 [libraries]
 # Kotlin
@@ -36,6 +38,13 @@ jackson-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-da
 
 # OpenAPI
 springdoc-openapi-starter = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+
+# Rate limiting
+bucket4j-spring-boot-starter = { module = "com.giffing.bucket4j.spring.boot.starter:bucket4j-spring-boot-starter", version.ref = "bucket4j-spring-boot-starter" }
+spring-boot-starter-cache = { module = "org.springframework.boot:spring-boot-starter-cache" }
+jakarta-cache-api = { module = "javax.cache:cache-api" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+caffeine-jcache = { module = "com.github.ben-manes.caffeine:jcache", version.ref = "caffeine" }
 
 # Database
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }

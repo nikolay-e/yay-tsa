@@ -1,3 +1,5 @@
+import { redactSecrets } from './redact.js';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 interface LogContext {
@@ -80,10 +82,7 @@ function shouldLog(level: LogLevel): boolean {
 
 function sanitizeValue(value: unknown): unknown {
   if (typeof value === 'string') {
-    return value
-      .replaceAll(/api_key=[^&\s]+/gi, 'api_key=[REDACTED]')
-      .replaceAll(/token=[^&\s]+/gi, 'token=[REDACTED]')
-      .replaceAll(/password=[^&\s]+/gi, 'password=[REDACTED]');
+    return redactSecrets(value);
   }
   return value;
 }

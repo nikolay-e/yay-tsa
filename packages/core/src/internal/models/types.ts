@@ -39,59 +39,20 @@ export interface MediaServerUser {
   ServerId: string;
   Id: string;
   HasPassword: boolean;
-  HasConfiguredPassword: boolean;
-  HasConfiguredEasyPassword: boolean;
-  EnableAutoLogin?: boolean;
-  LastLoginDate?: string;
-  LastActivityDate?: string;
-  Configuration?: Record<string, unknown>;
   Policy: UserPolicy;
 }
 
 export interface UserPolicy {
   IsAdministrator: boolean;
-}
-
-export interface SessionUserInfo {
-  Id: string;
-  UserId: string;
-  UserName: string;
+  IsDisabled: boolean;
+  EnableAllFolders: boolean;
 }
 
 export interface SessionInfo {
-  PlayState: PlayState;
-  AdditionalUsers: SessionUserInfo[];
-  Capabilities: Record<string, unknown>;
-  RemoteEndPoint: string;
-  PlayableMediaTypes: string[];
   Id: string;
   UserId: string;
-  UserName: string;
-  Client: string;
-  LastActivityDate: string;
-  LastPlaybackCheckIn: string;
-  DeviceName: string;
-  DeviceId: string;
-  ApplicationVersion: string;
-  IsActive: boolean;
-  SupportsMediaControl: boolean;
-  SupportsRemoteControl: boolean;
-  HasCustomDeviceName: boolean;
-  ServerId: string;
-  UserPrimaryImageTag?: string;
-}
-
-export interface PlayState {
-  PositionTicks?: number;
-  CanSeek: boolean;
-  IsPaused: boolean;
-  IsMuted: boolean;
-  VolumeLevel?: number;
-  AudioStreamIndex?: number;
-  SubtitleStreamIndex?: number;
-  MediaSourceId?: string;
-  PlayMethod?: string;
-  RepeatMode: string;
+  DeviceId?: string;
+  DeviceName?: string;
 }
 
 // ============================================================================

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: yay-tsa-common
+description: Shared Helm template helpers for yay-tsa charts (deployments, ingresses)
+type: library
+version: 0.1.0
+appVersion: '0.1.0'
+
+maintainers:
+  - name: Nikolay Eremeev
+
+home: https://github.com/nikolay-e/yay-tsa
+
+sources:
+  - https://github.com/nikolay-e/yay-tsa

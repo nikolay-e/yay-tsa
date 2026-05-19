@@ -1,7 +1,7 @@
 package dev.yaytsa.application.playback
 
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.SessionId
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.UserId
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap

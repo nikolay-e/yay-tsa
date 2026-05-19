@@ -1,7 +1,6 @@
 package dev.yaytsa.testkit.scenario
 
 import dev.yaytsa.application.playback.PlaybackUseCases
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.QueueEntry
@@ -12,6 +11,7 @@ import dev.yaytsa.domain.playback.StartPlaybackWithTracks
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId

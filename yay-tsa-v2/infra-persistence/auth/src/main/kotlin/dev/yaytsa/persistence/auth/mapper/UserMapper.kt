@@ -2,12 +2,12 @@ package dev.yaytsa.persistence.auth.mapper
 
 import dev.yaytsa.domain.auth.ApiToken
 import dev.yaytsa.domain.auth.ApiTokenId
-import dev.yaytsa.domain.auth.DeviceId
 import dev.yaytsa.domain.auth.UserAggregate
 import dev.yaytsa.persistence.auth.TokenHasher
 import dev.yaytsa.persistence.auth.entity.ApiTokenEntity
 import dev.yaytsa.persistence.auth.entity.UserEntity
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.UserId
 import java.util.UUID
 

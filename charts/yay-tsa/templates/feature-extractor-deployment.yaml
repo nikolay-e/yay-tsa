@@ -20,13 +20,11 @@ spec:
         {{- include "yay-tsa.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: feature-extractor
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
+      {{- if .Values.imagePullSecrets }}
+      {{- include "yay-tsa-common.deployment.imagePullSecrets" . | nindent 6 }}
       {{- end }}
-      {{- with .Values.featureExtractor.podSecurityContext }}
-      securityContext:
-        {{- toYaml . | nindent 8 }}
+      {{- if .Values.featureExtractor.podSecurityContext }}
+      {{- include "yay-tsa-common.deployment.podSecurityContext" (dict "securityContext" .Values.featureExtractor.podSecurityContext) | nindent 6 }}
       {{- end }}
       containers:
         - name: feature-extractor
@@ -51,22 +49,7 @@ spec:
             timeoutSeconds: {{ .timeoutSeconds }}
             failureThreshold: {{ .failureThreshold }}
           {{- end }}
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.featureExtractor.probes.liveness.path }}
-              port: http
-            initialDelaySeconds: {{ .Values.featureExtractor.probes.liveness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.featureExtractor.probes.liveness.periodSeconds }}
-            timeoutSeconds: {{ .Values.featureExtractor.probes.liveness.timeoutSeconds }}
-            failureThreshold: {{ .Values.featureExtractor.probes.liveness.failureThreshold }}
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.featureExtractor.probes.readiness.path }}
-              port: http
-            initialDelaySeconds: {{ .Values.featureExtractor.probes.readiness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.featureExtractor.probes.readiness.periodSeconds }}
-            timeoutSeconds: {{ .Values.featureExtractor.probes.readiness.timeoutSeconds }}
-            failureThreshold: {{ .Values.featureExtractor.probes.readiness.failureThreshold }}
+          {{- include "yay-tsa-common.deployment.standardProbes" (dict "port" "http" "liveness" .Values.featureExtractor.probes.liveness "readiness" .Values.featureExtractor.probes.readiness) | nindent 10 }}
           resources:
             {{- toYaml .Values.featureExtractor.resources | nindent 12 }}
           securityContext:

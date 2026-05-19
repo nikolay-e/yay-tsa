@@ -5,6 +5,7 @@ import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.asCommandFailure
 import dev.yaytsa.shared.asSuccess
+import dev.yaytsa.shared.guardOcc
 
 object PreferencesHandler {
     fun handle(
@@ -13,9 +14,7 @@ object PreferencesHandler {
         ctx: CommandContext,
         deps: PreferencesDeps,
     ): CommandResult<UserPreferencesAggregate> {
-        if (snapshot.version != ctx.expectedVersion) {
-            return CommandResult.Failed(Failure.Conflict(ctx.expectedVersion, snapshot.version))
-        }
+        guardOcc(snapshot.version, ctx.expectedVersion)?.let { return it }
         if (snapshot.userId != ctx.userId) {
             return Failure.Unauthorized("Cannot modify another user's preferences").asCommandFailure()
         }

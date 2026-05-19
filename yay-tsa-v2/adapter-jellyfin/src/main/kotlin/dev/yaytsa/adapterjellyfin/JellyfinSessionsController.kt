@@ -1,6 +1,8 @@
 package dev.yaytsa.adapterjellyfin
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 @RestController
@@ -31,7 +35,12 @@ class JellyfinSessionsController(
     private val scrobbleService: ScrobbleService,
     private val clock: Clock,
 ) {
-    private val playbackStarts = java.util.concurrent.ConcurrentHashMap<String, java.time.Instant>()
+    private val playbackStarts: Cache<String, Instant> =
+        Caffeine
+            .newBuilder()
+            .expireAfterWrite(Duration.ofHours(6))
+            .maximumSize(10_000)
+            .build()
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
     private fun isValidUuid(value: String): Boolean =
@@ -46,17 +55,32 @@ class JellyfinSessionsController(
         @JsonProperty("ItemId") val itemId: String,
         @JsonProperty("PositionTicks") val positionTicks: Long = 0,
         @JsonProperty("IsPaused") val isPaused: Boolean = false,
+        @JsonProperty("CanSeek") val canSeek: Boolean = true,
+        @JsonProperty("PlayMethod") val playMethod: String? = null,
+        @JsonProperty("MediaSourceId") val mediaSourceId: String? = null,
+        @JsonProperty("AudioStreamIndex") val audioStreamIndex: Int? = null,
+        @JsonProperty("SubtitleStreamIndex") val subtitleStreamIndex: Int? = null,
+        @JsonProperty("VolumeLevel") val volumeLevel: Int? = null,
+        @JsonProperty("IsMuted") val isMuted: Boolean? = null,
     )
 
     data class PlaybackProgressInfo(
         @JsonProperty("ItemId") val itemId: String,
         @JsonProperty("PositionTicks") val positionTicks: Long = 0,
         @JsonProperty("IsPaused") val isPaused: Boolean = false,
+        @JsonProperty("CanSeek") val canSeek: Boolean? = null,
+        @JsonProperty("PlayMethod") val playMethod: String? = null,
+        @JsonProperty("MediaSourceId") val mediaSourceId: String? = null,
+        @JsonProperty("AudioStreamIndex") val audioStreamIndex: Int? = null,
+        @JsonProperty("SubtitleStreamIndex") val subtitleStreamIndex: Int? = null,
+        @JsonProperty("VolumeLevel") val volumeLevel: Int? = null,
+        @JsonProperty("IsMuted") val isMuted: Boolean? = null,
     )
 
     data class PlaybackStopInfo(
         @JsonProperty("ItemId") val itemId: String,
         @JsonProperty("PositionTicks") val positionTicks: Long = 0,
+        @JsonProperty("MediaSourceId") val mediaSourceId: String? = null,
     )
 
     @GetMapping
@@ -68,7 +92,7 @@ class JellyfinSessionsController(
         principal: Principal,
     ): ResponseEntity<Void> {
         if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
-        playbackStarts["${principal.name}:${info.itemId}"] = clock.now()
+        playbackStarts.put("${principal.name}:${info.itemId}", clock.now())
         recordSignal(principal, info.itemId, "PLAY_START")
         return ResponseEntity.noContent().build()
     }
@@ -100,7 +124,8 @@ class JellyfinSessionsController(
 
         // Retrieve actual start time from when reportPlaying was called
         val startKey = "${principal.name}:${info.itemId}"
-        val startedAt = playbackStarts.remove(startKey) ?: now
+        val startedAt = playbackStarts.getIfPresent(startKey) ?: now
+        playbackStarts.invalidate(startKey)
 
         // Delegate scrobble decision to core-application
         scrobbleService.recordScrobble(

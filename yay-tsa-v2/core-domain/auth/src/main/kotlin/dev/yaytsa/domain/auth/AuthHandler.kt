@@ -6,6 +6,7 @@ import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.asCommandFailure
 import dev.yaytsa.shared.asSuccess
+import dev.yaytsa.shared.guardOcc
 
 object AuthHandler {
     fun handle(
@@ -24,8 +25,7 @@ object AuthHandler {
             return Failure.NotFound("User", cmd.userId.value).asCommandFailure()
         }
 
-        val versionCheck = checkVersion(snapshot.version, ctx.expectedVersion)
-        if (versionCheck != null) return versionCheck
+        guardOcc(snapshot.version, ctx.expectedVersion)?.let { return it }
 
         if (!snapshot.isActive && cmd !is ActivateUser) {
             return Failure.Unauthorized("User is deactivated").asCommandFailure()
@@ -247,15 +247,5 @@ object AuthHandler {
             apiTokens = emptyList(),
             version = version,
         ).asSuccess(version)
-    }
-
-    private fun checkVersion(
-        actual: AggregateVersion,
-        expected: AggregateVersion,
-    ): CommandResult.Failed? {
-        if (actual != expected) {
-            return CommandResult.Failed(Failure.Conflict(expected, actual))
-        }
-        return null
     }
 }

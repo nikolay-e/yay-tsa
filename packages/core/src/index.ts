@@ -81,6 +81,7 @@ export {
   type LogContext,
   type LogLevel,
 } from './internal/utils/logger.js';
+export { redactSecrets } from './internal/utils/redact.js';
 
 // Sync
 export { ServerClock } from './sync/server-clock.js';

@@ -2,6 +2,15 @@ spring:
   application:
     name: yaytsa
 
+  cache:
+    jcache:
+      provider: com.github.benmanes.caffeine.jcache.spi.CaffeineCachingProvider
+    cache-names:
+      - rate-limit-buckets
+      - filterConfigCache
+    caffeine:
+      spec: maximumSize=100000,expireAfterAccess=600s
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:yaytsa}
     username: ${DB_USERNAME:yaytsa}
@@ -91,6 +100,36 @@ server:
     remoteip:
       remote-ip-header: X-Forwarded-For
       protocol-header: X-Forwarded-Proto
+
+bucket4j:
+  enabled: true
+  filters:
+    - id: jellyfin-login
+      cache-name: rate-limit-buckets
+      url: ^/Users/AuthenticateByName$
+      http-status-code: TOO_MANY_REQUESTS
+      http-content-type: application/json
+      http-response-body: '{"error":"Too many requests. Try again later."}'
+      rate-limits:
+        - cache-key: getRemoteAddr() + ':' + getRequestURI()
+          bandwidths:
+            - capacity: 10
+              time: 1
+              unit: minutes
+              refill-speed: interval
+    - id: subsonic-rest
+      cache-name: rate-limit-buckets
+      url: ^/rest/.*
+      http-status-code: TOO_MANY_REQUESTS
+      http-content-type: application/json
+      http-response-body: '{"error":"Too many requests. Try again later."}'
+      rate-limits:
+        - cache-key: getRemoteAddr() + ':' + getRequestURI()
+          bandwidths:
+            - capacity: 10
+              time: 1
+              unit: minutes
+              refill-speed: interval
 
 logging:
   level:

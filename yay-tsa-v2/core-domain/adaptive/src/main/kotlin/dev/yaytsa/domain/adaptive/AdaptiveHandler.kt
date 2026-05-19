@@ -5,6 +5,7 @@ import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.asCommandFailure
 import dev.yaytsa.shared.asSuccess
+import dev.yaytsa.shared.guardOcc
 
 object AdaptiveHandler {
     fun handle(
@@ -50,9 +51,7 @@ object AdaptiveHandler {
         if (snapshot == null) {
             return Failure.NotFound("AdaptiveSession", cmd.sessionId.value).asCommandFailure()
         }
-        if (snapshot.version != ctx.expectedVersion) {
-            return CommandResult.Failed(Failure.Conflict(ctx.expectedVersion, snapshot.version))
-        }
+        guardOcc(snapshot.version, ctx.expectedVersion)?.let { return it }
         return block(snapshot)
     }
 

@@ -2,10 +2,12 @@ package dev.yaytsa.domain.playback
 
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.asCommandFailure
 import dev.yaytsa.shared.asSuccess
+import dev.yaytsa.shared.guardOcc
 import java.time.Duration
 
 object PlaybackHandler {
@@ -17,9 +19,7 @@ object PlaybackHandler {
         ctx: CommandContext,
         deps: PlaybackDeps,
     ): CommandResult<PlaybackSessionAggregate> {
-        if (snapshot.version != ctx.expectedVersion) {
-            return CommandResult.Failed(Failure.Conflict(ctx.expectedVersion, snapshot.version))
-        }
+        guardOcc(snapshot.version, ctx.expectedVersion)?.let { return it }
         return when (cmd) {
             is AcquireLease -> acquireLease(snapshot, cmd, ctx)
             is ReleaseLease -> releaseLease(snapshot, cmd, ctx)

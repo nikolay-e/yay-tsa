@@ -4,7 +4,6 @@ import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.shared.ProtocolCapabilitiesRegistry
 import dev.yaytsa.domain.playback.AcquireLease
 import dev.yaytsa.domain.playback.AddToQueue
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.QueueEntry
 import dev.yaytsa.domain.playback.QueueEntryId
 import dev.yaytsa.domain.playback.Seek
@@ -13,6 +12,7 @@ import dev.yaytsa.domain.playback.StartPlaybackWithTracks
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId

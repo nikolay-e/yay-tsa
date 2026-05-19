@@ -67,6 +67,13 @@ dependencies {
     implementation(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 
+    // Rate limiting: Bucket4j Spring Boot Starter with Caffeine JCache backend
+    implementation(libs.bucket4j.spring.boot.starter)
+    implementation(libs.spring.boot.starter.cache)
+    implementation(libs.jakarta.cache.api)
+    implementation(libs.caffeine)
+    implementation(libs.caffeine.jcache)
+
     testImplementation(project(":core-testkit"))
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotest.runner.junit5)

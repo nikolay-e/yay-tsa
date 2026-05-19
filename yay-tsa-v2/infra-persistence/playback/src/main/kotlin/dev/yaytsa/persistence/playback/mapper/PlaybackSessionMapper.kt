@@ -1,6 +1,5 @@
 package dev.yaytsa.persistence.playback.mapper
 
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.PlaybackLease
 import dev.yaytsa.domain.playback.PlaybackSessionAggregate
 import dev.yaytsa.domain.playback.PlaybackState
@@ -10,6 +9,7 @@ import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.persistence.playback.entity.PlaybackSessionEntity
 import dev.yaytsa.persistence.playback.entity.QueueEntryEntity
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import java.time.Duration

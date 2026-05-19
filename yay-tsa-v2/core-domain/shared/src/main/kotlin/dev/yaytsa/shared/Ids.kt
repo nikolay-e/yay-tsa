@@ -9,6 +9,10 @@ package dev.yaytsa.shared
     val value: String,
 )
 
+@JvmInline value class DeviceId(
+    val value: String,
+)
+
 @JvmInline value class EntityId(
     val value: String,
 )

@@ -3,7 +3,6 @@ package dev.yaytsa.testkit.property
 import dev.yaytsa.domain.playback.AcquireLease
 import dev.yaytsa.domain.playback.AddToQueue
 import dev.yaytsa.domain.playback.ClearQueue
-import dev.yaytsa.domain.playback.DeviceId
 import dev.yaytsa.domain.playback.MoveQueueEntry
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
@@ -22,6 +21,7 @@ import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
+import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId
