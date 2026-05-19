@@ -12,7 +12,7 @@ permissions:
 jobs:
   review:
     if: github.event.pull_request.user.login != 'dependabot[bot]'
-    uses: nikolay-e/treemapper-claude-code-review-action/.github/workflows/claude-code-review.yml@1deb98c84c5519a738e905e1a47679bfc832554d # main
+    uses: nikolay-e/treemapper-claude-code-review-action/.github/workflows/claude-code-review.yml@66902c2e56cf94bf4bc57126a06a5ea3c3b74ac2 # main
     with:
       model: claude-opus-4-6
       max_turns: 15
