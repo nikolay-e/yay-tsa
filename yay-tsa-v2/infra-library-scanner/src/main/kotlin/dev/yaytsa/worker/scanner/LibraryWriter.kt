@@ -124,10 +124,11 @@ class LibraryWriter(
         val sampleRate = audioHeader?.sampleRateAsNumber?.toInt()
         val channels = audioHeader?.channels?.toIntOrNull()
 
-        // Skip unplayable files: zero/missing duration usually means CD pre-gap files
-        // (e.g. "00 - pregap.flac") or audio the scanner couldn't decode. Clients can't
-        // play them and they pollute album track lists with phantom entries.
-        if (durationMs == null || durationMs <= 0L) {
+        // Skip unplayable files: missing duration, zero, or <2s (CD pre-gap files like
+        // "00 - pregap.flac", corrupt FLACs with bogus 1.0s LENGTH headers, or audio the
+        // scanner couldn't decode). Clients can't usefully play them and they pollute
+        // album track lists with phantom entries — Fixes #217.
+        if (durationMs == null || durationMs < MIN_PLAYABLE_DURATION_MS) {
             return
         }
 
@@ -405,4 +406,10 @@ class LibraryWriter(
         } catch (_: Exception) {
             null
         }
+
+    companion object {
+        // Tracks shorter than this are usually CD pre-gap files, corrupt FLACs with
+        // placeholder 1s LENGTH headers, or junk the scanner couldn't decode properly.
+        private const val MIN_PLAYABLE_DURATION_MS = 2000L
+    }
 }
