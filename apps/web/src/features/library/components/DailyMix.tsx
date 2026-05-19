@@ -5,7 +5,7 @@ import {
   useIsPlaying,
 } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
-import { useInfiniteTracks } from '../hooks/useTracks';
+import { useDailyMix } from '../hooks/useDailyMix';
 import { TrackList } from './TrackList';
 
 const DAILY_MIX_LIMIT = 30;
@@ -16,13 +16,9 @@ export function DailyMix() {
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
-  const { data, isLoading } = useInfiniteTracks({
-    sortBy: 'DatePlayed',
-    sortOrder: 'Descending',
-    limit: DAILY_MIX_LIMIT,
-  });
+  const { data, isLoading } = useDailyMix(DAILY_MIX_LIMIT);
 
-  const tracks = data?.pages[0]?.Items ?? [];
+  const tracks = data ?? [];
 
   const handlePlayTrack = (_track: unknown, index: number) => {
     playTracks(tracks, index);

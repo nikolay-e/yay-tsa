@@ -1,3 +1,4 @@
+import type { AudioItem, ItemsResult } from '../internal/models/types.js';
 import type {
   ListeningSession,
   SessionState,
@@ -77,6 +78,14 @@ export class AdaptiveDjService extends BaseService {
   async getRadioSeeds(): Promise<RadioSeedsResponse | null> {
     const result = await this.client.get<RadioSeedsResponse>('/v1/recommend/radio/seeds');
     return result ?? null;
+  }
+
+  async getDailyMix(limit = 30): Promise<AudioItem[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const result = await this.client.get<ItemsResult<AudioItem>>(
+      `/v1/recommend/daily-mix?${params.toString()}`
+    );
+    return result?.Items ?? [];
   }
 
   async searchByText(query: string, limit = 20): Promise<RecommendedTrack[]> {

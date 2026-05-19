@@ -1,6 +1,8 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.TrackLookups
+import dev.yaytsa.adaptershared.toJellyfinBaseItem
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
@@ -295,8 +297,18 @@ class JellyfinAdaptiveController(
         principal: Principal?,
     ): ResponseEntity<Any> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
-        val tracks = buildRecommendedTracks(UserId(uid), limit.coerceIn(1, 100))
-        return ResponseEntity.ok(mapOf("tracks" to tracks, "available" to tracks.isNotEmpty()))
+        val userId = UserId(uid)
+        val tracks = pickRecommendedTracks(userId, limit.coerceIn(1, 100))
+        val favTrackIds =
+            preferencesQueries
+                .find(userId)
+                ?.favorites
+                .orEmpty()
+                .map { it.trackId.value }
+                .toSet()
+        val lookups = trackLookups(tracks)
+        val items = tracks.map { it.toJellyfinBaseItem(favTrackIds, lookups) }
+        return ResponseEntity.ok(mapOf("Items" to items, "TotalRecordCount" to items.size))
     }
 
     @GetMapping("/recommend/search")
@@ -308,26 +320,37 @@ class JellyfinAdaptiveController(
         return ResponseEntity.ok(emptyList<Any>())
     }
 
-    /**
-     * Pick recommendation tracks: top user-track affinities first, then favorites
-     * (in case affinities are still cold for a new user), then a varied sample
-     * across the library. Result is deduped by trackId.
-     */
     private fun buildRecommendedTracks(
         userId: UserId,
         limit: Int,
-    ): List<Map<String, Any?>> {
+    ): List<Map<String, Any?>> = pickRecommendedTracks(userId, limit).map { trackToSeedMap(it) }
+
+    /**
+     * Shuffled sample of top user-track affinities (so the Daily Mix actually changes between
+     * refreshes), then favorites (cold-start for new users), then a varied sample across the
+     * library. Result is deduped by trackId.
+     */
+    private fun pickRecommendedTracks(
+        userId: UserId,
+        limit: Int,
+    ): List<dev.yaytsa.domain.library.Track> {
         val seen = mutableSetOf<String>()
         val out = mutableListOf<dev.yaytsa.domain.library.Track>()
 
-        mlQuery.getTopAffinities(userId, limit).forEach { aff ->
+        val poolSize = (limit * AFFINITY_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
+        mlQuery.getTopAffinities(userId, poolSize).shuffled().forEach { aff ->
             if (out.size >= limit) return@forEach
             val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
             if (seen.add(track.id.value)) out.add(track)
         }
 
         if (out.size < limit) {
-            val favorites = preferencesQueries.find(userId)?.favorites.orEmpty()
+            val favorites =
+                preferencesQueries
+                    .find(userId)
+                    ?.favorites
+                    .orEmpty()
+                    .shuffled()
             favorites.forEach { fav ->
                 if (out.size >= limit) return@forEach
                 val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
@@ -342,13 +365,71 @@ class JellyfinAdaptiveController(
             }
         }
 
-        return out.take(limit).map { trackToSeedMap(it) }
+        return out.take(limit)
     }
 
+    private fun trackLookups(tracks: List<dev.yaytsa.domain.library.Track>): TrackLookups {
+        if (tracks.isEmpty()) return TrackLookups()
+        val albumIds = tracks.mapNotNull { it.albumId }.toSet()
+        val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
+        return TrackLookups(
+            albumNames = libraryQueries.getEntityNamesByIds(albumIds),
+            artistNames = libraryQueries.getEntityNamesByIds(artistIds),
+        )
+    }
+
+    /**
+     * Radio seeds = one station per artist. We pull a wide pool of top affinities,
+     * collapse to the highest-affinity track per albumArtistId, shuffle the resulting
+     * artists, and take [limit]. Fallback to favorites and random library so the row
+     * isn't empty for cold-start users.
+     */
     private fun buildRecommendedSeeds(
         userId: UserId,
         limit: Int,
-    ): List<Map<String, Any?>> = buildRecommendedTracks(userId, limit)
+    ): List<Map<String, Any?>> {
+        val perArtist = LinkedHashMap<String, dev.yaytsa.domain.library.Track>()
+        val seenTracks = mutableSetOf<String>()
+
+        val poolSize = (limit * SEED_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
+        mlQuery.getTopAffinities(userId, poolSize).forEach { aff ->
+            val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+            val artistKey = track.albumArtistId?.value ?: track.id.value
+            if (artistKey !in perArtist) perArtist[artistKey] = track
+            seenTracks.add(track.id.value)
+        }
+
+        val picked = perArtist.values.toMutableList().also { it.shuffle() }
+
+        if (picked.size < limit) {
+            val favorites =
+                preferencesQueries
+                    .find(userId)
+                    ?.favorites
+                    .orEmpty()
+                    .shuffled()
+            for (fav in favorites) {
+                if (picked.size >= limit) break
+                val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: continue
+                val artistKey = track.albumArtistId?.value ?: track.id.value
+                if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {
+                    picked.add(track)
+                }
+            }
+        }
+
+        if (picked.size < limit) {
+            libraryQueries.browseTracksRandom((limit - picked.size) * 2).forEach { track ->
+                if (picked.size >= limit) return@forEach
+                val artistKey = track.albumArtistId?.value ?: track.id.value
+                if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {
+                    picked.add(track)
+                }
+            }
+        }
+
+        return picked.take(limit).map { trackToSeedMap(it) }
+    }
 
     private fun trackToSeedMap(track: dev.yaytsa.domain.library.Track): Map<String, Any?> {
         val albumName =
@@ -368,5 +449,13 @@ class JellyfinAdaptiveController(
 
     companion object {
         private const val REFRESH_QUEUE_BOOTSTRAP_SIZE = 10
+
+        // Larger pool than [limit] so .shuffled() gives the user a fresh slice on each refresh
+        // instead of the deterministic top-N by affinity_score.
+        private const val AFFINITY_POOL_MULTIPLIER = 5
+
+        // Radio seeds collapse to one-per-artist, so we need a wider pool than [limit] to find
+        // [limit] distinct artists even when a user's affinities cluster around a few favorites.
+        private const val SEED_POOL_MULTIPLIER = 20
     }
 }
