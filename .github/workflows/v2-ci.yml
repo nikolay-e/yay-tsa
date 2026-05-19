@@ -78,6 +78,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image-name: yay-tsa-v2/backend
-          context: ./yay-tsa-v2
+          context: .
+          dockerfile: yay-tsa-v2/Dockerfile
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
