@@ -14,7 +14,6 @@ class SecurityConfig(
     private val apiTokenAuthFilter: ApiTokenAuthFilter,
     private val jellyfinAuthFilter: dev.yaytsa.adapterjellyfin.JellyfinAuthFilter,
     private val subsonicAuthFilter: dev.yaytsa.adapteropensubsonic.SubsonicAuthFilter,
-    private val rateLimitFilter: RateLimitFilter,
 ) {
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
@@ -57,8 +56,7 @@ class SecurityConfig(
                 it.authenticationEntryPoint { _, response, _ ->
                     response.sendError(401, "Unauthorized")
                 }
-            }.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter::class.java)
-            .addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
+            }.addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(jellyfinAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(subsonicAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
         return http.build()
