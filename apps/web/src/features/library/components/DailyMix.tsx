@@ -1,14 +1,43 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   usePlayerStore,
   useCurrentTrack,
   useIsPlaying,
 } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
-import { useDailyMix } from '../hooks/useDailyMix';
+import { useDailyMix, DAILY_MIX_QUERY_KEY } from '../hooks/useDailyMix';
 import { TrackList } from './TrackList';
 
 const DAILY_MIX_LIMIT = 30;
+
+function DailyMixRefreshButton() {
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleClick = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: DAILY_MIX_QUERY_KEY });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={isRefreshing}
+      aria-label="Refresh Daily Mix"
+      className="text-text-secondary hover:text-text-primary hover:bg-bg-secondary ml-1 rounded p-1 transition-colors disabled:opacity-50"
+    >
+      <RefreshCw
+        className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
 
 export function DailyMix() {
   const playTracks = usePlayerStore(state => state.playTracks);
@@ -29,6 +58,7 @@ export function DailyMix() {
       <div className="mb-2 flex items-center gap-2">
         <Sparkles className="text-accent h-4 w-4" />
         <h2 className="text-text-primary text-base font-semibold">Daily Mix</h2>
+        <DailyMixRefreshButton />
       </div>
       {(() => {
         if (isLoading) return <LoadingSpinner />;

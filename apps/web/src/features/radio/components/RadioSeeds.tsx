@@ -1,7 +1,38 @@
-import { Radio } from 'lucide-react';
+import { Radio, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { RADIO_TEST_IDS } from '@/shared/testing/test-ids';
 import { useRadioSeeds } from '../hooks/useRadioSeeds';
 import { RadioSeedCard } from './RadioSeedCard';
+
+const RADIO_QUERY_KEY = ['radio', 'seeds'] as const;
+
+function RadioRefreshButton() {
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleClick = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: RADIO_QUERY_KEY });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={isRefreshing}
+      aria-label="Refresh Radio"
+      className="text-text-secondary hover:text-text-primary hover:bg-bg-secondary ml-1 rounded p-1 transition-colors disabled:opacity-50"
+    >
+      <RefreshCw
+        className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
 
 export function RadioSeeds() {
   const { data, isLoading, isError } = useRadioSeeds();
@@ -12,6 +43,7 @@ export function RadioSeeds() {
         <div className="mb-2 flex items-center gap-2">
           <Radio className="text-accent h-4 w-4" />
           <h2 className="text-text-primary text-base font-semibold">Radio</h2>
+          <RadioRefreshButton />
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
           {Array.from({ length: 8 }, (_, i) => (
@@ -33,6 +65,7 @@ export function RadioSeeds() {
       <div className="mb-2 flex items-center gap-2">
         <Radio className="text-accent h-4 w-4" />
         <h2 className="text-text-primary text-base font-semibold">Radio</h2>
+        <RadioRefreshButton />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
         {data.seeds.map(seed => (
