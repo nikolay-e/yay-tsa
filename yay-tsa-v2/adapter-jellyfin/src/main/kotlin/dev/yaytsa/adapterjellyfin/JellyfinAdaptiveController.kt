@@ -158,21 +158,26 @@ class JellyfinAdaptiveController(
         if (entries.isNotEmpty()) return ResponseEntity.noContent().build()
 
         val uid = UserId(principal.name)
+        val redLineTerms = loadRedLineTerms(uid)
         val seedTrackId = aggregate.seedTrackId
-        val similar =
-            seedTrackId?.let {
-                mlQuery.findSimilarTracks(TrackId(it.value), REFRESH_QUEUE_BOOTSTRAP_SIZE)
-            } ?: emptyList()
+        val similarTracks =
+            seedTrackId
+                ?.let { mlQuery.findSimilarTracks(TrackId(it.value), REFRESH_QUEUE_BOOTSTRAP_SIZE * 2) }
+                .orEmpty()
+                .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+                .let { tracks ->
+                    if (redLineTerms.isEmpty()) tracks else filterRedLines(tracks, uid)
+                }.take(REFRESH_QUEUE_BOOTSTRAP_SIZE)
         val orderedTrackIds = mutableListOf<String>()
         val reasonByTrack = mutableMapOf<String, String>()
         seedTrackId?.value?.let {
             orderedTrackIds += it
             reasonByTrack[it] = "seed-track"
         }
-        similar.forEach { sim ->
-            if (sim.value !in orderedTrackIds) {
-                orderedTrackIds += sim.value
-                reasonByTrack[sim.value] = "bootstrap-similarity"
+        similarTracks.forEach { track ->
+            if (track.id.value !in orderedTrackIds) {
+                orderedTrackIds += track.id.value
+                reasonByTrack[track.id.value] = "bootstrap-similarity"
             }
         }
         if (orderedTrackIds.size < REFRESH_QUEUE_BOOTSTRAP_SIZE + 1) {
@@ -352,38 +357,57 @@ class JellyfinAdaptiveController(
         userId: UserId,
         limit: Int,
     ): List<dev.yaytsa.domain.library.Track> {
+        val candidates = collectRecommendationCandidates(userId, limit)
+        return filterRedLines(candidates, userId).take(limit)
+    }
+
+    private fun collectRecommendationCandidates(
+        userId: UserId,
+        limit: Int,
+    ): List<dev.yaytsa.domain.library.Track> {
         val seen = mutableSetOf<String>()
         val out = mutableListOf<dev.yaytsa.domain.library.Track>()
+        // Over-pull so the red-line filter has slack before we take(limit).
+        val targetPool = limit * 2
 
-        val poolSize = (limit * AFFINITY_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-        mlQuery.getTopAffinities(userId, poolSize).shuffled().forEach { aff ->
-            if (out.size >= limit) return@forEach
+        val affinityPool = (limit * AFFINITY_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
+        mlQuery.getTopAffinities(userId, affinityPool).shuffled().forEach { aff ->
+            if (out.size >= targetPool) return@forEach
             val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
             if (seen.add(track.id.value)) out.add(track)
         }
 
-        if (out.size < limit) {
-            val favorites =
-                preferencesQueries
-                    .find(userId)
-                    ?.favorites
-                    .orEmpty()
-                    .shuffled()
-            favorites.forEach { fav ->
-                if (out.size >= limit) return@forEach
-                val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
+        if (out.size < targetPool) {
+            preferencesQueries
+                .find(userId)
+                ?.favorites
+                .orEmpty()
+                .shuffled()
+                .forEach { fav ->
+                    if (out.size >= targetPool) return@forEach
+                    val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
+                    if (seen.add(track.id.value)) out.add(track)
+                }
+        }
+
+        if (out.size < targetPool) {
+            libraryQueries.browseTracksRandom(targetPool - out.size).forEach { track ->
+                if (out.size >= targetPool) return@forEach
                 if (seen.add(track.id.value)) out.add(track)
             }
         }
 
-        if (out.size < limit) {
-            libraryQueries.browseTracksRandom(limit - out.size).forEach { track ->
-                if (out.size >= limit) return@forEach
-                if (seen.add(track.id.value)) out.add(track)
-            }
-        }
+        return out
+    }
 
-        return out.take(limit)
+    private fun filterRedLines(
+        tracks: List<dev.yaytsa.domain.library.Track>,
+        userId: UserId,
+    ): List<dev.yaytsa.domain.library.Track> {
+        val terms = loadRedLineTerms(userId)
+        if (terms.isEmpty() || tracks.isEmpty()) return tracks
+        val lookups = trackLookups(tracks)
+        return tracks.filterNot { matchesRedLine(it, terms, lookups) }
     }
 
     private fun trackLookups(tracks: List<dev.yaytsa.domain.library.Track>): TrackLookups {
@@ -397,6 +421,37 @@ class JellyfinAdaptiveController(
     }
 
     /**
+     * User-declared "never play this" terms from PreferenceContract.redLines (comma-separated).
+     * Matched case-insensitively against track name / genre / artist name / album name. A track
+     * matching any term is filtered out of recommendations.
+     */
+    private fun loadRedLineTerms(userId: UserId): List<String> =
+        preferencesQueries
+            .find(userId)
+            ?.preferenceContract
+            ?.redLines
+            ?.split(",")
+            ?.map { it.trim().lowercase() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+
+    private fun matchesRedLine(
+        track: dev.yaytsa.domain.library.Track,
+        terms: List<String>,
+        lookups: TrackLookups,
+    ): Boolean {
+        if (terms.isEmpty()) return false
+        val haystack =
+            buildString {
+                append(track.name.lowercase())
+                track.genre?.let { append(' ').append(it.lowercase()) }
+                track.albumId?.let { lookups.albumNames[it]?.let { name -> append(' ').append(name.lowercase()) } }
+                track.albumArtistId?.let { lookups.artistNames[it]?.let { name -> append(' ').append(name.lowercase()) } }
+            }
+        return terms.any { it in haystack }
+    }
+
+    /**
      * Radio seeds = one station per artist. We pull a wide pool of top affinities,
      * collapse to the highest-affinity track per albumArtistId, shuffle the resulting
      * artists, and take [limit]. Fallback to favorites and random library so the row
@@ -406,12 +461,21 @@ class JellyfinAdaptiveController(
         userId: UserId,
         limit: Int,
     ): List<Map<String, Any?>> {
+        val redLineTerms = loadRedLineTerms(userId)
         val perArtist = LinkedHashMap<String, dev.yaytsa.domain.library.Track>()
         val seenTracks = mutableSetOf<String>()
+
+        // Pre-build lookups on a representative sample so the red-line filter has artist/album names.
+        fun blocked(track: dev.yaytsa.domain.library.Track): Boolean {
+            if (redLineTerms.isEmpty()) return false
+            val lookups = trackLookups(listOf(track))
+            return matchesRedLine(track, redLineTerms, lookups)
+        }
 
         val poolSize = (limit * SEED_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
         mlQuery.getTopAffinities(userId, poolSize).forEach { aff ->
             val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+            if (blocked(track)) return@forEach
             val artistKey = track.albumArtistId?.value ?: track.id.value
             if (artistKey !in perArtist) perArtist[artistKey] = track
             seenTracks.add(track.id.value)
@@ -429,6 +493,7 @@ class JellyfinAdaptiveController(
             for (fav in favorites) {
                 if (picked.size >= limit) break
                 val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: continue
+                if (blocked(track)) continue
                 val artistKey = track.albumArtistId?.value ?: track.id.value
                 if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {
                     picked.add(track)
@@ -439,6 +504,7 @@ class JellyfinAdaptiveController(
         if (picked.size < limit) {
             libraryQueries.browseTracksRandom((limit - picked.size) * 2).forEach { track ->
                 if (picked.size >= limit) return@forEach
+                if (blocked(track)) return@forEach
                 val artistKey = track.albumArtistId?.value ?: track.id.value
                 if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {
                     picked.add(track)

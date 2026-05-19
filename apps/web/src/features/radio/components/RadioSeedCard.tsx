@@ -36,7 +36,7 @@ export function RadioSeedCard({ seed }: Readonly<{ seed: RadioSeed }>) {
       aria-label={`Play ${seed.name}`}
       data-testid={RADIO_TEST_IDS.SEED_CARD}
       className={cn(
-        'group bg-bg-secondary flex w-40 shrink-0 flex-col rounded-md p-1.5 transition-colors',
+        'group bg-bg-secondary flex min-w-0 flex-col rounded-md p-1.5 transition-colors',
         'hover:bg-bg-secondary/80',
         'disabled:opacity-50'
       )}
