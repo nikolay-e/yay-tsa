@@ -47,7 +47,7 @@ class LlmOrchestrator(
     private val objectMapper: ObjectMapper,
     private val decisionRepo: LlmDecisionJpaRepository,
     @Value("\${yaytsa.llm.enabled:false}") private val enabled: Boolean,
-    @Value("\${yaytsa.llm.model:claude-sonnet-4-20250514}") private val modelId: String,
+    @Value("\${yaytsa.llm.model}") private val modelId: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -242,33 +242,38 @@ class LlmOrchestrator(
     }
 
     private fun parseTrackSuggestions(response: String): List<Pair<TrackId, String>> {
-        return try {
-            // Extract JSON array from response (may be wrapped in markdown code blocks)
-            val jsonStr =
-                response
-                    .replace("```json", "")
-                    .replace("```", "")
-                    .trim()
-                    .let { text ->
-                        val start = text.indexOf('[')
-                        val end = text.lastIndexOf(']')
-                        if (start >= 0 && end > start) text.substring(start, end + 1) else return emptyList()
-                    }
-            val array = objectMapper.readTree(jsonStr)
-            if (!array.isArray) return emptyList()
-            array.mapNotNull { node ->
-                val trackId = node.path("track_id").asText(null) ?: return@mapNotNull null
-                // Claude occasionally returns sentinel strings ("unable_to_suggest", "none",
-                // free text) instead of a UUID. Filter those before they reach
-                // `libraryQueries.trackIdsExist`, which throws IllegalArgumentException from
-                // UUID.fromString and explodes the whole orchestrator cycle.
-                if (!UUID_PATTERN.matches(trackId)) return@mapNotNull null
-                val reason = node.path("reason").asText("llm-suggestion")
-                TrackId(trackId) to reason
+        val array =
+            try {
+                extractJsonArray(response)
+            } catch (e: LlmResponseParseException) {
+                log.warn("Failed to parse LLM track suggestions: {}", e.message)
+                return emptyList()
             }
-        } catch (e: Exception) {
-            log.warn("Failed to parse LLM track suggestions: {}", e.message)
-            emptyList()
+        if (!array.isArray) return emptyList()
+        return array.mapNotNull { node ->
+            val trackId = node.path("track_id").asText(null) ?: return@mapNotNull null
+            if (!UUID_PATTERN.matches(trackId)) return@mapNotNull null
+            val reason = node.path("reason").asText("llm-suggestion")
+            TrackId(trackId) to reason
         }
     }
+
+    private fun extractJsonArray(response: String): com.fasterxml.jackson.databind.JsonNode {
+        val trimmed = response.trim()
+        runCatching { objectMapper.readTree(trimmed) }
+            .getOrNull()
+            ?.takeIf { it.isArray }
+            ?.let { return it }
+        val match =
+            JSON_ARRAY_PATTERN.find(trimmed)?.value
+                ?: throw LlmResponseParseException("No JSON array found in response")
+        return runCatching { objectMapper.readTree(match) }
+            .getOrElse { throw LlmResponseParseException("Failed to parse extracted JSON array: ${it.message}") }
+    }
 }
+
+class LlmResponseParseException(
+    message: String,
+) : RuntimeException(message)
+
+private val JSON_ARRAY_PATTERN = Regex("\\[[\\s\\S]*\\]")

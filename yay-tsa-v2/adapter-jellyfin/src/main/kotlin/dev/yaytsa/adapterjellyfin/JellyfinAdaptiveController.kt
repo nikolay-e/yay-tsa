@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
@@ -19,13 +20,11 @@ import dev.yaytsa.domain.adaptive.UpdateSessionContext
 import dev.yaytsa.domain.preferences.UpdatePreferenceContract
 import dev.yaytsa.domain.preferences.UserPreferencesAggregate
 import dev.yaytsa.shared.AggregateVersion
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.EntityId
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -52,6 +51,8 @@ class JellyfinAdaptiveController(
     private val mlQuery: MlQueryPort,
     private val clock: Clock,
     private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
+    @Qualifier("jellyfinCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
 ) {
     data class StartSessionRequest(
         val userId: String,
@@ -80,7 +81,7 @@ class JellyfinAdaptiveController(
                 request.seed_track_id?.let { EntityId(it) },
                 emptyList(),
             )
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val ctx = ctxFactory.create(uid, AggregateVersion.INITIAL)
         return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
             is CommandResult.Success ->
                 ResponseEntity.ok(
@@ -104,7 +105,7 @@ class JellyfinAdaptiveController(
         val uid = UserId(principal.name)
         adaptiveQuery.findSession(ListeningSessionId(sessionId)) ?: return ResponseEntity.notFound().build()
         val cmd = UpdateSessionContext(ListeningSessionId(sessionId), state.energy, state.intensity, state.moodTags, state.attentionMode)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), currentSessionVersion(sessionId))
+        val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
@@ -116,7 +117,7 @@ class JellyfinAdaptiveController(
     ): ResponseEntity<Void> {
         val uid = UserId(principal.name)
         val cmd = EndListeningSession(ListeningSessionId(sessionId), null)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), currentSessionVersion(sessionId))
+        val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
@@ -181,14 +182,7 @@ class JellyfinAdaptiveController(
                         )
                     },
             )
-        val ctx =
-            CommandContext(
-                uid,
-                ProtocolId("JELLYFIN"),
-                clock.now(),
-                IdempotencyKey(UUID.randomUUID().toString()),
-                aggregate.version,
-            )
+        val ctx = ctxFactory.create(uid, aggregate.version)
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
@@ -209,7 +203,7 @@ class JellyfinAdaptiveController(
                 body["signal_type"] as? String ?: "UNKNOWN",
                 body["context"]?.toString(),
             )
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), currentSessionVersion(sessionId))
+        val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
@@ -264,7 +258,7 @@ class JellyfinAdaptiveController(
                 normalizeRedLines(body["redLines"]),
                 clock.now(),
             )
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), prefs.version)
+        val ctx = ctxFactory.create(uid, prefs.version)
         preferencesUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }

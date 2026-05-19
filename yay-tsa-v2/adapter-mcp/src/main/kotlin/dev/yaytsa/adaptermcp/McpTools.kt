@@ -1,27 +1,25 @@
 package dev.yaytsa.adaptermcp
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.toMcpJson
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.playlists.PlaylistUseCases
 import dev.yaytsa.application.preferences.PreferencesUseCases
-import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.shared.AggregateVersion
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.EntityId
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 @Component
 class McpTools(
@@ -29,12 +27,13 @@ class McpTools(
     private val playbackQueries: PlaybackQueries,
     private val playbackUseCases: PlaybackUseCases,
     private val playlistQueries: PlaylistQueries,
+    @Suppress("unused")
     private val playlistUseCases: PlaylistUseCases,
+    @Suppress("unused")
     private val preferencesUseCases: PreferencesUseCases,
-    private val clock: Clock,
+    @Qualifier("mcpCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
 ) {
-    private val mcpProtocol = ProtocolId("MCP")
-
     fun listTools(): List<McpToolDefinition> =
         listOf(
             McpToolDefinition(
@@ -177,7 +176,7 @@ class McpTools(
         }
         if (results.tracks.isNotEmpty()) {
             sb.appendLine("Tracks:")
-            results.tracks.forEach { sb.appendLine("  - ${it.name} (id: ${it.id.value})") }
+            results.tracks.map { it.toMcpJson() }.forEach { sb.appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
         }
         if (sb.isEmpty()) sb.append("No results found.")
         return textResult(sb.toString())
@@ -203,7 +202,7 @@ class McpTools(
         val did = DeviceId(args["device_id"] as String)
         val currentState = playbackQueries.getPlaybackState(uid, sid)
         val version = currentState?.version ?: AggregateVersion.INITIAL
-        val ctx = CommandContext(uid, mcpProtocol, clock.now(), IdempotencyKey(UUID.randomUUID().toString()), version)
+        val ctx = ctxFactory.create(uid, version)
         val result = playbackUseCases.execute(cmdFactory(uid, sid, did), ctx)
         return when (result) {
             is CommandResult.Success -> textResult("OK")
@@ -224,7 +223,7 @@ class McpTools(
         val album = libraryQueries.getAlbum(EntityId(args["album_id"] as String)) ?: return errorResult("Album not found")
         val tracks = libraryQueries.browseTracksByAlbum(EntityId(args["album_id"] as String))
         val sb = StringBuilder("Album: ${album.name}\nTracks:\n")
-        tracks.forEach { sb.appendLine("  ${it.trackNumber ?: "?"}: ${it.name} (id: ${it.id.value})") }
+        tracks.map { it.toMcpJson() }.forEach { sb.appendLine("  ${it["trackNumber"] ?: "?"}: ${it["name"]} (id: ${it["trackId"]})") }
         return textResult(sb.toString())
     }
 

@@ -14,6 +14,7 @@ dependencyManagement {
 }
 
 dependencies {
+    implementation(project(":adapter-shared"))
     implementation(project(":core-domain:shared"))
     implementation(project(":core-domain:playback"))
     implementation(project(":core-domain:library"))

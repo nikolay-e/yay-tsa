@@ -15,6 +15,7 @@ jackson = "2.18.2"
 springdoc = "2.8.6"
 bucket4j-spring-boot-starter = "0.12.10"
 caffeine = "3.1.8"
+anthropic-sdk = "2.32.0"
 
 [libraries]
 # Kotlin
@@ -38,6 +39,9 @@ jackson-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-da
 
 # OpenAPI
 springdoc-openapi-starter = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+
+# Anthropic SDK
+anthropic-sdk = { module = "com.anthropic:anthropic-java", version.ref = "anthropic-sdk" }
 
 # Rate limiting
 bucket4j-spring-boot-starter = { module = "com.giffing.bucket4j.spring.boot.starter:bucket4j-spring-boot-starter", version.ref = "bucket4j-spring-boot-starter" }

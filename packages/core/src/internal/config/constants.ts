@@ -25,22 +25,14 @@ export const STORAGE_KEYS = {
   REMEMBER_ME: 'yaytsa_remember_me', // Flag to indicate if "Remember Me" was selected
 } as const;
 
-/**
- * Media Server ticks conversion
- * Media Server uses ticks (10,000,000 ticks per second) for time positions
- */
-export const TICKS_PER_SECOND = 10_000_000;
+export { TICKS_PER_MS, TICKS_PER_SECOND } from '../../generated/constants.js';
 
-/**
- * Convert seconds to Media Server ticks
- */
+import { TICKS_PER_SECOND } from '../../generated/constants.js';
+
 export function secondsToTicks(seconds: number): number {
   return Math.floor(seconds * TICKS_PER_SECOND);
 }
 
-/**
- * Convert Media Server ticks to seconds
- */
 export function ticksToSeconds(ticks: number): number {
   return ticks / TICKS_PER_SECOND;
 }

@@ -1,3 +1,6 @@
+import type { SignalType } from '../generated/constants.js';
+export type { SignalType };
+
 export interface ListeningSession {
   id: string;
   userId: string;
@@ -57,25 +60,6 @@ export interface PlaybackSignal {
   queueEntryId?: string;
   context: SignalContext;
 }
-
-export type SignalType =
-  | 'PLAY_START'
-  | 'PLAY_COMPLETE'
-  | 'SKIP_EARLY'
-  | 'SKIP_MID'
-  | 'SKIP_LATE'
-  | 'SEEK_BACK'
-  | 'SEEK_FORWARD'
-  | 'QUEUE_JUMP'
-  | 'REPEAT_TRACK'
-  | 'VOLUME_CHANGE'
-  | 'PAUSE_LONG'
-  | 'FAVORITE_TOGGLE'
-  | 'MANUAL_ADD'
-  | 'MANUAL_REMOVE'
-  | 'SESSION_MOOD_CHANGE'
-  | 'THUMBS_UP'
-  | 'THUMBS_DOWN';
 
 export interface SignalContext {
   positionPct: number;

@@ -1,14 +1,13 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.CreateUser
 import dev.yaytsa.shared.AggregateVersion
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.context.SecurityContextHolder
@@ -26,7 +25,8 @@ import java.util.UUID
 class JellyfinAdminController(
     private val authUseCases: AuthUseCases,
     private val authQueries: AuthQueries,
-    private val clock: dev.yaytsa.application.shared.port.Clock,
+    @Qualifier("jellyfinCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
 ) {
     private fun requireAdmin(): ResponseEntity<Any>? {
         val auth = SecurityContextHolder.getContext().authentication
@@ -78,7 +78,7 @@ class JellyfinAdminController(
                         .gensalt(),
                 )
         val cmd = CreateUser(uid, request.username, passwordHash, request.displayName, null, request.isAdmin)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val ctx = ctxFactory.create(uid, AggregateVersion.INITIAL)
         return when (val result = authUseCases.execute(cmd, ctx)) {
             is CommandResult.Success ->
                 ResponseEntity.ok(
@@ -98,7 +98,7 @@ class JellyfinAdminController(
         val cmd =
             dev.yaytsa.domain.auth
                 .DeactivateUser(uid)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), user.version)
+        val ctx = ctxFactory.create(uid, user.version)
         authUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
     }
@@ -121,7 +121,7 @@ class JellyfinAdminController(
         val cmd =
             dev.yaytsa.domain.auth
                 .ChangePassword(uid, newHash)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), user.version)
+        val ctx = ctxFactory.create(uid, user.version)
         authUseCases.execute(cmd, ctx)
         return ResponseEntity.ok(mapOf("newPassword" to newPassword))
     }

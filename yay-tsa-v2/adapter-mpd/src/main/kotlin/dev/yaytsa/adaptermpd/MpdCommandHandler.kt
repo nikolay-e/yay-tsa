@@ -1,9 +1,12 @@
 package dev.yaytsa.adaptermpd
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.MpdFailureTranslator
+import dev.yaytsa.adaptershared.toMpdLines
+import dev.yaytsa.adaptershared.toMpdSummaryLines
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
-import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.SessionId
@@ -11,25 +14,23 @@ import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.domain.playback.Stop
 import dev.yaytsa.shared.AggregateVersion
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.EntityId
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 @Component
 class MpdCommandHandler(
     private val playbackQueries: PlaybackQueries,
     private val playbackUseCases: PlaybackUseCases,
     private val libraryQueries: LibraryQueries,
-    private val clock: Clock,
+    @Qualifier("mpdCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
+    private val failureTranslator: MpdFailureTranslator,
 ) {
     companion object {
-        private val MPD_PROTOCOL = ProtocolId("MPD")
         private val MPD_USER = UserId("mpd-default")
         private val MPD_SESSION = SessionId("mpd-default")
         private val MPD_DEVICE = DeviceId("mpd")
@@ -134,14 +135,10 @@ class MpdCommandHandler(
         val entry = state.queue.find { it.id == entryId } ?: return ok()
         val track = libraryQueries.getTrack(EntityId(entry.trackId.value))
         val sb = StringBuilder()
-        sb.appendLine("file: ${entry.trackId.value}")
         if (track != null) {
-            sb.appendLine("Title: ${track.name}")
-            track.genre?.let { sb.appendLine("Genre: $it") }
-            track.trackNumber?.let { sb.appendLine("Track: $it") }
-            track.year?.let { sb.appendLine("Date: $it") }
-            track.durationMs?.let { sb.appendLine("Time: ${it / 1000}") }
-            track.durationMs?.let { sb.appendLine("duration: ${it.toDouble() / 1000}") }
+            sb.append(track.toMpdLines())
+        } else {
+            sb.appendLine("file: ${entry.trackId.value}")
         }
         val idx = state.queue.indexOfFirst { it.id == entryId }
         sb.appendLine("Pos: $idx")
@@ -155,10 +152,10 @@ class MpdCommandHandler(
         val sb = StringBuilder()
         state.queue.forEachIndexed { idx, entry ->
             val track = libraryQueries.getTrack(EntityId(entry.trackId.value))
-            sb.appendLine("file: ${entry.trackId.value}")
             if (track != null) {
-                sb.appendLine("Title: ${track.name}")
-                track.durationMs?.let { sb.appendLine("Time: ${it / 1000}") }
+                sb.append(track.toMpdSummaryLines())
+            } else {
+                sb.appendLine("file: ${entry.trackId.value}")
             }
             sb.appendLine("Pos: $idx")
             sb.appendLine("Id: ${entry.id.value.hashCode().and(0x7fffffff)}")
@@ -182,9 +179,7 @@ class MpdCommandHandler(
         val results = libraryQueries.searchText(query, 50, 0)
         val sb = StringBuilder()
         results.tracks.forEach { track ->
-            sb.appendLine("file: ${track.id.value}")
-            sb.appendLine("Title: ${track.name}")
-            track.durationMs?.let { sb.appendLine("Time: ${it / 1000}") }
+            sb.append(track.toMpdSummaryLines())
         }
         sb.appendLine("OK")
         return sb.toString()
@@ -215,10 +210,10 @@ class MpdCommandHandler(
     private fun executeCommand(factory: () -> dev.yaytsa.domain.playback.PlaybackCommand): String {
         val currentState = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
         val version = currentState?.version ?: AggregateVersion.INITIAL
-        val ctx = CommandContext(MPD_USER, MPD_PROTOCOL, clock.now(), IdempotencyKey(UUID.randomUUID().toString()), version)
+        val ctx = ctxFactory.create(MPD_USER, version)
         return when (val result = playbackUseCases.execute(factory(), ctx)) {
             is CommandResult.Success -> ok()
-            is CommandResult.Failed -> ack(5, "command", result.failure.toString())
+            is CommandResult.Failed -> failureTranslator.translate(result.failure, "command")
         }
     }
 

@@ -1,0 +1,42 @@
+kotlin_files:
+  - yay-tsa-v2/adapter-jellyfin/src/main/kotlin/dev/yaytsa/adapterjellyfin/JellyfinDtos.kt
+  - yay-tsa-v2/adapter-jellyfin/src/main/kotlin/dev/yaytsa/adapterjellyfin/JellyfinSessionsController.kt
+  - yay-tsa-v2/adapter-shared/src/main/kotlin/dev/yaytsa/adaptershared/JellyfinDtos.kt
+
+ts_files:
+  - packages/core/src/internal/models/types.ts
+
+pairs:
+  - name: UserPolicy
+    kotlin_class: UserPolicy
+    ts_interface: UserPolicy
+  - name: MediaServerUser
+    kotlin_class: MediaServerUser
+    ts_interface: MediaServerUser
+  - name: SessionInfo
+    kotlin_class: SessionInfo
+    ts_interface: SessionInfo
+  - name: AuthResponse
+    kotlin_class: AuthResponse
+    ts_interface: AuthResponse
+  - name: ServerInfo
+    kotlin_class: ServerInfo
+    ts_interface: ServerInfo
+  - name: NameIdPair
+    kotlin_class: NameIdPair
+    ts_interface: NameIdPair
+  - name: UserItemData
+    kotlin_class: UserItemData
+    ts_interface: UserItemData
+  - name: PlaybackStartInfo
+    kotlin_class: PlaybackStartInfo
+    ts_interface: PlaybackStartInfo
+  - name: PlaybackProgressInfo
+    kotlin_class: PlaybackProgressInfo
+    ts_interface: PlaybackProgressInfo
+  - name: PlaybackStopInfo
+    kotlin_class: PlaybackStopInfo
+    ts_interface: PlaybackStopInfo
+  - name: ItemsResult
+    kotlin_class: ItemsResult
+    ts_interface: ItemsResult

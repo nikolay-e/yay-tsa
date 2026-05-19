@@ -3,6 +3,8 @@ package dev.yaytsa.adapterjellyfin
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.TICKS_PER_MS
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
@@ -10,11 +12,10 @@ import dev.yaytsa.application.playback.ScrobbleService
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.adaptive.RecordPlaybackSignal
 import dev.yaytsa.shared.AggregateVersion
-import dev.yaytsa.shared.CommandContext
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
+import dev.yaytsa.shared.generated.SignalType
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -34,6 +35,8 @@ class JellyfinSessionsController(
     private val adaptiveSessionRepo: AdaptiveSessionRepository,
     private val scrobbleService: ScrobbleService,
     private val clock: Clock,
+    @Qualifier("jellyfinCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
 ) {
     private val playbackStarts: Cache<String, Instant> =
         Caffeine
@@ -93,7 +96,7 @@ class JellyfinSessionsController(
     ): ResponseEntity<Void> {
         if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
         playbackStarts.put("${principal.name}:${info.itemId}", clock.now())
-        recordSignal(principal, info.itemId, "PLAY_START")
+        recordSignal(principal, info.itemId, SignalType.PLAY_START)
         return ResponseEntity.noContent().build()
     }
 
@@ -120,7 +123,7 @@ class JellyfinSessionsController(
         val now = clock.now()
 
         // Record stop signal
-        recordSignal(principal, info.itemId, "PLAY_COMPLETE")
+        recordSignal(principal, info.itemId, SignalType.PLAY_COMPLETE)
 
         // Retrieve actual start time from when reportPlaying was called
         val startKey = "${principal.name}:${info.itemId}"
@@ -142,7 +145,7 @@ class JellyfinSessionsController(
     private fun recordSignal(
         principal: Principal,
         itemId: String,
-        signalType: String,
+        signalType: SignalType,
     ) {
         val uid = UserId(principal.name)
         val activeSession = adaptiveQuery.findActiveSession(uid) ?: return
@@ -153,15 +156,12 @@ class JellyfinSessionsController(
                 signalId = UUID.randomUUID().toString(),
                 trackId = TrackId(itemId),
                 queueEntryId = null,
-                signalType = signalType,
+                signalType = signalType.name,
                 signalContext = null,
             )
         val ctx =
-            CommandContext(
+            ctxFactory.create(
                 uid,
-                ProtocolId("JELLYFIN"),
-                clock.now(),
-                IdempotencyKey(UUID.randomUUID().toString()),
                 adaptiveSessionRepo.find(activeSession.id)?.version ?: AggregateVersion.INITIAL,
             )
         try {

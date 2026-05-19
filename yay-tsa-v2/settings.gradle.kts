@@ -49,6 +49,7 @@ include("infra-notifications")
 include("core-testkit")
 
 // Adapters
+include("adapter-shared")
 include("adapter-opensubsonic")
 include("adapter-jellyfin")
 include("adapter-mcp")

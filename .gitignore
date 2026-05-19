@@ -84,6 +84,10 @@ com/
 charts/*/charts/
 charts/*/Chart.lock
 
+# Generated constants from /shared-constants.yaml (regenerated per build)
+packages/core/src/generated/
+yay-tsa-v2/core-domain/shared/src/main/kotlin/dev/yaytsa/shared/generated/
+
 # Transient QA artifacts (screenshots, fetched API specs, ad-hoc notes)
 ANALYSIS.md
 ANALYSIS_*.md

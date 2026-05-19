@@ -2,6 +2,7 @@ package dev.yaytsa.adapteropensubsonic
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import dev.yaytsa.adaptershared.ChildElement
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class SubsonicResponse(

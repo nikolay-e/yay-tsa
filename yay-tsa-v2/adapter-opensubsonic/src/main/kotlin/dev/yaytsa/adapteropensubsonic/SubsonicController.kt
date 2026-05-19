@@ -1,5 +1,8 @@
 package dev.yaytsa.adapteropensubsonic
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.SubsonicFailureTranslator
+import dev.yaytsa.adaptershared.toSubsonicChild
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.application.library.LibraryQueries
@@ -8,7 +11,6 @@ import dev.yaytsa.application.playlists.PlaylistUseCases
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.domain.library.Album
-import dev.yaytsa.domain.library.Track
 import dev.yaytsa.domain.playlists.AddTracksToPlaylist
 import dev.yaytsa.domain.playlists.CreatePlaylist
 import dev.yaytsa.domain.playlists.DeletePlaylist
@@ -17,8 +19,10 @@ import dev.yaytsa.domain.preferences.SetFavorite
 import dev.yaytsa.domain.preferences.UnsetFavorite
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -37,8 +41,15 @@ class SubsonicController(
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val responseWriter: SubsonicResponseWriter,
-    private val ctxFactory: SubsonicCommandContextFactory,
+    @Qualifier("subsonicCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
+    private val failureTranslator: SubsonicFailureTranslator,
 ) {
+    private fun errorFrom(failure: Failure): SubsonicResponse {
+        val payload = failureTranslator.translate(failure)
+        return error(payload.code, payload.message)
+    }
+
     // --- System ---
 
     @GetMapping("/ping", "/ping.view")
@@ -72,7 +83,7 @@ class SubsonicController(
             if (user != null) {
                 ok { copy(user = UserDetail(username = user.username, adminRole = user.isAdmin)) }
             } else {
-                error(70, "User not found")
+                errorFrom(Failure.NotFound("User", username ?: principal.name))
             }
         return responseWriter.write(response, f)
     }
@@ -101,8 +112,10 @@ class SubsonicController(
         @RequestParam id: String,
         @RequestParam(required = false) f: String?,
     ): ResponseEntity<String> {
-        if (id.isBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
-        val artist = libraryQueries.getArtist(EntityId(id)) ?: return responseWriter.write(error(70, "Artist not found"), f)
+        if (id.isBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
+        val artist =
+            libraryQueries.getArtist(EntityId(id))
+                ?: return responseWriter.write(errorFrom(Failure.NotFound("Artist", id)), f)
         val albums = libraryQueries.browseAlbumsByArtist(EntityId(id))
         return responseWriter.write(
             ok {
@@ -117,8 +130,10 @@ class SubsonicController(
         @RequestParam id: String,
         @RequestParam(required = false) f: String?,
     ): ResponseEntity<String> {
-        if (id.isBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
-        val album = libraryQueries.getAlbum(EntityId(id)) ?: return responseWriter.write(error(70, "Album not found"), f)
+        if (id.isBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
+        val album =
+            libraryQueries.getAlbum(EntityId(id))
+                ?: return responseWriter.write(errorFrom(Failure.NotFound("Album", id)), f)
         val tracks = libraryQueries.browseTracksByAlbum(EntityId(id))
         val artist = album.artistId?.let { libraryQueries.getArtist(it) }
         return responseWriter.write(
@@ -131,7 +146,7 @@ class SubsonicController(
                             artist?.name,
                             artist?.id?.value,
                             album.releaseDate?.year,
-                            tracks.map { it.toChild() },
+                            tracks.map { it.toSubsonicChild() },
                             album.coverImagePath,
                         ),
                 )
@@ -145,9 +160,11 @@ class SubsonicController(
         @RequestParam id: String,
         @RequestParam(required = false) f: String?,
     ): ResponseEntity<String> {
-        if (id.isBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
-        val track = libraryQueries.getTrack(EntityId(id)) ?: return responseWriter.write(error(70, "Song not found"), f)
-        return responseWriter.write(ok { copy(song = track.toChild()) }, f)
+        if (id.isBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
+        val track =
+            libraryQueries.getTrack(EntityId(id))
+                ?: return responseWriter.write(errorFrom(Failure.NotFound("Song", id)), f)
+        return responseWriter.write(ok { copy(song = track.toSubsonicChild()) }, f)
     }
 
     @GetMapping("/getAlbumList2", "/getAlbumList2.view")
@@ -171,7 +188,7 @@ class SubsonicController(
         @RequestParam(defaultValue = "20") songCount: Int,
         @RequestParam(required = false) f: String?,
     ): ResponseEntity<String> {
-        if (query.isBlank()) return responseWriter.write(error(10, "Missing parameter: query"), f)
+        if (query.isBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: query")), f)
         val results = libraryQueries.searchText(query, maxOf(artistCount, albumCount, songCount), 0)
         return responseWriter.write(
             ok {
@@ -180,7 +197,7 @@ class SubsonicController(
                         SearchResult3(
                             artist = results.artists.take(artistCount).map { ArtistElement(it.id.value, it.name) },
                             album = results.albums.take(albumCount).map { it.toElement() },
-                            song = results.tracks.take(songCount).map { it.toChild() },
+                            song = results.tracks.take(songCount).map { it.toSubsonicChild() },
                         ),
                 )
             },
@@ -196,7 +213,7 @@ class SubsonicController(
         @RequestParam(required = false) f: String?,
         principal: Principal,
     ): ResponseEntity<String> {
-        if (id.isNullOrBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
+        if (id.isNullOrBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
         val userId = UserId(principal.name)
         val prefs = preferencesQueries.find(userId)
         val ctx = ctxFactory.create(userId, prefs?.version ?: AggregateVersion.INITIAL)
@@ -210,7 +227,7 @@ class SubsonicController(
         @RequestParam(required = false) f: String?,
         principal: Principal,
     ): ResponseEntity<String> {
-        if (id.isNullOrBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
+        if (id.isNullOrBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
         val userId = UserId(principal.name)
         val prefs = preferencesQueries.find(userId)
         val ctx = ctxFactory.create(userId, prefs?.version ?: AggregateVersion.INITIAL)
@@ -227,7 +244,7 @@ class SubsonicController(
         val prefs = preferencesQueries.find(userId)
         val starredSongs =
             prefs?.favorites?.mapNotNull { fav ->
-                libraryQueries.getTrack(EntityId(fav.trackId.value))?.toChild()
+                libraryQueries.getTrack(EntityId(fav.trackId.value))?.toSubsonicChild()
             } ?: emptyList()
         return responseWriter.write(ok { copy(starred2 = Starred2(song = starredSongs)) }, f)
     }
@@ -260,13 +277,13 @@ class SubsonicController(
         @RequestParam id: String,
         @RequestParam(required = false) f: String?,
     ): ResponseEntity<String> {
-        if (id.isBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
+        if (id.isBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
         val playlist =
             playlistQueries.find(PlaylistId(id))
-                ?: return responseWriter.write(error(70, "Playlist not found"), f)
+                ?: return responseWriter.write(errorFrom(Failure.NotFound("Playlist", id)), f)
         val entries =
             playlist.tracks.mapNotNull { entry ->
-                libraryQueries.getTrack(EntityId(entry.trackId.value))?.toChild()
+                libraryQueries.getTrack(EntityId(entry.trackId.value))?.toSubsonicChild()
             }
         return responseWriter.write(
             ok {
@@ -299,7 +316,7 @@ class SubsonicController(
             // Update existing playlist — add songs
             val playlist =
                 playlistQueries.find(PlaylistId(playlistId))
-                    ?: return responseWriter.write(error(70, "Playlist not found"), f)
+                    ?: return responseWriter.write(errorFrom(Failure.NotFound("Playlist", playlistId)), f)
             if (!songId.isNullOrEmpty()) {
                 val ctx = ctxFactory.create(userId, playlist.version)
                 playlistUseCases.execute(
@@ -309,7 +326,7 @@ class SubsonicController(
             }
         } else {
             // Create new playlist
-            val plName = name ?: return responseWriter.write(error(10, "Missing parameter: name"), f)
+            val plName = name ?: return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: name")), f)
             val newId =
                 PlaylistId(
                     java.util.UUID
@@ -336,10 +353,10 @@ class SubsonicController(
         @RequestParam(required = false) f: String?,
         principal: Principal,
     ): ResponseEntity<String> {
-        if (id.isBlank()) return responseWriter.write(error(10, "Missing parameter: id"), f)
+        if (id.isBlank()) return responseWriter.write(errorFrom(Failure.InvariantViolation("Missing parameter: id")), f)
         val playlist =
             playlistQueries.find(PlaylistId(id))
-                ?: return responseWriter.write(error(70, "Playlist not found"), f)
+                ?: return responseWriter.write(errorFrom(Failure.NotFound("Playlist", id)), f)
         val ctx = ctxFactory.create(UserId(principal.name), playlist.version)
         playlistUseCases.execute(DeletePlaylist(PlaylistId(id)), ctx)
         return responseWriter.write(ok(), f)
@@ -356,21 +373,6 @@ class SubsonicController(
     ): ResponseEntity<String> = responseWriter.write(ok(), f)
 
     // --- Mappers ---
-
-    private fun Track.toChild() =
-        ChildElement(
-            id = id.value,
-            title = name,
-            duration = durationMs?.let { (it / 1000).toInt() },
-            bitRate = bitrate,
-            track = trackNumber,
-            discNumber = discNumber,
-            year = year,
-            genre = genre,
-            coverArt = coverImagePath,
-            albumId = albumId?.value,
-            artistId = albumArtistId?.value,
-        )
 
     private fun Album.toElement() =
         AlbumElement(

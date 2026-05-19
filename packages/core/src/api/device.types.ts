@@ -1,3 +1,6 @@
+import type { RemoteCommandType } from '../generated/constants.js';
+export type { RemoteCommandType };
+
 export interface DeviceInfo {
   sessionId: string;
   deviceId: string;
@@ -31,16 +34,6 @@ export interface TransferPayload {
   sourceSessionId: string;
   listeningSessionId?: string;
 }
-
-export type RemoteCommandType =
-  | 'PAUSE'
-  | 'PLAY'
-  | 'NEXT'
-  | 'PREV'
-  | 'SEEK'
-  | 'SET_VOLUME'
-  | 'TOGGLE_SHUFFLE'
-  | 'TOGGLE_REPEAT';
 
 export interface RemoteCommand {
   type: RemoteCommandType;

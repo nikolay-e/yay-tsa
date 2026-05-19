@@ -68,6 +68,7 @@ export {
   DEFAULT_CLIENT_NAME,
   DEFAULT_DEVICE_NAME,
   STORAGE_KEYS,
+  TICKS_PER_MS,
   TICKS_PER_SECOND,
   secondsToTicks,
   ticksToSeconds,

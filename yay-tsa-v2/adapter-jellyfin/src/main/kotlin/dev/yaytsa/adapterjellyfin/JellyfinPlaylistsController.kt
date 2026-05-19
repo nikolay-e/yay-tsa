@@ -1,5 +1,10 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.BaseItem
+import dev.yaytsa.adaptershared.HttpFailureTranslator
+import dev.yaytsa.adaptershared.UserItemData
+import dev.yaytsa.adaptershared.msToTicks
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.playlists.PlaylistUseCases
@@ -12,15 +17,13 @@ import dev.yaytsa.domain.playlists.PlaylistId
 import dev.yaytsa.domain.playlists.RemoveTracksFromPlaylist
 import dev.yaytsa.domain.playlists.ReorderPlaylistTracks
 import dev.yaytsa.shared.AggregateVersion
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.Failure
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -39,18 +42,13 @@ class JellyfinPlaylistsController(
     private val libraryQueries: LibraryQueries,
     private val preferencesQueries: PreferencesQueries,
     private val clock: Clock,
+    @Qualifier("jellyfinCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
+    private val failureTranslator: HttpFailureTranslator,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private fun statusFromFailure(failure: Failure): ResponseEntity<Void> =
-        when (failure) {
-            is Failure.NotFound -> ResponseEntity.notFound().build()
-            is Failure.Unauthorized -> ResponseEntity.status(403).build()
-            is Failure.Conflict -> ResponseEntity.status(409).build()
-            is Failure.UnsupportedByProtocol -> ResponseEntity.status(501).build()
-            is Failure.StorageConflict -> ResponseEntity.status(409).build()
-            is Failure.InvariantViolation -> ResponseEntity.badRequest().build()
-        }
+    private fun statusFromFailure(failure: Failure): ResponseEntity<Void> = failureTranslator.empty(failure)
 
     private fun isValidUuid(value: String): Boolean =
         try {
@@ -77,7 +75,7 @@ class JellyfinPlaylistsController(
         val pid = PlaylistId(UUID.randomUUID().toString())
         val now = clock.now()
         val createCmd = CreatePlaylist(pid, uid, request.Name, null, request.IsPublic ?: false, now)
-        val createCtx = CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val createCtx = ctxFactory.create(uid, AggregateVersion.INITIAL)
         val createResult = playlistUseCases.execute(createCmd, createCtx)
         if (createResult is CommandResult.Failed) {
             log.warn("CreatePlaylist failed for owner={}: {}", uid.value, createResult.failure)
@@ -92,14 +90,13 @@ class JellyfinPlaylistsController(
                 .orEmpty()
         if (initialIds.isNotEmpty()) {
             val addCmd = AddTracksToPlaylist(pid, initialIds, now)
-            val addCtx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), createResult.value.version)
+            val addCtx = ctxFactory.create(uid, createResult.value.version)
             val addResult = playlistUseCases.execute(addCmd, addCtx)
             if (addResult is CommandResult.Failed) {
                 log.warn("Initial AddTracksToPlaylist failed for playlist={}: {}", pid.value, addResult.failure)
                 // Best-effort rollback so the caller doesn't see an empty playlist they didn't ask for.
                 val deleteCmd = DeletePlaylist(pid)
-                val deleteCtx =
-                    CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), createResult.value.version)
+                val deleteCtx = ctxFactory.create(uid, createResult.value.version)
                 playlistUseCases.execute(deleteCmd, deleteCtx)
                 return statusFromFailure(addResult.failure).let { resp ->
                     ResponseEntity.status(resp.statusCode).body(mapOf("error" to addResult.failure.toString()))
@@ -161,7 +158,7 @@ class JellyfinPlaylistsController(
         val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
         val trackIds = ids.split(",").map { TrackId(it.trim()) }
         val cmd = AddTracksToPlaylist(PlaylistId(playlistId), trackIds, clock.now())
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), playlist.version)
+        val ctx = ctxFactory.create(uid, playlist.version)
         return when (val result = playlistUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> ResponseEntity.noContent().build()
             is CommandResult.Failed -> {
@@ -182,7 +179,7 @@ class JellyfinPlaylistsController(
         val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
         val trackIds = entryIds.split(",").map { TrackId(it.trim()) }
         val cmd = RemoveTracksFromPlaylist(PlaylistId(playlistId), trackIds)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), playlist.version)
+        val ctx = ctxFactory.create(uid, playlist.version)
         return when (val result = playlistUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> ResponseEntity.noContent().build()
             is CommandResult.Failed -> {
@@ -201,7 +198,7 @@ class JellyfinPlaylistsController(
         val uid = UserId(principal.name)
         val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
         val cmd = DeletePlaylist(PlaylistId(playlistId))
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), playlist.version)
+        val ctx = ctxFactory.create(uid, playlist.version)
         return when (val result = playlistUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> ResponseEntity.noContent().build()
             is CommandResult.Failed -> {
@@ -226,7 +223,7 @@ class JellyfinPlaylistsController(
         val withoutMoved = currentOrder.filter { it.value != itemId }
         val reordered = withoutMoved.toMutableList().apply { add(newIndex.coerceIn(0, size), trackToMove) }
         val cmd = ReorderPlaylistTracks(PlaylistId(playlistId), reordered)
-        val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), playlist.version)
+        val ctx = ctxFactory.create(uid, playlist.version)
         return when (val result = playlistUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> ResponseEntity.noContent().build()
             is CommandResult.Failed -> {

@@ -2,6 +2,7 @@ package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.karaoke.port.KaraokeQueryPort
 import dev.yaytsa.shared.TrackId
+import dev.yaytsa.shared.generated.KaraokeState
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -32,17 +33,17 @@ class JellyfinKaraokeController(
         val asset = karaokeQueryPort.getAsset(TrackId(trackId))
         val state =
             when {
-                asset == null -> "NOT_STARTED"
-                asset.readyAt != null -> "READY"
-                else -> "PROCESSING"
+                asset == null -> KaraokeState.NOT_STARTED
+                asset.readyAt != null -> KaraokeState.READY
+                else -> KaraokeState.PROCESSING
             }
-        return ResponseEntity.ok(mapOf("state" to state, "message" to null))
+        return ResponseEntity.ok(mapOf("state" to state.name, "message" to null))
     }
 
     @PostMapping("/{trackId}/process")
     fun process(
         @PathVariable trackId: String,
-    ): ResponseEntity<Any> = ResponseEntity.ok(mapOf("state" to "PROCESSING", "message" to "Queued for processing"))
+    ): ResponseEntity<Any> = ResponseEntity.ok(mapOf("state" to KaraokeState.PROCESSING.name, "message" to "Queued for processing"))
 
     @GetMapping("/{trackId}/instrumental")
     fun getInstrumental(
@@ -68,12 +69,12 @@ class JellyfinKaraokeController(
         val asset = karaokeQueryPort.getAsset(TrackId(trackId))
         val state =
             when {
-                asset == null -> "NOT_STARTED"
-                asset.readyAt != null -> "READY"
-                else -> "PROCESSING"
+                asset == null -> KaraokeState.NOT_STARTED
+                asset.readyAt != null -> KaraokeState.READY
+                else -> KaraokeState.PROCESSING
             }
         try {
-            emitter.send(SseEmitter.event().name("status").data(mapOf("state" to state)))
+            emitter.send(SseEmitter.event().name("status").data(mapOf("state" to state.name)))
             emitter.complete()
         } catch (e: Exception) {
             emitter.completeWithError(e)

@@ -1,18 +1,17 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.ApiTokenId
 import dev.yaytsa.domain.auth.CreateApiToken
 import dev.yaytsa.domain.auth.RevokeApiToken
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.Hashing
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -27,7 +26,8 @@ import java.util.UUID
 class JellyfinAuthController(
     private val authQueries: AuthQueries,
     private val authUseCases: AuthUseCases,
-    private val clock: dev.yaytsa.application.shared.port.Clock,
+    @Qualifier("jellyfinCommandContextFactory")
+    private val ctxFactory: AdapterCommandContextFactory,
 ) {
     data class LoginRequest(
         @com.fasterxml.jackson.annotation.JsonProperty("Username")
@@ -66,7 +66,7 @@ class JellyfinAuthController(
         val deviceId = DeviceId("web-${UUID.randomUUID().toString().take(8)}")
 
         val cmd = CreateApiToken(user.id, tokenId, tokenValue, deviceId, "Web Browser", null)
-        val ctx = CommandContext(user.id, ProtocolId("JELLYFIN"), clock.now(), IdempotencyKey(UUID.randomUUID().toString()), user.version)
+        val ctx = ctxFactory.create(user.id, user.version)
         authUseCases.execute(cmd, ctx)
 
         return ResponseEntity.ok(
@@ -171,14 +171,7 @@ class JellyfinAuthController(
             val tokenHash = Hashing.sha256Hex(rawToken)
             val apiToken = user.apiTokens.find { it.token == tokenHash && !it.revoked } ?: return
             val cmd = RevokeApiToken(uid, apiToken.id)
-            val ctx =
-                CommandContext(
-                    uid,
-                    ProtocolId("JELLYFIN"),
-                    clock.now(),
-                    IdempotencyKey(UUID.randomUUID().toString()),
-                    user.version,
-                )
+            val ctx = ctxFactory.create(uid, user.version)
             val result = authUseCases.execute(cmd, ctx)
             if (result is CommandResult.Success) return
             log.warn("RevokeApiToken attempt failed for user {}: {}", uid.value, result)

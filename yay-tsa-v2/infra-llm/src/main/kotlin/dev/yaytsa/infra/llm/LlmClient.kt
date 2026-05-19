@@ -1,64 +1,44 @@
 package dev.yaytsa.infra.llm
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.anthropic.client.okhttp.AnthropicOkHttpClient
+import com.anthropic.models.messages.MessageCreateParams
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.time.Duration
 
 @Component
 class LlmClient(
     @Value("\${yaytsa.llm.api-key:#{null}}") private val apiKey: String?,
-    @Value("\${yaytsa.llm.model:claude-sonnet-4-20250514}") private val model: String,
-    @Value("\${yaytsa.llm.api-url:https://api.anthropic.com/v1/messages}") private val apiUrl: String,
-    private val objectMapper: ObjectMapper,
+    @Value("\${yaytsa.llm.model}") private val model: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
+    private val client by lazy { apiKey?.let { AnthropicOkHttpClient.builder().apiKey(it).build() } }
 
     fun complete(prompt: String): String? {
-        if (apiKey == null) {
+        val sdkClient = client
+        if (sdkClient == null) {
             log.debug("LLM API key not configured, skipping")
             return null
         }
-        try {
-            val body =
-                objectMapper.writeValueAsString(
-                    mapOf(
-                        "model" to model,
-                        "max_tokens" to 1024,
-                        "messages" to listOf(mapOf("role" to "user", "content" to prompt)),
-                    ),
+        return try {
+            val response =
+                sdkClient.messages().create(
+                    MessageCreateParams
+                        .builder()
+                        .model(model)
+                        .maxTokens(1024L)
+                        .addUserMessage(prompt)
+                        .build(),
                 )
-            val request =
-                HttpRequest
-                    .newBuilder()
-                    .uri(URI.create(apiUrl))
-                    .header("x-api-key", apiKey)
-                    .header("anthropic-version", "2023-06-01")
-                    .header("content-type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .timeout(Duration.ofSeconds(30))
-                    .build()
-
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            if (response.statusCode() != 200) {
-                log.warn("LLM API error: {} {}", response.statusCode(), response.body().take(200))
-                return null
-            }
-            val json = objectMapper.readTree(response.body())
-            return json
-                .path("content")
+            response
+                .content()
                 .firstOrNull()
-                ?.path("text")
-                ?.asText()
+                ?.text()
+                ?.orElse(null)
+                ?.text()
         } catch (e: Exception) {
             log.error("LLM API call failed", e)
-            return null
+            null
         }
     }
 }

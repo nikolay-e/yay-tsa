@@ -14,20 +14,11 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation(project(":adapter-shared"))
     implementation(project(":core-domain:shared"))
-    implementation(project(":core-domain:playback"))
-    implementation(project(":core-domain:playlists"))
-    implementation(project(":core-domain:preferences"))
-    implementation(project(":core-domain:adaptive"))
+    implementation(project(":core-domain:auth"))
     implementation(project(":core-domain:library"))
+    implementation(project(":core-domain:playback"))
     implementation(project(":core-application:shared"))
-    implementation(project(":core-application:auth"))
-    implementation(project(":core-application:library"))
-    implementation(project(":core-application:playback"))
-    implementation(project(":core-application:playlists"))
-    implementation(project(":core-application:preferences"))
-    implementation(project(":core-application:adaptive"))
     implementation(libs.spring.boot.starter.web)
     implementation(libs.jackson.module.kotlin)
 

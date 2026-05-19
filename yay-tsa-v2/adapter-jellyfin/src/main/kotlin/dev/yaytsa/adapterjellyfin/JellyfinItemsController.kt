@@ -1,5 +1,10 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.BaseItem
+import dev.yaytsa.adaptershared.NameIdPair
+import dev.yaytsa.adaptershared.TrackLookups
+import dev.yaytsa.adaptershared.msToTicks
+import dev.yaytsa.adaptershared.toJellyfinBaseItem
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.preferences.PreferencesQueries
@@ -293,11 +298,6 @@ class JellyfinItemsController(
 
     // --- Mappers ---
 
-    private data class TrackLookups(
-        val albumNames: Map<EntityId, String>,
-        val artistNames: Map<EntityId, String>,
-    )
-
     private fun tracksLookups(tracks: List<Track>): TrackLookups {
         val albumIds = tracks.mapNotNull { it.albumId }.toSet()
         val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
@@ -309,30 +309,8 @@ class JellyfinItemsController(
 
     private fun Track.toBaseItem(
         favTrackIds: Set<String> = emptySet(),
-        lookups: TrackLookups = TrackLookups(emptyMap(), emptyMap()),
-    ): BaseItem {
-        val artistName = albumArtistId?.let { lookups.artistNames[it] }
-        return BaseItem(
-            id = id.value,
-            name = name,
-            type = "Audio",
-            album = albumId?.let { lookups.albumNames[it] },
-            albumId = albumId?.value,
-            artists = artistName?.let { listOf(it) },
-            artistItems =
-                if (artistName != null && albumArtistId != null) {
-                    listOf(NameIdPair(artistName, albumArtistId!!.value))
-                } else {
-                    null
-                },
-            runTimeTicks = msToTicks(durationMs),
-            imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
-            userData = UserItemData(isFavorite = id.value in favTrackIds),
-            genres = genre?.let { listOf(it) },
-            sortName = sortName,
-            parentId = albumId?.value,
-        )
-    }
+        lookups: TrackLookups = TrackLookups(),
+    ): BaseItem = toJellyfinBaseItem(favTrackIds, lookups)
 
     private fun Album.toBaseItem(favTrackIds: Set<String> = emptySet()) =
         BaseItem(

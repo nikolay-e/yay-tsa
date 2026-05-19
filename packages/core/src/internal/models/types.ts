@@ -252,11 +252,6 @@ export interface ServerInfo {
   Id: string;
   ServerName: string;
   Version: string;
-  ProductName?: string;
-  OperatingSystem?: string;
-  HasUpdateAvailable?: boolean;
-  CanSelfRestart?: boolean;
-  CanLaunchWebUI?: boolean;
   StartupWizardCompleted?: boolean;
 }
 

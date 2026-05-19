@@ -11,6 +11,7 @@ import {
   AuthenticationError,
 } from '../internal/models/types.js';
 import { createLogger } from '../internal/utils/logger.js';
+import type { KaraokeState } from '../generated/constants.js';
 
 const log = createLogger('API');
 
@@ -597,6 +598,6 @@ export class MediaServerClient {
 }
 
 export interface KaraokeStatus {
-  state: 'NOT_STARTED' | 'PROCESSING' | 'READY' | 'FAILED';
+  state: KaraokeState;
   message: string | null;
 }
