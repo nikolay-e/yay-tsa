@@ -40,6 +40,46 @@ Health endpoints, `/Items` HTTP 200, no-pod-restart, and "the page renders" are 
 
 **If any of the above fails, the bug is shipped to production** — `/qa` is not complete until every one is green on the deployed image whose tag matches `kubectl get deployment ... -o jsonpath='{.spec.template.spec.containers[0].image}'`.
 
+## ML / Recommendation Coverage Gaps (2026-05-19)
+
+This is the structural failure of the QA pipeline as it stood until 2026-05-19: **ML embeddings, HNSW indexes, taste profiles, and `user_track_affinity` all existed in the DB and shipped with v2, but no production code path read or wrote them.** Specifically:
+
+- `MlQueryPort.findSimilarTracks` / pgvector `<=>` similarity search: **did not exist**. The HNSW indexes on `embedding_mert`/`clap`/`discogs`/`musicnn` (V002 migration) had no callers — they were dead storage.
+- `core_v2_ml.user_track_affinity`: **never written by production code in v2**. Only the v1→v2 ETL migration script (`scripts/etl-migrate.sql`) ever inserted rows. `playback_signals` rows accumulated from user skips/completions/thumbs but no worker aggregated them. Affinity scores were frozen at the v1 cutover state forever.
+- `/v1/recommend/radio/seeds` returned the same top-8 affinity tracks as `/v1/recommend/daily-mix` — `buildRecommendedSeeds()` was literally `= buildRecommendedTracks(...)`. Two RPC paths, one set of bytes. The radio row on the home page rendered as "first 8 entries of Daily Mix" with duplicate artists.
+- `PreferenceContract.redLines` was sent to the LLM-DJ prompt but **never filtered candidate tracks at query time**. A user could declare "never play screamo" and still get screamo in their Daily Mix and Radio.
+- LLM-DJ prompt didn't include `session.seedTrackId` or any embedding-similar candidates — Claude was choosing from "user's overall top affinity" regardless of which radio station was clicked.
+
+### Why the QA pipeline missed all of it
+
+Pre-deploy gates green, post-deploy smoke checks green, `npm run test:integration` green, every Mandatory Browser-QA flow green. The bug class slipped through because every existing test is structurally myopic:
+
+- **`MlQueryPortTest`** (Testcontainers) tests each port method in isolation: `getTrackFeatures returns row`, `getTopAffinities returns ordered list`. Passing those tests proves the JPA wiring works — it says nothing about whether anything **calls** the port from a real recommendation path. Two passing port methods, zero callers, zero red lights.
+- **Hibernate startup validation** confirms `@Query` placeholders match parameters. It does not confirm the query is reachable from any controller, scheduler, or worker.
+- **ETL validation script** (`yay-tsa-v2/scripts/validate-migration.sql`) counts rows post-cutover. `SELECT count(*) FROM core_v2_ml.user_track_affinity` returned the v1-imported number → green. Whether new signals after cutover get aggregated → unmeasured.
+- **`/qa` browser flows** click Play and assert audio bytes flow — they don't measure "are these tracks actually personalised". A user gets identical content on a fresh login as on a 6-month-old account; both feel "working" to a smoke test.
+- **Schemathesis / ZAP** exercise endpoint syntax and security. They never assert _recommendation quality_ because the assertion language for "is this a good recommendation" doesn't fit OpenAPI/HTTP-status testing.
+- **No metric tracks "fraction of recommendation responses that actually invoked the ML port"** — adding a Micrometer counter per call site would have surfaced the gap in Grafana within a day of v2 going live.
+
+### Test patterns that MUST exist going forward
+
+Add these to the project's integration test suite — not as unit tests, as **end-to-end DB-backed integration tests** (per workspace rule: real Postgres, real worker, real signals):
+
+1. **Embeddings actually drive bootstrap** — after `POST /v1/sessions {seed_track_id: X}` + `POST /v1/sessions/{id}/queue/refresh`, the resulting queue's track set must `INTERSECT` with `mlQuery.findSimilarTracks(X, 10)` by ≥ 50%. If the queue is purely top-affinity instead, the test fails. Run against a fixture library with known seeded MERT embeddings so similarity is deterministic.
+2. **`POST /Sessions/Playing/Stopped` + `signal_type=PLAY_COMPLETE` raises affinity_score within one worker tick.** Seed `user_track_affinity` for `(test_user, track_X)` at score 0.0, fire the signal, sleep past `yaytsa.affinity.poll-interval-ms`, assert `affinity_score > 0`. If the column doesn't move, the worker is dead or unwired — exactly the case we shipped for 6 months.
+3. **`POST /Sessions/Playing/Stopped` with `signal_type=SKIP_EARLY` lowers affinity_score** (mirror of above; ensures negative-feedback path also flows).
+4. **`PUT /v1/users/{id}/preferences { redLines: "metal" }` removes tracks tagged `metal` from `GET /v1/recommend/daily-mix` and `/v1/recommend/radio/seeds`.** Insert a known metal track into the user's top affinities, set the red line, hit both endpoints, assert the track is absent. Without this we ship the "user sets red line, recommendation ignores it" regression every time someone touches the recommendation path.
+5. **Two distinct radio seeds yield two non-identical track sets.** Pick two seeds with no shared HNSW neighbours in the fixture, bootstrap both queues, assert `set(queue_A) ∩ set(queue_B) ≤ 1` (the seed itself). This is the test that would have caught "Radio = Daily Mix" the first day.
+6. **No production code referencing `MlQueryPort` reaches it via a Spring proxy whose target is missing.** ArchUnit rule: every `@Autowired`/constructor-injected `MlQueryPort` must have a `@Repository`-annotated implementation reachable through `@SpringBootApplication` scan. The current rule prevents this from regressing if a future refactor accidentally drops `@Repository`.
+
+### Operational signal to add
+
+A Micrometer gauge `yaytsa.ml.affinity.rows_total` and `yaytsa.ml.affinity.last_updated_at` exposed via `/manage/prometheus`. A Grafana alert "`time() - max(yaytsa_ml_affinity_last_updated_at) > 6h`" pages immediately when the signal→affinity worker silently stops processing — the failure mode that ran for 6+ months without anyone noticing. Same pattern for `yaytsa.ml.similarity.queries_total` (counter) — zero increment over a 24h window proves the recommendation path is bypassing ML.
+
+### Generalised lesson
+
+Schema migrations that introduce new capability (HNSW indexes, embedding columns, signal logs) are dangerous in a way that bug fixes aren't: the migration succeeds and "looks deployed", but the read- and write-side code that gives the schema meaning may be entirely missing or stubbed. **Treat every new schema feature as untrusted until an integration test exercises a controller / worker that demonstrably reads or writes through it.** The test is the only line of defense — staring at the migration doesn't prove anything will ever call it.
+
 ## yay-tsa Specific Backend Diagnostics
 
 - `actuator/health` only proves Tomcat started. Says nothing about `/Items` returning data, `/Audio/stream` returning audio bytes, `/Images/Primary` returning image bytes, or JPA `EntityManager` being wired. **A green health probe with broken streaming is the most common "deploy looks fine, users complain" scenario.**
