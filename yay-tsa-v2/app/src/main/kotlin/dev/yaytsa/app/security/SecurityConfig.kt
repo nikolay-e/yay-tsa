@@ -42,8 +42,13 @@ class SecurityConfig(
                     .permitAll()
                     .requestMatchers("/System/Info/Public", "/System/Ping")
                     .permitAll()
-                    .requestMatchers("/manage/health", "/manage/health/liveness", "/manage/health/readiness")
-                    .permitAll()
+                    .requestMatchers(
+                        "/manage/health",
+                        "/manage/health/liveness",
+                        "/manage/health/readiness",
+                        "/manage/prometheus",
+                        "/manage/info",
+                    ).permitAll()
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                     .permitAll()
                     .anyRequest()
