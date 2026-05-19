@@ -3,6 +3,8 @@ import { test as authTest } from './fixtures/auth.fixture';
 import { NAVIGATION_TEST_IDS } from './helpers/test-ids';
 
 base.describe('Navigation — Unauthenticated', () => {
+  base.use({ storageState: { cookies: [], origins: [] } });
+
   base('should redirect to login when accessing protected route without auth', async ({ page }) => {
     await page.goto('/albums');
 

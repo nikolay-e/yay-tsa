@@ -23,6 +23,9 @@ target
 
 test-results
 
+# Playwright storageState (per-developer auth cache)
+apps/web/tests/e2e/.auth/
+
 # IDE
 .vscode/
 .idea/

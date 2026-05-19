@@ -1,6 +1,9 @@
 import { test, expect } from './fixtures/login.fixture';
 import { TEST_CREDENTIALS } from './helpers/test-config';
 
+// Auth flow tests must start from an unauthenticated state to exercise the login UI.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Authentication Flow', () => {
   const { USERNAME: username, PASSWORD: password } = TEST_CREDENTIALS;
 

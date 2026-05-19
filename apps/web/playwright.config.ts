@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const baseURL = process.env.BASE_URL || 'http://localhost:5173';
+const STORAGE_STATE = 'tests/e2e/.auth/user.json';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -25,25 +26,38 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'chromium',
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
       use: {
-        ...devices['Desktop Chrome'],
-        hasTouch: false, // Explicitly disable touch for desktop
-        isMobile: false,
         launchOptions: {
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         },
       },
     },
     {
-      name: 'mobile',
+      name: 'chromium',
       use: {
-        ...devices['Pixel 7'],
-        hasTouch: true,
+        ...devices['Desktop Chrome'],
+        hasTouch: false, // Explicitly disable touch for desktop
+        isMobile: false,
+        storageState: STORAGE_STATE,
         launchOptions: {
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         },
       },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile',
+      use: {
+        ...devices['Pixel 7'],
+        hasTouch: true,
+        storageState: STORAGE_STATE,
+        launchOptions: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        },
+      },
+      dependencies: ['setup'],
     },
     // WebKit covers Safari MediaSession / Audio quirks that Chromium misses on iOS PWAs.
     {
@@ -52,7 +66,9 @@ export default defineConfig({
         ...devices['Desktop Safari'],
         hasTouch: false,
         isMobile: false,
+        storageState: STORAGE_STATE,
       },
+      dependencies: ['setup'],
     },
   ],
 

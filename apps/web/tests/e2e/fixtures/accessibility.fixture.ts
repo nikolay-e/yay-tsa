@@ -1,64 +1,12 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as authTest } from './auth.fixture';
 import AxeBuilder from '@axe-core/playwright';
-import { TEST_CREDENTIALS } from '../helpers/test-config';
+import type { Page } from '@playwright/test';
 
 type AccessibilityFixtures = {
-  authenticatedPage: Page;
   checkAccessibility: (page: Page, options?: { excludeRules?: string[] }) => Promise<void>;
 };
 
-async function loginWithRetry(page: Page, username: string, password: string, maxRetries = 2) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    await page.goto('/login');
-
-    const usernameInput = page.getByLabel('Username');
-    await expect(usernameInput).toBeVisible({ timeout: 5000 });
-
-    await usernameInput.fill(username);
-    await page.locator('input[type="password"]').fill(password);
-    await page.getByRole('button', { name: 'Sign In' }).click();
-
-    const result = await Promise.race([
-      page
-        .waitForURL(url => !url.href.includes('login'), { timeout: 15000 })
-        .then(() => 'navigated' as const),
-      page
-        .getByRole('heading', { level: 1 })
-        .first()
-        .waitFor({ timeout: 15000 })
-        .then(() => 'loaded' as const),
-      new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 15000)),
-    ]);
-
-    if (result === 'navigated' || result === 'loaded') {
-      return;
-    }
-
-    if (attempt === maxRetries) {
-      throw new Error(`Login failed after ${maxRetries} attempts`);
-    }
-    await page.waitForTimeout(1000);
-  }
-}
-
-export const test = base.extend<AccessibilityFixtures>({
-  authenticatedPage: async ({ page }, use) => {
-    const { USERNAME: username, PASSWORD: password } = TEST_CREDENTIALS;
-    await loginWithRetry(page, username, password);
-    await expect(page).toHaveURL('/', { timeout: 5000 });
-    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 5000 });
-    await use(page);
-
-    await page.evaluate(() => {
-      const audio = document.querySelector('audio');
-      if (audio) {
-        audio.pause();
-        audio.src = '';
-      }
-      sessionStorage.clear();
-    });
-  },
-
+export const test = authTest.extend<AccessibilityFixtures>({
   checkAccessibility: async ({}, use) => {
     const checker = async (page: Page, options?: { excludeRules?: string[] }) => {
       let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
@@ -87,4 +35,4 @@ export const test = base.extend<AccessibilityFixtures>({
   },
 });
 
-export { expect } from '@playwright/test';
+export { expect } from './auth.fixture';

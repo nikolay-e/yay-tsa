@@ -1,5 +1,13 @@
 rootProject.name = "yaytsa"
 
+pluginManagement {
+    includeBuild("build-logic")
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 // Shared foundation
 include("core-domain:shared")
 include("core-application:shared")

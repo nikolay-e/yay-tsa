@@ -19,6 +19,11 @@ dependencies {
     implementation(libs.kotest.property)
     implementation(libs.kotlin.test)
 
+    implementation(libs.testcontainers.postgresql)
+    implementation(libs.testcontainers.junit.jupiter)
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:3.4.4"))
+    implementation("org.springframework:spring-test")
+
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.kotest.property)

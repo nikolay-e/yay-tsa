@@ -1,13 +1,17 @@
 import { test, expect } from './fixtures/accessibility.fixture';
 
-test.describe('Accessibility', () => {
+test.describe('Accessibility — Unauthenticated', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('login page has no accessibility violations', async ({ page, checkAccessibility }) => {
     await page.goto('/login');
     await expect(page.getByLabel('Username')).toBeVisible();
 
     await checkAccessibility(page);
   });
+});
 
+test.describe('Accessibility', () => {
   test('home page has no accessibility violations', async ({
     authenticatedPage,
     checkAccessibility,

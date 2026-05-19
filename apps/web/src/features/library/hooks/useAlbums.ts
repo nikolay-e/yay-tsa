@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
-import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useAuthenticatedQuery } from '@/features/auth/hooks/useAuthenticatedQuery';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
 interface UseAlbumsOptions {
@@ -15,19 +14,13 @@ interface UseAlbumsOptions {
 }
 
 export function useAlbums(options: UseAlbumsOptions = {}) {
-  const client = useAuthStore(state => state.client);
   const { enabled = true, ...queryOptions } = options;
 
-  return useQuery({
-    queryKey: ['albums', queryOptions],
-    queryFn: async () => {
-      if (!client) throw new Error('Not authenticated');
-      const itemsService = new ItemsService(client);
-      return itemsService.getAlbums(queryOptions);
-    },
-    enabled: enabled && !!client,
-    staleTime: 5 * 60 * 1000,
-  });
+  return useAuthenticatedQuery(
+    ['albums', queryOptions],
+    async client => new ItemsService(client).getAlbums(queryOptions),
+    { enabled }
+  );
 }
 
 interface UseInfiniteAlbumsOptions {
@@ -53,34 +46,20 @@ export function useInfiniteAlbums(options: UseInfiniteAlbumsOptions = {}) {
 }
 
 export function useRecentAlbums(limit = 20) {
-  const client = useAuthStore(state => state.client);
-
-  return useQuery({
-    queryKey: ['albums', 'recent', limit],
-    queryFn: async () => {
-      if (!client) throw new Error('Not authenticated');
-      const itemsService = new ItemsService(client);
-      return itemsService.getRecentAlbums(limit);
-    },
-    enabled: !!client,
-    staleTime: 5 * 60 * 1000,
-  });
+  return useAuthenticatedQuery(['albums', 'recent', limit], async client =>
+    new ItemsService(client).getRecentAlbums(limit)
+  );
 }
 
 export function useAlbumTracks(albumId: string | undefined) {
-  const client = useAuthStore(state => state.client);
-
-  return useQuery({
-    queryKey: ['album', albumId, 'tracks'],
-    queryFn: async () => {
-      if (!client) throw new Error('Not authenticated');
+  return useAuthenticatedQuery(
+    ['album', albumId, 'tracks'],
+    async client => {
       if (!albumId) throw new Error('Album ID required');
-      const itemsService = new ItemsService(client);
-      return itemsService.getAlbumTracks(albumId);
+      return new ItemsService(client).getAlbumTracks(albumId);
     },
-    enabled: !!client && !!albumId,
-    staleTime: 5 * 60 * 1000,
-  });
+    { enabled: !!albumId }
+  );
 }
 
 export type { MusicAlbum } from '@yay-tsa/core';
