@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":infra-llm"))
 
     // Adapters
+    implementation(project(":adapter-shared"))
     implementation(project(":adapter-opensubsonic"))
     implementation(project(":adapter-jellyfin"))
     implementation(project(":adapter-mcp"))
