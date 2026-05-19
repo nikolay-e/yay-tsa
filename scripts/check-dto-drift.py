@@ -97,39 +97,49 @@ def collect(files: list[str], extractor):
     return merged
 
 
+def check_pair(
+    pair: dict,
+    kotlin_classes: dict,
+    ts_interfaces: dict,
+) -> str | None:
+    name = pair["name"]
+    kt_name = pair["kotlin_class"]
+    ts_name = pair["ts_interface"]
+
+    kt_fields = kotlin_classes.get(kt_name)
+    ts_fields_raw = ts_interfaces.get(ts_name)
+    ts_fields = resolve_ts_fields(ts_name, ts_interfaces) if ts_fields_raw is not None else None
+
+    if kt_fields is None:
+        return f"[{name}] Kotlin data class `{kt_name}` not found"
+    if ts_fields is None:
+        return f"[{name}] TS interface `{ts_name}` not found"
+
+    kt_set = set(kt_fields)
+    ts_set = set(ts_fields)
+    only_kt = sorted(kt_set - ts_set)
+    only_ts = sorted(ts_set - kt_set)
+    if not only_kt and not only_ts:
+        return None
+
+    block = [f"[{name}] DTO drift detected:"]
+    if only_kt:
+        block.append(f"  fields present in Kotlin ({kt_name}) but missing in TS ({ts_name}): {only_kt}")
+    if only_ts:
+        block.append(f"  fields present in TS ({ts_name}) but missing in Kotlin ({kt_name}): {only_ts}")
+    return "\n".join(block)
+
+
 def main() -> int:
     cfg = load_config()
     kotlin_classes = collect(cfg["kotlin_files"], extract_kotlin_classes)
     ts_interfaces = collect(cfg["ts_files"], extract_ts_interfaces)
 
-    failures: list[str] = []
-    for pair in cfg["pairs"]:
-        name = pair["name"]
-        kt_name = pair["kotlin_class"]
-        ts_name = pair["ts_interface"]
-
-        kt_fields = kotlin_classes.get(kt_name)
-        ts_fields_raw = ts_interfaces.get(ts_name)
-        ts_fields = resolve_ts_fields(ts_name, ts_interfaces) if ts_fields_raw is not None else None
-
-        if kt_fields is None:
-            failures.append(f"[{name}] Kotlin data class `{kt_name}` not found")
-            continue
-        if ts_fields is None:
-            failures.append(f"[{name}] TS interface `{ts_name}` not found")
-            continue
-
-        kt_set = set(kt_fields)
-        ts_set = set(ts_fields)
-        only_kt = sorted(kt_set - ts_set)
-        only_ts = sorted(ts_set - kt_set)
-        if only_kt or only_ts:
-            block = [f"[{name}] DTO drift detected:"]
-            if only_kt:
-                block.append(f"  fields present in Kotlin ({kt_name}) but missing in TS ({ts_name}): {only_kt}")
-            if only_ts:
-                block.append(f"  fields present in TS ({ts_name}) but missing in Kotlin ({kt_name}): {only_ts}")
-            failures.append("\n".join(block))
+    failures = [
+        msg
+        for pair in cfg["pairs"]
+        if (msg := check_pair(pair, kotlin_classes, ts_interfaces)) is not None
+    ]
 
     if failures:
         print("DTO drift check FAILED:\n", file=sys.stderr)

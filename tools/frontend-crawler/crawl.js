@@ -227,7 +227,8 @@ function printReport() {
   console.log('\n==================================');
 }
 
-async function main() {
+// Wrapped at top level via `await` below — keep the body in a function for readability.
+async function runCrawler() {
   if (!PASSWORD) {
     console.error('CRAWL_PASSWORD required');
     process.exit(1);
@@ -253,4 +254,4 @@ async function main() {
   process.exit(hasFailures ? 1 : 0);
 }
 
-main();
+await runCrawler();
