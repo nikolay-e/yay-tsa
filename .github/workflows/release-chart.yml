@@ -67,6 +67,7 @@ jobs:
         run: |
           sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" charts/${{ matrix.chart }}/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: '${{ steps.version.outputs.app_version }}'/" charts/${{ matrix.chart }}/Chart.yaml
+          helm dependency build charts/${{ matrix.chart }}
           helm package charts/${{ matrix.chart }} -d .packaged
 
       - name: Create GitHub Release (stable only)
