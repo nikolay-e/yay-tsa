@@ -14,6 +14,8 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 
 COPY packages/ ./packages/
 COPY apps/ ./apps/
+COPY scripts/ ./scripts/
+COPY shared-constants.yaml ./
 
 FROM base AS development
 
@@ -46,6 +48,8 @@ RUN npm ci
 
 COPY packages/ ./packages/
 COPY apps/ ./apps/
+COPY scripts/ ./scripts/
+COPY shared-constants.yaml ./
 
 RUN npm run build:core && npm run build:platform
 
