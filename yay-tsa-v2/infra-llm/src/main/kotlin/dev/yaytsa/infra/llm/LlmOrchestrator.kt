@@ -53,6 +53,7 @@ class LlmOrchestrator(
 
     companion object {
         private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+        private const val SIMILARITY_CANDIDATES = 20
     }
 
     @Scheduled(fixedDelay = 30_000, initialDelay = 10_000)
@@ -85,7 +86,20 @@ class LlmOrchestrator(
         val topAffinities = mlQuery.getTopAffinities(userId, 50)
         val preferenceContract = preferencesQuery.getPreferenceContract(userId)
 
-        val prompt = buildPrompt(session, signals, queueEntries, tasteProfile, topAffinities, preferenceContract)
+        val seedCandidates =
+            session.seedTrackId?.let {
+                mlQuery.findSimilarTracks(TrackId(it.value), SIMILARITY_CANDIDATES)
+            } ?: emptyList()
+        val prompt =
+            buildPrompt(
+                session,
+                signals,
+                queueEntries,
+                tasteProfile,
+                topAffinities,
+                preferenceContract,
+                seedCandidates,
+            )
         val callStartMs = System.currentTimeMillis()
         val response = llmClient.complete(prompt) ?: return
         val latencyMs = (System.currentTimeMillis() - callStartMs).toInt()
@@ -186,6 +200,7 @@ class LlmOrchestrator(
         tasteProfile: TasteProfile?,
         topAffinities: List<UserTrackAffinity>,
         preferenceContract: PreferenceContract?,
+        seedCandidates: List<TrackId>,
     ): String {
         val sb = StringBuilder()
         sb.appendLine("You are a music DJ assistant. Based on the listening session context, suggest 5 tracks to add to the queue.")
@@ -195,6 +210,16 @@ class LlmOrchestrator(
 
         sb.appendLine("Session: mode=${session.attentionMode}, energy=${session.energy}, mood=${session.moodTags}")
         sb.appendLine()
+        session.seedTrackId?.let { seed ->
+            sb.appendLine("Radio seed: this session started from track ${seed.value}.")
+            sb.appendLine("Suggestions MUST stay in the same musical neighborhood (genre/timbre/structure) as the seed.")
+            if (seedCandidates.isNotEmpty()) {
+                sb.appendLine("Candidate tracks by audio-embedding similarity to the seed (ordered, closest first):")
+                seedCandidates.forEach { sb.appendLine("  ${it.value}") }
+                sb.appendLine("Prefer suggesting from this candidate set; only step outside it if respecting user constraints requires it.")
+            }
+            sb.appendLine()
+        }
         sb.appendLine("Recent signals:")
         signals.take(10).forEach { sb.appendLine("  ${it.signalType}: track=${it.trackId.value}") }
         sb.appendLine()

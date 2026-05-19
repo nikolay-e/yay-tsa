@@ -159,13 +159,31 @@ class JellyfinAdaptiveController(
 
         val uid = UserId(principal.name)
         val seedTrackId = aggregate.seedTrackId
-        val recommended = buildRecommendedTracks(uid, limit = REFRESH_QUEUE_BOOTSTRAP_SIZE)
-
+        val similar =
+            seedTrackId?.let {
+                mlQuery.findSimilarTracks(TrackId(it.value), REFRESH_QUEUE_BOOTSTRAP_SIZE)
+            } ?: emptyList()
         val orderedTrackIds = mutableListOf<String>()
-        seedTrackId?.value?.let { orderedTrackIds += it }
-        for (rec in recommended) {
-            val rid = rec["trackId"] as? String ?: continue
-            if (rid !in orderedTrackIds) orderedTrackIds += rid
+        val reasonByTrack = mutableMapOf<String, String>()
+        seedTrackId?.value?.let {
+            orderedTrackIds += it
+            reasonByTrack[it] = "seed-track"
+        }
+        similar.forEach { sim ->
+            if (sim.value !in orderedTrackIds) {
+                orderedTrackIds += sim.value
+                reasonByTrack[sim.value] = "bootstrap-similarity"
+            }
+        }
+        if (orderedTrackIds.size < REFRESH_QUEUE_BOOTSTRAP_SIZE + 1) {
+            val recommended = buildRecommendedTracks(uid, limit = REFRESH_QUEUE_BOOTSTRAP_SIZE)
+            for (rec in recommended) {
+                val rid = rec["trackId"] as? String ?: continue
+                if (rid !in orderedTrackIds) {
+                    orderedTrackIds += rid
+                    reasonByTrack[rid] = "bootstrap-affinity"
+                }
+            }
         }
         if (orderedTrackIds.isEmpty()) return ResponseEntity.noContent().build()
 
@@ -179,7 +197,7 @@ class JellyfinAdaptiveController(
                         NewQueueEntry(
                             id = AdaptiveQueueEntryId(UUID.randomUUID().toString()),
                             trackId = TrackId(trackId),
-                            addedReason = if (trackId == seedTrackId?.value) "seed-track" else "bootstrap-affinity",
+                            addedReason = reasonByTrack[trackId] ?: "bootstrap-affinity",
                             intentLabel = "bootstrap",
                         )
                     },

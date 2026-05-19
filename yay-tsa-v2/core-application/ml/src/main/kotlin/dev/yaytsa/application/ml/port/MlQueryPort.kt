@@ -25,4 +25,14 @@ interface MlQueryPort {
         userId: UserId,
         limit: Int,
     ): List<UserTrackAffinity>
+
+    /**
+     * HNSW kNN search: tracks closest to [seedTrackId] in MERT embedding space (cosine distance),
+     * with a fallback to CLAP, then Discogs. Empty list if the seed has no embeddings yet.
+     * The seed itself is excluded from the result.
+     */
+    fun findSimilarTracks(
+        seedTrackId: TrackId,
+        limit: Int,
+    ): List<TrackId>
 }

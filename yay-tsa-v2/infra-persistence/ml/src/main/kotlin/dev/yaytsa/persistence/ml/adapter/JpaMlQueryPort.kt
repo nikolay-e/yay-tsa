@@ -53,4 +53,18 @@ class JpaMlQueryPort(
             .findByUserIdOrderByAffinityScoreDesc(uid, PageRequest.of(0, limit.coerceIn(1, MlQueryPort.MAX_QUERY_LIMIT)))
             .map { MlMappers.toDomain(it) }
     }
+
+    override fun findSimilarTracks(
+        seedTrackId: TrackId,
+        limit: Int,
+    ): List<TrackId> {
+        val seed = UUID.fromString(seedTrackId.value)
+        val cappedLimit = limit.coerceIn(1, MlQueryPort.MAX_QUERY_LIMIT)
+        val ids =
+            trackFeaturesJpa
+                .findSimilarByMert(seed, cappedLimit)
+                .ifEmpty { trackFeaturesJpa.findSimilarByClap(seed, cappedLimit) }
+                .ifEmpty { trackFeaturesJpa.findSimilarByDiscogs(seed, cappedLimit) }
+        return ids.map { TrackId(it.toString()) }
+    }
 }
