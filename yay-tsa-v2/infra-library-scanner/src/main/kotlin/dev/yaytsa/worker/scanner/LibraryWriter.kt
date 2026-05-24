@@ -111,6 +111,11 @@ class LibraryWriter(
                 ?.takeIf { pathSegments.size >= 3 && it.isNotBlank() }
                 ?.let { stripLeadingYear(it) }
 
+        // Album root is <Artist>/<Album>; for multi-disc layouts the track lives a level
+        // deeper (…/<Album>/CD1/track.flac), so cover art at the album root is found by
+        // falling back from the track's own directory to this path.
+        val albumRootDir = if (pathSegments.size >= 3) root.resolve(pathSegments[0]).resolve(pathSegments[1]) else null
+
         val rawArtist = tagAlbumArtist ?: tagArtist ?: folderArtist
         val artistName = primaryArtist(rawArtist)
         val albumName = tagAlbum ?: folderAlbum
@@ -138,7 +143,7 @@ class LibraryWriter(
         val albumId = albumName?.let { ensureAlbum(it, artistName, artistId, now) }
 
         if (albumId != null) {
-            ensureAlbumCover(albumId, file.parent, now)
+            ensureAlbumCover(albumId, file.parent, albumRootDir, now)
         }
 
         val existing =
@@ -338,13 +343,15 @@ class LibraryWriter(
 
     private fun ensureAlbumCover(
         albumId: UUID,
-        albumDir: Path?,
+        trackDir: Path?,
+        albumRootDir: Path?,
         now: OffsetDateTime,
     ) {
-        if (albumDir == null) return
         val existing = imageRepo.findByEntityIdAndIsPrimaryTrue(albumId)
         if (existing != null && Files.isRegularFile(Path.of(existing.path))) return
-        val coverPath = findCoverFile(albumDir) ?: return
+        // Prefer a cover next to the track (single-disc albums, or per-disc art); fall
+        // back to the album root so multi-disc albums whose cover sits at <Album>/ resolve.
+        val coverPath = trackDir?.let(::findCoverFile) ?: albumRootDir?.let(::findCoverFile) ?: return
         if (existing != null) imageRepo.delete(existing)
         val sizeBytes = runCatching { Files.size(coverPath) }.getOrNull()
         imageRepo.save(

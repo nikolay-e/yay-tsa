@@ -1,6 +1,7 @@
 package dev.yaytsa.worker.scanner
 
 import dev.yaytsa.persistence.library.repository.AudioTrackRepository
+import dev.yaytsa.persistence.library.repository.ImageRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
@@ -42,6 +43,8 @@ class LibraryWriterHygieneTest {
     @Autowired lateinit var trackRepo: AudioTrackRepository
 
     @Autowired lateinit var jdbc: JdbcTemplate
+
+    @Autowired lateinit var imageRepo: ImageRepository
 
     companion object {
         @JvmStatic
@@ -126,5 +129,23 @@ class LibraryWriterHygieneTest {
         val file = place(root, "silent-3s.flac", "Slipknot/Iowa/01 - Eyeless.flac")
         writer.upsertTrack(root, file)
         assertTrue(trackNames().contains("Eyeless"), "no-title file should store the stripped filename body, got ${trackNames()}")
+    }
+
+    @Test
+    fun `multi-disc album cover at the album root resolves from a track in a CD subfolder`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        // Cover lives only at the album root; the track is one level deeper under CD1.
+        val track = place(root, "silent-3s.flac", "Hulkoff/2020 - Pansarfolk/CD1/01 - Pansarfolk.flac")
+        val albumRootCover = track.parent.parent.resolve("cover.jpg")
+        Files.write(albumRootCover, byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte()))
+
+        writer.upsertTrack(root, track)
+
+        val album = entityRepo.findByEntityTypeOrderBySortName("ALBUM").firstOrNull()
+        assertTrue(album != null, "album entity must be created")
+        val cover = imageRepo.findByEntityIdAndIsPrimaryTrue(album!!.id)
+        assertTrue(cover != null, "multi-disc album must get a Primary cover from the album root")
+        assertTrue(cover!!.path.endsWith("2020 - Pansarfolk/cover.jpg"), "cover must resolve to the album-root file, was ${cover.path}")
     }
 }
