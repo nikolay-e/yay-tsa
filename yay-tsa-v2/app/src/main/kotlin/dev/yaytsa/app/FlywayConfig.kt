@@ -57,4 +57,8 @@ class FlywayConfig(
     @Bean(initMethod = "migrate")
     @DependsOn("flywayShared")
     fun flywayKaraoke(): Flyway = flywayForSchema("core_v2_karaoke", "classpath:db/karaoke")
+
+    @Bean(initMethod = "migrate")
+    @DependsOn("flywayShared")
+    fun flywayGroups(): Flyway = flywayForSchema("core_v2_groups", "classpath:db/groups")
 }

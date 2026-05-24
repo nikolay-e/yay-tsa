@@ -41,6 +41,8 @@ class SecurityConfig(
                     .permitAll()
                     .requestMatchers("/System/Info/Public", "/System/Ping")
                     .permitAll()
+                    .requestMatchers("/v1/time")
+                    .permitAll()
                     .requestMatchers(
                         "/manage/health",
                         "/manage/health/liveness",
