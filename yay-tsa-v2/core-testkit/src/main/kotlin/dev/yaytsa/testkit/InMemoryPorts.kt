@@ -217,6 +217,16 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
         return tracks.values.count { it.name.lowercase().contains(q) }
     }
 
+    override fun countTextSearchArtists(query: String): Int {
+        val q = query.lowercase()
+        return artists.values.count { it.name.lowercase().contains(q) }
+    }
+
+    override fun countTextSearchAlbums(query: String): Int {
+        val q = query.lowercase()
+        return albums.values.count { it.name.lowercase().contains(q) }
+    }
+
     override fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int> {
         if (artistIds.isEmpty()) return emptyMap()
         return artistIds.associateWith { aid -> albums.values.count { it.artistId == aid } }

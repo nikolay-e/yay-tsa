@@ -21,4 +21,10 @@ class KaraokeAssetEntity(
     val lyricsTiming: String? = null,
     @Column(name = "ready_at")
     val readyAt: Instant? = null,
+    @Column(name = "fail_count")
+    val failCount: Int = 0,
+    @Column(name = "last_failed_at")
+    val lastFailedAt: Instant? = null,
+    @Column(name = "last_error")
+    val lastError: String? = null,
 )

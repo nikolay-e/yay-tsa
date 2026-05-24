@@ -180,15 +180,12 @@ class JellyfinMediaController(
             hint.contains("mp3") || hint == "mpeg" -> "audio/mpeg"
             hint.contains("opus") -> "audio/opus"
             hint.contains("vorbis") || hint == "ogg" -> "audio/ogg"
-            hint == "aac" || hint == "m4a" || hint.contains("mp4") -> "audio/mp4"
+            hint == "aac" || hint == "m4a" || hint == "alac" || hint.contains("mp4") -> "audio/mp4"
             hint.contains("wav") -> "audio/wav"
-            extension == "flac" -> "audio/flac"
-            extension == "mp3" -> "audio/mpeg"
-            extension == "opus" -> "audio/opus"
-            extension == "ogg" -> "audio/ogg"
-            extension == "m4a" -> "audio/mp4"
-            extension == "wav" -> "audio/wav"
-            else -> "audio/mpeg"
+            hint.contains("wma") -> "audio/x-ms-wma"
+            hint == "ape" -> "audio/x-ape"
+            hint.contains("dsf") || hint.contains("dsd") || hint == "dff" -> "audio/x-dsf"
+            else -> "application/octet-stream"
         }
     }
 }

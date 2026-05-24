@@ -28,6 +28,7 @@ class KaraokeProcessor(
 
     companion object {
         private const val DEMUCS_TIMEOUT_MINUTES = 30L
+        private const val MAX_FAILURES = 3
     }
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 60_000)
@@ -48,8 +49,15 @@ class KaraokeProcessor(
                 .map { it.id }
                 .toSet()
 
-        val processedIds = karaokeRepo.findAll().map { it.trackId }.toSet()
-        val unprocessed = allTrackIds - processedIds
+        // A track is terminal only when it succeeded (readyAt set) or exhausted its
+        // retry budget. A bare failure row no longer permanently skips the track.
+        val terminalIds =
+            karaokeRepo
+                .findAll()
+                .filter { it.readyAt != null || it.failCount >= MAX_FAILURES }
+                .map { it.trackId }
+                .toSet()
+        val unprocessed = allTrackIds - terminalIds
 
         if (unprocessed.isEmpty()) {
             log.info("No unprocessed tracks for karaoke separation")
@@ -68,7 +76,9 @@ class KaraokeProcessor(
 
     @Transactional
     fun processTrack(trackId: UUID) {
-        if (karaokeRepo.existsById(trackId)) return
+        val existing = karaokeRepo.findById(trackId).orElse(null)
+        if (existing?.readyAt != null) return
+        if ((existing?.failCount ?: 0) >= MAX_FAILURES) return
 
         val entity = libraryEntityRepo.findById(trackId).orElse(null) ?: return
         val sourcePath = entity.sourcePath ?: return
@@ -94,19 +104,19 @@ class KaraokeProcessor(
             if (!finished) {
                 process.destroyForcibly()
                 log.warn("Demucs timed out for track {} after {} min", trackId, DEMUCS_TIMEOUT_MINUTES)
-                karaokeRepo.save(KaraokeAssetEntity(trackId = trackId))
+                recordFailure(trackId, existing, "demucs timed out after $DEMUCS_TIMEOUT_MINUTES min")
                 return
             }
 
             val exitCode = process.exitValue()
             if (exitCode != 0) {
                 log.warn("Demucs failed for track {} (exit {}): {}", trackId, exitCode, processOutput.takeLast(500))
-                karaokeRepo.save(KaraokeAssetEntity(trackId = trackId))
+                recordFailure(trackId, existing, "demucs exit $exitCode")
                 return
             }
         } catch (e: Exception) {
             log.warn("Demucs not available for track {}: {}", trackId, e.message)
-            karaokeRepo.save(KaraokeAssetEntity(trackId = trackId))
+            recordFailure(trackId, existing, e.message)
             return
         }
 
@@ -124,7 +134,7 @@ class KaraokeProcessor(
 
         if (vocalFile == null || instrumentalFile == null) {
             log.warn("Demucs output files not found for track {} in {}", trackId, outDir)
-            karaokeRepo.save(KaraokeAssetEntity(trackId = trackId))
+            recordFailure(trackId, existing, "demucs output files not found")
             return
         }
 
@@ -137,5 +147,22 @@ class KaraokeProcessor(
             ),
         )
         log.info("Karaoke assets ready for track {}", trackId)
+    }
+
+    // Persist the failure with an incremented counter instead of a terminal null-stem row,
+    // so the scheduler retries up to MAX_FAILURES before giving up.
+    private fun recordFailure(
+        trackId: UUID,
+        existing: KaraokeAssetEntity?,
+        message: String?,
+    ) {
+        karaokeRepo.save(
+            KaraokeAssetEntity(
+                trackId = trackId,
+                failCount = (existing?.failCount ?: 0) + 1,
+                lastFailedAt = clock.now(),
+                lastError = message?.take(1000),
+            ),
+        )
     }
 }

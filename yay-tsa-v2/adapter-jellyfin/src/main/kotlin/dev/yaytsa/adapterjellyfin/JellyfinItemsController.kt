@@ -82,7 +82,11 @@ class JellyfinItemsController(
             results.artists.forEach { items.add(it.toBaseItem()) }
             results.albums.forEach { items.add(it.toBaseItem(favTrackIds)) }
             results.tracks.forEach { items.add(it.toBaseItem(favTrackIds, trackLookups)) }
-            return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+            val total =
+                libraryQueries.countTextSearchArtists(searchTerm) +
+                    libraryQueries.countTextSearchAlbums(searchTerm) +
+                    libraryQueries.countTextSearchTracks(searchTerm)
+            return ResponseEntity.ok(ItemsResult(items, total, startIndex))
         }
 
         // Handle favorites
@@ -161,7 +165,7 @@ class JellyfinItemsController(
         // Default: return artists
         val artists = libraryQueries.browseArtists(limit, startIndex)
         val items = artists.withAlbumCounts()
-        return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+        return ResponseEntity.ok(ItemsResult(items, libraryQueries.countArtists(), startIndex))
     }
 
     @GetMapping("/UserViews")
@@ -195,7 +199,13 @@ class JellyfinItemsController(
                 libraryQueries.browseArtists(limit, startIndex)
             }
         val items = artists.withAlbumCounts()
-        return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+        val total =
+            if (!searchTerm.isNullOrBlank()) {
+                libraryQueries.countTextSearchArtists(searchTerm)
+            } else {
+                libraryQueries.countArtists()
+            }
+        return ResponseEntity.ok(ItemsResult(items, total, startIndex))
     }
 
     @GetMapping("/Artists/AlbumArtists")
@@ -206,7 +216,7 @@ class JellyfinItemsController(
     ): ResponseEntity<Any> {
         val artists = libraryQueries.browseArtists(limit, startIndex)
         val items = artists.withAlbumCounts()
-        return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+        return ResponseEntity.ok(ItemsResult(items, libraryQueries.countArtists(), startIndex))
     }
 
     @GetMapping("/Search/Hints")
