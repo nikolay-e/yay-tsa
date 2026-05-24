@@ -81,4 +81,32 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
         val result = get("/Items?SearchTerm=PageArtist&Limit=100000000", token)
         assertEquals(200, result.response.status, "huge Limit must be coerced, not OOM/500")
     }
+
+    @Test
+    fun `songs honor SortName ascending and descending (not all the same)`() {
+        val tag = "zzsort-${UUID.randomUUID().toString().take(6)}"
+        listOf("a", "m", "z").forEach { s ->
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, search_text) VALUES (?,?,?,?,?,?)",
+                id,
+                "TRACK",
+                "$tag-$s",
+                "$tag-$s",
+                "/sorttest/$id.flac",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 100000L)
+        }
+
+        fun ordered(order: String): List<String> {
+            val body =
+                objectMapper.readTree(
+                    get("/Items?IncludeItemTypes=Audio&Recursive=true&Limit=200&SortBy=SortName&SortOrder=$order", token).response.contentAsString,
+                )
+            return body.get("Items").map { it.get("Name").asText() }.filter { it.startsWith(tag) }
+        }
+        assertEquals(listOf("$tag-a", "$tag-m", "$tag-z"), ordered("Ascending"))
+        assertEquals(listOf("$tag-z", "$tag-m", "$tag-a"), ordered("Descending"), "Descending must reverse, not echo Ascending")
+    }
 }

@@ -39,6 +39,13 @@ class LibraryQueries(
 
     fun browseTracksByAlbum(albumId: EntityId): List<Track> = libraryQuery.browseTracksByAlbum(albumId)
 
+    fun browseTracks(
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track> = libraryQuery.browseTracks(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
+
     fun browseTracksRandom(limit: Int): List<Track> = libraryQuery.browseTracksRandom(limit)
 
     fun searchText(

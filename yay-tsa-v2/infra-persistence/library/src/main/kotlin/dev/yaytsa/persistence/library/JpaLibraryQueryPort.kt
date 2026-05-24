@@ -19,6 +19,7 @@ import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.TrackId
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Repository
 import java.util.UUID
 
@@ -131,6 +132,27 @@ class JpaLibraryQueryPort(
                 val entity = entities[track.entityId] ?: return@mapNotNull null
                 LibraryMappers.toTrack(entity, track, primaryImages[track.entityId], genreNames[track.entityId])
             }.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+    }
+
+    override fun browseTracks(
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track> {
+        val property = if (sortBy == "DateCreated") "createdAt" else "sortName"
+        val direction = if (sortOrder.equals("Descending", ignoreCase = true)) Sort.Direction.DESC else Sort.Direction.ASC
+        val size = maxOf(limit, 1)
+        val pageable = PageRequest.of(maxOf(offset, 0) / size, size, Sort.by(direction, property))
+        val entities = entityRepo.findByEntityType(EntityType.TRACK.name, pageable)
+        val entityIds = entities.map { it.id }
+        val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
+        val primaryImages = findPrimaryImages(entityIds)
+        val genreNames = findPrimaryGenreNames(entityIds)
+        return entities.mapNotNull { entity ->
+            val track = tracksByEntityId[entity.id] ?: return@mapNotNull null
+            LibraryMappers.toTrack(entity, track, primaryImages[entity.id], genreNames[entity.id])
+        }
     }
 
     override fun browseTracksRandom(limit: Int): List<Track> {

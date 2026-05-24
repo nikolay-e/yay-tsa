@@ -32,6 +32,13 @@ interface LibraryQueryPort {
 
     fun browseTracksByAlbum(albumId: EntityId): List<Track>
 
+    fun browseTracks(
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track>
+
     fun browseTracksRandom(limit: Int): List<Track>
 
     fun searchText(

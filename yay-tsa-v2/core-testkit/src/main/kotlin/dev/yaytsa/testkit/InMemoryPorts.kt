@@ -182,6 +182,17 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun browseTracksRandom(limit: Int) = tracks.values.shuffled().take(limit)
 
+    override fun browseTracks(
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track> {
+        val sorted = tracks.values.sortedBy { it.name.lowercase() }
+        val ordered = if (sortOrder.equals("Descending", ignoreCase = true)) sorted.reversed() else sorted
+        return ordered.drop(maxOf(offset, 0)).take(maxOf(limit, 1))
+    }
+
     override fun searchText(
         query: String,
         limit: Int,

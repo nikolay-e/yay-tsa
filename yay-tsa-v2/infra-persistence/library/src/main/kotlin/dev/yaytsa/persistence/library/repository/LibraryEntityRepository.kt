@@ -23,6 +23,13 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         org: org.springframework.data.domain.Pageable,
     ): List<LibraryEntityJpa>
 
+    // Honors the Pageable's Sort (unlike the *OrderBySortName* variants which hardcode it),
+    // so callers can sort by sortName / createdAt in either direction.
+    fun findByEntityType(
+        entityType: String,
+        pageable: org.springframework.data.domain.Pageable,
+    ): List<LibraryEntityJpa>
+
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e WHERE e.name ILIKE :pattern " +

@@ -142,9 +142,9 @@ class JellyfinItemsController(
                         return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
                     }
                 }
-                val results = libraryQueries.searchText("", limit, startIndex)
-                val trackLookups = tracksLookups(results.tracks)
-                val items = results.tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
+                val browsed = libraryQueries.browseTracks(limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending")
+                val trackLookups = tracksLookups(browsed)
+                val items = browsed.map { it.toBaseItem(favTrackIds, trackLookups) }
                 return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
             }
             "Playlist" in types && uid != null -> {
