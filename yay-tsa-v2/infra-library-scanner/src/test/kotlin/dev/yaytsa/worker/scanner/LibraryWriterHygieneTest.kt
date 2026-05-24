@@ -12,14 +12,21 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.TestPropertySource
+import org.testcontainers.containers.PostgreSQLContainer
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 
+// Uses its OWN container (not the shared reused one): infra-library-scanner and
+// infra-persistence:library both write core_v2_library, and Gradle runs their test
+// tasks in parallel — sharing one schema across both would corrupt each other.
 @SpringBootTest(classes = [ScannerTestApplication::class])
 @TestPropertySource(
     properties = [
+        "spring.flyway.enabled=true",
         "spring.flyway.locations=classpath:db/library",
         "spring.flyway.schemas=core_v2_library",
         "spring.flyway.default-schema=core_v2_library",
@@ -27,7 +34,7 @@ import kotlin.io.path.createDirectories
         "spring.jpa.properties.hibernate.default_schema=core_v2_library",
     ],
 )
-class LibraryWriterHygieneTest : dev.yaytsa.testkit.persistence.AbstractPersistenceTest() {
+class LibraryWriterHygieneTest {
     @Autowired lateinit var writer: LibraryWriter
 
     @Autowired lateinit var entityRepo: LibraryEntityRepository
@@ -36,9 +43,35 @@ class LibraryWriterHygieneTest : dev.yaytsa.testkit.persistence.AbstractPersiste
 
     @Autowired lateinit var jdbc: JdbcTemplate
 
+    companion object {
+        @JvmStatic
+        private val postgres: PostgreSQLContainer<*> =
+            PostgreSQLContainer("pgvector/pgvector:pg16")
+                .withDatabaseName("scanner_test")
+                .withUsername("test")
+                .withPassword("test")
+
+        init {
+            postgres.start()
+            postgres.createConnection("").use { c ->
+                c.createStatement().use { s ->
+                    s.execute("CREATE EXTENSION IF NOT EXISTS citext")
+                    s.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                }
+            }
+        }
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun props(registry: DynamicPropertyRegistry) {
+            registry.add("spring.datasource.url") { postgres.jdbcUrl + "&stringtype=unspecified" }
+            registry.add("spring.datasource.username") { postgres.username }
+            registry.add("spring.datasource.password") { postgres.password }
+        }
+    }
+
     @BeforeEach
     fun clean() {
-        // TRUNCATE CASCADE avoids the row-by-row OCC deletes racing the cleanup_empty_parent trigger.
         jdbc.execute("TRUNCATE TABLE core_v2_library.entities CASCADE")
     }
 
@@ -70,8 +103,7 @@ class LibraryWriterHygieneTest : dev.yaytsa.testkit.persistence.AbstractPersiste
 
         writer.upsertTrack(root, file)
 
-        val names = trackNames()
-        assertEquals(listOf("Something"), names, "dash/N-A junk title must fall back to the filename body")
+        assertEquals(listOf("Something"), trackNames(), "dash/N-A junk title must fall back to the filename body")
         assertFalse(
             entityRepo.findAll().any { (it.name ?: "").matches(Regex("^[-#?\\s]+$")) || it.name.equals("N/A", ignoreCase = true) },
             "no entity may carry a placeholder-junk name",
