@@ -89,11 +89,8 @@ backend:
       processTimeoutSeconds: 600
       batchSize: 50
     llm:
-      enabled: false
-      apiKeySecret: '' # k8s Secret name with key ANTHROPIC_API_KEY (absent = disabled)
-      apiKeySecretKey: 'ANTHROPIC_API_KEY'
-      model: 'claude-sonnet-4-20250514'
-      apiUrl: 'https://api.anthropic.com/v1/messages'
+      enabled: false # stub until a local LLM is wired in; no external provider
+      model: 'local-stub'
     mpd:
       enabled: false
       port: 6600
