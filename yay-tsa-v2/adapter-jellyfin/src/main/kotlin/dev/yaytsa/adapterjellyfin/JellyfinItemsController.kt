@@ -91,13 +91,23 @@ class JellyfinItemsController(
 
         // Handle favorites
         if (isFavorite == true && uid != null) {
-            val tracks =
-                (preferencesQueries.find(UserId(uid))?.favorites ?: emptyList()).mapNotNull { fav ->
-                    libraryQueries.getTrack(EntityId(fav.trackId.value))
+            val favorites = preferencesQueries.find(UserId(uid))?.favorites ?: emptyList()
+            val resolved =
+                favorites.mapNotNull { fav ->
+                    libraryQueries.getTrack(EntityId(fav.trackId.value))?.let { fav to it }
                 }
-            val trackLookups = tracksLookups(tracks)
-            val items = tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
-            return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+            val ascending = !sortOrder.equals("Descending", ignoreCase = true)
+            val sorted =
+                when (sortBy) {
+                    "DateFavorited" -> resolved.sortedBy { it.first.favoritedAt }
+                    "SortName" -> resolved.sortedBy { (it.second.sortName ?: it.second.name).lowercase() }
+                    else -> resolved.sortedBy { it.first.position }
+                }.let { if (ascending) it else it.reversed() }
+            val page = sorted.drop(startIndex.coerceAtLeast(0)).take(limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE))
+            val pageTracks = page.map { it.second }
+            val trackLookups = tracksLookups(pageTracks)
+            val items = pageTracks.map { it.toBaseItem(favTrackIds, trackLookups) }
+            return ResponseEntity.ok(ItemsResult(items, resolved.size, startIndex))
         }
 
         // Handle type-based browsing

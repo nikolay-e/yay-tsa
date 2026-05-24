@@ -27,10 +27,11 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
     lateinit var jdbc: JdbcTemplate
 
     private lateinit var token: String
+    private lateinit var userId: String
 
     @BeforeEach
     fun seed() {
-        val userId = UUID.randomUUID().toString()
+        userId = UUID.randomUUID().toString()
         token = UUID.randomUUID().toString()
         val uid = UserId(userId)
         val now = Instant.now()
@@ -108,5 +109,57 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
         }
         assertEquals(listOf("$tag-a", "$tag-m", "$tag-z"), ordered("Ascending"))
         assertEquals(listOf("$tag-z", "$tag-m", "$tag-a"), ordered("Descending"), "Descending must reverse, not echo Ascending")
+    }
+
+    @Test
+    fun `favorites honor custom order, date liked, and name sort (not all the same)`() {
+        val tag = "favsort-${UUID.randomUUID().toString().take(6)}"
+        val baseTime = Instant.parse("2026-01-01T00:00:00Z")
+        // (suffix, position, favoritedAt-offset-minutes): name-asc=a,m,z; position-asc=m,z,a; dateLiked-desc=a,z,m
+        val seedRows = listOf(Triple("a", 2, 30L), Triple("m", 0, 0L), Triple("z", 1, 15L))
+        jdbc.update("INSERT INTO core_v2_preferences.user_preferences (user_id, version) VALUES (?, 0)", userId)
+        seedRows.forEach { (s, position, offset) ->
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, search_text) VALUES (?,?,?,?,?,?)",
+                id,
+                "TRACK",
+                "$tag-$s",
+                "$tag-$s",
+                "/favsort/$id.flac",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 100000L)
+            jdbc.update(
+                "INSERT INTO core_v2_preferences.favorites (user_id, track_id, favorited_at, position) VALUES (?,?,?,?)",
+                userId,
+                id.toString(),
+                java.sql.Timestamp.from(baseTime.plusSeconds(offset * 60)),
+                position,
+            )
+        }
+
+        fun favOrder(query: String): List<String> {
+            val body =
+                objectMapper.readTree(
+                    get("/Items?IsFavorite=true&Limit=200&$query", token).response.contentAsString,
+                )
+            return body.get("Items").map { it.get("Name").asText() }.filter { it.startsWith(tag) }
+        }
+        assertEquals(
+            listOf("$tag-m", "$tag-z", "$tag-a"),
+            favOrder("SortBy=FavoritePosition&SortOrder=Ascending"),
+            "Custom Order must follow stored position",
+        )
+        assertEquals(
+            listOf("$tag-a", "$tag-z", "$tag-m"),
+            favOrder("SortBy=DateFavorited&SortOrder=Descending"),
+            "Date Liked must order by favoritedAt, not echo custom order",
+        )
+        assertEquals(
+            listOf("$tag-a", "$tag-m", "$tag-z"),
+            favOrder("SortBy=SortName&SortOrder=Ascending"),
+            "Name sort must order by track name, not echo custom order",
+        )
     }
 }
