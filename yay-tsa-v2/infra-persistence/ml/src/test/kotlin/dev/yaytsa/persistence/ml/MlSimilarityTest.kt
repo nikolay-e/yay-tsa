@@ -55,6 +55,43 @@ class MlSimilarityTest : AbstractPersistenceTest() {
     }
 
     @Test
+    fun `findSimilarTracks falls through to CLAP when MERT embeddings are absent`() {
+        val seed = UUID.randomUUID()
+        val near = UUID.randomUUID()
+        val far = UUID.randomUUID()
+
+        fun clap(vararg nz: Pair<Int, Float>) = FloatArray(CLAP_DIM) { 0f }.also { v -> nz.forEach { (i, x) -> v[i] = x } }
+        trackFeaturesJpa.saveAndFlush(TrackFeaturesEntity(trackId = seed, embeddingClap = clap(0 to 1f), extractedAt = Instant.now(), extractorVersion = "t"))
+        trackFeaturesJpa.saveAndFlush(
+            TrackFeaturesEntity(trackId = near, embeddingClap = clap(0 to 1f, 1 to 1f), extractedAt = Instant.now(), extractorVersion = "t"),
+        )
+        trackFeaturesJpa.saveAndFlush(TrackFeaturesEntity(trackId = far, embeddingClap = clap(1 to 1f), extractedAt = Instant.now(), extractorVersion = "t"))
+
+        val result = port.findSimilarTracks(TrackId(seed.toString()), 10)
+
+        assertTrue(result.isNotEmpty(), "CLAP fallback never reached — the .ifEmpty{} chain is dead")
+        assertEquals(TrackId(near.toString()), result.first())
+    }
+
+    @Test
+    fun `findSimilarTracks falls through to Discogs when MERT and CLAP are absent`() {
+        val seed = UUID.randomUUID()
+        val near = UUID.randomUUID()
+
+        fun discogs(vararg nz: Pair<Int, Float>) = FloatArray(DISCOGS_DIM) { 0f }.also { v -> nz.forEach { (i, x) -> v[i] = x } }
+        trackFeaturesJpa.saveAndFlush(
+            TrackFeaturesEntity(trackId = seed, embeddingDiscogs = discogs(0 to 1f), extractedAt = Instant.now(), extractorVersion = "t"),
+        )
+        trackFeaturesJpa.saveAndFlush(
+            TrackFeaturesEntity(trackId = near, embeddingDiscogs = discogs(0 to 1f, 1 to 1f), extractedAt = Instant.now(), extractorVersion = "t"),
+        )
+
+        val result = port.findSimilarTracks(TrackId(seed.toString()), 10)
+
+        assertTrue(result.contains(TrackId(near.toString())), "Discogs fallback never reached")
+    }
+
+    @Test
     fun `findSimilarTracks returns empty when seed has no embeddings`() {
         val seed = UUID.randomUUID()
         trackFeaturesJpa.saveAndFlush(TrackFeaturesEntity(trackId = seed, extractedAt = Instant.now(), extractorVersion = "test"))
@@ -66,5 +103,7 @@ class MlSimilarityTest : AbstractPersistenceTest() {
 
     companion object {
         private const val MERT_DIM = 768
+        private const val CLAP_DIM = 512
+        private const val DISCOGS_DIM = 1280
     }
 }

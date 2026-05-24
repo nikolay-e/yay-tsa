@@ -37,6 +37,7 @@ class AffinityWorkerIntegrationTest : HttpIntegrationTestBase() {
         sessionId: UUID,
         trackId: UUID,
         signalType: String,
+        at: Instant = Instant.now(),
     ) {
         jdbc.update(
             "INSERT INTO core_v2_adaptive.playback_signals " +
@@ -45,7 +46,7 @@ class AffinityWorkerIntegrationTest : HttpIntegrationTestBase() {
             sessionId,
             trackId,
             signalType,
-            Timestamp.from(Instant.now()),
+            Timestamp.from(at),
         )
     }
 
@@ -78,5 +79,26 @@ class AffinityWorkerIntegrationTest : HttpIntegrationTestBase() {
         assertNotNull(skipped, "SKIP_EARLY produced no affinity row")
         assertTrue(liked!! > 0, "PLAY_COMPLETE must raise affinity, was $liked")
         assertTrue(skipped!! < 0, "SKIP_EARLY must lower affinity, was $skipped")
+    }
+
+    @Test
+    fun `aggregator accumulates across ticks and respects the watermark`() {
+        val userId = UUID.randomUUID()
+        val track = UUID.randomUUID()
+        val sessionId = seedSession(userId)
+        val base = Instant.now()
+
+        seedSignal(sessionId, track, "PLAY_COMPLETE", base)
+        aggregator.aggregate()
+        val afterFirst = affinityScore(userId, track)
+
+        // A new signal strictly after the first tick's watermark must be added, not clobbered.
+        seedSignal(sessionId, track, "PLAY_COMPLETE", base.plusSeconds(2))
+        aggregator.aggregate()
+        val afterSecond = affinityScore(userId, track)
+
+        assertNotNull(afterFirst)
+        assertNotNull(afterSecond)
+        assertTrue(afterSecond!! > afterFirst!!, "second tick must accumulate ($afterSecond should exceed $afterFirst)")
     }
 }

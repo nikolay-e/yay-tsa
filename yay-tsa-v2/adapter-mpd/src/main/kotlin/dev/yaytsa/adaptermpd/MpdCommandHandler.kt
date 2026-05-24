@@ -55,13 +55,11 @@ class MpdCommandHandler(
             "search" -> search(args)
             "find" -> search(args)
             "list" -> list(args)
-            "clear" -> ok()
-            "add" -> ok()
-            "setvol" -> ok()
-            "repeat" -> ok()
-            "random" -> ok()
-            "single" -> ok()
-            "consume" -> ok()
+            // The adaptive/playback core owns the queue and playback modes; these MPD
+            // mutations are not honoured, so ACK them rather than reporting a false OK
+            // that status() would then contradict (repeat:0 random:0 volume:100).
+            "clear", "add", "setvol", "repeat", "random", "single", "consume" ->
+                ack(5, cmd, "command not supported by this server")
             "idle" -> "changed: player\nOK\n"
             "noidle" -> ok()
             "close" -> ""
@@ -83,8 +81,6 @@ class MpdCommandHandler(
                     "search",
                     "find",
                     "list",
-                    "clear",
-                    "add",
                     "idle",
                     "close",
                     "outputs",

@@ -66,4 +66,19 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(1, returned, "Limit=1 must return one page item")
         assertTrue(total >= 3, "TotalRecordCount must reflect all artists (>=3), was $total — infinite scroll truncates")
     }
+
+    @Test
+    fun `search TotalRecordCount sums matches across types, not page size`() {
+        val result = get("/Items?SearchTerm=PageArtist&Limit=1", token)
+        assertEquals(200, result.response.status)
+        val body = objectMapper.readTree(result.response.contentAsString)
+        assertTrue(body.get("TotalRecordCount").asInt() >= 3, "search count must sum all matching artists")
+        assertTrue(body.get("Items").size() <= 1, "page must respect Limit=1")
+    }
+
+    @Test
+    fun `oversized Limit is capped and does not error`() {
+        val result = get("/Items?SearchTerm=PageArtist&Limit=100000000", token)
+        assertEquals(200, result.response.status, "huge Limit must be coerced, not OOM/500")
+    }
 }

@@ -381,7 +381,12 @@ class LibraryWriter(
     // Some FLAC rips carry placeholder tags like "##### ######" or "????" where the
     // ripper failed to encode Cyrillic. Treat them as missing so folder/filename
     // fallback kicks in.
-    private fun String.usableTag(): String? = takeIf { it.isNotBlank() && !it.matches(Regex("^[#?\\s]+$")) }
+    private fun String.usableTag(): String? =
+        takeIf {
+            it.isNotBlank() &&
+                !it.matches(Regex("^[-#?\\s]+$")) &&
+                !it.trim().equals("n/a", ignoreCase = true)
+        }
 
     private val artistDelimiters =
         Regex(

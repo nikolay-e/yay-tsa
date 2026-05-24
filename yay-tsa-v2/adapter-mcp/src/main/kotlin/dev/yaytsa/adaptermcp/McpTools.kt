@@ -183,11 +183,11 @@ class McpTools(
     }
 
     private fun getPlaybackState(args: Map<String, Any?>): McpToolResult {
+        val uid = args["user_id"] as? String ?: return errorResult("user_id is required")
+        val sid = args["session_id"] as? String ?: return errorResult("session_id is required")
         val state =
-            playbackQueries.getPlaybackState(
-                UserId(args["user_id"] as String),
-                SessionId(args["session_id"] as String),
-            ) ?: return textResult("No active session found.")
+            playbackQueries.getPlaybackState(UserId(uid), SessionId(sid))
+                ?: return textResult("No active session found.")
         return textResult(
             "State: ${state.playbackState}, Queue: ${state.queue.size} tracks, Current: ${state.currentEntryId?.value ?: "none"}",
         )
@@ -197,9 +197,12 @@ class McpTools(
         args: Map<String, Any?>,
         cmdFactory: (UserId, SessionId, DeviceId) -> dev.yaytsa.domain.playback.PlaybackCommand,
     ): McpToolResult {
-        val uid = UserId(args["user_id"] as String)
-        val sid = SessionId(args["session_id"] as String)
-        val did = DeviceId(args["device_id"] as String)
+        val uidStr = args["user_id"] as? String ?: return errorResult("user_id is required")
+        val sidStr = args["session_id"] as? String ?: return errorResult("session_id is required")
+        val didStr = args["device_id"] as? String ?: return errorResult("device_id is required")
+        val uid = UserId(uidStr)
+        val sid = SessionId(sidStr)
+        val did = DeviceId(didStr)
         val currentState = playbackQueries.getPlaybackState(uid, sid)
         val version = currentState?.version ?: AggregateVersion.INITIAL
         val ctx = ctxFactory.create(uid, version)
@@ -220,8 +223,9 @@ class McpTools(
     }
 
     private fun getAlbum(args: Map<String, Any?>): McpToolResult {
-        val album = libraryQueries.getAlbum(EntityId(args["album_id"] as String)) ?: return errorResult("Album not found")
-        val tracks = libraryQueries.browseTracksByAlbum(EntityId(args["album_id"] as String))
+        val albumId = args["album_id"] as? String ?: return errorResult("album_id is required")
+        val album = libraryQueries.getAlbum(EntityId(albumId)) ?: return errorResult("Album not found")
+        val tracks = libraryQueries.browseTracksByAlbum(EntityId(albumId))
         val sb = StringBuilder("Album: ${album.name}\nTracks:\n")
         tracks.map { it.toMcpJson() }.forEach { sb.appendLine("  ${it["trackNumber"] ?: "?"}: ${it["name"]} (id: ${it["trackId"]})") }
         return textResult(sb.toString())

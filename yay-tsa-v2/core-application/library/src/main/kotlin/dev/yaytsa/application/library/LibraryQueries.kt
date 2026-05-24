@@ -13,6 +13,10 @@ import dev.yaytsa.shared.TrackId
 class LibraryQueries(
     private val libraryQuery: LibraryQueryPort,
 ) {
+    companion object {
+        const val MAX_PAGE_SIZE = 200
+    }
+
     fun getTrack(trackId: EntityId): Track? = libraryQuery.getTrack(trackId)
 
     fun getAlbum(albumId: EntityId): Album? = libraryQuery.getAlbum(albumId)
@@ -41,7 +45,7 @@ class LibraryQueries(
         query: String,
         limit: Int,
         offset: Int,
-    ): SearchResults = libraryQuery.searchText(query, limit, offset)
+    ): SearchResults = libraryQuery.searchText(query, limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
 
     fun trackIdsExist(trackIds: Set<TrackId>): Set<TrackId> = libraryQuery.trackIdsExist(trackIds)
 

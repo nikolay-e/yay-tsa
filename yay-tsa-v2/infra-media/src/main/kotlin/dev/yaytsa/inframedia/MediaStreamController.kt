@@ -66,7 +66,14 @@ class MediaStreamController(
             val rangeSpec = rangeHeader.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
             val start = parts[0].toLongOrNull() ?: 0L
-            val end = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
+            val requestedEnd = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
+            if (start < 0 || start >= fileSize || requestedEnd < start) {
+                return ResponseEntity
+                    .status(org.springframework.http.HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                    .header(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
+                    .build<Any>()
+            }
+            val end = minOf(requestedEnd, fileSize - 1)
             val contentLength = end - start + 1
 
             return ResponseEntity

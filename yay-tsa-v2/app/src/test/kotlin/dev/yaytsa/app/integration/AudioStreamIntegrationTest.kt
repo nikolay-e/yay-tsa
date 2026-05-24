@@ -29,15 +29,17 @@ class AudioStreamIntegrationTest : HttpIntegrationTestBase() {
     lateinit var jdbc: JdbcTemplate
 
     private lateinit var token: String
+    private lateinit var username: String
 
     @BeforeEach
     fun seedUser() {
         val userId = UUID.randomUUID().toString()
         token = UUID.randomUUID().toString()
+        username = "stream-${userId.take(8)}"
         val uid = UserId(userId)
         val now = Instant.now()
         authUseCases.execute(
-            CreateUser(uid, "stream-${userId.take(8)}", "testpassword", "Test", null, false),
+            CreateUser(uid, username, "testpassword", "Test", null, false),
             CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL),
         )
         authUseCases.execute(
@@ -78,5 +80,54 @@ class AudioStreamIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(206, result.response.status, "Range request must return 206 Partial Content")
         assertEquals("audio/mp4", result.response.contentType, "ALAC must map to audio/mp4, not audio/mpeg")
         Files.deleteIfExists(file)
+    }
+
+    private fun seedTrack(
+        codec: String,
+        ext: String,
+    ): UUID {
+        val file = Files.createTempFile("yaytsa-$codec-", ".$ext")
+        Files.write(file, ByteArray(2048) { it.toByte() })
+        val trackId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path) VALUES (?,?,?,?,?)",
+            trackId,
+            "TRACK",
+            "$codec track",
+            "$codec track",
+            file.toAbsolutePath().toString(),
+        )
+        jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, codec, duration_ms) VALUES (?,?,?)", trackId, codec, 120000L)
+        return trackId
+    }
+
+    @Test
+    fun `WMA maps to audio x-ms-wma, not audio mpeg`() {
+        val trackId = seedTrack("wma", "wma")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders.get("/Audio/$trackId/stream").header("Authorization", "Bearer $token").header(HttpHeaders.RANGE, "bytes=0-1023"),
+                ).andReturn()
+        assertEquals(206, result.response.status)
+        assertEquals("audio/x-ms-wma", result.response.contentType)
+    }
+
+    @Test
+    fun `Subsonic stream returns 416 on an unsatisfiable Range, not a corrupt 206`() {
+        val trackId = seedTrack("flac", "flac")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/rest/stream")
+                        .param("id", trackId.toString())
+                        .param("u", username)
+                        .param("p", "testpassword")
+                        .param("v", "1.16.1")
+                        .param("c", "test")
+                        .header(HttpHeaders.RANGE, "bytes=99999999-"),
+                ).andReturn()
+        assertEquals(416, result.response.status, "past-EOF range must be 416, not a 206 with negative content-length")
     }
 }
