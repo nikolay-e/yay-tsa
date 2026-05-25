@@ -89,7 +89,7 @@ The backend is a Kotlin hexagonal monolith composed of **eight bounded contexts*
 
 ## Karaoke: Optional Audio Separation
 
-Vocal-instrumental separation is provided by an optional sidecar service running BS-Roformer (default) or Hybrid Demucs via Python FastAPI (`services/audio-separator/`). The v2 backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API. v2 also has its own in-process Demucs path (disabled in production via `DEMUCS_COMMAND=unsupported` — production uses the GPU sidecar).
+Vocal-instrumental separation is provided by an optional sidecar service running BS-Roformer (default) or Hybrid Demucs via Python FastAPI (`services/audio-ml/`). The v2 backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API. v2 also has its own in-process Demucs path (disabled in production via `DEMUCS_COMMAND=unsupported` — production uses the GPU sidecar).
 
 ## Technology Stack
 

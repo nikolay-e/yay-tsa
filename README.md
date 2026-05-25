@@ -74,7 +74,7 @@ apps/web/                # React PWA frontend
 packages/core/           # Framework-agnostic business logic
 packages/platform/       # Platform-specific audio adapters
 yay-tsa-v2/              # Kotlin hexagonal backend (8 bounded contexts)
-services/audio-separator/# Vocal separation sidecar (Demucs)
+services/audio-ml/        # Audio ML sidecar: stem separation (Demucs) + feature extraction (Essentia)
 charts/yay-tsa/          # Helm chart (PWA + audio-separator)
 charts/yay-tsa-v2/       # Helm chart (backend)
 docker/                  # Docker Compose for self-hosting

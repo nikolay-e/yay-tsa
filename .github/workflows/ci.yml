@@ -215,7 +215,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image-name: audio-separator
-          context: ./services/audio-separator
+          context: ./services/audio-ml
           build-args: VARIANT=gpu
           include-git-sha: 'false'
           free-disk-space: 'true'
@@ -241,7 +241,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image-name: feature-extractor
-          context: ./services/audio-separator
+          context: ./services/audio-ml
           build-args: VARIANT=essentia
           include-git-sha: 'false'
           free-disk-space: 'true'
