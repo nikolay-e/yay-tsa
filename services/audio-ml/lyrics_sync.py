@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Backfill/upgrade time-synced .lrc sidecar files from LRCLIB.
+
+For every track whose sidecar .lrc is missing or PLAIN (no [mm:ss] timestamps),
+fetch a synced version from lrclib.net and write/overwrite the .lrc. Synced files
+are left as-is. When LRCLIB has no synced match a plain file is left untouched —
+this job only ever upgrades plain->synced, never degrades or deletes.
+
+Runs as a CronJob (scheduled re-check) or manually. Needs RW /media + DB creds.
+Re-checking is the point: as LRCLIB grows, previously-plain tracks get upgraded.
+"""
+
+import logging
+import os
+import re
+import sys
+import time
+
+import psycopg2
+import requests
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("lyrics_sync")
+
+MUSIC_PATH = os.getenv("MUSIC_PATH", "/media")
+LRCLIB_URL = os.getenv("LRCLIB_BASE_URL", "https://lrclib.net").rstrip("/")
+BATCH_LIMIT = int(os.getenv("LYRICS_BATCH_LIMIT", "0"))  # 0 = all tracks
+USER_AGENT = "yay-tsa (https://github.com/nikolay-e/yay-tsa)"
+SYNC_RE = re.compile(r"\[\d{1,2}:\d{2}")
+NUM_PREFIX_RE = re.compile(r"^(\d{1,3})\s*[-._]\s*")
+
+TRACK_QUERY = """
+SELECT e.source_path, e.name AS title, ar.name AS artist, al.name AS album, t.duration_ms
+FROM core_v2_library.entities e
+JOIN core_v2_library.audio_tracks t ON t.entity_id = e.id
+LEFT JOIN core_v2_library.entities al ON al.id = t.album_id
+LEFT JOIN core_v2_library.entities ar ON ar.id = t.album_artist_id
+WHERE e.entity_type = 'TRACK' AND e.source_path IS NOT NULL
+ORDER BY e.created_at
+"""
+
+
+def _db_connect():
+    return psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432"),
+        dbname=os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "yaytsa_production"),
+        user=os.getenv("POSTGRES_USER") or os.getenv("DB_USERNAME", "yaytsa_production"),
+        password=os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
+    )
+
+
+def _load_tracks():
+    conn = _db_connect()
+    try:
+        with conn.cursor() as cur:
+            sql = TRACK_QUERY + (f" LIMIT {BATCH_LIMIT}" if BATCH_LIMIT > 0 else "")
+            cur.execute(sql)
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def _is_synced(text):
+    return bool(SYNC_RE.search(text))
+
+
+def _existing_lrc(audio_path):
+    """Mirror the backend's findSidecarLrc: <parent>/.lyrics/<basename>.lrc, with a
+    loose track-number-prefix fallback. Returns the path of an existing .lrc or None."""
+    parent = os.path.dirname(audio_path)
+    lyrics_dir = os.path.join(parent, ".lyrics")
+    if not os.path.isdir(lyrics_dir):
+        return None
+    base = os.path.splitext(os.path.basename(audio_path))[0]
+    direct = os.path.join(lyrics_dir, base + ".lrc")
+    if os.path.isfile(direct):
+        return direct
+    m = NUM_PREFIX_RE.match(base)
+    if m:
+        prefix = m.group(0)
+        for name in sorted(os.listdir(lyrics_dir)):
+            if name.endswith(".lrc") and name.startswith(prefix):
+                return os.path.join(lyrics_dir, name)
+    return None
+
+
+def _fetch_synced(title, artist, album, duration_ms):
+    if not title or not artist:
+        return None
+    duration = int(duration_ms / 1000) if duration_ms else None
+    headers = {"User-Agent": USER_AGENT}
+    try:
+        params = {"track_name": title, "artist_name": artist}
+        if album:
+            params["album_name"] = album
+        if duration:
+            params["duration"] = duration
+        r = requests.get(f"{LRCLIB_URL}/api/get", params=params, headers=headers, timeout=10)
+        if r.status_code == 200:
+            synced = r.json().get("syncedLyrics")
+            if synced:
+                return synced
+    except requests.RequestException as exc:
+        log.warning("lrclib /api/get failed for %s - %s: %s", artist, title, exc)
+    try:
+        r = requests.get(
+            f"{LRCLIB_URL}/api/search",
+            params={"track_name": title, "artist_name": artist},
+            headers=headers,
+            timeout=10,
+        )
+        if r.status_code == 200:
+            for item in r.json():
+                synced = item.get("syncedLyrics")
+                if synced:
+                    return synced
+    except requests.RequestException as exc:
+        log.warning("lrclib /api/search failed for %s - %s: %s", artist, title, exc)
+    return None
+
+
+def _process(track):
+    source_path, title, artist, album, duration_ms = track
+    audio_path = os.path.join(MUSIC_PATH, source_path)
+    if not os.path.isfile(audio_path):
+        return "missing_file"
+
+    existing = _existing_lrc(audio_path)
+    if existing is not None:
+        try:
+            with open(existing, encoding="utf-8", errors="replace") as fh:
+                if _is_synced(fh.read()):
+                    return "already_synced"
+        except OSError:
+            pass  # unreadable -> treat as needing refresh
+
+    synced = _fetch_synced(title, artist, album, duration_ms)
+    if not synced:
+        return "no_synced_available"
+
+    target = existing or os.path.join(
+        os.path.dirname(audio_path),
+        ".lyrics",
+        os.path.splitext(os.path.basename(audio_path))[0] + ".lrc",
+    )
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, "w", encoding="utf-8") as fh:
+        fh.write(synced)
+    return "upgraded" if existing else "created"
+
+
+def main():
+    tracks = _load_tracks()
+    log.info("checking %d track(s) for synced lyrics", len(tracks))
+    counts: dict[str, int] = {}
+    started = time.time()
+    for track in tracks:
+        try:
+            outcome = _process(track)
+        except Exception as exc:  # keep the batch going on per-track errors
+            outcome = "error"
+            log.warning("track %s failed: %s", track[0], exc)
+        counts[outcome] = counts.get(outcome, 0) + 1
+    log.info("done in %.1fs: %s", time.time() - started, dict(sorted(counts.items())))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

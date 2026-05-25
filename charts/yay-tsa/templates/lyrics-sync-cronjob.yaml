@@ -1,0 +1,73 @@
+{{- if .Values.lyricsSync.enabled }}
+# Periodic lyrics re-check: upgrades plain / missing .lrc sidecars to time-synced
+# versions from LRCLIB. Re-runnable manually; never degrades existing synced files.
+# Needs RW /media (writes .lrc) + DB (track metadata) + 443 egress (LRCLIB).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-lyrics-sync
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ml
+spec:
+  schedule: {{ .Values.lyricsSync.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.lyricsSync.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "yay-tsa.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: ml
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.lyricsSync.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: lyrics-sync
+              image: "{{ .Values.lyricsSync.image.repository }}:{{ .Values.lyricsSync.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.lyricsSync.image.pullPolicy }}
+              command: ["python3", "lyrics_sync.py"]
+              env:
+                - name: MUSIC_PATH
+                  value: /media
+                - name: LYRICS_BATCH_LIMIT
+                  value: {{ .Values.lyricsSync.batchLimit | quote }}
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.lyricsSync.database.secretName }}
+              resources:
+                {{- toYaml .Values.lyricsSync.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: media
+                  mountPath: /media
+          volumes:
+            - name: media
+              hostPath:
+                path: {{ .Values.lyricsSync.media.hostPath }}
+                type: Directory
+{{- end }}

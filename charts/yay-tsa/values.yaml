@@ -126,6 +126,30 @@ featureExtractor:
       memory: '10Gi'
       cpu: '4'
 
+# Periodic lyrics re-check CronJob (reuses the feature-extractor essentia image;
+# only needs its requests + psycopg2). Upgrades plain/missing .lrc to synced.
+lyricsSync:
+  enabled: false
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    pullPolicy: IfNotPresent
+    tag: ''
+  schedule: '0 4 * * *' # daily at 04:00 (after the feature-extractor at 03:00)
+  activeDeadlineSeconds: 14400 # 4h cap
+  batchLimit: 0 # 0 = every track
+  database:
+    secretName: yay-tsa-postgres
+  media:
+    hostPath: /mnt/t7-music
+  nodeSelector: {}
+  resources:
+    requests:
+      memory: '256Mi'
+      cpu: '50m'
+    limits:
+      memory: '1Gi'
+      cpu: '1'
+
 audioSeparator:
   enabled: false
   image:

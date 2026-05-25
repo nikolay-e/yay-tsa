@@ -57,6 +57,7 @@ COPY extractor/ extractor/
 COPY radio/ radio/
 COPY app.py .
 COPY extractor_cli.py .
+COPY lyrics_sync.py .
 
 RUN getent group 1000 >/dev/null || groupadd --gid 1000 appuser && \
     id -u 1000 >/dev/null 2>&1 || \
