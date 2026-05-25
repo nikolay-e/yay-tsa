@@ -37,23 +37,46 @@ class JellyfinLyricsController(
     // where the client expected `result.lyrics: string`, silently breaking every overlay.
     private fun loadLyrics(trackId: String): LyricsFetchResponse {
         val entityId = EntityId(trackId)
-        val filePath = libraryQueries.resolveTrackFilePath(entityId)
-        if (filePath != null) {
-            val lrc = findSidecarLrc(Path.of(filePath))
-            if (lrc != null) {
-                try {
-                    val content = Files.readString(lrc)
-                    return LyricsFetchResponse(found = true, lyrics = content, source = SOURCE_SIDECAR)
-                } catch (e: Exception) {
-                    log.warn("Failed to read LRC for track {} from {}: {}", trackId, lrc, e.message)
-                }
-            }
+        val sidecar = readSidecar(trackId, entityId)
+
+        // A time-synced sidecar wins outright (cheap, local, scrollable).
+        if (sidecar != null && isSynced(sidecar)) {
+            return LyricsFetchResponse(found = true, lyrics = sidecar, source = SOURCE_SIDECAR)
         }
+
+        // Sidecar is plain or absent — a plain .lrc must not shadow a synced LRCLIB hit.
         if (lrclibEnabled) {
-            fetchFromLrclib(entityId)?.let { return it }
+            val lrclib = fetchFromLrclib(entityId)
+            if (lrclib != null && isSynced(lrclib.lyrics)) {
+                return lrclib
+            }
+            if (sidecar != null) {
+                return LyricsFetchResponse(found = true, lyrics = sidecar, source = SOURCE_SIDECAR)
+            }
+            if (lrclib != null) {
+                return lrclib
+            }
+        } else if (sidecar != null) {
+            return LyricsFetchResponse(found = true, lyrics = sidecar, source = SOURCE_SIDECAR)
         }
         return LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
     }
+
+    private fun readSidecar(
+        trackId: String,
+        entityId: EntityId,
+    ): String? {
+        val filePath = libraryQueries.resolveTrackFilePath(entityId) ?: return null
+        val lrc = findSidecarLrc(Path.of(filePath)) ?: return null
+        return try {
+            Files.readString(lrc)
+        } catch (e: Exception) {
+            log.warn("Failed to read LRC for track {} from {}: {}", trackId, lrc, e.message)
+            null
+        }
+    }
+
+    private fun isSynced(text: String): Boolean = SYNC_TIMESTAMP.containsMatchIn(text)
 
     private fun fetchFromLrclib(entityId: EntityId): LyricsFetchResponse? {
         val track = libraryQueries.getTrack(entityId) ?: return null
@@ -102,6 +125,7 @@ class JellyfinLyricsController(
         private const val SOURCE_SIDECAR = "sidecar"
         private const val SOURCE_LRCLIB = "lrclib"
         private const val SOURCE_NONE = "none"
+        private val SYNC_TIMESTAMP = Regex("""\[\d{1,2}:\d{2}""")
     }
 }
 
