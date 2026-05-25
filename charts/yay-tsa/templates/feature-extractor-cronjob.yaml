@@ -8,7 +8,7 @@ metadata:
   name: {{ include "yay-tsa.fullname" . }}-feature-extractor
   labels:
     {{- include "yay-tsa.labels" . | nindent 4 }}
-    app.kubernetes.io/component: feature-extractor
+    app.kubernetes.io/component: ml
 spec:
   schedule: {{ .Values.featureExtractor.schedule | quote }}
   concurrencyPolicy: Forbid
@@ -23,7 +23,7 @@ spec:
         metadata:
           labels:
             {{- include "yay-tsa.selectorLabels" . | nindent 12 }}
-            app.kubernetes.io/component: feature-extractor
+            app.kubernetes.io/component: ml
         spec:
           restartPolicy: Never
           {{- with .Values.imagePullSecrets }}
