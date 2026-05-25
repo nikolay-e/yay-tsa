@@ -126,6 +126,27 @@ featureExtractor:
       memory: '10Gi'
       cpu: '4'
 
+# Per-user taste clustering CronJob (PCA + dynamic-k k-means on MERT embeddings).
+# Writes core_v2_ml.taste_clusters; radio seeds read the medoids. DB-only.
+tasteClusters:
+  enabled: false
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    pullPolicy: IfNotPresent
+    tag: ''
+  schedule: '0 5 * * *' # daily at 05:00 (after lyrics-sync at 04:00)
+  activeDeadlineSeconds: 3600 # 1h cap
+  database:
+    secretName: yay-tsa-postgres
+  nodeSelector: {}
+  resources:
+    requests:
+      memory: '512Mi'
+      cpu: '250m'
+    limits:
+      memory: '2Gi'
+      cpu: '2'
+
 # Periodic lyrics re-check CronJob (reuses the feature-extractor essentia image;
 # only needs its requests + psycopg2). Upgrades plain/missing .lrc to synced.
 lyricsSync:

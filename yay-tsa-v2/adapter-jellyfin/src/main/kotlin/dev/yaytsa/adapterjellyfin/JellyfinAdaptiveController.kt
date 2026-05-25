@@ -472,13 +472,27 @@ class JellyfinAdaptiveController(
             return matchesRedLine(track, redLineTerms, lookups)
         }
 
-        val poolSize = (limit * SEED_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-        mlQuery.getTopAffinities(userId, poolSize).forEach { aff ->
-            val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+        // Primary: the representative track (medoid) of each of the user's taste clusters —
+        // one seed per real taste facet (metal / russian-rap / folk-metal / …), so radio
+        // spans the whole taste instead of a single averaged centroid. Falls through to
+        // affinity/favorites/random below when the user has no clusters yet (cold start).
+        mlQuery.getTasteClusterRepresentatives(userId).forEach { tid ->
+            val track = libraryQueries.getTrack(EntityId(tid.value)) ?: return@forEach
             if (blocked(track)) return@forEach
             val artistKey = track.albumArtistId?.value ?: track.id.value
             if (artistKey !in perArtist) perArtist[artistKey] = track
             seenTracks.add(track.id.value)
+        }
+
+        if (perArtist.size < limit) {
+            val poolSize = (limit * SEED_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
+            mlQuery.getTopAffinities(userId, poolSize).forEach { aff ->
+                val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+                if (blocked(track)) return@forEach
+                val artistKey = track.albumArtistId?.value ?: track.id.value
+                if (artistKey !in perArtist) perArtist[artistKey] = track
+                seenTracks.add(track.id.value)
+            }
         }
 
         val picked = perArtist.values.toMutableList().also { it.shuffle() }

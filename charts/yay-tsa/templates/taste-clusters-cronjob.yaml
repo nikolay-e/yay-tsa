@@ -1,0 +1,60 @@
+{{- if .Values.tasteClusters.enabled }}
+# Per-user taste clustering: PCA + dynamic-k k-means over each user's affinity-track
+# MERT embeddings → core_v2_ml.taste_clusters (medoid per facet). Radio seeds read these.
+# DB-only (no /media); reuses the feature-extractor essentia image (numpy + sklearn).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-taste-clusters
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ml
+spec:
+  schedule: {{ .Values.tasteClusters.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.tasteClusters.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "yay-tsa.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: ml
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tasteClusters.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: taste-clusters
+              image: "{{ .Values.tasteClusters.image.repository }}:{{ .Values.tasteClusters.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.tasteClusters.image.pullPolicy }}
+              command: ["python3", "taste_clusters.py"]
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.tasteClusters.database.secretName }}
+              resources:
+                {{- toYaml .Values.tasteClusters.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+{{- end }}

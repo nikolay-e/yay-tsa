@@ -4,6 +4,7 @@ import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.domain.ml.TasteProfile
 import dev.yaytsa.domain.ml.TrackFeatures
 import dev.yaytsa.domain.ml.UserTrackAffinity
+import dev.yaytsa.persistence.ml.jpa.TasteClustersJpaRepository
 import dev.yaytsa.persistence.ml.jpa.TasteProfileJpaRepository
 import dev.yaytsa.persistence.ml.jpa.TrackFeaturesJpaRepository
 import dev.yaytsa.persistence.ml.jpa.UserTrackAffinityJpaRepository
@@ -21,6 +22,7 @@ class JpaMlQueryPort(
     private val trackFeaturesJpa: TrackFeaturesJpaRepository,
     private val tasteProfileJpa: TasteProfileJpaRepository,
     private val affinityJpa: UserTrackAffinityJpaRepository,
+    private val tasteClustersJpa: TasteClustersJpaRepository,
 ) : MlQueryPort {
     override fun getTrackFeatures(trackId: TrackId): TrackFeatures? {
         val id = UUID.fromString(trackId.value)
@@ -66,5 +68,10 @@ class JpaMlQueryPort(
                 .ifEmpty { trackFeaturesJpa.findSimilarByClap(seed, cappedLimit) }
                 .ifEmpty { trackFeaturesJpa.findSimilarByDiscogs(seed, cappedLimit) }
         return ids.map { TrackId(it.toString()) }
+    }
+
+    override fun getTasteClusterRepresentatives(userId: UserId): List<TrackId> {
+        val uid = UUID.fromString(userId.value)
+        return tasteClustersJpa.findRepresentativesByUserId(uid).map { TrackId(it.toString()) }
     }
 }

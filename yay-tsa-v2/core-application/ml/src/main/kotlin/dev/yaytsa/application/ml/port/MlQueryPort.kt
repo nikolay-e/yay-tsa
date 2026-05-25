@@ -35,4 +35,10 @@ interface MlQueryPort {
         seedTrackId: TrackId,
         limit: Int,
     ): List<TrackId>
+
+    /**
+     * Representative tracks (medoids) of the user's taste clusters, biggest facet first.
+     * Empty until the taste-clusters batch job has run for the user.
+     */
+    fun getTasteClusterRepresentatives(userId: UserId): List<TrackId>
 }
