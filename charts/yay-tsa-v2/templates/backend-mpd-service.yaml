@@ -1,0 +1,22 @@
+{{- if and .Values.backend.enabled .Values.backend.config.mpd.enabled }}
+# ClusterIP only: the MPD protocol is unauthenticated, so the daemon stays
+# in-cluster. Reach it via `kubectl port-forward` or internal MPD clients;
+# do not expose it on the public internet without an auth proxy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "yay-tsa-v2.fullname" . }}-mpd
+  labels:
+    {{- include "yay-tsa-v2.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.backend.config.mpd.port }}
+      targetPort: mpd
+      protocol: TCP
+      name: mpd
+  selector:
+    {{- include "yay-tsa-v2.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+{{- end }}

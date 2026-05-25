@@ -42,6 +42,11 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            {{- if .Values.backend.config.mpd.enabled }}
+            - name: mpd
+              containerPort: {{ .Values.backend.config.mpd.port }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: JAVA_OPTS
               value: {{ .Values.backend.jvm.opts | quote }}
