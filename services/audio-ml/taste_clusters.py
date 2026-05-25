@@ -75,21 +75,23 @@ def _load_user_embeddings(conn):
 
 def _cluster(vecs):
     """Returns list of (member_indices, centroid_768) for clusters >= MIN_CLUSTER_SIZE."""
-    X = np.vstack([v for _, v in vecs])
-    Xn = X / np.linalg.norm(X, axis=1, keepdims=True)  # unit vectors -> euclidean == cosine
-    n = len(Xn)
-    z = PCA(n_components=REPRESENTATIVE_VARIANCE, svd_solver="full").fit_transform(Xn)
+    mat = np.vstack([v for _, v in vecs])
+    unit = mat / np.linalg.norm(mat, axis=1, keepdims=True)  # unit vectors -> euclidean == cosine
+    n = len(unit)
+    reduced = PCA(
+        n_components=REPRESENTATIVE_VARIANCE, svd_solver="full", random_state=0
+    ).fit_transform(unit)
     kmax = max(2, min(15, n // MIN_CLUSTER_SIZE))
     k = min(kmax, max(2, round(n / TRACKS_PER_CLUSTER)))
-    km = KMeans(n_clusters=k, n_init="auto", random_state=0).fit(z)
+    km = KMeans(n_clusters=k, n_init="auto", random_state=0).fit(reduced)
     out = []
     for c in range(k):
-        idx = np.where(km.labels_ == c)[0]
+        idx = np.nonzero(km.labels_ == c)[0]
         if len(idx) < MIN_CLUSTER_SIZE:
             continue
-        cen_z = z[idx].mean(0)
-        medoid = idx[np.argmin(((z[idx] - cen_z) ** 2).sum(1))]
-        centroid_768 = X[idx].mean(0)  # raw mean in MERT space (for stored centroid)
+        cen = reduced[idx].mean(0)
+        medoid = idx[np.argmin(((reduced[idx] - cen) ** 2).sum(1))]
+        centroid_768 = mat[idx].mean(0)  # raw mean in MERT space (for stored centroid)
         out.append((int(medoid), idx, centroid_768))
     out.sort(key=lambda t: -len(t[1]))  # biggest facet first
     return out

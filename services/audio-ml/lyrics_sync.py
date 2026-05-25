@@ -96,38 +96,35 @@ def _existing_lrc(audio_path):
     return None
 
 
+def _get_json(path, params):
+    try:
+        r = requests.get(
+            f"{LRCLIB_URL}{path}",
+            params=params,
+            headers={"User-Agent": USER_AGENT},
+            timeout=10,
+        )
+        return r.json() if r.status_code == 200 else None
+    except requests.RequestException as exc:
+        log.warning("lrclib %s failed: %s", path, exc)
+        return None
+
+
 def _fetch_synced(title, artist, album, duration_ms):
     if not title or not artist:
         return None
-    duration = int(duration_ms / 1000) if duration_ms else None
-    headers = {"User-Agent": USER_AGENT}
-    try:
-        params = {"track_name": title, "artist_name": artist}
-        if album:
-            params["album_name"] = album
-        if duration:
-            params["duration"] = duration
-        r = requests.get(f"{LRCLIB_URL}/api/get", params=params, headers=headers, timeout=10)
-        if r.status_code == 200:
-            synced = r.json().get("syncedLyrics")
-            if synced:
-                return synced
-    except requests.RequestException as exc:
-        log.warning("lrclib /api/get failed for %s - %s: %s", artist, title, exc)
-    try:
-        r = requests.get(
-            f"{LRCLIB_URL}/api/search",
-            params={"track_name": title, "artist_name": artist},
-            headers=headers,
-            timeout=10,
-        )
-        if r.status_code == 200:
-            for item in r.json():
-                synced = item.get("syncedLyrics")
-                if synced:
-                    return synced
-    except requests.RequestException as exc:
-        log.warning("lrclib /api/search failed for %s - %s: %s", artist, title, exc)
+    params = {"track_name": title, "artist_name": artist}
+    if album:
+        params["album_name"] = album
+    if duration_ms:
+        params["duration"] = int(duration_ms / 1000)
+
+    exact = _get_json("/api/get", params)
+    if exact and exact.get("syncedLyrics"):
+        return exact["syncedLyrics"]
+    for item in _get_json("/api/search", {"track_name": title, "artist_name": artist}) or []:
+        if item.get("syncedLyrics"):
+            return item["syncedLyrics"]
     return None
 
 
