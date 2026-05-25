@@ -100,6 +100,32 @@ affinity: {}
 # This chart ships the PWA frontend + audio-separator (karaoke) sidecar.
 # The backend lives in `charts/yay-tsa-v2/` (Kotlin hexagonal).
 
+# Batch ML feature extraction CronJob (essentia image). Disabled by default;
+# enabled in prod values. Fills core_v2_ml.track_features for unprocessed tracks.
+featureExtractor:
+  enabled: false
+  image:
+    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    pullPolicy: IfNotPresent
+    tag: ''
+  schedule: '0 3 * * *' # daily at 03:00
+  activeDeadlineSeconds: 21600 # 6h cap per run
+  extractorVersion: 'essentia-1.1+clap+mert'
+  batchLimit: 0 # 0 = process every pending track in one run
+  hfCacheSize: '8Gi'
+  database:
+    secretName: yay-tsa-postgres
+  media:
+    hostPath: /mnt/t7-music
+  nodeSelector: {}
+  resources:
+    requests:
+      memory: '4Gi'
+      cpu: '1'
+    limits:
+      memory: '10Gi'
+      cpu: '4'
+
 audioSeparator:
   enabled: false
   image:

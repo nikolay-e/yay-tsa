@@ -1,0 +1,83 @@
+{{- if .Values.featureExtractor.enabled }}
+# Batch ML feature extraction. Runs the essentia feature-extractor image on a
+# schedule; the CLI scans core_v2_library for tracks missing core_v2_ml.track_features
+# and fills them. Reuses the GPU-less essentia image — keeps the backend lean.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-feature-extractor
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: feature-extractor
+spec:
+  schedule: {{ .Values.featureExtractor.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.featureExtractor.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "yay-tsa.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: feature-extractor
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.featureExtractor.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: feature-extractor
+              image: "{{ .Values.featureExtractor.image.repository }}:{{ .Values.featureExtractor.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.featureExtractor.image.pullPolicy }}
+              command: ["python3", "extractor_cli.py"]
+              env:
+                - name: MUSIC_PATH
+                  value: /media
+                - name: EXTRACTOR_VERSION
+                  value: {{ .Values.featureExtractor.extractorVersion | quote }}
+                - name: EXTRACT_BATCH_LIMIT
+                  value: {{ .Values.featureExtractor.batchLimit | quote }}
+                - name: HF_HOME
+                  value: /tmp/hf
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.featureExtractor.database.secretName }}
+              resources:
+                {{- toYaml .Values.featureExtractor.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: media
+                  mountPath: /media
+                  readOnly: true
+                - name: hf-cache
+                  mountPath: /tmp/hf
+          volumes:
+            - name: media
+              hostPath:
+                path: {{ .Values.featureExtractor.media.hostPath }}
+                type: Directory
+            - name: hf-cache
+              emptyDir:
+                sizeLimit: {{ .Values.featureExtractor.hfCacheSize }}
+{{- end }}
