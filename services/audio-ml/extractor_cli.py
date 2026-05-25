@@ -34,13 +34,24 @@ BATCH_LIMIT = int(os.getenv("EXTRACT_BATCH_LIMIT", "0"))  # 0 = no limit
 
 
 def _db_connect():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
-        port=os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432"),
-        dbname=os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "yaytsa_production"),
-        user=os.getenv("POSTGRES_USER") or os.getenv("DB_USERNAME", "yaytsa_production"),
-        password=os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
-    )
+    # A freshly-scheduled pod's Cilium identity can lag the destination's policy
+    # enforcement for a few seconds, so the first connect to the pooler is refused
+    # (RST) before the identity propagates. Retry with backoff to ride that window.
+    last_err = None
+    for attempt in range(1, 7):
+        try:
+            return psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432"),
+                dbname=os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "yaytsa_production"),
+                user=os.getenv("POSTGRES_USER") or os.getenv("DB_USERNAME", "yaytsa_production"),
+                password=os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
+            )
+        except psycopg2.OperationalError as exc:
+            last_err = exc
+            log.warning("DB connect attempt %d/6 failed: %s", attempt, exc)
+            time.sleep(5)
+    raise last_err or RuntimeError("DB connection failed after retries")
 
 
 def _vector(values):
