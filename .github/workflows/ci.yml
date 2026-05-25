@@ -61,6 +61,13 @@ jobs:
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          # Fall back to any prior cache when the config hash changes. The
+          # nikolay-e/pre-commit-hooks repo is private and cannot be cloned
+          # anonymously on the runner, so a cold cache miss makes the install
+          # step fail on `git fetch`. Restoring the previous hook environments
+          # avoids re-cloning when only hook file-filters (not revs) changed.
+          restore-keys: |
+            pre-commit-
 
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
