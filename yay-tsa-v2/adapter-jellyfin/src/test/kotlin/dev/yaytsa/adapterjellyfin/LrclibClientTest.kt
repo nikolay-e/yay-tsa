@@ -60,6 +60,23 @@ class LrclibClientTest :
             }
         }
 
+        "prefers synced from search over a plain-only exact match" {
+            withStub({ exchange ->
+                when (exchange.requestURI.path) {
+                    "/api/get" -> exchange.respond(200, """{"plainLyrics":"plain only"}""")
+                    "/api/search" ->
+                        exchange.respond(
+                            200,
+                            """[{"plainLyrics":"other plain"},{"syncedLyrics":"[00:02.00] synced!","plainLyrics":"x"}]""",
+                        )
+                    else -> exchange.respond(404, "")
+                }
+            }) { baseUrl ->
+                val client = LrclibClient(baseUrl, ObjectMapper())
+                client.fetch("Song", "Artist", "Album", 200) shouldBe "[00:02.00] synced!"
+            }
+        }
+
         "returns null when artist is blank" {
             withStub({ exchange -> exchange.respond(500, "should not be called") }) { baseUrl ->
                 val client = LrclibClient(baseUrl, ObjectMapper())

@@ -24,6 +24,9 @@ class LrclibClient(
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
+    // Synchronized .lrc is the goal (the PWA overlay scrolls line-by-line). Plain text
+    // is only a last resort: scan EVERY candidate (exact /api/get + all /api/search hits)
+    // for syncedLyrics first, and fall back to plain only when no candidate has synced.
     fun fetch(
         trackName: String,
         artistName: String?,
@@ -31,8 +34,16 @@ class LrclibClient(
         durationSeconds: Long?,
     ): String? {
         if (trackName.isBlank() || artistName.isNullOrBlank()) return null
-        return getExact(trackName, artistName, albumName, durationSeconds)
-            ?: search(trackName, artistName)
+
+        val candidates = mutableListOf<JsonNode>()
+        getExact(trackName, artistName, albumName, durationSeconds)?.let { candidates.add(it) }
+
+        // Short-circuit only when the exact match already carries synced lyrics.
+        candidates.firstNotNullOfOrNull(::syncedOf)?.let { return it }
+
+        candidates.addAll(search(trackName, artistName))
+        return candidates.firstNotNullOfOrNull(::syncedOf)
+            ?: candidates.firstNotNullOfOrNull(::plainOf)
     }
 
     private fun getExact(
@@ -40,7 +51,7 @@ class LrclibClient(
         artistName: String,
         albumName: String?,
         durationSeconds: Long?,
-    ): String? {
+    ): JsonNode? {
         val params =
             buildString {
                 append("track_name=").append(enc(trackName))
@@ -48,27 +59,22 @@ class LrclibClient(
                 if (!albumName.isNullOrBlank()) append("&album_name=").append(enc(albumName))
                 if (durationSeconds != null && durationSeconds > 0) append("&duration=").append(durationSeconds)
             }
-        val node = get("/api/get?$params") ?: return null
-        return pickLyrics(node)
+        return get("/api/get?$params")
     }
 
     private fun search(
         trackName: String,
         artistName: String,
-    ): String? {
+    ): List<JsonNode> {
         val params = "track_name=${enc(trackName)}&artist_name=${enc(artistName)}"
-        val node = get("/api/search?$params") ?: return null
-        if (!node.isArray || node.isEmpty) return null
-        return node.firstNotNullOfOrNull { pickLyrics(it) }
+        val node = get("/api/search?$params") ?: return emptyList()
+        if (!node.isArray) return emptyList()
+        return node.toList()
     }
 
-    // Prefer synced (LRC with timestamps) so the PWA overlay can scroll; fall back to plain text.
-    private fun pickLyrics(node: JsonNode): String? {
-        val synced = node.path("syncedLyrics").asText("")
-        if (synced.isNotBlank()) return synced
-        val plain = node.path("plainLyrics").asText("")
-        return plain.ifBlank { null }
-    }
+    private fun syncedOf(node: JsonNode): String? = node.path("syncedLyrics").asText("").ifBlank { null }
+
+    private fun plainOf(node: JsonNode): String? = node.path("plainLyrics").asText("").ifBlank { null }
 
     private fun get(path: String): JsonNode? =
         try {
