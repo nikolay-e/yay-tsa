@@ -55,27 +55,32 @@ def _db_connect():
 
 
 def _load_user_embeddings(conn):
-    """{user_id: [(track_id, mert_vec), ...]} for users with MERT-embedded affinity tracks."""
+    """{user_id: [(track_id, mert_vec, affinity), ...]} — only POSITIVELY-engaged tracks.
+    Tracks the user skips/thumbs-down (affinity_score <= 0) are excluded so radio is
+    seeded from what they like, not what they skip; the score weights the centroid."""
     by_user: dict[str, list] = {}
     with conn.cursor("taste_stream") as cur:  # server-side cursor: don't buffer all in client
         cur.itersize = 2000
         cur.execute(
-            "SELECT a.user_id, a.track_id, f.embedding_mert "
+            "SELECT a.user_id, a.track_id, a.affinity_score, f.embedding_mert "
             "FROM core_v2_ml.user_track_affinity a "
             "JOIN core_v2_ml.track_features f ON f.track_id = a.track_id "
-            "WHERE f.embedding_mert IS NOT NULL "
+            "WHERE f.embedding_mert IS NOT NULL AND a.affinity_score > 0 "
             "ORDER BY a.user_id"
         )
-        for user_id, track_id, emb in cur:
+        for user_id, track_id, score, emb in cur:
             v = np.fromstring(str(emb).strip("[]"), sep=",", dtype=np.float32)
             if v.size == 768:
-                by_user.setdefault(str(user_id), []).append((str(track_id), v))
+                by_user.setdefault(str(user_id), []).append((str(track_id), v, float(score)))
     return by_user
 
 
 def _cluster(vecs):
-    """Returns list of (member_indices, centroid_768) for clusters >= MIN_CLUSTER_SIZE."""
-    mat = np.vstack([v for _, v in vecs])
+    """Returns list of (medoid_index, member_indices, centroid_768) for clusters >= MIN_CLUSTER_SIZE.
+    Clusters by sound (unit MERT) but the centroid/medoid are affinity-weighted, so the
+    facet representative leans toward the tracks the user likes most."""
+    mat = np.vstack([v for _, v, _ in vecs])
+    scores = np.array([s for _, _, s in vecs], dtype=np.float64)
     unit = mat / np.linalg.norm(mat, axis=1, keepdims=True)  # unit vectors -> euclidean == cosine
     n = len(unit)
     reduced = PCA(
@@ -89,9 +94,10 @@ def _cluster(vecs):
         idx = np.nonzero(km.labels_ == c)[0]
         if len(idx) < MIN_CLUSTER_SIZE:
             continue
-        cen = reduced[idx].mean(0)
+        weights = scores[idx]
+        cen = np.average(reduced[idx], axis=0, weights=weights)  # like-weighted center
         medoid = idx[np.argmin(((reduced[idx] - cen) ** 2).sum(1))]
-        centroid_768 = mat[idx].mean(0)  # raw mean in MERT space (for stored centroid)
+        centroid_768 = np.average(mat[idx], axis=0, weights=weights)
         out.append((int(medoid), idx, centroid_768))
     out.sort(key=lambda t: -len(t[1]))  # biggest facet first
     return out
