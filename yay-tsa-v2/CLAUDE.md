@@ -375,25 +375,6 @@ app/                      Spring Boot composition root, ArchUnit tests
 
 ---
 
-## Migration Strategy
-
-Yaytsa Core v2 is a full rewrite of the domain model and persistence layer, migrating from a legacy production schema. The migration follows a **big-bang** strategy:
-
-1. Freeze the old system (read-only mode).
-2. Snapshot the old database (`pg_dump`).
-3. Run the ETL migration tool against the old schema, writing into the new `core_v2_*` schemas.
-4. Validate: row counts, checksums, spot checks on key entities.
-5. Start the new application against the new schemas.
-6. Observe for one week; drop old schema once confident.
-
-Data is classified into three preservation tiers:
-
-- **Tier 1 — irreplaceable.** Users, API tokens, play history, track features (expensive GPU embeddings), playback signals, LLM decision logs, taste profiles, user-track affinity, preference contracts, favorites, playlists. Must be migrated with zero loss.
-- **Tier 2 — reproducible with effort.** Library metadata (can be rescanned), karaoke artifacts (can be re-separated). Migrated best-effort; re-processing is fallback.
-- **Tier 3 — disposable.** Active sessions, job queues, scan logs. Not migrated.
-
----
-
 ## Summary
 
 Yaytsa is a self-hosted music server with a unified stateful core, multi-protocol interfaces, and adaptive intelligence.

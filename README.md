@@ -4,7 +4,7 @@
 [![Nightly](https://github.com/nikolay-e/yay-tsa/actions/workflows/nightly.yml/badge.svg)](https://github.com/nikolay-e/yay-tsa/actions/workflows/nightly.yml)
 [![Helm](https://github.com/nikolay-e/yay-tsa/actions/workflows/release-chart.yml/badge.svg)](https://github.com/nikolay-e/yay-tsa/actions/workflows/release-chart.yml)
 
-Self-hosted music streaming system: custom Java media server + React PWA client.
+Self-hosted music streaming system: multi-protocol Kotlin media server + React PWA client.
 
 ## Features
 
@@ -63,7 +63,7 @@ See [charts/yay-tsa/values.yaml](charts/yay-tsa/values.yaml) for all configurati
 ## Stack
 
 - **Frontend**: React 19, Vite 8, TailwindCSS 4, React Router 7
-- **Backend**: Java 21 Spring Boot 3.4, PostgreSQL 16, Virtual Threads
+- **Backend**: Kotlin 2.1, JDK 21, Spring Boot 3.4, PostgreSQL 17 (pgvector, pg_trgm, CITEXT)
 - **Karaoke**: Python FastAPI, BS-Roformer / Hybrid Demucs
 - **Infrastructure**: Docker, Helm, Argo CD, GitHub Actions
 
@@ -73,10 +73,11 @@ See [charts/yay-tsa/values.yaml](charts/yay-tsa/values.yaml) for all configurati
 apps/web/                # React PWA frontend
 packages/core/           # Framework-agnostic business logic
 packages/platform/       # Platform-specific audio adapters
-services/server/         # Java Spring Boot backend
+yay-tsa-v2/              # Kotlin hexagonal backend (8 bounded contexts)
 services/audio-separator/# Vocal separation sidecar (Demucs)
-charts/yay-tsa/          # Helm chart
-docker/                  # Production Docker Compose for self-hosting
+charts/yay-tsa/          # Helm chart (PWA + audio-separator)
+charts/yay-tsa-v2/       # Helm chart (backend)
+docker/                  # Docker Compose for self-hosting
 ```
 
 ## Development

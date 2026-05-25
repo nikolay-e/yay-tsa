@@ -5,15 +5,14 @@
 #   2. docker compose up -d
 #
 # Optional services:
-#   docker compose --profile karaoke up -d           # Enable vocal separation (GPU recommended)
-#   docker compose --profile feature-extractor up -d  # Enable audio feature extraction
+#   docker compose --profile karaoke up -d   # Enable vocal separation (GPU recommended)
 #
 # Upgrade:
 #   docker compose pull && docker compose up -d
 
 services:
   database:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-yaytsa}
@@ -29,41 +28,37 @@ services:
       start_period: 30s
 
   backend:
-    image: ghcr.io/nikolay-e/yay-tsa/backend:${APP_VERSION:-latest}
+    image: ghcr.io/nikolay-e/yay-tsa/yay-tsa-v2/backend:${APP_VERSION:-latest}
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
       DB_HOST: database
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-yaytsa}
-      DB_USER: ${DB_USER:-yaytsa}
+      DB_USERNAME: ${DB_USER:-yaytsa}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
-      SERVER_PORT: 8096
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
-      LIBRARY_ROOTS: /media,/app/uploads
-      SCAN_ON_STARTUP: ${SCAN_ON_STARTUP:-true}
       CORS_ENABLED: true
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      MUSIC_PATH: /media
       KARAOKE_SEPARATOR_URL: http://audio-separator:8000
-      KARAOKE_STEMS_PATH: /app/stems
-      FEATURE_EXTRACTOR_URL: http://feature-extractor:8000
-      GENIUS_ACCESS_TOKEN: ${GENIUS_ACCESS_TOKEN:-}
-      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
-      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
-      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
-      ACOUSTID_API_KEY: ${ACOUSTID_API_KEY:-}
+      KARAOKE_OUTPUT_PATH: /app/stems
+      KARAOKE_ENABLED: ${KARAOKE_ENABLED:-false}
+      # Production uses the HTTP separator sidecar, not in-process Demucs.
+      DEMUCS_COMMAND: unsupported
+      ML_ENABLED: ${ML_ENABLED:-false}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      MPD_ENABLED: ${MPD_ENABLED:-false}
     volumes:
       - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
-      - uploads_data:/app/uploads
       - karaoke_stems:/app/stems
     depends_on:
       database:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8096/manage/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/manage/health']
       interval: 15s
       timeout: 5s
       retries: 5
@@ -75,7 +70,7 @@ services:
     ports:
       - '${PORT:-3000}:80'
     environment:
-      YAYTSA_BACKEND_URL: http://backend:8096
+      YAYTSA_BACKEND_URL: http://backend:8080
       YAYTSA_SERVER_URL: /api
     depends_on:
       backend:
@@ -112,27 +107,6 @@ services:
       retries: 3
       start_period: 120s
 
-  feature-extractor:
-    image: ghcr.io/nikolay-e/yay-tsa/feature-extractor:${APP_VERSION:-latest}
-    restart: unless-stopped
-    profiles:
-      - feature-extractor
-    volumes:
-      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'python3',
-          '-c',
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-
 volumes:
   postgres_data:
-  uploads_data:
   karaoke_stems:

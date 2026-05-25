@@ -30,7 +30,7 @@ cd apps/web && npm run test:e2e                 # Playwright E2E (chromium + mob
 cd yay-tsa-v2 && ./gradlew test                 # Backend integration tests (Testcontainers)
 
 # Kubernetes (via GitOps)
-# Helm charts in this repo: charts/yay-tsa (PWA + audio-separator + feature-extractor)
+# Helm charts in this repo: charts/yay-tsa (PWA + audio-separator)
 #                           charts/yay-tsa-v2 (backend)
 # Values + ArgoCD apps in the gitops repo (separate); ArgoCD Image Updater auto-bumps tags.
 ```
@@ -126,13 +126,11 @@ Dark mode only — intentional design choice for a music player typically used i
 
 **Production**: Self-hosted K3s cluster.
 
-- `yay-tsa-production` namespace (`charts/yay-tsa`): PWA frontend (nginx), audio-separator sidecar, feature-extractor.
+- `yay-tsa-production` namespace (`charts/yay-tsa`): PWA frontend (nginx), audio-separator sidecar.
 - `yay-tsa-v2-production` namespace (`charts/yay-tsa-v2`): Kotlin backend; serves `/api` on `yay-tsa.com` via Traefik IngressClass + strip-prefix middleware. ServiceMonitor scrapes `/manage/prometheus`.
-- `shared-database` namespace: CNPG `shared-postgres` cluster with daily Barman backups to S3 (Minio). Schema list: `public` (legacy v1, no longer written), `core_v2_auth/library/playback/adaptive/preferences/playlists/ml/karaoke/shared`.
+- `shared-database` namespace: CNPG `shared-postgres` cluster with daily Barman backups to S3 (Minio). Schema list: `core_v2_auth/library/playback/adaptive/preferences/playlists/ml/karaoke/shared`. The `public` schema holds only shared extensions (pgvector, pg_trgm, citext, uuid-ossp).
 
 **Production image flow**: Push to main → CI builds `main-<sha7>` image for the changed component → Argo CD Image Updater detects → writes back to gitops `values.images.yaml` → ArgoCD syncs.
-
-**ETL legacy**: v1 data was migrated 2026-05-16 via `yay-tsa-v2/scripts/etl-migrate.sql`. The v1 `public.*` schema remains read-only as a safety net. See `yay-tsa-v2/CUTOVER_RUNBOOK.md` for the procedure (run, validation, rollback).
 
 ## Performance Targets
 
@@ -149,4 +147,3 @@ Dark mode only — intentional design choice for a music player typically used i
 ## Additional Documentation
 
 - **`yay-tsa-v2/CLAUDE.md`** — Backend architecture manifesto: bounded contexts, OCC + idempotency + lease invariants, multi-protocol design.
-- **`yay-tsa-v2/CUTOVER_RUNBOOK.md`** — ETL + ingress flip + rollback procedure used on 2026-05-16.
