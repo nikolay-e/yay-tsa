@@ -17,6 +17,7 @@ data:
   KARAOKE_ENABLED: {{ default false .Values.backend.config.karaoke.enabled | quote }}
   KARAOKE_OUTPUT_PATH: {{ .Values.backend.config.karaoke.outputPath | quote }}
   KARAOKE_FAIL_THRESHOLD: {{ .Values.backend.config.karaoke.failThreshold | quote }}
+  LYRICS_LRCLIB_ENABLED: {{ default true .Values.backend.config.lyrics.lrclib.enabled | quote }}
   ML_ENABLED: {{ default false .Values.backend.config.ml.enabled | quote }}
   ML_EXTRACTOR_SCRIPT: {{ .Values.backend.config.ml.extractorScript | quote }}
   ML_PROCESS_TIMEOUT_SECONDS: {{ .Values.backend.config.ml.processTimeoutSeconds | quote }}

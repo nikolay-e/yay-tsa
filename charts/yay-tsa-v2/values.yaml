@@ -94,6 +94,9 @@ backend:
     mpd:
       enabled: false
       port: 6600
+    lyrics:
+      lrclib:
+        enabled: true # keyless public lyrics provider (lrclib.net)
 
   media:
     enabled: false

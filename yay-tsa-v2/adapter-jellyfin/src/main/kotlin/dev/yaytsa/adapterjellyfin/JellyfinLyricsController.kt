@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.shared.EntityId
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -17,6 +18,8 @@ import java.nio.file.Path
 @RequestMapping("/Lyrics")
 class JellyfinLyricsController(
     private val libraryQueries: LibraryQueries,
+    private val lrclibClient: LrclibClient,
+    @Value("\${yaytsa.lyrics.lrclib.enabled:true}") private val lrclibEnabled: Boolean,
 ) {
     @GetMapping("/{trackId}")
     fun getLyrics(
@@ -33,20 +36,37 @@ class JellyfinLyricsController(
     // Server-side parsed arrays leaked into the PWA earlier as `result.lyrics: LyricLine[]`
     // where the client expected `result.lyrics: string`, silently breaking every overlay.
     private fun loadLyrics(trackId: String): LyricsFetchResponse {
-        val filePath = libraryQueries.resolveTrackFilePath(EntityId(trackId))
-        if (filePath == null) {
-            return LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
+        val entityId = EntityId(trackId)
+        val filePath = libraryQueries.resolveTrackFilePath(entityId)
+        if (filePath != null) {
+            val lrc = findSidecarLrc(Path.of(filePath))
+            if (lrc != null) {
+                try {
+                    val content = Files.readString(lrc)
+                    return LyricsFetchResponse(found = true, lyrics = content, source = SOURCE_SIDECAR)
+                } catch (e: Exception) {
+                    log.warn("Failed to read LRC for track {} from {}: {}", trackId, lrc, e.message)
+                }
+            }
         }
-        val lrc =
-            findSidecarLrc(Path.of(filePath))
-                ?: return LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
-        return try {
-            val content = Files.readString(lrc)
-            LyricsFetchResponse(found = true, lyrics = content, source = SOURCE_SIDECAR)
-        } catch (e: Exception) {
-            log.warn("Failed to read LRC for track {} from {}: {}", trackId, lrc, e.message)
-            LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
+        if (lrclibEnabled) {
+            fetchFromLrclib(entityId)?.let { return it }
         }
+        return LyricsFetchResponse(found = false, lyrics = "", source = SOURCE_NONE)
+    }
+
+    private fun fetchFromLrclib(entityId: EntityId): LyricsFetchResponse? {
+        val track = libraryQueries.getTrack(entityId) ?: return null
+        val artistName = track.albumArtistId?.let { libraryQueries.getArtist(it)?.name }
+        val albumName = track.albumId?.let { libraryQueries.getAlbum(it)?.name }
+        val lyrics =
+            lrclibClient.fetch(
+                trackName = track.name,
+                artistName = artistName,
+                albumName = albumName,
+                durationSeconds = track.durationMs?.div(1000),
+            ) ?: return null
+        return LyricsFetchResponse(found = true, lyrics = lyrics, source = SOURCE_LRCLIB)
     }
 
     /**
@@ -80,6 +100,7 @@ class JellyfinLyricsController(
     companion object {
         private val log = LoggerFactory.getLogger(JellyfinLyricsController::class.java)
         private const val SOURCE_SIDECAR = "sidecar"
+        private const val SOURCE_LRCLIB = "lrclib"
         private const val SOURCE_NONE = "none"
     }
 }
