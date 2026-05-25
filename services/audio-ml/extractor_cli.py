@@ -8,6 +8,10 @@ Usage:
 Reuses the Essentia + CLAP/MERT extractors from the audio-ml service and writes
 directly to PostgreSQL. Intended to run as a Kubernetes CronJob on the
 feature-extractor (essentia) image, which already bakes the Essentia models.
+
+DB connections are short-lived (open per query/write, never held across the
+multi-minute model load / extraction) — the shared-database pgbouncer pooler
+closes idle connections, so a long-held connection dies before the write.
 """
 
 import logging
@@ -45,25 +49,29 @@ def _vector(values):
     return "[" + ",".join(str(float(v)) for v in values) + "]"
 
 
-def _pending_tracks(conn, single_id):
-    with conn.cursor() as cur:
-        if single_id:
-            cur.execute(
-                "SELECT id, source_path FROM core_v2_library.entities "
-                "WHERE entity_type = 'TRACK' AND source_path IS NOT NULL AND id = %s",
-                (single_id,),
-            )
-        else:
-            sql = (
-                "SELECT e.id, e.source_path FROM core_v2_library.entities e "
-                "LEFT JOIN core_v2_ml.track_features f ON f.track_id = e.id "
-                "WHERE e.entity_type = 'TRACK' AND e.source_path IS NOT NULL "
-                "AND f.track_id IS NULL ORDER BY e.created_at"
-            )
-            if BATCH_LIMIT > 0:
-                sql += f" LIMIT {BATCH_LIMIT}"
-            cur.execute(sql)
-        return cur.fetchall()
+def _pending_tracks(single_id):
+    conn = _db_connect()
+    try:
+        with conn.cursor() as cur:
+            if single_id:
+                cur.execute(
+                    "SELECT id, source_path FROM core_v2_library.entities "
+                    "WHERE entity_type = 'TRACK' AND source_path IS NOT NULL AND id = %s",
+                    (single_id,),
+                )
+            else:
+                sql = (
+                    "SELECT e.id, e.source_path FROM core_v2_library.entities e "
+                    "LEFT JOIN core_v2_ml.track_features f ON f.track_id = e.id "
+                    "WHERE e.entity_type = 'TRACK' AND e.source_path IS NOT NULL "
+                    "AND f.track_id IS NULL ORDER BY e.created_at"
+                )
+                if BATCH_LIMIT > 0:
+                    sql += f" LIMIT {BATCH_LIMIT}"
+                cur.execute(sql)
+            return cur.fetchall()
+    finally:
+        conn.close()
 
 
 INSERT_SQL = """
@@ -84,7 +92,17 @@ ON CONFLICT (track_id) DO NOTHING
 """
 
 
-def _extract_one(conn, essentia, embedder, track_id, source_path):
+def _write_features(row):
+    conn = _db_connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(INSERT_SQL, row)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _extract_one(essentia, embedder, track_id, source_path):
     audio_path = os.path.join(MUSIC_PATH, source_path)
     if not os.path.isfile(audio_path):
         log.warning("track %s: file not found at %s", track_id, audio_path)
@@ -120,25 +138,19 @@ def _extract_one(conn, essentia, embedder, track_id, source_path):
         "embedding_mert": _vector(embeddings.get("embedding_mert")),
         "extractor_version": EXTRACTOR_VERSION,
     }
-    with conn.cursor() as cur:
-        cur.execute(INSERT_SQL, row)
-    conn.commit()
+    _write_features(row)
     return True
 
 
 def main():
     single_id = sys.argv[1] if len(sys.argv) > 1 else None
-    conn = _db_connect()
-    try:
-        pending = _pending_tracks(conn, single_id)
-    except Exception:
-        conn.close()
-        raise
+    pending = _pending_tracks(single_id)
     log.info("found %d track(s) to process", len(pending))
     if not pending:
-        conn.close()
         return 0
 
+    # Load models once, AFTER the pending query — model init takes minutes and
+    # must not hold a DB connection open (pooler would close it).
     essentia = EssentiaAnalyzer(MODELS_DIR)
     embedder = DualEmbeddingExtractor()
 
@@ -147,15 +159,13 @@ def main():
     started = time.time()
     for track_id, source_path in pending:
         try:
-            if _extract_one(conn, essentia, embedder, str(track_id), source_path):
+            if _extract_one(essentia, embedder, str(track_id), source_path):
                 processed += 1
             else:
                 failed += 1
-        except Exception as exc:
-            conn.rollback()
+        except Exception as exc:  # keep the batch going on per-track errors
             failed += 1
             log.warning("track %s failed: %s", track_id, exc)
-    conn.close()
     log.info(
         "done: processed=%d failed=%d in %.1fs",
         processed,
