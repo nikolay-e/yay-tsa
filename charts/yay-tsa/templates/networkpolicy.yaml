@@ -106,3 +106,54 @@ spec:
     - protocol: TCP
       port: 443
 {{- end }}
+{{- if .Values.featureExtractor.enabled }}
+---
+# =============================================================================
+# FEATURE-EXTRACTOR NETWORK POLICY (batch CronJob)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-feature-extractor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: feature-extractor
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: feature-extractor
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS for HuggingFace/GitHub model downloads (CLAP/MERT)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow PostgreSQL to the shared-database pooler (writes track_features)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: shared-database
+    ports:
+    - protocol: TCP
+      port: 5432
+{{- end }}
