@@ -23,8 +23,8 @@ trap cleanup EXIT
 echo "==> Loading canonical release key from Keychain"
 security find-generic-password -s "yaytsa-android-keystore-b64" -w | base64 -d >"$KEYSTORE"
 STORE_PW="$(security find-generic-password -s "yaytsa-android-keystore-password" -w)"
-[ -s "$KEYSTORE" ] || {
-  echo "ERROR: keystore not found in Keychain (yaytsa-android-keystore-b64)"
+[[ -s "$KEYSTORE" ]] || {
+  echo "ERROR: keystore not found in Keychain (yaytsa-android-keystore-b64)" >&2
   exit 1
 }
 
@@ -34,9 +34,9 @@ KEYSTORE_FILE="$KEYSTORE" KEYSTORE_PASSWORD="$STORE_PW" KEY_ALIAS="android" KEY_
 
 echo "==> Verifying signer cert"
 APKSIGNER="$(find "$SDK/build-tools" -name apksigner 2>/dev/null | sort -V | tail -1)"
-[ -n "$APKSIGNER" ] && "$APKSIGNER" verify --print-certs "$APK" | grep -i "SHA-256 digest" | head -1 || true
+[[ -n "$APKSIGNER" ]] && "$APKSIGNER" verify --print-certs "$APK" | grep -i "SHA-256 digest" | head -1 || true
 
-if [ "${1:-}" = "--build-only" ]; then
+if [[ "${1:-}" == "--build-only" ]]; then
   echo "==> Built: $APK"
   exit 0
 fi
