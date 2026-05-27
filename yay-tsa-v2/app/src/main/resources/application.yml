@@ -71,6 +71,7 @@ yaytsa:
     enabled: ${KARAOKE_ENABLED:false}
     output-path: ${KARAOKE_OUTPUT_PATH:#{null}}
     demucs-command: ${DEMUCS_COMMAND:demucs}
+    separator-url: ${KARAOKE_SEPARATOR_URL:#{null}}
   lyrics:
     lrclib:
       enabled: ${LYRICS_LRCLIB_ENABLED:true}

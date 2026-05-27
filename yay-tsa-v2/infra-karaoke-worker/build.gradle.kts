@@ -21,6 +21,7 @@ dependencies {
     implementation(project(":infra-persistence:karaoke"))
     implementation(project(":infra-persistence:library"))
     implementation(libs.spring.boot.starter.data.jpa)
+    implementation(libs.jackson.module.kotlin)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotest.runner.junit5)

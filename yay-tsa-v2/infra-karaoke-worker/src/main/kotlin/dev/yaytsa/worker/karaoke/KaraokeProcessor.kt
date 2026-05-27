@@ -21,8 +21,10 @@ class KaraokeProcessor(
     private val libraryEntityRepo: LibraryEntityRepository,
     private val karaokeRepo: KaraokeAssetJpaRepository,
     private val clock: Clock,
-    @Value("\${yaytsa.karaoke.output-path}") private val outputPath: String,
+    private val separatorClient: SeparatorClient,
+    @Value("\${yaytsa.karaoke.output-path:#{null}}") private val outputPath: String?,
     @Value("\${yaytsa.karaoke.demucs-command:demucs}") private val demucsCommand: String,
+    @Value("\${yaytsa.karaoke.separator-url:#{null}}") private val separatorUrl: String?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -33,12 +35,12 @@ class KaraokeProcessor(
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 60_000)
     fun processUnready() {
-        // Production runs the audio-separator HTTP sidecar (BS-Roformer on GPU);
-        // the in-process Demucs path is gated off via DEMUCS_COMMAND=unsupported.
-        // The backend's stems mount is read-only there, so any write attempt
-        // would crash on FileSystemException. Bail early.
-        if (demucsCommand == "unsupported" || demucsCommand.isBlank()) {
-            log.debug("Karaoke processor disabled (demucsCommand={}); sidecar handles separation", demucsCommand)
+        // Production delegates to the audio-separator HTTP sidecar (BS-Roformer on GPU)
+        // via separatorUrl; the in-process Demucs path is the local/dev fallback. Bail
+        // only when neither separation backend is available.
+        val localDemucsUnavailable = demucsCommand == "unsupported" || demucsCommand.isBlank()
+        if (separatorUrl.isNullOrBlank() && localDemucsUnavailable) {
+            log.debug("Karaoke processor has no separation backend (separatorUrl unset, demucsCommand={})", demucsCommand)
             return
         }
         log.info("Karaoke processor checking for unprocessed tracks")
@@ -83,7 +85,26 @@ class KaraokeProcessor(
         val entity = libraryEntityRepo.findById(trackId).orElse(null) ?: return
         val sourcePath = entity.sourcePath ?: return
 
-        val outDir = Path.of(outputPath, trackId.toString())
+        if (!separatorUrl.isNullOrBlank()) {
+            try {
+                val result = separatorClient.separate(separatorUrl, sourcePath, trackId.toString())
+                karaokeRepo.save(
+                    KaraokeAssetEntity(
+                        trackId = trackId,
+                        instrumentalPath = result.instrumentalPath,
+                        vocalPath = result.vocalPath,
+                        readyAt = clock.now(),
+                    ),
+                )
+                log.info("Karaoke assets ready via separator for track {} in {} ms", trackId, result.processingTimeMs)
+            } catch (e: Exception) {
+                log.warn("Separator failed for track {}: {}", trackId, e.message)
+                recordFailure(trackId, existing, e.message)
+            }
+            return
+        }
+
+        val outDir = Path.of(requireNotNull(outputPath) { "yaytsa.karaoke.output-path required for local demucs" }, trackId.toString())
         Files.createDirectories(outDir)
 
         try {
