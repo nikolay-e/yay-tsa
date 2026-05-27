@@ -317,6 +317,10 @@ Fix shape: stop going through Spring's message-converter pipeline for binary str
 
 Fix: substring matching (`.contains("flac")`/`.contains("opus")`) AND fall back to file-extension sniffing, with `audio/mpeg` as generic last-resort instead of `application/octet-stream` — the converter exists for any `audio/*`.
 
+### Audio streaming 500 from frontend nginx — `set $backend` after `rewrite … break`
+
+Distinct from the codec 500 above: this one is an **nginx config** bug, not backend. The `location ~ ^/api/Audio/[^/]+/stream` block proxies via a variable (`proxy_pass $backend;`, required for regex locations). If `set $backend …;` is placed **after** `rewrite ^/api(.*)$ $1 break;`, the `break` halts the ngx_http_rewrite_module phase and the `set` never runs → `$backend` empty → nginx logs `using uninitialized "backend" variable` + `invalid URL prefix in ""` → **500 from nginx** (HTML body, not Spring JSON). Browser shows `MEDIA_ELEMENT_ERROR: Format error` — looks like a frontend/codec bug but is the proxy. Fix: put `set $backend …;` **before** the `rewrite … break`. Signal to distinguish from the codec 500: nginx default 500 page (not a Spring error) + the two nginx error-log lines above. Other `/api/*` locations using literal `proxy_pass __BACKEND_URL__` are unaffected, so a working `/Items` with a broken `/Audio/stream` points straight here. (`infra/nginx/nginx.conf.template`, fixed 2026-05-27.)
+
 ### Images endpoint silently 404s when /media is not mounted
 
 `/Items/{itemId}/Images/{imageType}` returns **404** (not 401) when auth passes but on-disk image file is unreachable. Reproduction: `kubectl exec <backend-pod> -- ls /media` showing OS default contents (`cdrom`, `floppy`) instead of music library. Cross-check with `SELECT path FROM core_v2_library.images WHERE is_primary=true LIMIT 3`. Crawler signal: hundreds of `404 https://yay-tsa.com/api/Items/<uuid>/Images/Primary` lines.
