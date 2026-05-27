@@ -196,170 +196,190 @@ export function MobileFullPlayer({
   const [showLyrics, setShowLyrics] = useState(false);
 
   return createPortal(
-    <div className="bg-bg-primary fixed inset-0 z-[140] flex flex-col md:hidden">
-      {/* Header */}
-      <div className="pt-safe flex items-center justify-between px-4 py-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-          aria-label="Close player"
-        >
-          <ChevronDown className="h-6 w-6" />
-        </button>
-        <p className="text-text-secondary max-w-[60%] truncate text-sm">{albumName}</p>
-        <div className="w-10" />
-      </div>
-
-      {/* Album art or lyrics */}
-      <div className="flex flex-1 items-center justify-center overflow-hidden px-8 py-2">
-        {showLyrics ? (
-          <InlineLyricsPanel />
-        ) : (
-          <img
-            src={hasImageError ? getImagePlaceholder() : imageUrl}
-            alt={track.Name}
-            className="aspect-square w-full max-w-xs rounded-xl object-cover shadow-2xl"
-            draggable={false}
-            onContextMenu={e => e.preventDefault()}
-            style={{ WebkitTouchCallout: 'none', userSelect: 'none' } as CSSProperties}
-          />
-        )}
-      </div>
-
-      {/* Track info + like + rating */}
-      <div className="flex items-center justify-between px-8 py-3">
-        <div className="min-w-0 flex-1">
-          <p
-            data-testid="current-track-title"
-            className="text-text-primary truncate text-xl font-semibold"
-          >
-            {track.Name}
-          </p>
-          {artistId ? (
-            <Link
-              to={`/artists/${artistId}`}
-              onClick={onClose}
-              data-testid="current-track-artist"
-              className="text-text-secondary hover:text-text-primary truncate text-base hover:underline"
-            >
-              {artistName}
-            </Link>
-          ) : (
-            <p
-              data-testid="current-track-artist"
-              className="text-text-secondary truncate text-base"
-            >
-              {artistName}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onThumbsUp}
-            className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-            aria-label="Thumbs up"
-          >
-            <ThumbsUp className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={onThumbsDown}
-            className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-            aria-label="Thumbs down"
-          >
-            <ThumbsDown className="h-5 w-5" />
-          </button>
-          <FavoriteButton
-            itemId={track.Id}
-            isFavorite={track.UserData?.IsFavorite ?? false}
-            size="md"
-          />
-        </div>
-      </div>
-
-      {/* Seek bar + time */}
-      <div className="px-8">
-        <SeekBar onSeek={onSeek} />
-        <MobileTimeRow />
-      </div>
-
-      {/* Main controls */}
-      <div className="flex items-center justify-between px-8 py-4">
-        <button
-          type="button"
-          onClick={onToggleShuffle}
-          className={cn(
-            'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-            isShuffle ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
-          )}
-          aria-label="Shuffle"
-          aria-pressed={isShuffle}
-        >
-          <Shuffle className="h-5 w-5" />
-        </button>
-
-        <button
-          type="button"
-          data-testid="previous-button"
-          onClick={onPrevious}
-          className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-          aria-label="Previous"
-        >
-          <SkipBack className="h-7 w-7" fill="currentColor" />
-        </button>
-
-        <button
-          type="button"
-          data-testid="play-pause-button"
-          onClick={onPlayPause}
-          className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent rounded-full p-4 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? (
-            <Pause className="h-7 w-7" fill="currentColor" />
-          ) : (
-            <Play className="ml-0.5 h-7 w-7" fill="currentColor" />
-          )}
-        </button>
-
-        <button
-          type="button"
-          data-testid="next-button"
-          onClick={onNext}
-          className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-          aria-label="Next"
-        >
-          <SkipForward className="h-7 w-7" fill="currentColor" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleRepeat}
-          className={cn(
-            'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
-            repeatMode === 'off' ? 'text-text-secondary hover:text-text-primary' : 'text-accent'
-          )}
-          aria-label={`Repeat: ${repeatMode}`}
-          aria-pressed={repeatMode !== 'off'}
-        >
-          {repeatMode === 'one' ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
-        </button>
-      </div>
-
-      {/* Secondary pill controls */}
-      <SecondaryPillControls
-        isKaraokeMode={isKaraokeMode}
-        isKaraokeTransitioning={isKaraokeTransitioning}
-        karaokeStatus={karaokeStatus}
-        showLyrics={showLyrics}
-        hasSleepTimer={hasSleepTimer}
-        sleepMinutesLeft={sleepMinutesLeft}
-        onToggleKaraoke={onToggleKaraoke}
-        onToggleLyrics={() => setShowLyrics(v => !v)}
-        onOpenSleepTimer={onOpenSleepTimer}
+    <div className="bg-bg-primary fixed inset-0 z-[140] overflow-hidden md:hidden">
+      {!hasImageError && (
+        <img
+          src={imageUrl}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-3xl select-none"
+        />
+      )}
+      <div
+        aria-hidden
+        className="from-bg-primary/30 via-bg-primary/70 to-bg-primary pointer-events-none absolute inset-0 bg-gradient-to-b"
       />
+
+      <div className="relative z-10 flex h-full flex-col">
+        {/* Header */}
+        <div className="pt-safe flex items-center justify-between px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Close player"
+          >
+            <ChevronDown className="h-6 w-6" />
+          </button>
+          <p className="text-text-secondary max-w-[60%] truncate text-sm">{albumName}</p>
+          <div className="w-10" />
+        </div>
+
+        {/* Album art or lyrics */}
+        <div className="flex flex-1 items-center justify-center overflow-hidden px-8 py-2">
+          {showLyrics ? (
+            <InlineLyricsPanel />
+          ) : (
+            <img
+              src={hasImageError ? getImagePlaceholder() : imageUrl}
+              alt={track.Name}
+              className="aspect-square w-full max-w-xs rounded-xl object-cover shadow-2xl"
+              draggable={false}
+              onContextMenu={e => e.preventDefault()}
+              style={{ WebkitTouchCallout: 'none', userSelect: 'none' } as CSSProperties}
+            />
+          )}
+        </div>
+
+        {/* Track info + like + rating */}
+        <div className="flex items-center justify-between px-8 py-3">
+          <div className="min-w-0 flex-1">
+            <p
+              data-testid="current-track-title"
+              className="text-text-primary truncate text-xl font-semibold"
+            >
+              {track.Name}
+            </p>
+            {artistId ? (
+              <Link
+                to={`/artists/${artistId}`}
+                onClick={onClose}
+                data-testid="current-track-artist"
+                className="text-text-secondary hover:text-text-primary truncate text-base hover:underline"
+              >
+                {artistName}
+              </Link>
+            ) : (
+              <p
+                data-testid="current-track-artist"
+                className="text-text-secondary truncate text-base"
+              >
+                {artistName}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onThumbsUp}
+              className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              aria-label="Thumbs up"
+            >
+              <ThumbsUp className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onThumbsDown}
+              className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              aria-label="Thumbs down"
+            >
+              <ThumbsDown className="h-5 w-5" />
+            </button>
+            <FavoriteButton
+              itemId={track.Id}
+              isFavorite={track.UserData?.IsFavorite ?? false}
+              size="md"
+            />
+          </div>
+        </div>
+
+        {/* Seek bar + time */}
+        <div className="px-8">
+          <SeekBar onSeek={onSeek} />
+          <MobileTimeRow />
+        </div>
+
+        {/* Main controls */}
+        <div className="flex items-center justify-between px-8 py-4">
+          <button
+            type="button"
+            onClick={onToggleShuffle}
+            className={cn(
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+              isShuffle ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+            )}
+            aria-label="Shuffle"
+            aria-pressed={isShuffle}
+          >
+            <Shuffle className="h-5 w-5" />
+          </button>
+
+          <button
+            type="button"
+            data-testid="previous-button"
+            onClick={onPrevious}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Previous"
+          >
+            <SkipBack className="h-7 w-7" fill="currentColor" />
+          </button>
+
+          <button
+            type="button"
+            data-testid="play-pause-button"
+            onClick={onPlayPause}
+            className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent rounded-full p-4 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <Pause className="h-7 w-7" fill="currentColor" />
+            ) : (
+              <Play className="ml-0.5 h-7 w-7" fill="currentColor" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="next-button"
+            onClick={onNext}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Next"
+          >
+            <SkipForward className="h-7 w-7" fill="currentColor" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggleRepeat}
+            className={cn(
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+              repeatMode === 'off' ? 'text-text-secondary hover:text-text-primary' : 'text-accent'
+            )}
+            aria-label={`Repeat: ${repeatMode}`}
+            aria-pressed={repeatMode !== 'off'}
+          >
+            {repeatMode === 'one' ? (
+              <Repeat1 className="h-5 w-5" />
+            ) : (
+              <Repeat className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+
+        {/* Secondary pill controls */}
+        <SecondaryPillControls
+          isKaraokeMode={isKaraokeMode}
+          isKaraokeTransitioning={isKaraokeTransitioning}
+          karaokeStatus={karaokeStatus}
+          showLyrics={showLyrics}
+          hasSleepTimer={hasSleepTimer}
+          sleepMinutesLeft={sleepMinutesLeft}
+          onToggleKaraoke={onToggleKaraoke}
+          onToggleLyrics={() => setShowLyrics(v => !v)}
+          onOpenSleepTimer={onOpenSleepTimer}
+        />
+      </div>
     </div>,
     document.body
   );

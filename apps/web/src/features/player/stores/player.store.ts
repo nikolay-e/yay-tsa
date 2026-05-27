@@ -278,6 +278,16 @@ export const usePlayerStore = create<PlayerStore>()(
       });
     }
 
+    function syncMediaSessionPlayback(
+      state: 'none' | 'paused' | 'playing',
+      positionOverride?: number
+    ): void {
+      session?.setPlaybackState(state);
+      if (state === 'none') return;
+      const position = positionOverride ?? engine.getCurrentTime();
+      session?.updatePositionState(engine.getDuration(), position);
+    }
+
     function schedulePreload(): void {
       if (!currentClient) return;
       const { queue, repeatMode, isKaraokeMode } = get();
@@ -371,6 +381,7 @@ export const usePlayerStore = create<PlayerStore>()(
       get().queue.advanceTo(track.Id);
       syncQueueState();
       updateSessionMetadata(track);
+      syncMediaSessionPlayback('playing', engine.getCurrentTime());
       startPlaybackReporter(track.Id);
       preloader.invalidate();
       schedulePreload();
@@ -489,6 +500,7 @@ export const usePlayerStore = create<PlayerStore>()(
       get().queue.advanceTo(track.Id);
       syncQueueState();
       updateSessionMetadata(track);
+      syncMediaSessionPlayback('playing', 0);
       startPlaybackReporter(track.Id);
 
       if (get().isKaraokeMode || get().karaokeEnabled) {
@@ -559,6 +571,7 @@ export const usePlayerStore = create<PlayerStore>()(
           }
           useTimingStore.getState().reset();
           set({ isPlaying: false });
+          syncMediaSessionPlayback('none');
           return;
         }
 
@@ -805,6 +818,7 @@ export const usePlayerStore = create<PlayerStore>()(
         void controller.interrupt(async () => {
           engine.pause();
           set({ isPlaying: false });
+          syncMediaSessionPlayback('paused');
           wakeLock.release();
 
           if (playbackReporter && currentItemId) {
@@ -822,6 +836,7 @@ export const usePlayerStore = create<PlayerStore>()(
           try {
             await engine.play();
             set({ isPlaying: true });
+            syncMediaSessionPlayback('playing');
             wakeLock.acquire().catch(() => {});
 
             if (playbackReporter && currentItemId) {
@@ -890,6 +905,7 @@ export const usePlayerStore = create<PlayerStore>()(
           engine.seek(seconds);
         }
         useTimingStore.getState().seekTo(seconds, engine.getDuration());
+        syncMediaSessionPlayback(get().isPlaying ? 'playing' : 'paused', seconds);
 
         if (playbackReporter && currentItemId) {
           playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch(err => {
