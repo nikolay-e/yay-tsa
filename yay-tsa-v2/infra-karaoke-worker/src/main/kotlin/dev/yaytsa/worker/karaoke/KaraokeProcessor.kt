@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -76,7 +75,9 @@ class KaraokeProcessor(
         }
     }
 
-    @Transactional
+    // No @Transactional: separation runs a long external call (HTTP sidecar up to 30 min,
+    // or the local demucs subprocess) that must NOT hold a DB transaction open. Each
+    // findById/save is individually transactional via the Spring Data repository.
     fun processTrack(trackId: UUID) {
         val existing = karaokeRepo.findById(trackId).orElse(null)
         if (existing?.readyAt != null) return
