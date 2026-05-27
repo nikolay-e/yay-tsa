@@ -1,5 +1,6 @@
 package dev.yaytsa.app.security
 
+import jakarta.servlet.DispatcherType
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -35,6 +36,8 @@ class SecurityConfig(
             }.sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it
+                    .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
+                    .permitAll()
                     .requestMatchers("/ws/**")
                     .permitAll()
                     .requestMatchers("/Users/AuthenticateByName")
