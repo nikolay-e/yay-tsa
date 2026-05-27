@@ -49,6 +49,19 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `unauthenticated request returns RFC7807 problem detail body`() {
+        val result = get("/Items")
+        assertEquals(401, result.response.status)
+        assertTrue(
+            result.response.contentType?.startsWith(MediaType.APPLICATION_PROBLEM_JSON_VALUE) == true,
+            "401 must be application/problem+json, was ${result.response.contentType}",
+        )
+        val body = result.response.contentAsString
+        assertTrue(body.contains("\"status\":401"), "body=$body")
+        assertTrue(body.contains("\"title\":\"Unauthorized\""), "body=$body")
+    }
+
+    @Test
     fun `unauthenticated GET artists returns 401`() {
         val result = get("/Artists")
         assertEquals(401, result.response.status)
