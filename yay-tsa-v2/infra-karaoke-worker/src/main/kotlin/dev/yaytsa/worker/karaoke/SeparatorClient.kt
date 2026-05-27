@@ -18,8 +18,14 @@ data class SeparationResult(
 @Component
 class SeparatorClient {
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
+    // Force HTTP/1.1: the separator (uvicorn) is HTTP/1.1-only, and the JDK client's
+    // default HTTP/2 h2c-upgrade attempt drops the POST body, yielding a 422 at FastAPI.
     private val httpClient: HttpClient =
-        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
+        HttpClient
+            .newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
 
     fun separate(
         baseUrl: String,
