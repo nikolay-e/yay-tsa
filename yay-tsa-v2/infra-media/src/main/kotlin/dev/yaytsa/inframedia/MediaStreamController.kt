@@ -2,6 +2,7 @@ package dev.yaytsa.inframedia
 
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.shared.EntityId
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.FileSystemResource
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
@@ -15,7 +16,10 @@ import java.nio.file.Path
 @RestController
 class MediaStreamController(
     private val libraryQueries: LibraryQueries,
+    @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
 ) {
+    private val safeRoot = MediaPathSafety.resolveRoot(musicPath)
+
     @GetMapping("/rest/stream", "/rest/stream.view")
     fun subsonicStream(
         @RequestParam id: String,
@@ -42,10 +46,9 @@ class MediaStreamController(
             libraryQueries.resolveTrackFilePath(entityId)
                 ?: return ResponseEntity.notFound().build<Any>()
 
-        val filePath = Path.of(sourcePath)
-        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
-            return ResponseEntity.notFound().build<Any>()
-        }
+        val filePath =
+            MediaPathSafety.resolveServableFile(Path.of(sourcePath), safeRoot)
+                ?: return ResponseEntity.notFound().build<Any>()
 
         val resource = FileSystemResource(filePath)
         val contentType = resolveContentType(track.codec)
@@ -65,8 +68,17 @@ class MediaStreamController(
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             val rangeSpec = rangeHeader.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
-            val start = parts[0].toLongOrNull() ?: 0L
-            val requestedEnd = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
+            val suffixSpec = parts.size == 2 && parts[0].isEmpty()
+            val start: Long
+            val requestedEnd: Long
+            if (suffixSpec) {
+                val suffixLength = parts[1].toLongOrNull() ?: 0L
+                start = (fileSize - suffixLength).coerceAtLeast(0L)
+                requestedEnd = fileSize - 1
+            } else {
+                start = parts[0].toLongOrNull() ?: 0L
+                requestedEnd = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
+            }
             if (start < 0 || start >= fileSize || requestedEnd < start) {
                 return ResponseEntity
                     .status(org.springframework.http.HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)

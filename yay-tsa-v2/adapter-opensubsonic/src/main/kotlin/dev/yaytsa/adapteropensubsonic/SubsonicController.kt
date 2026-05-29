@@ -2,6 +2,7 @@ package dev.yaytsa.adapteropensubsonic
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.SubsonicFailureTranslator
+import dev.yaytsa.adaptershared.TrackLookups
 import dev.yaytsa.adaptershared.toSubsonicChild
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
@@ -11,6 +12,7 @@ import dev.yaytsa.application.playlists.PlaylistUseCases
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.domain.library.Album
+import dev.yaytsa.domain.library.Track
 import dev.yaytsa.domain.playlists.AddTracksToPlaylist
 import dev.yaytsa.domain.playlists.CreatePlaylist
 import dev.yaytsa.domain.playlists.DeletePlaylist
@@ -18,6 +20,7 @@ import dev.yaytsa.domain.playlists.PlaylistId
 import dev.yaytsa.domain.preferences.SetFavorite
 import dev.yaytsa.domain.preferences.UnsetFavorite
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.TrackId
@@ -49,6 +52,12 @@ class SubsonicController(
         val payload = failureTranslator.translate(failure)
         return error(payload.code, payload.message)
     }
+
+    private fun responseFor(result: CommandResult<*>): SubsonicResponse =
+        when (result) {
+            is CommandResult.Success -> ok()
+            is CommandResult.Failed -> errorFrom(result.failure)
+        }
 
     // --- System ---
 
@@ -146,7 +155,7 @@ class SubsonicController(
                             artist?.name,
                             artist?.id?.value,
                             album.releaseDate?.year,
-                            tracks.map { it.toSubsonicChild() },
+                            tracks.toSubsonicChildren(),
                             album.coverImagePath,
                         ),
                 )
@@ -164,8 +173,16 @@ class SubsonicController(
         val track =
             libraryQueries.getTrack(EntityId(id))
                 ?: return responseWriter.write(errorFrom(Failure.NotFound("Song", id)), f)
-        return responseWriter.write(ok { copy(song = track.toSubsonicChild()) }, f)
+        return responseWriter.write(ok { copy(song = track.toSubsonicChild(tracksLookups(listOf(track)))) }, f)
     }
+
+    private fun tracksLookups(tracks: List<Track>): TrackLookups =
+        TrackLookups(
+            albumNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumId }.toSet()),
+            artistNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumArtistId }.toSet()),
+        )
+
+    private fun List<Track>.toSubsonicChildren() = tracksLookups(this).let { lookups -> map { it.toSubsonicChild(lookups) } }
 
     @GetMapping("/getAlbumList2", "/getAlbumList2.view")
     fun getAlbumList2(
@@ -197,7 +214,7 @@ class SubsonicController(
                         SearchResult3(
                             artist = results.artists.take(artistCount).map { ArtistElement(it.id.value, it.name) },
                             album = results.albums.take(albumCount).map { it.toElement() },
-                            song = results.tracks.take(songCount).map { it.toSubsonicChild() },
+                            song = results.tracks.take(songCount).toSubsonicChildren(),
                         ),
                 )
             },
@@ -217,8 +234,8 @@ class SubsonicController(
         val userId = UserId(principal.name)
         val prefs = preferencesQueries.find(userId)
         val ctx = ctxFactory.create(userId, prefs?.version ?: AggregateVersion.INITIAL)
-        preferencesUseCases.execute(SetFavorite(userId, TrackId(id), ctx.requestTime), ctx)
-        return responseWriter.write(ok(), f)
+        val result = preferencesUseCases.execute(SetFavorite(userId, TrackId(id), ctx.requestTime), ctx)
+        return responseWriter.write(responseFor(result), f)
     }
 
     @GetMapping("/unstar", "/unstar.view")
@@ -231,8 +248,8 @@ class SubsonicController(
         val userId = UserId(principal.name)
         val prefs = preferencesQueries.find(userId)
         val ctx = ctxFactory.create(userId, prefs?.version ?: AggregateVersion.INITIAL)
-        preferencesUseCases.execute(UnsetFavorite(userId, TrackId(id)), ctx)
-        return responseWriter.write(ok(), f)
+        val result = preferencesUseCases.execute(UnsetFavorite(userId, TrackId(id)), ctx)
+        return responseWriter.write(responseFor(result), f)
     }
 
     @GetMapping("/getStarred2", "/getStarred2.view")
@@ -243,9 +260,8 @@ class SubsonicController(
         val userId = UserId(principal.name)
         val prefs = preferencesQueries.find(userId)
         val starredSongs =
-            prefs?.favorites?.mapNotNull { fav ->
-                libraryQueries.getTrack(EntityId(fav.trackId.value))?.toSubsonicChild()
-            } ?: emptyList()
+            (prefs?.favorites?.mapNotNull { fav -> libraryQueries.getTrack(EntityId(fav.trackId.value)) } ?: emptyList())
+                .toSubsonicChildren()
         return responseWriter.write(ok { copy(starred2 = Starred2(song = starredSongs)) }, f)
     }
 
@@ -282,9 +298,9 @@ class SubsonicController(
             playlistQueries.find(PlaylistId(id))
                 ?: return responseWriter.write(errorFrom(Failure.NotFound("Playlist", id)), f)
         val entries =
-            playlist.tracks.mapNotNull { entry ->
-                libraryQueries.getTrack(EntityId(entry.trackId.value))?.toSubsonicChild()
-            }
+            playlist.tracks
+                .mapNotNull { entry -> libraryQueries.getTrack(EntityId(entry.trackId.value)) }
+                .toSubsonicChildren()
         return responseWriter.write(
             ok {
                 copy(
@@ -319,10 +335,12 @@ class SubsonicController(
                     ?: return responseWriter.write(errorFrom(Failure.NotFound("Playlist", playlistId)), f)
             if (!songId.isNullOrEmpty()) {
                 val ctx = ctxFactory.create(userId, playlist.version)
-                playlistUseCases.execute(
-                    AddTracksToPlaylist(PlaylistId(playlistId), songId.map { TrackId(it) }, ctx.requestTime),
-                    ctx,
-                )
+                val result =
+                    playlistUseCases.execute(
+                        AddTracksToPlaylist(PlaylistId(playlistId), songId.map { TrackId(it) }, ctx.requestTime),
+                        ctx,
+                    )
+                if (result is CommandResult.Failed) return responseWriter.write(errorFrom(result.failure), f)
             }
         } else {
             // Create new playlist
@@ -334,14 +352,17 @@ class SubsonicController(
                         .toString(),
                 )
             val ctx = ctxFactory.create(userId, AggregateVersion.INITIAL)
-            playlistUseCases.execute(CreatePlaylist(newId, userId, plName, null, false, ctx.requestTime), ctx)
+            val createResult = playlistUseCases.execute(CreatePlaylist(newId, userId, plName, null, false, ctx.requestTime), ctx)
+            if (createResult is CommandResult.Failed) return responseWriter.write(errorFrom(createResult.failure), f)
             if (!songId.isNullOrEmpty()) {
                 val created = playlistQueries.find(newId)!!
                 val addCtx = ctxFactory.create(userId, created.version)
-                playlistUseCases.execute(
-                    AddTracksToPlaylist(newId, songId.map { TrackId(it) }, addCtx.requestTime),
-                    addCtx,
-                )
+                val addResult =
+                    playlistUseCases.execute(
+                        AddTracksToPlaylist(newId, songId.map { TrackId(it) }, addCtx.requestTime),
+                        addCtx,
+                    )
+                if (addResult is CommandResult.Failed) return responseWriter.write(errorFrom(addResult.failure), f)
             }
         }
         return responseWriter.write(ok(), f)
@@ -358,8 +379,8 @@ class SubsonicController(
             playlistQueries.find(PlaylistId(id))
                 ?: return responseWriter.write(errorFrom(Failure.NotFound("Playlist", id)), f)
         val ctx = ctxFactory.create(UserId(principal.name), playlist.version)
-        playlistUseCases.execute(DeletePlaylist(PlaylistId(id)), ctx)
-        return responseWriter.write(ok(), f)
+        val result = playlistUseCases.execute(DeletePlaylist(PlaylistId(id)), ctx)
+        return responseWriter.write(responseFor(result), f)
     }
 
     @GetMapping("/scrobble", "/scrobble.view")

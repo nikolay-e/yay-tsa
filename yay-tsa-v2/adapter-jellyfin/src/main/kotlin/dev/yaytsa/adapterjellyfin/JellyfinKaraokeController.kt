@@ -3,6 +3,7 @@ package dev.yaytsa.adapterjellyfin
 import dev.yaytsa.application.karaoke.port.KaraokeQueryPort
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.generated.KaraokeState
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -22,7 +23,10 @@ import java.nio.file.Path
 @RequestMapping("/Karaoke")
 class JellyfinKaraokeController(
     private val karaokeQueryPort: KaraokeQueryPort,
+    @Value("\${yaytsa.karaoke.output-path:#{null}}") karaokeOutputPath: String?,
 ) {
+    private val safeRoot = MediaPathSafety.resolveRoot(karaokeOutputPath)
+
     @GetMapping("/enabled")
     fun isEnabled(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("enabled" to true))
 
@@ -108,8 +112,8 @@ class JellyfinKaraokeController(
             response.sendError(HttpStatus.NOT_FOUND.value(), "Stem not available")
             return
         }
-        val filePath = Path.of(stemPath)
-        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+        val filePath = MediaPathSafety.resolveServableFile(Path.of(stemPath), safeRoot)
+        if (filePath == null) {
             response.sendError(HttpStatus.NOT_FOUND.value(), "Stem file missing on disk")
             return
         }
@@ -132,14 +136,23 @@ class JellyfinKaraokeController(
         if (range != null && range.startsWith("bytes=")) {
             val rangeSpec = range.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
-            val start = parts[0].toLongOrNull() ?: 0L
-            val end =
-                if (parts.size > 1 && parts[1].isNotEmpty()) {
-                    parts[1].toLongOrNull() ?: (fileSize - 1)
-                } else {
-                    fileSize - 1
-                }
-            if (start > end || start < 0 || end >= fileSize) {
+            val suffixSpec = parts.size == 2 && parts[0].isEmpty()
+            val start: Long
+            val end: Long
+            if (suffixSpec) {
+                val suffixLength = parts[1].toLongOrNull() ?: 0L
+                start = (fileSize - suffixLength).coerceAtLeast(0L)
+                end = fileSize - 1
+            } else {
+                start = parts[0].toLongOrNull() ?: 0L
+                end =
+                    if (parts.size > 1 && parts[1].isNotEmpty()) {
+                        parts[1].toLongOrNull() ?: (fileSize - 1)
+                    } else {
+                        fileSize - 1
+                    }
+            }
+            if (start > end || start < 0 || start >= fileSize || end >= fileSize) {
                 response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
                 response.sendError(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value())
                 return

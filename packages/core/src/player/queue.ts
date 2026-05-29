@@ -117,6 +117,11 @@ export class PlaybackQueue {
       }
     }
 
+    // Prune play history of any ids that no longer exist in the queue
+    this.playHistory = this.playHistory.filter(historyItem =>
+      this.items.some(item => item.Id === historyItem.Id)
+    );
+
     // If queue is now empty
     if (this.items.length === 0) {
       this.currentIndex = -1;
@@ -236,7 +241,10 @@ export class PlaybackQueue {
    */
   hasPrevious(): boolean {
     if (this.isEmpty()) return false;
-    if (this.playHistory.length > 0) return true;
+    const hasLiveHistory = this.playHistory.some(historyItem =>
+      this.items.some(item => item.Id === historyItem.Id)
+    );
+    if (hasLiveHistory) return true;
     if (this.repeatMode !== 'off') return true;
     return this.currentIndex > 0;
   }
@@ -276,8 +284,9 @@ export class PlaybackQueue {
       return this.getCurrentItem();
     }
 
-    const prev = this.playHistory.pop();
-    if (prev) {
+    while (this.playHistory.length > 0) {
+      const prev = this.playHistory.pop();
+      if (!prev) break;
       const idx = this.items.findIndex(item => item.Id === prev.Id);
       if (idx !== -1) {
         this.currentIndex = idx;

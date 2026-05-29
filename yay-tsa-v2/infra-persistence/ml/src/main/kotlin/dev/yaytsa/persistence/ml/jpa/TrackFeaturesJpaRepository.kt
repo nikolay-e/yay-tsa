@@ -14,6 +14,7 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
             FROM core_v2_ml.track_features
             WHERE track_id <> :seed
               AND embedding_mert IS NOT NULL
+              AND (SELECT embedding_mert FROM core_v2_ml.track_features WHERE track_id = :seed) IS NOT NULL
             ORDER BY embedding_mert <=> (
                 SELECT embedding_mert FROM core_v2_ml.track_features WHERE track_id = :seed
             )
@@ -33,6 +34,7 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
             FROM core_v2_ml.track_features
             WHERE track_id <> :seed
               AND embedding_clap IS NOT NULL
+              AND (SELECT embedding_clap FROM core_v2_ml.track_features WHERE track_id = :seed) IS NOT NULL
             ORDER BY embedding_clap <=> (
                 SELECT embedding_clap FROM core_v2_ml.track_features WHERE track_id = :seed
             )
@@ -52,6 +54,7 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
             FROM core_v2_ml.track_features
             WHERE track_id <> :seed
               AND embedding_discogs IS NOT NULL
+              AND (SELECT embedding_discogs FROM core_v2_ml.track_features WHERE track_id = :seed) IS NOT NULL
             ORDER BY embedding_discogs <=> (
                 SELECT embedding_discogs FROM core_v2_ml.track_features WHERE track_id = :seed
             )

@@ -31,18 +31,15 @@ class ApiTokenAuthFilter(
             if (user != null && user.isActive) {
                 val hashedToken = Hashing.sha256Hex(token)
                 val apiToken = user.apiTokens.find { it.token == hashedToken }
+                val now = java.time.Instant.now()
                 val expired =
-                    apiToken?.expiresAt?.let {
-                        java.time.Instant
-                            .now()
-                            .isAfter(it)
-                    } ?: false
-                if (!expired) {
+                    apiToken?.expiresAt?.let { !now.isBefore(it) } ?: true
+                if (apiToken != null && !apiToken.revoked && !expired) {
                     SecurityContextHolder.getContext().authentication =
                         YaytsaAuthentication(
                             userId = user.id,
                             tokenValue = token,
-                            deviceId = apiToken?.deviceId?.value,
+                            deviceId = apiToken.deviceId?.value,
                             isAdmin = user.isAdmin,
                         )
                 }

@@ -7,8 +7,10 @@ import dev.yaytsa.adaptershared.toMpdSummaryLines
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
+import dev.yaytsa.domain.playback.AcquireLease
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
+import dev.yaytsa.domain.playback.QueueEntryId
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
@@ -20,6 +22,8 @@ import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.UserId
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
+import java.time.Duration
+import java.util.Locale
 
 @Component
 class MpdCommandHandler(
@@ -34,7 +38,10 @@ class MpdCommandHandler(
         private val MPD_USER = UserId("mpd-default")
         private val MPD_SESSION = SessionId("mpd-default")
         private val MPD_DEVICE = DeviceId("mpd")
+        private val MPD_LEASE_DURATION = Duration.ofHours(6)
     }
+
+    private fun songIdOf(entryId: QueueEntryId): Int = entryId.value.hashCode() and 0x7fffffff
 
     fun handle(line: String): String {
         val parts = parseLine(line)
@@ -44,8 +51,8 @@ class MpdCommandHandler(
             "ping" -> ok()
             "status" -> status()
             "currentsong" -> currentSong()
-            "play" -> play(args.firstOrNull()?.toIntOrNull())
-            "playid" -> play(null)
+            "play" -> playPos(args.firstOrNull()?.toIntOrNull())
+            "playid" -> playId(args.firstOrNull()?.toIntOrNull())
             "pause" -> pause()
             "stop" -> stop()
             "next" -> next()
@@ -117,9 +124,9 @@ class MpdCommandHandler(
             val idx = state.queue.indexOfFirst { it.id == currentId }
             if (idx >= 0) {
                 sb.appendLine("song: $idx")
-                sb.appendLine("songid: ${currentId.value.hashCode().and(0x7fffffff)}")
+                sb.appendLine("songid: ${songIdOf(currentId)}")
             }
-            sb.appendLine("elapsed: ${state.lastKnownPosition.seconds}")
+            sb.appendLine("elapsed: ${String.format(Locale.ROOT, "%.3f", state.lastKnownPosition.toMillis() / 1000.0)}")
         }
         sb.appendLine("OK")
         return sb.toString()
@@ -138,7 +145,7 @@ class MpdCommandHandler(
         }
         val idx = state.queue.indexOfFirst { it.id == entryId }
         sb.appendLine("Pos: $idx")
-        sb.appendLine("Id: ${entryId.value.hashCode().and(0x7fffffff)}")
+        sb.appendLine("Id: ${songIdOf(entryId)}")
         sb.appendLine("OK")
         return sb.toString()
     }
@@ -154,7 +161,7 @@ class MpdCommandHandler(
                 sb.appendLine("file: ${entry.trackId.value}")
             }
             sb.appendLine("Pos: $idx")
-            sb.appendLine("Id: ${entry.id.value.hashCode().and(0x7fffffff)}")
+            sb.appendLine("Id: ${songIdOf(entry.id)}")
         }
         sb.appendLine("OK")
         return sb.toString()
@@ -193,7 +200,20 @@ class MpdCommandHandler(
         return sb.toString()
     }
 
-    private fun play(pos: Int?): String = executeCommand { Play(MPD_SESSION, MPD_DEVICE, null) }
+    private fun playPos(pos: Int?): String {
+        if (pos == null) return executeCommand { Play(MPD_SESSION, MPD_DEVICE, null) }
+        val queue = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)?.queue ?: emptyList()
+        if (pos < 0 || pos >= queue.size) return ack(2, "play", "Bad song index")
+        val entryId = queue[pos].id
+        return executeCommand { Play(MPD_SESSION, MPD_DEVICE, entryId) }
+    }
+
+    private fun playId(songId: Int?): String {
+        if (songId == null) return executeCommand { Play(MPD_SESSION, MPD_DEVICE, null) }
+        val queue = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)?.queue ?: emptyList()
+        val entryId = queue.firstOrNull { songIdOf(it.id) == songId }?.id ?: return ack(50, "playid", "No such song")
+        return executeCommand { Play(MPD_SESSION, MPD_DEVICE, entryId) }
+    }
 
     private fun pause(): String = executeCommand { Pause(MPD_SESSION, MPD_DEVICE) }
 
@@ -203,7 +223,24 @@ class MpdCommandHandler(
 
     private fun previous(): String = executeCommand { SkipPrevious(MPD_SESSION, MPD_DEVICE) }
 
+    private fun ensureLease(): CommandResult.Failed? {
+        val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
+        val now = ctxFactory.create(MPD_USER, AggregateVersion.INITIAL).requestTime
+        val lease = state?.lease
+        if (lease != null && lease.owner == MPD_DEVICE && now < lease.expiresAt) return null
+        val version = state?.version ?: AggregateVersion.INITIAL
+        val ctx = ctxFactory.create(MPD_USER, version)
+        return when (
+            val result =
+                playbackUseCases.execute(AcquireLease(MPD_SESSION, MPD_DEVICE, MPD_LEASE_DURATION), ctx)
+        ) {
+            is CommandResult.Success -> null
+            is CommandResult.Failed -> result
+        }
+    }
+
     private fun executeCommand(factory: () -> dev.yaytsa.domain.playback.PlaybackCommand): String {
+        ensureLease()?.let { return failureTranslator.translate(it.failure, "command") }
         val currentState = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
         val version = currentState?.version ?: AggregateVersion.INITIAL
         val ctx = ctxFactory.create(MPD_USER, version)

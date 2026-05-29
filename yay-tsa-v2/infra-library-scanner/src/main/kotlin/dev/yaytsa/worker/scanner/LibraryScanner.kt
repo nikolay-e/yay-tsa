@@ -34,22 +34,50 @@ class LibraryScanner(
 
         log.info("Starting library scan: {}", root)
         var count = 0
+        val presentSourcePaths = HashSet<String>()
+        var walkCompleted = false
 
-        Files
-            .walk(rootPath, FileVisitOption.FOLLOW_LINKS)
-            .filter { Files.isRegularFile(it) }
-            .filter { path -> path.none { segment -> segment.name.startsWith(".") } }
-            .filter { it.extension.lowercase() in audioExtensions }
-            .forEach { file ->
-                try {
-                    libraryWriter.upsertTrack(rootPath, file)
-                    count++
-                } catch (e: Exception) {
-                    log.error("Failed to process file: {}", file, e)
+        try {
+            Files
+                .walk(rootPath, FileVisitOption.FOLLOW_LINKS)
+                .filter { Files.isRegularFile(it) }
+                .filter { path -> path.none { segment -> segment.name.startsWith(".") } }
+                .filter { it.extension.lowercase() in audioExtensions }
+                .forEach { file ->
+                    presentSourcePaths.add(rootPath.relativize(file).toString())
+                    try {
+                        libraryWriter.upsertTrack(rootPath, file)
+                        count++
+                    } catch (e: Exception) {
+                        log.error("Failed to process file: {}", file, e)
+                    }
                 }
-            }
+            walkCompleted = true
+        } catch (e: Exception) {
+            log.error("Library walk failed; skipping reconcile to avoid deleting live rows", e)
+        }
 
         log.info("Library scan complete: {} tracks processed", count)
+
+        if (!walkCompleted) return
+
+        try {
+            val removedTracks = libraryWriter.deleteVanishedTracks(rootPath, presentSourcePaths)
+            if (removedTracks > 0) {
+                log.info("Removed {} vanished tracks for root {}", removedTracks, root)
+            }
+        } catch (e: Exception) {
+            log.error("Failed to reconcile vanished tracks", e)
+        }
+
+        try {
+            val orphanedAlbums = libraryWriter.deleteOrphanAlbums()
+            if (orphanedAlbums > 0) {
+                log.info("Removed {} orphan albums", orphanedAlbums)
+            }
+        } catch (e: Exception) {
+            log.error("Failed to clean up orphan albums", e)
+        }
 
         try {
             val orphanedArtists = libraryWriter.deleteOrphanArtists()

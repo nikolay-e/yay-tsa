@@ -272,7 +272,9 @@ object PlaybackHandler {
         s: PlaybackSessionAggregate,
         ctx: CommandContext,
     ): CommandResult<PlaybackSessionAggregate> {
-        val curIdx = s.currentEntryId?.let { id -> s.queue.indexOfFirst { it.id == id } } ?: -1
+        val curIdx =
+            s.currentEntryId?.let { id -> s.queue.indexOfFirst { it.id == id } }
+                ?: return Failure.InvariantViolation("No current track").asCommandFailure()
         val next = curIdx + 1
         if (next >= s.queue.size) return Failure.InvariantViolation("No next track").asCommandFailure()
         val v = s.version.next()

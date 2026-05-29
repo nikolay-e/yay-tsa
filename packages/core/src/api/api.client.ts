@@ -120,7 +120,8 @@ export class MediaServerClient {
    */
   private buildRequestHeaders(
     additionalHeaders?: HeadersInit,
-    includeContentType: boolean = false
+    includeContentType: boolean = false,
+    idempotencyKey?: string
   ): Record<string, string> {
     const headers: Record<string, string> = {
       ...this.headersFromInit(additionalHeaders),
@@ -128,6 +129,10 @@ export class MediaServerClient {
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    if (idempotencyKey) {
+      headers['X-Idempotency-Key'] = idempotencyKey;
     }
     const clientParts = [
       `Client="${this.clientInfo.name}"`,
@@ -163,7 +168,7 @@ export class MediaServerClient {
       const isGatewayError =
         statusOrError >= this.GATEWAY_ERROR_MIN && statusOrError <= this.GATEWAY_ERROR_MAX;
       const is500AndIdempotent = statusOrError === this.SERVER_ERROR_STATUS && isIdempotent;
-      return isGatewayError || is500AndIdempotent;
+      return (isGatewayError && isIdempotent) || is500AndIdempotent;
     }
 
     // Network error retry logic (only for idempotent requests)
@@ -178,8 +183,8 @@ export class MediaServerClient {
     const exponentialDelay = Math.pow(2, attempt) * this.RETRY_BASE_DELAY_MS;
     const maxDelay = Math.min(exponentialDelay, this.MAX_BACKOFF_MS);
 
-    // Full jitter: random value between 0 and maxDelay
-    return Math.floor(Math.random() * maxDelay);
+    // Full jitter: random value between 0 and maxDelay (inclusive)
+    return Math.floor(Math.random() * (maxDelay + 1));
   }
 
   /**
@@ -212,13 +217,16 @@ export class MediaServerClient {
     const method = options.method ?? 'GET';
     const isIdempotent = method === 'GET' || method === 'DELETE';
     const hasBody = options.body !== undefined;
+    const isMutating =
+      method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    const idempotencyKey = isMutating ? this.generateIdempotencyKey() : undefined;
     const startTime = Date.now();
 
     log.debug(`${method} ${endpoint}`, { attempt: 1, maxRetries: retries });
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const headers = this.buildRequestHeaders(options.headers, hasBody);
+        const headers = this.buildRequestHeaders(options.headers, hasBody, idempotencyKey);
         const response = await fetch(url, { ...options, headers, credentials: 'include' });
         const duration = Date.now() - startTime;
 
@@ -281,6 +289,19 @@ export class MediaServerClient {
 
     // This should never be reached, but TypeScript needs it
     throw new NetworkError('Request failed after all retries');
+  }
+
+  /**
+   * Generate a stable idempotency key reused across retries of one logical request
+   */
+  private generateIdempotencyKey(): string {
+    const cryptoRef = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+    if (cryptoRef?.randomUUID) {
+      return cryptoRef.randomUUID();
+    }
+    return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random()
+      .toString(16)
+      .slice(2)}`;
   }
 
   /**

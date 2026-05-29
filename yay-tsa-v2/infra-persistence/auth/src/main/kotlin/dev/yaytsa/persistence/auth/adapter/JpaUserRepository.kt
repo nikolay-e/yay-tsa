@@ -48,7 +48,8 @@ class JpaUserRepository(
     override fun findByApiToken(token: String): UserAggregate? {
         val tokenEntity = tokenJpa.findByTokenAndRevokedFalse(TokenHasher.hash(token)) ?: return null
         val userEntity = userJpa.findById(tokenEntity.userId).orElse(null) ?: return null
-        val allTokens = tokenJpa.findByUserId(userEntity.id)
+        val otherTokens = tokenJpa.findByUserId(userEntity.id).filter { it.id != tokenEntity.id }
+        val allTokens = listOf(tokenEntity) + otherTokens
         return userEntity.toDomain(allTokens)
     }
 

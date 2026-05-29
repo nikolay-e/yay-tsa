@@ -8,13 +8,13 @@ import java.time.Instant
 import java.util.UUID
 
 interface OutboxJpaRepository : JpaRepository<OutboxEntity, UUID> {
-    fun findByPublishedAtIsNullOrderByCreatedAtAsc(limit: Pageable): List<OutboxEntity>
+    fun findByPublishedAtIsNullOrderByCreatedAtAscIdAsc(limit: Pageable): List<OutboxEntity>
 
     @Query(
         value = """
             SELECT * FROM core_v2_shared.outbox
             WHERE published_at IS NULL
-            ORDER BY created_at ASC
+            ORDER BY created_at ASC, id ASC
             LIMIT :limit
             FOR UPDATE SKIP LOCKED
         """,

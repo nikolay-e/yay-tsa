@@ -16,7 +16,6 @@ import dev.yaytsa.domain.playback.ReplaceQueue
 import dev.yaytsa.domain.playback.Seek
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.StartPlaybackWithTracks
-import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Failure
@@ -54,7 +53,7 @@ class PlaybackUseCases(
                 val current =
                     sessionRepo.find(ctx.userId, cmd.sessionId)
                         ?: return@execute Failure.NotFound("PlaybackSession", cmd.sessionId.value).asCommandFailure()
-                return@execute CommandResult.Success(current, AggregateVersion(existing.resultVersion))
+                return@execute CommandResult.Success(current, current.version)
             }
 
             // Playback sessions are implicitly created on first command. An empty aggregate

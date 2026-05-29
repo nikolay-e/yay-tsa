@@ -123,7 +123,7 @@ class JellyfinSessionsController(
         val now = clock.now()
 
         // Record stop signal
-        recordSignal(principal, info.itemId, SignalType.PLAY_COMPLETE)
+        recordSignal(principal, info.itemId, SignalType.PLAY_COMPLETE, """{"positionMs":$positionMs}""")
 
         // Retrieve actual start time from when reportPlaying was called
         val startKey = "${principal.name}:${info.itemId}"
@@ -146,6 +146,7 @@ class JellyfinSessionsController(
         principal: Principal,
         itemId: String,
         signalType: SignalType,
+        signalContext: String? = null,
     ) {
         val uid = UserId(principal.name)
         val activeSession = adaptiveQuery.findActiveSession(uid) ?: return
@@ -157,7 +158,7 @@ class JellyfinSessionsController(
                 trackId = TrackId(itemId),
                 queueEntryId = null,
                 signalType = signalType.name,
-                signalContext = null,
+                signalContext = signalContext,
             )
         val ctx =
             ctxFactory.create(

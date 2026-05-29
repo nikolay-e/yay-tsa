@@ -78,7 +78,14 @@ class AffinityAggregator(
                 SUM(CASE WHEN ps.signal_type IN ('SKIP_EARLY','SKIP_MID','SKIP_LATE') THEN 1 ELSE 0 END),
                 SUM(CASE WHEN ps.signal_type = 'THUMBS_UP'   THEN 1 ELSE 0 END),
                 SUM(CASE WHEN ps.signal_type = 'THUMBS_DOWN' THEN 1 ELSE 0 END),
-                0,
+                COALESCE(SUM(
+                    CASE
+                        WHEN ps.signal_type IN ('PLAY_COMPLETE','SKIP_LATE','SKIP_MID','SKIP_EARLY')
+                             AND (ps.context ->> 'positionMs') ~ '^[0-9]+$'
+                        THEN ((ps.context ->> 'positionMs')::bigint / 1000)
+                        ELSE 0
+                    END
+                ), 0),
                 MAX(ps.created_at),
                 now()
             FROM core_v2_adaptive.playback_signals ps
@@ -92,6 +99,7 @@ class AffinityAggregator(
                 skip_count         = uta.skip_count         + EXCLUDED.skip_count,
                 thumbs_up_count    = uta.thumbs_up_count    + EXCLUDED.thumbs_up_count,
                 thumbs_down_count  = uta.thumbs_down_count  + EXCLUDED.thumbs_down_count,
+                total_listen_sec   = uta.total_listen_sec   + EXCLUDED.total_listen_sec,
                 last_signal_at     = GREATEST(uta.last_signal_at, EXCLUDED.last_signal_at),
                 updated_at         = now()
         """

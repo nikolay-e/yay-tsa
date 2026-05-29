@@ -13,8 +13,8 @@ export function formatSeconds(seconds: number): string {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
-export function formatTicks(ticks: number | undefined): string {
-  if (!ticks) return '0:00';
+export function formatTicks(ticks: number | undefined | null): string {
+  if (ticks == null || !Number.isFinite(ticks) || ticks < 0) return '0:00';
   return formatSeconds(ticksToSeconds(ticks));
 }
 

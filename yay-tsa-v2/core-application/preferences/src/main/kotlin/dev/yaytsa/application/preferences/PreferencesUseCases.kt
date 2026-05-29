@@ -12,7 +12,6 @@ import dev.yaytsa.domain.preferences.PreferencesDeps
 import dev.yaytsa.domain.preferences.PreferencesHandler
 import dev.yaytsa.domain.preferences.SetFavorite
 import dev.yaytsa.domain.preferences.UserPreferencesAggregate
-import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Failure
@@ -46,7 +45,7 @@ class PreferencesUseCases(
                     return@execute Failure.InvariantViolation("Idempotency key reused with different payload").asCommandFailure()
                 }
                 val current = prefsRepo.find(cmd.userId) ?: UserPreferencesAggregate.empty(cmd.userId)
-                return@execute CommandResult.Success(current, AggregateVersion(existing.resultVersion))
+                return@execute CommandResult.Success(current, current.version)
             }
 
             val snapshot = prefsRepo.find(cmd.userId) ?: UserPreferencesAggregate.empty(cmd.userId)

@@ -4,6 +4,7 @@ import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.shared.EntityId
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpHeaders
@@ -23,8 +24,10 @@ import java.nio.file.StandardOpenOption
 @RestController
 class JellyfinMediaController(
     private val libraryQueries: LibraryQueries,
+    @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+    private val safeRoot = MediaPathSafety.resolveRoot(musicPath)
 
     @GetMapping("/Items/{itemId}/Images/{imageType}")
     fun getImage(
@@ -85,8 +88,9 @@ class JellyfinMediaController(
             response.status = 404
             return
         }
-        val filePath = Path.of(sourcePath)
-        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+        val requested = Path.of(sourcePath)
+        val filePath = MediaPathSafety.resolveServableFile(requested, safeRoot)
+        if (filePath == null) {
             response.status = 404
             return
         }
@@ -97,14 +101,23 @@ class JellyfinMediaController(
         if (range != null && range.startsWith("bytes=")) {
             val rangeSpec = range.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
-            val start = parts[0].toLongOrNull() ?: 0L
-            val end =
-                if (parts.size > 1 && parts[1].isNotEmpty()) {
-                    parts[1].toLongOrNull() ?: (fileSize - 1)
-                } else {
-                    fileSize - 1
-                }
-            if (start >= fileSize || end < start) {
+            val suffixSpec = parts.size == 2 && parts[0].isEmpty()
+            val start: Long
+            val end: Long
+            if (suffixSpec) {
+                val suffixLength = parts[1].toLongOrNull() ?: 0L
+                start = (fileSize - suffixLength).coerceAtLeast(0L)
+                end = fileSize - 1
+            } else {
+                start = parts[0].toLongOrNull() ?: 0L
+                end =
+                    if (parts.size > 1 && parts[1].isNotEmpty()) {
+                        parts[1].toLongOrNull() ?: (fileSize - 1)
+                    } else {
+                        fileSize - 1
+                    }
+            }
+            if (start < 0 || start >= fileSize || end < start) {
                 response.status = 416
                 response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
                 return

@@ -62,7 +62,7 @@ class LibraryWriter(
     fun upsertTrack(
         root: Path,
         file: Path,
-    ) {
+    ): UUID? {
         val relativePath = root.relativize(file).toString()
         val codec = file.extension.lowercase()
         val sizeBytes = Files.size(file)
@@ -134,7 +134,7 @@ class LibraryWriter(
         // scanner couldn't decode). Clients can't usefully play them and they pollute
         // album track lists with phantom entries — Fixes #217.
         if (durationMs == null || durationMs < MIN_PLAYABLE_DURATION_MS) {
-            return
+            return null
         }
 
         val now = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
@@ -157,7 +157,11 @@ class LibraryWriter(
                 }
         if (existing != null) {
             repairExistingTrackLinkage(existing, albumId, artistId, trackName)
-            return
+            if (existing.libraryRoot != root.toString()) {
+                existing.libraryRoot = root.toString()
+                entityRepo.save(existing)
+            }
+            return existing.id
         }
 
         val entityId = UUID.randomUUID()
@@ -205,6 +209,8 @@ class LibraryWriter(
             val genreId = genreRepo.findByName(genre)?.id ?: candidateId
             entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
         }
+
+        return entityId
     }
 
     private fun ensureArtist(
@@ -408,6 +414,33 @@ class LibraryWriter(
             ?.trim()
             ?.takeIf { it.isNotBlank() }
 
+    @Transactional
+    fun deleteVanishedTracks(
+        root: Path,
+        presentSourcePaths: Set<String>,
+    ): Int {
+        val rootKey = root.toString()
+        val vanished =
+            entityRepo
+                .findTrackIdSourcePathsByLibraryRoot(rootKey)
+                .filterNot { (it.getOrNull(1) as? String) in presentSourcePaths }
+                .mapNotNull { it.getOrNull(0) as? UUID }
+        if (vanished.isEmpty()) return 0
+        vanished.chunked(DELETE_BATCH_SIZE).forEach { batch ->
+            entityRepo.deleteEntityGenresByEntityIds(batch)
+            entityRepo.deleteImagesByEntityIds(batch)
+            entityRepo.deleteAudioTracksByEntityIds(batch)
+            entityRepo.deleteEntitiesByIds(batch)
+        }
+        return vanished.size
+    }
+
+    @Transactional
+    fun deleteOrphanAlbums(): Int {
+        entityRepo.deleteAlbumRowsWithoutTracks()
+        return entityRepo.deleteOrphanAlbums()
+    }
+
     fun deleteOrphanArtists(): Int = entityRepo.deleteOrphanArtists()
 
     private fun Tag.safeGetFirst(field: FieldKey): String? =
@@ -423,5 +456,6 @@ class LibraryWriter(
         // Tracks shorter than this are usually CD pre-gap files, corrupt FLACs with
         // placeholder 1s LENGTH headers, or junk the scanner couldn't decode properly.
         private const val MIN_PLAYABLE_DURATION_MS = 2000L
+        private const val DELETE_BATCH_SIZE = 500
     }
 }

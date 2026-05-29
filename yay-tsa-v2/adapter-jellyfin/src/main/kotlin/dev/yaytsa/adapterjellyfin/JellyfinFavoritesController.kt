@@ -1,12 +1,14 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.preferences.ReorderFavorites
 import dev.yaytsa.domain.preferences.SetFavorite
 import dev.yaytsa.domain.preferences.UnsetFavorite
+import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.springframework.beans.factory.annotation.Qualifier
@@ -26,6 +28,7 @@ class JellyfinFavoritesController(
     private val clock: Clock,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
+    private val failureTranslator: HttpFailureTranslator,
 ) {
     @PostMapping("/UserFavoriteItems/{itemId}")
     fun addFavorite(
@@ -39,8 +42,7 @@ class JellyfinFavoritesController(
                 .empty(uid)
         val cmd = SetFavorite(uid, TrackId(itemId), clock.now())
         val ctx = ctxFactory.create(uid, prefs.version)
-        preferencesUseCases.execute(cmd, ctx)
-        return ResponseEntity.ok().build()
+        return toResponse(preferencesUseCases.execute(cmd, ctx))
     }
 
     @DeleteMapping("/UserFavoriteItems/{itemId}")
@@ -55,8 +57,7 @@ class JellyfinFavoritesController(
                 .empty(uid)
         val cmd = UnsetFavorite(uid, TrackId(itemId))
         val ctx = ctxFactory.create(uid, prefs.version)
-        preferencesUseCases.execute(cmd, ctx)
-        return ResponseEntity.ok().build()
+        return toResponse(preferencesUseCases.execute(cmd, ctx))
     }
 
     data class FavoriteOrderRequest(
@@ -76,7 +77,12 @@ class JellyfinFavoritesController(
                 .empty(uid)
         val cmd = ReorderFavorites(uid, request.ItemIds.map { TrackId(it) })
         val ctx = ctxFactory.create(uid, prefs.version)
-        preferencesUseCases.execute(cmd, ctx)
-        return ResponseEntity.ok().build()
+        return toResponse(preferencesUseCases.execute(cmd, ctx))
     }
+
+    private fun toResponse(result: CommandResult<*>): ResponseEntity<Void> =
+        when (result) {
+            is CommandResult.Success -> ResponseEntity.ok().build()
+            is CommandResult.Failed -> failureTranslator.empty(result.failure)
+        }
 }

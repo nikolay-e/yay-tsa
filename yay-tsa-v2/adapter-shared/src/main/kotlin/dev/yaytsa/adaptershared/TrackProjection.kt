@@ -35,10 +35,12 @@ fun Track.toJellyfinBaseItem(
     )
 }
 
-fun Track.toSubsonicChild(): ChildElement =
+fun Track.toSubsonicChild(lookups: TrackLookups = TrackLookups()): ChildElement =
     ChildElement(
         id = id.value,
         title = name,
+        album = albumId?.let { lookups.albumNames[it] },
+        artist = albumArtistId?.let { lookups.artistNames[it] },
         duration = durationMs?.let { (it / 1000).toInt() },
         bitRate = bitrate,
         track = trackNumber,

@@ -11,13 +11,14 @@ import java.time.Duration
 
 data class SeparationResult(
     val instrumentalPath: String,
-    val vocalPath: String,
+    val vocalPath: String?,
     val processingTimeMs: Long,
 )
 
 @Component
 class SeparatorClient {
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
+
     // Force HTTP/1.1: the separator (uvicorn) is HTTP/1.1-only, and the JDK client's
     // default HTTP/2 h2c-upgrade attempt drops the POST body, yielding a 422 at FastAPI.
     private val httpClient: HttpClient =
@@ -48,7 +49,7 @@ class SeparatorClient {
         val json = objectMapper.readTree(response.body())
         return SeparationResult(
             instrumentalPath = json.get("instrumental_path").asText(),
-            vocalPath = json.get("vocal_path").asText(),
+            vocalPath = json.get("vocal_path")?.asText()?.takeIf { it.isNotBlank() },
             processingTimeMs = json.get("processing_time_ms").asLong(),
         )
     }

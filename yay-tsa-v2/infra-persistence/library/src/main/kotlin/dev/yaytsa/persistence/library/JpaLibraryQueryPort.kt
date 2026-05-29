@@ -18,10 +18,17 @@ import dev.yaytsa.persistence.library.repository.ImageRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.TrackId
-import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Repository
 import java.util.UUID
+
+private fun escapeLikePattern(query: String): String =
+    "%" +
+        query
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_") +
+        "%"
 
 @Repository
 class JpaLibraryQueryPort(
@@ -72,7 +79,7 @@ class JpaLibraryQueryPort(
         offset: Int,
     ): List<Artist> {
         val safeLimit = maxOf(limit, 1)
-        val page = PageRequest.of(offset / safeLimit, safeLimit)
+        val page = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), safeLimit)
         val entities =
             entityRepo.findByEntityTypeOrderBySortNamePaged(
                 EntityType.ARTIST.name,
@@ -92,7 +99,7 @@ class JpaLibraryQueryPort(
         offset: Int,
     ): List<Album> {
         val safeLimit = maxOf(limit, 1)
-        val page = PageRequest.of(offset / safeLimit, safeLimit)
+        val page = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), safeLimit)
         val entities =
             entityRepo.findByEntityTypeOrderBySortNamePaged(
                 EntityType.ALBUM.name,
@@ -143,7 +150,7 @@ class JpaLibraryQueryPort(
         val property = if (sortBy == "DateCreated") "createdAt" else "sortName"
         val direction = if (sortOrder.equals("Descending", ignoreCase = true)) Sort.Direction.DESC else Sort.Direction.ASC
         val size = maxOf(limit, 1)
-        val pageable = PageRequest.of(maxOf(offset, 0) / size, size, Sort.by(direction, property))
+        val pageable = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), size, Sort.by(direction, property))
         val entities = entityRepo.findByEntityType(EntityType.TRACK.name, pageable)
         val entityIds = entities.map { it.id }
         val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
@@ -175,8 +182,8 @@ class JpaLibraryQueryPort(
         limit: Int,
         offset: Int,
     ): SearchResults {
-        val pattern = "%$query%"
-        val page = PageRequest.of(offset / maxOf(limit, 1), maxOf(limit, 1))
+        val pattern = escapeLikePattern(query)
+        val page = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), maxOf(limit, 1))
 
         val artistEntities = entityRepo.searchByNameAndType(pattern, EntityType.ARTIST.name, page)
         val albumEntities = entityRepo.searchByNameAndType(pattern, EntityType.ALBUM.name, page)
@@ -262,11 +269,11 @@ class JpaLibraryQueryPort(
 
     override fun countArtists(): Int = entityRepo.countByEntityType(EntityType.ARTIST.name).toInt()
 
-    override fun countTextSearchTracks(query: String): Int = entityRepo.countByNameAndType("%$query%", EntityType.TRACK.name).toInt()
+    override fun countTextSearchTracks(query: String): Int = entityRepo.countByNameAndType(escapeLikePattern(query), EntityType.TRACK.name).toInt()
 
-    override fun countTextSearchArtists(query: String): Int = entityRepo.countByNameAndType("%$query%", EntityType.ARTIST.name).toInt()
+    override fun countTextSearchArtists(query: String): Int = entityRepo.countByNameAndType(escapeLikePattern(query), EntityType.ARTIST.name).toInt()
 
-    override fun countTextSearchAlbums(query: String): Int = entityRepo.countByNameAndType("%$query%", EntityType.ALBUM.name).toInt()
+    override fun countTextSearchAlbums(query: String): Int = entityRepo.countByNameAndType(escapeLikePattern(query), EntityType.ALBUM.name).toInt()
 
     override fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int> {
         if (artistIds.isEmpty()) return emptyMap()

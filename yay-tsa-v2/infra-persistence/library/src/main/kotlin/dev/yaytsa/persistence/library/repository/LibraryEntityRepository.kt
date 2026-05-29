@@ -32,7 +32,7 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
 
     @Query(
         value =
-            "SELECT * FROM core_v2_library.entities e WHERE e.name ILIKE :pattern " +
+            "SELECT * FROM core_v2_library.entities e WHERE e.name ILIKE :pattern ESCAPE '\\' " +
                 "AND e.entity_type = :entityType ORDER BY COALESCE(e.sort_name, e.name)",
         nativeQuery = true,
     )
@@ -82,7 +82,7 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     @Query(
         value =
             "SELECT count(*) FROM core_v2_library.entities e " +
-                "WHERE e.name ILIKE :pattern AND e.entity_type = :entityType",
+                "WHERE e.name ILIKE :pattern ESCAPE '\\' AND e.entity_type = :entityType",
         nativeQuery = true,
     )
     fun countByNameAndType(
@@ -103,4 +103,93 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         nativeQuery = true,
     )
     fun deleteOrphanArtists(): Int
+
+    @Query(
+        value =
+            "SELECT id FROM core_v2_library.entities " +
+                "WHERE entity_type = 'TRACK' AND library_root = :libraryRoot",
+        nativeQuery = true,
+    )
+    fun findTrackIdsByLibraryRoot(libraryRoot: String): List<UUID>
+
+    @Query(
+        value =
+            "SELECT id, source_path FROM core_v2_library.entities " +
+                "WHERE entity_type = 'TRACK' AND library_root = :libraryRoot",
+        nativeQuery = true,
+    )
+    fun findTrackIdSourcePathsByLibraryRoot(libraryRoot: String): List<Array<Any?>>
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.audio_tracks t
+            WHERE t.entity_id IN (:ids)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteAudioTracksByEntityIds(ids: Collection<UUID>): Int
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.entity_genres g
+            WHERE g.entity_id IN (:ids)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteEntityGenresByEntityIds(ids: Collection<UUID>): Int
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.images i
+            WHERE i.entity_id IN (:ids)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteImagesByEntityIds(ids: Collection<UUID>): Int
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.entities e
+            WHERE e.id IN (:ids)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteEntitiesByIds(ids: Collection<UUID>): Int
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.albums a
+            WHERE NOT EXISTS (SELECT 1 FROM core_v2_library.audio_tracks t WHERE t.album_id = a.entity_id)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteAlbumRowsWithoutTracks(): Int
+
+    @Modifying
+    @Transactional
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_library.entities e
+            WHERE e.entity_type = 'ALBUM'
+              AND NOT EXISTS (SELECT 1 FROM core_v2_library.audio_tracks t WHERE t.album_id = e.id)
+            """,
+        nativeQuery = true,
+    )
+    fun deleteOrphanAlbums(): Int
 }
