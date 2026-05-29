@@ -130,6 +130,10 @@ object AdaptiveHandler {
         if (newIds.size != newIds.toSet().size) {
             return Failure.InvariantViolation("Duplicate entry IDs").asCommandFailure()
         }
+        val newTrackIds = cmd.newTail.map { it.trackId }
+        if (newTrackIds.size != newTrackIds.toSet().size) {
+            return Failure.InvariantViolation("Duplicate track IDs in queue tail").asCommandFailure()
+        }
         if (cmd.keepFromPosition < 0) {
             return Failure.InvariantViolation("keepFromPosition must be non-negative").asCommandFailure()
         }

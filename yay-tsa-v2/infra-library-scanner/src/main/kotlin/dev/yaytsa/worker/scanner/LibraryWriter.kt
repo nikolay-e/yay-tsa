@@ -306,7 +306,7 @@ class LibraryWriter(
     ) {
         val trackRow = trackRepo.findById(existingTrack.id).orElse(null) ?: return
         var trackChanged = false
-        if (trackRow.albumId == null && derivedAlbumId != null) {
+        if (derivedAlbumId != null && trackRow.albumId != derivedAlbumId) {
             trackRow.albumId = derivedAlbumId
             trackChanged = true
         }

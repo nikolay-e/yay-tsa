@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class ChildElement(
     val id: String,
+    val parent: String? = null,
     val title: String,
     val album: String? = null,
     val artist: String? = null,

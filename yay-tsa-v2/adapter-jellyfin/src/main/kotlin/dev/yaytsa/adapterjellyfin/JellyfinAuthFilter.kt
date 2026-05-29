@@ -51,14 +51,14 @@ class JellyfinAuthFilter(
             val user = authQueries.findByApiToken(token)
             if (user != null && user.isActive) {
                 val hashedToken = Hashing.sha256Hex(token)
-                val apiToken = user.apiTokens.find { it.token == hashedToken }
+                val apiToken = user.apiTokens.find { Hashing.constantTimeEquals(it.token, hashedToken) }
                 val expired =
                     apiToken?.expiresAt?.let {
                         java.time.Instant
                             .now()
                             .isAfter(it)
                     } ?: false
-                if (!expired) {
+                if (apiToken != null && !apiToken.revoked && !expired) {
                     SecurityContextHolder.getContext().authentication =
                         JellyfinAuthentication(user.id, user.isAdmin, token, apiToken?.deviceId?.value)
                 }

@@ -48,6 +48,11 @@ data class RemoveTracksFromPlaylist(
     val trackIds: List<TrackId>,
 ) : PlaylistCommand
 
+data class RemovePlaylistEntriesByPosition(
+    override val playlistId: PlaylistId,
+    val positions: List<Int>,
+) : PlaylistCommand
+
 data class ReorderPlaylistTracks(
     override val playlistId: PlaylistId,
     val newOrder: List<TrackId>,

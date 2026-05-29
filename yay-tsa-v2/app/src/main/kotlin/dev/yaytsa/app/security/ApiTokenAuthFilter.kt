@@ -30,10 +30,10 @@ class ApiTokenAuthFilter(
             val user = authQueries.findByApiToken(token)
             if (user != null && user.isActive) {
                 val hashedToken = Hashing.sha256Hex(token)
-                val apiToken = user.apiTokens.find { it.token == hashedToken }
+                val apiToken = user.apiTokens.find { Hashing.constantTimeEquals(it.token, hashedToken) }
                 val now = java.time.Instant.now()
                 val expired =
-                    apiToken?.expiresAt?.let { !now.isBefore(it) } ?: true
+                    apiToken?.expiresAt?.let { !now.isBefore(it) } ?: false
                 if (apiToken != null && !apiToken.revoked && !expired) {
                     SecurityContextHolder.getContext().authentication =
                         YaytsaAuthentication(

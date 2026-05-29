@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import java.sql.Timestamp
 import java.time.Instant
 
@@ -27,13 +28,14 @@ class AffinityAggregator(
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Scheduled(fixedDelayString = "\${yaytsa.affinity.poll-interval-ms:60000}", initialDelay = 30_000)
+    @Transactional
     fun aggregate() {
         val watermark =
             jdbc.queryForObject(WATERMARK_SQL, Timestamp::class.java)?.toInstant() ?: Instant.EPOCH
         val updated = jdbc.update(UPSERT_SQL, Timestamp.from(watermark))
         if (updated > 0) {
             log.info(
-                "Aggregated affinity deltas for {} (user, track) pairs since {} (poll {}ms)",
+                "Aggregated affinity deltas for {} (user, track) pairs after watermark {} (poll {}ms)",
                 updated,
                 watermark,
                 pollIntervalMs,

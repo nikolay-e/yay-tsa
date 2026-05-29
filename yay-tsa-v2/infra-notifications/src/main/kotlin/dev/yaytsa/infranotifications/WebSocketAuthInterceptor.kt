@@ -1,6 +1,7 @@
 package dev.yaytsa.infranotifications
 
 import dev.yaytsa.application.auth.AuthQueries
+import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.UserId
 import org.springframework.messaging.Message
 import org.springframework.messaging.MessageChannel
@@ -26,7 +27,13 @@ class WebSocketAuthInterceptor(
             if (token != null) {
                 val user = authQueries.findByApiToken(token)
                 if (user != null && user.isActive) {
-                    accessor.user = WsPrincipal(user.id)
+                    val hashedToken = Hashing.sha256Hex(token)
+                    val apiToken = user.apiTokens.find { Hashing.constantTimeEquals(it.token, hashedToken) }
+                    val now = java.time.Instant.now()
+                    val expired = apiToken?.expiresAt?.let { !now.isBefore(it) } ?: false
+                    if (apiToken != null && !apiToken.revoked && !expired) {
+                        accessor.user = WsPrincipal(user.id)
+                    }
                 }
             }
             if (accessor.user == null) {

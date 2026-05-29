@@ -14,7 +14,7 @@ import dev.yaytsa.domain.playlists.AddTracksToPlaylist
 import dev.yaytsa.domain.playlists.CreatePlaylist
 import dev.yaytsa.domain.playlists.DeletePlaylist
 import dev.yaytsa.domain.playlists.PlaylistId
-import dev.yaytsa.domain.playlists.RemoveTracksFromPlaylist
+import dev.yaytsa.domain.playlists.RemovePlaylistEntriesByPosition
 import dev.yaytsa.domain.playlists.ReorderPlaylistTracks
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandResult
@@ -129,18 +129,21 @@ class JellyfinPlaylistsController(
             }
 
         val items =
-            playlist.tracks.drop(startIndex).take(limit).mapNotNull { entry ->
-                libraryQueries.getTrack(EntityId(entry.trackId.value))?.let { track ->
-                    BaseItem(
-                        id = track.id.value,
-                        name = track.name,
-                        type = "Audio",
-                        runTimeTicks = msToTicks(track.durationMs),
-                        playlistItemId = entry.trackId.value,
-                        userData = UserItemData(isFavorite = track.id.value in favTrackIds),
-                    )
+            playlist.tracks
+                .drop(startIndex)
+                .take(limit)
+                .mapIndexedNotNull { relativeIndex, entry ->
+                    libraryQueries.getTrack(EntityId(entry.trackId.value))?.let { track ->
+                        BaseItem(
+                            id = track.id.value,
+                            name = track.name,
+                            type = "Audio",
+                            runTimeTicks = msToTicks(track.durationMs),
+                            playlistItemId = (startIndex + relativeIndex).toString(),
+                            userData = UserItemData(isFavorite = track.id.value in favTrackIds),
+                        )
+                    }
                 }
-            }
         return ResponseEntity.ok(ItemsResult(items, playlist.tracks.size, startIndex))
     }
 
@@ -175,13 +178,16 @@ class JellyfinPlaylistsController(
         if (!isValidUuid(playlistId)) return ResponseEntity.badRequest().build()
         val uid = UserId(principal.name)
         val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
-        val trackIds = entryIds.split(",").map { TrackId(it.trim()) }
-        val cmd = RemoveTracksFromPlaylist(PlaylistId(playlistId), trackIds)
+        val positions =
+            entryIds.split(",").map { it.trim() }.map { token ->
+                token.toIntOrNull() ?: return ResponseEntity.badRequest().build()
+            }
+        val cmd = RemovePlaylistEntriesByPosition(PlaylistId(playlistId), positions)
         val ctx = ctxFactory.create(uid, playlist.version)
         return when (val result = playlistUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> ResponseEntity.noContent().build()
             is CommandResult.Failed -> {
-                log.warn("RemoveTracksFromPlaylist failed for playlist={}: {}", playlistId, result.failure)
+                log.warn("RemovePlaylistEntriesByPosition failed for playlist={}: {}", playlistId, result.failure)
                 statusFromFailure(result.failure)
             }
         }

@@ -33,6 +33,7 @@ object PlaylistHandler {
             is DeletePlaylist -> delete(snapshot, ctx)
             is AddTracksToPlaylist -> addTracks(snapshot, cmd, deps, ctx)
             is RemoveTracksFromPlaylist -> removeTracks(snapshot, cmd, ctx)
+            is RemovePlaylistEntriesByPosition -> removeEntriesByPosition(snapshot, cmd, ctx)
             is ReorderPlaylistTracks -> reorder(snapshot, cmd, ctx)
         }
     }
@@ -129,6 +130,24 @@ object PlaylistHandler {
         val toRemove = cmd.trackIds.toSet()
         val v = s.version.next()
         return s.copy(tracks = s.tracks.filter { it.trackId !in toRemove }, updatedAt = ctx.requestTime, version = v).asSuccess(v)
+    }
+
+    private fun removeEntriesByPosition(
+        s: PlaylistAggregate,
+        cmd: RemovePlaylistEntriesByPosition,
+        ctx: CommandContext,
+    ): CommandResult<PlaylistAggregate> {
+        if (cmd.positions.isEmpty()) {
+            return Failure.InvariantViolation("No positions provided").asCommandFailure()
+        }
+        val outOfRange = cmd.positions.filter { it < 0 || it >= s.tracks.size }
+        if (outOfRange.isNotEmpty()) {
+            return Failure.NotFound("Playlist entry position", outOfRange.joinToString()).asCommandFailure()
+        }
+        val toRemove = cmd.positions.toSet()
+        val remaining = s.tracks.filterIndexed { index, _ -> index !in toRemove }
+        val v = s.version.next()
+        return s.copy(tracks = remaining, updatedAt = ctx.requestTime, version = v).asSuccess(v)
     }
 
     private fun reorder(

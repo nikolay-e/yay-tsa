@@ -38,6 +38,7 @@ fun Track.toJellyfinBaseItem(
 fun Track.toSubsonicChild(lookups: TrackLookups = TrackLookups()): ChildElement =
     ChildElement(
         id = id.value,
+        parent = albumId?.value,
         title = name,
         album = albumId?.let { lookups.albumNames[it] },
         artist = albumArtistId?.let { lookups.artistNames[it] },

@@ -275,12 +275,13 @@ class LlmOrchestrator(
                 return emptyList()
             }
         if (!array.isArray) return emptyList()
-        return array.mapNotNull { node ->
-            val trackId = node.path("track_id").asText(null) ?: return@mapNotNull null
-            if (!UUID_PATTERN.matches(trackId)) return@mapNotNull null
-            val reason = node.path("reason").asText("llm-suggestion")
-            TrackId(trackId) to reason
-        }
+        return array
+            .mapNotNull { node ->
+                val trackId = node.path("track_id").asText(null) ?: return@mapNotNull null
+                if (!UUID_PATTERN.matches(trackId)) return@mapNotNull null
+                val reason = node.path("reason").asText("llm-suggestion")
+                TrackId(trackId) to reason
+            }.distinctBy { it.first }
     }
 
     private fun extractJsonArray(response: String): com.fasterxml.jackson.databind.JsonNode {

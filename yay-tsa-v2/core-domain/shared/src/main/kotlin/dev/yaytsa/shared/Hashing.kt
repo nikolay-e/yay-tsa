@@ -8,4 +8,9 @@ object Hashing {
             .getInstance("SHA-256")
             .digest(input.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
+
+    fun constantTimeEquals(
+        a: String,
+        b: String,
+    ): Boolean = MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
 }

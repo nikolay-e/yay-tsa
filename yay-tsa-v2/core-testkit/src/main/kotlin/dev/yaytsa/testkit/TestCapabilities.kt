@@ -34,6 +34,7 @@ import dev.yaytsa.domain.playback.Stop
 import dev.yaytsa.domain.playlists.AddTracksToPlaylist
 import dev.yaytsa.domain.playlists.CreatePlaylist
 import dev.yaytsa.domain.playlists.DeletePlaylist
+import dev.yaytsa.domain.playlists.RemovePlaylistEntriesByPosition
 import dev.yaytsa.domain.playlists.RemoveTracksFromPlaylist
 import dev.yaytsa.domain.playlists.RenamePlaylist
 import dev.yaytsa.domain.playlists.ReorderPlaylistTracks
@@ -87,6 +88,7 @@ object JellyfinCapabilities : ProtocolCapabilities {
             DeletePlaylist::class,
             AddTracksToPlaylist::class,
             RemoveTracksFromPlaylist::class,
+            RemovePlaylistEntriesByPosition::class,
             ReorderPlaylistTracks::class,
             // Preferences
             SetFavorite::class,

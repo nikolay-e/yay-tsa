@@ -36,6 +36,9 @@ class McpController(
     fun handle(
         @RequestBody request: JsonRpcRequest,
     ): ResponseEntity<JsonRpcResponse> {
+        if (request.id == null) {
+            return ResponseEntity.accepted().build()
+        }
         val response =
             when (request.method) {
                 "initialize" ->
@@ -78,10 +81,6 @@ class McpController(
                         result = mapOf("content" to result.content, "isError" to result.isError),
                     )
                 }
-                "notifications/initialized" ->
-                    return ResponseEntity.ok(
-                        JsonRpcResponse(id = request.id, result = emptyMap<String, Any>()),
-                    )
                 else ->
                     JsonRpcResponse(
                         id = request.id,

@@ -11,6 +11,8 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 
 @Component
 class MpdTcpServer(
@@ -22,6 +24,11 @@ class MpdTcpServer(
     private val running = AtomicBoolean(false)
     private val executor = Executors.newFixedThreadPool(50) { r -> Thread(r, "mpd-conn").apply { isDaemon = true } }
     private var serverSocket: ServerSocket? = null
+
+    companion object {
+        private val IDLE_POLL_INTERVAL = 400.milliseconds
+        private val IDLE_MAX_BLOCK = 5.minutes
+    }
 
     override fun start() {
         if (!enabled) {
@@ -51,6 +58,27 @@ class MpdTcpServer(
     }
 
     override fun isRunning(): Boolean = running.get()
+
+    private fun blockingIdle(reader: BufferedReader): String {
+        val initialToken = commandHandler.currentStateToken()
+        val deadline = System.currentTimeMillis() + IDLE_MAX_BLOCK.inWholeMilliseconds
+        while (running.get() && System.currentTimeMillis() < deadline) {
+            if (reader.ready()) {
+                val pending = reader.readLine()?.trim()
+                return if (pending == "noidle") "OK\n" else commandHandler.handle(pending ?: "")
+            }
+            if (commandHandler.currentStateToken() != initialToken) {
+                return "changed: player\nOK\n"
+            }
+            try {
+                Thread.sleep(IDLE_POLL_INTERVAL.inWholeMilliseconds)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return "OK\n"
+            }
+        }
+        return "OK\n"
+    }
 
     private fun handleClient(socket: Socket) {
         try {
@@ -85,6 +113,10 @@ class MpdTcpServer(
                         }
                         commandList != null -> {
                             commandList.add(trimmed)
+                        }
+                        trimmed == "idle" || trimmed.startsWith("idle ") -> {
+                            writer.print(blockingIdle(reader))
+                            writer.flush()
                         }
                         else -> {
                             val response = commandHandler.handle(trimmed)

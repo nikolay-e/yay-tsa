@@ -10,6 +10,7 @@ import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.domain.playback.AcquireLease
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
+import dev.yaytsa.domain.playback.PlaybackState
 import dev.yaytsa.domain.playback.QueueEntryId
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
@@ -43,6 +44,11 @@ class MpdCommandHandler(
 
     private fun songIdOf(entryId: QueueEntryId): Int = entryId.value.hashCode() and 0x7fffffff
 
+    fun currentStateToken(): String {
+        val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
+        return "${state?.version?.value ?: -1}:${state?.playbackState?.name ?: "NONE"}"
+    }
+
     fun handle(line: String): String {
         val parts = parseLine(line)
         val cmd = parts.firstOrNull()?.lowercase() ?: return ack(5, "", "empty command")
@@ -53,7 +59,7 @@ class MpdCommandHandler(
             "currentsong" -> currentSong()
             "play" -> playPos(args.firstOrNull()?.toIntOrNull())
             "playid" -> playId(args.firstOrNull()?.toIntOrNull())
-            "pause" -> pause()
+            "pause" -> pause(args.firstOrNull())
             "stop" -> stop()
             "next" -> next()
             "previous" -> previous()
@@ -67,7 +73,7 @@ class MpdCommandHandler(
             // that status() would then contradict (repeat:0 random:0 volume:100).
             "clear", "add", "setvol", "repeat", "random", "single", "consume" ->
                 ack(5, cmd, "command not supported by this server")
-            "idle" -> "changed: player\nOK\n"
+            "idle" -> ok()
             "noidle" -> ok()
             "close" -> ""
             "outputs" -> "outputid: 0\noutputname: Yaytsa\noutputenabled: 1\nplugin: httpd\nOK\n"
@@ -215,7 +221,22 @@ class MpdCommandHandler(
         return executeCommand { Play(MPD_SESSION, MPD_DEVICE, entryId) }
     }
 
-    private fun pause(): String = executeCommand { Pause(MPD_SESSION, MPD_DEVICE) }
+    private fun pause(arg: String?): String {
+        val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
+        val isPlaying = state?.playbackState == PlaybackState.PLAYING
+        val shouldPause =
+            when (arg) {
+                "1" -> true
+                "0" -> false
+                null -> isPlaying
+                else -> return ack(2, "pause", "Integer expected: $arg")
+            }
+        return if (shouldPause) {
+            if (isPlaying) executeCommand { Pause(MPD_SESSION, MPD_DEVICE) } else ok()
+        } else {
+            executeCommand { Play(MPD_SESSION, MPD_DEVICE, null) }
+        }
+    }
 
     private fun stop(): String = executeCommand { Stop(MPD_SESSION, MPD_DEVICE) }
 

@@ -22,5 +22,15 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, UUID> {
     )
     fun findUnpublishedForUpdate(limit: Int): List<OutboxEntity>
 
+    @Query(
+        value = """
+            SELECT * FROM core_v2_shared.outbox
+            WHERE id = :id AND published_at IS NULL
+            FOR UPDATE SKIP LOCKED
+        """,
+        nativeQuery = true,
+    )
+    fun findUnpublishedByIdForUpdate(id: UUID): OutboxEntity?
+
     fun deleteByPublishedAtNotNullAndPublishedAtBefore(cutoff: Instant): Int
 }

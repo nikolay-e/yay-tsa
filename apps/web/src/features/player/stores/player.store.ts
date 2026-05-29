@@ -236,6 +236,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
     // Suppress spurious ended event after gapless transition (#4)
     let suppressNextEnded = false;
+    let pendingSeek: number | null = null;
 
     // --- Helpers ---
 
@@ -429,6 +430,8 @@ export const usePlayerStore = create<PlayerStore>()(
     ): Promise<void> {
       if (!currentClient) throw new Error('Not authenticated');
 
+      pendingSeek = null;
+
       set({
         currentTrack: track,
         isLoading: true,
@@ -446,6 +449,11 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ currentTrack: track, isLoading: false, error: null });
 
         if (signal.aborted) return;
+
+        if (pendingSeek !== null) {
+          engine.seek(pendingSeek);
+          pendingSeek = null;
+        }
 
         await engine.play();
         if (signal.aborted) return;
@@ -605,7 +613,7 @@ export const usePlayerStore = create<PlayerStore>()(
         const currentTime = engine.getCurrentTime();
         const duration = engine.getDuration();
         const ended = duration > 0 && currentTime >= duration - 0.5;
-        const paused = !engine.isPlaying;
+        const paused = !engine.isPlaying();
 
         if (isPlaying && paused && ended) {
           log.player.info('Recovering stalled track advance after background');
@@ -901,7 +909,9 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       seek: seconds => {
-        if (!controller.isActive) {
+        if (controller.isActive) {
+          pendingSeek = seconds;
+        } else {
           engine.seek(seconds);
         }
         useTimingStore.getState().seekTo(seconds, engine.getDuration());

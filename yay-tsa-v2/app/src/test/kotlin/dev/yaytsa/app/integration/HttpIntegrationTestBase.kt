@@ -42,6 +42,7 @@ abstract class HttpIntegrationTestBase {
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.flyway.enabled") { "false" }
             registry.add("spring.jpa.hibernate.ddl-auto") { "none" }
+            registry.add("yaytsa.library.music-path") { System.getProperty("java.io.tmpdir") }
             registry.add("yaytsa.mpd.enabled") { "false" }
             registry.add("yaytsa.llm.enabled") { "false" }
             registry.add("yaytsa.ml.enabled") { "false" }

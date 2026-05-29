@@ -114,11 +114,39 @@ class JellyfinItemsController(
         val types = includeItemTypes?.split(",")?.map { it.trim() } ?: emptyList()
 
         if (parentId != null) {
-            // Browse children of parent
-            val tracks = libraryQueries.browseTracksByAlbum(EntityId(parentId))
-            val trackLookups = tracksLookups(tracks)
-            val items = tracks.map { it.toBaseItem(favTrackIds, trackLookups) }
-            return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+            val parentEntity = EntityId(parentId)
+            val pageStart = startIndex.coerceAtLeast(0)
+            val pageSize = limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
+
+            if (libraryQueries.getAlbum(parentEntity) != null) {
+                val tracks = libraryQueries.browseTracksByAlbum(parentEntity)
+                val page = tracks.drop(pageStart).take(pageSize)
+                val trackLookups = tracksLookups(page)
+                val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
+                return ResponseEntity.ok(ItemsResult(items, tracks.size, startIndex))
+            }
+
+            if (libraryQueries.getArtist(parentEntity) != null) {
+                val albums = libraryQueries.browseAlbumsByArtist(parentEntity)
+                if (recursive == true || "Audio" in types) {
+                    val tracks = albums.flatMap { libraryQueries.browseTracksByAlbum(it.id) }
+                    val page = tracks.drop(pageStart).take(pageSize)
+                    val trackLookups = tracksLookups(page)
+                    val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
+                    return ResponseEntity.ok(ItemsResult(items, tracks.size, startIndex))
+                }
+                val page = albums.drop(pageStart).take(pageSize)
+                val items = page.map { it.toBaseItem(favTrackIds) }
+                return ResponseEntity.ok(ItemsResult(items, albums.size, startIndex))
+            }
+
+            // Unknown parent (e.g. playlist or stale id): browse as an album for
+            // backward compatibility, paginated and with the true total.
+            val tracks = libraryQueries.browseTracksByAlbum(parentEntity)
+            val page = tracks.drop(pageStart).take(pageSize)
+            val trackLookups = tracksLookups(page)
+            val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
+            return ResponseEntity.ok(ItemsResult(items, tracks.size, startIndex))
         }
 
         when {

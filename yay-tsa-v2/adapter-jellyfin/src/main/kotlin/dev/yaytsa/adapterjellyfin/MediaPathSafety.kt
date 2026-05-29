@@ -15,6 +15,9 @@ internal object MediaPathSafety {
         candidate: Path,
         safeRoot: Path?,
     ): Path? {
+        if (safeRoot == null) {
+            return null
+        }
         if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS) ||
             !Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)
         ) {
@@ -26,7 +29,7 @@ internal object MediaPathSafety {
             } catch (_: IOException) {
                 return null
             }
-        if (safeRoot != null && !real.startsWith(safeRoot)) {
+        if (!real.startsWith(safeRoot)) {
             return null
         }
         return real

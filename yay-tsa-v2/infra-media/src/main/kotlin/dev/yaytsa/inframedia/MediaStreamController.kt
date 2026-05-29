@@ -65,7 +65,7 @@ class MediaStreamController(
         }
 
         // Handle Range requests
-        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+        if (rangeHeader != null && rangeHeader.startsWith("bytes=") && !rangeHeader.contains(",")) {
             val rangeSpec = rangeHeader.removePrefix("bytes=")
             val parts = rangeSpec.split("-")
             val suffixSpec = parts.size == 2 && parts[0].isEmpty()
