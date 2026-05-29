@@ -2,6 +2,7 @@ package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.TrackLookups
+import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.adaptershared.toJellyfinBaseItem
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
@@ -27,6 +28,7 @@ import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -94,7 +96,7 @@ class JellyfinAdaptiveController(
                         "isRadioMode" to false,
                     ),
                 )
-            is CommandResult.Failed -> ResponseEntity.badRequest().body(mapOf("error" to result.failure.toString()))
+            is CommandResult.Failed -> problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", result.failure.toString())
         }
     }
 

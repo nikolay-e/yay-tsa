@@ -79,7 +79,7 @@ class JellyfinPlaylistsController(
         val createResult = playlistUseCases.execute(createCmd, createCtx)
         if (createResult is CommandResult.Failed) {
             log.warn("CreatePlaylist failed for owner={}: {}", uid.value, createResult.failure)
-            return ResponseEntity.badRequest().body(mapOf("error" to createResult.failure.toString()))
+            return failureTranslator.translate(createResult.failure)
         }
         createResult as CommandResult.Success
 
@@ -98,9 +98,7 @@ class JellyfinPlaylistsController(
                 val deleteCmd = DeletePlaylist(pid)
                 val deleteCtx = ctxFactory.create(uid, createResult.value.version)
                 playlistUseCases.execute(deleteCmd, deleteCtx)
-                return statusFromFailure(addResult.failure).let { resp ->
-                    ResponseEntity.status(resp.statusCode).body(mapOf("error" to addResult.failure.toString()))
-                }
+                return failureTranslator.translate(addResult.failure)
             }
         }
 

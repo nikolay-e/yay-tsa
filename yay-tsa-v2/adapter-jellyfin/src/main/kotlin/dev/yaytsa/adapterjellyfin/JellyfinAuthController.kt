@@ -1,6 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.ApiTokenId
@@ -12,6 +13,7 @@ import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.UserId
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -44,9 +46,9 @@ class JellyfinAuthController(
     ): ResponseEntity<Any> {
         val user =
             authQueries.findByUsername(request.username)
-                ?: return ResponseEntity.status(401).body(mapOf("error" to "Invalid credentials"))
+                ?: return problemDetail(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid credentials")
 
-        if (!user.isActive) return ResponseEntity.status(401).body(mapOf("error" to "User disabled"))
+        if (!user.isActive) return problemDetail(HttpStatus.UNAUTHORIZED, "Unauthorized", "User disabled")
 
         // Verify password against bcrypt hash
         val passwordValid =
@@ -57,7 +59,7 @@ class JellyfinAuthController(
                 false // Malformed hash = auth fails, not bypasses
             }
         if (!passwordValid) {
-            return ResponseEntity.status(401).body(mapOf("error" to "Invalid credentials"))
+            return problemDetail(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid credentials")
         }
 
         // Generate a new API token for this session

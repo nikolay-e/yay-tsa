@@ -1,6 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.CreateUser
@@ -36,7 +37,7 @@ class JellyfinAdminController(
                 auth != null && auth.isAuthenticated -> authQueries.findUser(UserId(auth.name))?.isAdmin == true
                 else -> false
             }
-        return if (!callerIsAdmin) ResponseEntity.status(HttpStatus.FORBIDDEN).body(mapOf("error" to "Admin role required")) else null
+        return if (!callerIsAdmin) problemDetail(HttpStatus.FORBIDDEN, "Forbidden", "Admin role required") else null
     }
 
     @GetMapping("/Users")
@@ -84,7 +85,7 @@ class JellyfinAdminController(
                 ResponseEntity.ok(
                     mapOf("user" to mapOf("Id" to uid.value, "Name" to request.username), "initialPassword" to "changeme"),
                 )
-            is CommandResult.Failed -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to result.failure.toString()))
+            is CommandResult.Failed -> problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", result.failure.toString())
         }
     }
 

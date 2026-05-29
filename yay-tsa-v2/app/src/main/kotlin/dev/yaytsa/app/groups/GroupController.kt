@@ -3,6 +3,8 @@ package dev.yaytsa.app.groups
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonProperty
 import dev.yaytsa.adapterjellyfin.DeviceBoundAuthentication
+import dev.yaytsa.adaptershared.problemDetail
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -52,8 +54,8 @@ class GroupController(
         @RequestBody request: CreateGroupRequest,
         principal: Principal,
     ): ResponseEntity<Any> {
-        if (request.name.isBlank()) return ResponseEntity.badRequest().body(mapOf("error" to "name is required"))
-        val device = deviceId() ?: return ResponseEntity.badRequest().body(mapOf("error" to "device context required"))
+        if (request.name.isBlank()) return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "name is required")
+        val device = deviceId() ?: return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "device context required")
         val result = service.createGroup(UUID.fromString(principal.name), device, request.name, request.trackId)
         return ResponseEntity.ok(mapOf("id" to result.id, "joinCode" to result.joinCode))
     }
@@ -63,10 +65,10 @@ class GroupController(
         @RequestBody request: JoinGroupRequest,
         principal: Principal,
     ): ResponseEntity<Any> {
-        val device = deviceId() ?: return ResponseEntity.badRequest().body(mapOf("error" to "device context required"))
+        val device = deviceId() ?: return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "device context required")
         val snapshot =
             service.joinGroup(UUID.fromString(principal.name), device, request.joinCode)
-                ?: return ResponseEntity.status(404).body(mapOf("error" to "join code not found"))
+                ?: return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "join code not found")
         broadcaster.emit(UUID.fromString(snapshot.id), "member_joined", mapOf("deviceId" to device, "userId" to principal.name))
         return ResponseEntity.ok(snapshot)
     }
@@ -104,7 +106,7 @@ class GroupController(
                 broadcaster.emit(UUID.fromString(groupId), "schedule_changed", outcome.response.schedule)
                 ResponseEntity.ok(outcome.response)
             }
-            ScheduleOutcome.Conflict -> ResponseEntity.status(409).body(mapOf("error" to "schedule epoch conflict"))
+            ScheduleOutcome.Conflict -> problemDetail(HttpStatus.CONFLICT, "Conflict", "schedule epoch conflict")
             ScheduleOutcome.NotFound -> ResponseEntity.status(404).build()
         }
 
@@ -114,7 +116,7 @@ class GroupController(
         @RequestBody(required = false) request: HeartbeatRequest?,
         principal: Principal,
     ): ResponseEntity<Any> {
-        val device = deviceId() ?: return ResponseEntity.badRequest().body(mapOf("error" to "device context required"))
+        val device = deviceId() ?: return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "device context required")
         service.heartbeat(UUID.fromString(groupId), UUID.fromString(principal.name), device, request?.rttMs)
         return ResponseEntity.ok().build()
     }

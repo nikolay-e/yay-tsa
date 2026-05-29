@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.playback.DeviceSessionProjection
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.shared.port.Clock
@@ -130,9 +131,7 @@ class JellyfinDevicesController(
         val deviceIdValue =
             request?.deviceId?.takeIf { it.isNotBlank() }
                 ?: authDeviceId
-                ?: return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
-                    .body(mapOf("error" to "deviceId required (missing in body and auth context)"))
+                ?: return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "deviceId required (missing in body and auth context)")
         val sessionIdValue =
             request?.sessionId?.takeIf { it.isNotBlank() }
                 ?: deviceIdValue
@@ -150,10 +149,10 @@ class JellyfinDevicesController(
         val sid = SessionId(sessionId)
         val current =
             playbackUseCases.getPlaybackState(uid, sid)
-                ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to "Session not found"))
+                ?: return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Session not found")
         val leaseOwner =
             current.lease?.owner
-                ?: return ResponseEntity.status(HttpStatus.CONFLICT).body(mapOf("error" to "No active lease on session"))
+                ?: return problemDetail(HttpStatus.CONFLICT, "Conflict", "No active lease on session")
 
         val cmd =
             when (request.command.lowercase()) {
@@ -166,9 +165,7 @@ class JellyfinDevicesController(
                     Seek(sessionId = sid, deviceId = leaseOwner, position = Duration.ofMillis(positionMs))
                 }
                 else ->
-                    return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .body(mapOf("error" to "Unknown command: ${request.command}"))
+                    return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Unknown command: ${request.command}")
             }
 
         val ctx =
@@ -189,9 +186,7 @@ class JellyfinDevicesController(
                     ),
                 )
             is CommandResult.Failed ->
-                ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(mapOf("error" to result.failure.toString()))
+                problemDetail(HttpStatus.CONFLICT, "Conflict", result.failure.toString())
         }
     }
 
