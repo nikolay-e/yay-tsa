@@ -18,6 +18,7 @@ dependencies {
     implementation(project(":core-domain:karaoke"))
     implementation(project(":core-application:shared"))
     implementation(project(":core-application:karaoke"))
+    implementation(project(":core-application:library"))
     implementation(project(":infra-persistence:karaoke"))
     implementation(project(":infra-persistence:library"))
     implementation(libs.spring.boot.starter.data.jpa)

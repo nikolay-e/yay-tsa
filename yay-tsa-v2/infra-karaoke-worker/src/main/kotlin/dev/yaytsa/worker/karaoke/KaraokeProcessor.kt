@@ -1,9 +1,11 @@
 package dev.yaytsa.worker.karaoke
 
+import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.persistence.karaoke.entity.KaraokeAssetEntity
 import dev.yaytsa.persistence.karaoke.jpa.KaraokeAssetJpaRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
+import dev.yaytsa.shared.EntityId
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -18,6 +20,7 @@ import java.util.concurrent.TimeUnit
 @ConditionalOnProperty(name = ["yaytsa.karaoke.enabled"], havingValue = "true")
 class KaraokeProcessor(
     private val libraryEntityRepo: LibraryEntityRepository,
+    private val libraryQuery: LibraryQueryPort,
     private val karaokeRepo: KaraokeAssetJpaRepository,
     private val clock: Clock,
     private val separatorClient: SeparatorClient,
@@ -83,12 +86,14 @@ class KaraokeProcessor(
         if (existing?.readyAt != null) return
         if ((existing?.failCount ?: 0) >= MAX_FAILURES) return
 
-        val entity = libraryEntityRepo.findById(trackId).orElse(null) ?: return
-        val sourcePath = entity.sourcePath ?: return
+        // resolveTrackFilePath reconstructs the absolute path (libraryRoot + sourcePath),
+        // matching how streaming and lyrics resolve files. The separator validates the
+        // path against its /media root, so a bare relative sourcePath is rejected with 403.
+        val filePath = libraryQuery.resolveTrackFilePath(EntityId(trackId.toString())) ?: return
 
         if (!separatorUrl.isNullOrBlank()) {
             try {
-                val result = separatorClient.separate(separatorUrl, sourcePath, trackId.toString())
+                val result = separatorClient.separate(separatorUrl, filePath, trackId.toString())
                 karaokeRepo.save(
                     KaraokeAssetEntity(
                         trackId = trackId,
@@ -116,7 +121,7 @@ class KaraokeProcessor(
                     "vocals",
                     "-o",
                     outDir.toString(),
-                    sourcePath,
+                    filePath,
                 ).redirectErrorStream(true).start()
 
             // Drain process output to prevent buffer deadlock
