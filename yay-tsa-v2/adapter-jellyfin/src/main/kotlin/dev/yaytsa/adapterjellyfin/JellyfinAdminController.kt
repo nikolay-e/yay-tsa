@@ -60,8 +60,14 @@ class JellyfinAdminController(
     }
 
     data class CreateUserRequest(
+        @com.fasterxml.jackson.annotation.JsonProperty("Username")
+        @com.fasterxml.jackson.annotation.JsonAlias("username")
         val username: String,
+        @com.fasterxml.jackson.annotation.JsonProperty("DisplayName")
+        @com.fasterxml.jackson.annotation.JsonAlias("displayName")
         val displayName: String? = null,
+        @com.fasterxml.jackson.annotation.JsonProperty("IsAdmin")
+        @com.fasterxml.jackson.annotation.JsonAlias("isAdmin")
         val isAdmin: Boolean = false,
     )
 
@@ -71,10 +77,11 @@ class JellyfinAdminController(
     ): ResponseEntity<Any> {
         requireAdmin()?.let { return it }
         val uid = UserId(UUID.randomUUID().toString())
+        val initialPassword = UUID.randomUUID().toString().take(12)
         val passwordHash =
             org.springframework.security.crypto.bcrypt.BCrypt
                 .hashpw(
-                    "changeme",
+                    initialPassword,
                     org.springframework.security.crypto.bcrypt.BCrypt
                         .gensalt(),
                 )
@@ -83,7 +90,17 @@ class JellyfinAdminController(
         return when (val result = authUseCases.execute(cmd, ctx)) {
             is CommandResult.Success ->
                 ResponseEntity.ok(
-                    mapOf("user" to mapOf("Id" to uid.value, "Name" to request.username), "initialPassword" to "changeme"),
+                    mapOf(
+                        "user" to
+                            mapOf(
+                                "Id" to uid.value,
+                                "Username" to request.username,
+                                "DisplayName" to request.displayName,
+                                "IsAdmin" to request.isAdmin,
+                                "IsActive" to true,
+                            ),
+                        "initialPassword" to initialPassword,
+                    ),
                 )
             is CommandResult.Failed -> problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", result.failure.toString())
         }

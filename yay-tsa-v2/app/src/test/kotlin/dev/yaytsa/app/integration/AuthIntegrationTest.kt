@@ -191,6 +191,98 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(200, reAuthResult.response.status, "Token must still work after user update (catches double-hash)")
     }
 
+    // --- Admin create-user (GUI sends PascalCase body) ---
+
+    @Test
+    fun `admin creates user via PascalCase GUI payload and the new user can log in`() {
+        val adminPassword = "admin-create-pass"
+        val adminHash =
+            org.springframework.security.crypto.bcrypt.BCrypt
+                .hashpw(
+                    adminPassword,
+                    org.springframework.security.crypto.bcrypt.BCrypt
+                        .gensalt(),
+                )
+        val adminName = "admin-${UUID.randomUUID().toString().take(8)}"
+        seedUser(adminName, adminHash, isAdmin = true)
+
+        val loginResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$adminName","Pw":"$adminPassword"}"""),
+                ).andReturn()
+        assertEquals(200, loginResult.response.status, "admin login should succeed")
+        val token = objectMapper.readTree(loginResult.response.contentAsString).path("AccessToken").asText()
+
+        val newUsername = "created-${UUID.randomUUID().toString().take(8)}"
+        val createResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Admin/Users")
+                        .header("Authorization", "Bearer $token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$newUsername","DisplayName":"Created User","IsAdmin":false}"""),
+                ).andReturn()
+        assertEquals(
+            200,
+            createResult.response.status,
+            "create-user must accept the PascalCase body the GUI sends; body=${createResult.response.contentAsString}",
+        )
+        val createBody = objectMapper.readTree(createResult.response.contentAsString)
+        assertEquals(newUsername, createBody.path("user").path("Username").asText())
+        val initialPassword = createBody.path("initialPassword").asText()
+        assertFalse(initialPassword.isNullOrBlank(), "initial password must be returned")
+
+        val newUserLogin =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$newUsername","Pw":"$initialPassword"}"""),
+                ).andReturn()
+        assertEquals(200, newUserLogin.response.status, "newly created user should log in with the returned initial password")
+    }
+
+    @Test
+    fun `non-admin cannot create user`() {
+        val password = "regular-pass"
+        val hash =
+            org.springframework.security.crypto.bcrypt.BCrypt
+                .hashpw(
+                    password,
+                    org.springframework.security.crypto.bcrypt.BCrypt
+                        .gensalt(),
+                )
+        val username = "regular-${UUID.randomUUID().toString().take(8)}"
+        seedUser(username, hash, isAdmin = false)
+
+        val loginResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$username","Pw":"$password"}"""),
+                ).andReturn()
+        val token = objectMapper.readTree(loginResult.response.contentAsString).path("AccessToken").asText()
+
+        val createResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Admin/Users")
+                        .header("Authorization", "Bearer $token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"hijack-${UUID.randomUUID().toString().take(8)}","IsAdmin":true}"""),
+                ).andReturn()
+        assertEquals(403, createResult.response.status, "non-admin must not create users")
+    }
+
     // --- Actuator auth ---
 
     @Test
@@ -210,10 +302,11 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
     private fun seedUser(
         username: String,
         passwordHash: String,
+        isAdmin: Boolean = false,
     ): String {
         val userId = UUID.randomUUID().toString()
         val uid = UserId(userId)
-        val cmd = CreateUser(uid, username, passwordHash, null, null, false)
+        val cmd = CreateUser(uid, username, passwordHash, null, null, isAdmin)
         val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), Instant.now(), IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
         val result = authUseCases.execute(cmd, ctx)
         assertTrue(result is CommandResult.Success, "User creation should succeed")
