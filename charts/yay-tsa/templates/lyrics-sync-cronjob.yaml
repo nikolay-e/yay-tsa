@@ -13,11 +13,14 @@ spec:
   schedule: {{ .Values.lyricsSync.schedule | quote }}
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 3
+  failedJobsHistoryLimit: {{ .Values.lyricsSync.failedJobsHistoryLimit | default 1 }}
   startingDeadlineSeconds: 300
   jobTemplate:
     spec:
       backoffLimit: 1
+      {{- with .Values.lyricsSync.ttlSecondsAfterFinished }}
+      ttlSecondsAfterFinished: {{ . }}
+      {{- end }}
       activeDeadlineSeconds: {{ .Values.lyricsSync.activeDeadlineSeconds }}
       template:
         metadata:

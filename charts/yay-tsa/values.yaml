@@ -110,6 +110,10 @@ featureExtractor:
     tag: ''
   schedule: '0 3 * * *' # daily at 03:00
   activeDeadlineSeconds: 21600 # 6h cap per run
+  # Keep only the latest failed Job and auto-GC finished Jobs after 24h so a
+  # transient nightly failure can't accumulate stale KubeJobFailed alerts.
+  failedJobsHistoryLimit: 1
+  ttlSecondsAfterFinished: 86400 # 24h
   extractorVersion: 'essentia-1.1+clap+mert'
   batchLimit: 0 # 0 = process every pending track in one run
   hfCacheSize: '8Gi'
@@ -146,6 +150,8 @@ tasteClusters:
     tag: ''
   schedule: '0 5 * * *' # daily at 05:00 (after lyrics-sync at 04:00)
   activeDeadlineSeconds: 3600 # 1h cap
+  failedJobsHistoryLimit: 1
+  ttlSecondsAfterFinished: 86400 # 24h
   database:
     secretName: yay-tsa-postgres
   nodeSelector: {}
@@ -167,6 +173,8 @@ lyricsSync:
     tag: ''
   schedule: '0 4 * * *' # daily at 04:00 (after the feature-extractor at 03:00)
   activeDeadlineSeconds: 14400 # 4h cap
+  failedJobsHistoryLimit: 1
+  ttlSecondsAfterFinished: 86400 # 24h
   batchLimit: 0 # 0 = every track
   database:
     secretName: yay-tsa-postgres

@@ -13,11 +13,14 @@ spec:
   schedule: {{ .Values.tasteClusters.schedule | quote }}
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 3
+  failedJobsHistoryLimit: {{ .Values.tasteClusters.failedJobsHistoryLimit | default 1 }}
   startingDeadlineSeconds: 300
   jobTemplate:
     spec:
       backoffLimit: 1
+      {{- with .Values.tasteClusters.ttlSecondsAfterFinished }}
+      ttlSecondsAfterFinished: {{ . }}
+      {{- end }}
       activeDeadlineSeconds: {{ .Values.tasteClusters.activeDeadlineSeconds }}
       template:
         metadata:
