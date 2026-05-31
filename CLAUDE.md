@@ -132,6 +132,8 @@ Dark mode only — intentional design choice for a music player typically used i
 
 **Production image flow**: Push to main → CI builds `main-<sha7>` image for the changed component → Argo CD Image Updater detects → writes back to gitops `values.images.yaml` → ArgoCD syncs.
 
+> **CI for THIS repo = GitHub Actions (overrides the workspace `../CLAUDE.md` Forgejo note).** `origin` is `github.com:nikolay-e/yay-tsa`; the live pipelines are `.github/workflows/ci.yml` (PWA) and `v2-ci.yml` (backend), both triggered `on: push: branches: [main]`. The `gh` CLI works here — verify a push with `gh run list --branch main` / `gh run watch <id>`. The workspace-level "migrated to Forgejo / no gh CLI" note has not taken effect for yay-tsa.
+
 ## Performance Targets
 
 | Metric                             | Target                 | Tool            |

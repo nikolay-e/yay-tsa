@@ -12,6 +12,11 @@ backend:
     repository: ghcr.io/nikolay-e/yay-tsa-v2/backend
     pullPolicy: IfNotPresent
     tag: ''
+  # HARD INVARIANT: keep at 1. The backend holds per-JVM state — device-presence projection
+  # (in-memory map), Caffeine token/rate-limit caches, and a @Scheduled LlmOrchestrator that has
+  # no leader election. Scaling >1 replica double-runs the orchestrator (double LLM cost/edits) and
+  # diverges presence/rate-limit across pods. Before raising this: add ShedLock to the scheduler,
+  # back device presence + rate-limit with the DB, and the token cache tolerates per-pod TTL.
   replicaCount: 1
   revisionHistoryLimit: 5
 

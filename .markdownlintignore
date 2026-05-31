@@ -1,1 +1,4 @@
 LICENSE.md
+# Generated audit/report artifacts (tournament + /review-* output), not authored docs.
+REVIEW_*.md
+ANALYSIS_*.md
