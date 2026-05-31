@@ -81,6 +81,9 @@ object AuthHandler {
         return snapshot
             .copy(
                 passwordHash = cmd.newPasswordHash,
+                // A password change must terminate existing sessions (OWASP ASVS): revoke every
+                // outstanding API token so old bearer tokens can't keep authenticating.
+                apiTokens = snapshot.apiTokens.map { it.copy(revoked = true) },
                 updatedAt = ctx.requestTime,
                 version = newVersion,
             ).asSuccess(newVersion)

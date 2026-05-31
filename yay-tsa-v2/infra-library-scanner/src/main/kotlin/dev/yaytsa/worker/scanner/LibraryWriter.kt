@@ -420,9 +420,13 @@ class LibraryWriter(
         presentSourcePaths: Set<String>,
     ): Int {
         val rootKey = root.toString()
+        // Include legacy NULL-library_root ghost rows in the candidate set. source_path is stored
+        // RELATIVE, so a path prefix can't attribute a NULL row to a root — instead we let the
+        // present-paths filter below delete any NULL-root row whose path isn't on disk (the v1
+        // ghost case). A NULL-root row that IS present is kept (a valid track that lost its root).
         val vanished =
             entityRepo
-                .findTrackIdSourcePathsByLibraryRoot(rootKey)
+                .findTrackIdSourcePathsByLibraryRootOrNull(rootKey)
                 .filterNot { (it.getOrNull(1) as? String) in presentSourcePaths }
                 .mapNotNull { it.getOrNull(0) as? UUID }
         if (vanished.isEmpty()) return 0

@@ -246,7 +246,9 @@ class JellyfinAdaptiveController(
     @GetMapping("/users/{userId}/preferences")
     fun getPreferences(
         @PathVariable userId: String,
+        principal: Principal,
     ): ResponseEntity<Any> {
+        if (principal.name != userId) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         val prefs =
             preferencesQueries.find(UserId(userId))
                 ?: return ResponseEntity.ok(
@@ -274,6 +276,7 @@ class JellyfinAdaptiveController(
         @RequestBody body: Map<String, Any?>,
         principal: Principal,
     ): ResponseEntity<Void> {
+        if (principal.name != userId) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         val uid = UserId(userId)
         val prefs = preferencesQueries.find(uid) ?: UserPreferencesAggregate.empty(uid)
         val cmd =

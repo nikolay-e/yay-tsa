@@ -180,6 +180,20 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun browseTracksByAlbum(albumId: EntityId) = tracks.values.filter { it.albumId == albumId }.sortedBy { it.trackNumber }
 
+    override fun browseTracksByArtist(
+        artistId: EntityId,
+        limit: Int,
+        offset: Int,
+    ) = tracks.values
+        .filter { it.albumArtistId == artistId }
+        .sortedWith(compareBy({ it.albumId?.value }, { it.discNumber }, { it.trackNumber }))
+        .drop(maxOf(offset, 0))
+        .take(maxOf(limit, 1))
+
+    override fun countTracksByArtist(artistId: EntityId): Int = tracks.values.count { it.albumArtistId == artistId }
+
+    override fun getTracksByIds(trackIds: List<EntityId>): List<dev.yaytsa.domain.library.Track> = trackIds.mapNotNull { tracks[it] }
+
     override fun browseTracksRandom(limit: Int) = tracks.values.shuffled().take(limit)
 
     override fun browseTracks(

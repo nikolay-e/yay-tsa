@@ -87,7 +87,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "yay-tsa-v2.fullname" . }}-backend
-          {{- include "yay-tsa-common.deployment.standardProbes" (dict "liveness" .Values.backend.probes.liveness "readiness" .Values.backend.probes.readiness) | nindent 10 }}
+          {{- include "yay-tsa-common.deployment.standardProbes" (dict "startup" .Values.backend.probes.startup "liveness" .Values.backend.probes.liveness "readiness" .Values.backend.probes.readiness) | nindent 10 }}
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           securityContext:

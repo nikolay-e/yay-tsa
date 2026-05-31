@@ -59,6 +59,16 @@ Typical call site (inside a container spec at 10-space indent):
           {{- include "yay-tsa-common.deployment.standardProbes" (dict "port" "http" "liveness" .Values.audioSeparator.probes.liveness "readiness" .Values.audioSeparator.probes.readiness) | nindent 10 }}
 */}}
 {{- define "yay-tsa-common.deployment.standardProbes" -}}
+{{- if .startup }}
+startupProbe:
+  httpGet:
+    path: {{ .startup.path }}
+    port: {{ .port | default .startup.port }}
+  initialDelaySeconds: {{ .startup.initialDelaySeconds }}
+  periodSeconds: {{ .startup.periodSeconds }}
+  timeoutSeconds: {{ .startup.timeoutSeconds }}
+  failureThreshold: {{ .startup.failureThreshold }}
+{{- end }}
 livenessProbe:
   httpGet:
     path: {{ .liveness.path }}

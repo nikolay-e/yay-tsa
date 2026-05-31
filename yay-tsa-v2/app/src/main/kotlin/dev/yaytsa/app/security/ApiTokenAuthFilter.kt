@@ -1,6 +1,5 @@
 package dev.yaytsa.app.security
 
-import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.shared.Hashing
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -11,7 +10,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 
 @Component
 class ApiTokenAuthFilter(
-    private val authQueries: AuthQueries,
+    private val tokenValidationCache: TokenValidationCache,
 ) : OncePerRequestFilter() {
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -27,7 +26,7 @@ class ApiTokenAuthFilter(
                 ?: request.getParameter("api_key")?.takeIf { it.isNotBlank() }
                 ?: extractTokenCookie(request.cookies)
         if (token != null) {
-            val user = authQueries.findByApiToken(token)
+            val user = tokenValidationCache.findByApiToken(token)
             if (user != null && user.isActive) {
                 val hashedToken = Hashing.sha256Hex(token)
                 val apiToken = user.apiTokens.find { Hashing.constantTimeEquals(it.token, hashedToken) }

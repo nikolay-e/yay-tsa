@@ -87,6 +87,7 @@ class MpdTcpServer(
                 val writer = PrintWriter(s.getOutputStream(), true)
                 writer.println("OK MPD 0.23.5")
                 var commandList: MutableList<String>? = null
+                var commandListOkMode = false
                 while (running.get()) {
                     val line = reader.readLine() ?: break
                     val trimmed = line.trim()
@@ -94,20 +95,27 @@ class MpdTcpServer(
 
                     when {
                         trimmed == "command_list_begin" || trimmed == "command_list_ok_begin" -> {
+                            commandListOkMode = trimmed == "command_list_ok_begin"
                             commandList = mutableListOf()
                         }
                         trimmed == "command_list_end" -> {
                             val batch = commandList ?: continue
                             commandList = null
+                            // MPD protocol: emit each sub-command's payload (not just ACKs), with a
+                            // `list_OK` separator after each in ok-mode, and a single terminating OK.
                             val sb = StringBuilder()
+                            var failed = false
                             for (cmd in batch) {
                                 val result = commandHandler.handle(cmd)
                                 if (result.startsWith("ACK")) {
                                     sb.append(result)
+                                    failed = true
                                     break
                                 }
+                                sb.append(result.removeSuffix("OK\n"))
+                                if (commandListOkMode) sb.append("list_OK\n")
                             }
-                            sb.append("OK\n")
+                            if (!failed) sb.append("OK\n")
                             writer.print(sb)
                             writer.flush()
                         }

@@ -2,7 +2,6 @@ package dev.yaytsa.persistence.shared
 
 import dev.yaytsa.application.shared.port.IdempotencyStore
 import dev.yaytsa.application.shared.port.StoredIdempotencyRecord
-import dev.yaytsa.persistence.shared.entity.IdempotencyRecordEntity
 import dev.yaytsa.persistence.shared.jpa.IdempotencyRecordJpaRepository
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.UserId
@@ -31,16 +30,16 @@ class JpaIdempotencyStore(
         payloadHash: String,
         resultVersion: Long,
     ) {
-        val entity =
-            IdempotencyRecordEntity(
-                userId = userId.value,
-                commandType = commandType,
-                idemKey = sanitize(key.value),
-                payloadHash = payloadHash,
-                resultVersion = resultVersion,
-                createdAt = clock.now(),
-            )
-        jpa.save(entity)
+        // Insert-first with ON CONFLICT DO NOTHING: a concurrent duplicate is a no-op rather than
+        // a PK violation. A legitimate replay is detected by find() before we ever reach here.
+        jpa.insertIfAbsent(
+            userId = userId.value,
+            commandType = commandType,
+            idemKey = sanitize(key.value),
+            payloadHash = payloadHash,
+            resultVersion = resultVersion,
+            createdAt = clock.now(),
+        )
     }
 
     /** PostgreSQL rejects null bytes (0x00) in text columns; strip them at the persistence boundary. */

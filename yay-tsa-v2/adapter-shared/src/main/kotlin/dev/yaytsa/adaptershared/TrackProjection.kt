@@ -48,7 +48,7 @@ fun Track.toSubsonicChild(lookups: TrackLookups = TrackLookups()): ChildElement 
         discNumber = discNumber,
         year = year,
         genre = genre,
-        coverArt = coverImagePath,
+        coverArt = coverImagePath?.let { id.value },
         albumId = albumId?.value,
         artistId = albumArtistId?.value,
     )

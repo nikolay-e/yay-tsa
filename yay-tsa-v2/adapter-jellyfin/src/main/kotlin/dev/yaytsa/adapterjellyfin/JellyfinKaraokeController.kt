@@ -138,25 +138,28 @@ class JellyfinKaraokeController(
             val parts = rangeSpec.split("-")
             val suffixSpec = parts.size == 2 && parts[0].isEmpty()
             val start: Long
-            val end: Long
+            val requestedEnd: Long
             if (suffixSpec) {
                 val suffixLength = parts[1].toLongOrNull() ?: 0L
                 start = (fileSize - suffixLength).coerceAtLeast(0L)
-                end = fileSize - 1
+                requestedEnd = fileSize - 1
             } else {
                 start = parts[0].toLongOrNull() ?: 0L
-                end =
+                requestedEnd =
                     if (parts.size > 1 && parts[1].isNotEmpty()) {
                         parts[1].toLongOrNull() ?: (fileSize - 1)
                     } else {
                         fileSize - 1
                     }
             }
-            if (start > end || start < 0 || start >= fileSize || end >= fileSize) {
+            // RFC 7233 §2.1: a last-byte-pos past EOF is clamped, not rejected. 416 is only
+            // for an unsatisfiable first-byte-pos (start beyond the resource).
+            if (start < 0 || start >= fileSize || requestedEnd < start) {
                 response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
                 response.sendError(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value())
                 return
             }
+            val end = minOf(requestedEnd, fileSize - 1)
             val length = end - start + 1
             response.status = HttpStatus.PARTIAL_CONTENT.value()
             response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())

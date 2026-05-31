@@ -71,6 +71,10 @@ class GlobalExceptionHandler {
         ex: IllegalArgumentException,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> {
+        if (ex.message?.startsWith("Invalid UUID string") == true) {
+            log.debug("Malformed resource id: {}", ex.message)
+            return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Resource not found", request)
+        }
         log.debug("Bad request: {}", ex.message)
         return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", ex.message ?: "Bad request", request)
     }

@@ -26,6 +26,7 @@ import java.util.UUID
 class JellyfinAdminController(
     private val authUseCases: AuthUseCases,
     private val authQueries: AuthQueries,
+    private val eventPublisher: org.springframework.context.ApplicationEventPublisher,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -83,7 +84,7 @@ class JellyfinAdminController(
                 .hashpw(
                     initialPassword,
                     org.springframework.security.crypto.bcrypt.BCrypt
-                        .gensalt(),
+                        .gensalt(BCRYPT_COST),
                 )
         val cmd = CreateUser(uid, request.username, passwordHash, request.displayName, null, request.isAdmin)
         val ctx = ctxFactory.create(uid, AggregateVersion.INITIAL)
@@ -118,6 +119,8 @@ class JellyfinAdminController(
                 .DeactivateUser(uid)
         val ctx = ctxFactory.create(uid, user.version)
         authUseCases.execute(cmd, ctx)
+        // Evict cached token validations so the deactivated user is rejected on the next request.
+        eventPublisher.publishEvent(UserSecurityChangedEvent(uid.value))
         return ResponseEntity.noContent().build()
     }
 
@@ -134,13 +137,15 @@ class JellyfinAdminController(
                 .hashpw(
                     newPassword,
                     org.springframework.security.crypto.bcrypt.BCrypt
-                        .gensalt(),
+                        .gensalt(BCRYPT_COST),
                 )
         val cmd =
             dev.yaytsa.domain.auth
                 .ChangePassword(uid, newHash)
         val ctx = ctxFactory.create(uid, user.version)
         authUseCases.execute(cmd, ctx)
+        // Evict cached token validations so old sessions can't keep authenticating post-reset.
+        eventPublisher.publishEvent(UserSecurityChangedEvent(uid.value))
         return ResponseEntity.ok(mapOf("newPassword" to newPassword))
     }
 
@@ -179,5 +184,10 @@ class JellyfinAdminController(
         requireAdmin()?.let { return it }
         // TODO: no ScanRecord query port exists yet; return inert stub for the PWA.
         return ResponseEntity.ok(mapOf("scanning" to false, "isScanning" to false, "progress" to 100))
+    }
+
+    companion object {
+        // OWASP 2025/2026 Password Storage guidance: bcrypt work factor >= 12 (13 chosen for headroom).
+        private const val BCRYPT_COST = 13
     }
 }

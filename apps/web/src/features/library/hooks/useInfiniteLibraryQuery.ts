@@ -47,12 +47,22 @@ export function useInfiniteLibraryQuery<TData>({
       });
     },
     initialPageParam: 0,
-    getNextPageParam: (lastPage: ItemsResult<TData>, allPages: ItemsResult<TData>[]) => {
-      const loadedCount = allPages.reduce((sum, page) => sum + (page.Items?.length ?? 0), 0);
-      if (loadedCount >= lastPage.TotalRecordCount) return undefined;
-      return loadedCount;
+    // Bound retained pages so a 50k-track library doesn't pin ~1000 pages in memory.
+    // Offset is derived from the last page's own param (not the running sum), so it stays
+    // correct after maxPages evicts the oldest pages.
+    maxPages: MAX_RETAINED_PAGES,
+    getNextPageParam: (lastPage: ItemsResult<TData>, _allPages, lastPageParam: number) => {
+      const next = lastPageParam + (lastPage.Items?.length ?? 0);
+      if (next >= lastPage.TotalRecordCount) return undefined;
+      return next;
+    },
+    getPreviousPageParam: (_firstPage, _allPages, firstPageParam: number) => {
+      if (firstPageParam <= 0) return undefined;
+      return Math.max(0, firstPageParam - limit);
     },
     enabled: enabled && !!client,
     staleTime,
   });
 }
+
+const MAX_RETAINED_PAGES = 10;

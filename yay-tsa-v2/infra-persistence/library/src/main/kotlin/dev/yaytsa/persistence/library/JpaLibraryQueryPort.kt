@@ -141,6 +141,39 @@ class JpaLibraryQueryPort(
             }.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
     }
 
+    override fun browseTracksByArtist(
+        artistId: EntityId,
+        limit: Int,
+        offset: Int,
+    ): List<Track> {
+        val id = UUID.fromString(artistId.value)
+        val trackJpas = trackRepo.findByAlbumArtistIdPaged(id, maxOf(limit, 1), maxOf(offset, 0))
+        return assembleTracksInOrder(trackJpas)
+    }
+
+    override fun countTracksByArtist(artistId: EntityId): Int = trackRepo.countByAlbumArtistId(UUID.fromString(artistId.value)).toInt()
+
+    override fun getTracksByIds(trackIds: List<EntityId>): List<Track> {
+        if (trackIds.isEmpty()) return emptyList()
+        val uuids = trackIds.map { UUID.fromString(it.value) }
+        val byEntityId = trackRepo.findAllByEntityIdIn(uuids).associateBy { it.entityId }
+        // Preserve caller-supplied order (favorites/playlist ordering matters).
+        val orderedJpas = uuids.mapNotNull { byEntityId[it] }
+        return assembleTracksInOrder(orderedJpas)
+    }
+
+    private fun assembleTracksInOrder(trackJpas: List<dev.yaytsa.persistence.library.entity.AudioTrackJpa>): List<Track> {
+        if (trackJpas.isEmpty()) return emptyList()
+        val entityIds = trackJpas.map { it.entityId }
+        val entities = entityRepo.findAllById(entityIds).associateBy { it.id }
+        val primaryImages = findPrimaryImages(entityIds)
+        val genreNames = findPrimaryGenreNames(entityIds)
+        return trackJpas.mapNotNull { track ->
+            val entity = entities[track.entityId] ?: return@mapNotNull null
+            LibraryMappers.toTrack(entity, track, primaryImages[track.entityId], genreNames[track.entityId])
+        }
+    }
+
     override fun browseTracks(
         limit: Int,
         offset: Int,

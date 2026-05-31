@@ -39,6 +39,16 @@ class LibraryQueries(
 
     fun browseTracksByAlbum(albumId: EntityId): List<Track> = libraryQuery.browseTracksByAlbum(albumId)
 
+    fun browseTracksByArtist(
+        artistId: EntityId,
+        limit: Int,
+        offset: Int,
+    ): List<Track> = libraryQuery.browseTracksByArtist(artistId, limit, offset)
+
+    fun countTracksByArtist(artistId: EntityId): Int = libraryQuery.countTracksByArtist(artistId)
+
+    fun getTracksByIds(trackIds: List<EntityId>): List<Track> = if (trackIds.isEmpty()) emptyList() else libraryQuery.getTracksByIds(trackIds)
+
     fun browseTracks(
         limit: Int,
         offset: Int,

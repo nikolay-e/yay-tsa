@@ -156,7 +156,7 @@ class SubsonicController(
                             artist?.id?.value,
                             album.releaseDate?.year,
                             tracks.toSubsonicChildren(),
-                            album.coverImagePath,
+                            album.coverImagePath?.let { album.id.value },
                         ),
                 )
             },
@@ -401,6 +401,6 @@ class SubsonicController(
             name = name,
             artistId = artistId?.value,
             year = releaseDate?.year,
-            coverArt = coverImagePath,
+            coverArt = coverImagePath?.let { id.value },
         )
 }

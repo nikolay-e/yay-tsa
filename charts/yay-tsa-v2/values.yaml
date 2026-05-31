@@ -48,10 +48,19 @@ backend:
       -XX:+ExitOnOutOfMemoryError
 
   probes:
+    # startupProbe gates liveness/readiness so a slow JVM cold-start (image pull + Flyway +
+    # Hikari) is never killed mid-boot. failureThreshold*periodSeconds = max startup budget (150s).
+    startup:
+      path: /manage/health/liveness
+      port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 30
     liveness:
       path: /manage/health/liveness
       port: 8080
-      initialDelaySeconds: 60
+      initialDelaySeconds: 10
       periodSeconds: 15
       timeoutSeconds: 5
       failureThreshold: 3

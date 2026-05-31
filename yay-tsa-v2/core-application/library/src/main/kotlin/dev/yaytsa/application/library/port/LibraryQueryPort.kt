@@ -32,6 +32,16 @@ interface LibraryQueryPort {
 
     fun browseTracksByAlbum(albumId: EntityId): List<Track>
 
+    fun browseTracksByArtist(
+        artistId: EntityId,
+        limit: Int,
+        offset: Int,
+    ): List<Track>
+
+    fun countTracksByArtist(artistId: EntityId): Int
+
+    fun getTracksByIds(trackIds: List<EntityId>): List<Track>
+
     fun browseTracks(
         limit: Int,
         offset: Int,

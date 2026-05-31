@@ -28,6 +28,7 @@ import java.util.UUID
 class JellyfinAuthController(
     private val authQueries: AuthQueries,
     private val authUseCases: AuthUseCases,
+    private val eventPublisher: org.springframework.context.ApplicationEventPublisher,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -105,7 +106,11 @@ class JellyfinAuthController(
     @GetMapping("/Users/{userId}")
     fun getUser(
         @PathVariable userId: String,
+        principal: Principal,
     ): ResponseEntity<Any> {
+        if (principal.name != userId && authQueries.findUser(UserId(principal.name))?.isAdmin != true) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
         val user =
             authQueries.findUser(UserId(userId))
                 ?: return ResponseEntity.notFound().build()
@@ -175,7 +180,11 @@ class JellyfinAuthController(
             val cmd = RevokeApiToken(uid, apiToken.id)
             val ctx = ctxFactory.create(uid, user.version)
             val result = authUseCases.execute(cmd, ctx)
-            if (result is CommandResult.Success) return
+            if (result is CommandResult.Success) {
+                // Evict any cached token->user validation so the revoked token fails on next request.
+                eventPublisher.publishEvent(TokenRevokedEvent(rawToken))
+                return
+            }
             log.warn("RevokeApiToken attempt failed for user {}: {}", uid.value, result)
         }
     }
@@ -184,3 +193,16 @@ class JellyfinAuthController(
         private val log = LoggerFactory.getLogger(JellyfinAuthController::class.java)
     }
 }
+
+/** Published when an API token is revoked so caches can evict it immediately. */
+data class TokenRevokedEvent(
+    val token: String,
+)
+
+/**
+ * Published when a user's security state changes without exposing a raw token
+ * (deactivation, password reset) so token caches can evict all of the user's entries.
+ */
+data class UserSecurityChangedEvent(
+    val userId: String,
+)

@@ -120,6 +120,19 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     )
     fun findTrackIdSourcePathsByLibraryRoot(libraryRoot: String): List<Array<Any?>>
 
+    /**
+     * Candidate set for the vanished-track sweep: rows owned by this root PLUS legacy
+     * NULL-library_root ghost rows (v1 ETL / pre-column scans) that the per-root query would
+     * otherwise never see. The caller deletes any whose source_path is absent from disk.
+     */
+    @Query(
+        value =
+            "SELECT id, source_path FROM core_v2_library.entities " +
+                "WHERE entity_type = 'TRACK' AND (library_root = :libraryRoot OR library_root IS NULL)",
+        nativeQuery = true,
+    )
+    fun findTrackIdSourcePathsByLibraryRootOrNull(libraryRoot: String): List<Array<Any?>>
+
     @Modifying
     @Transactional
     @Query(

@@ -89,25 +89,30 @@ class JellyfinItemsController(
             return ResponseEntity.ok(ItemsResult(items, total, startIndex))
         }
 
-        // Handle favorites
+        // Handle favorites. Favorites live in the in-memory preferences aggregate, so sort there
+        // and batch-load only the requested page's tracks — never one getTrack() per favorite.
         if (isFavorite == true && uid != null) {
             val favorites = preferencesQueries.find(UserId(uid))?.favorites ?: emptyList()
-            val resolved =
-                favorites.mapNotNull { fav ->
-                    libraryQueries.getTrack(EntityId(fav.trackId.value))?.let { fav to it }
-                }
+            // Drop favorites whose track has vanished (deleted/renamed) via a single existence
+            // query, so TotalRecordCount matches the items the client can actually page through —
+            // otherwise infinite scroll keeps requesting a page that never fills.
+            val existingIds = if (favorites.isEmpty()) emptySet() else libraryQueries.trackIdsExist(favorites.map { it.trackId }.toSet())
+            val resolvable = favorites.filter { it.trackId in existingIds }
             val ascending = !sortOrder.equals("Descending", ignoreCase = true)
-            val sorted =
+            val ordered =
                 when (sortBy) {
-                    "DateFavorited" -> resolved.sortedBy { it.first.favoritedAt }
-                    "SortName" -> resolved.sortedBy { (it.second.sortName ?: it.second.name).lowercase() }
-                    else -> resolved.sortedBy { it.first.position }
+                    "DateFavorited" -> resolvable.sortedBy { it.favoritedAt }
+                    "SortName" -> {
+                        val names = libraryQueries.getEntityNamesByIds(resolvable.map { EntityId(it.trackId.value) }.toSet())
+                        resolvable.sortedBy { (names[EntityId(it.trackId.value)] ?: "").lowercase() }
+                    }
+                    else -> resolvable.sortedBy { it.position }
                 }.let { if (ascending) it else it.reversed() }
-            val page = sorted.drop(startIndex.coerceAtLeast(0)).take(limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE))
-            val pageTracks = page.map { it.second }
+            val pageFavs = ordered.drop(startIndex.coerceAtLeast(0)).take(limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE))
+            val pageTracks = libraryQueries.getTracksByIds(pageFavs.map { EntityId(it.trackId.value) })
             val trackLookups = tracksLookups(pageTracks)
             val items = pageTracks.map { it.toBaseItem(favTrackIds, trackLookups) }
-            return ResponseEntity.ok(ItemsResult(items, resolved.size, startIndex))
+            return ResponseEntity.ok(ItemsResult(items, resolvable.size, startIndex))
         }
 
         // Handle type-based browsing
@@ -127,14 +132,14 @@ class JellyfinItemsController(
             }
 
             if (libraryQueries.getArtist(parentEntity) != null) {
-                val albums = libraryQueries.browseAlbumsByArtist(parentEntity)
                 if (recursive == true || "Audio" in types) {
-                    val tracks = albums.flatMap { libraryQueries.browseTracksByAlbum(it.id) }
-                    val page = tracks.drop(pageStart).take(pageSize)
+                    val page = libraryQueries.browseTracksByArtist(parentEntity, pageSize, pageStart)
+                    val total = libraryQueries.countTracksByArtist(parentEntity)
                     val trackLookups = tracksLookups(page)
                     val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
-                    return ResponseEntity.ok(ItemsResult(items, tracks.size, startIndex))
+                    return ResponseEntity.ok(ItemsResult(items, total, startIndex))
                 }
+                val albums = libraryQueries.browseAlbumsByArtist(parentEntity)
                 val page = albums.drop(pageStart).take(pageSize)
                 val items = page.map { it.toBaseItem(favTrackIds) }
                 return ResponseEntity.ok(ItemsResult(items, albums.size, startIndex))
