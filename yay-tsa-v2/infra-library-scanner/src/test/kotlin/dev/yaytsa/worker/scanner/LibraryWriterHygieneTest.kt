@@ -148,4 +148,37 @@ class LibraryWriterHygieneTest {
         assertTrue(cover != null, "multi-disc album must get a Primary cover from the album root")
         assertTrue(cover!!.path.endsWith("2020 - Pansarfolk/cover.jpg"), "cover must resolve to the album-root file, was ${cover.path}")
     }
+
+    @Test
+    fun `vanished NULL-library_root ghost rows are swept, present NULL-root rows are kept`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        // Legacy ghosts: TRACK rows with library_root = NULL (v1 ETL / pre-column scans) and a
+        // RELATIVE source_path. The old prefix-LIKE backfill never matched these (relative path
+        // vs absolute root prefix); the OR-NULL candidate query + present-path filter must.
+        val gone = seedNullRootTrack("Gone/Album/missing.flac")
+        val present = seedNullRootTrack("Kept/Album/here.flac")
+
+        val removed = writer.deleteVanishedTracks(root, setOf("Kept/Album/here.flac"))
+
+        assertEquals(1, removed, "exactly the on-disk-absent ghost is swept")
+        assertFalse(entityRepo.findById(gone).isPresent, "vanished NULL-root ghost must be deleted")
+        assertTrue(entityRepo.findById(present).isPresent, "a NULL-root row still present on disk must survive")
+    }
+
+    private fun seedNullRootTrack(relativeSourcePath: String): java.util.UUID {
+        val id = java.util.UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, library_root, search_text) " +
+                "VALUES (?,?,?,?,?,NULL,?)",
+            id,
+            "TRACK",
+            "Ghost ${relativeSourcePath.substringAfterLast('/')}",
+            "ghost",
+            relativeSourcePath,
+            "ghost",
+        )
+        jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 120000L)
+        return id
+    }
 }

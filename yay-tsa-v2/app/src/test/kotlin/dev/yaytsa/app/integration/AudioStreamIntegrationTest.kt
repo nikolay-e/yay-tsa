@@ -130,4 +130,62 @@ class AudioStreamIntegrationTest : HttpIntegrationTestBase() {
                 ).andReturn()
         assertEquals(416, result.response.status, "past-EOF range must be 416, not a 206 with negative content-length")
     }
+
+    @Test
+    fun `Subsonic stream clamps an over-long Range end to a valid 206`() {
+        val trackId = seedTrack("flac", "flac")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/rest/stream")
+                        .param("id", trackId.toString())
+                        .param("u", username)
+                        .param("p", "testpassword")
+                        .param("v", "1.16.1")
+                        .param("c", "test")
+                        .header(HttpHeaders.RANGE, "bytes=0-99999999"),
+                ).andReturn()
+        assertEquals(206, result.response.status, "end past EOF must clamp to a 206, not 416")
+        assertEquals("bytes 0-2047/2048", result.response.getHeader(HttpHeaders.CONTENT_RANGE))
+    }
+
+    @Test
+    fun `Subsonic getCoverArt resolves a cover id to the image bytes`() {
+        val albumId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path) VALUES (?,?,?,?,?)",
+            albumId,
+            "ALBUM",
+            "Cover Album",
+            "cover album",
+            "Cover/Album",
+        )
+        jdbc.update("INSERT INTO core_v2_library.albums (entity_id) VALUES (?)", albumId)
+        val cover = Files.createTempFile("yaytsa-cover-", ".jpg")
+        // Minimal JPEG SOI/EOI marker bytes.
+        Files.write(cover, byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte()))
+        jdbc.update(
+            "INSERT INTO core_v2_library.images (id, entity_id, image_type, path, is_primary) VALUES (?,?,?,?,true)",
+            UUID.randomUUID(),
+            albumId,
+            "Primary",
+            cover.toAbsolutePath().toString(),
+        )
+
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/rest/getCoverArt")
+                        .param("id", albumId.toString())
+                        .param("u", username)
+                        .param("p", "testpassword")
+                        .param("v", "1.16.1")
+                        .param("c", "test"),
+                ).andReturn()
+        assertEquals(200, result.response.status, "a valid cover id must serve the image, not 404")
+        assertEquals("image/jpeg", result.response.contentType)
+        Files.deleteIfExists(cover)
+    }
 }

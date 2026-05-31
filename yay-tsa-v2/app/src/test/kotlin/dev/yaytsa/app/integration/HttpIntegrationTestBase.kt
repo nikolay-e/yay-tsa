@@ -30,6 +30,11 @@ abstract class HttpIntegrationTestBase {
                 .withPassword("test")
                 .withInitScript("init-extensions.sql")
 
+        // MPD runs in the shared context on a free port so protocol tests can connect over TCP
+        // without spawning a second Spring context (which would collide on the singleton JCache).
+        @JvmStatic
+        val mpdPort: Int = java.net.ServerSocket(0).use { it.localPort }
+
         init {
             postgres.start()
         }
@@ -43,7 +48,9 @@ abstract class HttpIntegrationTestBase {
             registry.add("spring.flyway.enabled") { "false" }
             registry.add("spring.jpa.hibernate.ddl-auto") { "none" }
             registry.add("yaytsa.library.music-path") { System.getProperty("java.io.tmpdir") }
-            registry.add("yaytsa.mpd.enabled") { "false" }
+            registry.add("yaytsa.karaoke.output-path") { System.getProperty("java.io.tmpdir") }
+            registry.add("yaytsa.mpd.enabled") { "true" }
+            registry.add("yaytsa.mpd.port") { mpdPort.toString() }
             registry.add("yaytsa.llm.enabled") { "false" }
             registry.add("yaytsa.ml.enabled") { "false" }
             registry.add("yaytsa.karaoke.enabled") { "false" }
