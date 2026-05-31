@@ -1,7 +1,7 @@
 {{- if .Values.featureExtractor.enabled }}
 # Batch ML feature extraction. Runs the essentia feature-extractor image on a
 # schedule; the CLI scans core_v2_library for tracks missing core_v2_ml.track_features
-# and fills them. Reuses the GPU-less essentia image — keeps the backend lean.
+# and fills them. CLAP/MERT embeddings run on GPU; Essentia/TF stays on CPU.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -34,6 +34,14 @@ spec:
           nodeSelector:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.featureExtractor.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.featureExtractor.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -55,6 +63,8 @@ spec:
                   value: {{ .Values.featureExtractor.batchLimit | quote }}
                 - name: HF_HOME
                   value: /tmp/hf
+                - name: DEVICE
+                  value: {{ .Values.featureExtractor.device | default "cuda" | quote }}
               envFrom:
                 - secretRef:
                     name: {{ .Values.featureExtractor.database.secretName }}

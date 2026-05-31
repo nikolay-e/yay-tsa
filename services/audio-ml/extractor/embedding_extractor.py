@@ -23,7 +23,7 @@ MAX_AUDIO_DURATION_SEC = 300
 
 
 class DualEmbeddingExtractor:
-    def __init__(self, cache_dir: str | None = None):
+    def __init__(self, cache_dir: str | None = None, device: str | None = None):
         self._cache_dir = cache_dir or os.getenv("HF_HOME", "/app/hf_cache")
         self._clap_lock = threading.Lock()
         self._mert_lock = threading.Lock()
@@ -34,6 +34,8 @@ class DualEmbeddingExtractor:
         self._clap_initialized = False
         self._mert_initialized = False
         self._torch = None
+        self._requested_device = device or os.getenv("DEVICE")
+        self._device = None
         self._target_layer = int(os.getenv("MERT_TARGET_LAYER", "8"))
 
     def _ensure_torch(self):
@@ -41,6 +43,27 @@ class DualEmbeddingExtractor:
             import torch
 
             self._torch = torch
+            self._device = self._resolve_device(torch)
+            log.info("Embedding extraction device: %s", self._device)
+
+    def _resolve_device(self, torch) -> str:
+        requested = (self._requested_device or "").strip().lower()
+        cuda_available = torch.cuda.is_available()
+        if requested in ("cuda", "gpu"):
+            if cuda_available:
+                return "cuda"
+            log.warning("DEVICE=%s requested but CUDA unavailable, using CPU", requested)
+            return "cpu"
+        if requested == "cpu":
+            return "cpu"
+        return "cuda" if cuda_available else "cpu"
+
+    def _move_to_device(self, inputs):
+        return {k: (v.to(self._device) if hasattr(v, "to") else v) for k, v in inputs.items()}
+
+    def _free_device_memory(self):
+        if self._device == "cuda" and self._torch is not None:
+            self._torch.cuda.empty_cache()
 
     def _ensure_clap(self):
         if self._clap_initialized:
@@ -55,6 +78,7 @@ class DualEmbeddingExtractor:
             from transformers import ClapModel, ClapProcessor
 
             self._clap_model = ClapModel.from_pretrained(CLAP_MODEL_ID, cache_dir=self._cache_dir)
+            self._clap_model = self._clap_model.to(self._device)
             self._clap_model.eval()
             self._clap_processor = ClapProcessor.from_pretrained(
                 CLAP_MODEL_ID, cache_dir=self._cache_dir
@@ -81,6 +105,7 @@ class DualEmbeddingExtractor:
                 trust_remote_code=True,
                 revision=MERT_REVISION,
             )
+            self._mert_model = self._mert_model.to(self._device)
             self._mert_model.eval()
             self._mert_processor = Wav2Vec2FeatureExtractor.from_pretrained(
                 MERT_MODEL_ID,
@@ -99,8 +124,10 @@ class DualEmbeddingExtractor:
 
         clap_embedding = self._extract_clap(file_path, librosa)
         gc.collect()
+        self._free_device_memory()
         mert_embedding = self._extract_mert(file_path, librosa)
         gc.collect()
+        self._free_device_memory()
 
         elapsed_ms = int((time.time() - start) * 1000)
         log.info("Embedding extraction completed in %dms", elapsed_ms)
@@ -123,6 +150,7 @@ class DualEmbeddingExtractor:
             text = text[:TEXT_MAX_CHARS]
 
         inputs = self._clap_processor(text=[text], return_tensors="pt", padding=True)
+        inputs = self._move_to_device(inputs)
         with self._torch.no_grad():
             text_features = self._clap_model.get_text_features(**inputs)
 
@@ -151,6 +179,7 @@ class DualEmbeddingExtractor:
                 inputs = self._clap_processor(
                     audio=[chunk], sampling_rate=CLAP_SAMPLE_RATE, return_tensors="pt"
                 )
+                inputs = self._move_to_device(inputs)
                 with self._torch.no_grad():
                     audio_features = self._clap_model.get_audio_features(**inputs)
                 if hasattr(audio_features, "pooler_output"):
@@ -186,6 +215,7 @@ class DualEmbeddingExtractor:
                 inputs = self._mert_processor(
                     chunk, sampling_rate=MERT_SAMPLE_RATE, return_tensors="pt"
                 )
+                inputs = self._move_to_device(inputs)
                 with self._torch.no_grad():
                     outputs = self._mert_model(**inputs, output_hidden_states=True)
 

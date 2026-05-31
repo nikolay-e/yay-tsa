@@ -117,7 +117,16 @@ featureExtractor:
     secretName: yay-tsa-postgres
   media:
     hostPath: /mnt/t7-music
+  # CLAP/MERT embeddings run on GPU; Essentia/TF DSP stays on CPU.
+  device: 'cuda'
   nodeSelector: {}
+  # Requesting nvidia.com/gpu pins the pod to the GPU node; the node taint needs
+  # this toleration to let a non-GPU-dedicated batch job land there.
+  tolerations:
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: Exists
+  affinity: {}
   resources:
     requests:
       memory: '4Gi'
@@ -125,6 +134,7 @@ featureExtractor:
     limits:
       memory: '10Gi'
       cpu: '4'
+      nvidia.com/gpu: 1
 
 # Per-user taste clustering CronJob (PCA + dynamic-k k-means on MERT embeddings).
 # Writes core_v2_ml.taste_clusters; radio seeds read the medoids. DB-only.
