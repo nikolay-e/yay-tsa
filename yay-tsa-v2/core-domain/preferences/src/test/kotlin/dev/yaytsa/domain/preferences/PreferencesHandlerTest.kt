@@ -150,8 +150,26 @@ class PreferencesHandlerTest :
             r.value.preferenceContract!!.softPrefs shouldBe "new prefs"
         }
 
+        test("SetFavorite prepends newly liked track to the front of the custom order") {
+            // Add t1 (front: [t1@0]), then add t2 (front: [t2@0, t1@1])
+            var s = prefs()
+            val r1 = PreferencesHandler.handle(s, SetFavorite(userId, t1, now), ctx(s.version), deps(setOf(t1)))
+            r1.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
+            s = r1.value
+
+            val r2 = PreferencesHandler.handle(s, SetFavorite(userId, t2, now), ctx(s.version), deps(setOf(t2)))
+            r2.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
+            s = r2.value
+
+            // The most recently liked track (t2) sits at position 0, the older one shifts down
+            s.favorites.sortedBy { it.position }.map { it.trackId } shouldBe listOf(t2, t1)
+            s.favorites.first { it.trackId == t2 }.position shouldBe 0
+            s.favorites.first { it.trackId == t1 }.position shouldBe 1
+        }
+
         test("Favorites position correct after set-unset-set cycle") {
-            // Add t1 (pos 0), add t2 (pos 1), unset t1 (compact: t2 at pos 0), add t1 back (pos 1)
+            // Add t1 (front: [t1@0]), add t2 (front: [t2@0, t1@1]),
+            // unset t1 (compact: [t2@0]), add t1 back (front: [t1@0, t2@1])
             var s = prefs()
             val r1 = PreferencesHandler.handle(s, SetFavorite(userId, t1, now), ctx(s.version), deps(setOf(t1)))
             r1.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
@@ -170,8 +188,9 @@ class PreferencesHandlerTest :
             s = r4.value
 
             s.favorites.size shouldBe 2
-            s.favorites.sortedBy { it.position }.map { it.trackId } shouldBe listOf(t2, t1)
-            s.favorites[0].position shouldBe 0
-            s.favorites[1].position shouldBe 1
+            // t1 was re-liked last, so it returns to the front
+            s.favorites.sortedBy { it.position }.map { it.trackId } shouldBe listOf(t1, t2)
+            s.favorites.first { it.trackId == t1 }.position shouldBe 0
+            s.favorites.first { it.trackId == t2 }.position shouldBe 1
         }
     })

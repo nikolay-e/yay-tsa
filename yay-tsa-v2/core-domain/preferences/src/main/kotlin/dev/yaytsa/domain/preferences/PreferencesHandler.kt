@@ -40,8 +40,10 @@ object PreferencesHandler {
             // Already favorited — return unchanged (true no-op idempotency, no version bump)
             return snapshot.asSuccess(snapshot.version)
         }
-        val nextPosition = (snapshot.favorites.maxOfOrNull { it.position } ?: -1) + 1
-        val newFavorites = snapshot.favorites + Favorite(cmd.trackId, cmd.favoritedAt, nextPosition)
+        // Newly favorited tracks go to the front of the custom order: the new track takes
+        // position 0 and every existing favorite shifts down by one.
+        val shifted = snapshot.favorites.map { it.copy(position = it.position + 1) }
+        val newFavorites = listOf(Favorite(cmd.trackId, cmd.favoritedAt, 0)) + shifted
 
         val v = snapshot.version.next()
         return snapshot.copy(favorites = newFavorites, version = v).asSuccess(v)
