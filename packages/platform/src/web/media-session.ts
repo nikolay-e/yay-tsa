@@ -87,47 +87,64 @@ export class MediaSessionManager {
   }
 
   /**
-   * Set up action handlers for media controls
+   * setActionHandler that never throws — some browsers (notably older iOS Safari)
+   * reject actions they don't implement.
+   */
+  private setHandler(action: MediaSessionAction, handler: MediaSessionActionHandler | null): void {
+    if (!this.isSupported || !navigator.mediaSession) {
+      return;
+    }
+    try {
+      navigator.mediaSession.setActionHandler(action, handler);
+    } catch (error) {
+      log.debug('Action handler not supported', { action, error: String(error) });
+    }
+  }
+
+  /**
+   * Set up the stable action handlers (play/pause/seek/stop). Next/previous are managed
+   * separately via setNavigationHandlers so they can be enabled/disabled as the queue changes.
+   * A missing handler is explicitly cleared (set to null) rather than left stale.
    */
   public setActionHandlers(handlers: MediaSessionHandlers): void {
     if (!this.isSupported || !navigator.mediaSession) {
       return;
     }
 
-    // Play action
-    if (handlers.onPlay) {
-      navigator.mediaSession.setActionHandler('play', handlers.onPlay);
-    }
+    this.setHandler('play', handlers.onPlay ?? null);
+    this.setHandler('pause', handlers.onPause ?? null);
+    this.setNavigationHandlers(handlers.onNext ?? null, handlers.onPrevious ?? null);
 
-    // Pause action
-    if (handlers.onPause) {
-      navigator.mediaSession.setActionHandler('pause', handlers.onPause);
-    }
+    this.setHandler(
+      'seekto',
+      handlers.onSeek
+        ? details => {
+            if (details.seekTime !== undefined && handlers.onSeek) {
+              handlers.onSeek(details.seekTime);
+            }
+          }
+        : null
+    );
 
-    // Next track action
-    if (handlers.onNext) {
-      navigator.mediaSession.setActionHandler('nexttrack', handlers.onNext);
-    }
-
-    // Previous track action
-    if (handlers.onPrevious) {
-      navigator.mediaSession.setActionHandler('previoustrack', handlers.onPrevious);
-    }
-
-    // Seek action
-    if (handlers.onSeek) {
-      navigator.mediaSession.setActionHandler('seekto', details => {
-        if (details.seekTime !== undefined && handlers.onSeek) {
-          handlers.onSeek(details.seekTime);
-        }
-      });
-    }
-
-    // Stop action (clear playback)
-    navigator.mediaSession.setActionHandler('stop', () => {
+    this.setHandler('stop', () => {
       this.clearMetadata();
       this.setPlaybackState('none');
     });
+
+    // Deliberately do NOT register seekforward/seekbackward: on iOS those render as ±10/15s skip
+    // buttons on the lock screen that crowd out (or replace) next/previous track. Clear them so a
+    // stale handler can never shadow the track controls.
+    this.setHandler('seekforward', null);
+    this.setHandler('seekbackward', null);
+  }
+
+  /**
+   * Enable or disable the lock-screen next/previous track controls. Pass null to remove a control
+   * (e.g. no next track at the end of the queue) instead of leaving a dead button.
+   */
+  public setNavigationHandlers(onNext: (() => void) | null, onPrevious: (() => void) | null): void {
+    this.setHandler('nexttrack', onNext);
+    this.setHandler('previoustrack', onPrevious);
   }
 
   /**
@@ -167,6 +184,8 @@ export class MediaSessionManager {
       'previoustrack',
       'nexttrack',
       'seekto',
+      'seekforward',
+      'seekbackward',
       'stop',
     ];
 

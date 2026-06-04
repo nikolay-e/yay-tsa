@@ -22,6 +22,7 @@ import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
 import { PlaybackController, withTimeout } from './playback-controller';
 import { PreloadManager } from './preload-manager';
+import { navAvailability, previousAction, endedAction } from './playback-decisions';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -243,6 +244,32 @@ export const usePlayerStore = create<PlayerStore>()(
     function syncQueueState(): void {
       const { queue } = get();
       set({ queueItems: queue.getAllItems(), queueIndex: queue.getCurrentIndex() });
+      updateMediaSessionNav();
+    }
+
+    // Keep the lock-screen next/previous controls in sync with the queue. nexttrack is removed when
+    // there is genuinely nothing next (last track, repeat off) so the OS doesn't show a dead button;
+    // previoustrack stays available whenever a track is loaded because previous() restarts the
+    // current track when >3s in, and steps back otherwise.
+    function updateMediaSessionNav(): void {
+      if (!session) return;
+      const { hasNext, hasPrevious } = navAvailability(get().queue);
+      session.setNavigationHandlers(
+        hasNext
+          ? () => {
+              get()
+                .next()
+                .catch(() => {});
+            }
+          : null,
+        hasPrevious
+          ? () => {
+              get()
+                .previous()
+                .catch(() => {});
+            }
+          : null
+      );
     }
 
     function reportStopped(): void {
@@ -559,15 +586,16 @@ export const usePlayerStore = create<PlayerStore>()(
 
       void controller.ifIdle(async signal => {
         const { repeatMode } = get();
+        const next = resolveNextItem(get().queue, repeatMode);
+        const action = endedAction(repeatMode, next);
 
-        if (repeatMode === 'one') {
+        if (action.type === 'repeat-one') {
           engine.seek(0);
           await engine.play();
           return;
         }
 
-        const next = resolveNextItem(get().queue, repeatMode);
-        if (!next) {
+        if (action.type === 'stop' || !next) {
           engine.pause();
           wakeLock.release();
           if (playbackReporter && currentItemId) {
@@ -638,14 +666,20 @@ export const usePlayerStore = create<PlayerStore>()(
         recoverStalledAdvance();
       });
 
-      // visibilitychange fires only when the tab is hidden/shown. Switching
-      // window focus on desktop leaves the tab visible, so we also recover
-      // on window focus to catch advance stalls when the user alt-tabs back.
+      // iOS suspends JS on a locked screen, so the 'ended' event for a track that finishes in the
+      // background is deferred until the app/tab wakes. Reconcile on every wake signal so the next
+      // track starts immediately on resume rather than needing a manual tap:
+      //  - visibilitychange: tab hidden/shown (covered above)
+      //  - focus: desktop alt-tab back (tab stayed visible)
+      //  - pageshow: bfcache restore and installed-PWA resume from background
       if (globalThis.window !== undefined) {
         globalThis.window.addEventListener('focus', recoverStalledAdvance);
+        globalThis.window.addEventListener('pageshow', recoverStalledAdvance);
       }
     }
 
+    // Stable controls registered once. next/previous are owned by updateMediaSessionNav() (called
+    // from syncQueueState on every queue/track change) so they reflect actual availability.
     session?.setActionHandlers({
       onPlay: () => {
         get()
@@ -654,16 +688,6 @@ export const usePlayerStore = create<PlayerStore>()(
       },
       onPause: () => get().pause(),
       onSeek: seconds => get().seek(seconds),
-      onNext: () => {
-        get()
-          .next()
-          .catch(() => {});
-      },
-      onPrevious: () => {
-        get()
-          .previous()
-          .catch(() => {});
-      },
     });
 
     async function enableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
@@ -891,16 +915,13 @@ export const usePlayerStore = create<PlayerStore>()(
       previous: async () => {
         await controller.interrupt(async signal => {
           const currentTime = useTimingStore.getState().currentTime;
-          if (currentTime > 3) {
-            engine.seek(0);
-            return;
-          }
-
           const { queue } = get();
-          if (queue.hasPrevious()) {
+          if (previousAction(currentTime, queue.hasPrevious()) === 'previous') {
             const prevTrack = queue.previous();
             if (prevTrack) {
               await loadAndPlay(prevTrack, signal);
+            } else {
+              engine.seek(0);
             }
           } else {
             engine.seek(0);
