@@ -225,6 +225,15 @@
     touch-action: manipulation;
   }
 
+  /* Toggled by SortableList for the duration of a drag/reorder gesture. Scoped to the
+     drag window only — we never disable selection on <body> permanently, so inputs,
+     search, settings forms and copyable text keep working when nothing is being dragged. */
+  body.dragging {
+    cursor: grabbing;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   a:focus-visible,
   summary:focus-visible {
     outline: 2px solid var(--color-accent);

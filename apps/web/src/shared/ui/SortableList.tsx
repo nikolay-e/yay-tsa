@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -19,6 +19,17 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+
+// Class applied to <body> only while a drag is in flight. Suppresses the native
+// text-selection a drag gesture would otherwise trigger across the whole document
+// (the pointer can travel outside the dragged row) and shows a grabbing cursor.
+// Always paired with a removal on drag end/cancel/unmount so it never sticks.
+const BODY_DRAGGING_CLASS = 'dragging';
+
+function setBodyDragging(active: boolean) {
+  if (typeof document === 'undefined') return;
+  document.body.classList.toggle(BODY_DRAGGING_CLASS, active);
+}
 
 type SortableListProps<T extends { Id: string }> = Readonly<{
   items: T[];
@@ -50,7 +61,7 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={cn('group/sortable relative', isDragging && 'z-50 opacity-75')}
+      className={cn('group/sortable relative select-none', isDragging && 'z-50 opacity-75')}
       {...attributes}
     >
       <button
@@ -84,7 +95,12 @@ export function SortableList<T extends { Id: string }>({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Safety net: if the component unmounts mid-drag (e.g. the user switches the sort
+  // mode away from custom order), drop the body class so selection never stays disabled.
+  useEffect(() => () => setBodyDragging(false), []);
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setBodyDragging(false);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -98,7 +114,13 @@ export function SortableList<T extends { Id: string }>({
   const strategy = layout === 'grid' ? rectSortingStrategy : verticalListSortingStrategy;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={() => setBodyDragging(true)}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setBodyDragging(false)}
+    >
       <SortableContext items={items.map(item => item.Id)} strategy={strategy}>
         <div className={layout === 'grid' ? gridClassName : 'space-y-1'}>
           {items.map((item, index) => (
