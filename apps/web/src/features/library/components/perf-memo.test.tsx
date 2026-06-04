@@ -94,4 +94,40 @@ describe('TrackListRow memo/comparator', () => {
     expect(onPlayTrack).toHaveBeenCalledWith(expect.objectContaining({ Id: 't3' }), 2);
     cleanup();
   });
+
+  it('play/pause action + current-playing render stay correct across an append', () => {
+    const onPlayTrack = vi.fn();
+    const onPauseTrack = vi.fn();
+    const tracks = [track('t1', 'One', false), track('t2', 'Two', false)];
+    const { rerender } = render(
+      wrap(<TrackList tracks={tracks} onPlayTrack={onPlayTrack} onPauseTrack={onPauseTrack} />)
+    );
+
+    // Nothing playing yet: a row's control fires play with the right index.
+    fireEvent.click(screen.getByText('One'));
+    expect(onPlayTrack).toHaveBeenCalledWith(expect.objectContaining({ Id: 't1' }), 0);
+
+    // Simulate the player store reporting t1 as the current, playing track. The row must reflect it
+    // (its control flips to a Pause affordance) — driven purely by props, no audio needed.
+    const playing = (extra: AudioItem[] = []) => (
+      <TrackList
+        tracks={[...tracks, ...extra]}
+        currentTrackId="t1"
+        isPlaying
+        onPlayTrack={onPlayTrack}
+        onPauseTrack={onPauseTrack}
+      />
+    );
+    rerender(wrap(playing()));
+    expect(screen.getByRole('button', { name: 'Pause One' })).toBeTruthy();
+
+    // Append a page; the still-current row keeps the correct pause action (memo'd row not stale)...
+    rerender(wrap(playing([track('t3', 'Three', false)])));
+    fireEvent.click(screen.getByRole('button', { name: 'Pause One' }));
+    expect(onPauseTrack).toHaveBeenCalledTimes(1);
+    // ...and a freshly appended, non-current row still triggers play (not pause).
+    fireEvent.click(screen.getByText('Three'));
+    expect(onPlayTrack).toHaveBeenLastCalledWith(expect.objectContaining({ Id: 't3' }), 2);
+    cleanup();
+  });
 });
