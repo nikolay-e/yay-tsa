@@ -68,8 +68,8 @@ export function RadioSeeds() {
         <RadioRefreshButton />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-        {data.seeds.map(seed => (
-          <RadioSeedCard key={seed.trackId} seed={seed} />
+        {data.seeds.map((seed, i) => (
+          <RadioSeedCard key={seed.trackId} seed={seed} priority={i === 0} />
         ))}
       </div>
     </div>

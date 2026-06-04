@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -24,6 +25,7 @@ import java.nio.file.StandardOpenOption
 @RestController
 class JellyfinMediaController(
     private val libraryQueries: LibraryQueries,
+    private val thumbnails: ThumbnailService,
     @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -36,6 +38,8 @@ class JellyfinMediaController(
         @RequestParam(required = false) maxWidth: Int?,
         @RequestParam(required = false) maxHeight: Int?,
         @RequestParam(required = false) quality: Int?,
+        @RequestHeader(value = HttpHeaders.ACCEPT, required = false) accept: String?,
+        @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) ifNoneMatch: String?,
     ): ResponseEntity<Resource> {
         val image =
             libraryQueries.getPrimaryImage(EntityId(itemId))
@@ -44,19 +48,25 @@ class JellyfinMediaController(
         val filePath = Path.of(image.path)
         if (!Files.exists(filePath)) return ResponseEntity.notFound().build()
 
-        val contentType =
-            when (filePath.toString().substringAfterLast('.').lowercase()) {
-                "jpg", "jpeg" -> "image/jpeg"
-                "png" -> "image/png"
-                "webp" -> "image/webp"
-                else -> "image/jpeg"
-            }
+        val acceptWebp = accept?.contains("image/webp", ignoreCase = true) == true
+        val rendered = thumbnails.render(filePath, maxWidth, maxHeight, quality, acceptWebp)
+
+        if (ifNoneMatch != null && ifNoneMatch == rendered.etag) {
+            return ResponseEntity
+                .status(HttpStatus.NOT_MODIFIED)
+                .header(HttpHeaders.ETAG, rendered.etag)
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=2592000")
+                .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
+                .build()
+        }
 
         return ResponseEntity
             .ok()
-            .header(HttpHeaders.CONTENT_TYPE, contentType)
+            .header(HttpHeaders.CONTENT_TYPE, rendered.contentType)
             .header(HttpHeaders.CACHE_CONTROL, "max-age=2592000")
-            .body(FileSystemResource(filePath))
+            .header(HttpHeaders.ETAG, rendered.etag)
+            .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
+            .body(FileSystemResource(rendered.file))
     }
 
     @GetMapping("/Audio/{itemId}/universal")

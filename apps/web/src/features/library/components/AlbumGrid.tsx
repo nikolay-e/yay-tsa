@@ -19,13 +19,14 @@ export function AlbumGrid({ albums, playingAlbumId, onPlayAlbum, onPause }: Albu
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {albums.map(album => (
+      {albums.map((album, i) => (
         <AlbumCard
           key={album.Id}
           album={album}
           isPlaying={playingAlbumId === album.Id}
           onPlay={() => onPlayAlbum?.(album)}
           onPause={onPause}
+          priority={i === 0}
         />
       ))}
     </div>

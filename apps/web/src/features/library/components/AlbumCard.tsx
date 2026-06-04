@@ -10,9 +10,10 @@ type AlbumCardProps = Readonly<{
   isPlaying?: boolean;
   onPlay?: () => void;
   onPause?: () => void;
+  priority?: boolean;
 }>;
 
-function AlbumCardImpl({ album, isPlaying, onPlay, onPause }: AlbumCardProps) {
+function AlbumCardImpl({ album, isPlaying, onPlay, onPause, priority }: AlbumCardProps) {
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const artistId = album.ArtistItems?.[0]?.Id;
   const isIncomplete =
@@ -69,6 +70,7 @@ function AlbumCardImpl({ album, isPlaying, onPlay, onPause }: AlbumCardProps) {
       imageOverlay={overlay}
       imageTestId="album-cover"
       testId="album-card"
+      priority={priority}
     >
       <h2 data-testid="album-title" className="text-text-primary truncate font-medium">
         <Link

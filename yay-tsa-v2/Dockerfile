@@ -60,7 +60,9 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 
 RUN addgroup -g 1000 yaytsa && adduser -u 1000 -G yaytsa -D yaytsa
 
-RUN apk add --no-cache ffmpeg
+# ffmpeg: audio transcoding. libwebp-tools: cwebp, for on-the-fly WebP cover thumbnails
+# (musl-native, so it loads on Alpine where a JVM glibc WebP encoder would not).
+RUN apk add --no-cache ffmpeg libwebp-tools
 
 WORKDIR /app
 COPY --from=builder /app/yay-tsa-v2/app/build/libs/*.jar app.jar

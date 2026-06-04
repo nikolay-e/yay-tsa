@@ -6,18 +6,29 @@ import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { RADIO_TEST_IDS } from '@/shared/testing/test-ids';
 import { cn } from '@/shared/utils/cn';
 
+// Home seed cards display ~150–180px; request a 160px thumbnail capped at 2× DPR.
+const SEED_THUMB_PX = 160;
+function thumbPx(): number {
+  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  return Math.round(SEED_THUMB_PX * dpr);
+}
+
 function resolveImageSrc(
   hasError: boolean,
   seed: RadioSeed,
   getImageUrl: ReturnType<typeof useImageUrl>['getImageUrl']
 ): string {
   if (hasError || !seed.albumId) return getImagePlaceholder();
-  const opts = { maxWidth: 300, maxHeight: 300 };
+  const px = thumbPx();
+  const opts = { maxWidth: px, maxHeight: px };
   if (seed.imageTag) return getImageUrl(seed.albumId, 'Primary', { ...opts, tag: seed.imageTag });
   return getImageUrl(seed.albumId, 'Primary', opts);
 }
 
-export function RadioSeedCard({ seed }: Readonly<{ seed: RadioSeed }>) {
+export function RadioSeedCard({
+  seed,
+  priority = false,
+}: Readonly<{ seed: RadioSeed; priority?: boolean }>) {
   const { getImageUrl } = useImageUrl();
   const { hasError, onError } = useImageErrorTracking(seed.trackId, seed.imageTag, seed.albumId);
   const isStarting = useIsSessionStarting();
@@ -45,7 +56,11 @@ export function RadioSeedCard({ seed }: Readonly<{ seed: RadioSeed }>) {
         <img
           src={imgSrc}
           alt={seed.name}
+          width={SEED_THUMB_PX}
+          height={SEED_THUMB_PX}
           className="h-full w-full object-cover"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : undefined}
           onError={onError}
         />
         <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">

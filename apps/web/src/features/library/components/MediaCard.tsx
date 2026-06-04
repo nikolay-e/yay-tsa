@@ -14,7 +14,19 @@ type MediaCardProps = Readonly<{
   children: ReactNode;
   href?: string;
   testId?: string;
+  /** Requested cover size in px. Grid cards display ~150–180px, so the default is a 160px thumbnail
+   * (a 2× DPR cap of 320 is requested so retina stays crisp without pulling the full-res original). */
+  imageSize?: number;
+  /** Set on the single above-the-fold LCP cover only: eager load + fetchpriority=high. */
+  priority?: boolean;
 }>;
+
+// Display slot is ~150–180px; request 160 CSS px, capped at 2× DPR for retina.
+const GRID_THUMB_PX = 160;
+function thumbPx(cssPx: number): number {
+  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  return Math.round(cssPx * dpr);
+}
 
 const WRAPPER_CLASSES =
   'group relative isolate rounded-md p-2 bg-bg-secondary hover:bg-bg-tertiary transition-colors';
@@ -29,11 +41,14 @@ export function MediaCard({
   children,
   href,
   testId,
+  imageSize = GRID_THUMB_PX,
+  priority = false,
 }: MediaCardProps) {
   const { hasError, onError } = useImageErrorTracking(itemId, imageTag);
   const { getImageUrl } = useImageUrl();
+  const px = thumbPx(imageSize);
   const imageUrl = imageTag
-    ? getImageUrl(itemId, 'Primary', { maxWidth: 300, maxHeight: 300, tag: imageTag })
+    ? getImageUrl(itemId, 'Primary', { maxWidth: px, maxHeight: px, tag: imageTag })
     : getImagePlaceholder();
 
   const imageContainerClasses = cn(
@@ -48,8 +63,11 @@ export function MediaCard({
           data-testid={imageTestId}
           src={hasError ? getImagePlaceholder() : imageUrl}
           alt={imageAlt}
+          width={imageSize}
+          height={imageSize}
           className="h-full w-full object-cover"
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : undefined}
           onError={onError}
         />
         {imageOverlay}

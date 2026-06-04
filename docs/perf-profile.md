@@ -147,6 +147,53 @@ decode win is both.
 | `width`/`height` attrs on covers            | possible CLS       | no layout shift   | CLS + LCP stability       | low                                   |
 | `fetchpriority="high"` on the one LCP cover | none               | earlier LCP paint | medium                    | low                                   |
 
+## 4c. Image pipeline fix (implemented)
+
+The contract bug is fixed — the endpoint now honours `maxWidth`/`maxHeight`/`quality`.
+
+**Backend** (`ThumbnailService` + `JellyfinMediaController.getImage`):
+
+- Resizes with ImageIO (pure-JDK, works on the Alpine runtime), aspect-ratio preserved, **never
+  upscales**; `quality` applied to the lossy output; dimensions clamped to 32–1200 px and quality to
+  40–95 — bad input is clamped, **never a 500**; no size params → original served unchanged.
+- **WebP** when the client sends `Accept: image/webp` and `cwebp` is present (musl-native
+  `libwebp-tools`, added to the Alpine image) — otherwise JPEG; a failed encode degrades to the
+  original. `Vary: Accept` is set.
+- **On-disk thumbnail cache** keyed by `sha256(absPath|mtime|size|w|h|quality|format)`, so a changed
+  source invalidates and an identical request is a pure read (no re-resize). Cache files are named by
+  hash → no path traversal.
+- **HTTP caching**: `Cache-Control: max-age=2592000`, `ETag`, and `304` on `If-None-Match`.
+
+**Frontend tiers** (`MediaCard`/`RadioSeedCard` 160 px grid @≤2× DPR, `TrackList` 48 px, detail/now-
+playing 300–400 px), `width`/`height` attributes (no CLS), `loading="lazy"` below the fold, and
+`fetchpriority="high"` + eager on **only the first** card per page (the LCP candidate).
+
+**Before / after (`npm run profile:images`, representative cover; ratios validated by the backend's
+own resize in `ThumbnailServiceTest`):**
+
+| Cover variant                      | bytes (typical 1200 px source) | vs full-res |
+| ---------------------------------- | ------------------------------ | ----------- |
+| served before (full-res original)  | ~250 kB                        | —           |
+| 300 px JPEG                        | ~40 kB                         | −84%        |
+| **160 px WebP (grid, served now)** | **~7–15 kB**                   | **~−95%**   |
+
+Home (~38 covers) cold-load cover bytes: **~9 MB → ~0.3 MB**. Decode also drops to ~1.8% of the pixels.
+
+**Manual endpoint check** (running server, `$ID` an album id, `$T` a token):
+
+```bash
+B=https://host/api
+curl -so /dev/null -w 'orig:   %{size_download}B %{content_type}\n' "$B/Items/$ID/Images/Primary?api_key=$T"
+curl -so /dev/null -w '300jpg: %{size_download}B %{content_type}\n' "$B/Items/$ID/Images/Primary?maxWidth=300&api_key=$T"
+curl -so /dev/null -H 'Accept: image/webp' -w '160webp:%{size_download}B %{content_type}\n' "$B/Items/$ID/Images/Primary?maxWidth=160&api_key=$T"
+ETAG=$(curl -sI "$B/Items/$ID/Images/Primary?maxWidth=160&api_key=$T" | tr -d '\r' | awk -F': ' '/[Ee]tag/{print $2}')
+curl -s -o /dev/null -w 'revalidate: %{http_code}\n' -H "If-None-Match: $ETAG" "$B/Items/$ID/Images/Primary?maxWidth=160&api_key=$T"  # -> 304
+```
+
+**Tests:** backend `ThumbnailServiceTest` (8 — resize bound, aspect ratio, no-upscale, quality→bytes,
+clamp-no-500, cache hit not re-rendered, mtime invalidation, WebP-when-cwebp-else-JPEG);
+frontend `ImageTiers.test.tsx` (3 — grid asks 160 not 300, first card eager+fetchpriority, rows ask 48).
+
 ## 5. Ranked bottlenecks (evidence-based)
 
 **P0 — Cold-start auth render-gate** _(evidenced; biggest cold-start lever)._
@@ -173,9 +220,10 @@ On a slow/unreachable backend the PWA can wait up to 10 s before serving the cac
 → **Fix:** lower `networkTimeoutSeconds` to ~3 s, or use StaleWhileRevalidate for navigation so the
 shell paints from cache instantly on reopen. → **Verify:** `profile:web` warm scenario FCP.
 
-**P1 — Covers served full-resolution (backend ignores resize); likely the Home LCP on mobile/cold.**
-_(root cause code-certain + reduction ratios measured; §4b. LCP attribution pending one `profile:web`
-run.)_ ~38 full-res covers on Home (~9 MB cold at ~250 kB each), each decoded at ~50× the pixels it's
+**P1 — Covers served full-resolution (backend ignored resize); likely the Home LCP on mobile/cold.**
+**✅ FIXED in this PR — see §4c** (backend now resizes + WebP + caches; client requests display tiers).
+_(root cause code-certain + reduction ratios measured; §4b. LCP attribution still worth one
+`profile:web` run for the report.)_ ~38 full-res covers on Home (~9 MB cold at ~250 kB each), each decoded at ~50× the pixels it's
 displayed at. The client `maxWidth:300` does nothing because the endpoint ignores it.
 → **Fix (backend-first — the client param is a no-op):** make `getImage` honour `maxWidth`/`quality`
 and emit WebP/AVIF (cache derived thumbnails on disk); add client size tiers (160 grid / 300 detail /
