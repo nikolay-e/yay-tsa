@@ -41,7 +41,11 @@ port = $PORT
 EOF
 chown "$ACC" "$DIR/data/postgresql.conf"
 run_as "pg_ctl -D $DIR/data -l $DIR/server.log start" >/dev/null
-trap "run_as 'pg_ctl -D $DIR/data stop -m immediate' >/dev/null 2>&1 || true; rm -rf $DIR" EXIT
+cleanup() {
+  run_as "pg_ctl -D $DIR/data stop -m immediate" >/dev/null 2>&1 || true
+  rm -rf "$DIR"
+}
+trap cleanup EXIT
 sleep 1
 
 PSQL="psql -h $DIR -p $PORT -U perf -d yaytsa_perf -v ON_ERROR_STOP=1"
@@ -50,7 +54,9 @@ run_as "$PSQL -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'" >/dev/null
 for f in lib1 pref1 lib3 pref2; do run_as "$PSQL -f $DIR/$f.sql" >/dev/null; done
 
 for spec in "1000 50 100 850 100" "5000 250 500 4250 500" "20000 1000 2000 17000 2000"; do
-  set -- $spec; N=$1; art=$2; alb=$3; trk=$4; fav=$5
+  # shellcheck disable=SC2086  # intentional word-splitting of the space-separated spec
+  set -- $spec
+  N=$1 art=$2 alb=$3 trk=$4 fav=$5
   run_as "$PSQL -v artists=$art -v albums=$alb -v tracks=$trk -v favs=$fav -f $DIR/seed.sql" >/dev/null
   echo "===== SCALE: $N entities (favs=$fav) ====="
   run_as "$PSQL -v albums=$alb -v favs=$fav -f $DIR/measure.sql" 2>&1 \
