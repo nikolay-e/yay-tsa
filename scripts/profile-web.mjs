@@ -58,15 +58,37 @@ async function measurePage(browser, path, scenario) {
       const nav = performance.getEntriesByType('navigation')[0];
       const markAt = n => performance.getEntriesByName(`yaytsa:${n}`, 'mark')[0]?.startTime ?? null;
       const lcp = performance.getEntriesByType('largest-contentful-paint').pop();
+      // Per-image cost from Resource Timing (cover art served from /Images/...).
+      const imgRes = performance
+        .getEntriesByType('resource')
+        .filter(r => r.initiatorType === 'img' || /\/Images\//.test(r.name));
+      const imgBytes = imgRes.reduce((s, r) => s + (r.transferSize || r.encodedBodySize || 0), 0);
+      const largest = imgRes.reduce(
+        (m2, r) => Math.max(m2, r.transferSize || r.encodedBodySize || 0),
+        0
+      );
+      // Above-the-fold <img> count at measurement time.
+      const vh = window.innerHeight;
+      const aboveFold = [...document.images].filter(im => {
+        const r = im.getBoundingClientRect();
+        return r.top < vh && r.bottom > 0 && r.width > 0;
+      }).length;
+      const lcpEl = lcp && lcp.element ? lcp.element : null;
       return {
         TTFB: nav ? Math.round(nav.responseStart) : null,
         FCP: Math.round(get('paint', 'first-contentful-paint') ?? 0) || null,
         LCP: lcp ? Math.round(lcp.startTime) : null,
+        LCP_isImage: lcpEl ? lcpEl.tagName === 'IMG' : null,
+        LCP_url: lcp && lcp.url ? lcp.url : lcpEl ? lcpEl.tagName : null,
         DCL: nav ? Math.round(nav.domContentLoadedEventEnd) : null,
         Load: nav ? Math.round(nav.loadEventEnd) : null,
         app_start: markAt('app_start'),
         auth_restore_end: markAt('auth_restore_end'),
         first_route_render: markAt('first_route_render'),
+        img_count: imgRes.length,
+        img_KB: Math.round(imgBytes / 1024),
+        largest_img_KB: Math.round(largest / 1024),
+        above_fold_imgs: aboveFold,
       };
     });
     writeFileSync(traceFile, JSON.stringify({ path, scenario, ...m, requests, bytes }, null, 2));
@@ -78,15 +100,23 @@ async function measurePage(browser, path, scenario) {
     const xs = col(k);
     return xs.length ? `${Math.min(...xs)}/${median(xs)}/${Math.max(...xs)}` : '-';
   };
+  const lastLcpIsImage = samples
+    .map(s => s.LCP_isImage)
+    .filter(v => v != null)
+    .pop();
   return {
     page: path,
     scenario,
     'TTFB min/med/max': stat('TTFB'),
     'FCP min/med/max': stat('FCP'),
     'LCP min/med/max': stat('LCP'),
+    'LCP=img?': lastLcpIsImage == null ? '-' : lastLcpIsImage ? 'IMG' : 'text/other',
     'first_route min/med/max': stat('first_route_render'),
+    'imgs med': median(col('img_count')) ?? '-',
+    'img KB med': median(col('img_KB')) ?? '-',
+    'largest img KB': median(col('largest_img_KB')) ?? '-',
+    'above-fold imgs': median(col('above_fold_imgs')) ?? '-',
     'reqs med': median(col('requests')) ?? '-',
-    'KB med': Math.round((median(col('bytes')) ?? 0) / 1024),
   };
 }
 

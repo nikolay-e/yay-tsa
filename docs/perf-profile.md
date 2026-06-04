@@ -6,11 +6,12 @@ Three independent layers were profiled. Two were **measured here** with real num
 layer **cannot be measured in this sandbox** (the network policy blocks the Playwright/Lighthouse
 Chromium download), so a reproducible harness is provided to capture it on a browser-capable machine.
 
-| Layer                                  | Tool (reproducible)                                                                                                                    | Status here                        |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Bundle / chunks                        | `npm run profile:bundle`                                                                                                               | **measured**                       |
-| Backend API + DB                       | `./gradlew :app:test --tests '*ItemsEndpointBenchmark'`; `bash yay-tsa-v2/perf/run.sh`; `yaytsa.profiling.enabled=true` request filter | **measured**                       |
-| Browser (FCP/LCP/TTFB/marks/waterfall) | `npm run profile:web` (Playwright) + `?perf` boot marks                                                                                | **harness ready, needs a browser** |
+| Layer                                                                | Tool (reproducible)                                                                                                                    | Status here                          |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Bundle / chunks                                                      | `npm run profile:bundle`                                                                                                               | **measured**                         |
+| Backend API + DB                                                     | `./gradlew :app:test --tests '*ItemsEndpointBenchmark'`; `bash yay-tsa-v2/perf/run.sh`; `yaytsa.profiling.enabled=true` request filter | **measured**                         |
+| Image bytes/decode                                                   | `npm run profile:images` (sharp) + code (backend `getImage`)                                                                           | **measured (ratios) + code-certain** |
+| Browser (FCP/LCP/TTFB/marks/waterfall, per-image bytes, LCP element) | `npm run profile:web` (Playwright) + `?perf` boot marks                                                                                | **harness ready, needs a browser**   |
 
 Boot/render structure was traced from code (file:line evidence below), not guessed.
 
@@ -69,7 +70,7 @@ RootLayout mount (RootLayout.tsx:74) ──► restoreSession() ──► GET /U
 auth resolved ──► first_route_render ──► HomePage mounts
                                           ├─ useRadioSeeds()  staleTime:0  ─┐ parallel
                                           └─ useDailyMix(30)  staleTime:0  ─┘ (adaptive/ML)
-                                          ~38 images @300×300 (lazy, in-viewport load now)
+                                          ~38 covers, FULL-RES (backend ignores the 300px param) — likely Home LCP
 ```
 
 Evidence: `RootLayout.tsx:95-101` (spinner gate), `auth.store.ts:181-248` (`restoreSession` →
@@ -83,20 +84,68 @@ so CPU is **not** the cold-start cost. Time is lost to: critical-JS download/par
 
 ## 4. Per-page summary
 
-| Page           | Initial calls (parallel unless noted)                              | API/DB (measured)                 | Render gate        | Images                |
-| -------------- | ------------------------------------------------------------------ | --------------------------------- | ------------------ | --------------------- |
-| **Home (/)**   | RadioSeeds + DailyMix(30) — `staleTime:0`                          | **not benchmarked (adaptive/ML)** | none (after auth)  | ~38 @300px            |
-| **Albums**     | useInfiniteAlbums (50)                                             | 8 SQL / ~22 ms                    | none               | ~12–20 visible @300px |
-| **Songs**      | useInfiniteTracks (50); semantic = 2-req waterfall on type         | 10 SQL / ~24 ms                   | none               | per-row @48px         |
-| **Favorites**  | useInfiniteTracks isFavorite (50)                                  | 13 SQL / ~22 ms                   | none               | per-row @48px         |
-| **Artists**    | useInfiniteArtists (50)                                            | ~ artists query                   | none               | ~12–20 @300px         |
-| **Search**     | text via /Items; semantic = searchByText→getItemsByIds (waterfall) | 14 SQL / ~26 ms                   | none               | mixed                 |
-| **PWA reopen** | same as route + SW navigation NetworkFirst(10s)                    | n/a                               | spinner until auth | from SW cache         |
+| Page           | Initial calls (parallel unless noted)                              | API/DB (measured)                 | Render gate        | Images                          |
+| -------------- | ------------------------------------------------------------------ | --------------------------------- | ------------------ | ------------------------------- |
+| **Home (/)**   | RadioSeeds + DailyMix(30) — `staleTime:0`                          | **not benchmarked (adaptive/ML)** | none (after auth)  | ~38 FULL-RES (param ignored)    |
+| **Albums**     | useInfiniteAlbums (50)                                             | 8 SQL / ~22 ms                    | none               | ~12–20 FULL-RES (param ignored) |
+| **Songs**      | useInfiniteTracks (50); semantic = 2-req waterfall on type         | 10 SQL / ~24 ms                   | none               | per-row @48px                   |
+| **Favorites**  | useInfiniteTracks isFavorite (50)                                  | 13 SQL / ~22 ms                   | none               | per-row @48px                   |
+| **Artists**    | useInfiniteArtists (50)                                            | ~ artists query                   | none               | ~12–20 FULL-RES (param ignored) |
+| **Search**     | text via /Items; semantic = searchByText→getItemsByIds (waterfall) | 14 SQL / ~26 ms                   | none               | mixed                           |
+| **PWA reopen** | same as route + SW navigation NetworkFirst(10s)                    | n/a                               | spinner until auth | from SW cache                   |
 
 Browser columns (TTFB/FCP/LCP/INP, request count, transferred bytes, image bytes) are produced by
 `npm run profile:web` (writes `profile-artifacts/*.json` + a min/median/max table) — run on a browser
 machine; the `?perf` marks (`app_start`, `auth_restore`, `first_route_render`) are emitted by
 `src/shared/perf/perf.ts` and read by that harness and by `window.__perfDump()`.
+
+## 4b. Image profiling (cold-load byte & decode cost)
+
+**Decisive, code-certain finding — the backend does NOT resize covers.**
+`JellyfinMediaController.getImage` (`adapter-jellyfin/.../JellyfinMediaController.kt:36-59`) accepts
+`maxWidth`/`maxHeight`/`quality` **but ignores them** — it returns `FileSystemResource(filePath)`, the
+**original cover file** at source resolution (only the content-type is mapped). So the frontend's
+`maxWidth:300` (`MediaCard.tsx:36`) is a **no-op**: every cover downloads and decodes at full
+resolution and the browser scales it to the display slot.
+
+| Surface                          | display slot           | client requests     | backend serves        |
+| -------------------------------- | ---------------------- | ------------------- | --------------------- |
+| Grid card (`MediaCard`)          | ~150–180 px (cols-2…6) | `maxWidth:300` (2×) | **full-res original** |
+| Track row (`TrackList`)          | ~40 px                 | `maxWidth:48`       | **full-res original** |
+| Now-playing/detail (`PlayerBar`) | ~64 / ~400 px          | 64 / 400            | **full-res original** |
+
+**Measured reduction (`npm run profile:images`, sharp, structured representative cover):**
+
+| variant                                         | vs source |
+| ----------------------------------------------- | --------- |
+| 300 px JPEG (intended request size, if resized) | −84%      |
+| 300 px WebP                                     | −93%      |
+| 160 px WebP (grid thumbnail)                    | −97%      |
+| 48 px WebP (track row)                          | −99%      |
+
+**Exact, format-independent (decode ∝ pixels):** a 160 px slot needs **1.8%** of a 1200 px source's
+pixels (300 px = 6.3%) — a full-res cover is ~50× the pixels actually rendered in a grid card.
+
+**Scale:** Home shows ~38 covers near the fold. At a typical 1200 px photographic cover (~250 kB),
+that's **~9 MB** of cover bytes on a cold load, all decoded full-res; 160 px WebP thumbnails would be
+**~0.3 MB** (−97%). Absolute bytes depend on the real covers — get exact numbers with `profile:web`
+against a real library; warm loads hit the SW image cache (StaleWhileRevalidate), so the cost is the
+cold/first-view network **plus** the full-res decode every paint.
+
+**LCP attribution (needs the browser, now captured):** `profile:web` reports `LCP=img?`,
+`largest img KB`, `img KB`, and `above-fold imgs` per page. On mobile + cold cache, a full-res
+above-the-fold cover being the Home LCP is the expected outcome — one harness run confirms it.
+
+**Cold vs warm:** cold = full-res over the network + decode; warm/PWA-reopen = served from the SW
+image cache (no network) but **still decoded full-res** on the main thread; the byte win is cold, the
+decode win is both.
+
+| Fix                                         | current            | after 160 px WebP | LCP impact (if cover=LCP) | risk/complexity                       |
+| ------------------------------------------- | ------------------ | ----------------- | ------------------------- | ------------------------------------- |
+| Backend `getImage` honour maxWidth + WebP   | full-res (~250 kB) | ~7–15 kB          | high                      | medium (resize + on-disk thumb cache) |
+| Client size tiers (160 grid/300 detail/400) | param ignored      | correct request   | enables the above         | low (param change)                    |
+| `width`/`height` attrs on covers            | possible CLS       | no layout shift   | CLS + LCP stability       | low                                   |
+| `fetchpriority="high"` on the one LCP cover | none               | earlier LCP paint | medium                    | low                                   |
 
 ## 5. Ranked bottlenecks (evidence-based)
 
@@ -124,9 +173,19 @@ On a slow/unreachable backend the PWA can wait up to 10 s before serving the cac
 → **Fix:** lower `networkTimeoutSeconds` to ~3 s, or use StaleWhileRevalidate for navigation so the
 shell paints from cache instantly on reopen. → **Verify:** `profile:web` warm scenario FCP.
 
-**P2 — List-page images request 300×300 (~1–2 MB on Home).** _(evidenced.)_
-`loading="lazy"` is already set. → **Fix:** request ~160 px for grid thumbnails and serve WebP; keep
-300 px for detail pages. → **Verify:** `profile:web` KB + LCP per page.
+**P1 — Covers served full-resolution (backend ignores resize); likely the Home LCP on mobile/cold.**
+_(root cause code-certain + reduction ratios measured; §4b. LCP attribution pending one `profile:web`
+run.)_ ~38 full-res covers on Home (~9 MB cold at ~250 kB each), each decoded at ~50× the pixels it's
+displayed at. The client `maxWidth:300` does nothing because the endpoint ignores it.
+→ **Fix (backend-first — the client param is a no-op):** make `getImage` honour `maxWidth`/`quality`
+and emit WebP/AVIF (cache derived thumbnails on disk); add client size tiers (160 grid / 300 detail /
+400 now-playing), `width`/`height` attrs (no CLS), keep `loading="lazy"` below the fold, and
+`fetchpriority="high"` on **only** the one LCP cover.
+→ **Verify:** `profile:web` `img KB` / `largest img KB` / `LCP=img?` before/after.
+→ **Priority rule (as requested):** if `profile:web` shows `LCP=img` on Home, this is **P0 for LCP**
+(co-equal with the auth gate, which is P0 for time-to-first-paint — they're different metrics: auth
+gates first paint/interactive, the largest cover gates LCP). If Home LCP is gated by the auth/text
+shell instead, images stay **P1**. Either way the fix is high-value and backend-rooted.
 
 **P2 — FavoritesPage lazy chunk 18.5 kB (dnd-kit).** _(measured.)_ Only loads on Favorites; optional:
 lazy-load dnd-kit only in custom-order mode.
@@ -136,17 +195,20 @@ main-thread boot work (minimal); queue/render hot paths (memoized in an earlier 
 
 ## 6. Optimization plan
 
-- **Quick wins:** P0 optimistic auth gate; P1 Home `staleTime`; P1 SW navigation timeout 10 s→3 s
-  (or SWR); P2 image thumbnail size. All small, localized changes.
-- **Medium refactors:** code-split the `index` entry / lazy `tailwind-merge`; prefetch first list page
-  on nav hover; benchmark + (if slow) cache the adaptive Home endpoints.
+- **Quick wins:** P0 optimistic auth gate; client image size tiers + `width`/`height` attrs +
+  `fetchpriority` (low risk, but only fully effective once the backend resizes); P1 Home `staleTime`;
+  P1 SW navigation timeout 10 s→3 s (or SWR).
+- **Medium refactors:** **backend `getImage` resize + WebP + thumbnail cache** (the real image fix);
+  code-split the `index` entry / lazy `tailwind-merge`; prefetch first list page on nav hover;
+  benchmark + (if slow) cache the adaptive Home endpoints.
 - **Do not touch:** list-page DB/API, boot CPU, queue/list rendering — measured to be fine.
 
 ## 7. Reproduce
 
 ```bash
 npm run profile:bundle                                   # chunk sizes + critical total
-npm run profile:web                                      # browser metrics (needs a browser)
+npm run profile:images                                   # cover byte/decode cost + WebP savings (sharp)
+npm run profile:web                                      # browser FCP/LCP/marks + per-image bytes + LCP element (needs a browser)
 cd yay-tsa-v2 && PERF_DB_URL=... ./gradlew :app:test --tests '*ItemsEndpointBenchmark'   # API+SQL/req
 bash yay-tsa-v2/perf/run.sh                               # DB EXPLAIN/plans at scale
 # backend per-request: start the app with -Dyaytsa.profiling.enabled=true and watch the
@@ -156,14 +218,22 @@ bash yay-tsa-v2/perf/run.sh                               # DB EXPLAIN/plans at 
 
 ## Answers (the report's questions)
 
-- **What's slow / where / when:** cold-start time-to-meaningful-UI on **every page**, driven by the
-  **auth render-gate** (P0) on top of an over-budget **critical JS bundle** (P1); **Home** additionally
-  re-runs uncached adaptive queries (P1); **warm PWA reopen** can stall on the SW 10 s navigation
-  timeout (P1). List-page API/DB is **not** slow (measured).
+- **What's slow / where / when:** two distinct metrics. (a) **Time-to-first-UI** on **every page,
+  cold** is gated by the **auth render-gate** (P0) on top of the over-budget **critical JS** (P1);
+  **Home** also re-runs uncached adaptive queries (P1); **warm PWA reopen** can stall on the SW 10 s
+  navigation timeout (P1). (b) **LCP**, especially **Home on mobile/cold**, is almost certainly the
+  **full-resolution cover art** — the backend ignores the resize param and serves originals (~9 MB of
+  covers near the Home fold), so the largest above-the-fold cover is the likely LCP element
+  (confirm with one `profile:web` run; root cause already code-certain). List-page API/DB is **not**
+  slow (measured).
 - **How much time:** quantify with the harness — `first_route_render − app_start` (gate + parse) and
   FCP/LCP per scenario; server-side list APIs are ~20–26 ms p50 (measured) so they're not the cost.
 - **Why:** UI blocked on `/Users/Me`; 179 kB eager JS; `staleTime:0` on Home; NetworkFirst(10 s).
-- **Biggest-effect fix:** the **optimistic auth gate** (P0) — removes a full RTT from first paint on
-  every cold start — followed by the bundle trim and Home caching.
-- **How we verify faster:** re-run `profile:web` (FCP/LCP/marks min/med/max) and `profile:bundle`
-  before/after; compare the `auth_restore` and `first_route_render` marks.
+- **Biggest-effect fix:** depends which metric. For **first paint/interactive** → the **optimistic
+  auth gate** (removes a full RTT on every cold start). For **LCP** → **backend cover thumbnails
+  (resize + WebP)** since covers dominate above-the-fold bytes/decode. These are complementary, not
+  competing. The required-first step the spec demanded — confirm covers aren't under-ranked — is done:
+  images are now P1 (P0-for-LCP pending the one browser confirmation), not P2.
+- **How we verify faster:** re-run `profile:web` (FCP/LCP, `LCP=img?`, `img KB`, `largest img KB`,
+  marks min/med/max), `profile:bundle`, and `profile:images` before/after; compare `auth_restore` and
+  `first_route_render` marks and the Home LCP/largest-image bytes.

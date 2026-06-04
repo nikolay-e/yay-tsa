@@ -38,7 +38,8 @@
     "profile:web": "node scripts/profile-web.mjs",
     "sync:version": "node scripts/sync-version.js",
     "type-check": "npm run gen:constants && tsc -b packages/core packages/platform && cd apps/web && npx tsc --noEmit",
-    "postversion": "npm run sync:version"
+    "postversion": "npm run sync:version",
+    "profile:images": "node scripts/profile-images.mjs"
   },
   "overrides": {
     "lodash": "4.17.23",
