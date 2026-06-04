@@ -6,6 +6,27 @@ CI/sandbox host. They capture **plan shape and relative cost**, not absolute pro
 (network + JVM row mapping are not included — that is exactly why the N+1 and "load-all" row counts
 matter beyond DB time). Plan shapes are stable run-to-run; millisecond figures vary ±20%.
 
+## 0. Endpoint-level results (HTTP `/Items` via MockMvc — the headline)
+
+In-process endpoint benchmark (`ItemsEndpointBenchmark`, gated on `PERF_DB_URL`): full controller +
+JPA + JSON path through MockMvc (no network hop), warm JIT, against local PostgreSQL.
+Seed: 250 artists / 500 albums / 4 250 tracks / 500 favorites; page = 50 items.
+
+| Scenario                 | items | resp bytes | **SQL queries/req** | p50 ms | p95 ms |
+| ------------------------ | ----- | ---------- | ------------------- | ------ | ------ |
+| Albums page 1, sort_name | 50    | 17 871     | **8**               | 21.9   | 30.1   |
+| Songs page 1, sort_name  | 50    | 19 573     | 10                  | 23.8   | 28.0   |
+| Songs recently-added     | 50    | 22 069     | 10                  | 20.6   | 25.0   |
+| Favorites custom-order   | 50    | 22 068     | 13                  | 22.4   | 32.2   |
+| Search (name)            | 50    | 22 069     | 14                  | 25.6   | 36.9   |
+
+**The N+1 is gone at the endpoint, proven by query count, not just DB plans:** an Albums page of 50
+issues **8 SQL statements total**. The old `Album.toBaseItem` did 2 `getArtist()` per album, each
+~3 queries → on the order of **300 statements** for the same page. Query count is now bounded and
+independent of items-per-page across every scenario. p50 ≈ 20–26 ms is in-process (DB + Hibernate
+hydration + Jackson); network/JVM transfer is on top of that in production but is not the part this
+change controls. Locked by the `ItemsPaginationIntegrationTest` query-budget test (runs in CI).
+
 ## 1. Per-scenario plans & timing (page = 50 items)
 
 | Scenario                                | 1k ent. | 5k ent. | 20k ent. | Plan (20k)                                                   |

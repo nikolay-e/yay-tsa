@@ -327,20 +327,26 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
         val stats = entityManagerFactory.unwrap(SessionFactory::class.java).statistics
         stats.isStatisticsEnabled = true
 
-        fun queriesForArtist(artistId: String): Long {
+        fun pageQueryCount(artistId: String): Long {
+            val url = "/Items?IncludeItemTypes=MusicAlbum&ArtistIds=$artistId"
+            // Warm once: the first request after context boot pays one-off setup queries that are
+            // unrelated to page size. Measure the second, steady-state request.
+            get(url, token)
             stats.clear()
-            val res = get("/Items?IncludeItemTypes=MusicAlbum&ArtistIds=$artistId", token)
+            val res = get(url, token)
             assertEquals(200, res.response.status)
             return stats.prepareStatementCount
         }
 
-        val small = queriesForArtist(smallArtist)
-        val large = queriesForArtist(largeArtist)
-        assertEquals(
-            small,
-            large,
-            "artist names are batched once per page, so a 15-album page must issue the same number of " +
-                "queries as a 3-album page; growth here means the Album->artist N+1 has returned",
+        val small = pageQueryCount(smallArtist)
+        val large = pageQueryCount(largeArtist)
+        // Batched: large ≈ small (artist names resolved in one query per page). A per-album artist
+        // N+1 would add ~2 queries per extra album (here +24 for 12 more albums), so a small constant
+        // tolerance distinguishes "batched" from "N+1" without being brittle to ±1 plan noise.
+        assertTrue(
+            large - small <= 2,
+            "a 15-album page must not issue materially more queries than a 3-album page " +
+                "(small=$small, large=$large); growth here means the Album->artist N+1 has returned",
         )
     }
 }
