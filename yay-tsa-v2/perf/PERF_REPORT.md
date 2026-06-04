@@ -67,11 +67,16 @@ load-all vs a deep SQL `OFFSET … LIMIT 50`:
 
 **Key result: a deep SQL `OFFSET` is essentially the same cost as load-all — both are O(N)**, because
 OFFSET still walks every skipped row. So converting favorites to SQL `OFFSET/LIMIT` pagination is
-**not** a meaningful DB win. It only trims the network/JVM mapping (50 rows vs N). The only way to
-make deep favorites pages O(page) is **keyset/cursor** pagination on the position-sorted path.
+**not** a meaningful win. The only way to make deep favorites pages O(page) is **keyset/cursor**
+pagination on the position-sorted path.
 
-Threshold: load-all stays sub-2 ms up to ~5k favorites and only becomes notable at ≥20k (8 ms) /
-≥50k (20 ms). For a personal music server, 20k+ favorited tracks is extreme.
+**Scope of this table (important):** these are the cost of the favorites SQL query _in isolation_,
+not the full `/Items?IsFavorite=true` endpoint at those sizes. The endpoint also loads the whole
+favorites aggregate into the JVM twice (favTrackIds set + the favorites branch) and maps it to domain
+objects, so its cost at 5k/20k favorites is **not** established here. The §0 endpoint benchmark was
+run at 500 favorites and only proves the normal case + N+1 removal — it must **not** be read as a
+deep-favorites result. A dedicated endpoint benchmark at 5k/20k favorites is the follow-up needed
+before any firm latency claim at those sizes.
 
 ## 4. Tie-breaker
 
@@ -92,11 +97,16 @@ with the 16-byte uuid.
   query-budget test). Recently-added is an index scan (0.09 vs 4.28 ms @20k). Favorites load is an
   ordered index scan. Frontend rows/cards are memoized so a page append only renders new items.
   Pagination is now stable under tied sort keys.
-- **What remains.** Deep `OFFSET` is O(N) for both albums browse and favorites — acceptable at
-  realistic sizes (sub-2 ms to ~5k; ~8 ms at 20k). Album/artist **grids are not virtualized**, so a
-  very long browse keeps many DOM nodes. Album/artist browse sort still lacks the `id` tie-breaker
-  (only `browseTracks` was fixed).
-- **Cheapest next fix, max effect (only if metrics demand it).** Keyset pagination for the default
-  favorites position sort (O(page) instead of O(N)) — the single change that removes the remaining
-  O(N) behaviour. SQL `OFFSET` pagination is explicitly **not** worth doing (proven above). Grid
-  virtualization and the artist/album tie-breaker are smaller, independent follow-ups.
+- **What remains (scoped honestly).** For the **normal** library size (proven at §0), the work is
+  done and `/Items` is in budget. The favorites endpoint at **5k/20k favorites is not yet measured
+  end-to-end** — only the favorites SQL query is (§3), which indicates SQL `OFFSET` would not help.
+  Also: album/artist **grids are not virtualized** (long browse keeps many DOM nodes), and the `id`
+  tie-breaker was added only to `browseTracks` (album/artist browse still lack it).
+- **Follow-ups (separate, only if metrics demand).**
+  1. A dedicated **endpoint benchmark at 5k/20k favorites** to settle the deep-favorites question.
+  2. If that confirms a problem: **keyset pagination on `(user_id, position, id)`** for the default
+     favorites order — O(page) instead of O(N). Plain SQL `OFFSET` is **not** the fix (it stays
+     O(N), shown in §3).
+  3. Grid virtualization and the album/artist tie-breaker.
+- **Not claimed.** SQL `OFFSET` pagination as an optimization for the current normal scenario is
+  unnecessary — but no claim is made about deep-favorites latency until follow-up #1 is run.
