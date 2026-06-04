@@ -8,6 +8,7 @@ import { useDeviceHeartbeat } from '@/features/player/hooks/useDeviceHeartbeat';
 import { useRemoteCommands } from '@/features/player/hooks/useRemoteCommands';
 import { useDeviceEvents } from '@/features/player/hooks/useDeviceEvents';
 import { cn } from '@/shared/utils/cn';
+import { mark, markOnce, measure } from '@/shared/perf/perf';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
 
 const MAX_SCROLL_ENTRIES = 200;
@@ -78,7 +79,10 @@ export function RootLayout() {
     sessionRestored.current = true;
 
     const init = async () => {
+      mark('auth_restore_start');
       const restored = await restoreSession();
+      mark('auth_restore_end');
+      measure('auth_restore', 'auth_restore_start', 'auth_restore_end');
       setAuthState(restored ? 'authenticated' : 'unauthenticated');
       sessionRestoreComplete.current = true;
     };
@@ -99,6 +103,9 @@ export function RootLayout() {
       </div>
     );
   }
+
+  // First render of real (non-spinner) UI — the meaningful-paint marker.
+  markOnce('first_route_render');
 
   if (authState === 'authenticated' && isLoginPage) {
     return <Navigate to="/" replace />;

@@ -7,7 +7,11 @@ import { App } from './app/App';
 import { ErrorBoundary } from './app/infra/ErrorBoundary';
 import { ToastContainer } from './shared/ui/Toast';
 import { queryClient } from './shared/lib/query-client';
+import { installPerf, mark } from './shared/perf/perf';
 import './index.css';
+
+mark('app_start');
+installPerf();
 
 // autoUpdate without a registration is a no-op for open tabs: the new SW activates and
 // purges old content-hashed chunks while live tabs still import them -> ChunkLoadError.

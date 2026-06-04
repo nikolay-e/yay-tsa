@@ -33,6 +33,9 @@
     "lint": "prettier --check .",
     "pre-commit": "pre-commit run --all-files",
     "prepare": "command -v pre-commit >/dev/null 2>&1 && (pre-commit install && pre-commit install --hook-type commit-msg) || true",
+    "profile:bundle": "node scripts/bundle-report.mjs",
+    "profile:bundle:build": "npm run build && node scripts/bundle-report.mjs",
+    "profile:web": "node scripts/profile-web.mjs",
     "sync:version": "node scripts/sync-version.js",
     "type-check": "npm run gen:constants && tsc -b packages/core packages/platform && cd apps/web && npx tsc --noEmit",
     "postversion": "npm run sync:version"
