@@ -139,7 +139,7 @@ function TrackMetadata({
   );
 }
 
-export function TrackListRow({
+function TrackListRowImpl({
   track,
   index,
   isCurrentTrack,
@@ -221,6 +221,23 @@ export function TrackListRow({
     </div>
   );
 }
+
+// Rows are the dominant cost in long lists. React Query keeps item object identity stable across
+// renders that don't refetch (pagination appends new pages without recreating existing items), so
+// comparing track by reference + the scalar flags lets every untouched row skip re-rendering — even
+// though parents pass freshly-created onPlay/onPause closures each render (their identity is ignored
+// here on purpose). A refetch swaps object identity and re-renders once, which is correct.
+export const TrackListRow = memo(
+  TrackListRowImpl,
+  (prev, next) =>
+    prev.track === next.track &&
+    prev.index === next.index &&
+    prev.isCurrentTrack === next.isCurrentTrack &&
+    prev.isPlaying === next.isPlaying &&
+    prev.showAlbum === next.showAlbum &&
+    prev.showArtist === next.showArtist &&
+    prev.showImage === next.showImage
+);
 
 function TrackIndexIcon({
   isCurrentTrack,

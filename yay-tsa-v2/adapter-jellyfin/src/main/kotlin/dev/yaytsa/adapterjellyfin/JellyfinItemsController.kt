@@ -67,7 +67,7 @@ class JellyfinItemsController(
                     if (asTrack != null) {
                         asTrack.toBaseItem(favTrackIds, trackLookups)
                     } else {
-                        libraryQueries.getAlbum(EntityId(id))?.toBaseItem(favTrackIds)
+                        libraryQueries.getAlbum(EntityId(id))?.let { it.toBaseItem(favTrackIds, albumArtistNames(listOf(it))) }
                             ?: libraryQueries.getArtist(EntityId(id))?.toBaseItem()
                     }
                 }
@@ -78,9 +78,10 @@ class JellyfinItemsController(
         if (!searchTerm.isNullOrBlank()) {
             val results = libraryQueries.searchText(searchTerm, limit, startIndex)
             val trackLookups = tracksLookups(results.tracks)
+            val albumNames = albumArtistNames(results.albums)
             val items = mutableListOf<BaseItem>()
             results.artists.forEach { items.add(it.toBaseItem()) }
-            results.albums.forEach { items.add(it.toBaseItem(favTrackIds)) }
+            results.albums.forEach { items.add(it.toBaseItem(favTrackIds, albumNames)) }
             results.tracks.forEach { items.add(it.toBaseItem(favTrackIds, trackLookups)) }
             val total =
                 libraryQueries.countTextSearchArtists(searchTerm) +
@@ -141,7 +142,8 @@ class JellyfinItemsController(
                 }
                 val albums = libraryQueries.browseAlbumsByArtist(parentEntity)
                 val page = albums.drop(pageStart).take(pageSize)
-                val items = page.map { it.toBaseItem(favTrackIds) }
+                val albumNames = albumArtistNames(page)
+                val items = page.map { it.toBaseItem(favTrackIds, albumNames) }
                 return ResponseEntity.ok(ItemsResult(items, albums.size, startIndex))
             }
 
@@ -168,7 +170,8 @@ class JellyfinItemsController(
                     } else {
                         libraryQueries.browseAlbums(limit, startIndex) to libraryQueries.countAlbums()
                     }
-                val items = albums.map { it.toBaseItem(favTrackIds) }
+                val albumNames = albumArtistNames(albums)
+                val items = albums.map { it.toBaseItem(favTrackIds, albumNames) }
                 return ResponseEntity.ok(ItemsResult(items, total, startIndex))
             }
             "Audio" in types -> {
@@ -333,7 +336,7 @@ class JellyfinItemsController(
         val track = libraryQueries.getTrack(EntityId(itemId))
         val item =
             track?.toBaseItem(favTrackIds, tracksLookups(listOf(track)))
-                ?: libraryQueries.getAlbum(EntityId(itemId))?.toBaseItem(favTrackIds)
+                ?: libraryQueries.getAlbum(EntityId(itemId))?.let { it.toBaseItem(favTrackIds, albumArtistNames(listOf(it))) }
                 ?: libraryQueries.getArtist(EntityId(itemId))?.toBaseItem()
                 ?: runCatching { playlistQueries.find(PlaylistId(itemId)) }.getOrNull()?.toBaseItem()
                 ?: return ResponseEntity.notFound().build()
@@ -365,45 +368,61 @@ class JellyfinItemsController(
         lookups: TrackLookups = TrackLookups(),
     ): BaseItem = toJellyfinBaseItem(favTrackIds, lookups)
 
-    private fun Album.toBaseItem(favTrackIds: Set<String> = emptySet()) =
-        BaseItem(
-            id = id.value,
-            name = name,
-            type = "MusicAlbum",
-            artistItems =
-                artistId?.let { aid ->
-                    libraryQueries.getArtist(aid)?.let { listOf(NameIdPair(it.name, it.id.value)) }
-                },
-            artists =
-                artistId?.let { aid ->
-                    libraryQueries.getArtist(aid)?.let { listOf(it.name) }
-                },
-            imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
-            sortName = sortName,
-            parentId = artistId?.value,
-            dateCreated = createdAt?.toString(),
-        )
+    // Batch-resolve album artist names in a single query, mirroring tracksLookups. Avoids the
+    // N+1 where every album in a page triggered two getArtist() calls (entity+artist+image each).
+    private fun albumArtistNames(albums: List<Album>): Map<EntityId, String> {
+        val artistIds = albums.mapNotNull { it.artistId }.toSet()
+        if (artistIds.isEmpty()) return emptyMap()
+        return libraryQueries.getEntityNamesByIds(artistIds)
+    }
+
+    private fun Album.toBaseItem(
+        favTrackIds: Set<String> = emptySet(),
+        artistNames: Map<EntityId, String> = emptyMap(),
+    ) = BaseItem(
+        id = id.value,
+        name = name,
+        type = "MusicAlbum",
+        artistItems =
+            artistId?.let { aid ->
+                artistNames[aid]?.let { listOf(NameIdPair(it, aid.value)) }
+            },
+        artists =
+            artistId?.let { aid ->
+                artistNames[aid]?.let { listOf(it) }
+            },
+        imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
+        sortName = sortName,
+        parentId = artistId?.value,
+        dateCreated = createdAt?.toString(),
+    )
 
     private fun buildPersonalizedTracks(
         userId: UserId,
         limit: Int,
     ): List<dev.yaytsa.domain.library.Track> {
-        val seen = mutableSetOf<String>()
         val out = mutableListOf<dev.yaytsa.domain.library.Track>()
 
-        mlQuery.getTopAffinities(userId, limit).forEach { aff ->
-            if (out.size >= limit) return@forEach
-            val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
-            if (seen.add(track.id.value)) out.add(track)
-        }
-
-        if (out.size < limit) {
-            preferencesQueries.find(userId)?.favorites.orEmpty().forEach { fav ->
+        // Affinities first, then favorites — batch-loaded in one query instead of one getTrack()
+        // per id. Order is preserved by re-indexing against the requested id sequence; vanished
+        // tracks simply drop out.
+        val affinityIds = mlQuery.getTopAffinities(userId, limit).map { it.trackId.value }
+        val favoriteIds =
+            preferencesQueries
+                .find(userId)
+                ?.favorites
+                .orEmpty()
+                .take(limit)
+                .map { it.trackId.value }
+        val orderedIds = (affinityIds + favoriteIds).distinct()
+        if (orderedIds.isNotEmpty()) {
+            val byId = libraryQueries.getTracksByIds(orderedIds.map { EntityId(it) }).associateBy { it.id.value }
+            orderedIds.forEach { id ->
                 if (out.size >= limit) return@forEach
-                val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
-                if (seen.add(track.id.value)) out.add(track)
+                byId[id]?.let { out.add(it) }
             }
         }
+        val seen = out.mapTo(mutableSetOf()) { it.id.value }
 
         if (out.size < limit) {
             // Random sample for users with empty affinity+favorites.

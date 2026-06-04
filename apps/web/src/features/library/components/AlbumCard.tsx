@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
 import { type MusicAlbum } from '@yay-tsa/core';
@@ -11,7 +12,7 @@ type AlbumCardProps = Readonly<{
   onPause?: () => void;
 }>;
 
-export function AlbumCard({ album, isPlaying, onPlay, onPause }: AlbumCardProps) {
+function AlbumCardImpl({ album, isPlaying, onPlay, onPause }: AlbumCardProps) {
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const artistId = album.ArtistItems?.[0]?.Id;
   const isIncomplete =
@@ -90,3 +91,11 @@ export function AlbumCard({ album, isPlaying, onPlay, onPause }: AlbumCardProps)
     </MediaCard>
   );
 }
+
+// Grids re-render whenever the parent does (e.g. a sibling fetches a page). Album objects keep
+// their identity across non-refetch renders, so comparing by reference + isPlaying lets unchanged
+// cards skip work; the inline onPlay/onPause closures from the grid are intentionally ignored.
+export const AlbumCard = memo(
+  AlbumCardImpl,
+  (prev, next) => prev.album === next.album && prev.isPlaying === next.isPlaying
+);

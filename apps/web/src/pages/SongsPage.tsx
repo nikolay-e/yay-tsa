@@ -1,4 +1,4 @@
-import { useState, useDeferredValue } from 'react';
+import { useState, useDeferredValue, useMemo } from 'react';
 import { useInfiniteTracks, useSemanticSearch } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
@@ -40,7 +40,7 @@ export function SongsPage() {
       sortOrder: activeOption.sortOrder,
     });
 
-  const textTracks = data?.pages.flatMap(page => page.Items) ?? [];
+  const textTracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
   const tracks = isSemanticActive ? (semanticResults ?? []) : textTracks;
   const showLoading = isSemanticActive ? isSemanticLoading : isLoading;

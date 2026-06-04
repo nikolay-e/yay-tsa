@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { type MusicArtist } from '@yay-tsa/core';
 import { MediaCard } from './MediaCard';
 
@@ -5,7 +6,7 @@ type ArtistCardProps = Readonly<{
   artist: MusicArtist;
 }>;
 
-export function ArtistCard({ artist }: ArtistCardProps) {
+function ArtistCardImpl({ artist }: ArtistCardProps) {
   const albumCount = artist.ChildCount ?? 0;
 
   return (
@@ -26,3 +27,7 @@ export function ArtistCard({ artist }: ArtistCardProps) {
     </MediaCard>
   );
 }
+
+// Artist is the only prop and keeps a stable identity across non-refetch renders, so the default
+// shallow comparison lets unchanged cards skip re-rendering in large grids.
+export const ArtistCard = memo(ArtistCardImpl);

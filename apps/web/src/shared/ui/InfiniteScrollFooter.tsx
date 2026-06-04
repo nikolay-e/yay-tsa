@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useInView } from '@/shared/hooks/useInView';
@@ -25,11 +25,16 @@ export function InfiniteScrollFooter({
     enabled: hasNextPage && !isFetchingNextPage,
   });
 
+  // Parents pass a fresh onLoadMore every render; hold it in a ref so the trigger effect depends
+  // only on the actual scroll/pagination state and doesn't re-run (and re-fire) on every render.
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
+
   useEffect(() => {
     if (isInView && hasNextPage && !isFetchingNextPage) {
-      onLoadMore();
+      onLoadMoreRef.current();
     }
-  }, [isInView, hasNextPage, isFetchingNextPage, onLoadMore]);
+  }, [isInView, hasNextPage, isFetchingNextPage]);
 
   return (
     <>

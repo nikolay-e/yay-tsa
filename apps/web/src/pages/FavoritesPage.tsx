@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type AudioItem, type MusicAlbum, type MusicArtist } from '@yay-tsa/core';
 import { useInfiniteAlbums, useInfiniteArtists, useInfiniteTracks } from '@/features/library/hooks';
@@ -88,7 +88,7 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
     sortOrder: activeOption.sortOrder,
   });
 
-  const albums = data?.pages.flatMap(page => page.Items) ?? [];
+  const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleReorder = (reordered: MusicAlbum[]) => {
@@ -160,7 +160,7 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
     sortOrder: activeOption.sortOrder,
   });
 
-  const artists = data?.pages.flatMap(page => page.Items) ?? [];
+  const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleReorder = (reordered: MusicArtist[]) => {
@@ -228,7 +228,7 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
     sortOrder: activeOption.sortOrder,
   });
 
-  const tracks = data?.pages.flatMap(page => page.Items) ?? [];
+  const tracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
 
   const handleReorder = (reordered: AudioItem[]) => {
