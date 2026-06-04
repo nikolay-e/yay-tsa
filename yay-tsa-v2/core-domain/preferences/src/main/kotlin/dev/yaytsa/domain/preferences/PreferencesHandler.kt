@@ -70,13 +70,25 @@ object PreferencesHandler {
         snapshot: UserPreferencesAggregate,
         cmd: ReorderFavorites,
     ): CommandResult<UserPreferencesAggregate> {
-        val currentIds = snapshot.favorites.map { it.trackId }.toSet()
-        if (cmd.newOrder.toSet() != currentIds || cmd.newOrder.size != currentIds.size) {
-            return Failure.InvariantViolation("Reorder must be a permutation of current favorites").asCommandFailure()
-        }
+        // The client can only ever send the favorites it currently sees: pagination caps the
+        // page, and the listing drops favorites whose track has vanished from the library. So
+        // newOrder is treated as a partial instruction rather than a full permutation —
+        // ids that are not current favorites are ignored, and favorites the client did not
+        // mention keep their existing relative order, appended after the reordered block.
         val byTrackId = snapshot.favorites.associateBy { it.trackId }
+        val mentioned = cmd.newOrder.filter { byTrackId.containsKey(it) }.distinct()
+        if (mentioned.isEmpty()) {
+            // Nothing actionable (empty or fully-stale order) — no-op, no version bump.
+            return snapshot.asSuccess(snapshot.version)
+        }
+        val mentionedSet = mentioned.toSet()
+        val rest =
+            snapshot.favorites
+                .filterNot { it.trackId in mentionedSet }
+                .sortedBy { it.position }
+                .map { it.trackId }
         val reordered =
-            cmd.newOrder.mapIndexed { i, trackId ->
+            (mentioned + rest).mapIndexed { i, trackId ->
                 byTrackId[trackId]!!.copy(position = i)
             }
         val v = snapshot.version.next()

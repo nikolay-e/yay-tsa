@@ -70,11 +70,30 @@ class PreferencesHandlerTest :
             r.value.favorites[1].trackId shouldBe t1
         }
 
-        test("ReorderFavorites with invalid permutation fails") {
+        test("ReorderFavorites ignores ids that are not current favorites") {
+            // Client may send a stale id (e.g. track unfavorited on another device); it is ignored
+            // and the remaining favorite keeps its place rather than failing the whole reorder.
             val favs = listOf(Favorite(t1, now, 0))
             val r = PreferencesHandler.handle(prefs(favs = favs), ReorderFavorites(userId, listOf(t2)), ctx(), deps())
-            r.shouldBeInstanceOf<CommandResult.Failed>()
-            r.failure.shouldBeInstanceOf<Failure.InvariantViolation>()
+            r.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
+            r.value.favorites.map { it.trackId } shouldBe listOf(t1)
+            r.newVersion shouldBe AggregateVersion(0)
+        }
+
+        test("ReorderFavorites accepts a partial order and keeps unmentioned favorites after it") {
+            // Pagination/vanished-track filtering means the client only sends the favorites it sees.
+            // Reorder must still apply: mentioned ids go first in the given order, the rest follow
+            // in their existing relative order.
+            val t3 = TrackId("track-3")
+            val favs = listOf(Favorite(t1, now, 0), Favorite(t2, now, 1), Favorite(t3, now, 2))
+            val r = PreferencesHandler.handle(prefs(favs = favs), ReorderFavorites(userId, listOf(t3, t1)), ctx(), deps())
+            r.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
+            r.value.favorites
+                .sortedBy { it.position }
+                .map { it.trackId } shouldBe listOf(t3, t1, t2)
+            r.value.favorites
+                .map { it.position }
+                .sorted() shouldBe listOf(0, 1, 2)
         }
 
         test("UpdatePreferenceContract sets contract") {

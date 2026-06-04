@@ -162,4 +162,70 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
             "Name sort must order by track name, not echo custom order",
         )
     }
+
+    @Test
+    fun `reorder persists when client sends only the resolvable subset of favorites`() {
+        val tag = "favreorder-${UUID.randomUUID().toString().take(6)}"
+        val now = Instant.parse("2026-02-01T00:00:00Z")
+        jdbc.update("INSERT INTO core_v2_preferences.user_preferences (user_id, version) VALUES (?, 0)", userId)
+
+        // Three real favorites (positions 0,1,2) the client can see...
+        val ids = mutableMapOf<String, String>()
+        listOf("a", "b", "c").forEachIndexed { index, s ->
+            val id = UUID.randomUUID()
+            ids[s] = id.toString()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, search_text) VALUES (?,?,?,?,?,?)",
+                id,
+                "TRACK",
+                "$tag-$s",
+                "$tag-$s",
+                "/favreorder/$id.flac",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 100000L)
+            jdbc.update(
+                "INSERT INTO core_v2_preferences.favorites (user_id, track_id, favorited_at, position) VALUES (?,?,?,?)",
+                userId,
+                id.toString(),
+                java.sql.Timestamp.from(now),
+                index,
+            )
+        }
+        // ...plus one favorite whose track has vanished from the library: it is stored but never
+        // listed, so the client cannot include it in a reorder. The old permutation check rejected
+        // the whole reorder because of it.
+        jdbc.update(
+            "INSERT INTO core_v2_preferences.favorites (user_id, track_id, favorited_at, position) VALUES (?,?,?,?)",
+            userId,
+            UUID.randomUUID().toString(),
+            java.sql.Timestamp.from(now),
+            3,
+        )
+
+        fun customOrder(): List<String> {
+            val body =
+                objectMapper.readTree(
+                    get("/Items?IsFavorite=true&Limit=200&SortBy=FavoritePosition&SortOrder=Ascending", token).response.contentAsString,
+                )
+            return body.get("Items").map { it.get("Name").asText() }.filter { it.startsWith(tag) }
+        }
+
+        assertEquals(listOf("$tag-a", "$tag-b", "$tag-c"), customOrder(), "precondition: initial custom order")
+
+        // Client sends only the three resolvable ids it can see, reversed.
+        val reorder =
+            post(
+                "/Items/FavoriteOrder",
+                mapOf("UserId" to userId, "ItemIds" to listOf(ids["c"], ids["b"], ids["a"])),
+                token,
+            )
+        assertEquals(200, reorder.response.status, "partial reorder must succeed despite the vanished favorite")
+
+        assertEquals(
+            listOf("$tag-c", "$tag-b", "$tag-a"),
+            customOrder(),
+            "new custom order must persist after reordering the resolvable subset",
+        )
+    }
 }
