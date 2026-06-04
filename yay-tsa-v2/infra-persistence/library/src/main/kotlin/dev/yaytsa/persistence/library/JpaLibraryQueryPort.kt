@@ -183,7 +183,16 @@ class JpaLibraryQueryPort(
         val property = if (sortBy == "DateCreated") "createdAt" else "sortName"
         val direction = if (sortOrder.equals("Descending", ignoreCase = true)) Sort.Direction.DESC else Sort.Direction.ASC
         val size = maxOf(limit, 1)
-        val pageable = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), size, Sort.by(direction, property))
+        // Add id as a stable tie-breaker: created_at (and even sort_name) are not a total order,
+        // so OFFSET pagination over them alone can skip or duplicate rows across pages when values
+        // tie. The (entity_type, created_at) / (entity_type, sort_name) indexes still drive the scan;
+        // ties resolve via a cheap incremental sort on id.
+        val pageable =
+            OffsetBasedPageRequest(
+                maxOf(offset, 0).toLong(),
+                size,
+                Sort.by(direction, property).and(Sort.by(direction, "id")),
+            )
         val entities = entityRepo.findByEntityType(EntityType.TRACK.name, pageable)
         val entityIds = entities.map { it.id }
         val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
