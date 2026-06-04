@@ -78,139 +78,166 @@ async function clearCaches(): Promise<void> {
   }
 }
 
+// Guards against a logout cascade: when several in-flight requests receive a
+// 401 at the same time, each one fires the auth-error callback. Only the first
+// should actually tear down the session.
+let logoutInFlight = false;
+
 export const useAuthStore = create<AuthStore>()(
-  subscribeWithSelector((set, get) => ({
-    ...initialState,
-
-    login: async (username, password, options) => {
-      set({ isLoading: true, error: null });
-
-      try {
-        const clientInfo = createClientInfo();
-        const client = new MediaServerClient(API_BASE_PATH, clientInfo);
-        const authService = new AuthService(client);
-
-        const response = await authService.login(username, password);
-
-        client.setAuthErrorCallback(() => {
-          get()
-            .logout()
-            .catch(() => {});
-        });
-
-        const sessionData = {
-          token: response.AccessToken,
-          userId: response.User.Id,
-        };
-
-        if (options?.rememberMe) {
-          saveSessionPersistent(sessionData);
-        } else {
-          saveSession(sessionData);
-        }
-
-        set({
-          client,
-          authService,
-          token: response.AccessToken,
-          userId: response.User.Id,
-          isAdmin: response.User.Policy?.IsAdministrator ?? false,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
-      } catch (error) {
-        log.auth.error('Login failed', error, { username });
-        set({
-          isLoading: false,
-          error: error instanceof Error ? error : new Error(String(error)),
-        });
-        throw error;
-      }
-    },
-
-    logout: async () => {
-      const { authService } = get();
-
-      if (authService) {
-        try {
-          await authService.logout();
-        } catch (error) {
-          log.auth.warn('Logout request failed, continuing with local cleanup', {
-            error: String(error),
-          });
-        }
-      }
-
-      clearAllSessions();
-      localStorage.removeItem(VOLUME_STORAGE_KEY);
-
-      await clearCaches();
-      queryClient.clear();
-      import('@/features/player/stores/session-store')
-        .then(m => m.useSessionStore.getState().reset())
+  subscribeWithSelector((set, get) => {
+    // Auto-logout on a confirmed authentication failure (HTTP 401). The core
+    // client only invokes this for 401 (never 403), i.e. the token is no longer
+    // accepted by the backend.
+    const handleAuthError = () => {
+      if (!get().isAuthenticated && !logoutInFlight) return;
+      get()
+        .logout()
         .catch(() => {});
+    };
 
-      set({ ...initialState, isLoading: false });
-    },
+    return {
+      ...initialState,
 
-    restoreSession: async () => {
-      const session = loadSessionAuto();
-      if (!session) {
-        set({ isLoading: false });
-        return false;
-      }
+      login: async (username, password, options) => {
+        set({ isLoading: true, error: null });
 
-      try {
+        try {
+          const clientInfo = createClientInfo();
+          const client = new MediaServerClient(API_BASE_PATH, clientInfo);
+          const authService = new AuthService(client);
+
+          const response = await authService.login(username, password);
+
+          client.setAuthErrorCallback(handleAuthError);
+
+          const sessionData = {
+            token: response.AccessToken,
+            userId: response.User.Id,
+          };
+
+          // Default to persistent (localStorage) storage so the login survives a
+          // reload, a frontend version bump, and closing/reopening an installed
+          // PWA. Only an explicit opt-out ("Remember me" unchecked) downgrades to
+          // tab-scoped sessionStorage.
+          if (options?.rememberMe === false) {
+            saveSession(sessionData);
+          } else {
+            saveSessionPersistent(sessionData);
+          }
+
+          set({
+            client,
+            authService,
+            token: response.AccessToken,
+            userId: response.User.Id,
+            isAdmin: response.User.Policy?.IsAdministrator ?? false,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+        } catch (error) {
+          log.auth.error('Login failed', error, { username });
+          set({
+            isLoading: false,
+            error: error instanceof Error ? error : new Error(String(error)),
+          });
+          throw error;
+        }
+      },
+
+      logout: async () => {
+        if (logoutInFlight) return;
+        logoutInFlight = true;
+
+        try {
+          const { authService } = get();
+
+          if (authService) {
+            try {
+              await authService.logout();
+            } catch (error) {
+              log.auth.warn('Logout request failed, continuing with local cleanup', {
+                error: String(error),
+              });
+            }
+          }
+
+          clearAllSessions();
+          localStorage.removeItem(VOLUME_STORAGE_KEY);
+
+          await clearCaches();
+          queryClient.clear();
+          import('@/features/player/stores/session-store')
+            .then(m => m.useSessionStore.getState().reset())
+            .catch(() => {});
+
+          set({ ...initialState, isLoading: false });
+        } finally {
+          logoutInFlight = false;
+        }
+      },
+
+      restoreSession: async () => {
+        const session = loadSessionAuto();
+        if (!session) {
+          set({ ...initialState, isLoading: false });
+          return false;
+        }
+
         const clientInfo = createClientInfo();
         const client = new MediaServerClient(API_BASE_PATH, clientInfo);
         client.setToken(session.token, session.userId);
-
-        await client.getServerInfo();
-
         const authService = new AuthService(client);
-        let isAdmin = false;
+        client.setAuthErrorCallback(handleAuthError);
+
         try {
+          // Confirm the persisted token is still accepted by the backend.
           const me = await client.get<{ Policy?: { IsAdministrator?: boolean } }>('/Users/Me');
-          isAdmin = me?.Policy?.IsAdministrator ?? false;
+
+          set({
+            client,
+            authService,
+            token: session.token,
+            userId: session.userId,
+            isAdmin: me?.Policy?.IsAdministrator ?? false,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+
+          return true;
         } catch (error) {
-          if (error instanceof AuthenticationError) {
-            throw error; // Token invalid — fail the restore
+          // Only a confirmed 401 means the session is genuinely invalid. Any
+          // other failure (backend down/restarting, network blip, 5xx) must NOT
+          // log the user out — we keep the persisted credentials and stay
+          // authenticated. A later real 401 on any request tears the session
+          // down via handleAuthError.
+          if (error instanceof AuthenticationError && error.statusCode === 401) {
+            clearAllSessions();
+            set({ ...initialState, isLoading: false });
+            return false;
           }
-          // Non-auth errors (network, etc.) are non-critical
+
+          log.auth.warn('Session validation deferred — backend unreachable, keeping session', {
+            error: String(error),
+          });
+
+          set({
+            client,
+            authService,
+            token: session.token,
+            userId: session.userId,
+            isAdmin: false,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+
+          return true;
         }
-
-        // Session validated — set callback for ongoing authenticated requests
-        client.setAuthErrorCallback(() => {
-          get()
-            .logout()
-            .catch(() => {});
-        });
-
-        set({
-          client,
-          authService,
-          token: session.token,
-          userId: session.userId,
-          isAdmin,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
-
-        return true;
-      } catch (error) {
-        log.auth.warn('Session restore failed', { error: String(error) });
-        clearAllSessions();
-        set({
-          ...initialState,
-          isLoading: false,
-          error: new Error('Session expired or invalid'),
-        });
-        return false;
-      }
-    },
-  }))
+      },
+    };
+  })
 );
 
 export const useIsAuthenticated = () => useAuthStore(state => state.isAuthenticated);

@@ -7,7 +7,9 @@ import { cn } from '@/shared/utils/cn';
 export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  // Default to a persistent session so reloads, version updates and reopening an
+  // installed PWA keep the user signed in. Unchecking opts into a tab-scoped session.
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
 
   const login = useAuthStore(state => state.login);

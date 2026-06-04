@@ -13,7 +13,7 @@
       "project": ["src/**/*.ts"]
     },
     "apps/web": {
-      "entry": ["src/main.tsx", "src/app/App.tsx", "src/pages/**/*.tsx"],
+      "entry": ["src/main.tsx", "src/app/App.tsx", "src/pages/**/*.tsx", "src/**/*.test.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["**/testing/**"],
       "paths": {

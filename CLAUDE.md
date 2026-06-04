@@ -108,7 +108,7 @@ Yaytsa extensions (`/v1/*`) handle device sync (`/v1/me/devices/*`), adaptive se
 
 ## Security Model
 
-**Frontend**: HTTPS enforced in production. Session tokens stored in sessionStorage (tab-scoped) with optional localStorage for "Remember me." Content Security Policy restricts script/media/connect sources; inline script hashes prevent XSS.
+**Frontend**: HTTPS enforced in production. Session tokens persist in localStorage by default (survives reload, frontend version updates, and reopening an installed PWA); unchecking "Remember me" downgrades to tab-scoped sessionStorage. On startup the persisted token is re-validated against `/Users/Me` — a confirmed 401 clears auth and routes to login, while transient network/5xx errors keep the user signed in (no auto-logout on backend restart). Content Security Policy restricts script/media/connect sources; inline script hashes prevent XSS.
 
 **Backend (v2)**: Device-bound opaque tokens (256-bit, SecureRandom, SHA-256 at rest, hashed cache key). BCrypt password hashing (strength 13). RFC 7807 Problem Details for all error responses via `@RestControllerAdvice`. Streaming paths validated against the configured library root with TOCTOU mitigation (NOFOLLOW_LINKS).
 
