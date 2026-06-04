@@ -230,7 +230,6 @@
      search, settings forms and copyable text keep working when nothing is being dragged. */
   body.dragging {
     cursor: grabbing;
-    -webkit-user-select: none;
     user-select: none;
   }
 

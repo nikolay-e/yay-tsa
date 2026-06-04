@@ -70,7 +70,7 @@ function observe(type: string, cb: (entry: PerformanceEntry) => void): void {
     new PerformanceObserver(list => list.getEntries().forEach(cb)).observe({
       type,
       buffered: true,
-    } as PerformanceObserverInit);
+    });
   } catch {
     /* unsupported entry type — ignore */
   }

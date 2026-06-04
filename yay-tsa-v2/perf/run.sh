@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PGBIN=${PGBIN:-/usr/lib/postgresql/16/bin}
-ACC=${PG_RUN_AS:-postgres}            # unprivileged account to own the server (PG refuses root)
+ACC=${PG_RUN_AS:-postgres} # unprivileged account to own the server (PG refuses root)
 DIR=$(mktemp -d /tmp/yaytsa-perf.XXXX)
 PORT=${PGPORT:-55432}
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +30,7 @@ chown "$ACC" "$DIR"/*.sql
 run_as() { su "$ACC" -c "PATH=$PGBIN:\$PATH $*"; }
 
 run_as "initdb -D $DIR/data -U perf --auth=trust" >/dev/null
-cat >> "$DIR/data/postgresql.conf" <<EOF
+cat >>"$DIR/data/postgresql.conf" <<EOF
 shared_buffers = 256MB
 work_mem = 32MB
 fsync = off
@@ -59,15 +59,16 @@ for spec in "1000 50 100 850 100" "5000 250 500 4250 500" "20000 1000 2000 17000
   N=$1 art=$2 alb=$3 trk=$4 fav=$5
   run_as "$PSQL -v artists=$art -v albums=$alb -v tracks=$trk -v favs=$fav -f $DIR/seed.sql" >/dev/null
   echo "===== SCALE: $N entities (favs=$fav) ====="
-  run_as "$PSQL -v albums=$alb -v favs=$fav -f $DIR/measure.sql" 2>&1 \
-    | awk '/^@@Q /{l=$2;g=0;next}
+  run_as "$PSQL -v albums=$alb -v favs=$fav -f $DIR/measure.sql" 2>&1 |
+    awk '/^@@Q /{l=$2;g=0;next}
            l&&!g&&/(Seq Scan|Index Scan|Index Only|Bitmap Heap|Sort  \()/{o=$0;sub(/^ +/,"",o);sub(/  \(cost.*/,"",o);plan[l]=o;g=1}
            /Execution Time:/{if(l){printf "  %-44s %-38s %8s ms\n",l,substr(plan[l],1,38),$3;l=""}}'
 done
 
 et() { # $1 = SQL; prints top node + execution time on one line
-  run_as "$PSQL -tA -c \"EXPLAIN (ANALYZE,TIMING) $1\"" 2>&1 \
-    | grep -E 'Seq Scan|Index Scan|Bitmap Heap|Sort  \(|Execution Time' | head -3 | tr '\n' '|'; echo
+  run_as "$PSQL -tA -c \"EXPLAIN (ANALYZE,TIMING) $1\"" 2>&1 |
+    grep -E 'Seq Scan|Index Scan|Bitmap Heap|Sort  \(|Execution Time' | head -3 | tr '\n' '|'
+  echo
 }
 
 echo "===== (A) INDEX ON vs OFF @ 20k entities / 2000 favorites ====="
@@ -89,6 +90,6 @@ printf "  %-12s %-26s %-26s\n" favorites loadALL deepOFFSET_LIMIT50
 for F in 5000 20000 50000 100000; do
   run_as "$PSQL -v artists=10 -v albums=50 -v tracks=$F -v favs=$F -f $DIR/seed.sql" >/dev/null
   la=$(run_as "$PSQL -tA -c \"EXPLAIN (ANALYZE,TIMING) SELECT * FROM core_v2_preferences.favorites WHERE user_id='u1' ORDER BY position\"" 2>&1 | grep -oE 'Execution Time: [0-9.]+ ms')
-  sp=$(run_as "$PSQL -tA -c \"EXPLAIN (ANALYZE,TIMING) SELECT * FROM core_v2_preferences.favorites WHERE user_id='u1' ORDER BY position OFFSET $((F-50)) LIMIT 50\"" 2>&1 | grep -oE 'Execution Time: [0-9.]+ ms')
+  sp=$(run_as "$PSQL -tA -c \"EXPLAIN (ANALYZE,TIMING) SELECT * FROM core_v2_preferences.favorites WHERE user_id='u1' ORDER BY position OFFSET $((F - 50)) LIMIT 50\"" 2>&1 | grep -oE 'Execution Time: [0-9.]+ ms')
   printf "  %-12s %-26s %-26s\n" "$F" "$la" "$sp"
 done

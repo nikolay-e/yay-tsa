@@ -23,6 +23,7 @@
   },
   "ignoreDependencies": [
     "@axe-core/playwright",
+    "@playwright/test",
     "@commitlint/cli",
     "jsdom",
     "sharp",
