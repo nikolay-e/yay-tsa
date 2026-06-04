@@ -5,7 +5,22 @@ export interface SessionData {
   userId: string;
 }
 
+export interface LoadedSession extends SessionData {
+  // true when loaded from localStorage (persistent across PWA restart).
+  persistent: boolean;
+  // true when the user explicitly opted into a tab-scoped session in this
+  // version (Remember me unchecked). Distinguishes an intentional downgrade
+  // from a legacy sessionStorage session written by an older app version.
+  explicitTabScope: boolean;
+}
+
 const COOKIE_NAME = 'yay_token';
+
+// Frontend-only marker (sessionStorage) recording that the current tab-scoped
+// session was an explicit user choice in this app version, so it must NOT be
+// promoted to persistent storage. Legacy sessions from older versions lack it.
+const SESSION_SCOPE_KEY = 'yaytsa_session_scope';
+const SESSION_SCOPE_TAB = 'tab';
 
 function writeTokenCookie(token: string): void {
   if (typeof document === 'undefined') return;
@@ -28,13 +43,15 @@ export function saveSession(data: SessionData): void {
   try {
     sessionStorage.setItem(STORAGE_KEYS.SESSION, data.token);
     sessionStorage.setItem(STORAGE_KEYS.USER_ID, data.userId);
+    // Mark this as a deliberate tab-scoped session so restore never promotes it.
+    sessionStorage.setItem(SESSION_SCOPE_KEY, SESSION_SCOPE_TAB);
     writeTokenCookie(data.token);
   } catch {
     // QuotaExceededError or SecurityError in private mode
   }
 }
 
-function loadSession(): SessionData | null {
+function loadSession(): (SessionData & { explicitTabScope: boolean }) | null {
   if (typeof sessionStorage === 'undefined') {
     return null;
   }
@@ -47,7 +64,11 @@ function loadSession(): SessionData | null {
       return null;
     }
 
-    return { token, userId };
+    return {
+      token,
+      userId,
+      explicitTabScope: sessionStorage.getItem(SESSION_SCOPE_KEY) === SESSION_SCOPE_TAB,
+    };
   } catch {
     return null;
   }
@@ -61,6 +82,7 @@ function clearSession(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEYS.SESSION);
     sessionStorage.removeItem(STORAGE_KEYS.USER_ID);
+    sessionStorage.removeItem(SESSION_SCOPE_KEY);
   } catch {
     // SecurityError in private mode
   }
@@ -119,17 +141,38 @@ function clearSessionPersistent(): void {
   }
 }
 
-export function loadSessionAuto(): SessionData | null {
+export function loadSessionAuto(): LoadedSession | null {
   const persistentSession = loadSessionPersistent();
   if (persistentSession) {
     writeTokenCookie(persistentSession.token);
-    return persistentSession;
+    return { ...persistentSession, persistent: true, explicitTabScope: false };
   }
   const session = loadSession();
   if (session) {
     writeTokenCookie(session.token);
+    return {
+      token: session.token,
+      userId: session.userId,
+      persistent: false,
+      explicitTabScope: session.explicitTabScope,
+    };
   }
-  return session;
+  return null;
+}
+
+/**
+ * Promote a legacy tab-scoped session (written by an older app version, before
+ * persistent-by-default) into persistent storage so it survives a PWA restart.
+ * No-op for sessions that are already persistent or were explicitly tab-scoped.
+ * Returns true if a promotion happened.
+ */
+export function promoteLegacySession(session: LoadedSession): boolean {
+  if (session.persistent || session.explicitTabScope) {
+    return false;
+  }
+  saveSessionPersistent({ token: session.token, userId: session.userId });
+  clearSession();
+  return true;
 }
 
 export function clearAllSessions(): void {

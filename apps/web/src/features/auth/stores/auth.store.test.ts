@@ -136,7 +136,7 @@ describe('auth.store', () => {
       expect(state.isAdmin).toBe(true);
       expect(state.isLoading).toBe(false);
       // Storage untouched — the session is intact.
-      expect(loadSessionAuto()).toEqual(STORED);
+      expect(loadSessionAuto()).toMatchObject(STORED);
     });
 
     it('clears the session and becomes guest ONLY on a confirmed 401', async () => {
@@ -160,7 +160,7 @@ describe('auth.store', () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
       expect(useAuthStore.getState().token).toBe(STORED.token);
       // Critical: the persisted session must NOT be wiped by a transient outage.
-      expect(loadSessionAuto()).toEqual(STORED);
+      expect(loadSessionAuto()).toMatchObject(STORED);
     });
 
     it('stays logged in on a 403 (permission error is not an auth failure)', async () => {
@@ -171,7 +171,38 @@ describe('auth.store', () => {
 
       expect(ok).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
-      expect(loadSessionAuto()).toEqual(STORED);
+      expect(loadSessionAuto()).toMatchObject(STORED);
+    });
+  });
+
+  describe('legacy session migration', () => {
+    it('promotes a legacy sessionStorage session to localStorage after a successful restore', async () => {
+      // Older app version: token lives only in tab-scoped sessionStorage.
+      sessionStorage.setItem('yaytsa_session', STORED.token);
+      sessionStorage.setItem('yaytsa_user_id', STORED.userId);
+      h.mockGet.mockResolvedValue({ Policy: { IsAdministrator: false } });
+
+      const ok = await useAuthStore.getState().restoreSession();
+
+      expect(ok).toBe(true);
+      // Now persistent → survives closing/reopening the installed PWA.
+      expect(localStorage.getItem('yaytsa_session_persistent')).toBe(STORED.token);
+      expect(localStorage.getItem('yaytsa_remember_me')).toBe('true');
+      expect(sessionStorage.getItem('yaytsa_session')).toBeNull();
+    });
+
+    it('does NOT promote an explicitly tab-scoped session (Remember me unchecked)', async () => {
+      // New-version explicit downgrade carries the scope marker.
+      sessionStorage.setItem('yaytsa_session', STORED.token);
+      sessionStorage.setItem('yaytsa_user_id', STORED.userId);
+      sessionStorage.setItem('yaytsa_session_scope', 'tab');
+      h.mockGet.mockResolvedValue({ Policy: { IsAdministrator: false } });
+
+      const ok = await useAuthStore.getState().restoreSession();
+
+      expect(ok).toBe(true);
+      // Stays tab-scoped → a new context / PWA reopen becomes guest.
+      expect(localStorage.getItem('yaytsa_session_persistent')).toBeNull();
     });
   });
 
@@ -202,8 +233,11 @@ describe('auth.store', () => {
   });
 
   describe('logout', () => {
-    it('clears storage, becomes guest, and allows re-login without reload', async () => {
+    it('clears both localStorage and sessionStorage, then allows a clean re-login', async () => {
+      // Seed both stores to prove logout wipes everything.
       saveSessionPersistent(STORED);
+      sessionStorage.setItem('yaytsa_session', STORED.token);
+      sessionStorage.setItem('yaytsa_user_id', STORED.userId);
       h.mockGet.mockResolvedValue({ Policy: { IsAdministrator: false } });
       await useAuthStore.getState().restoreSession();
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
@@ -213,8 +247,10 @@ describe('auth.store', () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(useAuthStore.getState().isLoading).toBe(false);
       expect(loadSessionAuto()).toBeNull();
+      expect(localStorage.getItem('yaytsa_session_persistent')).toBeNull();
+      expect(sessionStorage.getItem('yaytsa_session')).toBeNull();
 
-      // Re-login in the same browsing session must work.
+      // Re-login in the same browsing session must work and write storage afresh.
       h.mockLogin.mockResolvedValue({
         AccessToken: 'token-2',
         User: { Id: 'user-2', Policy: { IsAdministrator: false } },
@@ -222,6 +258,7 @@ describe('auth.store', () => {
       await useAuthStore.getState().login('bob', 'pw');
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
       expect(useAuthStore.getState().token).toBe('token-2');
+      expect(localStorage.getItem('yaytsa_session_persistent')).toBe('token-2');
     });
 
     it('does not cascade: parallel 401s trigger a single logout', async () => {

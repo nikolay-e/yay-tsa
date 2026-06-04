@@ -36,6 +36,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
+      testIgnore: /\.mocked\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         hasTouch: false, // Explicitly disable touch for desktop
@@ -49,6 +50,7 @@ export default defineConfig({
     },
     {
       name: 'mobile',
+      testIgnore: /\.mocked\.spec\.ts/,
       use: {
         ...devices['Pixel 7'],
         hasTouch: true,
@@ -62,6 +64,7 @@ export default defineConfig({
     // WebKit covers Safari MediaSession / Audio quirks that Chromium misses on iOS PWAs.
     {
       name: 'webkit',
+      testIgnore: /\.mocked\.spec\.ts/,
       use: {
         ...devices['Desktop Safari'],
         hasTouch: false,
@@ -69,6 +72,22 @@ export default defineConfig({
         storageState: STORAGE_STATE,
       },
       dependencies: ['setup'],
+    },
+    // Backend-free auth-persistence suite: all /api/* calls are stubbed via
+    // Playwright route mocking, so it needs neither a live backend nor the
+    // login `setup` dependency. Run: npx playwright test --project=chromium-mocked
+    {
+      name: 'chromium-mocked',
+      testMatch: /\.mocked\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        hasTouch: false,
+        isMobile: false,
+        storageState: { cookies: [], origins: [] },
+        launchOptions: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        },
+      },
     },
   ],
 

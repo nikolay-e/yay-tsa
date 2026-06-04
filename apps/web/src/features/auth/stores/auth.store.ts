@@ -14,6 +14,7 @@ import {
   saveSessionPersistent,
   loadSessionAuto,
   clearAllSessions,
+  promoteLegacySession,
 } from '@/shared/utils/session-manager';
 import { queryClient } from '@/shared/lib/query-client';
 import { log } from '@/shared/utils/logger';
@@ -194,6 +195,10 @@ export const useAuthStore = create<AuthStore>()(
           // Confirm the persisted token is still accepted by the backend.
           const me = await client.get<{ Policy?: { IsAdministrator?: boolean } }>('/Users/Me');
 
+          // Migrate users who logged in with an older app version (session only
+          // in sessionStorage) to persistent storage so they survive a restart.
+          promoteLegacySession(session);
+
           set({
             client,
             authService,
@@ -221,6 +226,11 @@ export const useAuthStore = create<AuthStore>()(
           log.auth.warn('Session validation deferred — backend unreachable, keeping session', {
             error: String(error),
           });
+
+          // Even when we cannot reach the backend, promote a legacy tab-scoped
+          // session so a subsequent PWA restart does not silently lose it. A
+          // genuinely invalid token is still cleared by the 401 path later.
+          promoteLegacySession(session);
 
           set({
             client,
