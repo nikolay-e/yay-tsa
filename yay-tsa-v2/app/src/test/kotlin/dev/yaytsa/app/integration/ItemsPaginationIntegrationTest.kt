@@ -1,5 +1,6 @@
 package dev.yaytsa.app.integration
 
+import com.fasterxml.jackson.databind.JsonNode
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.ApiTokenId
 import dev.yaytsa.domain.auth.CreateApiToken
@@ -10,6 +11,8 @@ import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
+import jakarta.persistence.EntityManagerFactory
+import org.hibernate.SessionFactory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -25,6 +28,9 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
 
     @Autowired
     lateinit var jdbc: JdbcTemplate
+
+    @Autowired
+    lateinit var entityManagerFactory: EntityManagerFactory
 
     private lateinit var token: String
     private lateinit var userId: String
@@ -226,6 +232,115 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
             listOf("$tag-c", "$tag-b", "$tag-a"),
             customOrder(),
             "new custom order must persist after reordering the resolvable subset",
+        )
+    }
+
+    @Test
+    fun `album items expose artist name and id across browse, ids, getItem and search`() {
+        val tag = "albart-${UUID.randomUUID().toString().take(6)}"
+        val artistId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+            artistId,
+            "ARTIST",
+            "$tag Artist",
+            "$tag artist",
+            tag,
+        )
+        jdbc.update("INSERT INTO core_v2_library.artists (entity_id) VALUES (?)", artistId)
+
+        val albumIds =
+            (0..2).map { i ->
+                val id = UUID.randomUUID()
+                jdbc.update(
+                    "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+                    id,
+                    "ALBUM",
+                    "$tag Album $i",
+                    "$tag album $i",
+                    tag,
+                )
+                jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", id, artistId)
+                id.toString()
+            }
+
+        fun assertArtist(album: JsonNode) {
+            assertEquals(listOf("$tag Artist"), album.get("Artists").map { it.asText() }, "Artists must carry the album artist name")
+            val items = album.get("ArtistItems")
+            assertEquals(1, items.size(), "ArtistItems must have exactly the one album artist")
+            assertEquals("$tag Artist", items[0].get("Name").asText())
+            assertEquals(artistId.toString(), items[0].get("Id").asText(), "ArtistItems Id must be the artist entity id")
+        }
+
+        fun albumsFrom(query: String): List<JsonNode> =
+            objectMapper
+                .readTree(get(query, token).response.contentAsString)
+                .get("Items")
+                .filter { it.get("Type").asText() == "MusicAlbum" && it.get("Name").asText().startsWith(tag) }
+
+        val browse = albumsFrom("/Items?IncludeItemTypes=MusicAlbum&Limit=500")
+        assertEquals(3, browse.size, "browse must return all three seeded albums")
+        browse.forEach { assertArtist(it) }
+
+        albumsFrom("/Items?Ids=${albumIds.joinToString(",")}").forEach { assertArtist(it) }
+        albumsFrom("/Items?SearchTerm=$tag&Limit=500").forEach { assertArtist(it) }
+
+        val single = objectMapper.readTree(get("/Items/${albumIds.first()}", token).response.contentAsString)
+        assertArtist(single)
+    }
+
+    @Test
+    fun `album page query count is constant regardless of album count (no per-album artist N plus 1)`() {
+        val tag = "albn1-${UUID.randomUUID().toString().take(6)}"
+
+        fun seedArtistWithAlbums(count: Int): String {
+            val artistId = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+                artistId,
+                "ARTIST",
+                "$tag-${artistId.toString().take(4)}",
+                "$tag artist",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.artists (entity_id) VALUES (?)", artistId)
+            repeat(count) { i ->
+                val id = UUID.randomUUID()
+                jdbc.update(
+                    "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+                    id,
+                    "ALBUM",
+                    "$tag album ${"%03d".format(i)} ${id.toString().take(4)}",
+                    "$tag album ${"%03d".format(i)}",
+                    tag,
+                )
+                jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", id, artistId)
+            }
+            return artistId.toString()
+        }
+
+        // Two artists with very different album counts; the ArtistIds branch returns exactly that
+        // artist's albums, isolating the page from other tests' data so the only variable is size.
+        val smallArtist = seedArtistWithAlbums(3)
+        val largeArtist = seedArtistWithAlbums(15)
+
+        val stats = entityManagerFactory.unwrap(SessionFactory::class.java).statistics
+        stats.isStatisticsEnabled = true
+
+        fun queriesForArtist(artistId: String): Long {
+            stats.clear()
+            val res = get("/Items?IncludeItemTypes=MusicAlbum&ArtistIds=$artistId", token)
+            assertEquals(200, res.response.status)
+            return stats.prepareStatementCount
+        }
+
+        val small = queriesForArtist(smallArtist)
+        val large = queriesForArtist(largeArtist)
+        assertEquals(
+            small,
+            large,
+            "artist names are batched once per page, so a 15-album page must issue the same number of " +
+                "queries as a 3-album page; growth here means the Album->artist N+1 has returned",
         )
     }
 }
