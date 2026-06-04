@@ -248,7 +248,8 @@ repos:
       - id: component-naming
         name: 'Component naming convention (PascalCase)'
         entry: >-
-          bash -c 'find apps/web/src -name "*.tsx" -exec basename {} \; |
+          bash -c 'find apps/web/src -name "*.tsx" -not -name "*.test.tsx"
+          -not -name "*.spec.tsx" -exec basename {} \; |
           grep -vE "^[A-Z]|^(index|main|vite-env)" && exit 1 || exit 0'
         language: system
         files: ^apps/web/src/.*\.tsx$
