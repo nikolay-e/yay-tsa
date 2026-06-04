@@ -131,6 +131,52 @@ jobs:
       - name: Check bundle size budget
         run: npx bundlewatch --config .bundlewatchrc.json
 
+  web-e2e-mocked:
+    name: Web E2E (mocked, backend-free)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build core + platform (the dev server resolves them at runtime)
+        run: npm run build:core && npm run build:platform
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: Run backend-free auth-persistence suite
+        run: npx playwright test --project=chromium-mocked
+        working-directory: apps/web
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-mocked
+          path: apps/web/playwright-report
+          retention-days: 3
+          if-no-files-found: ignore
+
   build-android-apk:
     name: Build Android APK
     if: github.event_name == 'push'

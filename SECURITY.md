@@ -16,6 +16,15 @@ secret out of JS reach entirely — an `HttpOnly; Secure; SameSite` cookie or a
 backend-managed session — which would require a backend auth-contract change and
 is out of scope for this frontend persistence work.
 
+Migration trade-off: users who logged in on an older app version are detected
+by a legacy `sessionStorage`-only session (no `yaytsa_session_scope` marker,
+which did not exist before this change) and are promoted to `localStorage` on
+their next successful restore. Because that older default (`Remember me`
+unchecked) is indistinguishable from a deliberate tab-only choice, those legacy
+sessions are also promoted — an intentional one-time migration so the PWA
+persistence fix reaches existing users too. Going forward, an explicit tab-only
+session carries the scope marker and is never promoted.
+
 Startup validation re-checks the persisted token against `/Users/Me`; the
 backend guarantees that missing/invalid/expired/revoked tokens return **401**
 (which clears auth and routes to login) while permission failures return **403**
