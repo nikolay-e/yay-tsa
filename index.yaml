@@ -2,14 +2,14 @@ apiVersion: v1
 entries:
   yay-tsa:
   - apiVersion: v2
-    appVersion: main-9d096d5
-    created: "2026-06-04T14:58:37.745955064Z"
+    appVersion: main-f626a73
+    created: "2026-06-04T15:17:42.759073695Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
       version: 0.1.0
     description: A portable, minimal Jellyfin-inspired music server and client
-    digest: 53d6d7a90f121a065b38defcad9326d9fcd6709461a3592dd0d3b349c6b062ed
+    digest: a9f20a3e2699f17adb4cb4316bde5193cacf1a4d582821b5703ca27ac2ca133d
     home: https://github.com/nikolay-e/yay-tsa
     keywords:
     - jellyfin
@@ -23,12 +23,12 @@ entries:
     - https://github.com/nikolay-e/yay-tsa
     type: application
     urls:
-    - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.5.1-main.r0000000597-g9d096d5.tgz
-    version: 0.5.1-main.r0000000597-g9d096d5
+    - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.5.1-main.r0000000598-gf626a73.tgz
+    version: 0.5.1-main.r0000000598-gf626a73
   yay-tsa-v2:
   - apiVersion: v2
     appVersion: v1-final-before-retirement
-    created: "2026-06-04T14:58:37.754294901Z"
+    created: "2026-06-04T15:17:42.767969123Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: aeba0d9ca2d5404f9ac96322cc4d8eb602e5cbfeaecda5a26089786d85efcadc
     home: https://github.com/nikolay-e/yay-tsa
@@ -49,7 +49,7 @@ entries:
     version: 1-final-before-retirement
   - apiVersion: v2
     appVersion: main-9d096d5
-    created: "2026-06-04T14:58:37.753845763Z"
+    created: "2026-06-04T15:17:42.767413004Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -74,7 +74,7 @@ entries:
     version: 0.1.0-main.r0000000597-g9d096d5
   - apiVersion: v2
     appVersion: main-f8f6f2d
-    created: "2026-06-04T14:58:37.753116256Z"
+    created: "2026-06-04T15:17:42.766669105Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -99,7 +99,7 @@ entries:
     version: 0.1.0-main.r0000000596-gf8f6f2d
   - apiVersion: v2
     appVersion: main-dbd1719
-    created: "2026-06-04T14:58:37.752367849Z"
+    created: "2026-06-04T15:17:42.765820509Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -124,7 +124,7 @@ entries:
     version: 0.1.0-main.r0000000595-gdbd1719
   - apiVersion: v2
     appVersion: main-2910480
-    created: "2026-06-04T14:58:37.751628567Z"
+    created: "2026-06-04T15:17:42.764717529Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -149,7 +149,7 @@ entries:
     version: 0.1.0-main.r0000000594-g2910480
   - apiVersion: v2
     appVersion: main-a938e77
-    created: "2026-06-04T14:58:37.749734081Z"
+    created: "2026-06-04T15:17:42.76399Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -174,7 +174,7 @@ entries:
     version: 0.1.0-main.r0000000593-ga938e77
   - apiVersion: v2
     appVersion: main-c4d5319
-    created: "2026-06-04T14:58:37.748925198Z"
+    created: "2026-06-04T15:17:42.763207858Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -199,7 +199,7 @@ entries:
     version: 0.1.0-main.r0000000592-gc4d5319
   - apiVersion: v2
     appVersion: main-fd6c6cd
-    created: "2026-06-04T14:58:37.748170811Z"
+    created: "2026-06-04T15:17:42.762431538Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -224,7 +224,7 @@ entries:
     version: 0.1.0-main.r0000000591-gfd6c6cd
   - apiVersion: v2
     appVersion: main-4f66151
-    created: "2026-06-04T14:58:37.74743519Z"
+    created: "2026-06-04T15:17:42.760770104Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -249,7 +249,7 @@ entries:
     version: 0.1.0-main.r0000000590-g4f66151
   - apiVersion: v2
     appVersion: main-ee5b3a0
-    created: "2026-06-04T14:58:37.746736082Z"
+    created: "2026-06-04T15:17:42.759806174Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -272,4 +272,4 @@ entries:
     urls:
     - https://nikolay-e.github.io/yay-tsa/yay-tsa-v2-0.1.0-main.r0000000589-gee5b3a0.tgz
     version: 0.1.0-main.r0000000589-gee5b3a0
-generated: "2026-06-04T14:58:37.744520152Z"
+generated: "2026-06-04T15:17:42.757814212Z"
