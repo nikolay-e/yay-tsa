@@ -4,7 +4,7 @@ import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type AudioItem } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
-import { useFavoriteToggle } from './useFavorites';
+import { useFavoriteToggle, useFavoritePendingStore } from './useFavorites';
 
 const post = vi.fn<(url: string) => Promise<void>>();
 const del = vi.fn<(url: string) => Promise<void>>();
@@ -75,6 +75,7 @@ beforeEach(() => {
   post.mockReset().mockResolvedValue(undefined);
   del.mockReset().mockResolvedValue(undefined);
   useAuthStore.setState({ client: stubClient as never });
+  useFavoritePendingStore.setState({ pending: new Set() });
   qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });

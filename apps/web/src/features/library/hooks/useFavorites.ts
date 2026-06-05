@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { create } from 'zustand';
 import { FavoritesService } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { usePlayerStore } from '@/features/player/stores/player.store';
@@ -7,6 +8,40 @@ interface FavoriteToggleParams {
   itemId: string;
   isFavorite: boolean;
 }
+
+// Shared in-flight lock, keyed by itemId. Item ids are globally unique (UUIDs), so the id alone
+// identifies the favoritable entity regardless of type, and a single lock per id is correct. Every
+// FavoriteButton for the same item subscribes to this, so the heart disables in lockstep across
+// Songs / Now Playing / Queue / Favorites / detail pages while a toggle is in flight — there is no
+// per-instance pending state that could let two concurrent mutations race. The lock is acquired
+// synchronously at click time (see FavoriteButton) and released on settle, so a second click in the
+// same frame is rejected before any network call.
+interface FavoritePendingState {
+  pending: ReadonlySet<string>;
+  begin: (itemId: string) => void;
+  end: (itemId: string) => void;
+}
+
+export const useFavoritePendingStore = create<FavoritePendingState>(set => ({
+  pending: new Set<string>(),
+  begin: itemId =>
+    set(state => {
+      if (state.pending.has(itemId)) return state;
+      const next = new Set(state.pending);
+      next.add(itemId);
+      return { pending: next };
+    }),
+  end: itemId =>
+    set(state => {
+      if (!state.pending.has(itemId)) return state;
+      const next = new Set(state.pending);
+      next.delete(itemId);
+      return { pending: next };
+    }),
+}));
+
+export const useIsFavoritePending = (itemId: string): boolean =>
+  useFavoritePendingStore(state => state.pending.has(itemId));
 
 // Every query-key PREFIX whose cached data can hold items that render a heart. getQueriesData
 // matches by prefix, so the first segment covers all variants (filters, infinite pages, ids).
@@ -98,10 +133,11 @@ function patchFavoriteInQueries(
  * instantly and identically everywhere; one rollback restores them on error; one targeted invalidate
  * reconciles the canonical lists on settle.
  *
- * Repeated-click policy: each FavoriteButton owns this mutation, so `isPending` disables that button
- * until the request settles (no double-submit on one control). The optimistic patch means any OTHER
- * instance of the same item updates immediately and remains interactive, so cross-screen toggling is
- * always last-write-wins on the freshly-rendered state.
+ * Repeated-click policy: pending is locked PER ITEM ID (useFavoritePendingStore), not per button.
+ * The lock is taken synchronously when any FavoriteButton for the item is clicked and released on
+ * settle, so every instance of that item (Songs row, Now Playing, Queue, Favorites, detail page)
+ * disables together and a second click — on the same control or a different one — is rejected before
+ * a second network call can start. This removes the concurrent-toggle race entirely.
  */
 export function useFavoriteToggle() {
   const client = useAuthStore(state => state.client);
@@ -139,7 +175,9 @@ export function useFavoriteToggle() {
       // Restore the player-owned copies (now-playing + queue) to their pre-click value.
       usePlayerStore.getState().patchTrackFavorite(variables.itemId, variables.isFavorite);
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
+      // Release the per-item lock (success or failure) so the heart becomes interactive again.
+      useFavoritePendingStore.getState().end(variables.itemId);
       void Promise.all(
         INVALIDATE_QUERY_KEYS.map(async key => queryClient.invalidateQueries({ queryKey: key }))
       ).catch(() => {});

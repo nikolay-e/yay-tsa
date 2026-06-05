@@ -1,5 +1,9 @@
 import { Heart } from 'lucide-react';
-import { useFavoriteToggle } from '@/features/library/hooks/useFavorites';
+import {
+  useFavoriteToggle,
+  useIsFavoritePending,
+  useFavoritePendingStore,
+} from '@/features/library/hooks/useFavorites';
 import { cn } from '@/shared/utils/cn';
 
 type FavoriteItemType = 'track' | 'album' | 'artist' | 'item';
@@ -25,8 +29,9 @@ const NOUN: Record<FavoriteItemType, string> = {
  * The single favorite control for the whole app. Reads its filled/empty state from `isFavorite`
  * (sourced from `UserData.IsFavorite` via getIsFavorite at the call site) and toggles through the
  * shared useFavoriteToggle mutation — never its own POST/DELETE. Optimistic update flips every other
- * instance of the same item instantly; this button disables itself while its own request is pending
- * so the same control can't be double-submitted.
+ * instance of the same item instantly. Pending is locked per item id (shared across all instances),
+ * acquired synchronously on click so a concurrent toggle from any other location is rejected before
+ * a second request can start.
  */
 export function FavoriteButton({
   itemId,
@@ -37,7 +42,8 @@ export function FavoriteButton({
   className,
   'data-testid': testId,
 }: FavoriteButtonProps) {
-  const { mutate, isPending } = useFavoriteToggle();
+  const { mutate } = useFavoriteToggle();
+  const isPending = useIsFavoritePending(itemId);
 
   const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5';
   const noun = NOUN[itemType];
@@ -49,6 +55,12 @@ export function FavoriteButton({
       onClick={e => {
         e.preventDefault();
         e.stopPropagation();
+        // Acquire the per-item lock synchronously at click time. getState() reflects begin()
+        // immediately, so a second click (here or on any other instance of this item) in the same
+        // frame is rejected before a duplicate request starts.
+        const store = useFavoritePendingStore.getState();
+        if (store.pending.has(itemId)) return;
+        store.begin(itemId);
         mutate({ itemId, isFavorite });
       }}
       disabled={disabled || isPending}
