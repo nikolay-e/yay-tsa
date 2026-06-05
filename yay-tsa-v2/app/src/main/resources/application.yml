@@ -111,8 +111,8 @@ bucket4j:
       cache-name: rate-limit-buckets
       url: ^/Users/AuthenticateByName$
       http-status-code: TOO_MANY_REQUESTS
-      http-content-type: application/json
-      http-response-body: '{"error":"Too many requests. Try again later."}'
+      http-content-type: application/problem+json
+      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
       rate-limits:
         - cache-key: getRemoteAddr() + ':' + getRequestURI()
           bandwidths:
@@ -124,8 +124,8 @@ bucket4j:
       cache-name: rate-limit-buckets
       url: ^/rest/.*
       http-status-code: TOO_MANY_REQUESTS
-      http-content-type: application/json
-      http-response-body: '{"error":"Too many requests. Try again later."}'
+      http-content-type: application/problem+json
+      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
       rate-limits:
         - cache-key: getRemoteAddr() + ':' + getRequestURI()
           bandwidths:
