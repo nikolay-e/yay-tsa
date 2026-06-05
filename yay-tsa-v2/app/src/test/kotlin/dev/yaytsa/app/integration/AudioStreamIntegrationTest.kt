@@ -11,6 +11,7 @@ import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -148,6 +149,60 @@ class AudioStreamIntegrationTest : HttpIntegrationTestBase() {
                 ).andReturn()
         assertEquals(206, result.response.status, "end past EOF must clamp to a 206, not 416")
         assertEquals("bytes 0-2047/2048", result.response.getHeader(HttpHeaders.CONTENT_RANGE))
+    }
+
+    // Post-deploy schemathesis flagged two "server errors" (502 Bad Gateway from the ingress) on the
+    // audio endpoints when fuzzed with junk item ids and a tiny Range. A 502 is proxy-level (the pod
+    // returned no clean response) — a real handler fault would surface as a 500 via the advice. These
+    // assert the handler itself answers malformed input with a clean client error, never a 5xx, so a
+    // regression that throws past the response commit (the only thing that could reset the connection
+    // into a 502) is caught here.
+    @Test
+    fun `stream with a non-existent junk itemId and a tiny Range is a clean 4xx, never 5xx`() {
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/{id}/stream", "0")
+                        .header("Authorization", "Bearer $token")
+                        .param("deviceId", "junk")
+                        .header(HttpHeaders.RANGE, "bytes=0-0"),
+                ).andReturn()
+        assertTrue(
+            result.response.status in 400..499,
+            "junk itemId must be a clean 4xx (not a 5xx that becomes a 502 upstream), was ${result.response.status}",
+        )
+    }
+
+    @Test
+    fun `universal with a non-UUID junk itemId is a clean 4xx, never 5xx`() {
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/{id}/universal", "not-a-uuid-¾")
+                        .header("Authorization", "Bearer $token"),
+                ).andReturn()
+        assertTrue(
+            result.response.status in 400..499,
+            "junk itemId must be a clean 4xx, was ${result.response.status}",
+        )
+    }
+
+    @Test
+    fun `stream of a valid track with Range bytes=0-0 returns a single-byte 206`() {
+        val trackId = seedTrack("flac", "flac")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/$trackId/stream")
+                        .header("Authorization", "Bearer $token")
+                        .header(HttpHeaders.RANGE, "bytes=0-0"),
+                ).andReturn()
+        assertEquals(206, result.response.status, "bytes=0-0 is a valid one-byte range")
+        assertEquals("bytes 0-0/2048", result.response.getHeader(HttpHeaders.CONTENT_RANGE))
+        assertEquals("1", result.response.getHeader(HttpHeaders.CONTENT_LENGTH))
     }
 
     @Test
