@@ -9,6 +9,7 @@ import {
   type RepeatMode,
   type ShuffleMode,
 } from '../internal/models/types.js';
+import { setItemFavorite } from '../api/favorite-state.js';
 import { createLogger } from '../internal/utils/logger.js';
 
 const log = createLogger('Queue');
@@ -192,6 +193,30 @@ export class PlaybackQueue {
    */
   getAllItems(): AudioItem[] {
     return [...this.items];
+  }
+
+  /**
+   * Patch the favorite flag of a queued track across the live queue, the pre-shuffle order, and the
+   * back-navigation history. The queue caches its own AudioItem copies, so without this a track
+   * favorited elsewhere would surface with a stale heart once playback advances to it. Returns true
+   * if any copy changed; identity is replaced (not mutated) so reference checks re-render.
+   */
+  setFavorite(itemId: string, isFavorite: boolean): boolean {
+    let changed = false;
+    const patch = (arr: AudioItem[]): void => {
+      for (let i = 0; i < arr.length; i++) {
+        const item = arr[i];
+        if (item?.Id !== itemId) continue;
+        if ((item.UserData?.IsFavorite ?? false) !== isFavorite) {
+          arr[i] = setItemFavorite(item, isFavorite);
+          changed = true;
+        }
+      }
+    };
+    patch(this.items);
+    patch(this.originalOrder);
+    patch(this.playHistory);
+    return changed;
   }
 
   /**

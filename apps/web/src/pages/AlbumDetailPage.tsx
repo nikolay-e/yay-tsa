@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Pause, Play, Shuffle } from 'lucide-react';
-import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
+import { ItemsService, getIsFavorite, type MusicAlbum } from '@yay-tsa/core';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
@@ -147,7 +147,8 @@ export function AlbumDetailPage() {
             </button>
             <FavoriteButton
               itemId={album.Id}
-              isFavorite={album.UserData?.IsFavorite ?? false}
+              itemType="album"
+              isFavorite={getIsFavorite(album)}
               size="md"
               data-testid="album-favorite-button"
             />

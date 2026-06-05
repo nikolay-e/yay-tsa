@@ -17,7 +17,7 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from 'lucide-react';
-import type { AudioItem, RepeatMode } from '@yay-tsa/core';
+import { type AudioItem, type RepeatMode, getIsFavorite } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { formatSeconds } from '@/shared/utils/time';
 import { getImagePlaceholder } from '@/shared/utils/image-placeholder';
@@ -288,7 +288,8 @@ export function MobileFullPlayer({
             </button>
             <FavoriteButton
               itemId={track.Id}
-              isFavorite={track.UserData?.IsFavorite ?? false}
+              itemType="track"
+              isFavorite={getIsFavorite(track)}
               size="md"
             />
           </div>

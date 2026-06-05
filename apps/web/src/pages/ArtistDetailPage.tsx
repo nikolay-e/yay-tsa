@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { getIsFavorite } from '@yay-tsa/core';
 import { useArtist, useArtistAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -67,7 +68,8 @@ export function ArtistDetailPage() {
               </h1>
               <FavoriteButton
                 itemId={artist.Id}
-                isFavorite={artist.UserData?.IsFavorite ?? false}
+                itemType="artist"
+                isFavorite={getIsFavorite(artist)}
                 size="md"
               />
             </div>

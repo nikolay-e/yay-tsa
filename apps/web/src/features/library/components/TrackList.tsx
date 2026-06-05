@@ -2,7 +2,7 @@ import { memo, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { type AudioItem } from '@yay-tsa/core';
+import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatTicks } from '@/shared/utils/time';
@@ -210,10 +210,11 @@ function TrackListRowImpl({
 
       <FavoriteButton
         itemId={track.Id}
-        isFavorite={track.UserData?.IsFavorite ?? false}
+        itemType="track"
+        isFavorite={getIsFavorite(track)}
         className={cn(
           'shrink-0',
-          !track.UserData?.IsFavorite &&
+          !getIsFavorite(track) &&
             'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60'
         )}
       />

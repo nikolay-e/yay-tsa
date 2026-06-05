@@ -5,6 +5,7 @@ import {
   PlaybackQueue,
   PlaybackReporter,
   ItemsService,
+  setItemFavorite,
   type AudioItem,
   type MediaServerClient,
   type KaraokeStatus,
@@ -68,6 +69,7 @@ interface PlayerActions {
   insertNextInQueue: (tracks: AudioItem[]) => void;
   removeFromQueue: (trackId: string) => void;
   jumpToQueueTrack: (trackId: string) => Promise<void>;
+  patchTrackFavorite: (itemId: string, isFavorite: boolean) => void;
 }
 
 type PlayerStore = PlayerState & PlayerActions;
@@ -226,6 +228,7 @@ export const usePlayerStore = create<PlayerStore>()(
         insertNextInQueue: () => {},
         removeFromQueue: () => {},
         jumpToQueueTrack: async () => {},
+        patchTrackFavorite: () => {},
       };
     }
 
@@ -1219,6 +1222,26 @@ export const usePlayerStore = create<PlayerStore>()(
               .catch(() => {});
           }
         });
+      },
+
+      // Single entry point the favorite mutation calls so player-owned state (the now-playing track
+      // plus every cached queue copy) stays in lockstep with the React Query caches. The queue keeps
+      // its own AudioItem copies, so a track favorited from a list must be patched here too or its
+      // heart would be stale once playback advances to it.
+      patchTrackFavorite: (itemId: string, isFavorite: boolean) => {
+        const { currentTrack, queue } = get();
+        const queueChanged = queue.setFavorite(itemId, isFavorite);
+        const next: Partial<PlayerState> = {};
+        if (
+          currentTrack?.Id === itemId &&
+          (currentTrack.UserData?.IsFavorite ?? false) !== isFavorite
+        ) {
+          next.currentTrack = setItemFavorite(currentTrack, isFavorite);
+        }
+        if (queueChanged) {
+          next.queueItems = queue.getAllItems();
+        }
+        if (Object.keys(next).length > 0) set(next);
       },
     };
   })

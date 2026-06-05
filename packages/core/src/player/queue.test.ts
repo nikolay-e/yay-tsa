@@ -415,4 +415,39 @@ describe('PlaybackQueue', () => {
       expect(queue.getLength()).toBe(3);
     });
   });
+
+  describe('setFavorite', () => {
+    it('patches a queued track and reports the change', () => {
+      queue.setQueue(tracks(3), 0);
+      expect(queue.setFavorite('t2', true)).toBe(true);
+      const patched = queue.getAllItems().find(i => i.Id === 't2');
+      expect(patched?.UserData?.IsFavorite).toBe(true);
+    });
+
+    it('updates the current item so the now-playing heart is correct', () => {
+      queue.setQueue(tracks(3), 1);
+      queue.setFavorite('t2', true);
+      expect(queue.getCurrentItem()?.Id).toBe('t2');
+      expect(queue.getCurrentItem()?.UserData?.IsFavorite).toBe(true);
+    });
+
+    it('returns false for an id not in the queue', () => {
+      queue.setQueue(tracks(2), 0);
+      expect(queue.setFavorite('missing', true)).toBe(false);
+    });
+
+    it('is idempotent when the flag already matches', () => {
+      queue.setQueue(tracks(2), 0);
+      expect(queue.setFavorite('t1', true)).toBe(true);
+      expect(queue.setFavorite('t1', true)).toBe(false);
+    });
+
+    it('replaces item identity so reference checks re-render', () => {
+      queue.setQueue(tracks(2), 0);
+      const before = queue.getAllItems().find(i => i.Id === 't1');
+      queue.setFavorite('t1', true);
+      const after = queue.getAllItems().find(i => i.Id === 't1');
+      expect(after).not.toBe(before);
+    });
+  });
 });

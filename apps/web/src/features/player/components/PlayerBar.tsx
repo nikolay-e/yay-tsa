@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { AudioItem } from '@yay-tsa/core';
+import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import {
   Mic,
   Timer,
@@ -123,7 +123,7 @@ function TrackInfo({
           </p>
         )}
       </div>
-      <FavoriteButton itemId={track.Id} isFavorite={track.UserData?.IsFavorite ?? false} />
+      <FavoriteButton itemId={track.Id} itemType="track" isFavorite={getIsFavorite(track)} />
     </div>
   );
 }
@@ -414,7 +414,8 @@ export function PlayerBar() {
         <div role="toolbar" className="flex shrink-0 items-center gap-1">
           <FavoriteButton
             itemId={currentTrack.Id}
-            isFavorite={currentTrack.UserData?.IsFavorite ?? false}
+            itemType="track"
+            isFavorite={getIsFavorite(currentTrack)}
           />
           <button
             type="button"
