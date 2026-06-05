@@ -123,8 +123,14 @@ function heartInRow(page: Page, trackName: string) {
     .getByRole('button', { name: /favorites/ });
 }
 
+// NOTE: these two are marked test.fixme until validated on a machine with a browser. The state layer
+// (cross-cache patch + rollback + per-item concurrency lock) is fully proven by the vitest suites;
+// this file is the ready browser-level follow-up. It could not be validated from the build sandbox
+// (the Chromium download is blocked there), and the favorite-bearing track lists are virtualised,
+// which the existing mocked auth suite never exercises — so the selectors/timing need a real run to
+// confirm before this gates CI. Un-fixme and run: npx playwright test --project=chromium-mocked
 test.describe('Favorite sync across screens (mocked backend)', () => {
-  test('like on Songs → shows in Favorites → unlike there → empty back on Songs', async ({
+  test.fixme('like on Songs → shows in Favorites → unlike there → empty back on Songs', async ({
     page,
   }) => {
     installMock(page);
@@ -153,7 +159,9 @@ test.describe('Favorite sync across screens (mocked backend)', () => {
     await expect(heartInRow(page, 'Aurora')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('server rejects the toggle → optimistic fill rolls back to empty', async ({ page }) => {
+  test.fixme('server rejects the toggle → optimistic fill rolls back to empty', async ({
+    page,
+  }) => {
     installMock(page, { failToggle: true });
     await login(page);
 
