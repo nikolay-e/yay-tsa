@@ -9,6 +9,7 @@ import {
   Upload,
   Users,
   Smartphone,
+  Download,
 } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
@@ -17,6 +18,7 @@ import { TrackUploadDialog } from '@/features/library/components';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
 import { UsersPanel } from '@/features/auth/components/UsersPanel';
+import { OfflineManager } from '@/features/offline';
 
 function isStandaloneMode(): boolean {
   return (
@@ -176,6 +178,16 @@ export function SettingsPage() {
       </section>
 
       {status && <div className="bg-bg-tertiary mb-8 rounded-lg p-3 text-sm">{status}</div>}
+
+      <section className="mb-8">
+        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+          <Download className="h-4 w-4" />
+          Offline Downloads
+        </h2>
+        <div className="bg-bg-secondary border-border rounded-lg border">
+          <OfflineManager />
+        </div>
+      </section>
 
       {isAdmin && (
         <section className="mb-8">

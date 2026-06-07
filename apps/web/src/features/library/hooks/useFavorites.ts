@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { FavoritesService } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { usePlayerStore } from '@/features/player/stores/player.store';
+import { useOfflineStore } from '@/features/offline/stores/offline.store';
 
 interface FavoriteToggleParams {
   itemId: string;
@@ -147,10 +148,20 @@ export function useFavoriteToggle() {
     mutationFn: async ({ itemId, isFavorite }: FavoriteToggleParams) => {
       if (!client) throw new Error('Not authenticated');
       const service = new FavoritesService(client);
-      if (isFavorite) {
-        await service.unmarkFavorite(itemId);
-      } else {
-        await service.markFavorite(itemId);
+      try {
+        if (isFavorite) {
+          await service.unmarkFavorite(itemId);
+        } else {
+          await service.markFavorite(itemId);
+        }
+      } catch (error) {
+        // Offline: keep the optimistic heart and queue the change to replay on
+        // reconnect. Online failures still surface so the UI rolls back.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          await useOfflineStore.getState().queueFavorite(itemId, !isFavorite);
+          return;
+        }
+        throw error;
       }
     },
     onMutate: async ({ itemId, isFavorite }: FavoriteToggleParams) => {

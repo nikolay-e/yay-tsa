@@ -18,6 +18,7 @@ import {
   type AudioEngine,
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import { log } from '@/shared/utils/logger';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
@@ -279,6 +280,14 @@ export const usePlayerStore = create<PlayerStore>()(
       if (playbackReporter && currentItemId) {
         const prevId = currentItemId;
         const prevPos = engine.getCurrentTime();
+        // Offline: the network report will fail, so queue the resume position to
+        // sync on reconnect. Online failures are transient and logged only.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          useOfflineStore
+            .getState()
+            .queueProgress(prevId, prevPos)
+            .catch(() => {});
+        }
         playbackReporter.reportStopped(prevId, prevPos).catch(err => {
           log.player.warn('Failed to report stopped', { error: String(err) });
         });
@@ -328,8 +337,17 @@ export const usePlayerStore = create<PlayerStore>()(
       }
       const next = resolveNextItem(queue, repeatMode);
       if (next) {
-        const url = new ItemsService(currentClient).getStreamUrl(next.Id);
-        preloader.prepare(next.Id, url);
+        const networkUrl = new ItemsService(currentClient).getStreamUrl(next.Id);
+        // Prefer a downloaded blob; resolution is async, so re-check the queue
+        // hasn't moved on before arming the preloader for a now-stale track.
+        void useOfflineStore
+          .getState()
+          .getPlaybackUrl(next.Id, networkUrl)
+          .then(url => {
+            if (resolveNextItem(get().queue, get().repeatMode)?.Id === next.Id) {
+              preloader.prepare(next.Id, url);
+            }
+          });
       } else {
         preloader.invalidate();
       }
@@ -473,7 +491,8 @@ export const usePlayerStore = create<PlayerStore>()(
       reportStopped();
 
       try {
-        const streamUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
+        const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
+        const streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
 
         await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
         set({ currentTrack: track, isLoading: false, error: null });
@@ -738,7 +757,10 @@ export const usePlayerStore = create<PlayerStore>()(
       if (!currentClient) return;
       set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
       try {
-        const streamUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
+        const networkUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
+        const streamUrl = await useOfflineStore
+          .getState()
+          .getPlaybackUrl(currentTrack.Id, networkUrl);
         await karaokeSwitchUrl(streamUrl, signal);
         if (!signal.aborted) {
           preloader.invalidate();

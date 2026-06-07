@@ -29,8 +29,12 @@ export default defineConfig(({ mode }) => {
         strategies: 'generateSW',
         registerType: 'autoUpdate',
         workbox: {
-          globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2}'],
-          navigateFallback: null,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          // Serve the precached app shell for any SPA route when the network is
+          // unavailable, so deep links / refreshes work fully offline. API and
+          // media requests are excluded so they hit the network (or runtime caches).
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api/, /\/Audio\//, /\/Items\/.*\/Images\//],
           runtimeCaching: [
             {
               urlPattern: ({ request }) => request.mode === 'navigate',

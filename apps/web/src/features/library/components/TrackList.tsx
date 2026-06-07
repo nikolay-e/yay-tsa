@@ -8,6 +8,7 @@ import { getTrackImageUrl } from '@/shared/utils/track-image';
 import { formatTicks } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
+import { DownloadButton } from '@/features/offline';
 import { FavoriteButton } from './FavoriteButton';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
@@ -208,6 +209,10 @@ function TrackListRowImpl({
         )}
       </div>
 
+      <DownloadButton
+        track={track}
+        className="shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60"
+      />
       <FavoriteButton
         itemId={track.Id}
         itemType="track"

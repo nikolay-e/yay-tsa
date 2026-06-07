@@ -7,6 +7,8 @@ import { usePlayerStore } from '@/features/player/stores/player.store';
 import { useDeviceHeartbeat } from '@/features/player/hooks/useDeviceHeartbeat';
 import { useRemoteCommands } from '@/features/player/hooks/useRemoteCommands';
 import { useDeviceEvents } from '@/features/player/hooks/useDeviceEvents';
+import { OfflineIndicator } from '@/features/offline';
+import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import { cn } from '@/shared/utils/cn';
 import { mark, markOnce, measure } from '@/shared/perf/perf';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
@@ -48,6 +50,13 @@ export function RootLayout() {
   useDeviceHeartbeat();
   useRemoteCommands();
   useDeviceEvents();
+
+  useEffect(() => {
+    useOfflineStore
+      .getState()
+      .init()
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const main = mainRef.current;
@@ -116,6 +125,7 @@ export function RootLayout() {
 
   return (
     <div className="flex h-full min-h-screen">
+      {showNavigation && <OfflineIndicator />}
       {showNavigation && <Sidebar hasPlayer={!!showPlayer} />}
       <main
         ref={mainRef}

@@ -6,6 +6,7 @@ import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
+import { DownloadTracksButton } from '@/features/offline';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
@@ -152,6 +153,7 @@ export function AlbumDetailPage() {
               size="md"
               data-testid="album-favorite-button"
             />
+            <DownloadTracksButton tracks={tracks} label="Download album" />
           </div>
         </div>
       </div>

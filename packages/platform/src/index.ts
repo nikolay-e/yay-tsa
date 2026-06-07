@@ -22,3 +22,12 @@ export type { TrackMetadata, MediaSessionHandlers } from './web/media-session.js
 
 // Wake Lock for preventing screen lock during playback
 export { WakeLockManager } from './web/wake-lock.js';
+
+// Offline storage: downloaded audio blobs, manifest, and the sync outbox
+export {
+  IndexedDbOfflineStore,
+  requestPersistentStorage,
+  isStoragePersisted,
+  estimateStorage,
+} from './web/offline-store.js';
+export type { OutboxEntry } from './web/offline-store.js';
