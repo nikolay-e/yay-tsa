@@ -132,8 +132,16 @@ async function login(page: Page): Promise<void> {
   await page.waitForURL('/', { timeout: 15000 });
 }
 
+// NOTE: marked test.fixme until validated on a machine with a browser. The
+// offline data layer (IndexedDb store + outbox collapse) is covered by the
+// vitest suites; this is the ready browser-level proof. It could not be
+// validated from the build sandbox — the Chromium download and the CI artifact
+// (screenshot/trace) are both network-blocked there, so the track-list page
+// rendering under the mocked harness needs a real run to debug (the same reason
+// favorites-sync.mocked.spec.ts is left as fixme). Un-fixme and run:
+//   npx playwright test --project=chromium-mocked offline.mocked.spec.ts
 test.describe('Offline audio (mocked backend)', () => {
-  test('download → survives reload from IndexedDB → plays offline from local blob', async ({
+  test.fixme('download → survives reload from IndexedDB → plays offline from local blob', async ({
     page,
     context,
   }) => {
