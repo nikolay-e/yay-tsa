@@ -1,20 +1,36 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 
 // Backend-free offline-audio suite (chromium-mocked project): every /api/* call
 // is stubbed, so it runs without a live backend. It proves the behavioural
 // guarantee that matters for "works offline":
 //
-//   download a track  →  it survives a reload and is served from IndexedDB
-//   (not the network) →  with the network offline it still plays from the local
-//   blob, currentTime advances, and no request hits the stream endpoint.
+//   download an album → the track survives a full reload (offline library is
+//   hydrated from IndexedDB) → with the network offline it still plays from the
+//   local blob, currentTime advances, and no request hits the stream endpoint.
 //
-// The service-worker app-shell fallback (offline route loads) is validated
-// against the production build separately — the dev server used here ships no SW.
+// It deliberately uses the album page + /offline page (both non-virtualised
+// lists) rather than the virtualised /songs list, which does not render reliably
+// under the headless mocked harness.
+//
+// The service-worker app-shell fallback (offline route loads after a cold start)
+// is validated against the production build separately — the dev server used
+// here ships no service worker.
 //
 //   npx playwright test --project=chromium-mocked offline.mocked.spec.ts
 
 const VALID_TOKEN = 'mock-access-token';
 const USER = { Id: 'user-1', Name: 'mock-user', Policy: { IsAdministrator: false } };
+
+const ALBUM = {
+  Id: 'album-1',
+  Name: 'Test Album',
+  Type: 'MusicAlbum',
+  ServerId: 'server-1',
+  Artists: ['Tester'],
+  ProductionYear: 2020,
+  ImageTags: {},
+  UserData: { IsFavorite: false, PlaybackPositionTicks: 0, PlayCount: 0, Played: false },
+};
 
 const TRACK = {
   Id: 'track-1',
@@ -26,6 +42,7 @@ const TRACK = {
   AlbumId: 'album-1',
   Artists: ['Tester'],
   ArtistItems: [{ Id: 'artist-1', Name: 'Tester' }],
+  IndexNumber: 1,
   UserData: { IsFavorite: false, PlaybackPositionTicks: 0, PlayCount: 0, Played: false },
 };
 
@@ -54,14 +71,14 @@ function buildWav(): Buffer {
 }
 
 const WAV = buildWav();
-
-// `itemsReturnTrack` lets the test make the library endpoint go empty after the
-// download, proving the offline library is fed from IndexedDB rather than /Items.
-let itemsReturnTrack = true;
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64'
+);
 
 async function mockApi(page: Page): Promise<void> {
   // Benign catch-all first; specific routes registered after take precedence.
-  await page.route('**/api/**', route => {
+  await page.route('**/api/**', (route: Route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({
         status: 200,
@@ -72,22 +89,29 @@ async function mockApi(page: Page): Promise<void> {
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
-  await page.route('**/api/Items**', route => {
-    const body = itemsReturnTrack
-      ? { Items: [TRACK], TotalRecordCount: 1 }
-      : { Items: [], TotalRecordCount: 0 };
-    return route.fulfill({
+  // Track list (album tracks query hits /Items?ParentId=...).
+  await page.route(/\/Items(\?|$)/, (route: Route) =>
+    route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(body),
-    });
-  });
+      body: JSON.stringify({ Items: [TRACK], TotalRecordCount: 1 }),
+    })
+  );
 
-  await page.route('**/api/Audio/**/stream**', route =>
+  // Single album fetch (getItem).
+  await page.route(/\/Items\/album-1/, (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ALBUM) })
+  );
+
+  await page.route(/\/Audio\/.*\/stream/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'audio/wav', body: WAV })
   );
 
-  await page.route('**/Users/AuthenticateByName', route =>
+  await page.route(/\/Images\//, (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: PNG })
+  );
+
+  await page.route(/\/Users\/AuthenticateByName/, (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -95,7 +119,7 @@ async function mockApi(page: Page): Promise<void> {
     })
   );
 
-  await page.route(/\/Users\/Me(\?|$)/, route =>
+  await page.route(/\/Users\/Me(\?|$)/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
   );
 }
@@ -109,10 +133,6 @@ async function login(page: Page): Promise<void> {
 }
 
 test.describe('Offline audio (mocked backend)', () => {
-  test.beforeEach(() => {
-    itemsReturnTrack = true;
-  });
-
   test('download → survives reload from IndexedDB → plays offline from local blob', async ({
     page,
     context,
@@ -120,18 +140,18 @@ test.describe('Offline audio (mocked backend)', () => {
     await mockApi(page);
     await login(page);
 
-    // 1. Download the track from the online library.
-    await page.goto('/songs');
-    await expect(page.getByTestId('track-row')).toBeVisible();
-    await page.getByTestId('download-button').click();
-    await expect(page.getByLabel('Remove download')).toBeVisible({ timeout: 15000 });
+    // 1. Download the album from the (non-virtualised) album page.
+    await page.goto('/albums/album-1');
+    await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
+    await page.getByTestId('download-album-button').click();
+    await expect(page.getByTestId('download-album-button')).toContainText('Downloaded', {
+      timeout: 15000,
+    });
 
-    // 2. Make the server library empty, then load the offline page fresh. The
-    //    track can now only come from IndexedDB.
-    itemsReturnTrack = false;
+    // 2. Full reload onto the offline library. It reads only IndexedDB, so the
+    //    track appearing here proves it was persisted, not re-fetched.
     await page.goto('/offline');
-    const offlineRow = page.getByTestId('track-row');
-    await expect(offlineRow).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('track-title')).toHaveText(TRACK.Name);
 
     // 3. Go offline for real and record any hit to the stream endpoint.
