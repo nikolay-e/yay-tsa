@@ -153,7 +153,7 @@ export function AlbumDetailPage() {
               size="md"
               data-testid="album-favorite-button"
             />
-            <DownloadTracksButton tracks={tracks} label="Download album" />
+            <DownloadTracksButton tracks={tracks} label="Download album" reason="album" />
           </div>
         </div>
       </div>

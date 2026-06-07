@@ -1,11 +1,13 @@
 import { Download, Check, Loader2 } from 'lucide-react';
 import { type AudioItem } from '@yay-tsa/core';
+import { type OfflineSource } from '@yay-tsa/platform';
 import { cn } from '@/shared/utils/cn';
 import { useOfflineStore } from '../stores/offline.store';
 
 type DownloadTracksButtonProps = Readonly<{
   tracks: AudioItem[];
   label?: string;
+  reason?: OfflineSource;
   className?: string;
 }>;
 
@@ -14,6 +16,7 @@ type DownloadTracksButtonProps = Readonly<{
 export function DownloadTracksButton({
   tracks,
   label = 'Download',
+  reason = 'manual',
   className,
 }: DownloadTracksButtonProps) {
   const downloadMany = useOfflineStore(state => state.downloadMany);
@@ -27,7 +30,7 @@ export function DownloadTracksButton({
 
   const handleClick = () => {
     if (allDownloaded || downloading) return;
-    downloadMany(tracks).catch(() => {});
+    downloadMany(tracks, reason).catch(() => {});
   };
 
   return (

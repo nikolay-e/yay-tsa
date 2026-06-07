@@ -30,4 +30,4 @@ export {
   isStoragePersisted,
   estimateStorage,
 } from './web/offline-store.js';
-export type { OutboxEntry } from './web/offline-store.js';
+export type { OutboxEntry, OfflineTrackRecord, OfflineSource } from './web/offline-store.js';

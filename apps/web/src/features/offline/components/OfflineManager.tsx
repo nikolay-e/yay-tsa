@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Trash2, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { useOfflineStore } from '../stores/offline.store';
+import { Trash2, ShieldCheck, ShieldAlert, History } from 'lucide-react';
+import { cn } from '@/shared/utils/cn';
+import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 MB';
@@ -9,41 +10,145 @@ function formatBytes(bytes: number): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: Readonly<{
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}>) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="text-text-secondary text-xs">{description}</div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          'focus-visible:ring-accent relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none',
+          checked ? 'bg-accent' : 'bg-bg-tertiary'
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+            checked && 'translate-x-5'
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 export function OfflineManager() {
   const entries = useOfflineStore(state => state.entries);
   const usageBytes = useOfflineStore(state => state.usageBytes);
   const persisted = useOfflineStore(state => state.persisted);
   const clearAll = useOfflineStore(state => state.clearAll);
+  const clearListeningCache = useOfflineStore(state => state.clearListeningCache);
   const remove = useOfflineStore(state => state.remove);
   const refreshUsage = useOfflineStore(state => state.refreshUsage);
+  const setSetting = useOfflineStore(state => state.setSetting);
+  const settings = useOfflineSettings();
 
   useEffect(() => {
     refreshUsage().catch(() => {});
   }, [refreshUsage]);
 
   const downloaded = Object.entries(entries).filter(([, entry]) => entry.status === 'ready');
+  const cacheCount = downloaded.filter(
+    ([, entry]) =>
+      entry.reasons.includes('listening-cache') &&
+      !entry.reasons.some(reason => reason !== 'listening-cache')
+  ).length;
 
   return (
     <div className="p-4">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-5 space-y-4">
+        <ToggleRow
+          label="Auto-download liked songs"
+          description="Songs you like are saved for offline automatically."
+          checked={settings.autoDownloadFavorites}
+          onChange={value => setSetting({ autoDownloadFavorites: value })}
+        />
+        <ToggleRow
+          label="Cache songs I play"
+          description="Recently played songs are cached and rotated out by the limit below."
+          checked={settings.autoCachePlayed}
+          onChange={value => setSetting({ autoCachePlayed: value })}
+        />
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="max-cache-tracks" className="text-sm">
+            Max cached played songs{' '}
+            <span className="text-text-secondary text-xs">(0 = unlimited)</span>
+          </label>
+          <input
+            id="max-cache-tracks"
+            type="number"
+            min={0}
+            value={settings.maxCacheTracks}
+            onChange={event =>
+              setSetting({
+                maxCacheTracks: Math.max(0, Math.floor(Number(event.target.value) || 0)),
+              })
+            }
+            className="bg-bg-tertiary border-border text-text-primary w-24 rounded-lg border px-3 py-2 text-sm"
+          />
+        </div>
+        <ToggleRow
+          label="Remove downloads when unliked"
+          description="Delete a song's download when you unlike it, unless an album or manual download still keeps it."
+          checked={settings.removeUnlikedDownloads}
+          onChange={value => setSetting({ removeUnlikedDownloads: value })}
+        />
+      </div>
+
+      <div className="border-border my-4 border-t" />
+
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="font-medium">
             {downloaded.length} {downloaded.length === 1 ? 'track' : 'tracks'} downloaded
           </div>
-          <div className="text-text-secondary text-sm">{formatBytes(usageBytes)} used</div>
+          <div className="text-text-secondary text-sm">
+            {formatBytes(usageBytes)} used{cacheCount > 0 ? ` · ${cacheCount} cached` : ''}
+          </div>
         </div>
-        {downloaded.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              clearAll().catch(() => {});
-            }}
-            className="bg-error/10 hover:bg-error/20 text-error flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear all
-          </button>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {cacheCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                clearListeningCache().catch(() => {});
+              }}
+              className="bg-bg-tertiary text-text-secondary hover:text-text-primary border-border flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+            >
+              <History className="h-4 w-4" />
+              Clear cache
+            </button>
+          )}
+          {downloaded.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                clearAll().catch(() => {});
+              }}
+              className="bg-error/10 hover:bg-error/20 text-error flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="text-text-secondary mb-4 flex items-center gap-2 text-xs">
@@ -62,7 +167,8 @@ export function OfflineManager() {
 
       {downloaded.length === 0 ? (
         <p className="text-text-secondary text-sm">
-          No downloads yet. Tap the download icon on any track to make it available offline.
+          No downloads yet. Like a song or play one and it will be saved here automatically — or tap
+          the download icon on any track.
         </p>
       ) : (
         <ul className="divide-border divide-y">

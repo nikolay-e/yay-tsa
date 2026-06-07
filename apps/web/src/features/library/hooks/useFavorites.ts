@@ -176,6 +176,15 @@ export function useFavoriteToggle() {
 
       return { previousData };
     },
+    onSuccess: (_data, { itemId, isFavorite }) => {
+      // Keep offline downloads in step with favorites: a new like is downloaded,
+      // an unlike releases its 'favorite' hold. Skipped while offline — the like
+      // was queued and the favorites set is reconciled on reconnect.
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      const offline = useOfflineStore.getState();
+      if (isFavorite) offline.removeFavorite(itemId).catch(() => {});
+      else offline.autoFavorite(itemId).catch(() => {});
+    },
     onError: (_error, variables, context) => {
       if (context?.previousData) {
         for (const [keyStr, prev] of context.previousData) {

@@ -434,6 +434,7 @@ export const usePlayerStore = create<PlayerStore>()(
       startPlaybackReporter(track.Id);
       preloader.invalidate();
       schedulePreload();
+      void useOfflineStore.getState().cachePlayed(track);
 
       if (get().karaokeEnabled && !get().isKaraokeTransitioning) {
         void syncKaraokeForTrack(track, signal);
@@ -559,6 +560,7 @@ export const usePlayerStore = create<PlayerStore>()(
       updateSessionMetadata(track);
       syncMediaSessionPlayback('playing', 0);
       startPlaybackReporter(track.Id);
+      void useOfflineStore.getState().cachePlayed(track);
 
       if (get().isKaraokeMode || get().karaokeEnabled) {
         await syncKaraokeForTrack(track, signal);

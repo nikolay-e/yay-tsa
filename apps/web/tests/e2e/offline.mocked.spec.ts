@@ -98,6 +98,22 @@ async function mockApi(page: Page): Promise<void> {
     })
   );
 
+  // Favorites queries (reconcile + favorites page) return nothing by default, so
+  // the auto-favorite reconcile is a no-op unless a test explicitly likes a track.
+  // Registered after the generic /Items route so it wins for IsFavorite requests.
+  await page.route(/IsFavorite=true/, (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ Items: [], TotalRecordCount: 0 }),
+    })
+  );
+
+  // getItem(track-1) — used by auto-download-on-like to resolve the full track.
+  await page.route(/\/Items\/track-1/, (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TRACK) })
+  );
+
   // Single album fetch (getItem).
   await page.route(/\/Items\/album-1/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ALBUM) })
@@ -122,6 +138,12 @@ async function mockApi(page: Page): Promise<void> {
   await page.route(/\/Users\/Me(\?|$)/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
   );
+
+  // Device list returns a bare array (not a Jellyfin {Items} envelope); without
+  // this the catch-all shape crashes useActiveRemotePlayback's devices.filter.
+  await page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
 }
 
 async function login(page: Page): Promise<void> {
@@ -141,7 +163,7 @@ async function login(page: Page): Promise<void> {
 // favorites-sync.mocked.spec.ts is left as fixme). Un-fixme and run:
 //   npx playwright test --project=chromium-mocked offline.mocked.spec.ts
 test.describe('Offline audio (mocked backend)', () => {
-  test.fixme('download → survives reload from IndexedDB → plays offline from local blob', async ({
+  test('download → survives reload from IndexedDB → plays offline from local blob', async ({
     page,
     context,
   }) => {
@@ -210,5 +232,49 @@ test.describe('Offline audio (mocked backend)', () => {
 
     // No request ever reached the stream endpoint while offline.
     expect(streamRequests).toEqual([]);
+  });
+
+  test('liking a track auto-downloads it (no manual download click)', async ({ page }) => {
+    await mockApi(page);
+    await login(page);
+
+    await page.goto('/albums/album-1');
+    await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
+
+    // Like the track — with "auto-download liked songs" on by default this alone
+    // must persist it offline.
+    await page.getByRole('button', { name: 'Add track to favorites' }).click();
+
+    // The per-track download control reaches the downloaded state on its own.
+    await expect(page.getByTestId('download-button')).toHaveAttribute(
+      'aria-label',
+      'Remove download',
+      { timeout: 15000 }
+    );
+
+    // And it shows up in the offline library.
+    await page.goto('/offline');
+    await expect(page.getByTestId('track-title')).toHaveText(TRACK.Name, { timeout: 15000 });
+  });
+
+  test('playing a track caches it for offline (no manual download click)', async ({ page }) => {
+    await mockApi(page);
+    await login(page);
+
+    await page.goto('/albums/album-1');
+    await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
+
+    // Play the track — with "cache songs I play" on by default it is downloaded
+    // in the background.
+    await page.getByTestId('track-title').click();
+
+    await expect(page.getByTestId('download-button')).toHaveAttribute(
+      'aria-label',
+      'Remove download',
+      { timeout: 15000 }
+    );
+
+    await page.goto('/offline');
+    await expect(page.getByTestId('track-title')).toHaveText(TRACK.Name, { timeout: 15000 });
   });
 });

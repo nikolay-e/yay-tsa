@@ -9,15 +9,25 @@ const STORE_BLOBS = 'blobs';
 const STORE_OUTBOX = 'outbox';
 const STORE_COVERS = 'covers';
 
+// Why a track is held offline. A track can be retained for several reasons at
+// once (e.g. a played favorite). Eviction only ever removes 'listening-cache'
+// entries that carry no other reason; everything else is user intent and is
+// protected from automatic cleanup.
+export type OfflineSource = 'manual' | 'favorite' | 'album' | 'playlist' | 'listening-cache';
+
 // Manifest entry for a single downloaded track. `metadata` carries the full
 // library item (typed by the web layer as AudioItem) so the offline library can
 // render without the server. `size` is the integrity signal checked on launch.
+// `reasons`/`lastAccessedAt` are optional for backward compatibility with v1/v2
+// downloads; the web layer normalizes them on read (missing reasons → manual).
 export interface OfflineTrackRecord<M = unknown> {
   trackId: string;
   size: number;
   contentType: string;
   downloadedAt: number;
   metadata: M;
+  reasons?: OfflineSource[];
+  lastAccessedAt?: number;
 }
 
 // A mutation that could not reach the server (made while offline) and must be
@@ -117,6 +127,15 @@ export class IndexedDbOfflineStore<M = unknown> {
     const tx = db.transaction([STORE_TRACKS, STORE_BLOBS], 'readwrite');
     tx.objectStore(STORE_TRACKS).put(record);
     tx.objectStore(STORE_BLOBS).put({ trackId: record.trackId, blob });
+    await promisifyTransaction(tx);
+  }
+
+  // Update a manifest entry in place without touching its blob — used to merge
+  // retention reasons or bump last-access time for the LRU listening cache.
+  async putTrackRecord(record: OfflineTrackRecord<M>): Promise<void> {
+    const db = await this.open();
+    const tx = db.transaction(STORE_TRACKS, 'readwrite');
+    tx.objectStore(STORE_TRACKS).put(record);
     await promisifyTransaction(tx);
   }
 
