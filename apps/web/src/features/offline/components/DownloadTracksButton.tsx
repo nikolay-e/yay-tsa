@@ -23,10 +23,10 @@ export function DownloadTracksButton({
 
   const ready = tracks.filter(t => entries[t.Id]?.status === 'ready').length;
   const downloading = tracks.some(t => entries[t.Id]?.status === 'downloading');
-  const allReady = ready === tracks.length;
+  const allDownloaded = ready === tracks.length;
 
   const handleClick = () => {
-    if (allReady || downloading) return;
+    if (allDownloaded || downloading) return;
     downloadMany(tracks).catch(() => {});
   };
 
@@ -34,22 +34,22 @@ export function DownloadTracksButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={allReady || downloading}
+      disabled={allDownloaded || downloading}
       className={cn(
         'border-border hover:bg-bg-hover flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-70',
-        allReady && 'text-accent',
+        allDownloaded && 'text-accent',
         className
       )}
       data-testid="download-album-button"
     >
       {downloading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
-      ) : allReady ? (
+      ) : allDownloaded ? (
         <Check className="h-4 w-4" />
       ) : (
         <Download className="h-4 w-4" />
       )}
-      {allReady ? 'Downloaded' : downloading ? `Downloading ${ready}/${tracks.length}` : label}
+      {allDownloaded ? 'Downloaded' : downloading ? `Downloading ${ready}/${tracks.length}` : label}
     </button>
   );
 }
