@@ -1,0 +1,186 @@
+import { test, expect, type Page } from '@playwright/test';
+
+// Backend-free offline-audio suite (chromium-mocked project): every /api/* call
+// is stubbed, so it runs without a live backend. It proves the behavioural
+// guarantee that matters for "works offline":
+//
+//   download a track  →  it survives a reload and is served from IndexedDB
+//   (not the network) →  with the network offline it still plays from the local
+//   blob, currentTime advances, and no request hits the stream endpoint.
+//
+// The service-worker app-shell fallback (offline route loads) is validated
+// against the production build separately — the dev server used here ships no SW.
+//
+//   npx playwright test --project=chromium-mocked offline.mocked.spec.ts
+
+const VALID_TOKEN = 'mock-access-token';
+const USER = { Id: 'user-1', Name: 'mock-user', Policy: { IsAdministrator: false } };
+
+const TRACK = {
+  Id: 'track-1',
+  Name: 'Offline Test Track',
+  Type: 'Audio',
+  ServerId: 'server-1',
+  RunTimeTicks: 30_000_000,
+  Album: 'Test Album',
+  AlbumId: 'album-1',
+  Artists: ['Tester'],
+  ArtistItems: [{ Id: 'artist-1', Name: 'Tester' }],
+  UserData: { IsFavorite: false, PlaybackPositionTicks: 0, PlayCount: 0, Played: false },
+};
+
+// Minimal valid 8-bit mono PCM WAV (~3s of silence) — small but decodable, so
+// Chromium can actually play it and advance currentTime.
+function buildWav(): Buffer {
+  const sampleRate = 8000;
+  const seconds = 3;
+  const numSamples = sampleRate * seconds;
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + numSamples, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(1, 22); // mono
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate, 28); // byte rate (1 byte/sample)
+  header.writeUInt16LE(1, 32); // block align
+  header.writeUInt16LE(8, 34); // bits per sample
+  header.write('data', 36);
+  header.writeUInt32LE(numSamples, 40);
+  const data = Buffer.alloc(numSamples, 128); // 8-bit silence is 128
+  return Buffer.concat([header, data]);
+}
+
+const WAV = buildWav();
+
+// `itemsReturnTrack` lets the test make the library endpoint go empty after the
+// download, proving the offline library is fed from IndexedDB rather than /Items.
+let itemsReturnTrack = true;
+
+async function mockApi(page: Page): Promise<void> {
+  // Benign catch-all first; specific routes registered after take precedence.
+  await page.route('**/api/**', route => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ Items: [], TotalRecordCount: 0 }),
+      });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.route('**/api/Items**', route => {
+    const body = itemsReturnTrack
+      ? { Items: [TRACK], TotalRecordCount: 1 }
+      : { Items: [], TotalRecordCount: 0 };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  await page.route('**/api/Audio/**/stream**', route =>
+    route.fulfill({ status: 200, contentType: 'audio/wav', body: WAV })
+  );
+
+  await page.route('**/Users/AuthenticateByName', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ AccessToken: VALID_TOKEN, User: USER, SessionInfo: {} }),
+    })
+  );
+
+  await page.route(/\/Users\/Me(\?|$)/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
+  );
+}
+
+async function login(page: Page): Promise<void> {
+  await page.goto('/login');
+  await page.getByLabel('Username').fill('mock-user');
+  await page.getByLabel('Password').fill('mock-pass');
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await page.waitForURL('/', { timeout: 15000 });
+}
+
+test.describe('Offline audio (mocked backend)', () => {
+  test.beforeEach(() => {
+    itemsReturnTrack = true;
+  });
+
+  test('download → survives reload from IndexedDB → plays offline from local blob', async ({
+    page,
+    context,
+  }) => {
+    await mockApi(page);
+    await login(page);
+
+    // 1. Download the track from the online library.
+    await page.goto('/songs');
+    await expect(page.getByTestId('track-row')).toBeVisible();
+    await page.getByTestId('download-button').click();
+    await expect(page.getByLabel('Remove download')).toBeVisible({ timeout: 15000 });
+
+    // 2. Make the server library empty, then load the offline page fresh. The
+    //    track can now only come from IndexedDB.
+    itemsReturnTrack = false;
+    await page.goto('/offline');
+    const offlineRow = page.getByTestId('track-row');
+    await expect(offlineRow).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('track-title')).toHaveText(TRACK.Name);
+
+    // 3. Go offline for real and record any hit to the stream endpoint.
+    const streamRequests: string[] = [];
+    let offline = false;
+    page.on('request', req => {
+      if (offline && /\/Audio\/.*\/stream/.test(req.url())) streamRequests.push(req.url());
+    });
+    await context.setOffline(true);
+    offline = true;
+
+    // 4. Play from the offline library.
+    await page.getByTestId('track-title').click();
+
+    // The engine must be playing a local blob: URL, not a network stream.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const handle = (
+              window as unknown as {
+                __playerStore__?: {
+                  audioEngine?: { getAudioElement?: () => { src?: string } | null };
+                };
+              }
+            ).__playerStore__;
+            return handle?.audioEngine?.getAudioElement?.()?.src ?? '';
+          }),
+        { timeout: 15000 }
+      )
+      .toContain('blob:');
+
+    // currentTime advances → audio genuinely decodes and plays offline.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const handle = (
+              window as unknown as {
+                __playerStore__?: { audioEngine?: { getCurrentTime?: () => number } };
+              }
+            ).__playerStore__;
+            return handle?.audioEngine?.getCurrentTime?.() ?? 0;
+          }),
+        { timeout: 15000 }
+      )
+      .toBeGreaterThan(0.1);
+
+    // No request ever reached the stream endpoint while offline.
+    expect(streamRequests).toEqual([]);
+  });
+});

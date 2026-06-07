@@ -32,6 +32,9 @@ interface OfflineState {
   usageBytes: number;
   quotaBytes: number;
   entries: Record<string, OfflineEntry>;
+  // Full library items for every downloaded track, so the offline library can
+  // render and start playback with no network (loaded from the manifest).
+  items: Record<string, AudioItem>;
 }
 
 interface OfflineActions {
@@ -41,6 +44,7 @@ interface OfflineActions {
   remove: (trackId: string) => Promise<void>;
   clearAll: () => Promise<void>;
   getPlaybackUrl: (trackId: string, fallbackUrl: string) => Promise<string>;
+  getCoverUrl: (track: AudioItem, fallbackUrl: string) => Promise<string>;
   queueFavorite: (itemId: string, makeFavorite: boolean) => Promise<void>;
   queueProgress: (trackId: string, positionSeconds: number) => Promise<void>;
   flushOutbox: () => Promise<void>;
@@ -56,10 +60,16 @@ const store = new IndexedDbOfflineStore<AudioItem>();
 // Object URLs are created lazily on first playback and reused for the lifetime of
 // the download so repeated plays don't leak. Revoked on remove / clearAll.
 const objectUrls = new Map<string, string>();
+// Cover-art object URLs, keyed by cover key (album id, falling back to track id).
+const coverUrls = new Map<string, string>();
 
 let listenersAttached = false;
 let initPromise: Promise<void> | null = null;
 let flushInFlight = false;
+
+function coverKeyFor(track: AudioItem): string {
+  return track.AlbumId ?? track.Id;
+}
 
 function revokeObjectUrl(trackId: string): void {
   const url = objectUrls.get(trackId);
@@ -72,6 +82,8 @@ function revokeObjectUrl(trackId: string): void {
 function revokeAllObjectUrls(): void {
   for (const url of objectUrls.values()) URL.revokeObjectURL(url);
   objectUrls.clear();
+  for (const url of coverUrls.values()) URL.revokeObjectURL(url);
+  coverUrls.clear();
 }
 
 async function fetchBlobWithProgress(
@@ -114,6 +126,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
   usageBytes: 0,
   quotaBytes: 0,
   entries: {},
+  items: {},
 
   init: async () => {
     if (initPromise) return initPromise;
@@ -127,6 +140,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
       try {
         const records = await store.listTracks();
         const entries: Record<string, OfflineEntry> = {};
+        const items: Record<string, AudioItem> = {};
         for (const record of records) {
           // Integrity check on launch: a manifest entry without its blob (evicted
           // under storage pressure) is dropped so the UI never offers a dead track.
@@ -141,10 +155,11 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
             size: record.size,
             name: record.metadata?.Name ?? 'Unknown',
           };
+          if (record.metadata) items[record.trackId] = record.metadata;
         }
 
         const persisted = await isStoragePersisted();
-        set({ entries, persisted });
+        set({ entries, items, persisted });
         await get().refreshUsage();
       } catch (error) {
         log.player.warn('Offline store init failed', { error: String(error) });
@@ -214,11 +229,31 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
         blob
       );
 
+      // Persist cover art too so the offline library shows artwork. Best-effort:
+      // a failed cover never fails the track download. Skip if already stored.
+      const coverKey = coverKeyFor(track);
+      try {
+        if (!(await store.getCover(coverKey))) {
+          const imageUrl = client.getImageUrl(coverKey, 'Primary', {
+            tag: track.AlbumPrimaryImageTag,
+            maxWidth: 256,
+            maxHeight: 256,
+          });
+          if (imageUrl) {
+            const coverResponse = await fetch(imageUrl, { credentials: 'include' });
+            if (coverResponse.ok) await store.putCover(coverKey, await coverResponse.blob());
+          }
+        }
+      } catch (error) {
+        log.player.warn('Offline cover download failed', { coverKey, error: String(error) });
+      }
+
       set(state => ({
         entries: {
           ...state.entries,
           [track.Id]: { status: 'ready', progress: 1, size: blob.size, name: track.Name },
         },
+        items: { ...state.items, [track.Id]: track },
       }));
       await get().refreshUsage();
     } catch (error) {
@@ -249,8 +284,10 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
     }
     set(state => {
       const entries = { ...state.entries };
+      const items = { ...state.items };
       delete entries[trackId];
-      return { entries };
+      delete items[trackId];
+      return { entries, items };
     });
     await get().refreshUsage();
   },
@@ -262,7 +299,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
     } catch (error) {
       log.player.warn('Offline clearAll failed', { error: String(error) });
     }
-    set({ entries: {} });
+    set({ entries: {}, items: {} });
     await get().refreshUsage();
   },
 
@@ -281,6 +318,26 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => ({
       }
     } catch (error) {
       log.player.warn('Failed to resolve offline blob', { trackId, error: String(error) });
+    }
+    return fallbackUrl;
+  },
+
+  getCoverUrl: async (track, fallbackUrl) => {
+    if (!store.isSupported()) return fallbackUrl;
+    const key = coverKeyFor(track);
+
+    const cached = coverUrls.get(key);
+    if (cached) return cached;
+
+    try {
+      const blob = await store.getCover(key);
+      if (blob && blob.size > 0) {
+        const objectUrl = URL.createObjectURL(blob);
+        coverUrls.set(key, objectUrl);
+        return objectUrl;
+      }
+    } catch (error) {
+      log.player.warn('Failed to resolve offline cover', { key, error: String(error) });
     }
     return fallbackUrl;
   },

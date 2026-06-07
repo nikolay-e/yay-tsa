@@ -3,10 +3,11 @@ import { createLogger } from '@yay-tsa/core';
 const log = createLogger('OfflineStore');
 
 const DB_NAME = 'yaytsa-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_TRACKS = 'tracks';
 const STORE_BLOBS = 'blobs';
 const STORE_OUTBOX = 'outbox';
+const STORE_COVERS = 'covers';
 
 // Manifest entry for a single downloaded track. `metadata` carries the full
 // library item (typed by the web layer as AudioItem) so the offline library can
@@ -82,6 +83,11 @@ export class IndexedDbOfflineStore<M = unknown> {
         }
         if (!db.objectStoreNames.contains(STORE_OUTBOX)) {
           db.createObjectStore(STORE_OUTBOX, { keyPath: 'id', autoIncrement: true });
+        }
+        // v2: album/track cover art so the offline library renders artwork
+        // without the network. Idempotent create handles the v1 → v2 upgrade.
+        if (!db.objectStoreNames.contains(STORE_COVERS)) {
+          db.createObjectStore(STORE_COVERS, { keyPath: 'key' });
         }
       };
       request.onsuccess = () => {
@@ -162,15 +168,39 @@ export class IndexedDbOfflineStore<M = unknown> {
 
   async clearTracks(): Promise<void> {
     const db = await this.open();
-    const tx = db.transaction([STORE_TRACKS, STORE_BLOBS], 'readwrite');
+    const tx = db.transaction([STORE_TRACKS, STORE_BLOBS, STORE_COVERS], 'readwrite');
     tx.objectStore(STORE_TRACKS).clear();
     tx.objectStore(STORE_BLOBS).clear();
+    tx.objectStore(STORE_COVERS).clear();
     await promisifyTransaction(tx);
   }
 
   async getUsage(): Promise<number> {
     const tracks = await this.listTracks();
     return tracks.reduce((total, track) => total + (track.size || 0), 0);
+  }
+
+  async putCover(key: string, blob: Blob): Promise<void> {
+    const db = await this.open();
+    const tx = db.transaction(STORE_COVERS, 'readwrite');
+    tx.objectStore(STORE_COVERS).put({ key, blob });
+    await promisifyTransaction(tx);
+  }
+
+  async getCover(key: string): Promise<Blob | null> {
+    const db = await this.open();
+    const tx = db.transaction(STORE_COVERS, 'readonly');
+    const result = await promisifyRequest(
+      tx.objectStore(STORE_COVERS).get(key) as IDBRequest<{ key: string; blob: Blob } | undefined>
+    );
+    return result?.blob ?? null;
+  }
+
+  async deleteCover(key: string): Promise<void> {
+    const db = await this.open();
+    const tx = db.transaction(STORE_COVERS, 'readwrite');
+    tx.objectStore(STORE_COVERS).delete(key);
+    await promisifyTransaction(tx);
   }
 
   async enqueue(entry: Omit<OutboxEntry, 'id'>): Promise<void> {
@@ -198,10 +228,11 @@ export class IndexedDbOfflineStore<M = unknown> {
 
   async clearAll(): Promise<void> {
     const db = await this.open();
-    const tx = db.transaction([STORE_TRACKS, STORE_BLOBS, STORE_OUTBOX], 'readwrite');
+    const tx = db.transaction([STORE_TRACKS, STORE_BLOBS, STORE_OUTBOX, STORE_COVERS], 'readwrite');
     tx.objectStore(STORE_TRACKS).clear();
     tx.objectStore(STORE_BLOBS).clear();
     tx.objectStore(STORE_OUTBOX).clear();
+    tx.objectStore(STORE_COVERS).clear();
     await promisifyTransaction(tx);
   }
 

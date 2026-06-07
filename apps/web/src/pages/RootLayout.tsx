@@ -1,6 +1,15 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { Home, Disc3, Users, Music, Heart, Settings, type LucideIcon } from 'lucide-react';
+import {
+  Home,
+  Disc3,
+  Users,
+  Music,
+  Heart,
+  Settings,
+  DownloadCloud,
+  type LucideIcon,
+} from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar, RemotePlaybackBanner } from '@/features/player/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
@@ -29,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/artists', label: 'Artists', icon: Users, testId: 'nav-artists' },
   { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
   { href: '/songs', label: 'Songs', icon: Music, testId: 'nav-songs' },
+  { href: '/offline', label: 'Offline', icon: DownloadCloud, testId: 'nav-offline' },
   { href: '/settings', label: 'Settings', icon: Settings, testId: 'nav-settings' },
 ];
 

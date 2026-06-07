@@ -1,4 +1,4 @@
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -9,6 +9,7 @@ import { formatTicks } from '@/shared/utils/time';
 import { cn } from '@/shared/utils/cn';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { DownloadButton } from '@/features/offline';
+import { useOfflineStore, useIsOnline } from '@/features/offline/stores/offline.store';
 import { FavoriteButton } from './FavoriteButton';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
@@ -53,6 +54,8 @@ const TrackImage = memo(
       track.AlbumId
     );
     const { getImageUrl } = useImageUrl();
+    const isOnline = useIsOnline();
+    const [offlineCover, setOfflineCover] = useState<string | null>(null);
 
     const imageUrl = getTrackImageUrl(getImageUrl, {
       albumId: track.AlbumId,
@@ -62,10 +65,29 @@ const TrackImage = memo(
       maxHeight: 48,
     });
 
+    // Offline (or when the network image fails) fall back to the cover blob
+    // stored alongside the download, so the offline library shows real artwork.
+    useEffect(() => {
+      if (isOnline && !hasError) return;
+      let cancelled = false;
+      useOfflineStore
+        .getState()
+        .getCoverUrl(track, '')
+        .then(url => {
+          if (!cancelled && url) setOfflineCover(url);
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }, [track, isOnline, hasError]);
+
+    const displaySrc = offlineCover ?? (hasError ? getImagePlaceholder() : imageUrl);
+
     return (
       <div className="group/img relative h-10 w-10 shrink-0 overflow-hidden rounded-sm">
         <img
-          src={hasError ? getImagePlaceholder() : imageUrl}
+          src={displaySrc}
           alt={track.Name}
           className="h-full w-full object-cover"
           onError={onError}

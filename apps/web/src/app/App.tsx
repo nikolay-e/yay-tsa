@@ -24,6 +24,9 @@ const SongsPage = lazy(() => import('@/pages/SongsPage').then(m => ({ default: m
 const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage }))
 );
+const OfflineLibraryPage = lazy(() =>
+  import('@/pages/OfflineLibraryPage').then(m => ({ default: m.OfflineLibraryPage }))
+);
 
 function LazyRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   return <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>;
@@ -112,6 +115,16 @@ const router = createBrowserRouter([
           <ProtectedRoute>
             <LazyRoute>
               <SettingsPage />
+            </LazyRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'offline',
+        element: (
+          <ProtectedRoute>
+            <LazyRoute>
+              <OfflineLibraryPage />
             </LazyRoute>
           </ProtectedRoute>
         ),
