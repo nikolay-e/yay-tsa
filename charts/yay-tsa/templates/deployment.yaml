@@ -8,6 +8,13 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  # Zero-downtime rollout: surge a new pod and wait for it to pass readiness before
+  # terminating the old one, so nginx is always serving during a deploy (no 502 window).
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
