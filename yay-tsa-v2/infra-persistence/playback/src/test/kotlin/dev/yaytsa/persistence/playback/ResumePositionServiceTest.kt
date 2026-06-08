@@ -1,8 +1,8 @@
 package dev.yaytsa.persistence.playback
 
+import dev.yaytsa.application.playback.ResumePositionService
 import dev.yaytsa.application.playback.ResumeSource
 import dev.yaytsa.application.playback.ResumeStatus
-import dev.yaytsa.application.playback.ResumePositionService
 import dev.yaytsa.application.playback.port.ResumePositionRepository
 import dev.yaytsa.shared.UserId
 import org.junit.jupiter.api.Assertions.assertEquals

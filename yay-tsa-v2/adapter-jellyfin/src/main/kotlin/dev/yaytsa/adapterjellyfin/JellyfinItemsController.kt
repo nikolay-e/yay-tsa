@@ -60,6 +60,7 @@ class JellyfinItemsController(
             }
         }
     }
+
     @GetMapping("/Items")
     fun getItems(
         @RequestParam(required = false) userId: String?,

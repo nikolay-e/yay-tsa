@@ -58,12 +58,15 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
             "TRACK",
             "Book ${id.take(6)}",
             "Book ${id.take(6)}",
-            "/tmp/${id}.m4b",
+            "/tmp/$id.m4b",
             "book",
         )
         jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?::uuid,?)", id, durationMs)
         if (audiobook) {
-            jdbc.update("INSERT INTO core_v2_library.genres (id, name) VALUES (?::uuid, 'Audiobook') ON CONFLICT (name) DO NOTHING", UUID.randomUUID().toString())
+            jdbc.update(
+                "INSERT INTO core_v2_library.genres (id, name) VALUES (?::uuid, 'Audiobook') ON CONFLICT (name) DO NOTHING",
+                UUID.randomUUID().toString(),
+            )
             val genreId = jdbc.queryForObject("SELECT id FROM core_v2_library.genres WHERE name = 'Audiobook'", String::class.java)
             jdbc.update("INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?::uuid, ?::uuid)", id, genreId)
         }
