@@ -21,7 +21,12 @@ interface MockResume {
   updatedAt: string;
 }
 
-function audiobookItem(id: string, name: string) {
+interface Book {
+  id: string;
+  name: string;
+}
+
+function audiobookItem(id: string, name: string, album?: Book) {
   return {
     Id: id,
     Name: name,
@@ -31,15 +36,20 @@ function audiobookItem(id: string, name: string) {
     RunTimeTicks: 670_000_000_000,
     Artists: ['Narrator'],
     AlbumPrimaryImageTag: 'tag',
+    AlbumId: album?.id,
+    Album: album?.name,
     UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false },
   };
 }
 
-function entry(id: string, name: string, resume: MockResume) {
+function entry(id: string, name: string, resume: MockResume, album?: Book) {
   const remainingMs = Math.max(0, resume.runTimeMs - resume.positionMs);
   const progressPercent =
     resume.runTimeMs > 0 ? Math.floor((resume.positionMs / resume.runTimeMs) * 100) : 0;
-  return { item: audiobookItem(id, name), resume: { ...resume, remainingMs, progressPercent } };
+  return {
+    item: audiobookItem(id, name, album),
+    resume: { ...resume, remainingMs, progressPercent },
+  };
 }
 
 function installMock(page: Page): void {
@@ -109,6 +119,11 @@ function installMock(page: Page): void {
         entry('book2', 'The Wise Man Fear', resumes.book2!),
         entry('book3', 'The Slow Regard', resumes.book3!),
         entry('book4', 'The Doors of Stone', resumes.book4!),
+        // A multi-chapter book: three chapters sharing one album must collapse into a
+        // single "Dune" card under Library, not three separate rows.
+        entry('dune-1', 'Глава 01', resumes.book4!, { id: 'album-dune', name: 'Dune' }),
+        entry('dune-2', 'Глава 02', resumes.book4!, { id: 'album-dune', name: 'Dune' }),
+        entry('dune-3', 'Глава 03', resumes.book4!, { id: 'album-dune', name: 'Dune' }),
       ]),
     })
   );
@@ -180,6 +195,21 @@ test.describe('Audiobooks tab (mocked backend)', () => {
     await expect(notStarted).toContainText('Not started');
     await expect(notStarted.getByTestId('audiobook-resume')).toContainText('Start');
     await expect(notStarted.getByTestId('audiobook-finish')).toHaveCount(0);
+  });
+
+  test('collapses a multi-chapter book into a single card', async ({ page }) => {
+    installMock(page);
+    await login(page);
+
+    await page.goto('/audiobooks');
+    await expect(page.getByTestId('audiobooks-page')).toBeVisible();
+
+    // The three "Dune" chapters share one album → exactly one card titled "Dune",
+    // labelled with the chapter count, never three "Глава NN" rows.
+    const dune = page.getByTestId('audiobook-card').filter({ hasText: 'Dune' });
+    await expect(dune).toHaveCount(1);
+    await expect(dune).toContainText('3 chapters');
+    await expect(page.getByTestId('audiobook-card').filter({ hasText: 'Глава 01' })).toHaveCount(0);
   });
 
   test('mark finished then restart moves a book through the lifecycle', async ({ page }) => {

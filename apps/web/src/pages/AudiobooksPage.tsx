@@ -1,18 +1,16 @@
 import { useMemo, type ReactNode } from 'react';
 import { Play, RotateCcw, CheckCircle2 } from 'lucide-react';
-import type { AudiobookEntry } from '@yay-tsa/core';
-import { useAudiobooks, useAudiobookActions } from '@/features/audiobooks/hooks/useAudiobooks';
+import {
+  useAudiobooks,
+  useAudiobookActions,
+  type AudiobookBook,
+} from '@/features/audiobooks/hooks/useAudiobooks';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { MediaCard } from '@/features/library/components/MediaCard';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
-import { formatSeconds } from '@/shared/utils/time';
 
-function formatRemaining(ms: number): string {
-  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours}h ${minutes}m left`;
-  return `${minutes}m left`;
+function chapterCount(n: number): string {
+  return n === 1 ? '1 chapter' : `${n} chapters`;
 }
 
 function lastListened(updatedAt: string): string {
@@ -22,58 +20,62 @@ function lastListened(updatedAt: string): string {
   return `${days} days ago`;
 }
 
-function AudiobookCard({
-  entry,
-  hero = false,
-}: Readonly<{ entry: AudiobookEntry; hero?: boolean }>) {
-  const { item, resume } = entry;
-  const playTrack = usePlayerStore(state => state.playTrack);
+function BookCard({ book, hero = false }: Readonly<{ book: AudiobookBook; hero?: boolean }>) {
+  const playTracks = usePlayerStore(state => state.playTracks);
   const { markFinished, restart } = useAudiobookActions();
-  const isFinished = resume.status === 'finished';
-  const isNotStarted = resume.status === 'not_started';
-  const showProgress = !isFinished && !isNotStarted;
+
+  const chapterIds = book.chapters.map(c => c.item.Id);
+  const play = () =>
+    void playTracks(
+      book.chapters.map(c => c.item),
+      book.resumeChapterIndex
+    );
+
+  const isFinished = book.status === 'finished';
+  const isNotStarted = book.status === 'not_started';
+  const inProgress = book.status === 'in_progress';
+
+  const primaryLabel = isFinished ? 'Listen again' : isNotStarted ? 'Start' : 'Resume';
 
   return (
     <div
       data-testid={hero ? 'audiobook-continue' : 'audiobook-card'}
-      data-status={resume.status}
+      data-status={book.status}
       className="bg-bg-secondary flex gap-4 rounded-lg p-4"
     >
       <div className={hero ? 'w-32 shrink-0' : 'w-20 shrink-0'}>
         <MediaCard
-          itemId={item.Id}
-          imageTag={item.AlbumPrimaryImageTag ?? item.ImageTags?.Primary}
-          imageAlt={item.Name}
+          itemId={book.coverItemId}
+          imageTag={book.coverImageTag}
+          imageAlt={book.title}
           imageShape="square"
         >
-          <span className="sr-only">{item.Name}</span>
+          <span className="sr-only">{book.title}</span>
         </MediaCard>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col justify-between">
         <div className="min-w-0">
-          <h3 className="text-text-primary truncate font-semibold">{item.Name}</h3>
-          {item.Artists && item.Artists.length > 0 && (
-            <p className="text-text-secondary truncate text-sm">{item.Artists.join(', ')}</p>
-          )}
-          {showProgress && (
+          <h3 className="text-text-primary truncate font-semibold">{book.title}</h3>
+          {book.author && <p className="text-text-secondary truncate text-sm">{book.author}</p>}
+          {inProgress && (
             <p className="text-text-secondary mt-1 text-xs">
-              {resume.progressPercent}% · {formatSeconds(resume.positionMs / 1000)} /{' '}
-              {formatSeconds(resume.runTimeMs / 1000)} · {formatRemaining(resume.remainingMs)}
+              {book.progressPercent}% · Chapter {book.resumeChapterIndex + 1} of{' '}
+              {book.totalChapters}
             </p>
           )}
           <p className="text-text-secondary text-xs">
-            {isFinished && 'Finished'}
-            {isNotStarted && 'Not started'}
-            {showProgress && `Last listened ${lastListened(resume.updatedAt)}`}
+            {isFinished && `${chapterCount(book.totalChapters)} · Finished`}
+            {isNotStarted && `${chapterCount(book.totalChapters)} · Not started`}
+            {inProgress && `Last listened ${lastListened(book.lastUpdatedAt)}`}
           </p>
         </div>
 
-        {showProgress && (
+        {inProgress && (
           <div className="bg-bg-tertiary mt-2 h-1 w-full overflow-hidden rounded-full">
             <div
               className="bg-accent h-full rounded-full"
-              style={{ width: `${Math.min(100, resume.progressPercent)}%` }}
+              style={{ width: `${Math.min(100, book.progressPercent)}%` }}
             />
           </div>
         )}
@@ -82,26 +84,26 @@ function AudiobookCard({
           <button
             type="button"
             data-testid="audiobook-resume"
-            onClick={() => void playTrack(item)}
+            onClick={play}
             className="bg-accent inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
           >
-            <Play size={16} /> {isFinished ? 'Listen again' : isNotStarted ? 'Start' : 'Resume'}
+            <Play size={16} /> {primaryLabel}
           </button>
           {isFinished && (
             <button
               type="button"
               data-testid="audiobook-restart"
-              onClick={() => restart.mutate(item.Id)}
+              onClick={() => restart.mutate(chapterIds)}
               className="bg-bg-tertiary text-text-primary hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm"
             >
               <RotateCcw size={16} /> Restart
             </button>
           )}
-          {showProgress && (
+          {inProgress && (
             <button
               type="button"
               data-testid="audiobook-finish"
-              onClick={() => markFinished.mutate(item.Id)}
+              onClick={() => markFinished.mutate(chapterIds)}
               className="bg-bg-tertiary text-text-primary hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm"
             >
               <CheckCircle2 size={16} /> Mark finished
@@ -130,7 +132,7 @@ export function AudiobooksPage() {
         {grouped.continueListening && (
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">Continue Listening</h2>
-            <AudiobookCard entry={grouped.continueListening} hero />
+            <BookCard book={grouped.continueListening} hero />
           </section>
         )}
 
@@ -138,8 +140,8 @@ export function AudiobooksPage() {
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">In Progress</h2>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {grouped.inProgress.map(entry => (
-                <AudiobookCard key={entry.item.Id} entry={entry} />
+              {grouped.inProgress.map(book => (
+                <BookCard key={book.albumId} book={book} />
               ))}
             </div>
           </section>
@@ -149,8 +151,8 @@ export function AudiobooksPage() {
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">Finished</h2>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {grouped.finished.map(entry => (
-                <AudiobookCard key={entry.item.Id} entry={entry} />
+              {grouped.finished.map(book => (
+                <BookCard key={book.albumId} book={book} />
               ))}
             </div>
           </section>
@@ -160,8 +162,8 @@ export function AudiobooksPage() {
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">Library</h2>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {grouped.notStarted.map(entry => (
-                <AudiobookCard key={entry.item.Id} entry={entry} />
+              {grouped.notStarted.map(book => (
+                <BookCard key={book.albumId} book={book} />
               ))}
             </div>
           </section>
