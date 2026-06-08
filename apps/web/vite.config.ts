@@ -30,6 +30,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          // Offline audio is served from IndexedDB by this imported handler, keeping the
+          // <audio> src a same-origin URL (no blob:) so a strict media-src 'self' CSP holds.
+          importScripts: ['audio-offline-sw.js'],
           // Serve the precached app shell for any SPA route when the network is
           // unavailable, so deep links / refreshes work fully offline. API and
           // media requests are excluded so they hit the network (or runtime caches).
@@ -59,11 +62,8 @@ export default defineConfig(({ mode }) => {
                 },
               },
             },
-            {
-              urlPattern: ({ url }) =>
-                url.pathname.includes('/Audio/') && url.pathname.includes('/stream'),
-              handler: 'NetworkOnly',
-            },
+            // /Audio/.../stream is intentionally NOT routed here: audio-offline-sw.js owns it
+            // (IndexedDB-with-Range when downloaded, network otherwise).
           ],
           cleanupOutdatedCaches: true,
           skipWaiting: true,

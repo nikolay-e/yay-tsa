@@ -457,22 +457,12 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
       }
     },
 
-    getPlaybackUrl: async (trackId, fallbackUrl) => {
-      if (!store.isSupported()) return fallbackUrl;
-
-      const cached = objectUrls.get(trackId);
-      if (cached) return cached;
-
-      try {
-        const blob = await store.getBlob(trackId);
-        if (blob && blob.size > 0) {
-          const objectUrl = URL.createObjectURL(blob);
-          objectUrls.set(trackId, objectUrl);
-          return objectUrl;
-        }
-      } catch (error) {
-        log.player.warn('Failed to resolve offline blob', { trackId, error: String(error) });
-      }
+    // eslint-disable-next-line @typescript-eslint/require-await
+    getPlaybackUrl: async (_trackId, fallbackUrl) => {
+      // Always hand the player the same-origin stream URL — never a blob: URL, which a strict
+      // `media-src 'self'` CSP rejects ("Media load rejected by URL safety check"). When the
+      // track is downloaded, audio-offline-sw.js intercepts this exact URL and serves the bytes
+      // from IndexedDB (Range-aware), so playback works offline without a CSP blob: exception.
       return fallbackUrl;
     },
 
