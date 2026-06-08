@@ -43,7 +43,7 @@ function clampRate(rate: number): number {
 function loadGlobalAudiobookSpeed(): number {
   try {
     const raw = localStorage.getItem(AUDIOBOOK_SPEED_KEY);
-    return raw ? clampRate(parseFloat(raw)) : 1;
+    return raw ? clampRate(Number.parseFloat(raw)) : 1;
   } catch {
     return 1;
   }
@@ -52,7 +52,7 @@ function loadGlobalAudiobookSpeed(): number {
 function resolveAudiobookSpeed(bookId: string): number {
   try {
     const perBook = localStorage.getItem(bookSpeedKey(bookId));
-    if (perBook) return clampRate(parseFloat(perBook));
+    if (perBook) return clampRate(Number.parseFloat(perBook));
   } catch {
     // Ignore storage errors
   }

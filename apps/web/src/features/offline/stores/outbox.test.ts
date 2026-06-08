@@ -28,14 +28,14 @@ describe('collapseOutbox', () => {
     expect(result.keep).toHaveLength(1);
     expect(result.keep[0]?.id).toBe(3);
     expect(result.keep[0]?.payload.makeFavorite).toBe(true);
-    expect(result.staleIds.sort()).toEqual([1, 2]);
+    expect(result.staleIds.sort((a, b) => a - b)).toEqual([1, 2]);
   });
 
   it('keeps the latest by createdAt regardless of array order', () => {
     const entries = [fav(3, 'a', true, 300), fav(1, 'a', false, 100), fav(2, 'a', true, 200)];
     const result = collapseOutbox(entries);
     expect(result.keep[0]?.id).toBe(3);
-    expect(result.staleIds.sort()).toEqual([1, 2]);
+    expect(result.staleIds.sort((a, b) => a - b)).toEqual([1, 2]);
   });
 
   it('treats different items and kinds as independent targets', () => {

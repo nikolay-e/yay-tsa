@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Play, RotateCcw, CheckCircle2 } from 'lucide-react';
 import type { AudiobookEntry } from '@yay-tsa/core';
 import { useAudiobooks, useAudiobookActions } from '@/features/audiobooks/hooks/useAudiobooks';
@@ -115,6 +115,50 @@ export function AudiobooksPage() {
     [grouped]
   );
 
+  let body: ReactNode;
+  if (isLoading) {
+    body = <LoadingSpinner />;
+  } else if (hasAny) {
+    body = (
+      <>
+        {grouped.continueListening && (
+          <section className="space-y-3">
+            <h2 className="text-text-primary text-lg font-semibold">Continue Listening</h2>
+            <AudiobookCard entry={grouped.continueListening} hero />
+          </section>
+        )}
+
+        {grouped.inProgress.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-text-primary text-lg font-semibold">In Progress</h2>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {grouped.inProgress.map(entry => (
+                <AudiobookCard key={entry.item.Id} entry={entry} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {grouped.finished.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-text-primary text-lg font-semibold">Finished</h2>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {grouped.finished.map(entry => (
+                <AudiobookCard key={entry.item.Id} entry={entry} />
+              ))}
+            </div>
+          </section>
+        )}
+      </>
+    );
+  } else {
+    body = (
+      <p data-testid="audiobooks-empty" className="text-text-secondary">
+        No audiobooks in progress yet. Play an audiobook to see it here.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-8 p-6" data-testid="audiobooks-page">
       <h1 className="text-text-primary text-2xl font-bold">Audiobooks</h1>
@@ -125,44 +169,7 @@ export function AudiobooksPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : !hasAny ? (
-        <p data-testid="audiobooks-empty" className="text-text-secondary">
-          No audiobooks in progress yet. Play an audiobook to see it here.
-        </p>
-      ) : (
-        <>
-          {grouped.continueListening && (
-            <section className="space-y-3">
-              <h2 className="text-text-primary text-lg font-semibold">Continue Listening</h2>
-              <AudiobookCard entry={grouped.continueListening} hero />
-            </section>
-          )}
-
-          {grouped.inProgress.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-text-primary text-lg font-semibold">In Progress</h2>
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {grouped.inProgress.map(entry => (
-                  <AudiobookCard key={entry.item.Id} entry={entry} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {grouped.finished.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-text-primary text-lg font-semibold">Finished</h2>
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {grouped.finished.map(entry => (
-                  <AudiobookCard key={entry.item.Id} entry={entry} />
-                ))}
-              </div>
-            </section>
-          )}
-        </>
-      )}
+      {body}
     </div>
   );
 }
