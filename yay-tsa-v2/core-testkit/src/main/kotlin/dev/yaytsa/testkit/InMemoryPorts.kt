@@ -194,6 +194,17 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun getTracksByIds(trackIds: List<EntityId>): List<dev.yaytsa.domain.library.Track> = trackIds.mapNotNull { tracks[it] }
 
+    override fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track> {
+        if (genreNames.isEmpty()) return emptyList()
+        val lowered = genreNames.map { it.lowercase() }.toSet()
+        return tracks.values
+            .filter { track ->
+                val byColumn = track.genre?.trim()?.lowercase() in lowered
+                val byJoin = (genres[track.id] ?: emptyList()).any { it.name.trim().lowercase() in lowered }
+                byColumn || byJoin
+            }.sortedBy { (it.sortName ?: it.name).lowercase() }
+    }
+
     override fun browseTracksRandom(limit: Int) = tracks.values.shuffled().take(limit)
 
     override fun browseTracks(

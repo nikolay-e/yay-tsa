@@ -17,7 +17,7 @@ const TRANSPARENT_PNG = Buffer.from(
 interface MockResume {
   positionMs: number;
   runTimeMs: number;
-  status: 'in_progress' | 'finished' | 'relistening';
+  status: 'not_started' | 'in_progress' | 'finished' | 'relistening';
   updatedAt: string;
 }
 
@@ -62,6 +62,12 @@ function installMock(page: Page): void {
       status: 'finished',
       updatedAt: '2026-06-01T10:00:00Z',
     },
+    book4: {
+      positionMs: 0,
+      runTimeMs: 18_000_000,
+      status: 'not_started',
+      updatedAt: '1970-01-01T00:00:00Z',
+    },
   };
 
   void page.route('**/api/**', (route: Route) => {
@@ -102,6 +108,7 @@ function installMock(page: Page): void {
         entry('book1', 'The Name of the Wind', resumes.book1!),
         entry('book2', 'The Wise Man Fear', resumes.book2!),
         entry('book3', 'The Slow Regard', resumes.book3!),
+        entry('book4', 'The Doors of Stone', resumes.book4!),
       ]),
     })
   );
@@ -165,6 +172,14 @@ test.describe('Audiobooks tab (mocked backend)', () => {
     const finished = page.getByTestId('audiobook-card').filter({ hasText: 'The Slow Regard' });
     await expect(finished).toBeVisible();
     await expect(finished.getByTestId('audiobook-restart')).toBeVisible();
+
+    // Never-played books surface under Library with a Start action and no progress/finish controls.
+    await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
+    const notStarted = page.getByTestId('audiobook-card').filter({ hasText: 'The Doors of Stone' });
+    await expect(notStarted).toBeVisible();
+    await expect(notStarted).toContainText('Not started');
+    await expect(notStarted.getByTestId('audiobook-resume')).toContainText('Start');
+    await expect(notStarted.getByTestId('audiobook-finish')).toHaveCount(0);
   });
 
   test('mark finished then restart moves a book through the lifecycle', async ({ page }) => {

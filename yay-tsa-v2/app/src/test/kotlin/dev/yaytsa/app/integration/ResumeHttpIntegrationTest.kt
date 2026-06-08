@@ -129,6 +129,17 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `audiobooks tab lists never-played audiobook as not_started`() {
+        val trackId = seedTrack(audiobook = true)
+
+        val list = getJson("/v1/me/audiobooks")
+        val entry = list.first { it.get("item").get("Id").asText() == trackId }
+        assertEquals("not_started", entry.get("resume").get("status").asText())
+        assertEquals(0, entry.get("resume").get("positionMs").asLong())
+        assertEquals(100_000, entry.get("resume").get("runTimeMs").asLong())
+    }
+
+    @Test
     fun `non-audiobook track is excluded from audiobooks tab`() {
         val trackId = seedTrack(audiobook = false)
         reportProgress(trackId, positionTicks = 300_000_000)

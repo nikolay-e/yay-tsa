@@ -49,6 +49,9 @@ class LibraryQueries(
 
     fun getTracksByIds(trackIds: List<EntityId>): List<Track> = if (trackIds.isEmpty()) emptyList() else libraryQuery.getTracksByIds(trackIds)
 
+    fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track> =
+        if (genreNames.isEmpty()) emptyList() else libraryQuery.browseTracksByGenreNames(genreNames)
+
     fun browseTracks(
         limit: Int,
         offset: Int,

@@ -30,6 +30,8 @@ function AudiobookCard({
   const playTrack = usePlayerStore(state => state.playTrack);
   const { markFinished, restart } = useAudiobookActions();
   const isFinished = resume.status === 'finished';
+  const isNotStarted = resume.status === 'not_started';
+  const showProgress = !isFinished && !isNotStarted;
 
   return (
     <div
@@ -54,18 +56,20 @@ function AudiobookCard({
           {item.Artists && item.Artists.length > 0 && (
             <p className="text-text-secondary truncate text-sm">{item.Artists.join(', ')}</p>
           )}
-          {!isFinished && (
+          {showProgress && (
             <p className="text-text-secondary mt-1 text-xs">
               {resume.progressPercent}% · {formatSeconds(resume.positionMs / 1000)} /{' '}
               {formatSeconds(resume.runTimeMs / 1000)} · {formatRemaining(resume.remainingMs)}
             </p>
           )}
           <p className="text-text-secondary text-xs">
-            {isFinished ? 'Finished' : `Last listened ${lastListened(resume.updatedAt)}`}
+            {isFinished && 'Finished'}
+            {isNotStarted && 'Not started'}
+            {showProgress && `Last listened ${lastListened(resume.updatedAt)}`}
           </p>
         </div>
 
-        {!isFinished && (
+        {showProgress && (
           <div className="bg-bg-tertiary mt-2 h-1 w-full overflow-hidden rounded-full">
             <div
               className="bg-accent h-full rounded-full"
@@ -81,9 +85,9 @@ function AudiobookCard({
             onClick={() => void playTrack(item)}
             className="bg-accent inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
           >
-            <Play size={16} /> {isFinished ? 'Listen again' : 'Resume'}
+            <Play size={16} /> {isFinished ? 'Listen again' : isNotStarted ? 'Start' : 'Resume'}
           </button>
-          {isFinished ? (
+          {isFinished && (
             <button
               type="button"
               data-testid="audiobook-restart"
@@ -92,7 +96,8 @@ function AudiobookCard({
             >
               <RotateCcw size={16} /> Restart
             </button>
-          ) : (
+          )}
+          {showProgress && (
             <button
               type="button"
               data-testid="audiobook-finish"
@@ -111,7 +116,8 @@ function AudiobookCard({
 export function AudiobooksPage() {
   const { grouped, isLoading, error } = useAudiobooks();
   const hasAny = useMemo(
-    () => grouped.inProgress.length > 0 || grouped.finished.length > 0,
+    () =>
+      grouped.inProgress.length > 0 || grouped.finished.length > 0 || grouped.notStarted.length > 0,
     [grouped]
   );
 
@@ -149,12 +155,23 @@ export function AudiobooksPage() {
             </div>
           </section>
         )}
+
+        {grouped.notStarted.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-text-primary text-lg font-semibold">Library</h2>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {grouped.notStarted.map(entry => (
+                <AudiobookCard key={entry.item.Id} entry={entry} />
+              ))}
+            </div>
+          </section>
+        )}
       </>
     );
   } else {
     body = (
       <p data-testid="audiobooks-empty" className="text-text-secondary">
-        No audiobooks in progress yet. Play an audiobook to see it here.
+        No audiobooks in your library yet. Tag tracks with the genre "Audiobook" to see them here.
       </p>
     );
   }

@@ -162,6 +162,15 @@ class JpaLibraryQueryPort(
         return assembleTracksInOrder(orderedJpas)
     }
 
+    override fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track> {
+        if (genreNames.isEmpty()) return emptyList()
+        val lowered = genreNames.map { it.lowercase() }
+        val entityIds = entityGenreRepo.findTrackEntityIdsByGenreNames(lowered)
+        if (entityIds.isEmpty()) return emptyList()
+        return assembleTracksInOrder(trackRepo.findAllByEntityIdIn(entityIds))
+            .sortedBy { (it.sortName ?: it.name).lowercase() }
+    }
+
     private fun assembleTracksInOrder(trackJpas: List<dev.yaytsa.persistence.library.entity.AudioTrackJpa>): List<Track> {
         if (trackJpas.isEmpty()) return emptyList()
         val entityIds = trackJpas.map { it.entityId }

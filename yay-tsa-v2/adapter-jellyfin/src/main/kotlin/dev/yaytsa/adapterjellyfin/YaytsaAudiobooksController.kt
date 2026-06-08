@@ -8,11 +8,11 @@ import dev.yaytsa.adaptershared.toJellyfinBaseItem
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.ResumePosition
 import dev.yaytsa.application.playback.ResumePositionService
+import dev.yaytsa.application.playback.ResumeSource
 import dev.yaytsa.application.playback.ResumeStatus
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.library.Track
-import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.UserId
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
+import java.time.Instant
 
 @RestController
 @RequestMapping("/v1/me/audiobooks")
@@ -47,31 +48,32 @@ class YaytsaAudiobooksController(
     @GetMapping
     fun list(principal: Principal): ResponseEntity<List<AudiobookDto>> {
         val uid = UserId(principal.name)
-        val rows = resumePositionService.findAll(uid)
-        if (rows.isEmpty()) return ResponseEntity.ok(emptyList())
+        val tracks = libraryQueries.browseTracksByGenreNames(AUDIOBOOK_GENRES)
+        if (tracks.isEmpty()) return ResponseEntity.ok(emptyList())
 
         val favTrackIds =
             (preferencesQueries.find(uid)?.favorites ?: emptyList())
                 .map { it.trackId.value }
                 .toSet()
 
-        val tracksById =
-            libraryQueries
-                .getTracksByIds(rows.map { EntityId(it.itemId) })
-                .filter { isAudiobook(it) }
-                .associateBy { it.id.value }
-
-        val lookups = trackLookups(tracksById.values.toList())
+        val resumeByItem = resumePositionService.findByItemIds(uid, tracks.map { it.id.value }.toSet())
+        val lookups = trackLookups(tracks)
 
         val dtos =
-            rows
-                .mapNotNull { resume ->
-                    val track = tracksById[resume.itemId] ?: return@mapNotNull null
+            tracks
+                .map { track ->
+                    val resume = resumeByItem[track.id.value] ?: notStarted(uid, track)
                     AudiobookDto(
                         item = buildItem(track, favTrackIds, lookups, resume),
                         resume = resume.toDto(),
                     )
-                }.sortedByDescending { it.resume.updatedAt }
+                }.sortedWith(
+                    // Played books first (most-recently listened on top); never-started books
+                    // fall to the bottom in alphabetical order.
+                    compareByDescending<AudiobookDto> { it.resume.status != ResumeStatus.NOT_STARTED.wireValue() }
+                        .thenByDescending { it.resume.updatedAt }
+                        .thenBy { it.item.name ?: "" },
+                )
 
         return ResponseEntity.ok(dtos)
     }
@@ -123,6 +125,20 @@ class YaytsaAudiobooksController(
         )
     }
 
+    private fun notStarted(
+        uid: UserId,
+        track: Track,
+    ): ResumePosition =
+        ResumePosition(
+            userId = uid.value,
+            itemId = track.id.value,
+            positionMs = 0,
+            runTimeMs = track.durationMs ?: 0,
+            status = ResumeStatus.NOT_STARTED,
+            sourceEvent = ResumeSource.START,
+            updatedAt = Instant.EPOCH,
+        )
+
     private fun trackLookups(tracks: List<Track>): TrackLookups {
         val albumIds = tracks.mapNotNull { it.albumId }.toSet()
         val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
@@ -134,7 +150,5 @@ class YaytsaAudiobooksController(
 
     companion object {
         private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
-
-        fun isAudiobook(track: Track): Boolean = track.genre?.trim()?.lowercase() in AUDIOBOOK_GENRES
     }
 }

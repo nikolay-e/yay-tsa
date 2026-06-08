@@ -42,6 +42,8 @@ interface LibraryQueryPort {
 
     fun getTracksByIds(trackIds: List<EntityId>): List<Track>
 
+    fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track>
+
     fun browseTracks(
         limit: Int,
         offset: Int,

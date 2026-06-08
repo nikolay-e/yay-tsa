@@ -9,6 +9,7 @@ export interface GroupedAudiobooks {
   continueListening: AudiobookEntry | null;
   inProgress: AudiobookEntry[];
   finished: AudiobookEntry[];
+  notStarted: AudiobookEntry[];
 }
 
 function groupAudiobooks(entries: AudiobookEntry[]): GroupedAudiobooks {
@@ -21,10 +22,14 @@ function groupAudiobooks(entries: AudiobookEntry[]): GroupedAudiobooks {
       (e.resume.status === 'in_progress' && e.resume.positionMs > 0)
   );
   const finished = sorted.filter(e => e.resume.status === 'finished');
+  const notStarted = entries
+    .filter(e => e.resume.status === 'not_started')
+    .sort((a, b) => (a.item.Name ?? '').localeCompare(b.item.Name ?? ''));
   return {
     continueListening: inProgress[0] ?? null,
     inProgress,
     finished,
+    notStarted,
   };
 }
 
