@@ -5,16 +5,18 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 // guarantee that matters for "works offline":
 //
 //   download an album → the track survives a full reload (offline library is
-//   hydrated from IndexedDB) → with the network offline it still plays from the
-//   local blob, currentTime advances, and no request hits the stream endpoint.
+//   hydrated from IndexedDB) → with the network offline the audio-offline service
+//   worker serves the downloaded bytes from IndexedDB, currentTime advances, and the
+//   player points at the same-origin /Audio/{id}/stream URL (never a blob:, so a
+//   strict `media-src 'self'` CSP is satisfied).
 //
 // It deliberately uses the album page + /offline page (both non-virtualised
 // lists) rather than the virtualised /songs list, which does not render reliably
 // under the headless mocked harness.
 //
-// The service-worker app-shell fallback (offline route loads after a cold start)
-// is validated against the production build separately — the dev server used
-// here ships no service worker.
+// In production the audio handler is importScripts'd into the generated Workbox
+// service worker; the Vite dev server ships no service worker, so the test
+// registers public/audio-offline-sw.js directly to exercise the real offline path.
 //
 //   npx playwright test --project=chromium-mocked offline.mocked.spec.ts
 
@@ -154,16 +156,8 @@ async function login(page: Page): Promise<void> {
   await page.waitForURL('/', { timeout: 15000 });
 }
 
-// NOTE: marked test.fixme until validated on a machine with a browser. The
-// offline data layer (IndexedDb store + outbox collapse) is covered by the
-// vitest suites; this is the ready browser-level proof. It could not be
-// validated from the build sandbox — the Chromium download and the CI artifact
-// (screenshot/trace) are both network-blocked there, so the track-list page
-// rendering under the mocked harness needs a real run to debug (the same reason
-// favorites-sync.mocked.spec.ts is left as fixme). Un-fixme and run:
-//   npx playwright test --project=chromium-mocked offline.mocked.spec.ts
 test.describe('Offline audio (mocked backend)', () => {
-  test('download → survives reload from IndexedDB → plays offline from local blob', async ({
+  test('download → survives reload from IndexedDB → plays offline via the service worker', async ({
     page,
     context,
   }) => {
@@ -184,19 +178,28 @@ test.describe('Offline audio (mocked backend)', () => {
     await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('track-title')).toHaveText(TRACK.Name);
 
-    // 3. Go offline for real and record any hit to the stream endpoint.
-    const streamRequests: string[] = [];
-    let offline = false;
-    page.on('request', req => {
-      if (offline && /\/Audio\/.*\/stream/.test(req.url())) streamRequests.push(req.url());
+    // 3. Register the audio-offline service worker (in production it is importScripts'd
+    //    into the Workbox SW; the dev server ships none) and reload so it controls the
+    //    page — it owns /Audio/{id}/stream and serves downloaded bytes from IndexedDB.
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.register('/audio-offline-sw.js');
+      await navigator.serviceWorker.ready;
     });
-    await context.setOffline(true);
-    offline = true;
+    await page.reload();
+    await expect(page.getByTestId('track-title')).toHaveText(TRACK.Name, { timeout: 15000 });
+    await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
+      timeout: 15000,
+    });
 
-    // 4. Play from the offline library.
+    // 4. Drop the stream mock and cut the network: from here the only path to audio bytes
+    //    is the service worker reading them out of IndexedDB.
+    await page.unroute(/\/Audio\/.*\/stream/);
+    await context.setOffline(true);
+
+    // 5. Play from the offline library.
     await page.getByTestId('track-title').click();
 
-    // The engine must be playing a local blob: URL, not a network stream.
+    // The engine plays the same-origin stream URL (never blob:), satisfying media-src 'self'.
     await expect
       .poll(
         async () =>
@@ -212,9 +215,10 @@ test.describe('Offline audio (mocked backend)', () => {
           }),
         { timeout: 15000 }
       )
-      .toContain('blob:');
+      .toContain('/Audio/track-1/stream');
 
-    // currentTime advances → audio genuinely decodes and plays offline.
+    // currentTime advances → the worker decoded real bytes from IndexedDB with the
+    // network down and the stream mock removed, proving genuine offline playback.
     await expect
       .poll(
         async () =>
@@ -229,9 +233,6 @@ test.describe('Offline audio (mocked backend)', () => {
         { timeout: 15000 }
       )
       .toBeGreaterThan(0.1);
-
-    // No request ever reached the stream endpoint while offline.
-    expect(streamRequests).toEqual([]);
   });
 
   test('liking a track auto-downloads it (no manual download click)', async ({ page }) => {
