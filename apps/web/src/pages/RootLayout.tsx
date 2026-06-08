@@ -8,6 +8,7 @@ import {
   Heart,
   Settings,
   DownloadCloud,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/artists', label: 'Artists', icon: Users, testId: 'nav-artists' },
   { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
   { href: '/songs', label: 'Songs', icon: Music, testId: 'nav-songs' },
+  { href: '/audiobooks', label: 'Audiobooks', icon: BookOpen, testId: 'nav-audiobooks' },
   { href: '/offline', label: 'Offline', icon: DownloadCloud, testId: 'nav-offline' },
   { href: '/settings', label: 'Settings', icon: Settings, testId: 'nav-settings' },
 ];

@@ -8,6 +8,12 @@ export { MediaServerClient, type KaraokeStatus } from './api/api.client.js';
 export { BaseService } from './api/base-api.service.js';
 export { AuthService, validateServerUrl } from './api/auth.service.js';
 export { ItemsService } from './api/items.service.js';
+export {
+  AudiobooksService,
+  type AudiobookEntry,
+  type AudiobookResume,
+  type AudiobookStatus,
+} from './api/audiobooks.service.js';
 export { PlaylistsService } from './api/playlists.service.js';
 export { FavoritesService } from './api/favorites.service.js';
 export { getIsFavorite, setItemFavorite, type FavoritableItem } from './api/favorite-state.js';
@@ -47,6 +53,12 @@ export type {
 // Player modules
 export { PlaybackQueue } from './player/queue.js';
 export { PlaybackReporter } from './player/playback-state.js';
+export {
+  isAudiobook,
+  getSmartRewindMs,
+  resumePositionSeconds,
+  AUDIOBOOK_GENRES,
+} from './player/audiobook.js';
 
 // Lyrics modules
 export {

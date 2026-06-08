@@ -6,6 +6,9 @@ import {
   PlaybackReporter,
   ItemsService,
   setItemFavorite,
+  isAudiobook,
+  resumePositionSeconds,
+  getSmartRewindMs,
   type AudioItem,
   type MediaServerClient,
   type KaraokeStatus,
@@ -27,6 +30,46 @@ import { PreloadManager } from './preload-manager';
 import { navAvailability, previousAction, endedAction } from './playback-decisions';
 
 export type RepeatMode = 'off' | 'one' | 'all';
+export type PlayerMode = 'music' | 'audiobook';
+export type SpeedScope = 'book' | 'all';
+
+const AUDIOBOOK_SPEED_KEY = 'yaytsa_audiobook_speed';
+const bookSpeedKey = (bookId: string) => `yaytsa_book_speed_${bookId}`;
+
+function clampRate(rate: number): number {
+  return Math.max(0.5, Math.min(3, rate));
+}
+
+function loadGlobalAudiobookSpeed(): number {
+  try {
+    const raw = localStorage.getItem(AUDIOBOOK_SPEED_KEY);
+    return raw ? clampRate(parseFloat(raw)) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function resolveAudiobookSpeed(bookId: string): number {
+  try {
+    const perBook = localStorage.getItem(bookSpeedKey(bookId));
+    if (perBook) return clampRate(parseFloat(perBook));
+  } catch {
+    // Ignore storage errors
+  }
+  return loadGlobalAudiobookSpeed();
+}
+
+function persistAudiobookSpeed(rate: number, scope: SpeedScope, bookId: string | null): void {
+  try {
+    if (scope === 'all') {
+      localStorage.setItem(AUDIOBOOK_SPEED_KEY, rate.toString());
+    } else if (bookId) {
+      localStorage.setItem(bookSpeedKey(bookId), rate.toString());
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 interface PlayerState {
   queue: PlaybackQueue;
@@ -45,6 +88,8 @@ interface PlayerState {
   karaokeEnabled: boolean;
   sleepTimerMinutes: number | null;
   sleepTimerEndTime: number | null;
+  playerMode: PlayerMode;
+  playbackRate: number;
 }
 
 interface PlayerActions {
@@ -56,6 +101,7 @@ interface PlayerActions {
   next: () => Promise<void>;
   previous: () => Promise<void>;
   seek: (seconds: number) => void;
+  skipBy: (deltaSeconds: number) => void;
   setVolume: (level: number) => void;
   toggleShuffle: () => void;
   setShuffle: (enabled: boolean) => void;
@@ -65,6 +111,7 @@ interface PlayerActions {
   refreshKaraokeStatus: () => Promise<void>;
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
+  setPlaybackRate: (rate: number, scope?: SpeedScope) => void;
   updateCurrentTrackLyrics: (lyrics: string) => void;
   appendToQueue: (tracks: AudioItem[]) => void;
   insertNextInQueue: (tracks: AudioItem[]) => void;
@@ -195,6 +242,8 @@ const initialState: PlayerState = {
   karaokeEnabled: false,
   sleepTimerMinutes: null,
   sleepTimerEndTime: null,
+  playerMode: 'music',
+  playbackRate: 1,
 };
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -215,6 +264,7 @@ export const usePlayerStore = create<PlayerStore>()(
         next: async () => {},
         previous: async () => {},
         seek: () => {},
+        skipBy: () => {},
         setVolume: () => {},
         toggleShuffle: () => {},
         setShuffle: () => {},
@@ -224,6 +274,7 @@ export const usePlayerStore = create<PlayerStore>()(
         refreshKaraokeStatus: async () => {},
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
+        setPlaybackRate: () => {},
         updateCurrentTrackLyrics: () => {},
         appendToQueue: () => {},
         insertNextInQueue: () => {},
@@ -242,6 +293,8 @@ export const usePlayerStore = create<PlayerStore>()(
     // Suppress spurious ended event after gapless transition (#4)
     let suppressNextEnded = false;
     let pendingSeek: number | null = null;
+    // Wall-clock instant of the last pause, used to compute audiobook smart-rewind on resume.
+    let lastPauseAt: number | null = null;
 
     // --- Helpers ---
 
@@ -280,6 +333,9 @@ export const usePlayerStore = create<PlayerStore>()(
       if (playbackReporter && currentItemId) {
         const prevId = currentItemId;
         const prevPos = engine.getCurrentTime();
+        // Persist the resume position into the local offline record (no-op when the track
+        // is not downloaded) so an offline cold start can restore the place.
+        void useOfflineStore.getState().saveResume(prevId, prevPos);
         // Offline: the network report will fail, so queue the resume position to
         // sync on reconnect. Online failures are transient and logged only.
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -445,7 +501,8 @@ export const usePlayerStore = create<PlayerStore>()(
       error: unknown,
       track: AudioItem,
       signal: AbortSignal,
-      retryCount: number
+      retryCount: number,
+      resumeFromSaved: boolean
     ): Promise<void> {
       if (signal.aborted) return;
       if (isRetryableTimeout(error, retryCount)) {
@@ -456,7 +513,7 @@ export const usePlayerStore = create<PlayerStore>()(
           setTimeout(resolve, 2000);
         });
         if (!signal.aborted) {
-          return loadAndPlay(track, signal, retryCount + 1);
+          return loadAndPlay(track, signal, retryCount + 1, resumeFromSaved);
         }
         return;
       }
@@ -475,11 +532,23 @@ export const usePlayerStore = create<PlayerStore>()(
     async function loadAndPlay(
       track: AudioItem,
       signal: AbortSignal,
-      retryCount = 0
+      retryCount = 0,
+      resumeFromSaved = false
     ): Promise<void> {
       if (!currentClient) throw new Error('Not authenticated');
 
-      pendingSeek = null;
+      const audiobook = isAudiobook(track);
+      const rate = audiobook ? resolveAudiobookSpeed(track.Id) : 1;
+
+      // Seek-on-load resume is audiobook-only: a long-form book restores its saved place,
+      // while music keeps its existing start-from-zero behaviour.
+      if (resumeFromSaved && audiobook) {
+        const resumeSeconds = resumePositionSeconds(track);
+        pendingSeek = resumeSeconds > 0 ? resumeSeconds : null;
+      } else {
+        pendingSeek = null;
+      }
+      lastPauseAt = null;
 
       set({
         currentTrack: track,
@@ -488,6 +557,8 @@ export const usePlayerStore = create<PlayerStore>()(
         isKaraokeMode: false,
         isKaraokeTransitioning: false,
         karaokeStatus: null,
+        playerMode: audiobook ? 'audiobook' : 'music',
+        playbackRate: rate,
       });
       reportStopped();
 
@@ -496,6 +567,7 @@ export const usePlayerStore = create<PlayerStore>()(
         const streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
 
         await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
+        engine.setPlaybackRate?.(rate);
         set({ currentTrack: track, isLoading: false, error: null });
 
         if (signal.aborted) return;
@@ -510,7 +582,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         commitPlaybackSideEffects(track, signal);
       } catch (error) {
-        return handleLoadError(error, track, signal, retryCount);
+        return handleLoadError(error, track, signal, retryCount, resumeFromSaved);
       }
     }
 
@@ -796,7 +868,7 @@ export const usePlayerStore = create<PlayerStore>()(
             }
             queue.setRepeatMode(repeatMode);
             syncQueueState();
-            await loadAndPlay(track, signal);
+            await loadAndPlay(track, signal, 0, true);
 
             if (!signal.aborted) {
               sessionState
@@ -819,7 +891,7 @@ export const usePlayerStore = create<PlayerStore>()(
           const { queue, repeatMode } = get();
           queue.setQueue([track], 0);
           queue.setRepeatMode(repeatMode);
-          await loadAndPlay(track, signal);
+          await loadAndPlay(track, signal, 0, true);
         });
       },
 
@@ -841,7 +913,7 @@ export const usePlayerStore = create<PlayerStore>()(
           }
           const currentTrack = queue.getCurrentItem();
           if (currentTrack) {
-            await loadAndPlay(currentTrack, signal);
+            await loadAndPlay(currentTrack, signal, 0, true);
           }
         });
       },
@@ -867,7 +939,7 @@ export const usePlayerStore = create<PlayerStore>()(
           }
           const currentTrack = queue.getCurrentItem();
           if (currentTrack) {
-            await loadAndPlay(currentTrack, signal);
+            await loadAndPlay(currentTrack, signal, 0, true);
           }
         });
       },
@@ -876,9 +948,14 @@ export const usePlayerStore = create<PlayerStore>()(
         // eslint-disable-next-line @typescript-eslint/require-await
         void controller.interrupt(async () => {
           engine.pause();
+          lastPauseAt = Date.now();
           set({ isPlaying: false });
           syncMediaSessionPlayback('paused');
           wakeLock.release();
+
+          if (currentItemId) {
+            void useOfflineStore.getState().saveResume(currentItemId, engine.getCurrentTime());
+          }
 
           if (playbackReporter && currentItemId) {
             playbackReporter
@@ -893,6 +970,15 @@ export const usePlayerStore = create<PlayerStore>()(
       resume: async () => {
         await controller.interrupt(async () => {
           try {
+            if (get().playerMode === 'audiobook' && lastPauseAt !== null) {
+              const rewindMs = getSmartRewindMs(Date.now() - lastPauseAt);
+              if (rewindMs > 0) {
+                const target = Math.max(0, engine.getCurrentTime() - rewindMs / 1000);
+                engine.seek(target);
+                useTimingStore.getState().seekTo(target, engine.getDuration());
+              }
+            }
+            lastPauseAt = null;
             await engine.play();
             set({ isPlaying: true });
             syncMediaSessionPlayback('playing');
@@ -970,6 +1056,13 @@ export const usePlayerStore = create<PlayerStore>()(
             log.player.warn('Failed to report seek', { error: String(err) });
           });
         }
+      },
+
+      skipBy: deltaSeconds => {
+        const duration = engine.getDuration();
+        const raw = engine.getCurrentTime() + deltaSeconds;
+        const target = duration > 0 ? Math.max(0, Math.min(raw, duration)) : Math.max(0, raw);
+        get().seek(target);
       },
 
       setVolume: level => {
@@ -1173,6 +1266,13 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
       },
 
+      setPlaybackRate: (rate: number, scope: SpeedScope = 'book') => {
+        const clamped = clampRate(rate);
+        engine.setPlaybackRate?.(clamped);
+        set({ playbackRate: clamped });
+        persistAudiobookSpeed(clamped, scope, get().currentTrack?.Id ?? null);
+      },
+
       updateCurrentTrackLyrics: (lyrics: string) => {
         const { currentTrack } = get();
         if (currentTrack) {
@@ -1220,7 +1320,7 @@ export const usePlayerStore = create<PlayerStore>()(
           queue.advanceTo(trackId);
           syncQueueState();
           try {
-            await loadAndPlay(target, signal);
+            await loadAndPlay(target, signal, 0, true);
           } catch {
             if (!signal.aborted) autoAdvanceOnError(get);
             return;
@@ -1448,6 +1548,9 @@ export const useVolume = () => usePlayerStore(state => state.volume);
 export const useIsShuffle = () => usePlayerStore(state => state.isShuffle);
 export const useRepeatMode = () => usePlayerStore(state => state.repeatMode);
 export const usePlayerError = () => usePlayerStore(state => state.error);
+export const usePlayerMode = () => usePlayerStore(state => state.playerMode);
+export const useIsAudiobookMode = () => usePlayerStore(state => state.playerMode === 'audiobook');
+export const usePlaybackRate = () => usePlayerStore(state => state.playbackRate);
 export const useIsKaraokeMode = () => usePlayerStore(state => state.isKaraokeMode);
 export const useIsKaraokeTransitioning = () =>
   usePlayerStore(state => state.isKaraokeTransitioning);

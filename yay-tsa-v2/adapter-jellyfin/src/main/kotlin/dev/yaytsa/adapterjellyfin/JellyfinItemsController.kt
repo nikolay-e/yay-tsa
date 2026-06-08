@@ -3,9 +3,12 @@ package dev.yaytsa.adapterjellyfin
 import dev.yaytsa.adaptershared.BaseItem
 import dev.yaytsa.adaptershared.NameIdPair
 import dev.yaytsa.adaptershared.TrackLookups
+import dev.yaytsa.adaptershared.UserItemData
 import dev.yaytsa.adaptershared.msToTicks
 import dev.yaytsa.adaptershared.toJellyfinBaseItem
 import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.application.playback.ResumePositionService
+import dev.yaytsa.application.playback.ResumeStatus
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.domain.library.Album
@@ -28,7 +31,35 @@ class JellyfinItemsController(
     private val preferencesQueries: PreferencesQueries,
     private val playlistQueries: PlaylistQueries,
     private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
+    private val resumePositionService: ResumePositionService,
 ) {
+    // Hydrate per-(user,item) resume into UserData.PlaybackPositionTicks so clients seek-on-load.
+    // No-op for non-Audio items. Finished books report ticks=0 so playing them restarts cleanly.
+    private fun withResume(
+        items: List<BaseItem>,
+        uid: String?,
+    ): List<BaseItem> {
+        if (uid == null) return items
+        val trackIds = items.filter { it.type == "Audio" }.map { it.id }.toSet()
+        if (trackIds.isEmpty()) return items
+        val resume = resumePositionService.findByItemIds(UserId(uid), trackIds)
+        if (resume.isEmpty()) return items
+        return items.map { item ->
+            val r = resume[item.id]
+            if (r == null || item.type != "Audio") {
+                item
+            } else {
+                val finished = r.status == ResumeStatus.FINISHED
+                item.copy(
+                    userData =
+                        (item.userData ?: UserItemData()).copy(
+                            playbackPositionTicks = if (finished) 0L else (msToTicks(r.positionMs) ?: 0L),
+                            played = finished,
+                        ),
+                )
+            }
+        }
+    }
     @GetMapping("/Items")
     fun getItems(
         @RequestParam(required = false) userId: String?,
@@ -71,7 +102,7 @@ class JellyfinItemsController(
                             ?: libraryQueries.getArtist(EntityId(id))?.toBaseItem()
                     }
                 }
-            return ResponseEntity.ok(ItemsResult(items, items.size, startIndex))
+            return ResponseEntity.ok(ItemsResult(withResume(items, uid), items.size, startIndex))
         }
 
         // Handle search
@@ -87,7 +118,7 @@ class JellyfinItemsController(
                 libraryQueries.countTextSearchArtists(searchTerm) +
                     libraryQueries.countTextSearchAlbums(searchTerm) +
                     libraryQueries.countTextSearchTracks(searchTerm)
-            return ResponseEntity.ok(ItemsResult(items, total, startIndex))
+            return ResponseEntity.ok(ItemsResult(withResume(items, uid), total, startIndex))
         }
 
         // Handle favorites. Favorites live in the in-memory preferences aggregate, so sort there
@@ -112,7 +143,7 @@ class JellyfinItemsController(
             val pageFavs = ordered.drop(startIndex.coerceAtLeast(0)).take(limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE))
             val pageTracks = libraryQueries.getTracksByIds(pageFavs.map { EntityId(it.trackId.value) })
             val trackLookups = tracksLookups(pageTracks)
-            val items = pageTracks.map { it.toBaseItem(favTrackIds, trackLookups) }
+            val items = withResume(pageTracks.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
             return ResponseEntity.ok(ItemsResult(items, resolvable.size, startIndex))
         }
 
@@ -128,7 +159,7 @@ class JellyfinItemsController(
                 val tracks = libraryQueries.browseTracksByAlbum(parentEntity)
                 val page = tracks.drop(pageStart).take(pageSize)
                 val trackLookups = tracksLookups(page)
-                val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
+                val items = withResume(page.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
                 return ResponseEntity.ok(ItemsResult(items, tracks.size, startIndex))
             }
 
@@ -137,7 +168,7 @@ class JellyfinItemsController(
                     val page = libraryQueries.browseTracksByArtist(parentEntity, pageSize, pageStart)
                     val total = libraryQueries.countTracksByArtist(parentEntity)
                     val trackLookups = tracksLookups(page)
-                    val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
+                    val items = withResume(page.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
                     return ResponseEntity.ok(ItemsResult(items, total, startIndex))
                 }
                 val albums = libraryQueries.browseAlbumsByArtist(parentEntity)
@@ -152,7 +183,7 @@ class JellyfinItemsController(
             val tracks = libraryQueries.browseTracksByAlbum(parentEntity)
             val page = tracks.drop(pageStart).take(pageSize)
             val trackLookups = tracksLookups(page)
-            val items = page.map { it.toBaseItem(favTrackIds, trackLookups) }
+            val items = withResume(page.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
             return ResponseEntity.ok(ItemsResult(items, tracks.size, startIndex))
         }
 
@@ -184,13 +215,13 @@ class JellyfinItemsController(
                     val personalized = buildPersonalizedTracks(UserId(uid!!), limit)
                     if (personalized.isNotEmpty()) {
                         val lookups = tracksLookups(personalized)
-                        val items = personalized.map { it.toBaseItem(favTrackIds, lookups) }
+                        val items = withResume(personalized.map { it.toBaseItem(favTrackIds, lookups) }, uid)
                         return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
                     }
                 }
                 val browsed = libraryQueries.browseTracks(limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending")
                 val trackLookups = tracksLookups(browsed)
-                val items = browsed.map { it.toBaseItem(favTrackIds, trackLookups) }
+                val items = withResume(browsed.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
                 return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
             }
             "Playlist" in types && uid != null -> {
@@ -341,7 +372,7 @@ class JellyfinItemsController(
                 ?: runCatching { playlistQueries.find(PlaylistId(itemId)) }.getOrNull()?.toBaseItem()
                 ?: return ResponseEntity.notFound().build()
 
-        return ResponseEntity.ok(item)
+        return ResponseEntity.ok(withResume(listOf(item), uid).first())
     }
 
     private fun PlaylistAggregate.toBaseItem(): BaseItem =

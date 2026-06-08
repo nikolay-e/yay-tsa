@@ -10,9 +10,11 @@ import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
+import dev.yaytsa.application.playback.ResumePositionService
 import dev.yaytsa.application.playback.ScrobbleService
 import dev.yaytsa.application.playback.port.PlayHistoryWritePort
 import dev.yaytsa.application.playback.port.PlaybackSessionRepository
+import dev.yaytsa.application.playback.port.ResumePositionRepository
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.playlists.PlaylistUseCases
 import dev.yaytsa.application.playlists.port.PlaylistRepository
@@ -86,6 +88,9 @@ class CoreBeansConfiguration {
 
     @Bean
     fun scrobbleService(playHistoryWriter: PlayHistoryWritePort): ScrobbleService = ScrobbleService(playHistoryWriter)
+
+    @Bean
+    fun resumePositionService(resumeRepo: ResumePositionRepository): ResumePositionService = ResumePositionService(resumeRepo)
 
     @Bean
     fun playlistUseCases(

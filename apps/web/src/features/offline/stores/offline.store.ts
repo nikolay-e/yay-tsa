@@ -72,6 +72,7 @@ interface OfflineActions {
   setSetting: (patch: Partial<OfflineSettings>) => void;
   queueFavorite: (itemId: string, makeFavorite: boolean) => Promise<void>;
   queueProgress: (trackId: string, positionSeconds: number) => Promise<void>;
+  saveResume: (trackId: string, positionSeconds: number) => Promise<void>;
   flushOutbox: () => Promise<void>;
   refreshUsage: () => Promise<void>;
 }
@@ -643,6 +644,30 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         });
       } catch (error) {
         log.player.warn('Failed to queue progress', { trackId, error: String(error) });
+      }
+    },
+
+    saveResume: async (trackId, positionSeconds) => {
+      if (!store.isSupported()) return;
+      try {
+        const record = await store.getTrack(trackId);
+        if (!record) return;
+        const metadata = record.metadata;
+        const updated: AudioItem = {
+          ...metadata,
+          UserData: {
+            PlaybackPositionTicks: secondsToTicks(positionSeconds),
+            PlayCount: metadata.UserData?.PlayCount ?? 0,
+            IsFavorite: metadata.UserData?.IsFavorite ?? false,
+            Played: metadata.UserData?.Played ?? false,
+          },
+        };
+        await store.putTrackRecord({ ...record, metadata: updated });
+        set(state =>
+          state.items[trackId] ? { items: { ...state.items, [trackId]: updated } } : {}
+        );
+      } catch (error) {
+        log.player.warn('Failed to save offline resume', { trackId, error: String(error) });
       }
     },
 

@@ -161,6 +161,10 @@ export function PlayerBar() {
   const { getImageUrl } = useImageUrl();
 
   const seek = usePlayerStore(s => s.seek);
+  const skipBy = usePlayerStore(s => s.skipBy);
+  const playerMode = usePlayerStore(s => s.playerMode);
+  const playbackRate = usePlayerStore(s => s.playbackRate);
+  const setPlaybackRate = usePlayerStore(s => s.setPlaybackRate);
   const setVolume = usePlayerStore(s => s.setVolume);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
   const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
@@ -451,7 +455,27 @@ export function PlayerBar() {
           onPrevious={handlePrevious}
           onToggleShuffle={handleToggleShuffle}
           onToggleRepeat={handleToggleRepeat}
+          isAudiobook={playerMode === 'audiobook'}
+          onSkipBackward={() => skipBy(-15)}
+          onSkipForward={() => skipBy(30)}
         />
+
+        {playerMode === 'audiobook' && (
+          <button
+            type="button"
+            data-testid="audiobook-speed"
+            onClick={() => {
+              const steps = [0.75, 1, 1.25, 1.5, 1.75, 2];
+              const idx = steps.findIndex(s => Math.abs(s - playbackRate) < 0.01);
+              const nextRate = steps[(idx + 1) % steps.length] ?? 1;
+              setPlaybackRate(nextRate, 'book');
+            }}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent hidden shrink-0 rounded-full px-2 py-1 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex"
+            aria-label={`Playback speed ${playbackRate}x`}
+          >
+            {playbackRate}x
+          </button>
+        )}
 
         <div className="hidden shrink-0 items-center justify-end gap-1 sm:flex md:flex-1 md:gap-2">
           <TimeDisplay />

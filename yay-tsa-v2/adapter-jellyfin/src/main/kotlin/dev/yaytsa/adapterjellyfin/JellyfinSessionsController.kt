@@ -8,10 +8,14 @@ import dev.yaytsa.adaptershared.TICKS_PER_MS
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
+import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.application.playback.ResumePositionService
+import dev.yaytsa.application.playback.ResumeSource
 import dev.yaytsa.application.playback.ScrobbleService
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.adaptive.RecordPlaybackSignal
 import dev.yaytsa.shared.AggregateVersion
+import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import dev.yaytsa.shared.generated.SignalType
@@ -34,6 +38,8 @@ class JellyfinSessionsController(
     private val adaptiveQuery: AdaptiveQueryPort,
     private val adaptiveSessionRepo: AdaptiveSessionRepository,
     private val scrobbleService: ScrobbleService,
+    private val resumePositionService: ResumePositionService,
+    private val libraryQueries: LibraryQueries,
     private val clock: Clock,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
@@ -97,6 +103,7 @@ class JellyfinSessionsController(
         if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
         playbackStarts.put("${principal.name}:${info.itemId}", clock.now())
         recordSignal(principal, info.itemId, SignalType.PLAY_START)
+        recordResume(principal, info.itemId, info.positionTicks, ResumeSource.START)
         return ResponseEntity.noContent().build()
     }
 
@@ -106,8 +113,8 @@ class JellyfinSessionsController(
         principal: Principal,
     ): ResponseEntity<Void> {
         if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
-        // Progress reports are too frequent to record as signals
-        // Could be used for position tracking in the future
+        val source = if (info.isPaused) ResumeSource.PAUSE else ResumeSource.PROGRESS
+        recordResume(principal, info.itemId, info.positionTicks, source)
         return ResponseEntity.noContent().build()
     }
 
@@ -124,6 +131,7 @@ class JellyfinSessionsController(
 
         // Record stop signal
         recordSignal(principal, info.itemId, SignalType.PLAY_COMPLETE, """{"positionMs":$positionMs}""")
+        recordResume(principal, info.itemId, info.positionTicks, ResumeSource.STOPPED)
 
         // Retrieve actual start time from when reportPlaying was called
         val startKey = "${principal.name}:${info.itemId}"
@@ -140,6 +148,27 @@ class JellyfinSessionsController(
         )
 
         return ResponseEntity.noContent().build()
+    }
+
+    private fun recordResume(
+        principal: Principal,
+        itemId: String,
+        positionTicks: Long,
+        sourceEvent: String,
+    ) {
+        try {
+            val runTimeMs = libraryQueries.getTrack(EntityId(itemId))?.durationMs ?: 0L
+            resumePositionService.record(
+                userId = UserId(principal.name),
+                itemId = itemId,
+                positionMs = positionTicks / TICKS_PER_MS,
+                runTimeMs = runTimeMs,
+                sourceEvent = sourceEvent,
+                requestTime = clock.now(),
+            )
+        } catch (e: Exception) {
+            log.warn("Resume position recording failed for item {}: {}", itemId, e.message)
+        }
     }
 
     private fun recordSignal(
