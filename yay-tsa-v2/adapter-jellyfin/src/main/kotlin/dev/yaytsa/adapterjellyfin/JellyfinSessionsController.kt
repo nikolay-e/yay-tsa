@@ -71,6 +71,7 @@ class JellyfinSessionsController(
         @JsonProperty("SubtitleStreamIndex") val subtitleStreamIndex: Int? = null,
         @JsonProperty("VolumeLevel") val volumeLevel: Int? = null,
         @JsonProperty("IsMuted") val isMuted: Boolean? = null,
+        @JsonProperty("EventTime") val eventTime: Long? = null,
     )
 
     data class PlaybackProgressInfo(
@@ -84,12 +85,15 @@ class JellyfinSessionsController(
         @JsonProperty("SubtitleStreamIndex") val subtitleStreamIndex: Int? = null,
         @JsonProperty("VolumeLevel") val volumeLevel: Int? = null,
         @JsonProperty("IsMuted") val isMuted: Boolean? = null,
+        @JsonProperty("EventName") val eventName: String? = null,
+        @JsonProperty("EventTime") val eventTime: Long? = null,
     )
 
     data class PlaybackStopInfo(
         @JsonProperty("ItemId") val itemId: String,
         @JsonProperty("PositionTicks") val positionTicks: Long = 0,
         @JsonProperty("MediaSourceId") val mediaSourceId: String? = null,
+        @JsonProperty("EventTime") val eventTime: Long? = null,
     )
 
     @GetMapping
@@ -103,7 +107,7 @@ class JellyfinSessionsController(
         if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
         playbackStarts.put("${principal.name}:${info.itemId}", clock.now())
         recordSignal(principal, info.itemId, SignalType.PLAY_START)
-        recordResume(principal, info.itemId, info.positionTicks, ResumeSource.START)
+        recordResume(principal, info.itemId, info.positionTicks, ResumeSource.START, info.eventTime)
         return ResponseEntity.noContent().build()
     }
 
@@ -113,8 +117,15 @@ class JellyfinSessionsController(
         principal: Principal,
     ): ResponseEntity<Void> {
         if (!isValidUuid(info.itemId)) return ResponseEntity.badRequest().build()
-        val source = if (info.isPaused) ResumeSource.PAUSE else ResumeSource.PROGRESS
-        recordResume(principal, info.itemId, info.positionTicks, source)
+        // A seek is an authoritative exact-set even while playing — a deliberate rewind must not be
+        // clamped forward by the furthest-position-wins heartbeat rule. Pause is exact-set too.
+        val source =
+            when {
+                info.eventName.equals("Seek", ignoreCase = true) -> ResumeSource.SEEK
+                info.isPaused -> ResumeSource.PAUSE
+                else -> ResumeSource.PROGRESS
+            }
+        recordResume(principal, info.itemId, info.positionTicks, source, info.eventTime)
         return ResponseEntity.noContent().build()
     }
 
@@ -131,7 +142,7 @@ class JellyfinSessionsController(
 
         // Record stop signal
         recordSignal(principal, info.itemId, SignalType.PLAY_COMPLETE, """{"positionMs":$positionMs}""")
-        recordResume(principal, info.itemId, info.positionTicks, ResumeSource.STOPPED)
+        recordResume(principal, info.itemId, info.positionTicks, ResumeSource.STOPPED, info.eventTime)
 
         // Retrieve actual start time from when reportPlaying was called
         val startKey = "${principal.name}:${info.itemId}"
@@ -155,6 +166,7 @@ class JellyfinSessionsController(
         itemId: String,
         positionTicks: Long,
         sourceEvent: String,
+        clientEventTime: Long? = null,
     ) {
         try {
             val runTimeMs = libraryQueries.getTrack(EntityId(itemId))?.durationMs ?: 0L
@@ -164,11 +176,22 @@ class JellyfinSessionsController(
                 positionMs = positionTicks / TICKS_PER_MS,
                 runTimeMs = runTimeMs,
                 sourceEvent = sourceEvent,
-                requestTime = clock.now(),
+                requestTime = resolveEventTime(clientEventTime),
             )
         } catch (e: Exception) {
             log.warn("Resume position recording failed for item {}: {}", itemId, e.message)
         }
+    }
+
+    // The client stamps each playback event with its own wall clock so the durable row is ordered by
+    // when the event happened, not when it reached the server. This lets the merge reject a delayed
+    // beacon from a backgrounded tab whose older position would otherwise clobber a newer device's
+    // resume point. Future-skewed client clocks are capped at server time so they cannot pin the row.
+    private fun resolveEventTime(clientEventTime: Long?): Instant {
+        val now = clock.now()
+        if (clientEventTime == null) return now
+        val client = Instant.ofEpochMilli(clientEventTime)
+        return if (client.isBefore(now)) client else now
     }
 
     private fun recordSignal(

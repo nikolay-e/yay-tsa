@@ -27,6 +27,8 @@ fun Track.toJellyfinBaseItem(
                 null
             },
         runTimeTicks = msToTicks(durationMs),
+        indexNumber = trackNumber,
+        parentIndexNumber = discNumber,
         imageTags = coverImagePath?.let { mapOf("Primary" to id.value) },
         userData = UserItemData(isFavorite = id.value in favTrackIds),
         genres = genre?.let { listOf(it) },

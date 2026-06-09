@@ -204,6 +204,11 @@ export interface PlaybackProgressInfo {
   SubtitleStreamIndex?: number;
   VolumeLevel?: number;
   IsMuted?: boolean;
+  // 'Seek' marks an authoritative exact-set so a backward rewind is not clamped forward server-side.
+  EventName?: 'TimeUpdate' | 'Pause' | 'Unpause' | 'Seek';
+  // Client wall-clock (epoch ms) of the event, so the durable resume row is ordered by when it
+  // happened rather than when it reached the server — lets stale background-tab beacons be rejected.
+  EventTime?: number;
 }
 
 export interface PlaybackStartInfo extends PlaybackProgressInfo {
@@ -214,6 +219,7 @@ export interface PlaybackStopInfo {
   ItemId: string;
   PositionTicks: number;
   MediaSourceId?: string;
+  EventTime?: number;
 }
 
 // ============================================================================

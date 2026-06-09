@@ -15,6 +15,8 @@ data class BaseItem(
     @JsonProperty("Artists") val artists: List<String>? = null,
     @JsonProperty("ArtistItems") val artistItems: List<NameIdPair>? = null,
     @JsonProperty("RunTimeTicks") val runTimeTicks: Long? = null,
+    @JsonProperty("IndexNumber") val indexNumber: Int? = null,
+    @JsonProperty("ParentIndexNumber") val parentIndexNumber: Int? = null,
     @JsonProperty("ImageTags") val imageTags: Map<String, String>? = null,
     @JsonProperty("UserData") val userData: UserItemData? = null,
     @JsonProperty("DateCreated") val dateCreated: String? = null,

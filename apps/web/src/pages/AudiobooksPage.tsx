@@ -1,16 +1,124 @@
-import { useMemo, type ReactNode } from 'react';
-import { Play, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import {
+  Play,
+  RotateCcw,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  CircleDot,
+  Circle,
+} from 'lucide-react';
+import { ticksToSeconds, type AudiobookEntry } from '@yay-tsa/core';
 import {
   useAudiobooks,
   useAudiobookActions,
   type AudiobookBook,
 } from '@/features/audiobooks/hooks/useAudiobooks';
-import { usePlayerStore } from '@/features/player/stores/player.store';
+import { usePlayerStore, useCurrentTrack } from '@/features/player/stores/player.store';
 import { MediaCard } from '@/features/library/components/MediaCard';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 
 function chapterCount(n: number): string {
   return n === 1 ? '1 chapter' : `${n} chapters`;
+}
+
+function formatDuration(runTimeTicks: number | undefined): string {
+  if (!runTimeTicks || runTimeTicks <= 0) return '';
+  const total = Math.round(ticksToSeconds(runTimeTicks));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+  return h > 0 ? `${h}:${mm}:${String(s).padStart(2, '0')}` : `${mm}:${String(s).padStart(2, '0')}`;
+}
+
+function ChapterRow({
+  entry,
+  index,
+  isActive,
+  onPlay,
+}: Readonly<{
+  entry: AudiobookEntry;
+  index: number;
+  isActive: boolean;
+  onPlay: (index: number) => void;
+}>) {
+  const status = entry.resume.status;
+  const finished = status === 'finished';
+  const started =
+    !finished &&
+    (status === 'in_progress' || status === 'relistening') &&
+    entry.resume.positionMs > 0;
+
+  return (
+    <button
+      type="button"
+      data-testid="audiobook-chapter"
+      data-active={isActive}
+      aria-current={isActive ? 'true' : undefined}
+      onClick={() => onPlay(index)}
+      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+        isActive ? 'bg-accent/15 text-text-primary' : 'text-text-secondary hover:bg-bg-tertiary'
+      }`}
+    >
+      <span className="flex w-5 shrink-0 justify-center">
+        {finished ? (
+          <CheckCircle2 size={16} className="text-accent" />
+        ) : started ? (
+          <CircleDot size={16} className="text-accent" />
+        ) : (
+          <Circle size={16} className="opacity-40" />
+        )}
+      </span>
+      <span className="text-text-tertiary w-6 shrink-0 text-right tabular-nums">{index + 1}</span>
+      <span className="min-w-0 flex-1 truncate">{entry.item.Name}</span>
+      <span className="text-text-tertiary shrink-0 tabular-nums">
+        {formatDuration(entry.item.RunTimeTicks)}
+      </span>
+    </button>
+  );
+}
+
+function ChapterList({ book }: Readonly<{ book: AudiobookBook }>) {
+  const [open, setOpen] = useState(false);
+  const playTracks = usePlayerStore(state => state.playTracks);
+  const currentTrack = useCurrentTrack();
+
+  const playChapter = (index: number) =>
+    void playTracks(
+      book.chapters.map(c => c.item),
+      index
+    );
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        data-testid="audiobook-chapters-toggle"
+        onClick={() => setOpen(o => !o)}
+        className="text-text-secondary hover:text-text-primary inline-flex items-center gap-1 text-xs font-medium"
+      >
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {open ? 'Hide chapters' : `Chapters (${book.totalChapters})`}
+      </button>
+      {open && (
+        <div
+          className="mt-2 max-h-80 space-y-0.5 overflow-y-auto pr-1"
+          data-testid="audiobook-chapter-list"
+        >
+          {book.chapters.map((chapter, index) => (
+            <ChapterRow
+              key={chapter.item.Id}
+              entry={chapter}
+              index={index}
+              isActive={currentTrack?.Id === chapter.item.Id}
+              onPlay={playChapter}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function lastListened(updatedAt: string): string {
@@ -110,6 +218,8 @@ function BookCard({ book, hero = false }: Readonly<{ book: AudiobookBook; hero?:
             </button>
           )}
         </div>
+
+        {book.totalChapters > 1 && <ChapterList book={book} />}
       </div>
     </div>
   );

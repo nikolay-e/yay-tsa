@@ -50,6 +50,7 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
     private fun seedTrack(
         durationMs: Long = 100_000,
         audiobook: Boolean = false,
+        trackNumber: Int? = null,
     ): String {
         val id = UUID.randomUUID().toString()
         jdbc.update(
@@ -61,7 +62,12 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
             "/tmp/$id.m4b",
             "book",
         )
-        jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?::uuid,?)", id, durationMs)
+        jdbc.update(
+            "INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms, track_number) VALUES (?::uuid,?,?)",
+            id,
+            durationMs,
+            trackNumber,
+        )
         if (audiobook) {
             jdbc.update(
                 "INSERT INTO core_v2_library.genres (id, name) VALUES (?::uuid, 'Audiobook') ON CONFLICT (name) DO NOTHING",
@@ -77,7 +83,17 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
         itemId: String,
         positionTicks: Long,
         isPaused: Boolean = false,
+        eventName: String? = null,
+        eventTime: Long? = null,
     ) {
+        val fields =
+            buildList {
+                add("\"ItemId\":\"$itemId\"")
+                add("\"PositionTicks\":$positionTicks")
+                add("\"IsPaused\":$isPaused")
+                eventName?.let { add("\"EventName\":\"$it\"") }
+                eventTime?.let { add("\"EventTime\":$it") }
+            }.joinToString(",")
         val status =
             mockMvc
                 .perform(
@@ -85,7 +101,7 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
                         .post("/Sessions/Playing/Progress")
                         .header("X-Emby-Token", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{"ItemId":"$itemId","PositionTicks":$positionTicks,"IsPaused":$isPaused}"""),
+                        .content("{$fields}"),
                 ).andReturn()
                 .response.status
         assertEquals(204, status)
@@ -140,12 +156,53 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `audiobook chapter exposes IndexNumber for canonical ordering`() {
+        val trackId = seedTrack(audiobook = true, trackNumber = 7)
+
+        val entry = getJson("/v1/me/audiobooks").first { it.get("item").get("Id").asText() == trackId }
+        assertEquals(7, entry.get("item").get("IndexNumber").asInt())
+    }
+
+    @Test
     fun `non-audiobook track is excluded from audiobooks tab`() {
         val trackId = seedTrack(audiobook = false)
         reportProgress(trackId, positionTicks = 300_000_000)
 
         val list = getJson("/v1/me/audiobooks")
         assertTrue(list.none { it.get("item").get("Id").asText() == trackId })
+    }
+
+    @Test
+    fun `backward seek is honored as exact-set and not clamped forward`() {
+        val trackId = seedTrack(audiobook = true)
+        reportProgress(trackId, positionTicks = 600_000_000) // heartbeat to 60s (furthest-wins)
+        reportProgress(trackId, positionTicks = 100_000_000, eventName = "Seek") // rewind to 10s
+
+        val entry = getJson("/v1/me/audiobooks").first { it.get("item").get("Id").asText() == trackId }
+        assertEquals(10_000, entry.get("resume").get("positionMs").asLong())
+    }
+
+    @Test
+    fun `forward heartbeat after seek still advances`() {
+        val trackId = seedTrack(audiobook = true)
+        reportProgress(trackId, positionTicks = 100_000_000, eventName = "Seek") // seek to 10s
+        reportProgress(trackId, positionTicks = 200_000_000) // play forward to 20s
+
+        val entry = getJson("/v1/me/audiobooks").first { it.get("item").get("Id").asText() == trackId }
+        assertEquals(20_000, entry.get("resume").get("positionMs").asLong())
+    }
+
+    @Test
+    fun `late stale beacon with older event time does not clobber newer position`() {
+        val trackId = seedTrack(audiobook = true)
+        val now = Instant.now().toEpochMilli()
+        // A newer device advances to 50s.
+        reportProgress(trackId, positionTicks = 500_000_000, eventName = "Seek", eventTime = now)
+        // A delayed beacon from a backgrounded tab carries an OLDER event time and a stale position.
+        reportProgress(trackId, positionTicks = 50_000_000, eventName = "Seek", eventTime = now - 60_000)
+
+        val entry = getJson("/v1/me/audiobooks").first { it.get("item").get("Id").asText() == trackId }
+        assertEquals(50_000, entry.get("resume").get("positionMs").asLong())
     }
 
     @Test

@@ -22,6 +22,7 @@ import {
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
+import { writeLocalResume } from '@/features/audiobooks/stores/local-resume';
 import { log } from '@/shared/utils/logger';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
@@ -124,6 +125,11 @@ type PlayerStore = PlayerState & PlayerActions;
 
 const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const PROGRESS_REPORT_INTERVAL_MS = 10000;
+// Audiobooks report to the server far more often than music: a lost minute of a 10-hour book is a
+// real regression, whereas a song restarts cheaply. Local-first write-through is the primary
+// durability layer; this tighter network heartbeat keeps cross-device resume fresh.
+const AUDIOBOOK_PROGRESS_REPORT_INTERVAL_MS = 3000;
+const LOCAL_RESUME_WRITE_INTERVAL_MS = 2000;
 const CROSSFADE_MS = 150;
 const APPROACHING_END_MS = CROSSFADE_MS + 350;
 const ENGINE_TIMEOUT_MS = 10000;
@@ -134,6 +140,7 @@ let playbackReporter: PlaybackReporter | null = null;
 let currentItemId: string | null = null;
 let currentClient: MediaServerClient | null = null;
 let lastProgressReportTime = 0;
+let lastLocalResumeWriteTime = 0;
 
 const wakeLock = new WakeLockManager();
 
@@ -333,6 +340,11 @@ export const usePlayerStore = create<PlayerStore>()(
       if (playbackReporter && currentItemId) {
         const prevId = currentItemId;
         const prevPos = engine.getCurrentTime();
+        // Local-first write-through for the outgoing chapter so a chapter change never loses its
+        // place even if the network report is dropped.
+        if (get().playerMode === 'audiobook') {
+          writeLocalResume(prevId, prevPos, engine.getDuration());
+        }
         // Persist the resume position into the local offline record (no-op when the track
         // is not downloaded) so an offline cold start can restore the place.
         void useOfflineStore.getState().saveResume(prevId, prevPos);
@@ -347,6 +359,22 @@ export const usePlayerStore = create<PlayerStore>()(
         playbackReporter.reportStopped(prevId, prevPos).catch(err => {
           log.player.warn('Failed to report stopped', { error: String(err) });
         });
+      }
+    }
+
+    // Write-through the current audiobook position to localStorage. Cheap, synchronous, and the
+    // primary durability layer — independent of the network and the server cache.
+    function writeLocalResumeNow(): void {
+      if (get().playerMode !== 'audiobook' || !currentItemId) return;
+      writeLocalResume(currentItemId, engine.getCurrentTime(), engine.getDuration());
+    }
+
+    // Best-effort durable flush for page unload / backgrounding: keepalive network write plus the
+    // local write-through, so closing the tab mid-chapter never loses the place.
+    function flushResumeOnHide(): void {
+      writeLocalResumeNow();
+      if (playbackReporter && currentItemId) {
+        playbackReporter.flushProgress(currentItemId, engine.getCurrentTime(), !get().isPlaying);
       }
     }
 
@@ -650,11 +678,21 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(seconds, duration);
 
       const now = Date.now();
+      const audiobook = get().playerMode === 'audiobook';
+
       if (
-        playbackReporter &&
+        audiobook &&
         currentItemId &&
-        now - lastProgressReportTime >= PROGRESS_REPORT_INTERVAL_MS
+        now - lastLocalResumeWriteTime >= LOCAL_RESUME_WRITE_INTERVAL_MS
       ) {
+        lastLocalResumeWriteTime = now;
+        writeLocalResume(currentItemId, seconds, duration);
+      }
+
+      const reportInterval = audiobook
+        ? AUDIOBOOK_PROGRESS_REPORT_INTERVAL_MS
+        : PROGRESS_REPORT_INTERVAL_MS;
+      if (playbackReporter && currentItemId && now - lastProgressReportTime >= reportInterval) {
         lastProgressReportTime = now;
         playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
           log.player.warn('Failed to report playback progress', { error: String(err) });
@@ -758,7 +796,13 @@ export const usePlayerStore = create<PlayerStore>()(
       };
 
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
+        if (document.visibilityState !== 'visible') {
+          // Hidden is the last reliably observable state on mobile: the OS may discard a
+          // backgrounded PWA without ever firing pagehide/unload. Flush the resume position here
+          // (keepalive network + local write-through) so closing/backgrounding never loses the place.
+          flushResumeOnHide();
+          return;
+        }
         recoverStalledAdvance();
       });
 
@@ -771,6 +815,9 @@ export const usePlayerStore = create<PlayerStore>()(
       if (globalThis.window !== undefined) {
         globalThis.window.addEventListener('focus', recoverStalledAdvance);
         globalThis.window.addEventListener('pageshow', recoverStalledAdvance);
+        // pagehide is the desktop/standalone unload signal; it complements visibilitychange because
+        // the two fire in different teardown paths across browsers (neither is 100% on mobile).
+        globalThis.window.addEventListener('pagehide', flushResumeOnHide);
       }
     }
 
@@ -954,6 +1001,7 @@ export const usePlayerStore = create<PlayerStore>()(
           wakeLock.release();
 
           if (currentItemId) {
+            writeLocalResumeNow();
             void useOfflineStore.getState().saveResume(currentItemId, engine.getCurrentTime());
           }
 
@@ -1051,10 +1099,18 @@ export const usePlayerStore = create<PlayerStore>()(
         useTimingStore.getState().seekTo(seconds, engine.getDuration());
         syncMediaSessionPlayback(get().isPlaying ? 'playing' : 'paused', seconds);
 
+        if (get().playerMode === 'audiobook' && currentItemId) {
+          writeLocalResume(currentItemId, seconds, engine.getDuration());
+        }
+
         if (playbackReporter && currentItemId) {
-          playbackReporter.reportProgress(currentItemId, seconds, !get().isPlaying).catch(err => {
-            log.player.warn('Failed to report seek', { error: String(err) });
-          });
+          // 'Seek' tags this as an authoritative exact-set: a deliberate rewind must persist, not be
+          // clamped forward by the server's furthest-position-wins heartbeat rule.
+          playbackReporter
+            .reportProgress(currentItemId, seconds, !get().isPlaying, 'Seek')
+            .catch(err => {
+              log.player.warn('Failed to report seek', { error: String(err) });
+            });
         }
       },
 

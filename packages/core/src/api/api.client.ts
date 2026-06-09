@@ -88,6 +88,27 @@ export class MediaServerClient {
   }
 
   /**
+   * Fire-and-forget POST that survives page unload (visibilitychange→hidden / pagehide).
+   * Uses fetch keepalive so the durable resume write still leaves the browser when the user
+   * closes the tab or backgrounds the PWA instead of tapping pause. No retries — this is a
+   * best-effort backstop behind the regular reporter, not the primary persistence path.
+   */
+  sendKeepAlive(endpoint: string, data: unknown): void {
+    if (!this.token) return;
+    try {
+      void fetch(`${this.serverUrl}${endpoint}`, {
+        method: 'POST',
+        headers: this.buildRequestHeaders(undefined, true),
+        body: JSON.stringify(data),
+        keepalive: true,
+        credentials: 'include',
+      }).catch(() => {});
+    } catch {
+      // Some browsers reject keepalive over a size limit or during teardown — ignore.
+    }
+  }
+
+  /**
    * Set callback for global 401 authentication errors
    * This callback will be invoked before throwing AuthenticationError
    * Use this for auto-logout or redirecting to login page
