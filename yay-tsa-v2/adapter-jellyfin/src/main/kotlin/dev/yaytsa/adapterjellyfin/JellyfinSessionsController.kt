@@ -71,6 +71,7 @@ class JellyfinSessionsController(
         @JsonProperty("SubtitleStreamIndex") val subtitleStreamIndex: Int? = null,
         @JsonProperty("VolumeLevel") val volumeLevel: Int? = null,
         @JsonProperty("IsMuted") val isMuted: Boolean? = null,
+        @JsonProperty("EventName") val eventName: String? = null,
         @JsonProperty("EventTime") val eventTime: Long? = null,
     )
 
