@@ -22,7 +22,7 @@ import {
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
-import { writeLocalResume } from '@/features/audiobooks/stores/local-resume';
+import { writeLocalResume, bumpResumeVersion } from '@/features/audiobooks/stores/local-resume';
 import { log } from '@/shared/utils/logger';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
@@ -344,6 +344,7 @@ export const usePlayerStore = create<PlayerStore>()(
         // place even if the network report is dropped.
         if (get().playerMode === 'audiobook') {
           writeLocalResume(prevId, prevPos, engine.getDuration());
+          bumpResumeVersion();
         }
         // Persist the resume position into the local offline record (no-op when the track
         // is not downloaded) so an offline cold start can restore the place.
@@ -1002,6 +1003,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
           if (currentItemId) {
             writeLocalResumeNow();
+            if (get().playerMode === 'audiobook') bumpResumeVersion();
             void useOfflineStore.getState().saveResume(currentItemId, engine.getCurrentTime());
           }
 
@@ -1101,6 +1103,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         if (get().playerMode === 'audiobook' && currentItemId) {
           writeLocalResume(currentItemId, seconds, engine.getDuration());
+          bumpResumeVersion();
         }
 
         if (playbackReporter && currentItemId) {

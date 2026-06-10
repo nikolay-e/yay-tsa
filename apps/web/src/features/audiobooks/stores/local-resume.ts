@@ -4,6 +4,8 @@
 // server cache. Cross-device correctness comes from merging this against the server by `updatedAt`
 // (last-write-wins) when the audiobook shelf loads — see useAudiobooks.
 
+import { create } from 'zustand';
+
 const KEY_PREFIX = 'yaytsa_resume:';
 
 export interface LocalResume {
@@ -11,6 +13,19 @@ export interface LocalResume {
   positionMs: number;
   runTimeMs: number;
   updatedAt: string;
+}
+
+// A monotonic signal bumped on discrete resume changes (seek, pause, chapter/book switch) so the
+// audiobook shelf re-derives its merge from the freshest localStorage instead of a snapshot taken
+// when the page mounted. Without this, resuming a book you advanced without leaving the page would
+// restart from the stale (often zero) position. Not bumped on the periodic heartbeat to avoid churn.
+export const useResumeVersion = create<{ value: number; bump: () => void }>(set => ({
+  value: 0,
+  bump: () => set(state => ({ value: state.value + 1 })),
+}));
+
+export function bumpResumeVersion(): void {
+  useResumeVersion.getState().bump();
 }
 
 function key(itemId: string): string {

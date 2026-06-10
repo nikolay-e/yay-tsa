@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AudiobooksService, type AudiobookEntry } from '@yay-tsa/core';
 import { useClient } from '@/features/auth/stores/auth.store';
-import { readLocalResume } from '@/features/audiobooks/stores/local-resume';
+import { readLocalResume, useResumeVersion } from '@/features/audiobooks/stores/local-resume';
 
 const AUDIOBOOKS_QUERY_KEY = ['audiobooks'] as const;
 const TICKS_PER_MS = 10_000;
@@ -109,11 +109,18 @@ function buildBook(albumId: string, entries: AudiobookEntry[]): AudiobookBook {
   const total = chapters.length;
   const finished = chapters.filter(chapterIsFinished).length;
 
-  // Resume at the chapter actively in progress; otherwise the first unfinished one;
-  // a fully finished book restarts from the top.
-  let resumeChapterIndex = chapters.findIndex(
-    c => c.resume.status === 'in_progress' || c.resume.status === 'relistening'
-  );
+  // Resume the chapter most recently listened — the one with the latest resume timestamp among
+  // started, unfinished chapters ("continue where I left off", even if you jumped around). Falls
+  // back to the first unfinished chapter, then the start of a fully finished book.
+  let resumeChapterIndex = -1;
+  let latestResumeAt = '';
+  chapters.forEach((c, i) => {
+    const started = c.resume.status === 'in_progress' || c.resume.status === 'relistening';
+    if (started && c.resume.positionMs > 0 && c.resume.updatedAt > latestResumeAt) {
+      latestResumeAt = c.resume.updatedAt;
+      resumeChapterIndex = i;
+    }
+  });
   if (resumeChapterIndex < 0) resumeChapterIndex = chapters.findIndex(c => !chapterIsFinished(c));
   if (resumeChapterIndex < 0) resumeChapterIndex = 0;
 
@@ -194,7 +201,11 @@ export function useAudiobooks() {
     },
   });
 
-  const grouped = useMemo(() => groupAudiobooks(query.data ?? []), [query.data]);
+  // resumeVersion bumps when local resume changes (seek/pause/switch) so the merge re-runs against
+  // fresh localStorage even when the server response (query.data) hasn't changed — otherwise a book
+  // advanced without leaving the page would resume from the stale snapshot taken at mount.
+  const resumeVersion = useResumeVersion(state => state.value);
+  const grouped = useMemo(() => groupAudiobooks(query.data ?? []), [query.data, resumeVersion]);
 
   return { ...query, grouped };
 }
