@@ -124,6 +124,34 @@ function installMock(page: Page): void {
         entry('dune-1', 'Глава 01', resumes.book4!, { id: 'album-dune', name: 'Dune' }),
         entry('dune-2', 'Глава 02', resumes.book4!, { id: 'album-dune', name: 'Dune' }),
         entry('dune-3', 'Глава 03', resumes.book4!, { id: 'album-dune', name: 'Dune' }),
+        // Out-of-order listening: chapter 1 was sampled earlier, chapter 3 is where the listener
+        // actually left off (latest updatedAt). Resume must pick chapter 3, not the first in-progress.
+        entry(
+          'found-1',
+          'Foundation Ch 1',
+          {
+            positionMs: 5_000_000,
+            runTimeMs: 18_000_000,
+            status: 'in_progress',
+            updatedAt: '2026-06-02T10:00:00Z',
+          },
+          { id: 'album-foundation', name: 'Foundation' }
+        ),
+        entry('found-2', 'Foundation Ch 2', resumes.book4!, {
+          id: 'album-foundation',
+          name: 'Foundation',
+        }),
+        entry(
+          'found-3',
+          'Foundation Ch 3',
+          {
+            positionMs: 3_000_000,
+            runTimeMs: 18_000_000,
+            status: 'in_progress',
+            updatedAt: '2026-06-08T10:00:00Z',
+          },
+          { id: 'album-foundation', name: 'Foundation' }
+        ),
       ]),
     })
   );
@@ -208,6 +236,18 @@ test.describe('Audiobooks tab (mocked backend)', () => {
     await expect(dune).toHaveCount(1);
     await expect(dune).toContainText('3 chapters');
     await expect(page.getByTestId('audiobook-card').filter({ hasText: 'Глава 01' })).toHaveCount(0);
+  });
+
+  test('resumes the last-listened chapter, not the first in-progress one', async ({ page }) => {
+    installMock(page);
+    await login(page);
+    await page.goto('/audiobooks');
+    await expect(page.getByTestId('audiobooks-page')).toBeVisible();
+
+    // Foundation: chapter 1 in-progress (older), chapter 3 in-progress (latest). The card's resume
+    // pointer must be chapter 3 — "continue where I left off" — so it reads "Chapter 3 of 3".
+    const foundation = page.getByTestId('audiobook-card').filter({ hasText: 'Foundation' });
+    await expect(foundation).toContainText('Chapter 3 of 3');
   });
 
   test('mark finished then restart moves a book through the lifecycle', async ({ page }) => {
