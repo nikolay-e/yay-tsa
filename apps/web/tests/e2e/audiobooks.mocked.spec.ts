@@ -163,21 +163,19 @@ async function login(page: Page): Promise<void> {
 }
 
 test.describe('Audiobooks tab (mocked backend)', () => {
-  test('groups books into Continue Listening, In Progress and Finished', async ({ page }) => {
+  test('groups books into In Progress, Finished and Library', async ({ page }) => {
     installMock(page);
     await login(page);
 
     await page.goto('/audiobooks');
     await expect(page.getByTestId('audiobooks-page')).toBeVisible();
 
-    // Continue Listening hero = most recently listened unfinished book.
-    const hero = page.getByTestId('audiobook-continue');
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText('The Name of the Wind');
-    await expect(hero).toContainText('10% ·');
-
-    // Both unfinished books appear under In Progress; the finished one does not.
+    // Both unfinished books appear under In Progress (most-recently-listened first); the finished one
+    // does not. There is no separate "Continue Listening" hero — it duplicated the top In Progress card.
     await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
+    const recent = page.getByTestId('audiobook-card').filter({ hasText: 'The Name of the Wind' });
+    await expect(recent).toBeVisible();
+    await expect(recent).toContainText('10% ·');
     await expect(
       page.getByTestId('audiobook-card').filter({ hasText: 'The Wise Man Fear' })
     ).toBeVisible();
@@ -217,9 +215,9 @@ test.describe('Audiobooks tab (mocked backend)', () => {
     await login(page);
     await page.goto('/audiobooks');
 
-    // Mark the hero book finished → it should leave In Progress and gain a Restart control.
-    const hero = page.getByTestId('audiobook-continue');
-    await hero.getByTestId('audiobook-finish').click();
+    // Mark the most-recently-listened book finished → it should leave In Progress and gain Restart.
+    const recent = page.getByTestId('audiobook-card').filter({ hasText: 'The Name of the Wind' });
+    await recent.getByTestId('audiobook-finish').click();
 
     const finishedCard = page
       .getByTestId('audiobook-card')

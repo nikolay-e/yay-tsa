@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { formatSeconds } from '@/shared/utils/time';
 import { useTimingStore } from '../stores/playback-timing.store';
 
@@ -15,18 +15,23 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
   const isDragging = useRef(false);
   const pendingValue = useRef<number | null>(null);
 
-  useEffect(() => {
-    return useTimingStore.subscribe(state => {
-      const { currentTime, duration } = state;
+  useLayoutEffect(() => {
+    const apply = (currentTime: number, duration: number) => {
+      if (!sliderRef.current || isDragging.current) return;
+      sliderRef.current.value = String(currentTime);
+      sliderRef.current.max = String(duration || 1);
+      const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+      sliderRef.current.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
+      sliderRef.current.setAttribute('aria-valuetext', formatTimeText(currentTime, duration));
+    };
 
-      if (sliderRef.current && !isDragging.current) {
-        sliderRef.current.value = String(currentTime);
-        sliderRef.current.max = String(duration || 1);
-        const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-        sliderRef.current.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
-        sliderRef.current.setAttribute('aria-valuetext', formatTimeText(currentTime, duration));
-      }
-    });
+    // Seed from the live store on mount so a remount (opening the full player, route change) shows
+    // the real position immediately instead of 0 — critical while paused, when no timeupdate fires
+    // to correct it. The store is a singleton, so its position survives navigation.
+    const { currentTime, duration } = useTimingStore.getState();
+    apply(currentTime, duration);
+
+    return useTimingStore.subscribe(state => apply(state.currentTime, state.duration));
   }, []);
 
   const updateSliderVisual = (value: number) => {
@@ -93,20 +98,26 @@ export function TimeDisplay() {
   const lastDisplayedSecond = useRef(-1);
   const lastDisplayedDuration = useRef(-1);
 
-  useEffect(() => {
-    return useTimingStore.subscribe(state => {
-      const currentSecond = Math.floor(state.currentTime);
-      const durationSecond = Math.floor(state.duration);
+  useLayoutEffect(() => {
+    const apply = (currentTime: number, duration: number) => {
+      const currentSecond = Math.floor(currentTime);
+      const durationSecond = Math.floor(duration);
       if (currentSecond !== lastDisplayedSecond.current) {
         lastDisplayedSecond.current = currentSecond;
-        if (currentTimeRef.current)
-          currentTimeRef.current.textContent = formatSeconds(state.currentTime);
+        if (currentTimeRef.current) currentTimeRef.current.textContent = formatSeconds(currentTime);
       }
       if (durationSecond !== lastDisplayedDuration.current) {
         lastDisplayedDuration.current = durationSecond;
-        if (totalTimeRef.current) totalTimeRef.current.textContent = formatSeconds(state.duration);
+        if (totalTimeRef.current) totalTimeRef.current.textContent = formatSeconds(duration);
       }
-    });
+    };
+
+    // Seed from the live store on mount so the time text reflects the real position immediately
+    // after a remount, even while paused (no timeupdate would otherwise fire to correct 0:00).
+    const { currentTime, duration } = useTimingStore.getState();
+    apply(currentTime, duration);
+
+    return useTimingStore.subscribe(state => apply(state.currentTime, state.duration));
   }, []);
 
   return (

@@ -17,7 +17,7 @@ import { test as playbackTest } from './fixtures/playback.fixture';
 
 async function hasSeededAudiobook(page: Page): Promise<boolean> {
   await page.goto('/audiobooks');
-  const cards = page.getByTestId('audiobook-card').or(page.getByTestId('audiobook-continue'));
+  const cards = page.getByTestId('audiobook-card');
   return (await cards.count()) > 0;
 }
 

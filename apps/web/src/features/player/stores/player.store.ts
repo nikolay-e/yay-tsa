@@ -128,8 +128,8 @@ const PROGRESS_REPORT_INTERVAL_MS = 10000;
 // Audiobooks report to the server far more often than music: a lost minute of a 10-hour book is a
 // real regression, whereas a song restarts cheaply. Local-first write-through is the primary
 // durability layer; this tighter network heartbeat keeps cross-device resume fresh.
-const AUDIOBOOK_PROGRESS_REPORT_INTERVAL_MS = 3000;
-const LOCAL_RESUME_WRITE_INTERVAL_MS = 2000;
+const AUDIOBOOK_PROGRESS_REPORT_INTERVAL_MS = 2000;
+const LOCAL_RESUME_WRITE_INTERVAL_MS = 1000;
 const CROSSFADE_MS = 150;
 const APPROACHING_END_MS = CROSSFADE_MS + 350;
 const ENGINE_TIMEOUT_MS = 10000;

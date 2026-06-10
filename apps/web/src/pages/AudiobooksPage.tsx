@@ -128,7 +128,7 @@ function lastListened(updatedAt: string): string {
   return `${days} days ago`;
 }
 
-function BookCard({ book, hero = false }: Readonly<{ book: AudiobookBook; hero?: boolean }>) {
+function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
   const playTracks = usePlayerStore(state => state.playTracks);
   const { markFinished, restart } = useAudiobookActions();
 
@@ -147,11 +147,11 @@ function BookCard({ book, hero = false }: Readonly<{ book: AudiobookBook; hero?:
 
   return (
     <div
-      data-testid={hero ? 'audiobook-continue' : 'audiobook-card'}
+      data-testid="audiobook-card"
       data-status={book.status}
       className="bg-bg-secondary flex gap-4 rounded-lg p-4"
     >
-      <div className={hero ? 'w-32 shrink-0' : 'w-20 shrink-0'}>
+      <div className="w-20 shrink-0">
         <MediaCard
           itemId={book.coverItemId}
           imageTag={book.coverImageTag}
@@ -239,13 +239,6 @@ export function AudiobooksPage() {
   } else if (hasAny) {
     body = (
       <>
-        {grouped.continueListening && (
-          <section className="space-y-3">
-            <h2 className="text-text-primary text-lg font-semibold">Continue Listening</h2>
-            <BookCard book={grouped.continueListening} hero />
-          </section>
-        )}
-
         {grouped.inProgress.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">In Progress</h2>

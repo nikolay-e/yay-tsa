@@ -29,7 +29,6 @@ export interface AudiobookBook {
 }
 
 export interface GroupedAudiobooks {
-  continueListening: AudiobookBook | null;
   inProgress: AudiobookBook[];
   finished: AudiobookBook[];
   notStarted: AudiobookBook[];
@@ -175,7 +174,6 @@ function groupAudiobooks(rawEntries: AudiobookEntry[]): GroupedAudiobooks {
   const notStarted = books.filter(b => b.status === 'not_started').sort(byTitle);
 
   return {
-    continueListening: inProgress[0] ?? null,
     inProgress,
     finished,
     notStarted,
