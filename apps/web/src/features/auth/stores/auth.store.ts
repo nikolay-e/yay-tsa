@@ -20,11 +20,22 @@ import { queryClient } from '@/shared/lib/query-client';
 import { log } from '@/shared/utils/logger';
 
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
-const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const API_BASE_PATH = '/api';
+
+export const SESSION_EXPIRED_FLAG = 'yaytsa_session_expired';
+
+// User-scoped localStorage that must not leak to the next account on a shared
+// device. Deliberately excludes yaytsa_volume (a device preference) and
+// yaytsa_device_id (device identity).
+const USER_SCOPED_KEY_PREFIXES = ['yaytsa_resume:', 'yaytsa_book_speed_'];
+const USER_SCOPED_KEYS = ['yaytsa_audiobook_speed', 'yaytsa_sort_prefs'];
 
 interface LoginOptions {
   rememberMe?: boolean;
+}
+
+interface LogoutOptions {
+  auto?: boolean;
 }
 
 interface AuthState {
@@ -40,7 +51,7 @@ interface AuthState {
 
 interface AuthActions {
   login: (username: string, password: string, options?: LoginOptions) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: LogoutOptions) => Promise<void>;
   restoreSession: () => Promise<boolean>;
 }
 
@@ -64,6 +75,24 @@ function createClientInfo(): ClientInfo {
     deviceId: getOrCreateDeviceId(),
     version: APP_VERSION,
   };
+}
+
+function clearUserScopedStorage(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (USER_SCOPED_KEY_PREFIXES.some(prefix => key.startsWith(prefix))) {
+        keysToRemove.push(key);
+      } else if (USER_SCOPED_KEYS.includes(key)) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) localStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 async function clearCaches(): Promise<void> {
@@ -92,7 +121,7 @@ export const useAuthStore = create<AuthStore>()(
     const handleAuthError = () => {
       if (!get().isAuthenticated && !logoutInFlight) return;
       get()
-        .logout()
+        .logout({ auto: true })
         .catch(() => {});
     };
 
@@ -146,7 +175,7 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      logout: async () => {
+      logout: async options => {
         if (logoutInFlight) return;
         logoutInFlight = true;
 
@@ -164,7 +193,24 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           clearAllSessions();
-          localStorage.removeItem(VOLUME_STORAGE_KEY);
+          clearUserScopedStorage();
+
+          if (options?.auto) {
+            // A confirmed 401 may be transient (revoked device, server-side
+            // expiry). Keep offline downloads — wiping gigabytes on an auth
+            // hiccup is unacceptable — and tell the login page why we're here.
+            try {
+              sessionStorage.setItem(SESSION_EXPIRED_FLAG, '1');
+            } catch {
+              // Ignore storage errors
+            }
+          } else {
+            // Explicit sign-out on a possibly shared device: downloads are
+            // user-scoped data and must not leak to the next account.
+            import('@/features/offline/stores/offline.store')
+              .then(async m => m.useOfflineStore.getState().clearAll())
+              .catch(() => {});
+          }
 
           await clearCaches();
           queryClient.clear();
@@ -219,6 +265,11 @@ export const useAuthStore = create<AuthStore>()(
           // down via handleAuthError.
           if (error instanceof AuthenticationError && error.statusCode === 401) {
             clearAllSessions();
+            try {
+              sessionStorage.setItem(SESSION_EXPIRED_FLAG, '1');
+            } catch {
+              // Ignore storage errors
+            }
             set({ ...initialState, isLoading: false });
             return false;
           }

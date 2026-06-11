@@ -10,14 +10,14 @@ export interface SortOption {
 }
 
 export const LIBRARY_SORT_OPTIONS: SortOption[] = [
+  { id: 'name-asc', label: 'Name (A → Z)', sortBy: 'SortName', sortOrder: 'Ascending' },
+  { id: 'name-desc', label: 'Name (Z → A)', sortBy: 'SortName', sortOrder: 'Descending' },
   {
     id: 'recently-played',
     label: 'Recently Played',
     sortBy: 'DatePlayed',
     sortOrder: 'Descending',
   },
-  { id: 'name-asc', label: 'Name (A → Z)', sortBy: 'SortName', sortOrder: 'Ascending' },
-  { id: 'name-desc', label: 'Name (Z → A)', sortBy: 'SortName', sortOrder: 'Descending' },
   { id: 'recently-added', label: 'Recently Added', sortBy: 'DateCreated', sortOrder: 'Descending' },
 ];
 
@@ -81,7 +81,7 @@ export function useSortPreference(
   activeOption: SortOption;
   select: (optionId: string) => void;
 } {
-  const defaultId = options[0]?.id ?? 'recently-played';
+  const defaultId = options[0]?.id ?? 'name-asc';
   const [selectedId, setSelectedId] = useState(() => loadSortPreference(tab, context, defaultId));
 
   const matched = options.find(o => o.id === selectedId);

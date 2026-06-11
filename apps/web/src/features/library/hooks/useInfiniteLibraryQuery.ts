@@ -1,4 +1,4 @@
-import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, keepPreviousData, type InfiniteData } from '@tanstack/react-query';
 import { type ItemsResult, type MediaServerClient } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 
@@ -62,7 +62,8 @@ export function useInfiniteLibraryQuery<TData>({
     },
     enabled: enabled && !!client,
     staleTime,
+    placeholderData: keepPreviousData,
   });
 }
 
-const MAX_RETAINED_PAGES = 10;
+const MAX_RETAINED_PAGES = 50;

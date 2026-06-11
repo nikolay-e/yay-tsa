@@ -15,9 +15,16 @@ import type { KaraokeState } from '../generated/constants.js';
 
 const log = createLogger('API');
 
+export interface MediaServerClientOptions {
+  requestTimeoutMs?: number;
+}
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+
 export class MediaServerClient {
   private readonly serverUrl: string;
   private readonly clientInfo: ClientInfo;
+  private readonly requestTimeoutMs: number;
   private token: string | null = null;
   private userId: string | null = null;
 
@@ -32,9 +39,10 @@ export class MediaServerClient {
   // Global 401 error handler callback
   private authErrorCallback?: () => void;
 
-  constructor(serverUrl: string, clientInfo: ClientInfo) {
+  constructor(serverUrl: string, clientInfo: ClientInfo, options: MediaServerClientOptions = {}) {
     this.serverUrl = this.normalizeUrl(serverUrl);
     this.clientInfo = clientInfo;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   }
 
   /**
@@ -246,9 +254,15 @@ export class MediaServerClient {
     log.debug(`${method} ${endpoint}`, { attempt: 1, maxRetries: retries });
 
     for (let attempt = 0; attempt <= retries; attempt++) {
+      const attemptTimeout = this.createAttemptTimeout();
       try {
         const headers = this.buildRequestHeaders(options.headers, hasBody, idempotencyKey);
-        const response = await fetch(url, { ...options, headers, credentials: 'include' });
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          credentials: 'include',
+          signal: options.signal ?? attemptTimeout.signal,
+        });
         const duration = Date.now() - startTime;
 
         // Handle non-OK responses
@@ -281,12 +295,15 @@ export class MediaServerClient {
         return await this.parseResponse<T>(response);
       } catch (error) {
         const duration = Date.now() - startTime;
+        const normalizedError = this.isAbortError(error)
+          ? new Error(`Request timed out after ${this.requestTimeoutMs}ms`)
+          : (error as Error);
 
         // Retry network errors for idempotent requests
-        if (this.shouldRetryRequest(error as Error, isIdempotent, attempt, retries)) {
+        if (this.shouldRetryRequest(normalizedError, isIdempotent, attempt, retries)) {
           const delay = this.calculateRetryDelay(attempt);
           log.warn(`${method} ${endpoint} network error, retrying`, {
-            error: (error as Error).message,
+            error: normalizedError.message,
             attempt: attempt + 1,
             maxRetries: retries,
             retryDelayMs: delay,
@@ -302,9 +319,11 @@ export class MediaServerClient {
 
         log.error(`${method} ${endpoint} network error`, error, { durationMs: duration });
         throw new NetworkError(
-          `Network request failed: ${(error as Error).message}`,
+          `Network request failed: ${normalizedError.message}`,
           error as Error
         );
+      } finally {
+        attemptTimeout.clear();
       }
     }
 
@@ -323,6 +342,28 @@ export class MediaServerClient {
     return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random()
       .toString(16)
       .slice(2)}`;
+  }
+
+  private createAttemptTimeout(): { signal: AbortSignal; clear: () => void } {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort(
+        new DOMException(`Request timed out after ${this.requestTimeoutMs}ms`, 'TimeoutError')
+      );
+    }, this.requestTimeoutMs);
+    return {
+      signal: controller.signal,
+      clear: () => {
+        clearTimeout(timeoutId);
+      },
+    };
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return (
+      error instanceof DOMException &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError')
+    );
   }
 
   /**
@@ -389,15 +430,20 @@ export class MediaServerClient {
       errorData = null;
     }
 
-    const message =
-      (typeof errorData === 'object' &&
+    const bodyMessage =
+      typeof errorData === 'object' &&
       errorData !== null &&
       'message' in errorData &&
       typeof errorData.message === 'string'
         ? errorData.message
-        : undefined) ??
-      response.statusText ??
-      'Request failed';
+        : undefined;
+
+    const statusMessage =
+      response.statusText && response.statusText.trim() !== ''
+        ? response.statusText
+        : `Request failed with status ${response.status}`;
+
+    const message = bodyMessage ?? statusMessage;
 
     if (response.status === 401) {
       if (this.authErrorCallback) {

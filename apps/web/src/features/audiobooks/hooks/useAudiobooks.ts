@@ -61,12 +61,9 @@ function mergeLocalResume(entry: AudiobookEntry): AudiobookEntry {
   const runTimeMs = entry.resume.runTimeMs || local.runTimeMs;
   const positionMs = Math.min(local.positionMs, runTimeMs > 0 ? runTimeMs : local.positionMs);
   const progressPercent = runTimeMs > 0 ? Math.floor((positionMs / runTimeMs) * 100) : 0;
-  const status =
-    entry.resume.status === 'finished' || entry.resume.status === 'relistening'
-      ? entry.resume.status
-      : positionMs > 0
-        ? 'in_progress'
-        : entry.resume.status;
+  const keepsServerStatus =
+    entry.resume.status === 'finished' || entry.resume.status === 'relistening' || positionMs <= 0;
+  const status = keepsServerStatus ? entry.resume.status : 'in_progress';
 
   return {
     item: {
@@ -124,12 +121,11 @@ function buildBook(albumId: string, entries: AudiobookEntry[]): AudiobookBook {
   if (resumeChapterIndex < 0) resumeChapterIndex = chapters.findIndex(c => !chapterIsFinished(c));
   if (resumeChapterIndex < 0) resumeChapterIndex = 0;
 
-  const status: BookStatus =
-    total > 0 && finished === total
-      ? 'finished'
-      : chapters.some(chapterIsStarted)
-        ? 'in_progress'
-        : 'not_started';
+  const allChaptersFinished = total > 0 && finished === total;
+  const anyChapterStarted = chapters.some(chapterIsStarted);
+  let status: BookStatus = 'not_started';
+  if (allChaptersFinished) status = 'finished';
+  else if (anyChapterStarted) status = 'in_progress';
 
   const current = chapters[resumeChapterIndex];
   const currentFraction = current ? current.resume.progressPercent / 100 : 0;

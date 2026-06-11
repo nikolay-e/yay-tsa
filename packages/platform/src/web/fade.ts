@@ -14,6 +14,7 @@ export function createFade(
   const endVolume = Math.max(0, Math.min(1, toLevel));
   let cancelled = false;
   let intervalId: ReturnType<typeof setInterval> | null = null;
+  let settle: (() => void) | null = null;
 
   const cancel = () => {
     cancelled = true;
@@ -21,9 +22,12 @@ export function createFade(
       clearInterval(intervalId);
       intervalId = null;
     }
+    settle?.();
+    settle = null;
   };
 
   const promise = new Promise<void>(resolve => {
+    settle = resolve;
     setVolume(startVolume);
 
     intervalId = setInterval(() => {

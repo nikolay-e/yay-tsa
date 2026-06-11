@@ -212,7 +212,7 @@ function Sidebar({ hasPlayer }: SidebarProps) {
   );
 }
 
-const BOTTOM_TAB_ITEMS = NAV_ITEMS.filter(item => item.href !== '/settings');
+const BOTTOM_TAB_ITEMS = NAV_ITEMS;
 
 function BottomTabBar() {
   const location = useLocation();

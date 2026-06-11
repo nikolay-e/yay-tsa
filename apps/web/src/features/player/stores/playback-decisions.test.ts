@@ -34,6 +34,13 @@ describe('navAvailability (lock-screen next/previous controls)', () => {
     expect(navAvailability(q).hasNext).toBe(true);
   });
 
+  it('repeat one keeps next pointing at the following track, not the current one', () => {
+    const q = queueAt(['a', 'b'], 0);
+    q.setRepeatMode('one');
+    expect(navAvailability(q).hasNext).toBe(true);
+    expect(q.peekNext({ manual: true })?.Id).toBe('b');
+  });
+
   it('first track still exposes previous (previous() restarts it)', () => {
     expect(navAvailability(queueAt(['a', 'b'], 0)).hasPrevious).toBe(true);
   });

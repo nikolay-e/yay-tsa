@@ -193,7 +193,7 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
             type="button"
             data-testid="audiobook-resume"
             onClick={play}
-            className="bg-accent inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            className="bg-accent text-text-on-accent inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium hover:opacity-90"
           >
             <Play size={16} /> {primaryLabel}
           </button>
@@ -226,7 +226,7 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
 }
 
 export function AudiobooksPage() {
-  const { grouped, isLoading, error } = useAudiobooks();
+  const { grouped, isLoading, error, refetch } = useAudiobooks();
   const hasAny = useMemo(
     () =>
       grouped.inProgress.length > 0 || grouped.finished.length > 0 || grouped.notStarted.length > 0,
@@ -276,7 +276,8 @@ export function AudiobooksPage() {
   } else {
     body = (
       <p data-testid="audiobooks-empty" className="text-text-secondary">
-        No audiobooks in your library yet. Tag tracks with the genre "Audiobook" to see them here.
+        No audiobooks in your library yet. Tag tracks with the genre &ldquo;Audiobook&rdquo; to see
+        them here.
       </p>
     );
   }
@@ -286,8 +287,17 @@ export function AudiobooksPage() {
       <h1 className="text-text-primary text-2xl font-bold">Audiobooks</h1>
 
       {error && (
-        <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-400">
-          Failed to load audiobooks.
+        <div className="bg-error/10 text-error flex items-center justify-between gap-3 rounded-md p-4 text-sm">
+          <span>Failed to load audiobooks.</span>
+          <button
+            type="button"
+            onClick={() => {
+              void refetch();
+            }}
+            className="bg-bg-secondary text-text-primary hover:bg-bg-tertiary shrink-0 rounded-md px-3 py-1.5 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
 

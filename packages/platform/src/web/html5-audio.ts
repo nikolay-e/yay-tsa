@@ -39,6 +39,7 @@ export class HTML5AudioEngine implements AudioEngine {
   private preloadedUrl: string | null = null;
   private preloadPromise: Promise<void> | null = null;
   private preloadEventCleanup: (() => void) | null = null;
+  private preloadReject: ((error: Error) => void) | null = null;
 
   // Callback registries for external subscribers
   private readonly timeUpdateCallbacks = new Set<(seconds: number) => void>();
@@ -65,7 +66,10 @@ export class HTML5AudioEngine implements AudioEngine {
     this._isPlaying = false;
     this.clearApproachingEndTimer();
   };
-  private readonly dispatchEnded = () => {
+  // Element-identity guard: during a gapless swap the outgoing element can still
+  // emit events before its handlers are detached; only the active element counts.
+  private readonly dispatchEnded = (event: Event) => {
+    if (event.target !== this.audio) return;
     this._isPlaying = false;
     this.clearApproachingEndTimer();
     for (const cb of this.endedCallbacks) cb();
@@ -87,14 +91,17 @@ export class HTML5AudioEngine implements AudioEngine {
       }
     }
   };
-  private readonly dispatchError = () => {
+  private readonly dispatchError = (event: Event) => {
+    if (event.target !== this.audio) return;
     const src = this.audio.src;
     const isEmptySrc = src === '' || src === globalThis.window?.location.href;
     const mediaError = this.audio.error;
     const errorMessage = mediaError?.message ?? 'Unknown error';
     if (isEmptySrc || errorMessage.includes('Empty src')) return;
     const sanitized = this.sanitizeError(errorMessage);
-    const error = new Error(`Audio error: ${sanitized}`);
+    const error = Object.assign(new Error(`Audio error: ${sanitized}`), {
+      mediaErrorCode: mediaError?.code ?? null,
+    });
     for (const cb of this.errorCallbacks) cb(error);
   };
   private readonly dispatchWaiting = () => {
@@ -115,6 +122,7 @@ export class HTML5AudioEngine implements AudioEngine {
   private currentLoadReject: ((error: Error) => void) | null = null;
   private loadCancelled: boolean = false;
   private loadEventCleanup: (() => void) | null = null;
+  private loadGeneration = 0;
 
   // Track current fade operation for cancellation
   private currentFadeCancel: (() => void) | null = null;
@@ -321,98 +329,106 @@ export class HTML5AudioEngine implements AudioEngine {
   async load(url: string): Promise<void> {
     this.ensureNotDisposed();
 
+    // Cancel the in-flight load synchronously so a skip during a slow load does not
+    // have to wait for the previous load to settle before the new src is assigned.
+    const generation = ++this.loadGeneration;
+    this.cancelCurrentLoad();
+
     // Serialize load operations through Promise chain to prevent race conditions
-    this.loadPromiseChain = this.loadPromiseChain
-      .then(async () => {
-        // Cancel previous load operation (silent cancellation)
-        this.cancelCurrentLoad();
+    const newLoad = this.loadPromiseChain.then(async () => {
+      if (generation !== this.loadGeneration) {
+        throw new Error('Load cancelled - new track requested');
+      }
 
-        // Load the track
-        return new Promise<void>((resolve, reject) => {
-          // Reset cancellation flag for new load
-          this.loadCancelled = false;
-          this.currentLoadReject = reject;
+      // Load the track
+      return new Promise<void>((resolve, reject) => {
+        // Reset cancellation flag for new load
+        this.loadCancelled = false;
+        this.currentLoadReject = reject;
 
-          // Firefox race condition: already loaded
-          // Note: this.audio.src is always absolute, url may be relative
-          let absoluteUrl: string;
-          try {
-            absoluteUrl = new URL(url, globalThis.window.location.href).href;
-          } catch {
-            this.currentLoadReject = null;
-            reject(new Error(`Invalid audio URL: ${this.sanitizeError(url)}`));
-            return;
+        // Firefox race condition: already loaded
+        // Note: this.audio.src is always absolute, url may be relative
+        let absoluteUrl: string;
+        try {
+          absoluteUrl = new URL(url, globalThis.window.location.href).href;
+        } catch {
+          this.currentLoadReject = null;
+          reject(new Error(`Invalid audio URL: ${this.sanitizeError(url)}`));
+          return;
+        }
+        if (
+          this.audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          this.audio.src === absoluteUrl
+        ) {
+          this.currentLoadReject = null;
+          const d = this.audio.duration;
+          this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
+          resolve();
+          return;
+        }
+
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+        const handleCanPlay = () => {
+          if (this.loadCancelled) return;
+          cleanup();
+          this.currentLoadReject = null;
+          const d = this.audio.duration;
+          this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
+          resolve();
+        };
+
+        const handleError = () => {
+          if (this.loadCancelled) return;
+          cleanup();
+          this.currentLoadReject = null;
+          const mediaError = this.audio.error;
+          const errorMessage = mediaError?.message ?? 'Unknown error';
+          const sanitized = this.sanitizeError(errorMessage);
+          reject(new Error(`Failed to load audio: ${sanitized}`));
+        };
+
+        const handleTimeout = () => {
+          if (this.loadCancelled) return;
+          cleanup();
+          this.currentLoadReject = null;
+          reject(new Error(`Audio load timeout after ${this.loadTimeoutMs / 1000} seconds`));
+        };
+
+        const cleanup = () => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
           }
-          if (
-            this.audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-            this.audio.src === absoluteUrl
-          ) {
-            this.currentLoadReject = null;
-            const d = this.audio.duration;
-            this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
-            resolve();
-            return;
-          }
+          this.audio.removeEventListener('canplay', handleCanPlay);
+          this.audio.removeEventListener('error', handleError);
+          this.loadEventCleanup = null;
+        };
 
-          let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        timeoutId = setTimeout(handleTimeout, this.loadTimeoutMs);
 
-          const handleCanPlay = () => {
-            if (this.loadCancelled) return;
-            cleanup();
-            this.currentLoadReject = null;
-            const d = this.audio.duration;
-            this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
-            resolve();
-          };
+        // Store cleanup function for cancellation
+        this.loadEventCleanup = cleanup;
 
-          const handleError = () => {
-            if (this.loadCancelled) return;
-            cleanup();
-            this.currentLoadReject = null;
-            const mediaError = this.audio.error;
-            const errorMessage = mediaError?.message ?? 'Unknown error';
-            const sanitized = this.sanitizeError(errorMessage);
-            reject(new Error(`Failed to load audio: ${sanitized}`));
-          };
+        this.audio.addEventListener('canplay', handleCanPlay, { once: true });
+        this.audio.addEventListener('error', handleError, { once: true });
 
-          const handleTimeout = () => {
-            if (this.loadCancelled) return;
-            cleanup();
-            this.currentLoadReject = null;
-            reject(new Error(`Audio load timeout after ${this.loadTimeoutMs / 1000} seconds`));
-          };
-
-          const cleanup = () => {
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-            this.audio.removeEventListener('canplay', handleCanPlay);
-            this.audio.removeEventListener('error', handleError);
-            this.loadEventCleanup = null;
-          };
-
-          timeoutId = setTimeout(handleTimeout, this.loadTimeoutMs);
-
-          // Store cleanup function for cancellation
-          this.loadEventCleanup = cleanup;
-
-          this.audio.addEventListener('canplay', handleCanPlay, { once: true });
-          this.audio.addEventListener('error', handleError, { once: true });
-
-          this.approachingEndFired = false;
-          this.stableDuration = 0;
-          this.clearApproachingEndTimer();
-          this.audio.src = absoluteUrl;
-          this.audio.load();
-        });
-      })
-      .catch(error => {
-        if ((error as Error).message?.includes('Load cancelled')) return;
-        throw error;
+        this.approachingEndFired = false;
+        this.stableDuration = 0;
+        this.clearApproachingEndTimer();
+        this.audio.src = absoluteUrl;
+        this.audio.load();
       });
+    });
 
-    return this.loadPromiseChain;
+    // The stored chain only serializes; it must never stay rejected, otherwise one
+    // failed load would poison every subsequent load with the stale error.
+    this.loadPromiseChain = newLoad.catch(() => {});
+
+    return newLoad.catch(error => {
+      if ((error as Error).message?.includes('Load cancelled')) return;
+      throw error;
+    });
   }
 
   async play(): Promise<void> {
@@ -504,7 +520,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
   setPlaybackRate(rate: number): void {
     this.ensureNotDisposed();
-    const clamped = Math.max(0.5, Math.min(2, rate));
+    const clamped = Math.max(0.5, Math.min(3, rate));
     this.audio.playbackRate = clamped;
     this.audio.preservesPitch = true;
   }
@@ -566,7 +582,9 @@ export class HTML5AudioEngine implements AudioEngine {
     const duration = this.stableDuration > 0 ? this.stableDuration : this.audio.duration;
     if (!Number.isFinite(duration) || duration <= 0) return;
 
-    const remainingMs = (duration - this.audio.currentTime) * 1000 - this.approachingEndThresholdMs;
+    const rate = this.audio.playbackRate > 0 ? this.audio.playbackRate : 1;
+    const remainingMs =
+      ((duration - this.audio.currentTime) * 1000) / rate - this.approachingEndThresholdMs;
     if (remainingMs <= 0) return;
 
     this.approachingEndTimer = setTimeout(() => {
@@ -620,6 +638,10 @@ export class HTML5AudioEngine implements AudioEngine {
     this.cancelCurrentLoad();
 
     // Clear preload state
+    if (this.preloadReject) {
+      this.preloadReject(new Error('Preload superseded - engine disposed'));
+      this.preloadReject = null;
+    }
     if (this.preloadEventCleanup) {
       this.preloadEventCleanup();
       this.preloadEventCleanup = null;
@@ -807,10 +829,15 @@ export class HTML5AudioEngine implements AudioEngine {
       return this.preloadPromise;
     }
 
-    // Cancel any existing preload operation to prevent race condition
+    // Cancel any existing preload operation to prevent race condition. The superseded
+    // promise must settle, otherwise its awaiters hang until an external timeout.
     if (this.preloadEventCleanup) {
       this.preloadEventCleanup();
       this.preloadEventCleanup = null;
+    }
+    if (this.preloadReject) {
+      this.preloadReject(new Error('Preload superseded - new preload requested'));
+      this.preloadReject = null;
     }
 
     // Always preload into secondary element (this.audio is always the active one)
@@ -818,6 +845,8 @@ export class HTML5AudioEngine implements AudioEngine {
 
     this.preloadedUrl = url;
     this.preloadPromise = new Promise<void>((resolve, reject) => {
+      this.preloadReject = reject;
+
       const handleCanPlay = () => {
         cleanup();
         resolve();
@@ -836,6 +865,7 @@ export class HTML5AudioEngine implements AudioEngine {
         targetElement.removeEventListener('canplay', handleCanPlay);
         targetElement.removeEventListener('error', handleError);
         this.preloadEventCleanup = null;
+        this.preloadReject = null;
       };
 
       // Store cleanup for cancellation
@@ -859,9 +889,15 @@ export class HTML5AudioEngine implements AudioEngine {
     const oldElement = this.audio;
     const newElement = this.audioSecondary;
 
+    const playbackRate = oldElement.playbackRate;
+    const preservesPitch = oldElement.preservesPitch;
+
     oldElement.pause();
     oldElement.src = '';
     oldElement.load();
+
+    newElement.playbackRate = playbackRate;
+    newElement.preservesPitch = preservesPitch;
 
     this.approachingEndFired = false;
     this.clearApproachingEndTimer();

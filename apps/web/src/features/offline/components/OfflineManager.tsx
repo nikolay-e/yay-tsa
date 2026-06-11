@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Trash2, ShieldCheck, ShieldAlert, History } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Trash2, ShieldCheck, ShieldAlert, History, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
 
@@ -59,6 +59,8 @@ export function OfflineManager() {
   const refreshUsage = useOfflineStore(state => state.refreshUsage);
   const setSetting = useOfflineStore(state => state.setSetting);
   const settings = useOfflineSettings();
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
 
   useEffect(() => {
     refreshUsage().catch(() => {});
@@ -136,18 +138,49 @@ export function OfflineManager() {
               Clear cache
             </button>
           )}
-          {downloaded.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                clearAll().catch(() => {});
-              }}
-              className="bg-error/10 hover:bg-error/20 text-error flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-              Clear all
-            </button>
-          )}
+          {downloaded.length > 0 &&
+            (confirmClearAll ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isClearingAll}
+                  onClick={() => {
+                    setIsClearingAll(true);
+                    clearAll()
+                      .catch(() => {})
+                      .finally(() => {
+                        setIsClearingAll(false);
+                        setConfirmClearAll(false);
+                      });
+                  }}
+                  className="bg-error/10 hover:bg-error/20 text-error flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {isClearingAll ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete {downloaded.length} {downloaded.length === 1 ? 'download' : 'downloads'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isClearingAll}
+                  onClick={() => setConfirmClearAll(false)}
+                  className="text-text-secondary hover:text-text-primary rounded-md px-2 py-2 text-sm transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmClearAll(true)}
+                className="bg-error/10 hover:bg-error/20 text-error flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear all
+              </button>
+            ))}
         </div>
       </div>
 

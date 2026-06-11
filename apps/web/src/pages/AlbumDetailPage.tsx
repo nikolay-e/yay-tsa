@@ -11,6 +11,7 @@ import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImage
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { NotFound } from '@/shared/ui/NotFound';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { BackLink } from '@/shared/ui/BackLink';
 import {
   usePlayerStore,
@@ -31,7 +32,12 @@ export function AlbumDetailPage() {
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
-  const { data: album, isLoading: albumLoading } = useQuery({
+  const {
+    data: album,
+    isLoading: albumLoading,
+    isError: albumError,
+    refetch: refetchAlbum,
+  } = useQuery({
     queryKey: ['album', id],
     queryFn: async () => {
       if (!client || !id) throw new Error('Not authenticated or missing ID');
@@ -41,7 +47,12 @@ export function AlbumDetailPage() {
     enabled: !!client && !!id,
   });
 
-  const { data: tracks = [], isLoading: tracksLoading } = useAlbumTracks(id);
+  const {
+    data: tracks = [],
+    isLoading: tracksLoading,
+    isError: tracksError,
+    refetch: refetchTracks,
+  } = useAlbumTracks(id);
 
   const handlePlayTrack = (_: unknown, index: number) => {
     playTracks(tracks, index);
@@ -56,6 +67,21 @@ export function AlbumDetailPage() {
 
   if (isLoading) {
     return <LoadingSpinner />;
+  }
+
+  if (albumError || tracksError) {
+    return (
+      <div className="space-y-6 p-6">
+        <BackLink to="/albums" label="Back to Albums" data-testid="album-back-button" />
+        <LoadErrorState
+          message="Couldn't load album"
+          onRetry={() => {
+            if (albumError) void refetchAlbum();
+            if (tracksError) void refetchTracks();
+          }}
+        />
+      </div>
+    );
   }
 
   if (!album) {

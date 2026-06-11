@@ -22,7 +22,7 @@ export interface NavAvailability {
  */
 export function navAvailability(queue: PlaybackQueue): NavAvailability {
   return {
-    hasNext: queue.peekNext() !== null,
+    hasNext: queue.peekNext({ manual: true }) !== null,
     hasPrevious: !queue.isEmpty(),
   };
 }

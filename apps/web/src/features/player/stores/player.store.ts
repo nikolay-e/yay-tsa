@@ -118,6 +118,7 @@ interface PlayerActions {
   insertNextInQueue: (tracks: AudioItem[]) => void;
   removeFromQueue: (trackId: string) => void;
   jumpToQueueTrack: (trackId: string) => Promise<void>;
+  retryCurrentTrack: () => Promise<void>;
   patchTrackFavorite: (itemId: string, isFavorite: boolean) => void;
 }
 
@@ -133,6 +134,8 @@ const LOCAL_RESUME_WRITE_INTERVAL_MS = 1000;
 const CROSSFADE_MS = 150;
 const APPROACHING_END_MS = CROSSFADE_MS + 350;
 const ENGINE_TIMEOUT_MS = 10000;
+const MEDIA_ERR_NETWORK = 2;
+const MEDIA_ERR_DECODE = 3;
 
 let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
@@ -154,7 +157,10 @@ function isRetryableTimeout(error: unknown, retryCount: number): boolean {
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
   try {
-    audioEngine = new HTML5AudioEngine({ approachingEndThresholdMs: APPROACHING_END_MS });
+    audioEngine = new HTML5AudioEngine({
+      approachingEndThresholdMs: APPROACHING_END_MS,
+      loadTimeoutMs: ENGINE_TIMEOUT_MS,
+    });
     return audioEngine;
   } catch (e) {
     log.player.error('Failed to initialize audio engine', e);
@@ -223,9 +229,7 @@ function autoAdvanceOnError(get: () => PlayerStore): void {
   }
 
   const { queue, repeatMode } = get();
-  const next = resolveNextItem(queue, repeatMode);
-  if (next) {
-    get().queue.advanceTo(next.Id);
+  if (resolveNextItem(queue, repeatMode)) {
     setTimeout(() => {
       void get().next();
     }, 0);
@@ -287,6 +291,7 @@ export const usePlayerStore = create<PlayerStore>()(
         insertNextInQueue: () => {},
         removeFromQueue: () => {},
         jumpToQueueTrack: async () => {},
+        retryCurrentTrack: async () => {},
         patchTrackFavorite: () => {},
       };
     }
@@ -297,13 +302,24 @@ export const usePlayerStore = create<PlayerStore>()(
     const controller = new PlaybackController();
     const preloader = new PreloadManager(engine);
 
-    // Suppress spurious ended event after gapless transition (#4)
-    let suppressNextEnded = false;
-    let pendingSeek: number | null = null;
+    // A seek issued while a controller op is in flight; item-scoped so a seek aimed at
+    // one track is never applied to the track that replaces it.
+    let pendingSeek: { seconds: number; itemId: string | null } | null = null;
+    let mediaErrorRecoveryUsedForItemId: string | null = null;
     // Wall-clock instant of the last pause, used to compute audiobook smart-rewind on resume.
     let lastPauseAt: number | null = null;
 
     // --- Helpers ---
+
+    function engineHoldsStream(streamUrl: string): boolean {
+      const element = engine.getAudioElement?.();
+      if (!element) return true;
+      try {
+        return element.src === new URL(streamUrl, globalThis.location.href).href;
+      } catch {
+        return true;
+      }
+    }
 
     function syncQueueState(): void {
       const { queue } = get();
@@ -501,6 +517,13 @@ export const usePlayerStore = create<PlayerStore>()(
         engine.seek(position);
         if (get().isPlaying) await engine.play();
       }
+
+      const seekTarget = pendingSeek;
+      if (!signal.aborted && seekTarget && seekTarget.itemId === get().currentTrack?.Id) {
+        engine.seek(seekTarget.seconds);
+        useTimingStore.getState().seekTo(seekTarget.seconds, engine.getDuration());
+        pendingSeek = null;
+      }
     }
 
     // --- Core playback commands ---
@@ -570,11 +593,16 @@ export const usePlayerStore = create<PlayerStore>()(
       const rate = audiobook ? resolveAudiobookSpeed(track.Id) : 1;
 
       // Seek-on-load resume is audiobook-only: a long-form book restores its saved place,
-      // while music keeps its existing start-from-zero behaviour.
+      // while music keeps its existing start-from-zero behaviour. A user seek already
+      // aimed at this track survives; seeks aimed at other tracks are discarded.
       if (resumeFromSaved && audiobook) {
         const resumeSeconds = resumePositionSeconds(track);
-        pendingSeek = resumeSeconds > 0 ? resumeSeconds : null;
-      } else {
+        if (resumeSeconds > 0) {
+          pendingSeek = { seconds: resumeSeconds, itemId: track.Id };
+        } else if (pendingSeek?.itemId !== track.Id) {
+          pendingSeek = null;
+        }
+      } else if (pendingSeek?.itemId !== track.Id) {
         pendingSeek = null;
       }
       lastPauseAt = null;
@@ -596,13 +624,21 @@ export const usePlayerStore = create<PlayerStore>()(
         const streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
 
         await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
+
+        // A superseded load resolves silently while the engine already holds the next
+        // track; only the op whose stream the engine actually holds may claim state.
+        if (!engineHoldsStream(streamUrl)) return;
+        if (signal.aborted && get().currentTrack?.Id !== track.Id) return;
+
+        // Engine truth: from here on, positions read from the engine belong to this item.
+        currentItemId = track.Id;
         engine.setPlaybackRate?.(rate);
         set({ currentTrack: track, isLoading: false, error: null });
 
         if (signal.aborted) return;
 
-        if (pendingSeek !== null) {
-          engine.seek(pendingSeek);
+        if (pendingSeek?.itemId === track.Id) {
+          engine.seek(pendingSeek.seconds);
           pendingSeek = null;
         }
 
@@ -635,11 +671,12 @@ export const usePlayerStore = create<PlayerStore>()(
 
       // --- Always: engine-level cleanup ---
       preloader.consume();
-      suppressNextEnded = true;
       currentItemId = track.Id;
+      // The element swap starts the new element at the browser-default rate; an
+      // audiobook chapter advance must keep the user-selected speed audible.
+      engine.setPlaybackRate?.(get().playbackRate);
 
       if (signal.aborted) {
-        suppressNextEnded = false;
         set({
           currentTrack: track,
           isLoading: false,
@@ -670,11 +707,21 @@ export const usePlayerStore = create<PlayerStore>()(
       }
 
       schedulePreload();
+
+      if (pendingSeek?.itemId === track.Id) {
+        engine.seek(pendingSeek.seconds);
+        useTimingStore.getState().seekTo(pendingSeek.seconds, engine.getDuration());
+        pendingSeek = null;
+      }
     }
 
     // --- Engine event handlers ---
 
     engine.onTimeUpdate(seconds => {
+      // While a user seek is pending against the current track (issued mid-transition), the
+      // optimistic position owns the UI: engine ticks still reflect the pre-seek position and
+      // would visibly snap the bar back until the seek is applied after the transition.
+      if (pendingSeek && pendingSeek.itemId === get().currentTrack?.Id) return;
       const duration = engine.getDuration();
       useTimingStore.getState().updateTiming(seconds, duration);
 
@@ -714,11 +761,6 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     engine.onEnded(() => {
-      if (suppressNextEnded) {
-        suppressNextEnded = false;
-        return;
-      }
-
       void controller.ifIdle(async signal => {
         const { repeatMode } = get();
         const next = resolveNextItem(get().queue, repeatMode);
@@ -765,7 +807,54 @@ export const usePlayerStore = create<PlayerStore>()(
 
     engine.onError(error => {
       log.player.error('Audio engine error', error);
-      set({ error, isPlaying: false, isLoading: false });
+
+      const mediaErrorCode = (error as { mediaErrorCode?: number | null }).mediaErrorCode;
+      const track = get().currentTrack;
+      const recoverable =
+        (mediaErrorCode === MEDIA_ERR_NETWORK || mediaErrorCode === MEDIA_ERR_DECODE) &&
+        track !== null &&
+        currentItemId === track.Id &&
+        mediaErrorRecoveryUsedForItemId !== track.Id &&
+        !controller.isActive &&
+        currentClient !== null;
+
+      if (!recoverable) {
+        set({ error, isPlaying: false, isLoading: false });
+        return;
+      }
+
+      mediaErrorRecoveryUsedForItemId = track.Id;
+      const wasPlaying = get().isPlaying;
+      const lastKnownPosition = useTimingStore.getState().currentTime;
+      log.player.warn('Attempting one-shot media error recovery', {
+        trackId: track.Id,
+        mediaErrorCode,
+        position: lastKnownPosition,
+      });
+
+      void controller.interrupt(async signal => {
+        try {
+          if (!currentClient) throw new Error('Not authenticated');
+          let streamUrl: string;
+          if (get().isKaraokeMode) {
+            streamUrl = currentClient.getInstrumentalStreamUrl(track.Id);
+          } else {
+            const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
+            streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
+          }
+          await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
+          if (signal.aborted) return;
+          engine.setPlaybackRate?.(get().playbackRate);
+          if (lastKnownPosition > 0) engine.seek(lastKnownPosition);
+          if (wasPlaying) await engine.play();
+          if (signal.aborted) return;
+          set({ error: null, isPlaying: wasPlaying, isLoading: false });
+        } catch (recoveryError) {
+          if (signal.aborted) return;
+          log.player.error('Media error recovery failed', recoveryError);
+          set({ error, isPlaying: false, isLoading: false });
+        }
+      });
     });
 
     if (typeof document !== 'undefined') {
@@ -1050,8 +1139,8 @@ export const usePlayerStore = create<PlayerStore>()(
 
       next: async () => {
         await controller.interrupt(async signal => {
-          const { queue, repeatMode } = get();
-          const next = resolveNextItem(queue, repeatMode);
+          const { queue } = get();
+          const next = queue.next({ manual: true });
           if (!next) {
             engine.pause();
             wakeLock.release();
@@ -1066,7 +1155,6 @@ export const usePlayerStore = create<PlayerStore>()(
             set({ isPlaying: false });
             return;
           }
-          get().queue.advanceTo(next.Id);
           try {
             await loadAndPlay(next, signal);
           } catch {
@@ -1080,7 +1168,7 @@ export const usePlayerStore = create<PlayerStore>()(
           const currentTime = useTimingStore.getState().currentTime;
           const { queue } = get();
           if (previousAction(currentTime, queue.hasPrevious()) === 'previous') {
-            const prevTrack = queue.previous();
+            const prevTrack = queue.previous({ manual: true });
             if (prevTrack) {
               await loadAndPlay(prevTrack, signal);
             } else {
@@ -1094,7 +1182,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
       seek: seconds => {
         if (controller.isActive) {
-          pendingSeek = seconds;
+          pendingSeek = { seconds, itemId: get().currentTrack?.Id ?? null };
         } else {
           engine.seek(seconds);
         }
@@ -1164,7 +1252,7 @@ export const usePlayerStore = create<PlayerStore>()(
       stop: () => {
         // eslint-disable-next-line @typescript-eslint/require-await
         void controller.interrupt(async () => {
-          suppressNextEnded = false;
+          pendingSeek = null;
           engine.pause();
           engine.seek(0);
           useTimingStore.getState().reset();
@@ -1223,7 +1311,9 @@ export const usePlayerStore = create<PlayerStore>()(
             }
           } catch (error) {
             if (signal.aborted) return;
-            const isAbort = error instanceof DOMException && error.name === 'AbortError';
+            const isAbort =
+              (error instanceof DOMException && error.name === 'AbortError') ||
+              (error instanceof Error && error.message.includes('Preload superseded'));
             if (isAbort) {
               log.player.warn('Karaoke enable interrupted by track change');
             } else {
@@ -1350,10 +1440,14 @@ export const usePlayerStore = create<PlayerStore>()(
 
       insertNextInQueue: (tracks: AudioItem[]) => {
         if (tracks.length === 0) return;
-        const { queue, queueIndex } = get();
+        const { queue } = get();
+        // The queue object is the source of truth for the current index: the mirrored
+        // queueIndex state lags until playback side effects commit, so a "play next"
+        // issued while a track is still loading would otherwise insert at the front.
+        const insertBase = queue.getCurrentIndex();
         for (let i = 0; i < tracks.length; i++) {
           const track = tracks[i];
-          if (track) queue.insertAt(track, queueIndex + 1 + i);
+          if (track) queue.insertAt(track, insertBase + 1 + i);
         }
         syncQueueState();
         preloader.invalidate();
@@ -1407,6 +1501,23 @@ export const usePlayerStore = create<PlayerStore>()(
         });
       },
 
+      retryCurrentTrack: async () => {
+        const track = get().currentTrack;
+        if (!track) return;
+        const lastKnownPosition = useTimingStore.getState().currentTime;
+        mediaErrorRecoveryUsedForItemId = null;
+        await controller.interrupt(async signal => {
+          if (lastKnownPosition > 0) {
+            pendingSeek = { seconds: lastKnownPosition, itemId: track.Id };
+          }
+          try {
+            await loadAndPlay(track, signal);
+          } catch {
+            // Error state already set by loadAndPlay; the user can retry again.
+          }
+        });
+      },
+
       // Single entry point the favorite mutation calls so player-owned state (the now-playing track
       // plus every cached queue copy) stays in lockstep with the React Query caches. The queue keeps
       // its own AudioItem copies, so a track favorited from a list must be patched here too or its
@@ -1430,6 +1541,10 @@ export const usePlayerStore = create<PlayerStore>()(
   })
 );
 
+export function getPlayerEngineForSync(): AudioEngine | null {
+  return audioEngine;
+}
+
 useAuthStore.subscribe(
   state => state.client,
   client => {
@@ -1437,6 +1552,28 @@ useAuthStore.subscribe(
 
     if (!client) {
       usePlayerStore.getState().stop();
+    }
+  }
+);
+
+// Lock-screen ±15/30s skip controls exist only in audiobook mode; in music mode they stay
+// unregistered so they never crowd out next/previous track on iOS.
+usePlayerStore.subscribe(
+  state => state.playerMode,
+  playerMode => {
+    const session = getMediaSession();
+    if (!session) return;
+    try {
+      if (playerMode === 'audiobook') {
+        session.setSkipHandlers(
+          () => usePlayerStore.getState().skipBy(-15),
+          () => usePlayerStore.getState().skipBy(30)
+        );
+      } else {
+        session.setSkipHandlers(null, null);
+      }
+    } catch (e) {
+      log.player.warn('Failed to update media session skip handlers', { error: String(e) });
     }
   }
 );

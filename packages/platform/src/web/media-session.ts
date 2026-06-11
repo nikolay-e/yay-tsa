@@ -148,6 +148,19 @@ export class MediaSessionManager {
   }
 
   /**
+   * Enable or disable the lock-screen seek-backward/forward skip controls. Kept off for music
+   * (see setActionHandlers) but registered in audiobook mode where ±15/30s skips are the
+   * primary navigation.
+   */
+  public setSkipHandlers(
+    onSkipBackward: (() => void) | null,
+    onSkipForward: (() => void) | null
+  ): void {
+    this.setHandler('seekbackward', onSkipBackward);
+    this.setHandler('seekforward', onSkipForward);
+  }
+
+  /**
    * Update position state (for seek bar on lock screen)
    */
   public updatePositionState(duration: number, position: number, playbackRate: number = 1): void {

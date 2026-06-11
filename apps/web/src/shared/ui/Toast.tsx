@@ -4,16 +4,22 @@ import { cn } from '@/shared/utils/cn';
 
 export type ToastType = 'error' | 'success' | 'info' | 'warning';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastMessage {
   id: string;
   type: ToastType;
   message: string;
   duration?: number;
+  action?: ToastAction;
 }
 
 interface ToastStore {
   toasts: ToastMessage[];
-  add: (type: ToastType, message: string, duration?: number) => void;
+  add: (type: ToastType, message: string, duration?: number, action?: ToastAction) => void;
   remove: (id: string) => void;
 }
 
@@ -28,14 +34,14 @@ export const toast: ToastStore = {
   get toasts() {
     return toasts;
   },
-  add(type: ToastType, message: string, duration = 5000) {
+  add(type: ToastType, message: string, duration = 5000, action?: ToastAction) {
     const id =
       typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : Array.from(crypto.getRandomValues(new Uint8Array(16)), b =>
             b.toString(16).padStart(2, '0')
           ).join('');
-    toasts = [...toasts, { id, type, message, duration }];
+    toasts = [...toasts, { id, type, message, duration, action }];
     notifyListeners();
 
     if (duration > 0) {
@@ -92,6 +98,17 @@ function ToastItem({ item }: Readonly<{ item: ToastMessage }>) {
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <p className="flex-1 text-sm">{item.message}</p>
+      {item.action && (
+        <button
+          onClick={() => {
+            item.action!.onClick();
+            toast.remove(item.id);
+          }}
+          className="shrink-0 rounded border border-current px-2 py-0.5 text-xs font-semibold opacity-90 transition-opacity hover:opacity-100"
+        >
+          {item.action.label}
+        </button>
+      )}
       <button
         onClick={() => toast.remove(item.id)}
         className="shrink-0 rounded p-1 opacity-70 transition-opacity hover:opacity-100"

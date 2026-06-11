@@ -8,6 +8,7 @@ import {
   Repeat1,
   RotateCcw,
   RotateCw,
+  Loader2,
 } from 'lucide-react';
 import type { RepeatMode } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -22,9 +23,20 @@ type PlaybackControlsProps = Readonly<{
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
   isAudiobook?: boolean;
+  isLoading?: boolean;
   onSkipBackward?: () => void;
   onSkipForward?: () => void;
 }>;
+
+function PlayPauseIcon({
+  isLoading,
+  isPlaying,
+  className,
+}: Readonly<{ isLoading: boolean; isPlaying: boolean; className: string }>) {
+  if (isLoading) return <Loader2 className={cn(className, 'animate-spin')} />;
+  if (isPlaying) return <Pause className={className} fill="currentColor" />;
+  return <Play className={cn(className, 'ml-0.5')} fill="currentColor" />;
+}
 
 export function PlaybackControls({
   isPlaying,
@@ -36,6 +48,7 @@ export function PlaybackControls({
   onToggleShuffle,
   onToggleRepeat,
   isAudiobook = false,
+  isLoading = false,
   onSkipBackward,
   onSkipForward,
 }: PlaybackControlsProps) {
@@ -89,12 +102,9 @@ export function PlaybackControls({
           'focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
         )}
         aria-label={isPlaying ? 'Pause' : 'Play'}
+        aria-busy={isLoading}
       >
-        {isPlaying ? (
-          <Pause className="h-5 w-5" fill="currentColor" />
-        ) : (
-          <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
-        )}
+        <PlayPauseIcon isLoading={isLoading} isPlaying={isPlaying} className="h-5 w-5" />
       </button>
 
       <button

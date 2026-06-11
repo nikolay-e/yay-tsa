@@ -240,11 +240,13 @@ export class PlaybackQueue {
     return this.items.length === 0;
   }
 
-  peekNext(): AudioItem | null {
+  peekNext(options: { manual?: boolean } = {}): AudioItem | null {
     if (this.isEmpty()) return null;
-    if (this.repeatMode === 'one') return this.getCurrentItem();
+    if (this.repeatMode === 'one' && !options.manual) return this.getCurrentItem();
     if (this.currentIndex < this.items.length - 1) return this.items[this.currentIndex + 1];
-    if (this.repeatMode === 'all') return this.items[0];
+    if (this.repeatMode === 'all' || (this.repeatMode === 'one' && options.manual)) {
+      return this.items[0];
+    }
     return null;
   }
 
@@ -278,18 +280,22 @@ export class PlaybackQueue {
    * Move to next item
    * Returns new current item or null if at end
    */
-  next(): AudioItem | null {
+  next(options: { manual?: boolean } = {}): AudioItem | null {
     if (this.isEmpty()) return null;
 
-    if (this.repeatMode === 'one') {
+    if (this.repeatMode === 'one' && !options.manual) {
       return this.getCurrentItem();
     }
 
     if (this.currentIndex < this.items.length - 1) {
       this.recordCurrentToHistory();
       this.currentIndex++;
-    } else if (this.repeatMode === 'all') {
+    } else if (this.repeatMode === 'all' || (this.repeatMode === 'one' && options.manual)) {
+      const previousId = this.getCurrentItem()?.Id ?? null;
       this.recordCurrentToHistory();
+      if (this.shuffleMode === 'on') {
+        this.reshuffleForNewCycle(previousId);
+      }
       this.currentIndex = 0;
     } else {
       return null;
@@ -302,10 +308,10 @@ export class PlaybackQueue {
    * Move to previous item
    * Returns new current item or null if at start
    */
-  previous(): AudioItem | null {
+  previous(options: { manual?: boolean } = {}): AudioItem | null {
     if (this.isEmpty()) return null;
 
-    if (this.repeatMode === 'one') {
+    if (this.repeatMode === 'one' && !options.manual) {
       return this.getCurrentItem();
     }
 
@@ -418,29 +424,37 @@ export class PlaybackQueue {
 
   /**
    * Apply shuffle to queue
-   * Keeps current item at current position
+   * Moves current item to the front so the full shuffled queue plays after it
    */
   private applyShuffle(): void {
     if (this.items.length <= 1) return;
 
     const currentItem = this.getCurrentItem();
 
-    // Shuffle all items
     const shuffled = this.shuffleArray([...this.items]);
 
-    // If there's a current item, make sure it stays at current position
     if (currentItem) {
       const currentItemIndex = shuffled.findIndex(item => item.Id === currentItem.Id);
-      if (currentItemIndex !== -1 && currentItemIndex !== this.currentIndex) {
-        // Swap current item to current position
-        [shuffled[this.currentIndex], shuffled[currentItemIndex]] = [
-          shuffled[currentItemIndex],
-          shuffled[this.currentIndex],
-        ];
+      if (currentItemIndex > 0) {
+        [shuffled[0], shuffled[currentItemIndex]] = [shuffled[currentItemIndex], shuffled[0]];
       }
+      this.currentIndex = 0;
     }
 
     this.items = shuffled;
+  }
+
+  /**
+   * Fresh shuffle order for each repeat-all cycle, avoiding an immediate repeat
+   * of the track that just finished
+   */
+  private reshuffleForNewCycle(previousId: string | null): void {
+    if (this.items.length <= 1) return;
+    this.items = this.shuffleArray([...this.items]);
+    if (previousId && this.items[0]?.Id === previousId) {
+      const swapIndex = this.items.length - 1;
+      [this.items[0], this.items[swapIndex]] = [this.items[swapIndex], this.items[0]];
+    }
   }
 
   /**

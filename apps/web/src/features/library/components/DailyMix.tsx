@@ -7,6 +7,7 @@ import {
   useIsPlaying,
 } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { useDailyMix, DAILY_MIX_QUERY_KEY } from '../hooks/useDailyMix';
 import { TrackList } from './TrackList';
 
@@ -45,7 +46,7 @@ export function DailyMix() {
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
 
-  const { data, isLoading } = useDailyMix(DAILY_MIX_LIMIT);
+  const { data, isLoading, isError, refetch } = useDailyMix(DAILY_MIX_LIMIT);
 
   const tracks = data ?? [];
 
@@ -62,6 +63,16 @@ export function DailyMix() {
       </div>
       {(() => {
         if (isLoading) return <LoadingSpinner />;
+        if (isError) {
+          return (
+            <LoadErrorState
+              message="Couldn't load your daily mix"
+              onRetry={() => {
+                void refetch();
+              }}
+            />
+          );
+        }
         if (tracks.length === 0) {
           return (
             <p className="text-text-tertiary py-8 text-center text-sm">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import {
@@ -9,9 +9,11 @@ import {
   ThumbsDown,
   Play,
   Pause,
+  Loader2,
   Radio,
   MonitorSmartphone,
   Users,
+  ListMusic,
 } from 'lucide-react';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
@@ -42,6 +44,7 @@ import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useGroupSyncStore } from '../stores/group-sync-store';
+import { nextAudiobookSpeed } from '../playback-speed';
 import { MobileFullPlayer } from './MobileFullPlayer';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
@@ -50,6 +53,8 @@ import { VolumeControls } from './VolumeControls';
 import { PlaybackControls } from './PlaybackControls';
 import { DevicesPanel } from './DevicesPanel';
 import { GroupSyncPanel } from './GroupSyncPanel';
+
+const QueuePanel = lazy(() => import('./QueuePanel'));
 
 function TrackInfo({
   track,
@@ -134,6 +139,7 @@ export function PlayerBar() {
   const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [showGroupSync, setShowGroupSync] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
   const groupMode = useGroupSyncStore(s => s.mode);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const activeSession = useActiveSession();
@@ -221,17 +227,41 @@ export function PlayerBar() {
     toast.add('info', 'Skipping...');
   };
 
+  // Opening the full player pushes a history entry so the hardware/browser Back button closes it.
+  // Closing it any other way (chevron, backdrop) must pop that same entry, otherwise the next Back
+  // press visibly does nothing. The ref guards against popping twice when Back itself closed it.
+  const fullPlayerHistoryEntryPushed = useRef(false);
   useEffect(() => {
     if (!showFullPlayer) return;
     history.pushState(null, '');
-    const handlePopState = () => setShowFullPlayer(false);
+    fullPlayerHistoryEntryPushed.current = true;
+    const handlePopState = () => {
+      fullPlayerHistoryEntryPushed.current = false;
+      setShowFullPlayer(false);
+    };
     globalThis.addEventListener('popstate', handlePopState);
     return () => globalThis.removeEventListener('popstate', handlePopState);
   }, [showFullPlayer]);
 
+  const closeFullPlayer = () => {
+    if (fullPlayerHistoryEntryPushed.current) {
+      fullPlayerHistoryEntryPushed.current = false;
+      history.back();
+    } else {
+      setShowFullPlayer(false);
+    }
+  };
+
+  const dismissFullPlayerForNavigation = () => setShowFullPlayer(false);
+
   useEffect(() => {
     if (playerError) {
-      toast.add('error', `Playback error: ${playerError.message}`);
+      toast.add('error', 'Playback failed — check your connection', 8000, {
+        label: 'Retry',
+        onClick: () => {
+          void usePlayerStore.getState().retryCurrentTrack();
+        },
+      });
     }
   }, [playerError]);
 
@@ -420,19 +450,21 @@ export function PlayerBar() {
             itemId={currentTrack.Id}
             itemType="track"
             isFavorite={getIsFavorite(currentTrack)}
+            className="flex min-h-11 min-w-11 items-center justify-center"
           />
           <button
             type="button"
             data-testid="play-pause-button"
             onClick={handlePlayPause}
-            className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="bg-accent text-text-on-accent hover:bg-accent-hover focus-visible:ring-accent flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label={isPlaying ? 'Pause' : 'Play'}
+            aria-busy={isLoading}
           >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" fill="currentColor" />
-            ) : (
-              <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
-            )}
+            {(() => {
+              if (isLoading) return <Loader2 className="h-4 w-4 animate-spin" />;
+              if (isPlaying) return <Pause className="h-4 w-4" fill="currentColor" />;
+              return <Play className="ml-0.5 h-4 w-4" fill="currentColor" />;
+            })()}
           </button>
         </div>
       </div>
@@ -456,6 +488,7 @@ export function PlayerBar() {
           onToggleShuffle={handleToggleShuffle}
           onToggleRepeat={handleToggleRepeat}
           isAudiobook={playerMode === 'audiobook'}
+          isLoading={isLoading}
           onSkipBackward={() => skipBy(-15)}
           onSkipForward={() => skipBy(30)}
         />
@@ -464,12 +497,7 @@ export function PlayerBar() {
           <button
             type="button"
             data-testid="audiobook-speed"
-            onClick={() => {
-              const steps = [0.75, 1, 1.25, 1.5, 1.75, 2];
-              const idx = steps.findIndex(s => Math.abs(s - playbackRate) < 0.01);
-              const nextRate = steps[(idx + 1) % steps.length] ?? 1;
-              setPlaybackRate(nextRate, 'book');
-            }}
+            onClick={() => setPlaybackRate(nextAudiobookSpeed(playbackRate), 'book')}
             className="text-text-secondary hover:text-text-primary focus-visible:ring-accent hidden shrink-0 rounded-full px-2 py-1 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex"
             aria-label={`Playback speed ${playbackRate}x`}
           >
@@ -480,23 +508,38 @@ export function PlayerBar() {
         <div className="hidden shrink-0 items-center justify-end gap-1 sm:flex md:flex-1 md:gap-2">
           <TimeDisplay />
 
+          {activeSession && (
+            <>
+              <button
+                type="button"
+                onClick={handleThumbsUp}
+                className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                aria-label="Thumbs up"
+                title="Like this track"
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleThumbsDown}
+                className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                aria-label="Thumbs down"
+                title="Skip and avoid"
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </button>
+            </>
+          )}
+
           <button
             type="button"
-            onClick={handleThumbsUp}
-            className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-            aria-label="Thumbs up"
-            title="Like this track"
+            data-testid={PLAYER_TEST_IDS.QUEUE_BUTTON}
+            onClick={() => setShowQueue(true)}
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label="Queue"
+            title="Queue"
           >
-            <ThumbsUp className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleThumbsDown}
-            className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-            aria-label="Thumbs down"
-            title="Skip and avoid"
-          >
-            <ThumbsDown className="h-4 w-4" />
+            <ListMusic className="h-4 w-4" />
           </button>
 
           <button
@@ -579,6 +622,11 @@ export function PlayerBar() {
 
       <DevicesPanel isOpen={showDevices} onClose={() => setShowDevices(false)} />
       <GroupSyncPanel isOpen={showGroupSync} onClose={() => setShowGroupSync(false)} />
+      {showQueue && (
+        <Suspense fallback={null}>
+          <QueuePanel isOpen={showQueue} onClose={() => setShowQueue(false)} />
+        </Suspense>
+      )}
       <SleepTimerModal
         isOpen={showSleepModal}
         onClose={() => setShowSleepModal(false)}
@@ -596,6 +644,7 @@ export function PlayerBar() {
           imageUrl={imageUrlLarge}
           hasImageError={hasImageError}
           isPlaying={isPlaying}
+          isLoading={isLoading}
           isShuffle={isShuffle}
           repeatMode={repeatMode}
           isKaraokeMode={isKaraokeMode}
@@ -603,7 +652,9 @@ export function PlayerBar() {
           karaokeStatus={karaokeStatus}
           hasSleepTimer={!!sleepTimer.endTime}
           sleepMinutesLeft={sleepMinutesLeft}
-          onClose={() => setShowFullPlayer(false)}
+          showThumbs={!!activeSession}
+          onClose={closeFullPlayer}
+          onNavigate={dismissFullPlayerForNavigation}
           onPlayPause={handlePlayPause}
           onNext={handleNext}
           onPrevious={handlePrevious}
@@ -611,6 +662,7 @@ export function PlayerBar() {
           onToggleRepeat={handleToggleRepeat}
           onToggleKaraoke={handleToggleKaraoke}
           onOpenSleepTimer={() => setShowSleepModal(true)}
+          onOpenQueue={() => setShowQueue(true)}
           onSeek={handleSeek}
           onThumbsUp={handleThumbsUp}
           onThumbsDown={handleThumbsDown}

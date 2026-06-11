@@ -7,6 +7,7 @@ import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { NotFound } from '@/shared/ui/NotFound';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { BackLink } from '@/shared/ui/BackLink';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 
@@ -15,8 +16,18 @@ export function ArtistDetailPage() {
   const { getImageUrl } = useImageUrl();
   const playAlbum = usePlayerStore(state => state.playAlbum);
 
-  const { data: artist, isLoading: artistLoading } = useArtist(id);
-  const { data: albums = [], isLoading: albumsLoading } = useArtistAlbums(id);
+  const {
+    data: artist,
+    isLoading: artistLoading,
+    isError: artistError,
+    refetch: refetchArtist,
+  } = useArtist(id);
+  const {
+    data: albums = [],
+    isLoading: albumsLoading,
+    isError: albumsError,
+    refetch: refetchAlbums,
+  } = useArtistAlbums(id);
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     artist?.Id ?? '',
     artist?.ImageTags?.Primary
@@ -30,6 +41,21 @@ export function ArtistDetailPage() {
 
   if (isLoading) {
     return <LoadingSpinner />;
+  }
+
+  if (artistError || albumsError) {
+    return (
+      <div className="space-y-6 p-6">
+        <BackLink to="/artists" label="Back to Artists" />
+        <LoadErrorState
+          message="Couldn't load artist"
+          onRetry={() => {
+            if (artistError) void refetchArtist();
+            if (albumsError) void refetchAlbums();
+          }}
+        />
+      </div>
+    );
   }
 
   if (!artist) {

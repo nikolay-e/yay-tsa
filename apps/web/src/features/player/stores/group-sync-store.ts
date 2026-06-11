@@ -10,7 +10,7 @@ import {
 } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
-import { usePlayerStore } from './player.store';
+import { usePlayerStore, getPlayerEngineForSync } from './player.store';
 
 const DRIFT_CHECK_MS = 500;
 const DRIFT_DEAD_ZONE_MS = 30;
@@ -102,44 +102,31 @@ function startDriftCorrection(store: typeof useGroupSyncStore) {
     const { schedule, mode } = store.getState();
     if (mode !== 'group' || !schedule || schedule.isPaused || !serverClock) return;
 
-    const engine = (globalThis as Record<string, unknown>).__playerStore__ as
-      | {
-          readonly audioEngine: {
-            getCurrentTime: () => number;
-            seek: (s: number) => void;
-            setPlaybackRate?: (rate: number) => void;
-          } | null;
-        }
-      | undefined;
-    if (!engine?.audioEngine) return;
+    const engine = getPlayerEngineForSync();
+    if (!engine) return;
 
     const expectedMs = computeExpectedPosition(schedule, serverClock);
-    const actualMs = engine.audioEngine.getCurrentTime() * 1000;
+    const actualMs = engine.getCurrentTime() * 1000;
     const drift = actualMs - expectedMs;
 
     store.setState({ driftMs: Math.round(drift) });
 
     if (Math.abs(drift) < DRIFT_DEAD_ZONE_MS) {
-      if (engine.audioEngine.setPlaybackRate) {
-        engine.audioEngine.setPlaybackRate(1);
-      }
+      engine.setPlaybackRate?.(1);
       return;
     }
 
     const now = performance.now();
     if (Math.abs(drift) >= DRIFT_HARD_SEEK_MS) {
       if (now - lastHardSeekAt < HARD_SEEK_COOLDOWN_MS) return;
-      engine.audioEngine.seek(expectedMs / 1000);
+      engine.seek(expectedMs / 1000);
       lastHardSeekAt = now;
       log.player.warn('Hard seek drift correction', { driftMs: Math.round(drift) });
       return;
     }
 
     // Soft correction: adjust playbackRate ±2%
-    if (engine.audioEngine.setPlaybackRate) {
-      const rate = Math.max(0.98, Math.min(1.02, 1 - drift / 5000));
-      engine.audioEngine.setPlaybackRate(rate);
-    }
+    engine.setPlaybackRate?.(Math.max(0.98, Math.min(1.02, 1 - drift / 5000)));
   }, DRIFT_CHECK_MS);
 }
 
@@ -229,10 +216,10 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
 
   createGroup: async name => {
     const services = getServices();
-    if (!services) return;
+    if (!services) throw new Error('Not authenticated');
 
     const currentTrack = usePlayerStore.getState().currentTrack;
-    if (!currentTrack) return;
+    if (!currentTrack) throw new Error('Nothing is playing');
 
     try {
       await ensureClock();
@@ -257,12 +244,13 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
       log.player.info('Created group', { groupId: result.id, joinCode: result.joinCode });
     } catch (error) {
       log.player.error('Failed to create group', error);
+      throw error instanceof Error ? error : new Error(String(error));
     }
   },
 
   joinGroup: async joinCode => {
     const services = getServices();
-    if (!services) return;
+    if (!services) throw new Error('Not authenticated');
 
     try {
       await ensureClock();
@@ -288,6 +276,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
       log.player.info('Joined group', { groupId: snapshot.id });
     } catch (error) {
       log.player.error('Failed to join group', error);
+      throw error instanceof Error ? error : new Error(String(error));
     }
   },
 

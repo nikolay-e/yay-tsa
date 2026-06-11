@@ -4,6 +4,7 @@ import { FavoritesService } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
+import { toast } from '@/shared/ui/Toast';
 
 interface FavoriteToggleParams {
   itemId: string;
@@ -194,6 +195,7 @@ export function useFavoriteToggle() {
       }
       // Restore the player-owned copies (now-playing + queue) to their pre-click value.
       usePlayerStore.getState().patchTrackFavorite(variables.itemId, variables.isFavorite);
+      toast.add('error', 'Failed to update favorite — please try again');
     },
     onSettled: (_data, _error, variables) => {
       // Release the per-item lock (success or failure) so the heart becomes interactive again.

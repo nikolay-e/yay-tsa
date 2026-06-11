@@ -15,8 +15,8 @@ export function useDailyMix(limit = DEFAULT_LIMIT) {
       const service = new AdaptiveDjService(client);
       return service.getDailyMix(limit);
     },
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     enabled: !!client,
   });
 }

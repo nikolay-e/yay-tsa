@@ -10,6 +10,16 @@ function formatTimeText(time: number, total: number): string {
   return `${formatSeconds(time)} of ${formatSeconds(total)}`;
 }
 
+const KEYBOARD_SEEK_STEP_SECONDS = 5;
+
+function applySliderState(slider: HTMLInputElement, currentTime: number, duration: number): void {
+  slider.value = String(currentTime);
+  slider.max = String(duration || 1);
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  slider.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
+  slider.setAttribute('aria-valuetext', formatTimeText(currentTime, duration));
+}
+
 export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
   const sliderRef = useRef<HTMLInputElement>(null);
   const isDragging = useRef(false);
@@ -18,11 +28,7 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
   useLayoutEffect(() => {
     const apply = (currentTime: number, duration: number) => {
       if (!sliderRef.current || isDragging.current) return;
-      sliderRef.current.value = String(currentTime);
-      sliderRef.current.max = String(duration || 1);
-      const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-      sliderRef.current.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
-      sliderRef.current.setAttribute('aria-valuetext', formatTimeText(currentTime, duration));
+      applySliderState(sliderRef.current, currentTime, duration);
     };
 
     // Seed from the live store on mount so a remount (opening the full player, route change) shows
@@ -66,6 +72,32 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
     }
   };
 
+  const handlePointerCancel = () => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    pendingValue.current = null;
+    if (sliderRef.current) {
+      const { currentTime, duration } = useTimingStore.getState();
+      applySliderState(sliderRef.current, currentTime, duration);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    let direction = 0;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') direction = 1;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') direction = -1;
+    if (direction === 0) return;
+    e.preventDefault();
+    const input = e.currentTarget;
+    const max = Number.parseFloat(input.max) || 0;
+    const value = Math.min(
+      max,
+      Math.max(0, Number.parseFloat(input.value) + direction * KEYBOARD_SEEK_STEP_SECONDS)
+    );
+    input.value = String(value);
+    updateSliderVisual(value);
+  };
+
   const handleKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
       onSeek(Number.parseFloat(e.currentTarget.value));
@@ -84,6 +116,9 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
       onChange={handleChange}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onLostPointerCapture={handlePointerCancel}
+      onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
       aria-label="Seek"
       aria-valuetext="0:00 of 0:00"

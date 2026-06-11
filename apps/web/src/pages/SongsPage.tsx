@@ -1,10 +1,12 @@
-import { useState, useDeferredValue, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useInfiniteTracks, useSemanticSearch } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
+import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { cn } from '@/shared/utils/cn';
 import {
   usePlayerStore,
@@ -17,28 +19,37 @@ type SearchMode = 'text' | 'semantic';
 export function SongsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('text');
-  const deferredSearchTerm = useDeferredValue(searchTerm);
-  const isSearchPending = searchTerm !== deferredSearchTerm;
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+  const isSearchPending = searchTerm !== debouncedSearchTerm;
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const { selectedId, activeOption, select } = useSortPreference('songs');
 
-  const isSemanticActive = searchMode === 'semantic' && deferredSearchTerm.trim().length > 0;
+  const isSemanticActive = searchMode === 'semantic' && debouncedSearchTerm.trim().length > 0;
 
   const {
     data: semanticResults,
     isLoading: isSemanticLoading,
     isFetching: isSemanticFetching,
-  } = useSemanticSearch(deferredSearchTerm, isSemanticActive);
+  } = useSemanticSearch(debouncedSearchTerm, isSemanticActive);
 
-  const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
-    useInfiniteTracks({
-      searchTerm: isSemanticActive ? undefined : deferredSearchTerm.trim() || undefined,
-      sortBy: activeOption.sortBy,
-      sortOrder: activeOption.sortOrder,
-    });
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    isFetchingPreviousPage,
+    error,
+    hasNextPage,
+    hasPreviousPage,
+    fetchNextPage,
+    fetchPreviousPage,
+  } = useInfiniteTracks({
+    searchTerm: isSemanticActive ? undefined : debouncedSearchTerm.trim() || undefined,
+    sortBy: activeOption.sortBy,
+    sortOrder: activeOption.sortOrder,
+  });
 
   const textTracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
@@ -63,6 +74,15 @@ export function SongsPage() {
 
   const trackList = (
     <div className={cn((isSearchPending || isSemanticFetching) && 'opacity-60 transition-opacity')}>
+      {!isSemanticActive && (
+        <InfiniteScrollHeader
+          hasPreviousPage={hasPreviousPage}
+          isFetchingPreviousPage={isFetchingPreviousPage}
+          onLoadPrevious={() => {
+            fetchPreviousPage();
+          }}
+        />
+      )}
       <TrackList
         tracks={tracks}
         currentTrackId={currentTrack?.Id}

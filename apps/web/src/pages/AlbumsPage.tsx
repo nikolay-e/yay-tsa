@@ -1,26 +1,37 @@
-import { useState, useDeferredValue, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
+import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { cn } from '@/shared/utils/cn';
 
 export function AlbumsPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const deferredSearchTerm = useDeferredValue(searchTerm);
-  const isSearchPending = searchTerm !== deferredSearchTerm;
+  const debouncedSearchTerm = useDebouncedValue(searchTerm);
+  const isSearchPending = searchTerm !== debouncedSearchTerm;
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { selectedId, activeOption, select } = useSortPreference('albums');
 
-  const { data, isLoading, isFetchingNextPage, error, hasNextPage, fetchNextPage } =
-    useInfiniteAlbums({
-      searchTerm: deferredSearchTerm.trim() || undefined,
-      sortBy: activeOption.sortBy,
-      sortOrder: activeOption.sortOrder,
-    });
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    isFetchingPreviousPage,
+    error,
+    hasNextPage,
+    hasPreviousPage,
+    fetchNextPage,
+    fetchPreviousPage,
+  } = useInfiniteAlbums({
+    searchTerm: debouncedSearchTerm.trim() || undefined,
+    sortBy: activeOption.sortBy,
+    sortOrder: activeOption.sortOrder,
+  });
 
   const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
@@ -45,6 +56,13 @@ export function AlbumsPage() {
       data-testid="albums-content"
       data-pending={isSearchPending}
     >
+      <InfiniteScrollHeader
+        hasPreviousPage={hasPreviousPage}
+        isFetchingPreviousPage={isFetchingPreviousPage}
+        onLoadPrevious={() => {
+          fetchPreviousPage();
+        }}
+      />
       <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}

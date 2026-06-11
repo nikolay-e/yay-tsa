@@ -10,6 +10,7 @@ import { cn } from '@/shared/utils/cn';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { DownloadButton } from '@/features/offline';
 import { useOfflineStore, useIsOnline } from '@/features/offline/stores/offline.store';
+import { TrackRowMenu } from '@/features/player/components/TrackRowMenu';
 import { FavoriteButton } from './FavoriteButton';
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
@@ -89,6 +90,7 @@ const TrackImage = memo(
         <img
           src={displaySrc}
           alt={track.Name}
+          loading="lazy"
           className="h-full w-full object-cover"
           onError={onError}
         />
@@ -244,6 +246,10 @@ function TrackListRowImpl({
           !getIsFavorite(track) &&
             'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60'
         )}
+      />
+      <TrackRowMenu
+        track={track}
+        className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60"
       />
       <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>
     </div>

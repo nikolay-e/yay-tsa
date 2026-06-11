@@ -118,6 +118,57 @@ describe('MediaServerClient', () => {
     await expect(client.request('/Offline', { method: 'POST' }, 0)).rejects.toThrow(NetworkError);
   });
 
+  it('black-holed request aborts via per-attempt timeout and maps to NetworkError', async () => {
+    const slowClient = new MediaServerClient(SERVER_URL, CLIENT_INFO, { requestTimeoutMs: 50 });
+    fetchSpy.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = (init as RequestInit).signal;
+          signal?.addEventListener('abort', () => {
+            reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+          });
+        })
+    );
+
+    await expect(slowClient.request('/Hang', { method: 'POST' }, 0)).rejects.toThrow(NetworkError);
+    await expect(slowClient.request('/Hang2', { method: 'POST' }, 0)).rejects.toThrow(
+      /timed out after 50ms/
+    );
+  });
+
+  it('retry gets a fresh timeout signal per attempt', async () => {
+    const slowClient = new MediaServerClient(SERVER_URL, CLIENT_INFO, { requestTimeoutMs: 50 });
+    let calls = 0;
+    fetchSpy.mockImplementation((_url, init) => {
+      calls++;
+      if (calls === 1) {
+        return new Promise((_resolve, reject) => {
+          const signal = (init as RequestInit).signal;
+          signal?.addEventListener('abort', () => {
+            reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+          });
+        });
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+
+    const result = await slowClient.get('/Flaky');
+    expect(result).toEqual({ ok: true });
+    expect(calls).toBe(2);
+  });
+
+  it('empty HTTP/2 statusText falls back to a readable error message', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 500, statusText: '' }));
+
+    try {
+      await client.request('/Broken', { method: 'POST' }, 0);
+      expect.unreachable('should throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MediaServerError);
+      expect((err as MediaServerError).message).toBe('Request failed with status 500');
+    }
+  });
+
   it('idempotent GET retries on 502', async () => {
     fetchSpy
       .mockResolvedValueOnce(errorResponse(502, 'Bad Gateway'))

@@ -17,6 +17,7 @@ import type { DeviceInfo } from '@yay-tsa/core';
 import { getOrCreateDeviceId } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
+import { Modal } from '@/shared/ui/Modal';
 import { useDeviceStore } from '../stores/device-store';
 
 function deviceIcon(clientName: string | null) {
@@ -165,52 +166,67 @@ export function DevicesPanel({
     }
   }, [isOpen, fetchDevices]);
 
-  if (!isOpen) return null;
-
   const handleTransfer = async (sessionId: string) => {
-    await transferHere(sessionId);
+    try {
+      await transferHere(sessionId);
+    } catch {
+      toast.add('error', 'Transfer failed — try again');
+      return;
+    }
     toast.add('success', 'Playback transferred');
     onClose();
   };
 
-  return (
-    <div className="bg-bg-primary/80 fixed inset-0 z-50 flex items-end justify-center backdrop-blur-sm md:items-center">
-      <div className="bg-bg-secondary border-border w-full max-w-md rounded-t-2xl border p-4 md:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-text-primary text-lg font-semibold">My Devices</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary rounded-full p-1 transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+  const handleCommand = (sessionId: string, type: string, payload?: Record<string, unknown>) => {
+    sendCommand(sessionId, type, payload).catch(() => {
+      toast.add('error', 'Could not reach the device');
+    });
+  };
 
-        {isLoading && devices.length === 0 && (
-          <div className="flex justify-center py-8">
-            <Loader2 className="text-accent h-6 w-6 animate-spin" />
-          </div>
-        )}
-        {!isLoading && devices.length === 0 && (
-          <p className="text-text-tertiary py-8 text-center text-sm">No devices found</p>
-        )}
-        {devices.length > 0 && (
-          <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
-            {devices.map(device => (
-              <DeviceItem
-                key={device.sessionId}
-                device={device}
-                isCurrentDevice={device.deviceId === currentDeviceId}
-                commandPending={commandPending === device.sessionId}
-                onCommand={sendCommand}
-                onTransfer={handleTransfer}
-              />
-            ))}
-          </div>
-        )}
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabelledBy="devices-panel-title"
+      backdropClassName="bg-bg-primary/80 flex items-end justify-center backdrop-blur-sm md:items-center"
+      className="bg-bg-secondary border-border w-full max-w-md rounded-t-2xl border p-4 md:rounded-2xl"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <h2 id="devices-panel-title" className="text-text-primary text-lg font-semibold">
+          My Devices
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-text-secondary hover:text-text-primary rounded-full p-1 transition-colors"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
-    </div>
+
+      {isLoading && devices.length === 0 && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="text-accent h-6 w-6 animate-spin" />
+        </div>
+      )}
+      {!isLoading && devices.length === 0 && (
+        <p className="text-text-tertiary py-8 text-center text-sm">No devices found</p>
+      )}
+      {devices.length > 0 && (
+        <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+          {devices.map(device => (
+            <DeviceItem
+              key={device.sessionId}
+              device={device}
+              isCurrentDevice={device.deviceId === currentDeviceId}
+              commandPending={commandPending === device.sessionId}
+              onCommand={handleCommand}
+              onTransfer={handleTransfer}
+            />
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }

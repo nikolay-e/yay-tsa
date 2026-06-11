@@ -49,12 +49,13 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
 
   sendCommand: async (sessionId, type, payload) => {
     const service = getService();
-    if (!service) return;
+    if (!service) throw new Error('Not authenticated');
     set({ commandPending: sessionId });
     try {
       await service.sendCommand(sessionId, type, payload);
     } catch (error) {
       log.player.warn('Failed to send command', { error: String(error) });
+      throw error instanceof Error ? error : new Error(String(error));
     } finally {
       setTimeout(() => set({ commandPending: null }), 300);
     }
@@ -62,7 +63,7 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
 
   transferHere: async sourceSessionId => {
     const service = getService();
-    if (!service) return;
+    if (!service) throw new Error('Not authenticated');
     try {
       const payload = await service.transferPlayback(sourceSessionId);
       if (payload.trackId && payload.listeningSessionId) {
@@ -82,6 +83,7 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
       }
     } catch (error) {
       log.player.error('Transfer failed', error);
+      throw error instanceof Error ? error : new Error(String(error));
     }
   },
 

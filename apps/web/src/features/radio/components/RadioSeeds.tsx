@@ -2,6 +2,7 @@ import { Radio, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { RADIO_TEST_IDS } from '@/shared/testing/test-ids';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { useRadioSeeds } from '../hooks/useRadioSeeds';
 import { RadioSeedCard } from './RadioSeedCard';
 
@@ -35,7 +36,7 @@ function RadioRefreshButton() {
 }
 
 export function RadioSeeds() {
-  const { data, isLoading, isError } = useRadioSeeds();
+  const { data, isLoading, isError, refetch } = useRadioSeeds();
 
   if (isLoading) {
     return (
@@ -58,7 +59,24 @@ export function RadioSeeds() {
     );
   }
 
-  if (isError || !data?.seeds?.length) return null;
+  if (isError) {
+    return (
+      <div className="mb-4" data-testid={RADIO_TEST_IDS.SECTION}>
+        <div className="mb-2 flex items-center gap-2">
+          <Radio className="text-accent h-4 w-4" />
+          <h2 className="text-text-primary text-base font-semibold">Radio</h2>
+        </div>
+        <LoadErrorState
+          message="Couldn't load radio stations"
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!data?.seeds?.length) return null;
 
   return (
     <div className="mb-4" data-testid={RADIO_TEST_IDS.SECTION}>

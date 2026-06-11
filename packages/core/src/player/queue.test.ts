@@ -251,6 +251,37 @@ describe('PlaybackQueue', () => {
     it('peekNext returns current item', () => {
       expect(queue.peekNext()?.Id).toBe('t2');
     });
+
+    it('manual next advances to the following track instead of repeating', () => {
+      expect(queue.next({ manual: true })?.Id).toBe('t3');
+      expect(queue.getCurrentIndex()).toBe(2);
+    });
+
+    it('manual next on the last track wraps to the first', () => {
+      queue.jumpTo(2);
+      expect(queue.next({ manual: true })?.Id).toBe('t1');
+      expect(queue.getCurrentIndex()).toBe(0);
+    });
+
+    it('manual previous steps back instead of repeating', () => {
+      expect(queue.previous({ manual: true })?.Id).toBe('t1');
+      expect(queue.getCurrentIndex()).toBe(0);
+    });
+
+    it('manual peekNext shows the following track without advancing', () => {
+      expect(queue.peekNext({ manual: true })?.Id).toBe('t3');
+      expect(queue.getCurrentIndex()).toBe(1);
+    });
+
+    it('manual peekNext on the last track wraps to the first', () => {
+      queue.jumpTo(2);
+      expect(queue.peekNext({ manual: true })?.Id).toBe('t1');
+    });
+
+    it('auto next keeps repeating the current track', () => {
+      expect(queue.next()?.Id).toBe('t2');
+      expect(queue.getCurrentIndex()).toBe(1);
+    });
   });
 
   describe('empty queue operations', () => {
@@ -290,12 +321,23 @@ describe('PlaybackQueue', () => {
       expect(ids).toEqual(originalIds);
     });
 
-    it('current track stays at current index', () => {
+    it('enabling shuffle moves current track to the front so the rest of the queue follows', () => {
       queue.setQueue(tracks(10), 3);
       const currentBefore = queue.getCurrentItem()?.Id;
       queue.setShuffleMode('on');
       expect(queue.getCurrentItem()?.Id).toBe(currentBefore);
-      expect(queue.getCurrentIndex()).toBe(3);
+      expect(queue.getCurrentIndex()).toBe(0);
+    });
+
+    it('enabling shuffle on the last track keeps a full queue ahead', () => {
+      queue.setQueue(tracks(10), 9);
+      queue.setRepeatMode('off');
+      queue.setShuffleMode('on');
+      expect(queue.getCurrentIndex()).toBe(0);
+      expect(queue.peekNext()).not.toBeNull();
+      let advanced = 0;
+      while (queue.next() !== null) advanced++;
+      expect(advanced).toBe(9);
     });
 
     it('disable restores original order', () => {
@@ -324,6 +366,45 @@ describe('PlaybackQueue', () => {
       queue.setShuffleMode('off');
       const ids = queue.getAllItems().map(i => i.Id);
       expect(ids).toContain('new');
+    });
+
+    it('repeat-all wrap reshuffles into a fresh cycle without an immediate repeat', () => {
+      queue.setQueue(tracks(20));
+      queue.setShuffleMode('on');
+      queue.setRepeatMode('all');
+
+      for (let i = 0; i < 19; i++) queue.next();
+      const lastPlayedId = queue.getCurrentItem()?.Id;
+      expect(queue.getCurrentIndex()).toBe(19);
+
+      const wrapped = queue.next();
+      expect(queue.getCurrentIndex()).toBe(0);
+      expect(wrapped?.Id).not.toBe(lastPlayedId);
+
+      const idsAfterWrap = queue
+        .getAllItems()
+        .map(i => i.Id)
+        .sort((a, b) => a.localeCompare(b));
+      const originalIds = tracks(20)
+        .map(i => i.Id)
+        .sort((a, b) => a.localeCompare(b));
+      expect(idsAfterWrap).toEqual(originalIds);
+    });
+  });
+
+  describe('duplicate track ids', () => {
+    it('removeAt with duplicate ids keeps items and originalOrder consistent', () => {
+      const dup = track('a');
+      queue.setQueue([dup, track('b'), { ...dup }], 0);
+      const removed = queue.removeAt(2);
+      expect(removed?.Id).toBe('a');
+      expect(queue.getLength()).toBe(2);
+      const ids = queue.getAllItems().map(i => i.Id);
+      expect(ids).toContain('a');
+      expect(ids).toContain('b');
+      queue.setShuffleMode('on');
+      queue.setShuffleMode('off');
+      expect(queue.getAllItems()).toHaveLength(2);
     });
   });
 

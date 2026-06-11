@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { useAuthStore, SESSION_EXPIRED_FLAG } from '@/features/auth/stores/auth.store';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { cn } from '@/shared/utils/cn';
 
@@ -11,6 +11,15 @@ export function LoginPage() {
   // installed PWA keep the user signed in. Unchecking opts into a tab-scoped session.
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
+  const [sessionExpired] = useState(() => {
+    try {
+      const expired = sessionStorage.getItem(SESSION_EXPIRED_FLAG) === '1';
+      if (expired) sessionStorage.removeItem(SESSION_EXPIRED_FLAG);
+      return expired;
+    } catch {
+      return false;
+    }
+  });
 
   const login = useAuthStore(state => state.login);
   const isLoading = useAuthStore(state => state.isLoading);
@@ -49,6 +58,14 @@ export function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {sessionExpired && !error && (
+            <div
+              data-testid="session-expired-banner"
+              className="bg-warning/10 border-warning/20 text-warning rounded-md border p-4 text-sm"
+            >
+              Session expired — please sign in again
+            </div>
+          )}
           {error && (
             <div className="bg-error/10 border-error/20 text-error rounded-md border p-4 text-sm">
               {error}

@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
@@ -14,9 +14,7 @@ const certPath = path.resolve(__dirname, '../../.certs/cert.pem');
 const keyPath = path.resolve(__dirname, '../../.certs/key.pem');
 const httpsEnabled = fs.existsSync(certPath) && fs.existsSync(keyPath);
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-
+export default defineConfig(() => {
   return {
     envPrefix: ['VITE_', 'YAYTSA_'],
     plugins: [
@@ -27,7 +25,7 @@ export default defineConfig(({ mode }) => {
       }),
       VitePWA({
         strategies: 'generateSW',
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           // Offline audio is served from IndexedDB by this imported handler, keeping the
@@ -43,7 +41,7 @@ export default defineConfig(({ mode }) => {
               urlPattern: ({ request }) => request.mode === 'navigate',
               handler: 'NetworkFirst',
               options: {
-                cacheName: `yaytsa-navigation-${env.VITE_APP_VERSION || 'dev'}`,
+                cacheName: 'yaytsa-navigation',
                 networkTimeoutSeconds: 10,
               },
             },
@@ -52,7 +50,7 @@ export default defineConfig(({ mode }) => {
                 url.pathname.includes('/Items/') && url.pathname.includes('/Images/'),
               handler: 'StaleWhileRevalidate',
               options: {
-                cacheName: `yaytsa-images-${env.VITE_APP_VERSION || 'dev'}`,
+                cacheName: 'yaytsa-images',
                 expiration: {
                   maxEntries: 500,
                   maxAgeSeconds: 30 * 24 * 60 * 60,
@@ -66,8 +64,10 @@ export default defineConfig(({ mode }) => {
             // (IndexedDB-with-Range when downloaded, network otherwise).
           ],
           cleanupOutdatedCaches: true,
-          skipWaiting: true,
-          clientsClaim: true,
+          // Prompt-driven updates: the waiting SW takes over only when the user
+          // accepts the in-app update prompt, never mid-playback.
+          skipWaiting: false,
+          clientsClaim: false,
         },
         manifest: false,
         devOptions: {
