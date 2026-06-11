@@ -117,7 +117,7 @@ export function AlbumDetailPage() {
         <div className="flex flex-col justify-end space-y-4">
           <div>
             <h1 data-testid="album-detail-title" className="text-text-primary text-3xl font-bold">
-              {album.Name}
+              {album.Name?.trim() || 'Unknown Album'}
             </h1>
             <p className="text-text-secondary text-lg">{artistName}</p>
             <p className="text-text-tertiary text-sm">

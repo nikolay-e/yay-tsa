@@ -12,7 +12,7 @@ export function LoadErrorState({ message, onRetry, className }: LoadErrorStatePr
       data-testid="load-error"
       className={cn('flex flex-col items-center justify-center gap-3 py-8', className)}
     >
-      <p className="text-text-secondary text-sm">{message}</p>
+      <h1 className="text-text-primary text-lg font-semibold">{message}</h1>
       <button
         type="button"
         onClick={onRetry}

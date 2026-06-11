@@ -90,7 +90,7 @@ export function ArtistDetailPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 data-testid="artist-detail-name" className="text-text-primary text-3xl font-bold">
-                {artist.Name}
+                {artist.Name?.trim() || 'Unknown Artist'}
               </h1>
               <FavoriteButton
                 itemId={artist.Id}
