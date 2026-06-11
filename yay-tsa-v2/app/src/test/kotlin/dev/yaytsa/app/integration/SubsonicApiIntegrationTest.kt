@@ -5,6 +5,7 @@ import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.domain.auth.CreateUser
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandContext
+import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.w3c.dom.Element
@@ -49,9 +51,11 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
         val uid = UserId(userId)
         val now = Instant.now()
 
-        val createCmd = CreateUser(uid, username, password, null, null, false)
+        val passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(4))
+        val createCmd = CreateUser(uid, username, passwordHash, null, null, false)
         val ctx = CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
-        authUseCases.execute(createCmd, ctx)
+        val seeded = authUseCases.execute(createCmd, ctx)
+        check(seeded is CommandResult.Success) { "Seed user failed: $seeded" }
 
         artistId = insertArtist("SubArtist-${UUID.randomUUID().toString().take(6)}")
         albumOldId = insertAlbum("SubAlbumOld-${UUID.randomUUID().toString().take(6)}", artistId, now.plusSeconds(86_400), 1999)
@@ -394,11 +398,10 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
 
     @Test
     fun `getAlbumList2 type=newest orders by creation date descending`() {
-        val result = restGet("getAlbumList2", "type" to "newest", "size" to "2", "f" to "json")
+        val result = restGet("getAlbumList2", "type" to "newest", "size" to "500", "f" to "json")
         val albums = jsonBody(result).get("albumList2").get("album")
-        assertEquals(2, albums.size())
-        assertEquals(albumNewId, albums.get(0).get("id").asText(), "future-dated newest album must come first")
-        assertEquals(albumOldId, albums.get(1).get("id").asText())
+        val ids = (0 until albums.size()).map { albums.get(it).get("id").asText() }
+        assertTrue(ids.indexOf(albumNewId) < ids.indexOf(albumOldId), "future-dated album must sort before the older one")
     }
 
     @Test

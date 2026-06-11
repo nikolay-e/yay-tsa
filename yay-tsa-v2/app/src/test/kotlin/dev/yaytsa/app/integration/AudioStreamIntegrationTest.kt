@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpHeaders
+import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import java.nio.file.Files
@@ -40,7 +41,7 @@ class AudioStreamIntegrationTest : HttpIntegrationTestBase() {
         val uid = UserId(userId)
         val now = Instant.now()
         authUseCases.execute(
-            CreateUser(uid, username, "testpassword", "Test", null, false),
+            CreateUser(uid, username, BCrypt.hashpw("testpassword", BCrypt.gensalt(4)), "Test", null, false),
             CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL),
         )
         authUseCases.execute(
