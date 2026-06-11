@@ -16,8 +16,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpHeaders
-import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import java.nio.file.Files
 import java.time.Instant
