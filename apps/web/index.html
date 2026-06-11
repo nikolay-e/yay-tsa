@@ -16,6 +16,30 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Yay-Tsa</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0f0f0f;
+      }
+      #root:empty::before {
+        content: 'Yay-Tsa';
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #a3a3a3;
+        font: 600 1.5rem/1 system-ui, sans-serif;
+        letter-spacing: 0.2em;
+        animation: splash-pulse 1.2s ease-in-out 0.4s infinite alternate;
+      }
+      @keyframes splash-pulse {
+        to {
+          color: #525252;
+        }
+      }
+    </style>
     <script src="/config.js"></script>
   </head>
   <body>
