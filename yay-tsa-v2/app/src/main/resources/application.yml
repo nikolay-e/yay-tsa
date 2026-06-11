@@ -133,7 +133,7 @@ bucket4j:
       rate-limits:
         - cache-key: getRemoteAddr() + ':' + getRequestURI()
           bandwidths:
-            - capacity: 10
+            - capacity: 300
               time: 1
               unit: minutes
               refill-speed: interval
