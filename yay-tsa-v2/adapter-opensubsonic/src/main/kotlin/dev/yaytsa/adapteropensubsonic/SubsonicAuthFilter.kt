@@ -1,5 +1,7 @@
 package dev.yaytsa.adapteropensubsonic
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.shared.UserId
 import jakarta.servlet.FilterChain
@@ -7,13 +9,24 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.AbstractAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import java.security.MessageDigest
+import java.time.Duration
 
 @Component
 class SubsonicAuthFilter(
     private val authQueries: AuthQueries,
+    private val responseWriter: SubsonicResponseWriter,
 ) : OncePerRequestFilter() {
+    private val verifiedCredentials: Cache<String, UserId> =
+        Caffeine
+            .newBuilder()
+            .expireAfterWrite(Duration.ofSeconds(60))
+            .maximumSize(10_000)
+            .build()
+
     override fun shouldNotFilter(request: HttpServletRequest): Boolean = !request.requestURI.startsWith("/rest/")
 
     override fun doFilterInternal(
@@ -26,68 +39,75 @@ class SubsonicAuthFilter(
         val salt = request.getParameter("s")
         val password = request.getParameter("p")
 
-        if (username == null) {
-            filterChain.doFilter(request, response)
-            return
-        }
-
-        val user = authQueries.findByUsername(username)
-        if (user != null && user.isActive) {
-            val authenticated =
-                when {
-                    // Password mode: p=plaintext or p=enc:hex-encoded password
-                    password != null -> {
-                        val plain =
-                            if (password.startsWith("enc:")) {
-                                decodeHex(password.removePrefix("enc:"))
-                            } else {
-                                password
-                            }
-                        verifyPassword(plain, user.passwordHash)
-                    }
-                    // Token mode: t=md5(password+s) — cannot verify against bcrypt hash.
-                    // Would require a separate subsonic-specific plaintext password per user.
-                    token != null && salt != null -> false
-                    else -> false
+        when {
+            username == null || (password == null && (token == null || salt == null)) ->
+                reject(request, response, 10, "Required authentication parameter is missing")
+            password == null ->
+                reject(request, response, 41, "Token authentication is not supported for this user, use password authentication")
+            else -> {
+                val userId = authenticate(username, password)
+                if (userId == null) {
+                    reject(request, response, 40, "Wrong username or password")
+                } else {
+                    SecurityContextHolder.getContext().authentication = SubsonicAuthentication(userId, username)
+                    filterChain.doFilter(request, response)
                 }
-            if (authenticated) {
-                SecurityContextHolder.getContext().authentication =
-                    SubsonicAuthentication(user.id, username)
             }
         }
-        filterChain.doFilter(request, response)
     }
 
-    /**
-     * Verify a plaintext password against the stored hash.
-     * Supports bcrypt hashes (prefix `$2a$`, `$2b$`, `$2y$`) and legacy MD5 hashes.
-     */
-    private fun verifyPassword(
+    private fun reject(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        code: Int,
+        message: String,
+    ) {
+        responseWriter.writeTo(response, error(code, message), request.getParameter("f"), request.getParameter("callback"))
+    }
+
+    private fun authenticate(
+        username: String,
+        password: String,
+    ): UserId? {
+        val plaintext =
+            if (password.startsWith("enc:")) {
+                decodeHex(password.removePrefix("enc:")) ?: return null
+            } else {
+                password
+            }
+        val cacheKey = sha256("$username:$plaintext")
+        verifiedCredentials.getIfPresent(cacheKey)?.let { return it }
+
+        val user = authQueries.findByUsername(username) ?: return null
+        if (!user.isActive) return null
+        if (!verifyBcrypt(plaintext, user.passwordHash)) return null
+        verifiedCredentials.put(cacheKey, user.id)
+        return user.id
+    }
+
+    private fun verifyBcrypt(
         plaintext: String,
         storedHash: String,
     ): Boolean =
-        when {
-            storedHash.startsWith("\$2a\$") ||
-                storedHash.startsWith("\$2b\$") ||
-                storedHash.startsWith("\$2y\$") ->
-                try {
-                    org.springframework.security.crypto.bcrypt.BCrypt
-                        .checkpw(plaintext, storedHash)
-                } catch (_: IllegalArgumentException) {
-                    false
-                }
-            else -> md5(plaintext) == storedHash || plaintext == storedHash
+        try {
+            BCrypt.checkpw(plaintext, storedHash)
+        } catch (_: IllegalArgumentException) {
+            false
         }
 
-    private fun decodeHex(hex: String): String {
-        val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-        return String(bytes, Charsets.UTF_8)
+    private fun decodeHex(hex: String): String? {
+        if (hex.length % 2 != 0) return null
+        return try {
+            val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            String(bytes, Charsets.UTF_8)
+        } catch (_: NumberFormatException) {
+            null
+        }
     }
 
-    private fun md5(input: String): String {
-        val digest = java.security.MessageDigest.getInstance("MD5")
-        val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
-        return hash.joinToString("") { "%02x".format(it) }
+    private fun sha256(input: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        return digest.digest(input.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
 }
 

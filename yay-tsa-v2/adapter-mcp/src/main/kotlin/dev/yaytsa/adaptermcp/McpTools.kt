@@ -148,9 +148,11 @@ class McpTools(
 
     fun executeTool(
         name: String,
-        args: Map<String, Any?>,
-    ): McpToolResult =
-        when (name) {
+        clientArgs: Map<String, Any?>,
+        authenticatedUserId: String,
+    ): McpToolResult {
+        val args = clientArgs + mapOf("user_id" to authenticatedUserId)
+        return when (name) {
             "search_library" -> searchLibrary(args["query"] as? String ?: "")
             "get_playback_state" -> getPlaybackState(args)
             "play" -> playbackCommand(args) { _, sid, did -> Play(sid, did, null) }
@@ -162,6 +164,7 @@ class McpTools(
             "list_playlists" -> listPlaylists(args)
             else -> errorResult("Unknown tool: $name")
         }
+    }
 
     private fun searchLibrary(query: String): McpToolResult {
         val results = libraryQueries.searchText(query, 20, 0)

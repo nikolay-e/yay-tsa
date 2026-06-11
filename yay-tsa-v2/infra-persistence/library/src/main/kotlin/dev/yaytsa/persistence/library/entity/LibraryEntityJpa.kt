@@ -23,17 +23,17 @@ class LibraryEntityJpa(
     @Column(name = "source_path", unique = true)
     var sourcePath: String? = null,
     @Column(length = 50)
-    val container: String? = null,
+    var container: String? = null,
     @Column(name = "size_bytes")
-    val sizeBytes: Long? = null,
-    val mtime: OffsetDateTime? = null,
+    var sizeBytes: Long? = null,
+    var mtime: OffsetDateTime? = null,
     @Column(name = "library_root")
     var libraryRoot: String? = null,
     val overview: String? = null,
     @Column(name = "search_text")
-    val searchText: String? = null,
+    var searchText: String? = null,
     @Column(name = "created_at")
     val createdAt: OffsetDateTime? = null,
     @Column(name = "updated_at")
-    val updatedAt: OffsetDateTime? = null,
+    var updatedAt: OffsetDateTime? = null,
 )

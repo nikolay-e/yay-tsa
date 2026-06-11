@@ -68,9 +68,21 @@ class JellyfinAuthController(
         val tokenId = ApiTokenId(UUID.randomUUID().toString())
         val deviceId = DeviceId("web-${UUID.randomUUID().toString().take(8)}")
 
-        val cmd = CreateApiToken(user.id, tokenId, tokenValue, deviceId, "Web Browser", null)
-        val ctx = ctxFactory.create(user.id, user.version)
-        authUseCases.execute(cmd, ctx)
+        var tokenPersisted = false
+        repeat(2) { attempt ->
+            if (tokenPersisted) return@repeat
+            val freshUser =
+                if (attempt == 0) user else authQueries.findByUsername(request.username) ?: user
+            val cmd = CreateApiToken(freshUser.id, tokenId, tokenValue, deviceId, "Web Browser", null)
+            val ctx = ctxFactory.create(freshUser.id, freshUser.version)
+            when (val result = authUseCases.execute(cmd, ctx)) {
+                is CommandResult.Success -> tokenPersisted = true
+                is CommandResult.Failed -> log.warn("CreateApiToken attempt {} failed for user {}: {}", attempt + 1, freshUser.id.value, result.failure)
+            }
+        }
+        if (!tokenPersisted) {
+            return problemDetail(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", "Could not create session token, please retry")
+        }
 
         return ResponseEntity.ok(
             AuthResponse(

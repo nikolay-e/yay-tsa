@@ -13,9 +13,9 @@ spec:
   selector:
     matchLabels:
       {{- include "yay-tsa-v2.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: backend
+      app.kubernetes.io/component: backend-management
   endpoints:
-    - port: http
+    - port: management
       path: /manage/prometheus
       interval: {{ .Values.backend.serviceMonitor.interval | default "30s" }}
       scrapeTimeout: {{ .Values.backend.serviceMonitor.scrapeTimeout | default "10s" }}

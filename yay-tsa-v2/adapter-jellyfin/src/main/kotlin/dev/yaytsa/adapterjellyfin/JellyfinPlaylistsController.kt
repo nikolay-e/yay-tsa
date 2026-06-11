@@ -110,20 +110,19 @@ class JellyfinPlaylistsController(
         @PathVariable playlistId: String,
         @RequestParam(name = "UserId", required = false) userId: String?,
         @RequestParam(name = "StartIndex", required = false, defaultValue = "0") startIndex: Int,
-        @RequestParam(name = "Limit", required = false, defaultValue = "100") limit: Int,
+        @RequestParam(name = "Limit", required = false, defaultValue = "100") limitParam: Int,
         principal: Principal?,
     ): ResponseEntity<Any> {
         if (!isValidUuid(playlistId)) return ResponseEntity.badRequest().build()
+        if (userId != null && userId != principal?.name) return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build()
         val playlist =
             playlistQueries.find(PlaylistId(playlistId))
                 ?: return ResponseEntity.notFound().build()
 
-        val uid = userId ?: principal?.name
+        val uid = principal?.name
         val favTrackIds =
             if (uid != null) {
-                (preferencesQueries.find(UserId(uid))?.favorites ?: emptyList())
-                    .map { it.trackId.value }
-                    .toSet()
+                preferencesQueries.findFavoriteTrackIds(UserId(uid))
             } else {
                 emptySet()
             }
@@ -131,7 +130,7 @@ class JellyfinPlaylistsController(
         val items =
             playlist.tracks
                 .drop(startIndex)
-                .take(limit)
+                .take(limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE))
                 .mapIndexedNotNull { relativeIndex, entry ->
                     libraryQueries.getTrack(EntityId(entry.trackId.value))?.let { track ->
                         BaseItem(

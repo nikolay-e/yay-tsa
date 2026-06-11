@@ -12,6 +12,7 @@ import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -36,7 +37,8 @@ class JellyfinFavoritesController(
         @RequestParam(required = false) userId: String?,
         principal: Principal,
     ): ResponseEntity<Void> {
-        val uid = UserId(userId ?: principal.name)
+        if (userId != null && userId != principal.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        val uid = UserId(principal.name)
         val prefs =
             preferencesQueries.find(uid) ?: dev.yaytsa.domain.preferences.UserPreferencesAggregate
                 .empty(uid)
@@ -51,7 +53,8 @@ class JellyfinFavoritesController(
         @RequestParam(required = false) userId: String?,
         principal: Principal,
     ): ResponseEntity<Void> {
-        val uid = UserId(userId ?: principal.name)
+        if (userId != null && userId != principal.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        val uid = UserId(principal.name)
         val prefs =
             preferencesQueries.find(uid) ?: dev.yaytsa.domain.preferences.UserPreferencesAggregate
                 .empty(uid)
@@ -61,17 +64,18 @@ class JellyfinFavoritesController(
     }
 
     data class FavoriteOrderRequest(
-        val UserId: String,
+        val UserId: String? = null,
         val ItemIds: List<String>,
     )
 
     @PostMapping("/Items/FavoriteOrder")
     fun reorderFavorites(
         @RequestBody request: FavoriteOrderRequest,
+        principal: Principal,
     ): ResponseEntity<Void> {
-        require(request.UserId.isNotBlank()) { "UserId is required" }
+        if (request.UserId != null && request.UserId != principal.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         request.ItemIds.forEach { require(it.isNotBlank()) { "ItemIds must not contain blank values" } }
-        val uid = UserId(request.UserId)
+        val uid = UserId(principal.name)
         val prefs =
             preferencesQueries.find(uid) ?: dev.yaytsa.domain.preferences.UserPreferencesAggregate
                 .empty(uid)

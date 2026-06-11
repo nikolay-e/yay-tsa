@@ -35,6 +35,26 @@ class LibraryQueries(
         offset: Int,
     ): List<Album> = libraryQuery.browseAlbums(limit, offset)
 
+    fun browseAlbumsByCreatedDesc(
+        limit: Int,
+        offset: Int,
+    ): List<Album> = libraryQuery.browseAlbumsByCreatedDesc(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+
+    fun browseAlbumsRandom(limit: Int): List<Album> = libraryQuery.browseAlbumsRandom(limit.coerceIn(1, MAX_PAGE_SIZE))
+
+    fun browseAlbumsByYearRange(
+        fromYear: Int,
+        toYear: Int,
+        limit: Int,
+        offset: Int,
+    ): List<Album> = libraryQuery.browseAlbumsByYearRange(fromYear, toYear, limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+
+    fun browseAlbumsByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Album> = libraryQuery.browseAlbumsByGenre(genre, limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+
     fun browseAlbumsByArtist(artistId: EntityId): List<Album> = libraryQuery.browseAlbumsByArtist(artistId)
 
     fun browseTracksByAlbum(albumId: EntityId): List<Track> = libraryQuery.browseTracksByAlbum(albumId)
@@ -90,9 +110,21 @@ class LibraryQueries(
     fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int> =
         if (artistIds.isEmpty()) emptyMap() else libraryQuery.countAlbumsByArtistIds(artistIds)
 
-    fun browseArtistsGroupedByLetter(): Map<String, List<Artist>> =
-        libraryQuery
-            .browseArtists(500, 0)
-            .groupBy { (it.sortName ?: it.name).first().uppercaseChar().toString() }
-            .toSortedMap()
+    fun browseArtistsGroupedByLetter(): Map<String, List<Artist>> = browseAllArtists().groupBy { indexLetter(it) }.toSortedMap()
+
+    private fun browseAllArtists(): List<Artist> {
+        val all = mutableListOf<Artist>()
+        var offset = 0
+        while (true) {
+            val page = libraryQuery.browseArtists(MAX_PAGE_SIZE, offset)
+            all += page
+            if (page.size < MAX_PAGE_SIZE) return all
+            offset += MAX_PAGE_SIZE
+        }
+    }
+
+    private fun indexLetter(artist: Artist): String {
+        val first = (artist.sortName ?: artist.name).trim().firstOrNull() ?: return "#"
+        return if (first.isLetter()) first.uppercaseChar().toString() else "#"
+    }
 }

@@ -45,8 +45,9 @@ class JellyfinMediaController(
             libraryQueries.getPrimaryImage(EntityId(itemId))
                 ?: return ResponseEntity.notFound().build()
 
-        val filePath = Path.of(image.path)
-        if (!Files.exists(filePath)) return ResponseEntity.notFound().build()
+        val filePath =
+            MediaPathSafety.resolveServableFile(Path.of(image.path), safeRoot)
+                ?: return ResponseEntity.notFound().build()
 
         val acceptWebp = accept?.contains("image/webp", ignoreCase = true) == true
         val rendered = thumbnails.render(filePath, maxWidth, maxHeight, quality, acceptWebp)

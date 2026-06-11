@@ -7,4 +7,6 @@ interface KaraokeQueryPort {
     fun getAsset(trackId: TrackId): KaraokeAsset?
 
     fun getReadyTrackIds(): Set<TrackId>
+
+    fun requeueFailed(trackId: TrackId): Boolean
 }

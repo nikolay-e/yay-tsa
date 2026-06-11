@@ -3,6 +3,16 @@ spring:
     hibernate:
       ddl-auto: validate
 
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
   datasource:
     hikari:
       maximum-pool-size: ${HIKARI_MAX_POOL:10}

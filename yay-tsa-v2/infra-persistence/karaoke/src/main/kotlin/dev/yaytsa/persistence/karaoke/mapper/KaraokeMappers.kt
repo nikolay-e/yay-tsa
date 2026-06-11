@@ -12,5 +12,7 @@ object KaraokeMappers {
             vocalPath = entity.vocalPath,
             lyricsTiming = entity.lyricsTiming,
             readyAt = entity.readyAt,
+            failCount = entity.failCount,
+            lastError = entity.lastError,
         )
 }

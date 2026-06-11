@@ -5,10 +5,12 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.SmartLifecycle
 import org.springframework.stereotype.Component
 import java.io.BufferedReader
+import java.io.BufferedWriter
 import java.io.InputStreamReader
-import java.io.PrintWriter
+import java.io.OutputStreamWriter
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
@@ -59,16 +61,30 @@ class MpdTcpServer(
 
     override fun isRunning(): Boolean = running.get()
 
-    private fun blockingIdle(reader: BufferedReader): String {
-        val initialToken = commandHandler.currentStateToken()
+    private fun changedSubsystems(
+        initial: MpdCommandHandler.SubsystemSnapshot,
+        current: MpdCommandHandler.SubsystemSnapshot,
+        subsystemFilter: Set<String>,
+    ): List<String> =
+        buildList {
+            if (current.playlistVersion != initial.playlistVersion) add("playlist")
+            if (current.playerToken != initial.playerToken) add("player")
+        }.filter { subsystemFilter.isEmpty() || it in subsystemFilter }
+
+    private fun blockingIdle(
+        reader: BufferedReader,
+        subsystemFilter: Set<String>,
+    ): String {
+        val initial = commandHandler.observeSubsystems()
         val deadline = System.currentTimeMillis() + IDLE_MAX_BLOCK.inWholeMilliseconds
         while (running.get() && System.currentTimeMillis() < deadline) {
             if (reader.ready()) {
                 val pending = reader.readLine()?.trim()
                 return if (pending == "noidle") "OK\n" else commandHandler.handle(pending ?: "")
             }
-            if (commandHandler.currentStateToken() != initialToken) {
-                return "changed: player\nOK\n"
+            val changed = changedSubsystems(initial, commandHandler.observeSubsystems(), subsystemFilter)
+            if (changed.isNotEmpty()) {
+                return changed.joinToString("") { "changed: $it\n" } + "OK\n"
             }
             try {
                 Thread.sleep(IDLE_POLL_INTERVAL.inWholeMilliseconds)
@@ -80,12 +96,36 @@ class MpdTcpServer(
         return "OK\n"
     }
 
+    private fun runCommandList(
+        batch: List<String>,
+        okMode: Boolean,
+    ): String {
+        // MPD protocol: emit each sub-command's payload (not just ACKs), with a
+        // `list_OK` separator after each in ok-mode, and a single terminating OK.
+        // On failure the ACK offset carries the failing command's index in the list.
+        val sb = StringBuilder()
+        var failed = false
+        for ((index, cmd) in batch.withIndex()) {
+            val result = commandHandler.handle(cmd, index)
+            if (result.startsWith("ACK")) {
+                sb.append(result)
+                failed = true
+                break
+            }
+            sb.append(result.removeSuffix("OK\n"))
+            if (okMode) sb.append("list_OK\n")
+        }
+        if (!failed) sb.append("OK\n")
+        return sb.toString()
+    }
+
     private fun handleClient(socket: Socket) {
         try {
             socket.use { s ->
-                val reader = BufferedReader(InputStreamReader(s.getInputStream()))
-                val writer = PrintWriter(s.getOutputStream(), true)
-                writer.println("OK MPD 0.23.5")
+                val reader = BufferedReader(InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8))
+                val writer = BufferedWriter(OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8))
+                writer.write("OK MPD 0.23.5\n")
+                writer.flush()
                 var commandList: MutableList<String>? = null
                 var commandListOkMode = false
                 while (running.get()) {
@@ -101,34 +141,25 @@ class MpdTcpServer(
                         trimmed == "command_list_end" -> {
                             val batch = commandList ?: continue
                             commandList = null
-                            // MPD protocol: emit each sub-command's payload (not just ACKs), with a
-                            // `list_OK` separator after each in ok-mode, and a single terminating OK.
-                            val sb = StringBuilder()
-                            var failed = false
-                            for (cmd in batch) {
-                                val result = commandHandler.handle(cmd)
-                                if (result.startsWith("ACK")) {
-                                    sb.append(result)
-                                    failed = true
-                                    break
-                                }
-                                sb.append(result.removeSuffix("OK\n"))
-                                if (commandListOkMode) sb.append("list_OK\n")
-                            }
-                            if (!failed) sb.append("OK\n")
-                            writer.print(sb)
+                            writer.write(runCommandList(batch, commandListOkMode))
                             writer.flush()
                         }
                         commandList != null -> {
                             commandList.add(trimmed)
                         }
                         trimmed == "idle" || trimmed.startsWith("idle ") -> {
-                            writer.print(blockingIdle(reader))
+                            val subsystemFilter =
+                                trimmed
+                                    .removePrefix("idle")
+                                    .trim()
+                                    .split(' ')
+                                    .filter { it.isNotBlank() }
+                                    .toSet()
+                            writer.write(blockingIdle(reader, subsystemFilter))
                             writer.flush()
                         }
                         else -> {
-                            val response = commandHandler.handle(trimmed)
-                            writer.print(response)
+                            writer.write(commandHandler.handle(trimmed))
                             writer.flush()
                         }
                     }

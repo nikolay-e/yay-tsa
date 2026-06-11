@@ -72,6 +72,7 @@ yaytsa:
     output-path: ${KARAOKE_OUTPUT_PATH:#{null}}
     demucs-command: ${DEMUCS_COMMAND:demucs}
     separator-url: ${KARAOKE_SEPARATOR_URL:#{null}}
+    fail-threshold: ${KARAOKE_FAIL_THRESHOLD:3}
   lyrics:
     lrclib:
       enabled: ${LYRICS_LRCLIB_ENABLED:true}
@@ -88,6 +89,9 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,db
   metrics:
     tags:
       application: yaytsa
@@ -130,6 +134,32 @@ bucket4j:
         - cache-key: getRemoteAddr() + ':' + getRequestURI()
           bandwidths:
             - capacity: 10
+              time: 1
+              unit: minutes
+              refill-speed: interval
+    - id: group-join
+      cache-name: rate-limit-buckets
+      url: ^/v1/groups/join$
+      http-status-code: TOO_MANY_REQUESTS
+      http-content-type: application/problem+json
+      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
+      rate-limits:
+        - cache-key: getRemoteAddr()
+          bandwidths:
+            - capacity: 30
+              time: 1
+              unit: minutes
+              refill-speed: interval
+    - id: mcp
+      cache-name: rate-limit-buckets
+      url: ^/mcp.*
+      http-status-code: TOO_MANY_REQUESTS
+      http-content-type: application/problem+json
+      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
+      rate-limits:
+        - cache-key: getRemoteAddr()
+          bandwidths:
+            - capacity: 60
               time: 1
               unit: minutes
               refill-speed: interval

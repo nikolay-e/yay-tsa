@@ -166,19 +166,231 @@ class LibraryWriterHygieneTest {
         assertTrue(entityRepo.findById(present).isPresent, "a NULL-root row still present on disk must survive")
     }
 
-    private fun seedNullRootTrack(relativeSourcePath: String): java.util.UUID {
+    private fun seedNullRootTrack(relativeSourcePath: String): java.util.UUID = seedTrack(relativeSourcePath, null)
+
+    private fun seedTrack(
+        relativeSourcePath: String,
+        libraryRoot: String?,
+    ): java.util.UUID {
         val id = java.util.UUID.randomUUID()
         jdbc.update(
             "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, library_root, search_text) " +
-                "VALUES (?,?,?,?,?,NULL,?)",
+                "VALUES (?,?,?,?,?,?,?)",
             id,
             "TRACK",
             "Ghost ${relativeSourcePath.substringAfterLast('/')}",
             "ghost",
             relativeSourcePath,
+            libraryRoot,
             "ghost",
         )
         jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 120000L)
         return id
+    }
+
+    @Test
+    fun `reconcile refuses to delete anything when the walk yielded zero files`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        seedTrack("A/B/one.flac", root.toString())
+        seedTrack("A/B/two.flac", root.toString())
+
+        val removed = writer.deleteVanishedTracks(root, emptySet())
+
+        assertEquals(0, removed, "an empty walk (unmounted volume) must never trigger deletes")
+        assertEquals(2, trackRepo.count(), "all tracks must survive an empty-walk reconcile")
+    }
+
+    @Test
+    fun `reconcile refuses to delete more than half the tracks in one sweep`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val paths = (1..4).map { "A/B/track$it.flac" }
+        paths.forEach { seedTrack(it, root.toString()) }
+
+        val refused = writer.deleteVanishedTracks(root, setOf(paths[0]))
+        assertEquals(0, refused, "deleting 3 of 4 tracks exceeds the 50% threshold and must be refused")
+        assertEquals(4, trackRepo.count())
+
+        val removed = writer.deleteVanishedTracks(root, setOf(paths[0], paths[1], paths[2]))
+        assertEquals(1, removed, "deleting 1 of 4 tracks is below the threshold and must proceed")
+        assertEquals(3, trackRepo.count())
+    }
+
+    @Test
+    fun `renamed file keeps its entity UUID instead of delete-plus-recreate`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val original = place(root, "silent-3s.flac", "Slipknot/Iowa/01 - Eyeless.flac")
+        val id = writer.upsertTrack(root, original)
+        val renamed = root.resolve("Slipknot/Iowa (Remaster)/01 - Eyeless.flac")
+        renamed.parent.createDirectories()
+        Files.move(original, renamed)
+
+        val idAfterRename = writer.upsertTrack(root, renamed)
+
+        assertEquals(id, idAfterRename, "a moved file must be matched by (size, mtime) and keep its UUID")
+        assertEquals(1, trackRepo.count(), "rename must not create a second track row")
+        assertEquals(
+            "Slipknot/Iowa (Remaster)/01 - Eyeless.flac",
+            entityRepo.findById(id!!).get().sourcePath,
+            "source_path must be rewritten in place",
+        )
+
+        val removed = writer.deleteVanishedTracks(root, setOf("Slipknot/Iowa (Remaster)/01 - Eyeless.flac"))
+        assertEquals(0, removed, "the renamed track is present and must not be swept")
+    }
+
+    @Test
+    fun `unchanged file short-circuits on size and mtime without re-reading tags`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "Slipknot/Iowa/01 - Eyeless.flac")
+        val id = writer.upsertTrack(root, file)
+        jdbc.update("UPDATE core_v2_library.entities SET name = 'Stale Name' WHERE id = ?", id)
+
+        val idAfterRescan = writer.upsertTrack(root, file)
+
+        assertEquals(id, idAfterRescan)
+        assertEquals(
+            "Stale Name",
+            entityRepo.findById(id!!).get().name,
+            "an unchanged file must skip the metadata-refresh path entirely",
+        )
+    }
+
+    @Test
+    fun `changed mtime triggers a full metadata refresh including genre, year and search_text`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "Author/Book/01 - Chapter One.flac")
+        val id = writer.upsertTrack(root, file)
+        jdbc.update("UPDATE core_v2_library.entities SET name = 'Stale Name', search_text = 'stale' WHERE id = ?", id)
+
+        val af = AudioFileIO.read(file.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.GENRE, "Audiobook")
+        af.tag.setField(FieldKey.YEAR, "2008-05-12")
+        af.tag.setField(FieldKey.TRACK, "1/12")
+        AudioFileIO.write(af)
+        Files.setLastModifiedTime(
+            file,
+            java.nio.file.attribute.FileTime
+                .from(Files.getLastModifiedTime(file).toInstant().plusSeconds(60)),
+        )
+
+        val idAfterRetag = writer.upsertTrack(root, file)
+
+        assertEquals(id, idAfterRetag, "retagging must refresh the existing row, not create a new one")
+        val entity = entityRepo.findById(id!!).get()
+        assertEquals("Chapter One", entity.name, "stale title must be rewritten from the changed file")
+        assertTrue(entity.searchText!!.contains("chapter one"), "search_text must be recomputed, was ${entity.searchText}")
+        val track = trackRepo.findById(id).get()
+        assertEquals(2008, track.year, "year '2008-05-12' must parse its leading digit run")
+        assertEquals(1, track.trackNumber, "track '1/12' must parse its leading digit run")
+        val genreNames =
+            jdbc.queryForList(
+                "SELECT g.name FROM core_v2_library.genres g " +
+                    "JOIN core_v2_library.entity_genres eg ON eg.genre_id = g.id WHERE eg.entity_id = ?",
+                String::class.java,
+                id,
+            )
+        assertEquals(listOf("Audiobook"), genreNames, "genre links must be rewritten on refresh")
+    }
+
+    @Test
+    fun `scan ingests files under a hidden absolute root and skips hidden subdirectories`(
+        @org.junit.jupiter.api.io.TempDir tmp: Path,
+    ) {
+        val root = tmp.resolve(".media").resolve("music").createDirectories()
+        place(root, "silent-3s.flac", "Artist/Album/01 - Visible.flac")
+        place(root, "silent-3s.flac", ".stversions/Artist/Album/01 - Shadow.flac")
+
+        LibraryScanner(writer, root.toString()).scan()
+
+        assertEquals(listOf("Visible"), trackNames(), "hidden-dir filter must apply relative to the root, not to absolute segments")
+    }
+
+    @Test
+    fun `one unreadable directory is skipped without aborting the scan`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        place(root, "silent-3s.flac", "Good/Album/01 - Reachable.flac")
+        val locked = root.resolve("Locked").createDirectories()
+        Files.setPosixFilePermissions(locked, emptySet())
+        org.junit.jupiter.api.Assumptions
+            .assumeFalse(Files.isReadable(locked))
+        try {
+            LibraryScanner(writer, root.toString()).scan()
+        } finally {
+            Files.setPosixFilePermissions(
+                locked,
+                java.nio.file.attribute.PosixFilePermissions
+                    .fromString("rwxr-xr-x"),
+            )
+        }
+
+        assertEquals(listOf("Reachable"), trackNames(), "an AccessDenied subdirectory must not abort the whole scan")
+    }
+
+    @Test
+    fun `planted symlinks are not followed into outside files`(
+        @org.junit.jupiter.api.io.TempDir tmp: Path,
+    ) {
+        val outsideFile = place(tmp, "silent-3s.flac", "outside/01 - Outside.flac")
+        val root = tmp.resolve("music").createDirectories()
+        val albumDir = root.resolve("Artist/Album").createDirectories()
+        Files.createSymbolicLink(albumDir.resolve("01 - Linked.flac"), outsideFile)
+        Files.createSymbolicLink(root.resolve("LinkedDir"), tmp.resolve("outside"))
+
+        LibraryScanner(writer, root.toString()).scan()
+
+        assertEquals(0, trackRepo.count(), "symlinked files and directories must not be pulled into the library")
+    }
+
+    @Test
+    fun `band names with ampersand comma and slash stay intact, semicolon still splits`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val duo = place(root, "silent-3s.flac", "X/Y/01 - Duo.flac")
+        var af = AudioFileIO.read(duo.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.ARTIST, "Simon & Garfunkel")
+        AudioFileIO.write(af)
+        writer.upsertTrack(root, duo)
+
+        val multi = place(root, "silent-3s.flac", "X/Y/02 - Multi.flac")
+        af = AudioFileIO.read(multi.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.ARTIST, "Korn; Slipknot")
+        AudioFileIO.write(af)
+        writer.upsertTrack(root, multi)
+
+        val artistNames = entityRepo.findByEntityTypeOrderBySortName("ARTIST").map { it.name }
+        assertTrue(artistNames.contains("Simon & Garfunkel"), "'&' must not split a band name, got $artistNames")
+        assertTrue(artistNames.contains("Korn"), "';' must still split multi-artist tags, got $artistNames")
+        assertFalse(artistNames.contains("Simon"), "'Simon & Garfunkel' must not be truncated to 'Simon'")
+    }
+
+    @Test
+    fun `karaoke unprocessed query returns only non-terminal tracks bounded by limit`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        jdbc.execute("CREATE SCHEMA IF NOT EXISTS core_v2_karaoke")
+        jdbc.execute(
+            "CREATE TABLE IF NOT EXISTS core_v2_karaoke.assets (" +
+                "track_id UUID PRIMARY KEY, instrumental_path TEXT, vocal_path TEXT, lyrics_timing TEXT, " +
+                "ready_at TIMESTAMPTZ, fail_count INTEGER NOT NULL DEFAULT 0, last_failed_at TIMESTAMPTZ, last_error TEXT)",
+        )
+        jdbc.execute("TRUNCATE core_v2_karaoke.assets")
+        val fresh = seedTrack("K/A/fresh.flac", root.toString())
+        val ready = seedTrack("K/A/ready.flac", root.toString())
+        val exhausted = seedTrack("K/A/failed.flac", root.toString())
+        val retryable = seedTrack("K/A/retry.flac", root.toString())
+        jdbc.update("INSERT INTO core_v2_karaoke.assets (track_id, ready_at) VALUES (?, now())", ready)
+        jdbc.update("INSERT INTO core_v2_karaoke.assets (track_id, fail_count) VALUES (?, 3)", exhausted)
+        jdbc.update("INSERT INTO core_v2_karaoke.assets (track_id, fail_count) VALUES (?, 1)", retryable)
+
+        val unprocessed = entityRepo.findKaraokeUnprocessedTrackIds(3, 50)
+
+        assertEquals(setOf(fresh, retryable), unprocessed.toSet(), "ready and retry-exhausted tracks must be excluded")
+        assertEquals(1, entityRepo.findKaraokeUnprocessedTrackIds(3, 1).size, "limit must bound the batch")
     }
 }

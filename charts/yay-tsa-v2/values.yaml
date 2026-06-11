@@ -20,6 +20,9 @@ backend:
   replicaCount: 1
   revisionHistoryLimit: 5
 
+  management:
+    port: 9090
+
   serviceMonitor:
     enabled: false
     interval: 30s
@@ -55,23 +58,25 @@ backend:
   probes:
     # startupProbe gates liveness/readiness so a slow JVM cold-start (image pull + Flyway +
     # Hikari) is never killed mid-boot. failureThreshold*periodSeconds = max startup budget (150s).
+    # Actuator listens on the dedicated management port (kubelet probes hit the pod directly,
+    # so the management port never needs Service/Ingress exposure).
     startup:
       path: /manage/health/liveness
-      port: 8080
+      port: 9090
       initialDelaySeconds: 10
       periodSeconds: 5
       timeoutSeconds: 5
       failureThreshold: 30
     liveness:
       path: /manage/health/liveness
-      port: 8080
+      port: 9090
       initialDelaySeconds: 10
       periodSeconds: 15
       timeoutSeconds: 5
       failureThreshold: 3
     readiness:
       path: /manage/health/readiness
-      port: 8080
+      port: 9090
       initialDelaySeconds: 30
       periodSeconds: 10
       timeoutSeconds: 5
@@ -125,6 +130,12 @@ backend:
     enabled: false
     hostPath: ''
     mountPath: /app/stems
+
+  networkPolicy:
+    enabled: true
+    ingressNamespace: kube-system
+    monitoringNamespace: monitoring
+    databaseNamespace: shared-database
 
   securityContext:
     runAsNonRoot: true

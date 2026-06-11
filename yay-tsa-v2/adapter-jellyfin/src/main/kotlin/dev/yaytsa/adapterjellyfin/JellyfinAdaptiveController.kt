@@ -59,7 +59,7 @@ class JellyfinAdaptiveController(
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
     data class StartSessionRequest(
-        val userId: String,
+        val userId: String = "",
         val state: SessionStateDto? = null,
         val seed_track_id: String? = null,
     )
@@ -75,8 +75,12 @@ class JellyfinAdaptiveController(
     @PostMapping("/sessions")
     fun startSession(
         @RequestBody request: StartSessionRequest,
+        principal: Principal,
     ): ResponseEntity<Any> {
-        val uid = UserId(request.userId)
+        if (request.userId.isNotBlank() && request.userId != principal.name) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+        val uid = UserId(principal.name)
         val sessionId = ListeningSessionId(UUID.randomUUID().toString())
         val cmd =
             StartListeningSession(
@@ -106,8 +110,8 @@ class JellyfinAdaptiveController(
         @RequestBody state: SessionStateDto,
         principal: Principal,
     ): ResponseEntity<Void> {
+        sessionAccessFailure<Void>(sessionId, principal)?.let { return it }
         val uid = UserId(principal.name)
-        adaptiveQuery.findSession(ListeningSessionId(sessionId)) ?: return ResponseEntity.notFound().build()
         val cmd = UpdateSessionContext(ListeningSessionId(sessionId), state.energy, state.intensity, state.moodTags, state.attentionMode)
         val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
@@ -119,11 +123,21 @@ class JellyfinAdaptiveController(
         @PathVariable sessionId: String,
         principal: Principal,
     ): ResponseEntity<Void> {
+        sessionAccessFailure<Void>(sessionId, principal)?.let { return it }
         val uid = UserId(principal.name)
         val cmd = EndListeningSession(ListeningSessionId(sessionId), null)
         val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
         adaptiveUseCases.execute(cmd, ctx)
         return ResponseEntity.noContent().build()
+    }
+
+    private fun <T> sessionAccessFailure(
+        sessionId: String,
+        principal: Principal,
+    ): ResponseEntity<T>? {
+        val session = adaptiveQuery.findSession(ListeningSessionId(sessionId)) ?: return ResponseEntity.notFound().build()
+        if (session.userId.value != principal.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        return null
     }
 
     /**
@@ -140,7 +154,9 @@ class JellyfinAdaptiveController(
     @GetMapping("/sessions/{sessionId}/queue")
     fun getQueue(
         @PathVariable sessionId: String,
+        principal: Principal,
     ): ResponseEntity<Any> {
+        sessionAccessFailure<Any>(sessionId, principal)?.let { return it }
         val entries = adaptiveQuery.getQueueEntries(ListeningSessionId(sessionId))
         return ResponseEntity.ok(mapOf("tracks" to entries))
     }
@@ -150,6 +166,7 @@ class JellyfinAdaptiveController(
         @PathVariable sessionId: String,
         principal: Principal,
     ): ResponseEntity<Void> {
+        sessionAccessFailure<Void>(sessionId, principal)?.let { return it }
         // Empty-queue bootstrap: when a Radio seed launches a session, the LLM scheduler
         // doesn't run for another ~30s. Fill the queue deterministically NOW with
         // (seed + recommended tracks) so the user gets immediate playback. The LLM
@@ -220,6 +237,7 @@ class JellyfinAdaptiveController(
         @RequestBody body: Map<String, Any?>,
         principal: Principal,
     ): ResponseEntity<Void> {
+        sessionAccessFailure<Void>(sessionId, principal)?.let { return it }
         val uid = UserId(principal.name)
         val cmd =
             RecordPlaybackSignal(

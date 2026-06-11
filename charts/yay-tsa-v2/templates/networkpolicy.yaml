@@ -1,0 +1,94 @@
+{{- if and .Values.backend.enabled .Values.backend.networkPolicy.enabled }}
+# =============================================================================
+# BACKEND NETWORK POLICY
+# =============================================================================
+# Kubelet liveness/readiness probes originate from the node and are not
+# subject to NetworkPolicy on the default K3s CNI, so the management port
+# only needs to admit the monitoring namespace for Prometheus scrapes.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "yay-tsa-v2.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "yay-tsa-v2.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "yay-tsa-v2.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # API traffic from the Traefik ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.backend.networkPolicy.ingressNamespace }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: traefik
+    ports:
+    - protocol: TCP
+      port: 8080
+  # API traffic from sibling pods in this namespace (PWA frontend, audio-separator)
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Actuator (health/prometheus) only from the monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.backend.networkPolicy.monitoringNamespace }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.management.port }}
+  {{- if .Values.backend.config.mpd.enabled }}
+  # MPD protocol (in-cluster only; service is ClusterIP)
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.config.mpd.port }}
+  {{- end }}
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # PostgreSQL (shared CNPG cluster)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.backend.networkPolicy.databaseNamespace }}
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Karaoke audio-separator sidecar (any namespace, port-scoped)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8000
+  # HTTPS for external APIs (lrclib lyrics, LLM provider)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}

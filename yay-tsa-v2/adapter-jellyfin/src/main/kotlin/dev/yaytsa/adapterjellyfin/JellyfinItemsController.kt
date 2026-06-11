@@ -18,6 +18,7 @@ import dev.yaytsa.domain.playlists.PlaylistAggregate
 import dev.yaytsa.domain.playlists.PlaylistId
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.UserId
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -70,7 +71,7 @@ class JellyfinItemsController(
         @RequestParam(name = "SortBy", required = false) sortBy: String?,
         @RequestParam(name = "SortOrder", required = false) sortOrder: String?,
         @RequestParam(name = "StartIndex", required = false, defaultValue = "0") startIndex: Int,
-        @RequestParam(name = "Limit", required = false, defaultValue = "50") limit: Int,
+        @RequestParam(name = "Limit", required = false, defaultValue = "50") limitParam: Int,
         @RequestParam(name = "SearchTerm", required = false) searchTerm: String?,
         @RequestParam(name = "ArtistIds", required = false) artistIds: String?,
         @RequestParam(name = "AlbumIds", required = false) albumIds: String?,
@@ -78,12 +79,12 @@ class JellyfinItemsController(
         @RequestParam(name = "Ids", required = false) ids: String?,
         principal: Principal?,
     ): ResponseEntity<Any> {
-        val uid = userId ?: principal?.name
+        if (userId != null && userId != principal?.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        val uid = principal?.name
+        val limit = limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
         val favTrackIds =
             if (uid != null) {
-                (preferencesQueries.find(UserId(uid))?.favorites ?: emptyList())
-                    .map { it.trackId.value }
-                    .toSet()
+                preferencesQueries.findFavoriteTrackIds(UserId(uid))
             } else {
                 emptySet()
             }
@@ -91,7 +92,7 @@ class JellyfinItemsController(
         // Handle specific IDs request
         if (ids != null) {
             val idList = ids.split(",")
-            val tracks = idList.mapNotNull { libraryQueries.getTrack(EntityId(it)) }
+            val tracks = libraryQueries.getTracksByIds(idList.map { EntityId(it) })
             val trackLookups = tracksLookups(tracks)
             val items =
                 idList.mapNotNull { id ->
@@ -266,10 +267,11 @@ class JellyfinItemsController(
     @GetMapping("/Artists")
     fun getArtists(
         @RequestParam(name = "StartIndex", required = false, defaultValue = "0") startIndex: Int,
-        @RequestParam(name = "Limit", required = false, defaultValue = "50") limit: Int,
+        @RequestParam(name = "Limit", required = false, defaultValue = "50") limitParam: Int,
         @RequestParam(name = "SearchTerm", required = false) searchTerm: String?,
         principal: Principal?,
     ): ResponseEntity<Any> {
+        val limit = limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
         val artists =
             if (!searchTerm.isNullOrBlank()) {
                 libraryQueries.searchText(searchTerm, limit, startIndex).artists
@@ -289,10 +291,10 @@ class JellyfinItemsController(
     @GetMapping("/Artists/AlbumArtists")
     fun getAlbumArtists(
         @RequestParam(name = "StartIndex", required = false, defaultValue = "0") startIndex: Int,
-        @RequestParam(name = "Limit", required = false, defaultValue = "50") limit: Int,
+        @RequestParam(name = "Limit", required = false, defaultValue = "50") limitParam: Int,
         principal: Principal?,
     ): ResponseEntity<Any> {
-        val artists = libraryQueries.browseArtists(limit, startIndex)
+        val artists = libraryQueries.browseArtists(limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE), startIndex)
         val items = artists.withAlbumCounts()
         return ResponseEntity.ok(ItemsResult(items, libraryQueries.countArtists(), startIndex))
     }
@@ -300,13 +302,13 @@ class JellyfinItemsController(
     @GetMapping("/Search/Hints")
     fun searchHints(
         @RequestParam(name = "searchTerm", required = false) searchTerm: String?,
-        @RequestParam(name = "Limit", required = false, defaultValue = "20") limit: Int,
+        @RequestParam(name = "Limit", required = false, defaultValue = "20") limitParam: Int,
         principal: Principal?,
     ): ResponseEntity<Any> {
         if (searchTerm.isNullOrBlank()) {
             return ResponseEntity.ok(mapOf("SearchHints" to emptyList<Any>(), "TotalRecordCount" to 0))
         }
-        val results = libraryQueries.searchText(searchTerm, limit, 0)
+        val results = libraryQueries.searchText(searchTerm, limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE), 0)
         val hints = mutableListOf<Map<String, Any?>>()
         results.artists.forEach {
             hints.add(mapOf("Id" to it.id.value, "Name" to it.name, "Type" to "MusicArtist", "MatchedTerm" to searchTerm))
@@ -355,12 +357,11 @@ class JellyfinItemsController(
         @RequestParam(required = false) userId: String?,
         principal: Principal?,
     ): ResponseEntity<Any> {
-        val uid = userId ?: principal?.name
+        if (userId != null && userId != principal?.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        val uid = principal?.name
         val favTrackIds =
             if (uid != null) {
-                (preferencesQueries.find(UserId(uid))?.favorites ?: emptyList())
-                    .map { it.trackId.value }
-                    .toSet()
+                preferencesQueries.findFavoriteTrackIds(UserId(uid))
             } else {
                 emptySet()
             }

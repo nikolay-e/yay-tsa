@@ -42,6 +42,9 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: management
+              containerPort: {{ .Values.backend.management.port }}
+              protocol: TCP
             {{- if .Values.backend.config.mpd.enabled }}
             - name: mpd
               containerPort: {{ .Values.backend.config.mpd.port }}
@@ -52,6 +55,8 @@ spec:
               value: {{ .Values.backend.jvm.opts | quote }}
             - name: SPRING_PROFILES_ACTIVE
               value: {{ .Values.backend.config.profile | quote }}
+            - name: MANAGEMENT_SERVER_PORT
+              value: {{ .Values.backend.management.port | quote }}
             - name: GIT_SHA
               value: {{ .Values.backend.image.tag | default .Chart.AppVersion | quote }}
             - name: DB_HOST

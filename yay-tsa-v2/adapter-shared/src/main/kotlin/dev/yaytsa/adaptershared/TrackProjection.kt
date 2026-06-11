@@ -55,29 +55,6 @@ fun Track.toSubsonicChild(lookups: TrackLookups = TrackLookups()): ChildElement 
         artistId = albumArtistId?.value,
     )
 
-fun Track.toMpdLines(): String {
-    val sb = StringBuilder()
-    sb.appendLine("file: ${id.value}")
-    sb.appendLine("Title: $name")
-    genre?.let { sb.appendLine("Genre: $it") }
-    trackNumber?.let { sb.appendLine("Track: $it") }
-    year?.let { sb.appendLine("Date: $it") }
-    durationMs?.let { sb.appendLine("Time: ${it / 1000}") }
-    durationMs?.let { sb.appendLine("duration: ${it.toDouble() / 1000}") }
-    albumArtistId?.let { sb.appendLine("AlbumArtistId: ${it.value}") }
-    albumId?.let { sb.appendLine("AlbumId: ${it.value}") }
-    return sb.toString()
-}
-
-fun Track.toMpdSummaryLines(): String {
-    val sb = StringBuilder()
-    sb.appendLine("file: ${id.value}")
-    sb.appendLine("Title: $name")
-    durationMs?.let { sb.appendLine("Time: ${it / 1000}") }
-    albumArtistId?.let { sb.appendLine("AlbumArtistId: ${it.value}") }
-    return sb.toString()
-}
-
 fun Track.toMcpJson(): Map<String, Any?> =
     mapOf(
         "trackId" to id.value,

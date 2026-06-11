@@ -9,6 +9,12 @@ import java.util.UUID
 interface AlbumRepository : JpaRepository<AlbumJpa, UUID> {
     fun findByArtistId(artistId: UUID): List<AlbumJpa>
 
+    fun findByReleaseDateBetween(
+        from: java.time.LocalDate,
+        to: java.time.LocalDate,
+        pageable: org.springframework.data.domain.Pageable,
+    ): List<AlbumJpa>
+
     @Query(
         "SELECT a.artistId AS artistId, COUNT(a) AS albumCount " +
             "FROM AlbumJpa a WHERE a.artistId IN :artistIds GROUP BY a.artistId",

@@ -105,6 +105,69 @@ class JpaLibraryQueryPort(
                 EntityType.ALBUM.name,
                 page,
             )
+        return assembleAlbumsFromEntities(entities)
+    }
+
+    override fun browseAlbumsByCreatedDesc(
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        val pageable =
+            OffsetBasedPageRequest(
+                maxOf(offset, 0).toLong(),
+                maxOf(limit, 1),
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")),
+            )
+        return assembleAlbumsFromEntities(entityRepo.findByEntityType(EntityType.ALBUM.name, pageable))
+    }
+
+    override fun browseAlbumsRandom(limit: Int): List<Album> =
+        assembleAlbumsFromEntities(entityRepo.findRandomByEntityType(EntityType.ALBUM.name, maxOf(limit, 1)))
+
+    override fun browseAlbumsByYearRange(
+        fromYear: Int,
+        toYear: Int,
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        val direction = if (fromYear <= toYear) Sort.Direction.ASC else Sort.Direction.DESC
+        val pageable =
+            OffsetBasedPageRequest(
+                maxOf(offset, 0).toLong(),
+                maxOf(limit, 1),
+                Sort.by(direction, "releaseDate").and(Sort.by(Sort.Direction.ASC, "entityId")),
+            )
+        val albumJpas =
+            albumRepo.findByReleaseDateBetween(
+                java.time.LocalDate.of(minOf(fromYear, toYear), 1, 1),
+                java.time.LocalDate.of(maxOf(fromYear, toYear), 12, 31),
+                pageable,
+            )
+        return assembleAlbumsFromJpas(albumJpas)
+    }
+
+    override fun browseAlbumsByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        val trackEntityIds = entityGenreRepo.findTrackEntityIdsByGenreNames(listOf(genre.lowercase()))
+        if (trackEntityIds.isEmpty()) return emptyList()
+        val albumIds = trackRepo.findAllByEntityIdIn(trackEntityIds).mapNotNull { it.albumId }.distinct()
+        if (albumIds.isEmpty()) return emptyList()
+        return assembleAlbumsFromJpas(albumRepo.findAllById(albumIds))
+            .sortedBy { (it.sortName ?: it.name).lowercase() }
+            .drop(maxOf(offset, 0))
+            .take(maxOf(limit, 1))
+    }
+
+    override fun browseAlbumsByArtist(artistId: EntityId): List<Album> {
+        val id = UUID.fromString(artistId.value)
+        return assembleAlbumsFromJpas(albumRepo.findByArtistId(id)).sortedBy { it.releaseDate }
+    }
+
+    private fun assembleAlbumsFromEntities(entities: List<dev.yaytsa.persistence.library.entity.LibraryEntityJpa>): List<Album> {
+        if (entities.isEmpty()) return emptyList()
         val albumIds = entities.map { it.id }
         val albums = albumRepo.findAllById(albumIds).associateBy { it.entityId }
         val primaryImages = findPrimaryImages(albumIds)
@@ -114,17 +177,15 @@ class JpaLibraryQueryPort(
         }
     }
 
-    override fun browseAlbumsByArtist(artistId: EntityId): List<Album> {
-        val id = UUID.fromString(artistId.value)
-        val albumJpas = albumRepo.findByArtistId(id)
+    private fun assembleAlbumsFromJpas(albumJpas: List<dev.yaytsa.persistence.library.entity.AlbumJpa>): List<Album> {
+        if (albumJpas.isEmpty()) return emptyList()
         val entityIds = albumJpas.map { it.entityId }
         val entities = entityRepo.findAllById(entityIds).associateBy { it.id }
         val primaryImages = findPrimaryImages(entityIds)
-        return albumJpas
-            .mapNotNull { album ->
-                val entity = entities[album.entityId] ?: return@mapNotNull null
-                LibraryMappers.toAlbum(entity, album, primaryImages[album.entityId])
-            }.sortedBy { it.releaseDate }
+        return albumJpas.mapNotNull { album ->
+            val entity = entities[album.entityId] ?: return@mapNotNull null
+            LibraryMappers.toAlbum(entity, album, primaryImages[album.entityId])
+        }
     }
 
     override fun browseTracksByAlbum(albumId: EntityId): List<Track> {

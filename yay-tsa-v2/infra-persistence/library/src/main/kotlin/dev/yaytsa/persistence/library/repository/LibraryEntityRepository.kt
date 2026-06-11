@@ -77,6 +77,42 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     )
     fun findTrackBySourcePathSuffix(suffix: String): LibraryEntityJpa?
 
+    @Query(
+        value =
+            "SELECT EXISTS (SELECT 1 FROM core_v2_library.entities " +
+                "WHERE entity_type = 'TRACK' AND library_root IS NULL)",
+        nativeQuery = true,
+    )
+    fun existsTrackWithNullLibraryRoot(): Boolean
+
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND e.size_bytes = :sizeBytes " +
+                "AND e.mtime >= :mtimeLow AND e.mtime < :mtimeHigh " +
+                "LIMIT 20",
+        nativeQuery = true,
+    )
+    fun findTracksBySizeAndMtimeWithin(
+        sizeBytes: Long,
+        mtimeLow: java.time.OffsetDateTime,
+        mtimeHigh: java.time.OffsetDateTime,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT e.id FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_karaoke.assets a WHERE a.track_id = e.id " +
+                "AND (a.ready_at IS NOT NULL OR a.fail_count >= :maxFailures)) " +
+                "ORDER BY e.created_at, e.id LIMIT :limit",
+        nativeQuery = true,
+    )
+    fun findKaraokeUnprocessedTrackIds(
+        maxFailures: Int,
+        limit: Int,
+    ): List<UUID>
+
     fun countByEntityType(entityType: String): Long
 
     @Query(

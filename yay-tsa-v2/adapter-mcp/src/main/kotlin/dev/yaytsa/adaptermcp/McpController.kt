@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.security.Principal
 
 @RestController
 @RequestMapping("/mcp")
@@ -35,6 +36,7 @@ class McpController(
     @PostMapping
     fun handle(
         @RequestBody request: JsonRpcRequest,
+        principal: Principal,
     ): ResponseEntity<JsonRpcResponse> {
         if (request.id == null) {
             return ResponseEntity.accepted().build()
@@ -75,7 +77,7 @@ class McpController(
 
                     @Suppress("UNCHECKED_CAST")
                     val toolArgs = request.params["arguments"] as? Map<String, Any?> ?: emptyMap()
-                    val result = tools.executeTool(toolName, toolArgs)
+                    val result = tools.executeTool(toolName, toolArgs, principal.name)
                     JsonRpcResponse(
                         id = request.id,
                         result = mapOf("content" to result.content, "isError" to result.isError),

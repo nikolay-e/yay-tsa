@@ -3,6 +3,8 @@ package dev.yaytsa.app.security
 import jakarta.servlet.DispatcherType
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.annotation.Order
+import org.springframework.core.env.Environment
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -18,6 +20,24 @@ class SecurityConfig(
     private val problemDetailSecurityHandler: ProblemDetailSecurityHandler,
 ) {
     @Bean
+    @Order(0)
+    fun managementPortSecurityFilterChain(
+        http: HttpSecurity,
+        environment: Environment,
+    ): SecurityFilterChain {
+        val managementPort = environment.getProperty("management.server.port")?.toIntOrNull()
+        val serverPort = environment.getProperty("server.port")?.toIntOrNull() ?: 8080
+        val isolatedManagementPort = managementPort != null && managementPort != serverPort
+        http
+            .securityMatcher { request -> isolatedManagementPort && request.localPort == managementPort }
+            .csrf { it.disable() }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .authorizeHttpRequests { it.anyRequest().permitAll() }
+        return http.build()
+    }
+
+    @Bean
+    @Order(1)
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .csrf { it.disable() }
@@ -51,11 +71,7 @@ class SecurityConfig(
                         "/manage/health",
                         "/manage/health/liveness",
                         "/manage/health/readiness",
-                        "/manage/prometheus",
-                        "/manage/info",
                     ).permitAll()
-                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
-                    .permitAll()
                     .anyRequest()
                     .authenticated()
             }.exceptionHandling {

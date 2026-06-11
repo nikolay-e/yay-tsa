@@ -24,30 +24,48 @@ import java.nio.file.Path
 class JellyfinKaraokeController(
     private val karaokeQueryPort: KaraokeQueryPort,
     @Value("\${yaytsa.karaoke.output-path:#{null}}") karaokeOutputPath: String?,
+    @Value("\${yaytsa.karaoke.enabled:false}") private val karaokeEnabled: Boolean,
+    @Value("\${yaytsa.karaoke.fail-threshold:3}") private val failThreshold: Int,
 ) {
     private val safeRoot = MediaPathSafety.resolveRoot(karaokeOutputPath)
 
     @GetMapping("/enabled")
-    fun isEnabled(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("enabled" to true))
+    fun isEnabled(): ResponseEntity<Any> = ResponseEntity.ok(mapOf("enabled" to karaokeEnabled))
+
+    private fun stateOf(asset: dev.yaytsa.domain.karaoke.KaraokeAsset?): KaraokeState =
+        when {
+            asset == null -> KaraokeState.NOT_STARTED
+            asset.readyAt != null -> KaraokeState.READY
+            asset.failCount >= failThreshold -> KaraokeState.FAILED
+            else -> KaraokeState.PROCESSING
+        }
 
     @GetMapping("/{trackId}/status")
     fun getStatus(
         @PathVariable trackId: String,
     ): ResponseEntity<Any> {
         val asset = karaokeQueryPort.getAsset(TrackId(trackId))
-        val state =
-            when {
-                asset == null -> KaraokeState.NOT_STARTED
-                asset.readyAt != null -> KaraokeState.READY
-                else -> KaraokeState.PROCESSING
-            }
-        return ResponseEntity.ok(mapOf("state" to state.name, "message" to null))
+        val state = stateOf(asset)
+        val message = if (state == KaraokeState.FAILED) asset?.lastError else null
+        return ResponseEntity.ok(mapOf("state" to state.name, "message" to message))
     }
 
     @PostMapping("/{trackId}/process")
     fun process(
         @PathVariable trackId: String,
-    ): ResponseEntity<Any> = ResponseEntity.ok(mapOf("state" to KaraokeState.PROCESSING.name, "message" to "Queued for processing"))
+    ): ResponseEntity<Any> {
+        if (!karaokeEnabled) {
+            return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(mapOf("state" to stateOf(karaokeQueryPort.getAsset(TrackId(trackId))).name, "message" to "Karaoke processing is disabled"))
+        }
+        val asset = karaokeQueryPort.getAsset(TrackId(trackId))
+        if (asset?.readyAt != null) {
+            return ResponseEntity.ok(mapOf("state" to KaraokeState.READY.name, "message" to null))
+        }
+        karaokeQueryPort.requeueFailed(TrackId(trackId))
+        return ResponseEntity.ok(mapOf("state" to KaraokeState.PROCESSING.name, "message" to "Queued for processing"))
+    }
 
     @GetMapping("/{trackId}/instrumental")
     fun getInstrumental(
@@ -70,13 +88,7 @@ class JellyfinKaraokeController(
         @PathVariable trackId: String,
     ): SseEmitter {
         val emitter = SseEmitter(30_000L)
-        val asset = karaokeQueryPort.getAsset(TrackId(trackId))
-        val state =
-            when {
-                asset == null -> KaraokeState.NOT_STARTED
-                asset.readyAt != null -> KaraokeState.READY
-                else -> KaraokeState.PROCESSING
-            }
+        val state = stateOf(karaokeQueryPort.getAsset(TrackId(trackId)))
         try {
             emitter.send(SseEmitter.event().name("status").data(mapOf("state" to state.name)))
             emitter.complete()

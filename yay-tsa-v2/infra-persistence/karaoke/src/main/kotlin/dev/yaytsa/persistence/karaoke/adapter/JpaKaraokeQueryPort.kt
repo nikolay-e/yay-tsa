@@ -25,4 +25,13 @@ class JpaKaraokeQueryPort(
             .findByReadyAtIsNotNull()
             .map { TrackId(it.trackId.toString()) }
             .toSet()
+
+    @Transactional
+    override fun requeueFailed(trackId: TrackId): Boolean {
+        val id = UUID.fromString(trackId.value)
+        val entity = assetJpa.findById(id).orElse(null) ?: return false
+        if (entity.readyAt != null) return false
+        assetJpa.deleteById(id)
+        return true
+    }
 }

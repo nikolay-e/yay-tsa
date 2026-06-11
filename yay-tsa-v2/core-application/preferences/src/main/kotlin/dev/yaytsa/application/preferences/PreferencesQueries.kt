@@ -8,4 +8,6 @@ class PreferencesQueries(
     private val prefsRepo: UserPreferencesRepository,
 ) {
     fun find(userId: UserId): UserPreferencesAggregate? = prefsRepo.find(userId)
+
+    fun findFavoriteTrackIds(userId: UserId): Set<String> = prefsRepo.findFavoriteTrackIds(userId)
 }

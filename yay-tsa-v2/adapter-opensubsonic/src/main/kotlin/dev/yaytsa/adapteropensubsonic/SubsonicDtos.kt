@@ -3,7 +3,21 @@ package dev.yaytsa.adapteropensubsonic
 import dev.yaytsa.adaptershared.ChildElement
 
 data class ArtistsWrapper(
+    val ignoredArticles: String = "",
     val index: List<ArtistIndex>,
+)
+
+data class IndexesWrapper(
+    val lastModified: Long = 0,
+    val ignoredArticles: String = "",
+    val index: List<ArtistIndex>,
+)
+
+data class DirectoryWrapper(
+    val id: String,
+    val parent: String? = null,
+    val name: String,
+    val child: List<ChildElement> = emptyList(),
 )
 
 data class ArtistIndex(
@@ -47,6 +61,20 @@ data class AlbumDetail(
 
 data class AlbumListWrapper(
     val album: List<AlbumElement>,
+)
+
+data class AlbumListV1Wrapper(
+    val album: List<ChildElement>,
+)
+
+data class StarredWrapper(
+    val artist: List<ArtistElement> = emptyList(),
+    val album: List<ChildElement> = emptyList(),
+    val song: List<ChildElement> = emptyList(),
+)
+
+data class NowPlayingWrapper(
+    val entry: List<ChildElement> = emptyList(),
 )
 
 data class SearchResult3(

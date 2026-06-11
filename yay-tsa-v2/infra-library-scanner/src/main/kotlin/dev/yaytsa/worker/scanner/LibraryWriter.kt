@@ -17,12 +17,14 @@ import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.Tag
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.io.path.extension
 import kotlin.io.path.nameWithoutExtension
@@ -38,6 +40,8 @@ class LibraryWriter(
     private val imageRepo: ImageRepository,
     private val clock: Clock,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     private val coverFilenames =
         listOf(
             "cover.jpg",
@@ -58,16 +62,167 @@ class LibraryWriter(
             "album.webp",
         )
 
+    class ScanSession internal constructor() {
+        internal val artistIdsByKey = HashMap<String, UUID>()
+        internal val albumIdsByKey = HashMap<String, UUID>()
+        internal val albumsWithVerifiedCover = HashSet<UUID>()
+        internal var legacyNullRootRowsExist: Boolean? = null
+    }
+
+    fun newScanSession(): ScanSession = ScanSession()
+
+    private data class ProbedAudioFile(
+        val trackName: String,
+        val artistName: String?,
+        val albumName: String?,
+        val trackNumber: Int?,
+        val discNumber: Int,
+        val year: Int?,
+        val genre: String?,
+        val durationMs: Long,
+        val bitrate: Int?,
+        val sampleRate: Int?,
+        val channels: Int?,
+        val albumRootDir: Path?,
+    )
+
     @Transactional
     fun upsertTrack(
         root: Path,
         file: Path,
+        session: ScanSession = ScanSession(),
     ): UUID? {
         val relativePath = root.relativize(file).toString()
         val codec = file.extension.lowercase()
         val sizeBytes = Files.size(file)
         val mtime = OffsetDateTime.ofInstant(Files.getLastModifiedTime(file).toInstant(), ZoneOffset.UTC)
 
+        var claimedRename = false
+        val existing =
+            entityRepo.findBySourcePath(relativePath)
+                ?: healLegacyAbsolutePathRow(root, relativePath, session)
+                ?: claimRenamedTrack(root, relativePath, sizeBytes, mtime)?.also { claimedRename = true }
+
+        if (existing != null && !claimedRename && fileUnchanged(existing, sizeBytes, mtime)) {
+            if (existing.libraryRoot != root.toString()) {
+                existing.libraryRoot = root.toString()
+                entityRepo.save(existing)
+            }
+            return existing.id
+        }
+
+        val probed = probeAudioFile(root, file) ?: return existing?.id
+        val now = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
+
+        val artistId = probed.artistName?.let { ensureArtist(it, now, session) }
+        val albumId = probed.albumName?.let { ensureAlbum(it, probed.artistName, artistId, now, session) }
+
+        if (albumId != null) {
+            ensureAlbumCover(albumId, file.parent, probed.albumRootDir, now, session)
+        }
+
+        val searchText =
+            listOfNotNull(probed.trackName, probed.artistName, probed.albumName)
+                .joinToString(" ") { it.lowercase() }
+
+        if (existing != null) {
+            refreshTrackMetadata(existing, root, codec, sizeBytes, mtime, searchText, probed, albumId, artistId, now)
+            return existing.id
+        }
+
+        val entityId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = entityId,
+                entityType = "TRACK",
+                name = probed.trackName,
+                sortName = probed.trackName.lowercase(),
+                parentId = albumId,
+                sourcePath = relativePath,
+                container = codec,
+                sizeBytes = sizeBytes,
+                mtime = mtime,
+                libraryRoot = root.toString(),
+                searchText = searchText,
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+
+        trackRepo.save(
+            AudioTrackJpa(
+                entityId = entityId,
+                albumId = albumId,
+                albumArtistId = artistId,
+                trackNumber = probed.trackNumber,
+                discNumber = probed.discNumber,
+                durationMs = probed.durationMs,
+                bitrate = probed.bitrate,
+                sampleRate = probed.sampleRate,
+                channels = probed.channels,
+                year = probed.year,
+                codec = codec,
+            ),
+        )
+
+        linkGenre(entityId, probed.genre)
+
+        return entityId
+    }
+
+    private fun fileUnchanged(
+        existing: LibraryEntityJpa,
+        sizeBytes: Long,
+        mtime: OffsetDateTime,
+    ): Boolean =
+        existing.sizeBytes == sizeBytes &&
+            existing.mtime?.toInstant()?.toEpochMilli() == mtime.toInstant().toEpochMilli()
+
+    private fun healLegacyAbsolutePathRow(
+        root: Path,
+        relativePath: String,
+        session: ScanSession,
+    ): LibraryEntityJpa? {
+        // v1 ETL rows carry an absolute source_path and a NULL library_root. The
+        // leading-wildcard LIKE is a seq scan, so only attempt it while such rows exist.
+        val legacyRowsExist =
+            session.legacyNullRootRowsExist
+                ?: entityRepo.existsTrackWithNullLibraryRoot().also { session.legacyNullRootRowsExist = it }
+        if (!legacyRowsExist) return null
+        return entityRepo.findTrackBySourcePathSuffix("%/$relativePath")?.also { stale ->
+            stale.sourcePath = relativePath
+            if (stale.libraryRoot == null) stale.libraryRoot = root.toString()
+            entityRepo.save(stale)
+        }
+    }
+
+    private fun claimRenamedTrack(
+        root: Path,
+        relativePath: String,
+        sizeBytes: Long,
+        mtime: OffsetDateTime,
+    ): LibraryEntityJpa? {
+        val mtimeLow = OffsetDateTime.ofInstant(mtime.toInstant().truncatedTo(ChronoUnit.MILLIS), ZoneOffset.UTC)
+        val match =
+            entityRepo
+                .findTracksBySizeAndMtimeWithin(sizeBytes, mtimeLow, mtimeLow.plus(1, ChronoUnit.MILLIS))
+                .firstOrNull { candidate ->
+                    val candidatePath = candidate.sourcePath
+                    candidatePath != null &&
+                        candidatePath != relativePath &&
+                        !Files.exists(Path.of(candidate.libraryRoot ?: root.toString()).resolve(candidatePath))
+                } ?: return null
+        log.info("Detected renamed track {} -> {}, preserving entity {}", match.sourcePath, relativePath, match.id)
+        match.sourcePath = relativePath
+        match.libraryRoot = root.toString()
+        entityRepo.save(match)
+        return match
+    }
+
+    private fun probeAudioFile(
+        root: Path,
+        file: Path,
+    ): ProbedAudioFile? {
         val audioFile =
             try {
                 AudioFileIO.read(file.toFile())
@@ -116,18 +271,7 @@ class LibraryWriter(
         // falling back from the track's own directory to this path.
         val albumRootDir = if (pathSegments.size >= 3) root.resolve(pathSegments[0]).resolve(pathSegments[1]) else null
 
-        val rawArtist = tagAlbumArtist ?: tagArtist ?: folderArtist
-        val artistName = primaryArtist(rawArtist)
-        val albumName = tagAlbum ?: folderAlbum
-
-        val trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.toIntOrNull()
-        val discNumber = audioTag?.safeGetFirst(FieldKey.DISC_NO)?.toIntOrNull() ?: 1
-        val year = audioTag?.safeGetFirst(FieldKey.YEAR)?.toIntOrNull()
-        val genre = audioTag?.safeGetFirst(FieldKey.GENRE)?.takeIf { it.isNotBlank() }
         val durationMs = audioHeader?.trackLength?.let { it * 1000L }
-        val bitrate = audioHeader?.bitRateAsNumber?.toInt()
-        val sampleRate = audioHeader?.sampleRateAsNumber?.toInt()
-        val channels = audioHeader?.channels?.toIntOrNull()
 
         // Skip unplayable files: missing duration, zero, or <2s (CD pre-gap files like
         // "00 - pregap.flac", corrupt FLACs with bogus 1.0s LENGTH headers, or audio the
@@ -137,87 +281,81 @@ class LibraryWriter(
             return null
         }
 
-        val now = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
-
-        val artistId = artistName?.let { ensureArtist(it, now) }
-        val albumId = albumName?.let { ensureAlbum(it, artistName, artistId, now) }
-
-        if (albumId != null) {
-            ensureAlbumCover(albumId, file.parent, albumRootDir, now)
-        }
-
-        val existing =
-            entityRepo.findBySourcePath(relativePath)
-                ?: entityRepo.findTrackBySourcePathSuffix("%/$relativePath")?.also { stale ->
-                    // v1 ETL row with absolute path like "/media/.../track.flac";
-                    // rewrite to the canonical relative path so this stays idempotent.
-                    stale.sourcePath = relativePath
-                    if (stale.libraryRoot == null) stale.libraryRoot = root.toString()
-                    entityRepo.save(stale)
-                }
-        if (existing != null) {
-            repairExistingTrackLinkage(existing, albumId, artistId, trackName)
-            if (existing.libraryRoot != root.toString()) {
-                existing.libraryRoot = root.toString()
-                entityRepo.save(existing)
-            }
-            return existing.id
-        }
-
-        val entityId = UUID.randomUUID()
-        val searchText =
-            listOfNotNull(trackName, artistName, albumName)
-                .joinToString(" ") { it.lowercase() }
-
-        entityRepo.save(
-            LibraryEntityJpa(
-                id = entityId,
-                entityType = "TRACK",
-                name = trackName,
-                sortName = trackName.lowercase(),
-                parentId = albumId,
-                sourcePath = relativePath,
-                container = codec,
-                sizeBytes = sizeBytes,
-                mtime = mtime,
-                libraryRoot = root.toString(),
-                searchText = searchText,
-                createdAt = now,
-                updatedAt = now,
-            ),
+        return ProbedAudioFile(
+            trackName = trackName,
+            artistName = primaryArtist(tagAlbumArtist ?: tagArtist ?: folderArtist),
+            albumName = tagAlbum ?: folderAlbum,
+            trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.leadingInt(),
+            discNumber = audioTag?.safeGetFirst(FieldKey.DISC_NO)?.leadingInt() ?: 1,
+            year = audioTag?.safeGetFirst(FieldKey.YEAR)?.leadingInt(),
+            genre = audioTag?.safeGetFirst(FieldKey.GENRE)?.takeIf { it.isNotBlank() },
+            durationMs = durationMs,
+            bitrate = audioHeader?.bitRateAsNumber?.toInt(),
+            sampleRate = audioHeader?.sampleRateAsNumber?.toInt(),
+            channels = audioHeader?.channels?.toIntOrNull(),
+            albumRootDir = albumRootDir,
         )
+    }
 
-        trackRepo.save(
-            AudioTrackJpa(
-                entityId = entityId,
-                albumId = albumId,
-                albumArtistId = artistId,
-                trackNumber = trackNumber,
-                discNumber = discNumber,
-                durationMs = durationMs,
-                bitrate = bitrate,
-                sampleRate = sampleRate,
-                channels = channels,
-                year = year,
-                codec = codec,
-            ),
-        )
+    private fun refreshTrackMetadata(
+        existing: LibraryEntityJpa,
+        root: Path,
+        codec: String,
+        sizeBytes: Long,
+        mtime: OffsetDateTime,
+        searchText: String,
+        probed: ProbedAudioFile,
+        albumId: UUID?,
+        artistId: UUID?,
+        now: OffsetDateTime,
+    ) {
+        existing.name = probed.trackName
+        existing.sortName = probed.trackName.lowercase()
+        existing.searchText = searchText
+        existing.container = codec
+        existing.sizeBytes = sizeBytes
+        existing.mtime = mtime
+        existing.libraryRoot = root.toString()
+        existing.updatedAt = now
+        entityRepo.save(existing)
 
-        if (genre != null) {
-            val candidateId = UUID.randomUUID()
-            genreRepo.upsertByName(id = candidateId, name = genre)
-            val genreId = genreRepo.findByName(genre)?.id ?: candidateId
-            entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
+        val trackRow = trackRepo.findById(existing.id).orElse(null)
+        if (trackRow != null) {
+            trackRow.trackNumber = probed.trackNumber
+            trackRow.discNumber = probed.discNumber
+            trackRow.durationMs = probed.durationMs
+            trackRow.bitrate = probed.bitrate
+            trackRow.sampleRate = probed.sampleRate
+            trackRow.channels = probed.channels
+            trackRow.year = probed.year
+            trackRow.codec = codec
+            trackRepo.save(trackRow)
         }
 
-        return entityId
+        repairExistingTrackLinkage(existing, albumId, artistId)
+
+        entityRepo.deleteEntityGenresByEntityIds(listOf(existing.id))
+        linkGenre(existing.id, probed.genre)
+    }
+
+    private fun linkGenre(
+        entityId: UUID,
+        genre: String?,
+    ) {
+        if (genre == null) return
+        val candidateId = UUID.randomUUID()
+        genreRepo.upsertByName(id = candidateId, name = genre)
+        val genreId = genreRepo.findByName(genre)?.id ?: candidateId
+        entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
     }
 
     private fun ensureArtist(
         artistName: String,
         now: OffsetDateTime,
+        session: ScanSession,
     ): UUID {
         val artistSourceKey = "artist:${artistName.lowercase()}"
+        session.artistIdsByKey[artistSourceKey]?.let { return it }
         // Case-insensitive lookup heals legacy ETL rows whose source_path
         // capitalization differs from the current scanner's `.lowercase()` key.
         // Postgres `lower()` in default C locale does not case-fold Cyrillic;
@@ -231,7 +369,10 @@ class LibraryWriter(
                         entityRepo.save(stale)
                     }
                 }
-        if (existing != null) return existing.id
+        if (existing != null) {
+            session.artistIdsByKey[artistSourceKey] = existing.id
+            return existing.id
+        }
         val id = UUID.randomUUID()
         entityRepo.save(
             LibraryEntityJpa(
@@ -246,6 +387,7 @@ class LibraryWriter(
             ),
         )
         artistRepo.save(ArtistJpa(entityId = id))
+        session.artistIdsByKey[artistSourceKey] = id
         return id
     }
 
@@ -254,8 +396,11 @@ class LibraryWriter(
         artistName: String?,
         artistId: UUID?,
         now: OffsetDateTime,
+        session: ScanSession,
     ): UUID {
         val albumSourceKey = "album:${artistName?.lowercase() ?: "unknown"}:${albumName.lowercase()}"
+        val memoKey = "$albumSourceKey|$artistId"
+        session.albumIdsByKey[memoKey]?.let { return it }
         // See ensureArtist comment — same ICU-aware healing for Cyrillic/casing.
         val existing =
             entityRepo.findBySourcePath(albumSourceKey)
@@ -278,6 +423,7 @@ class LibraryWriter(
                     albumRepo.save(albumRow)
                 }
             }
+            session.albumIdsByKey[memoKey] = existing.id
             return existing.id
         }
         val id = UUID.randomUUID()
@@ -295,6 +441,7 @@ class LibraryWriter(
             ),
         )
         albumRepo.save(AlbumJpa(entityId = id, artistId = artistId))
+        session.albumIdsByKey[memoKey] = id
         return id
     }
 
@@ -302,7 +449,6 @@ class LibraryWriter(
         existingTrack: LibraryEntityJpa,
         derivedAlbumId: UUID?,
         derivedArtistId: UUID?,
-        derivedName: String,
     ) {
         val trackRow = trackRepo.findById(existingTrack.id).orElse(null) ?: return
         var trackChanged = false
@@ -315,18 +461,6 @@ class LibraryWriter(
             trackChanged = true
         }
         if (trackChanged) trackRepo.save(trackRow)
-
-        // Repair stale titles. Two cases overwrite the DB row from the freshly-read tag:
-        //   1) existing name is a filename-fallback ("01 - Eyeless")
-        //   2) existing name diverges from the file's actual ID3 title — v1 ETL rows
-        //      from earlier scans had titles that didn't match the filename (e.g. row
-        //      for "01 - In The Heart Of Stone.flac" had name="November 3023"), see
-        //      issue #213. The tag we just read is authoritative for the same file.
-        if (derivedName.isNotBlank() && derivedName != existingTrack.name) {
-            existingTrack.name = derivedName
-            existingTrack.sortName = derivedName.lowercase()
-            entityRepo.save(existingTrack)
-        }
 
         val effectiveAlbumId = trackRow.albumId
         if (effectiveAlbumId != null && existingTrack.parentId != effectiveAlbumId) {
@@ -352,9 +486,14 @@ class LibraryWriter(
         trackDir: Path?,
         albumRootDir: Path?,
         now: OffsetDateTime,
+        session: ScanSession,
     ) {
+        if (albumId in session.albumsWithVerifiedCover) return
         val existing = imageRepo.findByEntityIdAndIsPrimaryTrue(albumId)
-        if (existing != null && Files.isRegularFile(Path.of(existing.path))) return
+        if (existing != null && Files.isRegularFile(Path.of(existing.path))) {
+            session.albumsWithVerifiedCover.add(albumId)
+            return
+        }
         // Prefer a cover next to the track (single-disc albums, or per-disc art); fall
         // back to the album root so multi-disc albums whose cover sits at <Album>/ resolve.
         val coverPath = trackDir?.let(::findCoverFile) ?: albumRootDir?.let(::findCoverFile) ?: return
@@ -371,6 +510,7 @@ class LibraryWriter(
                 createdAt = now,
             ),
         )
+        session.albumsWithVerifiedCover.add(albumId)
     }
 
     private fun findCoverFile(dir: Path): Path? {
@@ -401,9 +541,15 @@ class LibraryWriter(
                 !it.trim().equals("n/a", ignoreCase = true)
         }
 
+    // Tags like "1/12" (track-of-total) and "2008-05-12" (full release date) must
+    // still yield the leading number instead of failing toIntOrNull entirely.
+    private fun String.leadingInt(): Int? = Regex("^\\d+").find(trim())?.value?.toIntOrNull()
+
+    // ";" is the only unambiguous multi-artist separator: "&", "," and "/" appear in
+    // legitimate band names (Simon & Garfunkel, Crosby, Stills & Nash, AC/DC).
     private val artistDelimiters =
         Regex(
-            "\\s*[,;/&]\\s+|\\s+(?:feat\\.|ft\\.|featuring|vs\\.|vs|with|x)\\s+",
+            "\\s*;\\s*|\\s+(?:feat\\.|ft\\.|featuring|vs\\.|vs|with|x)\\s+",
             RegexOption.IGNORE_CASE,
         )
 
@@ -419,17 +565,30 @@ class LibraryWriter(
         root: Path,
         presentSourcePaths: Set<String>,
     ): Int {
+        if (presentSourcePaths.isEmpty()) {
+            log.warn("Walk of {} yielded no audio files; refusing vanished-track reconcile (unmounted volume?)", root)
+            return 0
+        }
         val rootKey = root.toString()
         // Include legacy NULL-library_root ghost rows in the candidate set. source_path is stored
         // RELATIVE, so a path prefix can't attribute a NULL row to a root — instead we let the
         // present-paths filter below delete any NULL-root row whose path isn't on disk (the v1
         // ghost case). A NULL-root row that IS present is kept (a valid track that lost its root).
+        val candidates = entityRepo.findTrackIdSourcePathsByLibraryRootOrNull(rootKey)
         val vanished =
-            entityRepo
-                .findTrackIdSourcePathsByLibraryRootOrNull(rootKey)
+            candidates
                 .filterNot { (it.getOrNull(1) as? String) in presentSourcePaths }
                 .mapNotNull { it.getOrNull(0) as? UUID }
         if (vanished.isEmpty()) return 0
+        if (vanished.size * 2 > candidates.size) {
+            log.warn(
+                "Refusing to delete {} of {} tracks for root {} (>50% vanished); verify the volume is fully mounted",
+                vanished.size,
+                candidates.size,
+                root,
+            )
+            return 0
+        }
         vanished.chunked(DELETE_BATCH_SIZE).forEach { batch ->
             entityRepo.deleteEntityGenresByEntityIds(batch)
             entityRepo.deleteImagesByEntityIds(batch)

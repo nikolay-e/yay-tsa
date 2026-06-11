@@ -31,6 +31,9 @@ class JpaUserPreferencesRepository(
         return toDomain(root, favorites, contract)
     }
 
+    @Transactional(readOnly = true)
+    override fun findFavoriteTrackIds(userId: UserId): Set<String> = favoriteJpa.findTrackIdsByUserId(userId.value).toSet()
+
     override fun save(aggregate: UserPreferencesAggregate) {
         val rootEntity = aggregate.toRootEntity()
         val isNew = !preferencesJpa.existsById(rootEntity.userId)

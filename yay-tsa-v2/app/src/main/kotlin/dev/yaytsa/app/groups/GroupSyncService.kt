@@ -230,4 +230,41 @@ class GroupSyncService(
     fun end(groupId: UUID) {
         jdbc.update("DELETE FROM core_v2_groups.playback_group WHERE id = ?", groupId)
     }
+
+    fun groupExists(groupId: UUID): Boolean =
+        jdbc
+            .queryForObject("SELECT count(*) FROM core_v2_groups.playback_group WHERE id = ?", Long::class.java, groupId)
+            ?.let { it > 0 } ?: false
+
+    fun isOwner(
+        groupId: UUID,
+        userId: UUID,
+    ): Boolean =
+        jdbc
+            .queryForObject("SELECT count(*) FROM core_v2_groups.playback_group WHERE id = ? AND owner_id = ?", Long::class.java, groupId, userId)
+            ?.let { it > 0 } ?: false
+
+    fun isMember(
+        groupId: UUID,
+        userId: UUID,
+    ): Boolean =
+        jdbc
+            .queryForObject(
+                "SELECT count(*) FROM core_v2_groups.playback_group_member WHERE group_id = ? AND user_id = ?",
+                Long::class.java,
+                groupId,
+                userId,
+            )?.let { it > 0 } ?: false
+
+    fun memberDeviceOwner(
+        groupId: UUID,
+        deviceId: String,
+    ): UUID? =
+        jdbc
+            .query(
+                "SELECT user_id FROM core_v2_groups.playback_group_member WHERE group_id = ? AND device_id = ?",
+                { rs, _ -> rs.getObject("user_id", UUID::class.java) },
+                groupId,
+                deviceId,
+            ).firstOrNull()
 }

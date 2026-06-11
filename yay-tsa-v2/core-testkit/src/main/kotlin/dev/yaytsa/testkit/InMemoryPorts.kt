@@ -176,6 +176,44 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
         .drop(offset)
         .take(limit)
 
+    override fun browseAlbumsByCreatedDesc(
+        limit: Int,
+        offset: Int,
+    ) = albums.values
+        .sortedByDescending { it.createdAt }
+        .drop(offset)
+        .take(limit)
+
+    override fun browseAlbumsRandom(limit: Int) = albums.values.shuffled().take(limit)
+
+    override fun browseAlbumsByYearRange(
+        fromYear: Int,
+        toYear: Int,
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        val range = minOf(fromYear, toYear)..maxOf(fromYear, toYear)
+        val matching = albums.values.filter { it.releaseDate?.year in range }.sortedBy { it.releaseDate }
+        val ordered = if (fromYear <= toYear) matching else matching.reversed()
+        return ordered.drop(offset).take(limit)
+    }
+
+    override fun browseAlbumsByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        val albumIds =
+            browseTracksByGenreNames(listOf(genre))
+                .mapNotNull { it.albumId }
+                .toSet()
+        return albums.values
+            .filter { it.id in albumIds }
+            .sortedBy { it.name }
+            .drop(offset)
+            .take(limit)
+    }
+
     override fun browseAlbumsByArtist(artistId: EntityId) = albums.values.filter { it.artistId == artistId }.sortedBy { it.name }
 
     override fun browseTracksByAlbum(albumId: EntityId) = tracks.values.filter { it.albumId == albumId }.sortedBy { it.trackNumber }

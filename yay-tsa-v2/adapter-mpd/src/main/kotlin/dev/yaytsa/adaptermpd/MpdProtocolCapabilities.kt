@@ -1,6 +1,9 @@
 package dev.yaytsa.adaptermpd
 
 import dev.yaytsa.application.shared.ProtocolCapabilities
+import dev.yaytsa.domain.playback.AcquireLease
+import dev.yaytsa.domain.playback.AddToQueue
+import dev.yaytsa.domain.playback.ClearQueue
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.SkipNext
@@ -17,6 +20,9 @@ class MpdProtocolCapabilities : ProtocolCapabilities {
     override val protocol = ProtocolId("MPD")
     override val supportedCommands: Set<KClass<out Command>> =
         setOf(
+            AcquireLease::class,
+            AddToQueue::class,
+            ClearQueue::class,
             Play::class,
             Pause::class,
             Stop::class,

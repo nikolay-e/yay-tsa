@@ -33,6 +33,7 @@ class KaraokeProcessor(
     companion object {
         private const val DEMUCS_TIMEOUT_MINUTES = 30L
         private const val MAX_FAILURES = 3
+        private const val BATCH_LIMIT = 50
     }
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 60_000)
@@ -47,28 +48,18 @@ class KaraokeProcessor(
         }
         log.info("Karaoke processor checking for unprocessed tracks")
 
-        val allTrackIds =
-            libraryEntityRepo
-                .findByEntityTypeOrderBySortName("TRACK")
-                .map { it.id }
-                .toSet()
-
         // A track is terminal only when it succeeded (readyAt set) or exhausted its
-        // retry budget. A bare failure row no longer permanently skips the track.
-        val terminalIds =
-            karaokeRepo
-                .findAll()
-                .filter { it.readyAt != null || it.failCount >= MAX_FAILURES }
-                .map { it.trackId }
-                .toSet()
-        val unprocessed = allTrackIds - terminalIds
+        // retry budget; the anti-join excludes exactly those, so a bare failure row
+        // does not permanently skip the track. LIMIT keeps each cycle bounded instead
+        // of materializing every track and karaoke row on every run.
+        val unprocessed = libraryEntityRepo.findKaraokeUnprocessedTrackIds(MAX_FAILURES, BATCH_LIMIT)
 
         if (unprocessed.isEmpty()) {
             log.info("No unprocessed tracks for karaoke separation")
             return
         }
 
-        log.info("Found {} unprocessed tracks for karaoke", unprocessed.size)
+        log.info("Found {} unprocessed tracks for karaoke (batch limit {})", unprocessed.size, BATCH_LIMIT)
         unprocessed.forEach { trackId ->
             try {
                 processTrack(trackId)

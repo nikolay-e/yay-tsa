@@ -28,6 +28,26 @@ interface LibraryQueryPort {
         offset: Int,
     ): List<Album>
 
+    fun browseAlbumsByCreatedDesc(
+        limit: Int,
+        offset: Int,
+    ): List<Album>
+
+    fun browseAlbumsRandom(limit: Int): List<Album>
+
+    fun browseAlbumsByYearRange(
+        fromYear: Int,
+        toYear: Int,
+        limit: Int,
+        offset: Int,
+    ): List<Album>
+
+    fun browseAlbumsByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Album>
+
     fun browseAlbumsByArtist(artistId: EntityId): List<Album>
 
     fun browseTracksByAlbum(albumId: EntityId): List<Track>
