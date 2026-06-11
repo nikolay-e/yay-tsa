@@ -67,6 +67,8 @@ class SecurityConfig(
                     .permitAll()
                     .requestMatchers("/v1/time")
                     .permitAll()
+                    .requestMatchers("/v3/api-docs/**", "/v3/api-docs")
+                    .permitAll()
                     .requestMatchers(
                         "/manage/health",
                         "/manage/health/liveness",
