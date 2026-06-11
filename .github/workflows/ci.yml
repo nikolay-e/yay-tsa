@@ -8,9 +8,11 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel superseded PR runs, but queue pushes to main: cancelling a main run
+# after the image push but before post-deploy QA would deploy unverified code.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
@@ -131,6 +133,9 @@ jobs:
       - name: Check bundle size budget
         run: npx bundlewatch --config .bundlewatchrc.json
 
+      - name: Enforce total bundle budget
+        run: node scripts/bundle-report.mjs --max-total-gzip=210
+
   web-e2e-mocked:
     name: Web E2E (mocked, backend-free)
     runs-on: ubuntu-latest
@@ -220,8 +225,16 @@ jobs:
 
   docker-build-frontend:
     name: Build Frontend Image
-    needs: [build-android-apk]
-    if: ${{ !cancelled() && needs.build-android-apk.result != 'failure' }}
+    needs: [pre-commit, dto-drift-check, lighthouse, web-e2e-mocked, build-android-apk]
+    # All test jobs must pass before an image is pushed (Strategy 1 auto-deploys
+    # it). The APK is tolerated as skipped (PRs) but never as failed.
+    if: >-
+      ${{ !cancelled() &&
+          needs.pre-commit.result == 'success' &&
+          needs.dto-drift-check.result == 'success' &&
+          needs.lighthouse.result == 'success' &&
+          needs.web-e2e-mocked.result == 'success' &&
+          needs.build-android-apk.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -255,6 +268,7 @@ jobs:
 
   docker-build-audio-separator:
     name: Build Audio Separator Image
+    needs: [pre-commit]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -281,6 +295,7 @@ jobs:
 
   docker-build-feature-extractor:
     name: Build Feature Extractor Image
+    needs: [pre-commit]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -317,10 +332,34 @@ jobs:
       contents: read
 
     steps:
-      # Post-cutover (2026-05-16): live backend is v2 in yay-tsa-v2-production
-      # and its image rolls out from yay-tsa-v2/.github/workflows/v2-ci.yml,
-      # not this workflow. We skip the rollout-wait probe and run autoqa
-      # against whatever version is currently live.
+      # The frontend image pushed above auto-deploys via Argo CD Image Updater
+      # (Strategy 1). The build bakes VITE_APP_VERSION=main-<sha7> into the
+      # eager JS chunks, so the live version is detectable by grepping the
+      # assets referenced from index.html. QA must not start until the site
+      # serves THIS commit, otherwise it validates the previous deploy.
+      # (Backend rolls out from v2-ci.yml, which has its own post-deploy job.)
+      - name: Wait for frontend rollout
+        env:
+          BASE_URL: https://yay-tsa.com
+        run: |
+          EXPECTED="main-${GITHUB_SHA:0:7}"
+          DEADLINE=$((SECONDS + 600))
+          echo "Polling ${BASE_URL} until it serves frontend version ${EXPECTED}"
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            ASSETS=$(curl -fsS -H 'Cache-Control: no-cache' "${BASE_URL}/index.html?rollout=$(date +%s)" \
+              | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | sort -u || true)
+            for ASSET in $ASSETS; do
+              if curl -fsS -H 'Cache-Control: no-cache' "${BASE_URL}${ASSET}" | grep -q "$EXPECTED"; then
+                echo "Live frontend serves ${EXPECTED} (found in ${ASSET})"
+                exit 0
+              fi
+            done
+            echo "Live frontend is not on ${EXPECTED} yet; retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Rollout never happened: ${BASE_URL} still does not serve ${EXPECTED} after 10 minutes (Image Updater lag or ArgoCD sync failure). QA was not reached, so this is a deploy failure, not a QA failure."
+          exit 1
+
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
         uses: nikolay-e/autoqa@cdd60fed42ce0e863c505896e42272ad1f21b17d # main (exit-gate on report contents + ZAP absolute servers)
         with:

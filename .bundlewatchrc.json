@@ -11,6 +11,10 @@
     {
       "path": "apps/web/dist/assets/index-*.css",
       "maxSize": "30kB"
+    },
+    {
+      "path": "apps/web/dist/assets/*Page-*.js",
+      "maxSize": "25kB"
     }
   ],
   "ci": {

@@ -14,9 +14,12 @@ on:
       - 'charts/yay-tsa-v2/**'
       - '.github/workflows/v2-ci.yml'
 
+# Cancel superseded PR runs, but queue pushes to main: cancelling a main run
+# after the image push but before post-deploy verification would deploy
+# unverified code.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gradle-test:
@@ -82,3 +85,81 @@ jobs:
           dockerfile: yay-tsa-v2/Dockerfile
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  post-deploy-verify:
+    name: v2 Post-Deploy Verify
+    needs: [docker-build-v2]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    env:
+      BASE_URL: https://yay-tsa.com
+
+    steps:
+      # /api/System/Info/Public exposes no build sha, so the new image cannot
+      # be fingerprinted from outside. Best effort instead: sit out the Image
+      # Updater + rollout window, then require three consecutive healthy
+      # answers from the permitAll system endpoints.
+      - name: Wait for backend rollout
+        run: |
+          echo "Waiting 300s for Image Updater detection + rollout to settle"
+          sleep 300
+          DEADLINE=$((SECONDS + 300))
+          HEALTHY=0
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            if curl -fsS --max-time 10 "${BASE_URL}/api/System/Ping" >/dev/null &&
+              curl -fsS --max-time 10 "${BASE_URL}/api/System/Info/Public" | jq -e '.Id == "yaytsa"' >/dev/null; then
+              HEALTHY=$((HEALTHY + 1))
+              echo "Backend healthy (${HEALTHY}/3 consecutive probes)"
+              if [ "$HEALTHY" -ge 3 ]; then
+                exit 0
+              fi
+            else
+              HEALTHY=0
+              echo "Backend not healthy yet; retrying"
+            fi
+            sleep 10
+          done
+          echo "::error::Rollout never became healthy: ${BASE_URL}/api/System/Ping did not answer 3 consecutive probes within 10 minutes after the image push. This is a deploy failure (crash loop or sync failure), not a QA failure."
+          exit 1
+
+      - name: Auth round-trip
+        env:
+          QA_USERNAME: ${{ vars.QA_USERNAME || 'test' }}
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+        run: |
+          BODY=$(jq -n --arg u "$QA_USERNAME" --arg p "$QA_PASSWORD" '{Username: $u, Pw: $p}')
+          TOKEN=$(curl -fsS --max-time 15 -X POST "${BASE_URL}/api/Users/AuthenticateByName" \
+            -H 'Content-Type: application/json' \
+            --data "$BODY" | jq -re '.AccessToken')
+          echo "::add-mask::$TOKEN"
+          echo "QA_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "Authenticated as ${QA_USERNAME}"
+
+      - name: Streaming smoke (Range request)
+        run: |
+          ITEM_ID=$(curl -fsS --max-time 15 \
+            -H "Authorization: Bearer ${QA_TOKEN}" \
+            "${BASE_URL}/api/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1" \
+            | jq -r '.Items[0].Id // empty')
+          if [ -z "$ITEM_ID" ]; then
+            echo "::warning::Library returned no audio items; skipping streaming smoke"
+            exit 0
+          fi
+          STATUS=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "Authorization: Bearer ${QA_TOKEN}" \
+            -H 'Range: bytes=0-1023' \
+            "${BASE_URL}/api/Audio/${ITEM_ID}/stream")
+          echo "GET /api/Audio/${ITEM_ID}/stream with Range bytes=0-1023 -> ${STATUS}"
+          if [ "$STATUS" = "206" ]; then
+            echo "Streaming smoke passed"
+          elif [ "$STATUS" -ge 500 ]; then
+            echo "::error::Streaming endpoint returned ${STATUS} (server error)"
+            exit 1
+          else
+            echo "::error::Expected 206 Partial Content, got ${STATUS}"
+            exit 1
+          fi

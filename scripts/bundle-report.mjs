@@ -4,11 +4,12 @@
  * gzipped sizes, plus the initial critical-path total (entry + eager vendor chunks + CSS, i.e. what
  * the browser must download before the first route renders). Reproducible: `npm run profile:bundle`.
  */
-import { readdirSync, statSync, readFileSync } from 'node:fs';
+import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 
-const dist = join(process.cwd(), 'apps/web/dist/assets');
+const distRoot = join(process.cwd(), 'apps/web/dist');
+const dist = join(distRoot, 'assets');
 let files;
 try {
   files = readdirSync(dist).filter(f => /\.(js|css)$/.test(f));
@@ -26,13 +27,25 @@ const rows = files
   })
   .sort((a, b) => b.gz - a.gz);
 
-// Eager critical path = entry (index-*.js) + vendor-* chunks + the main CSS. Lazy route chunks
-// (named after pages) are excluded since they load on navigation, not at boot.
+// Eager critical path = exactly what index.html references (entry script, modulepreloaded
+// chunks, CSS). Lazy route chunks load on navigation, not at boot. Falls back to a name
+// heuristic when index.html is absent.
+const eagerSetFromIndexHtml = () => {
+  const indexHtml = join(distRoot, 'index.html');
+  if (!existsSync(indexHtml)) return null;
+  const refs = [
+    ...readFileSync(indexHtml, 'utf8').matchAll(/\/assets\/([A-Za-z0-9._-]+\.(?:js|css))/g),
+  ].map(m => m[1]);
+  return refs.length ? new Set(refs) : null;
+};
+const eagerSet = eagerSetFromIndexHtml();
 const isCritical = f =>
-  /^index-.*\.js$/.test(f) ||
-  /^vendor-.*\.js$/.test(f) ||
-  /^cn-.*\.js$/.test(f) ||
-  /\.css$/.test(f);
+  eagerSet
+    ? eagerSet.has(f)
+    : /^index-.*\.js$/.test(f) ||
+      /^vendor-.*\.js$/.test(f) ||
+      /^cn-.*\.js$/.test(f) ||
+      /\.css$/.test(f);
 
 const fmt = n => `${(n / 1024).toFixed(1)}kB`;
 console.log('\n=== chunk sizes (gzipped, descending) ===');
@@ -54,5 +67,26 @@ console.log(
     )
   )} gz`
 );
+const eagerJsGzip = sum(
+  critical.filter(r => r.file.endsWith('.js')),
+  'gz'
+);
 console.log(`  initial critical: ${fmt(sum(critical, 'gz'))} gz  (entry + eager vendors + CSS)`);
+console.log(`  eager JS:         ${fmt(eagerJsGzip)} gz  (index.html-referenced JS only)`);
 console.log(`  repo target:      150.0kB gz (CLAUDE.md performance target)`);
+
+const maxTotalArg = process.argv.find(a => a.startsWith('--max-total-gzip='));
+if (maxTotalArg) {
+  const maxKb = Number(maxTotalArg.split('=')[1]);
+  if (!Number.isFinite(maxKb) || maxKb <= 0) {
+    console.error(`Invalid flag value: ${maxTotalArg} (expected --max-total-gzip=<kB>)`);
+    process.exit(2);
+  }
+  if (eagerJsGzip > maxKb * 1024) {
+    console.error(
+      `\nFAIL: eager JS total ${fmt(eagerJsGzip)} gz exceeds the ${maxKb.toFixed(1)}kB gz budget`
+    );
+    process.exit(1);
+  }
+  console.log(`  budget:           ${maxKb.toFixed(1)}kB gz eager JS — OK`);
+}
