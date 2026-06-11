@@ -343,7 +343,7 @@ jobs:
           BASE_URL: https://yay-tsa.com
         run: |
           EXPECTED="main-${GITHUB_SHA:0:7}"
-          DEADLINE=$((SECONDS + 600))
+          DEADLINE=$((SECONDS + 1500))
           echo "Polling ${BASE_URL} until it serves frontend version ${EXPECTED}"
           while [ "$SECONDS" -lt "$DEADLINE" ]; do
             ASSETS=$(curl -fsS -H 'Cache-Control: no-cache' "${BASE_URL}/index.html?rollout=$(date +%s)" \
@@ -357,7 +357,7 @@ jobs:
             echo "Live frontend is not on ${EXPECTED} yet; retrying in 20s"
             sleep 20
           done
-          echo "::error::Rollout never happened: ${BASE_URL} still does not serve ${EXPECTED} after 10 minutes (Image Updater lag or ArgoCD sync failure). QA was not reached, so this is a deploy failure, not a QA failure."
+          echo "::error::Rollout never happened: ${BASE_URL} still does not serve ${EXPECTED} after 25 minutes (Image Updater lag or ArgoCD sync failure). QA was not reached, so this is a deploy failure, not a QA failure."
           exit 1
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
