@@ -16,7 +16,10 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/backend-configmap.yaml") . | sha256sum }}
+        # Hash only the values feeding the ConfigMap data, not the rendered manifest: the
+        # manifest's helm.sh/chart label changes on every chart release, which restarted the
+        # production backend (killing active streams) on every push to the repo.
+        checksum/config: {{ print (toYaml .Values.backend.config) (toYaml .Values.backend.database.hikari) | sha256sum }}
       labels:
         {{- include "yay-tsa-v2.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: backend
