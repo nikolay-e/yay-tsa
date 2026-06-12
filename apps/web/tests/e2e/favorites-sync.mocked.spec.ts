@@ -95,6 +95,12 @@ function installMock(page: Page, opts: { failToggle?: boolean } = {}): void {
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
+  // Device-sync endpoints return arrays; the RootLayout RemotePlaybackBanner calls
+  // devices.filter, so the JSON-object catch-all crashes the page without this stub.
+  void page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+
   // Cover art: serve a 1x1 transparent PNG so images never hit the JSON catch-all.
   void page.route(/\/Images\//, (route: Route) =>
     route.fulfill({
@@ -130,7 +136,7 @@ function heartInRow(page: Page, trackName: string) {
 // which the existing mocked auth suite never exercises — so the selectors/timing need a real run to
 // confirm before this gates CI. Un-fixme and run: npx playwright test --project=chromium-mocked
 test.describe('Favorite sync across screens (mocked backend)', () => {
-  test.fixme('like on Songs → shows in Favorites → unlike there → empty back on Songs', async ({
+  test('like on Songs → shows in Favorites → unlike there → empty back on Songs', async ({
     page,
   }) => {
     installMock(page);
@@ -159,9 +165,7 @@ test.describe('Favorite sync across screens (mocked backend)', () => {
     await expect(heartInRow(page, 'Aurora')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test.fixme('server rejects the toggle → optimistic fill rolls back to empty', async ({
-    page,
-  }) => {
+  test('server rejects the toggle → optimistic fill rolls back to empty', async ({ page }) => {
     installMock(page, { failToggle: true });
     await login(page);
 
