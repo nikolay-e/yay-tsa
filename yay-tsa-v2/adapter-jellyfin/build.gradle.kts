@@ -37,6 +37,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation(libs.jackson.module.kotlin)
     implementation(libs.caffeine)
+    // Embedded cover-art extraction for items whose folder carries no image file (audiobooks).
+    implementation("net.jthink:jaudiotagger:3.0.1")
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotest.runner.junit5)

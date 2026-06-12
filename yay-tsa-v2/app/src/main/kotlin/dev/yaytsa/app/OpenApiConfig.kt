@@ -28,12 +28,34 @@ class OpenApiConfig {
             operation
         }
 
+    // Path ids are UUIDs, device ids, or positional indices — never semicolons, percent escapes
+    // or control characters. Without a declared pattern, fuzzers legitimately generate strings
+    // like `®­*¼²â,»;_ˆ` as "schema-compliant" path params; Spring Security's StrictHttpFirewall
+    // then rejects the encoded `;` before any controller, and the resulting 400 is reported as
+    // "API rejected schema-compliant request". Declaring the real id alphabet in the spec makes
+    // positive fuzzing generate servable ids and keeps the firewall rejection a negative-test pass.
+    @Bean
+    fun pathIdPatternCustomizer(): OperationCustomizer =
+        OperationCustomizer { operation, _ ->
+            operation.parameters
+                ?.filter { it.`in` == "path" }
+                ?.forEach { param ->
+                    val schema = param.schema
+                    if (schema?.type == "string" && schema.pattern == null && schema.format == null) {
+                        schema.pattern = PATH_ID_PATTERN
+                    }
+                }
+            operation
+        }
+
     private fun problemDetailResponse(description: String): ApiResponse =
         ApiResponse()
             .description(description)
             .content(Content().addMediaType("application/problem+json", MediaType().schema(ObjectSchema())))
 
     companion object {
+        private const val PATH_ID_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._@:-]{0,127}$"
+
         private val STANDARD_ERROR_RESPONSES =
             linkedMapOf(
                 "400" to "Bad request — validation or domain invariant violated",

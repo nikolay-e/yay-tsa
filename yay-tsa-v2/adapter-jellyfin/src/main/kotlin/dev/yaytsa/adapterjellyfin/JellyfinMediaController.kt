@@ -26,6 +26,7 @@ import java.nio.file.StandardOpenOption
 class JellyfinMediaController(
     private val libraryQueries: LibraryQueries,
     private val thumbnails: ThumbnailService,
+    private val embeddedArtwork: EmbeddedArtworkService,
     @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -41,12 +42,11 @@ class JellyfinMediaController(
         @RequestHeader(value = HttpHeaders.ACCEPT, required = false) accept: String?,
         @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) ifNoneMatch: String?,
     ): ResponseEntity<Resource> {
-        val image =
-            libraryQueries.getPrimaryImage(EntityId(itemId))
-                ?: return ResponseEntity.notFound().build()
-
         val filePath =
-            MediaPathSafety.resolveServableFile(Path.of(image.path), safeRoot)
+            libraryQueries
+                .getPrimaryImage(EntityId(itemId))
+                ?.let { MediaPathSafety.resolveServableFile(Path.of(it.path), safeRoot) }
+                ?: embeddedArtworkFile(itemId)
                 ?: return ResponseEntity.notFound().build()
 
         val acceptWebp = accept?.contains("image/webp", ignoreCase = true) == true
@@ -68,6 +68,21 @@ class JellyfinMediaController(
             .header(HttpHeaders.ETAG, rendered.etag)
             .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
             .body(FileSystemResource(rendered.file))
+    }
+
+    // Folder has no cover file (audiobook rips ship art only inside the tags): pull the
+    // embedded artwork from the item's own file, or the first chapter when the id is an album.
+    private fun embeddedArtworkFile(itemId: String): Path? {
+        val entityId = EntityId(itemId)
+        val trackId =
+            if (libraryQueries.getTrack(entityId) != null) {
+                entityId
+            } else {
+                libraryQueries.browseTracksByAlbum(entityId).firstOrNull()?.id ?: return null
+            }
+        val sourcePath = libraryQueries.resolveTrackFilePath(trackId) ?: return null
+        val audioFile = MediaPathSafety.resolveServableFile(Path.of(sourcePath), safeRoot) ?: return null
+        return embeddedArtwork.extract(audioFile)
     }
 
     @GetMapping("/Audio/{itemId}/universal")
