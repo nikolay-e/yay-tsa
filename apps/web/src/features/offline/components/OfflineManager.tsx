@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Trash2, ShieldCheck, ShieldAlert, History, Loader2 } from 'lucide-react';
+import {
+  Trash2,
+  ShieldCheck,
+  ShieldAlert,
+  History,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
 
@@ -61,12 +69,15 @@ export function OfflineManager() {
   const settings = useOfflineSettings();
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
+  const [showTrackList, setShowTrackList] = useState(false);
 
   useEffect(() => {
     refreshUsage().catch(() => {});
   }, [refreshUsage]);
 
-  const downloaded = Object.entries(entries).filter(([, entry]) => entry.status === 'ready');
+  const downloaded = Object.entries(entries)
+    .filter(([, entry]) => entry.status === 'ready')
+    .sort(([, a], [, b]) => b.size - a.size);
   const cacheCount = downloaded.filter(
     ([, entry]) =>
       entry.reasons.includes('listening-cache') &&
@@ -204,24 +215,45 @@ export function OfflineManager() {
           the download icon on any track.
         </p>
       ) : (
-        <ul className="divide-border divide-y">
-          {downloaded.map(([trackId, entry]) => (
-            <li key={trackId} className="flex items-center justify-between gap-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
-              <span className="text-text-tertiary shrink-0 text-xs">{formatBytes(entry.size)}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  remove(trackId).catch(() => {});
-                }}
-                className="text-text-secondary hover:text-error shrink-0 rounded-full p-1.5 transition-colors"
-                aria-label={`Remove ${entry.name}`}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowTrackList(value => !value)}
+            aria-expanded={showTrackList}
+            className="text-text-secondary hover:text-text-primary flex w-full items-center justify-between py-2 text-sm font-medium transition-colors"
+          >
+            <span>
+              {showTrackList ? 'Hide' : 'Show'} downloaded tracks ({downloaded.length})
+            </span>
+            {showTrackList ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+          {showTrackList && (
+            <ul className="divide-border divide-y">
+              {downloaded.map(([trackId, entry]) => (
+                <li key={trackId} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
+                  <span className="text-text-tertiary shrink-0 text-xs">
+                    {formatBytes(entry.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      remove(trackId).catch(() => {});
+                    }}
+                    className="text-text-secondary hover:text-error shrink-0 rounded-full p-1.5 transition-colors"
+                    aria-label={`Remove ${entry.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
