@@ -32,18 +32,24 @@ function key(itemId: string): string {
   return `${KEY_PREFIX}${itemId}`;
 }
 
+// atMs is the instant the position was last live (engine tick/seek), defaulting to now. Writes are
+// monotonic by that truth time: a stale background tab flushing an old position on teardown must
+// not clobber a fresher record written by the tab the user actually listened in.
 export function writeLocalResume(
   itemId: string,
   positionSeconds: number,
-  durationSeconds: number
+  durationSeconds: number,
+  atMs: number = Date.now()
 ): void {
-  if (!itemId) return;
+  if (!itemId || atMs <= 0) return;
   try {
+    const existing = readLocalResume(itemId);
+    if (existing && Date.parse(existing.updatedAt) > atMs) return;
     const record: LocalResume = {
       itemId,
       positionMs: Math.max(0, Math.round(positionSeconds * 1000)),
       runTimeMs: durationSeconds > 0 ? Math.round(durationSeconds * 1000) : 0,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(atMs).toISOString(),
     };
     localStorage.setItem(key(itemId), JSON.stringify(record));
   } catch {

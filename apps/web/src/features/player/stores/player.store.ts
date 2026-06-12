@@ -22,7 +22,11 @@ import {
 } from '@yay-tsa/platform';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
-import { writeLocalResume, bumpResumeVersion } from '@/features/audiobooks/stores/local-resume';
+import {
+  writeLocalResume,
+  readLocalResume,
+  bumpResumeVersion,
+} from '@/features/audiobooks/stores/local-resume';
 import { log } from '@/shared/utils/logger';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
@@ -144,6 +148,10 @@ let currentItemId: string | null = null;
 let currentClient: MediaServerClient | null = null;
 let lastProgressReportTime = 0;
 let lastLocalResumeWriteTime = 0;
+// Instant the engine position was last live (tick, seek, or track load). Resume flushes are
+// stamped with this so a tab that sat hidden for hours reports its position as of when it was
+// true — letting the server merge and localStorage reject it against newer progress elsewhere.
+let lastPositionTruthAt = 0;
 
 const wakeLock = new WakeLockManager();
 
@@ -383,16 +391,26 @@ export const usePlayerStore = create<PlayerStore>()(
     // primary durability layer — independent of the network and the server cache.
     function writeLocalResumeNow(): void {
       if (get().playerMode !== 'audiobook' || !currentItemId) return;
-      writeLocalResume(currentItemId, engine.getCurrentTime(), engine.getDuration());
+      writeLocalResume(
+        currentItemId,
+        engine.getCurrentTime(),
+        engine.getDuration(),
+        lastPositionTruthAt
+      );
     }
 
     // Best-effort durable flush for page unload / backgrounding: keepalive network write plus the
-    // local write-through, so closing the tab mid-chapter never loses the place.
+    // local write-through, so closing the tab mid-chapter never loses the place. A tab whose
+    // position was never live (nothing played or sought) has nothing trustworthy to flush.
     function flushResumeOnHide(): void {
+      if (!currentItemId || lastPositionTruthAt === 0) return;
       writeLocalResumeNow();
-      if (playbackReporter && currentItemId) {
-        playbackReporter.flushProgress(currentItemId, engine.getCurrentTime(), !get().isPlaying);
-      }
+      playbackReporter?.flushProgress(
+        currentItemId,
+        engine.getCurrentTime(),
+        !get().isPlaying,
+        lastPositionTruthAt
+      );
     }
 
     function updateSessionMetadata(track: AudioItem): void {
@@ -595,8 +613,13 @@ export const usePlayerStore = create<PlayerStore>()(
       // Seek-on-load resume is audiobook-only: a long-form book restores its saved place,
       // while music keeps its existing start-from-zero behaviour. A user seek already
       // aimed at this track survives; seeks aimed at other tracks are discarded.
+      // The track item may carry stale UserData (React Query caches on album/search/queue
+      // surfaces), so the device's own localStorage write-through competes with it — except for
+      // finished chapters, whose ticks are deliberately zeroed so a re-listen starts clean.
       if (resumeFromSaved && audiobook) {
-        const resumeSeconds = resumePositionSeconds(track);
+        const local = readLocalResume(track.Id);
+        const localSeconds = local && !track.UserData?.Played ? local.positionMs / 1000 : 0;
+        const resumeSeconds = Math.max(resumePositionSeconds(track), localSeconds);
         if (resumeSeconds > 0) {
           pendingSeek = { seconds: resumeSeconds, itemId: track.Id };
         } else if (pendingSeek?.itemId !== track.Id) {
@@ -632,6 +655,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         // Engine truth: from here on, positions read from the engine belong to this item.
         currentItemId = track.Id;
+        lastPositionTruthAt = Date.now();
         engine.setPlaybackRate?.(rate);
         set({ currentTrack: track, isLoading: false, error: null });
 
@@ -672,6 +696,7 @@ export const usePlayerStore = create<PlayerStore>()(
       // --- Always: engine-level cleanup ---
       preloader.consume();
       currentItemId = track.Id;
+      lastPositionTruthAt = Date.now();
       // The element swap starts the new element at the browser-default rate; an
       // audiobook chapter advance must keep the user-selected speed audible.
       engine.setPlaybackRate?.(get().playbackRate);
@@ -726,6 +751,7 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(seconds, duration);
 
       const now = Date.now();
+      lastPositionTruthAt = now;
       const audiobook = get().playerMode === 'audiobook';
 
       if (
@@ -1086,6 +1112,7 @@ export const usePlayerStore = create<PlayerStore>()(
         void controller.interrupt(async () => {
           engine.pause();
           lastPauseAt = Date.now();
+          lastPositionTruthAt = lastPauseAt;
           set({ isPlaying: false });
           syncMediaSessionPlayback('paused');
           wakeLock.release();
@@ -1186,6 +1213,7 @@ export const usePlayerStore = create<PlayerStore>()(
         } else {
           engine.seek(seconds);
         }
+        lastPositionTruthAt = Date.now();
         useTimingStore.getState().seekTo(seconds, engine.getDuration());
         syncMediaSessionPlayback(get().isPlaying ? 'playing' : 'paused', seconds);
 
@@ -1253,6 +1281,11 @@ export const usePlayerStore = create<PlayerStore>()(
         // eslint-disable-next-line @typescript-eslint/require-await
         void controller.interrupt(async () => {
           pendingSeek = null;
+          // Capture the real position before the engine resets to 0: a stopped report is an
+          // authoritative exact-set on the server, so reporting 0 here would wipe the resume
+          // point of a mid-chapter audiobook (stop fires on logout/auth-clear, not user intent).
+          const stoppedPosition = engine.getCurrentTime();
+          writeLocalResumeNow();
           engine.pause();
           engine.seek(0);
           useTimingStore.getState().reset();
@@ -1260,9 +1293,11 @@ export const usePlayerStore = create<PlayerStore>()(
           wakeLock.release();
 
           if (playbackReporter && currentItemId) {
-            playbackReporter.reportStopped(currentItemId, 0).catch(err => {
-              log.player.warn('Failed to report stop', { error: String(err) });
-            });
+            playbackReporter
+              .reportStopped(currentItemId, stoppedPosition, lastPositionTruthAt || undefined)
+              .catch(err => {
+                log.player.warn('Failed to report stop', { error: String(err) });
+              });
             playbackReporter = null;
             currentItemId = null;
           }

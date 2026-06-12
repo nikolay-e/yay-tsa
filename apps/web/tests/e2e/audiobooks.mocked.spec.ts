@@ -14,6 +14,32 @@ const TRANSPARENT_PNG = Buffer.from(
   'base64'
 );
 
+// Minimal valid 8-bit mono PCM WAV (~3s of silence) — small but decodable, so Chromium can
+// actually load it, seek within it, and advance currentTime.
+function buildWav(): Buffer {
+  const sampleRate = 8000;
+  const seconds = 3;
+  const numSamples = sampleRate * seconds;
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + numSamples, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate, 28);
+  header.writeUInt16LE(1, 32);
+  header.writeUInt16LE(8, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(numSamples, 40);
+  const data = Buffer.alloc(numSamples, 128);
+  return Buffer.concat([header, data]);
+}
+
+const WAV = buildWav();
+
 interface MockResume {
   positionMs: number;
   runTimeMs: number;
@@ -104,6 +130,29 @@ function installMock(page: Page): void {
   void page.route(/\/Images\//, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/png', body: TRANSPARENT_PNG })
   );
+  // Range-aware stream stub: Chromium refuses to seek media served without byte-range support,
+  // silently snapping currentTime back to 0 — which is exactly the regression these tests guard.
+  void page.route(/\/Audio\/[^/]+\/stream/, (route: Route) => {
+    const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers()['range'] ?? '');
+    if (range) {
+      const start = Number(range[1]);
+      const end = range[2] ? Math.min(Number(range[2]), WAV.length - 1) : WAV.length - 1;
+      return route.fulfill({
+        status: 206,
+        headers: {
+          'Content-Type': 'audio/wav',
+          'Accept-Ranges': 'bytes',
+          'Content-Range': `bytes ${start}-${end}/${WAV.length}`,
+        },
+        body: WAV.subarray(start, end + 1),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes' },
+      body: WAV,
+    });
+  });
 
   // Device-sync endpoints return arrays; the RootLayout RemotePlaybackBanner calls devices.filter.
   void page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
@@ -152,6 +201,28 @@ function installMock(page: Page): void {
           },
           { id: 'album-foundation', name: 'Foundation' }
         ),
+        // A short book matching the 3-second mocked WAV stream, so resume-seek and live playback
+        // land at real, assertable currentTime offsets within the decodable audio.
+        {
+          item: {
+            ...audiobookItem('seek-book', 'Project Hail Mary'),
+            RunTimeTicks: 30_000_000,
+            UserData: {
+              PlaybackPositionTicks: 15_000_000,
+              PlayCount: 0,
+              IsFavorite: false,
+              Played: false,
+            },
+          },
+          resume: {
+            positionMs: 1_500,
+            runTimeMs: 3_000,
+            status: 'in_progress',
+            updatedAt: '2026-06-07T10:00:00Z',
+            remainingMs: 1_500,
+            progressPercent: 50,
+          },
+        },
       ]),
     })
   );
@@ -272,6 +343,80 @@ test.describe('Audiobooks tab (mocked backend)', () => {
         .filter({ hasText: 'The Name of the Wind' })
         .getByTestId('audiobook-finish')
     ).toBeVisible({ timeout: 10000 });
+  });
+
+  test('resume seeks the audio engine to the saved position, not the start', async ({ page }) => {
+    installMock(page);
+    await login(page);
+    await page.goto('/audiobooks');
+
+    const card = page.getByTestId('audiobook-card').filter({ hasText: 'Project Hail Mary' });
+    await card.getByTestId('audiobook-resume').click();
+
+    // The first observable engine position must already be the seeked resume point (~1.5s of the
+    // 3s WAV) — a start-from-zero regression would surface here as a sub-second first sample.
+    await page.waitForFunction(() => (document.querySelector('audio')?.currentTime ?? 0) > 0, {
+      timeout: 15000,
+    });
+    const firstObserved = await page.evaluate(
+      () => document.querySelector('audio')?.currentTime ?? 0
+    );
+    expect(firstObserved).toBeGreaterThan(1.4);
+  });
+
+  test('listened position survives a reload even when the server snapshot is stale', async ({
+    page,
+  }) => {
+    installMock(page);
+    await login(page);
+    await page.goto('/audiobooks');
+
+    const card = page.getByTestId('audiobook-card').filter({ hasText: 'Project Hail Mary' });
+    await card.getByTestId('audiobook-resume').click();
+
+    // Listen past the server-known 1.5s so the localStorage write-through holds a fresher position.
+    await page.waitForFunction(() => (document.querySelector('audio')?.currentTime ?? 0) > 1.9, {
+      timeout: 15000,
+    });
+
+    // The mocked server keeps returning 1.5s forever — after a reload, the local-first merge must
+    // still resume from the freshest locally written position, not the stale server snapshot.
+    await page.reload();
+    await expect(page.getByTestId('audiobooks-page')).toBeVisible();
+    await page
+      .getByTestId('audiobook-card')
+      .filter({ hasText: 'Project Hail Mary' })
+      .getByTestId('audiobook-resume')
+      .click();
+
+    await page.waitForFunction(() => (document.querySelector('audio')?.currentTime ?? 0) > 0, {
+      timeout: 15000,
+    });
+    const resumedAt = await page.evaluate(() => document.querySelector('audio')?.currentTime ?? 0);
+    expect(resumedAt).toBeGreaterThan(1.8);
+  });
+
+  test('playback position syncs to the backend continuously while playing', async ({ page }) => {
+    installMock(page);
+    const progressTicks: number[] = [];
+    await page.route(/\/Sessions\/Playing\/Progress/, route => {
+      const body = route.request().postDataJSON() as { PositionTicks: number };
+      progressTicks.push(body.PositionTicks);
+      return route.fulfill({ status: 204, body: '' });
+    });
+    await login(page);
+    await page.goto('/audiobooks');
+
+    await page
+      .getByTestId('audiobook-card')
+      .filter({ hasText: 'The Doors of Stone' })
+      .getByTestId('audiobook-resume')
+      .click();
+
+    // The audiobook heartbeat reports every 2s of playback — the 3s WAV must produce at least
+    // two progress posts with a strictly advancing position before it ends.
+    await expect.poll(() => progressTicks.length, { timeout: 15000 }).toBeGreaterThanOrEqual(2);
+    expect(progressTicks.at(-1)!).toBeGreaterThan(progressTicks[0]!);
   });
 
   test('nav exposes an Audiobooks entry that routes to the tab', async ({ page }) => {
