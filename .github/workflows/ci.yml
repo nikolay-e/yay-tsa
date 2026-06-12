@@ -1,0 +1,399 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+# Cancel superseded PR runs, but queue pushes to main: cancelling a main run
+# after the image push but before post-deploy QA would deploy unverified code.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Set up Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache pre-commit hooks
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          # Fall back to any prior cache when the config hash changes. The
+          # nikolay-e/pre-commit-hooks repo is private and cannot be cloned
+          # anonymously on the runner, so a cold cache miss makes the install
+          # step fail on `git fetch`. Restoring the previous hook environments
+          # avoids re-cloning when only hook file-filters (not revs) changed.
+          restore-keys: |
+            pre-commit-
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
+  dto-drift-check:
+    name: DTO Drift Check (Kotlin <-> TS)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Install pyyaml
+        run: pip install pyyaml
+
+      - name: Run DTO drift check
+        run: python3 scripts/check-dto-drift.py
+
+  lighthouse:
+    name: Performance Budget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Run Lighthouse CI
+        run: lhci autorun
+
+      - name: Check bundle size budget
+        run: npx bundlewatch --config .bundlewatchrc.json
+
+      - name: Enforce total bundle budget
+        run: node scripts/bundle-report.mjs --max-total-gzip=210
+
+  web-e2e-mocked:
+    name: Web E2E (mocked, backend-free)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build core + platform (the dev server resolves them at runtime)
+        run: npm run build:core && npm run build:platform
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: Run backend-free auth-persistence suite
+        run: npx playwright test --project=chromium-mocked
+        working-directory: apps/web
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-mocked
+          path: apps/web/playwright-report
+          retention-days: 3
+          if-no-files-found: ignore
+
+  build-android-apk:
+    name: Build Android APK
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Decode keystore
+        working-directory: apps/android-twa
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > keystore.jks
+          echo "KEYSTORE_FILE=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        working-directory: apps/android-twa
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-apk
+          path: apps/android-twa/app/build/outputs/apk/release/app-release.apk
+          retention-days: 1
+          if-no-files-found: error
+
+  docker-build-frontend:
+    name: Build Frontend Image
+    needs: [pre-commit, dto-drift-check, lighthouse, web-e2e-mocked, build-android-apk]
+    # All test jobs must pass before an image is pushed (Strategy 1 auto-deploys
+    # it). The APK is tolerated as skipped (PRs) but never as failed.
+    if: >-
+      ${{ !cancelled() &&
+          needs.pre-commit.result == 'success' &&
+          needs.dto-drift-check.result == 'success' &&
+          needs.lighthouse.result == 'success' &&
+          needs.web-e2e-mocked.result == 'success' &&
+          needs.build-android-apk.result != 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Download Android APK
+        if: needs.build-android-apk.result == 'success'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: android-apk
+          path: apps/web/public/downloads
+
+      - name: Rename APK
+        if: needs.build-android-apk.result == 'success'
+        run: mv apps/web/public/downloads/app-release.apk apps/web/public/downloads/yay-tsa.apk
+
+      - name: Build and push
+        uses: ./.github/actions/docker-build
+        with:
+          image-name: frontend
+          context: .
+          dockerfile: apps/web/Dockerfile
+          target: production
+          build-args: APP_ENVIRONMENT=production
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-build-audio-separator:
+    name: Build Audio Separator Image
+    needs: [pre-commit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Build and push
+        uses: ./.github/actions/docker-build
+        with:
+          image-name: audio-separator
+          context: ./services/audio-ml
+          build-args: VARIANT=gpu
+          include-git-sha: 'false'
+          free-disk-space: 'true'
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/audio-separator:buildcache-gpu
+            type=gha,scope=audio-separator
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/audio-separator:buildcache-gpu,mode=max,image-manifest=true
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-build-feature-extractor:
+    name: Build Feature Extractor Image
+    needs: [pre-commit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Build and push
+        uses: ./.github/actions/docker-build
+        with:
+          image-name: feature-extractor
+          context: ./services/audio-ml
+          build-args: VARIANT=essentia
+          include-git-sha: 'false'
+          free-disk-space: 'true'
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/feature-extractor:buildcache-essentia
+            type=gha,scope=feature-extractor
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/feature-extractor:buildcache-essentia,mode=max,image-manifest=true
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  post-deploy-qa:
+    name: Post-Deploy QA
+    needs: [docker-build-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Schemathesis with --checks all + ZAP + crawler can take ~30min against the
+    # live backend. 30min was too tight and silently truncated the run.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      # The frontend image pushed above auto-deploys via Argo CD Image Updater
+      # (Strategy 1). The build bakes VITE_APP_VERSION=main-<sha7> into the
+      # eager JS chunks, so the live version is detectable by grepping the
+      # assets referenced from index.html. QA must not start until the site
+      # serves THIS commit, otherwise it validates the previous deploy.
+      # (Backend rolls out from v2-ci.yml, which has its own post-deploy job.)
+      - name: Wait for frontend rollout
+        env:
+          BASE_URL: https://yay-tsa.com
+        run: |
+          EXPECTED="main-${GITHUB_SHA:0:7}"
+          DEADLINE=$((SECONDS + 1500))
+          echo "Polling ${BASE_URL} until it serves frontend version ${EXPECTED}"
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            ASSETS=$(curl -fsS -H 'Cache-Control: no-cache' "${BASE_URL}/index.html?rollout=$(date +%s)" \
+              | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | sort -u || true)
+            for ASSET in $ASSETS; do
+              if curl -fsS -H 'Cache-Control: no-cache' "${BASE_URL}${ASSET}" | grep -q "$EXPECTED"; then
+                echo "Live frontend serves ${EXPECTED} (found in ${ASSET})"
+                exit 0
+              fi
+            done
+            echo "Live frontend is not on ${EXPECTED} yet; retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Rollout never happened: ${BASE_URL} still does not serve ${EXPECTED} after 25 minutes (Image Updater lag or ArgoCD sync failure). QA was not reached, so this is a deploy failure, not a QA failure."
+          exit 1
+
+      - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
+        uses: nikolay-e/autoqa@cdd60fed42ce0e863c505896e42272ad1f21b17d # main (exit-gate on report contents + ZAP absolute servers)
+        with:
+          url: https://yay-tsa.com
+          auth-url: /api/Users/AuthenticateByName
+          auth-body: '{"Username":"${{ vars.QA_USERNAME || ''test'' }}","Pw":"${{ secrets.QA_PASSWORD }}"}'
+
+          schemathesis-enabled: 'true'
+          openapi-url: /api/v3/api-docs
+          # Backend mounts under /api/* behind strip-prefix middleware; OpenAPI paths
+          # are bare (e.g. /Admin/Cache). Without this override, schemathesis hits
+          # the PWA nginx (returns 405/200 HTML), not the backend.
+          schemathesis-base-url: https://yay-tsa.com/api
+          schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{id}/events,/v1/sessions/{sessionId}/queue/events'
+
+          zap-enabled: 'true'
+
+          crawler-enabled: 'true'
+          crawler-username: ${{ vars.QA_USERNAME || 'test' }}
+          crawler-password: ${{ secrets.QA_PASSWORD }}
+          crawler-max-pages: '30'
+
+      - name: Gate on ZAP HIGH findings
+        if: always()
+        run: |
+          REPORT=/tmp/qa-reports/zap-report.json
+          if [ ! -f "$REPORT" ]; then
+            echo "::error::ZAP report not generated"
+            exit 1
+          fi
+          HIGH=$(jq '[.site[]?.alerts[]? | select(.riskcode=="3")] | length' "$REPORT")
+          echo "ZAP HIGH findings: $HIGH"
+          if [ "$HIGH" -gt 0 ]; then
+            echo "::error::ZAP detected $HIGH HIGH-severity findings"
+            jq '.site[]?.alerts[]? | select(.riskcode=="3") | {name, riskdesc, url: (.instances[0]?.uri // "n/a")}' "$REPORT"
+            exit 1
+          fi
