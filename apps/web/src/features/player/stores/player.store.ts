@@ -162,6 +162,15 @@ function isRetryableTimeout(error: unknown, retryCount: number): boolean {
   return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
 }
 
+// The track item may carry stale UserData (React Query caches on album/search/queue surfaces),
+// so the device's own localStorage write-through competes with it — except for finished
+// chapters, whose ticks are deliberately zeroed so a re-listen starts clean.
+function audiobookResumeSeconds(track: AudioItem): number {
+  const local = readLocalResume(track.Id);
+  const localSeconds = local && !track.UserData?.Played ? local.positionMs / 1000 : 0;
+  return Math.max(resumePositionSeconds(track), localSeconds);
+}
+
 function getAudioEngine(): AudioEngine | null {
   if (audioEngine) return audioEngine;
   try {
@@ -613,13 +622,8 @@ export const usePlayerStore = create<PlayerStore>()(
       // Seek-on-load resume is audiobook-only: a long-form book restores its saved place,
       // while music keeps its existing start-from-zero behaviour. A user seek already
       // aimed at this track survives; seeks aimed at other tracks are discarded.
-      // The track item may carry stale UserData (React Query caches on album/search/queue
-      // surfaces), so the device's own localStorage write-through competes with it — except for
-      // finished chapters, whose ticks are deliberately zeroed so a re-listen starts clean.
       if (resumeFromSaved && audiobook) {
-        const local = readLocalResume(track.Id);
-        const localSeconds = local && !track.UserData?.Played ? local.positionMs / 1000 : 0;
-        const resumeSeconds = Math.max(resumePositionSeconds(track), localSeconds);
+        const resumeSeconds = audiobookResumeSeconds(track);
         if (resumeSeconds > 0) {
           pendingSeek = { seconds: resumeSeconds, itemId: track.Id };
         } else if (pendingSeek?.itemId !== track.Id) {

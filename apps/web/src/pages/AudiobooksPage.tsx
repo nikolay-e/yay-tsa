@@ -32,6 +32,12 @@ function formatDuration(runTimeTicks: number | undefined): string {
   return h > 0 ? `${h}:${mm}:${String(s).padStart(2, '0')}` : `${mm}:${String(s).padStart(2, '0')}`;
 }
 
+function chapterStatusIcon(finished: boolean, started: boolean) {
+  if (finished) return <CheckCircle2 size={16} className="text-accent" />;
+  if (started) return <CircleDot size={16} className="text-accent" />;
+  return <Circle size={16} className="opacity-40" />;
+}
+
 function ChapterRow({
   entry,
   index,
@@ -62,13 +68,7 @@ function ChapterRow({
       }`}
     >
       <span className="flex w-5 shrink-0 justify-center">
-        {finished ? (
-          <CheckCircle2 size={16} className="text-accent" />
-        ) : started ? (
-          <CircleDot size={16} className="text-accent" />
-        ) : (
-          <Circle size={16} className="opacity-40" />
-        )}
+        {chapterStatusIcon(finished, started)}
       </span>
       <span className="text-text-tertiary w-6 shrink-0 text-right tabular-nums">{index + 1}</span>
       <span className="min-w-0 flex-1 truncate">{entry.item.Name}</span>
@@ -143,7 +143,9 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
   const isNotStarted = book.status === 'not_started';
   const inProgress = book.status === 'in_progress';
 
-  const primaryLabel = isFinished ? 'Listen again' : isNotStarted ? 'Start' : 'Resume';
+  let primaryLabel = 'Resume';
+  if (isFinished) primaryLabel = 'Listen again';
+  else if (isNotStarted) primaryLabel = 'Start';
 
   return (
     <div

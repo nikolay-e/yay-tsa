@@ -83,9 +83,6 @@ type OfflineStore = OfflineState & OfflineActions;
 // component remounts and is shared by the player (which resolves blob URLs).
 const store = new IndexedDbOfflineStore<AudioItem>();
 
-// Object URLs are created lazily on first playback and reused for the lifetime of
-// the download so repeated plays don't leak. Revoked on remove / clearAll.
-const objectUrls = new Map<string, string>();
 // Cover-art object URLs, keyed by cover key (album id, falling back to track id).
 const coverUrls = new Map<string, string>();
 
@@ -134,17 +131,7 @@ function uniqueReasons(reasons: OfflineSource[], add: OfflineSource): OfflineSou
   return reasons.includes(add) ? reasons : [...reasons, add];
 }
 
-function revokeObjectUrl(trackId: string): void {
-  const url = objectUrls.get(trackId);
-  if (url) {
-    URL.revokeObjectURL(url);
-    objectUrls.delete(trackId);
-  }
-}
-
 function revokeAllObjectUrls(): void {
-  for (const url of objectUrls.values()) URL.revokeObjectURL(url);
-  objectUrls.clear();
   for (const url of coverUrls.values()) URL.revokeObjectURL(url);
   coverUrls.clear();
 }
@@ -417,7 +404,6 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
     },
 
     remove: async trackId => {
-      revokeObjectUrl(trackId);
       try {
         await store.deleteTrack(trackId);
       } catch (error) {
