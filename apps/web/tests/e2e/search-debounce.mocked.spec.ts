@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { installBaseMock, login } from './helpers/media-fixtures';
 
 // Backend-free search-UX suite (chromium-mocked project): /api/* is stubbed, so this runs without
 // a live backend. It proves the debounced search keeps the previous grid mounted while typing
@@ -6,9 +7,6 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 // into a single trailing request.
 //
 //   npx playwright test --project=chromium-mocked
-
-const VALID_TOKEN = 'mock-access-token';
-const USER = { Id: 'user-1', Name: 'mock-user', Policy: { IsAdministrator: false } };
 
 const ALBUMS = Array.from({ length: 6 }, (_, i) => ({
   Id: `al${i + 1}`,
@@ -22,16 +20,7 @@ const ALBUMS = Array.from({ length: 6 }, (_, i) => ({
 }));
 
 function installMock(page: Page, searchTermsSeen: string[]): void {
-  void page.route('**/api/**', (route: Route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ Items: [], TotalRecordCount: 0, StartIndex: 0 }),
-      });
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-  });
+  installBaseMock(page);
 
   void page.route(/\/v1\/me\/(devices|audiobooks)(\?|$)/, (route: Route) => {
     if (route.request().method() === 'GET') {
@@ -39,18 +28,6 @@ function installMock(page: Page, searchTermsSeen: string[]): void {
     }
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
-
-  void page.route(/\/Users\/AuthenticateByName/, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ AccessToken: VALID_TOKEN, User: USER, SessionInfo: {} }),
-    })
-  );
-
-  void page.route(/\/Users\/Me(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
-  );
 
   void page.route(/\/Items(\?|$)/, (route: Route) => {
     const url = new URL(route.request().url());
@@ -65,25 +42,6 @@ function installMock(page: Page, searchTermsSeen: string[]): void {
       body: JSON.stringify({ Items: items, TotalRecordCount: items.length, StartIndex: 0 }),
     });
   });
-
-  void page.route(/\/Images\//, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'image/png',
-      body: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-        'base64'
-      ),
-    })
-  );
-}
-
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel('Username').fill('mock-user');
-  await page.getByLabel('Password').fill('mock-pass');
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await page.waitForURL('/', { timeout: 15000 });
 }
 
 test.describe('Search debounce (mocked backend)', () => {

@@ -7,10 +7,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 //
 //   npx playwright test --project=chromium-mocked audiobooks.mocked.spec.ts
 
-import { buildWav, TRANSPARENT_PNG } from './helpers/media-fixtures';
-
-const VALID_TOKEN = 'mock-access-token';
-const USER = { Id: 'user-1', Name: 'mock-user', Policy: { IsAdministrator: false } };
+import { buildWav, installBaseMock, login } from './helpers/media-fixtures';
 
 const WAV = buildWav();
 
@@ -80,30 +77,8 @@ function installMock(page: Page): void {
     },
   };
 
-  void page.route('**/api/**', (route: Route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ Items: [], TotalRecordCount: 0, StartIndex: 0 }),
-      });
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-  });
+  installBaseMock(page);
 
-  void page.route(/\/Users\/AuthenticateByName/, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ AccessToken: VALID_TOKEN, User: USER, SessionInfo: {} }),
-    })
-  );
-  void page.route(/\/Users\/Me(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
-  );
-  void page.route(/\/Images\//, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'image/png', body: TRANSPARENT_PNG })
-  );
   // Range-aware stream stub: Chromium refuses to seek media served without byte-range support,
   // silently snapping currentTime back to 0 — which is exactly the regression these tests guard.
   void page.route(/\/Audio\/[^/]+\/stream/, (route: Route) => {
@@ -127,11 +102,6 @@ function installMock(page: Page): void {
       body: WAV,
     });
   });
-
-  // Device-sync endpoints return arrays; the RootLayout RemotePlaybackBanner calls devices.filter.
-  void page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  );
 
   void page.route(/\/v1\/me\/audiobooks(\?|$)/, (route: Route) =>
     route.fulfill({
@@ -225,14 +195,6 @@ function installMock(page: Page): void {
       body: JSON.stringify({ positionMs: 0, status: 'relistening' }),
     });
   });
-}
-
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel('Username').fill('mock-user');
-  await page.getByLabel('Password').fill('mock-pass');
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await page.waitForURL('/', { timeout: 15000 });
 }
 
 test.describe('Audiobooks tab (mocked backend)', () => {

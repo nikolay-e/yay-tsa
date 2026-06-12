@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { installBaseMock, login } from './helpers/media-fixtures';
 
 // Backend-free favorite-sync suite (chromium-mocked project): every /api/* call is stubbed, so this
 // runs without a live backend. It exercises the real cross-screen favorite flow in a browser:
@@ -6,9 +7,6 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 // back on Songs — plus the rollback path when the server rejects the toggle.
 //
 //   npx playwright test --project=chromium-mocked
-
-const VALID_TOKEN = 'mock-access-token';
-const USER = { Id: 'user-1', Name: 'mock-user', Policy: { IsAdministrator: false } };
 
 const CATALOG = [
   { Id: 't1', Name: 'Aurora' },
@@ -44,30 +42,7 @@ function installMock(page: Page, opts: { failToggle?: boolean } = {}): void {
     return JSON.stringify({ Items: items, TotalRecordCount: items.length, StartIndex: 0 });
   };
 
-  // Benign catch-all FIRST; more specific routes registered after take precedence.
-  void page.route('**/api/**', (route: Route) => {
-    const method = route.request().method();
-    if (method === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ Items: [], TotalRecordCount: 0, StartIndex: 0 }),
-      });
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-  });
-
-  void page.route(/\/Users\/AuthenticateByName/, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ AccessToken: VALID_TOKEN, User: USER, SessionInfo: {} }),
-    })
-  );
-
-  void page.route(/\/Users\/Me(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
-  );
+  installBaseMock(page);
 
   // Track lists: the favorites tab adds IsFavorite=true; the songs list does not.
   void page.route(/\/Items(\?|$)/, (route: Route) => {
@@ -94,32 +69,6 @@ function installMock(page: Page, opts: { failToggle?: boolean } = {}): void {
     else favorites.add(id);
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
-
-  // Device-sync endpoints return arrays; the RootLayout RemotePlaybackBanner calls
-  // devices.filter, so the JSON-object catch-all crashes the page without this stub.
-  void page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  );
-
-  // Cover art: serve a 1x1 transparent PNG so images never hit the JSON catch-all.
-  void page.route(/\/Images\//, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'image/png',
-      body: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-        'base64'
-      ),
-    })
-  );
-}
-
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel('Username').fill('mock-user');
-  await page.getByLabel('Password').fill('mock-pass');
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await page.waitForURL('/', { timeout: 15000 });
 }
 
 function heartInRow(page: Page, trackName: string) {

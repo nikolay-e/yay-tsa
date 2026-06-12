@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { installBaseMock, login, silentWav } from './helpers/media-fixtures';
 
 // Backend-free mobile audiobook-controls suite (chromium-mocked project, mobile viewport): all
 // /api/* calls are stubbed and audio streams are generated WAVs. It proves the full-screen mobile
@@ -8,9 +9,6 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 //   npx playwright test --project=chromium-mocked audiobook-mobile.mocked.spec.ts
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
-
-const VALID_TOKEN = 'mock-access-token';
-const USER = { Id: 'user-1', Name: 'mock-user', Policy: { IsAdministrator: false } };
 
 function buildTrack(id: string, name: string, genres: string[]) {
   return {
@@ -29,49 +27,8 @@ function buildTrack(id: string, name: string, genres: string[]) {
   };
 }
 
-function silentWav(seconds = 30): Buffer {
-  const sampleRate = 8000;
-  const numSamples = sampleRate * seconds;
-  const dataSize = numSamples * 2;
-  const buf = Buffer.alloc(44 + dataSize);
-  buf.write('RIFF', 0);
-  buf.writeUInt32LE(36 + dataSize, 4);
-  buf.write('WAVE', 8);
-  buf.write('fmt ', 12);
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(1, 22);
-  buf.writeUInt32LE(sampleRate, 24);
-  buf.writeUInt32LE(sampleRate * 2, 28);
-  buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);
-  buf.write('data', 36);
-  buf.writeUInt32LE(dataSize, 40);
-  return buf;
-}
-
 function installMock(page: Page, opts: { audiobook: boolean }): void {
-  void page.route('**/api/**', (route: Route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ Items: [], TotalRecordCount: 0, StartIndex: 0 }),
-      });
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-  });
-
-  void page.route(/\/Users\/AuthenticateByName/, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ AccessToken: VALID_TOKEN, User: USER, SessionInfo: {} }),
-    })
-  );
-  void page.route(/\/Users\/Me(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER) })
-  );
+  installBaseMock(page);
 
   void page.route(/\/Items(\?|$)/, (route: Route) => {
     const items = [buildTrack('b1', 'Chapter One', opts.audiobook ? ['Audiobook'] : ['Rock'])];
@@ -85,29 +42,6 @@ function installMock(page: Page, opts: { audiobook: boolean }): void {
   void page.route(/\/Audio\/[^/?]+\/stream/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'audio/wav', body: silentWav() })
   );
-
-  void page.route(/\/Images\//, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'image/png',
-      body: Buffer.from(
-        'iVBORw0KGgoAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-        'base64'
-      ),
-    })
-  );
-
-  void page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  );
-}
-
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel('Username').fill('mock-user');
-  await page.getByLabel('Password').fill('mock-pass');
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await page.waitForURL('/', { timeout: 15000 });
 }
 
 async function openFullPlayer(page: Page): Promise<void> {
