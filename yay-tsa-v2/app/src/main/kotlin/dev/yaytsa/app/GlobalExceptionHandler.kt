@@ -104,6 +104,13 @@ class GlobalExceptionHandler {
     ): ResponseEntity<Map<String, Any>> {
         log.debug("Invalid data access: {}", ex.message)
         val message = ex.cause?.message ?: ex.message ?: "Invalid request data"
+        // Spring DAO translation wraps the JPA layer's IllegalArgumentException, so a malformed
+        // resource id surfacing through a repository must map to 404 exactly like the unwrapped
+        // case in handleBadRequest — a non-existent id and an unparsable id are the same thing
+        // to the client.
+        if (message.startsWith("Invalid UUID string")) {
+            return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Resource not found", request)
+        }
         return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", message, request)
     }
 

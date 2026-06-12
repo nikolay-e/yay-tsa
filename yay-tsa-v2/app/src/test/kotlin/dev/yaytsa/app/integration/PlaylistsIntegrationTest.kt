@@ -105,6 +105,40 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `move by PlaylistItemId reorders the playlist`() {
+        val trackA = seedTrack()
+        val trackB = seedTrack()
+        val create = post("/Playlists", mapOf("Name" to "Reorder Mix", "UserId" to userId), token)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+        assertEquals(204, post("/Playlists/$playlistId/Items?Ids=$trackA,$trackB", emptyMap<String, Any>(), token).response.status)
+
+        val before = objectMapper.readTree(get("/Playlists/$playlistId/Items", token).response.contentAsString)
+        val firstEntryId = before.get("Items")[0].get("PlaylistItemId").asText()
+        val firstTrackId = before.get("Items")[0].get("Id").asText()
+
+        val move = post("/Playlists/$playlistId/Items/$firstEntryId/Move/1", emptyMap<String, Any>(), token)
+        assertEquals(204, move.response.status, "Move by the wire PlaylistItemId must succeed, not 404")
+
+        val after = objectMapper.readTree(get("/Playlists/$playlistId/Items", token).response.contentAsString)
+        assertEquals(firstTrackId, after.get("Items")[1].get("Id").asText(), "moved entry must occupy the target slot")
+    }
+
+    @Test
+    fun `move by track id is still accepted`() {
+        val trackA = seedTrack()
+        val trackB = seedTrack()
+        val create = post("/Playlists", mapOf("Name" to "Reorder Compat", "UserId" to userId), token)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+        assertEquals(204, post("/Playlists/$playlistId/Items?Ids=$trackA,$trackB", emptyMap<String, Any>(), token).response.status)
+
+        val move = post("/Playlists/$playlistId/Items/$trackA/Move/1", emptyMap<String, Any>(), token)
+        assertEquals(204, move.response.status)
+
+        val after = objectMapper.readTree(get("/Playlists/$playlistId/Items", token).response.contentAsString)
+        assertEquals(trackA, after.get("Items")[1].get("Id").asText())
+    }
+
+    @Test
     fun `playlist appears in the owner playlist listing`() {
         val name = "Listing ${UUID.randomUUID().toString().take(6)}"
         post("/Playlists", mapOf("Name" to name, "UserId" to userId), token)

@@ -120,12 +120,15 @@ class SubsonicResponseWriter {
     ): ResponseEntity<String> =
         try {
             val rendered = render(response, format, currentRequestParameter("callback"))
-            ResponseEntity.ok().contentType(MediaType.parseMediaType(rendered.contentType)).body(rendered.body)
+            // Without an explicit charset Spring's StringHttpMessageConverter encodes the body as
+            // ISO-8859-1, mangling non-ASCII tags and tripping content-type conformance checks.
+            val mediaType = MediaType(MediaType.parseMediaType(rendered.contentType), Charsets.UTF_8)
+            ResponseEntity.ok().contentType(mediaType).body(rendered.body)
         } catch (e: Exception) {
             log.error("Subsonic response serialization failed (format={})", format, e)
             val errorResponse = error(0, "Serialization error")
             val json = jsonMapper.writeValueAsString(errorResponse)
-            ResponseEntity.status(500).contentType(MediaType.APPLICATION_JSON).body(json)
+            ResponseEntity.status(500).contentType(MediaType(MediaType.APPLICATION_JSON, Charsets.UTF_8)).body(json)
         }
 
     fun writeTo(

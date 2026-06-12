@@ -222,9 +222,19 @@ class JellyfinPlaylistsController(
         val uid = UserId(principal.name)
         val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
         val currentOrder = playlist.tracks.map { it.trackId }
-        val trackToMove = currentOrder.find { it.value == itemId } ?: return ResponseEntity.notFound().build()
-        val withoutMoved = currentOrder.filter { it.value != itemId }
-        val reordered = withoutMoved.toMutableList().apply { add(newIndex.coerceIn(0, size), trackToMove) }
+        // The wire entry id is the playlist position: getPlaylistItems emits PlaylistItemId as the
+        // index and removeFromPlaylist parses EntryIds as positions. A track-id match here could
+        // never see those values, so every protocol-conformant Move returned 404. Track ids are
+        // still accepted for clients that pass the item id directly.
+        val fromIndex =
+            itemId.toIntOrNull()?.takeIf { it in currentOrder.indices }
+                ?: currentOrder.indexOfFirst { it.value == itemId }.takeIf { it >= 0 }
+                ?: return ResponseEntity.notFound().build()
+        val reordered =
+            currentOrder.toMutableList().apply {
+                val moved = removeAt(fromIndex)
+                add(newIndex.coerceIn(0, size), moved)
+            }
         val cmd = ReorderPlaylistTracks(PlaylistId(playlistId), reordered)
         val ctx = ctxFactory.create(uid, playlist.version)
         return when (val result = playlistUseCases.execute(cmd, ctx)) {
