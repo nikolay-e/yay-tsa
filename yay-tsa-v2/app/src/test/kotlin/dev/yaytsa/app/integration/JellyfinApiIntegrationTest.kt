@@ -60,6 +60,19 @@ class JellyfinApiIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `unauthenticated GET on a user resource is 401, never 500`() {
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Users/AuthenticateByName")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"","Pw":""}"""),
+                ).andReturn()
+        assertEquals(401, result.response.status, "unauthenticated access must be 401, resolved=${result.resolvedException}")
+    }
+
+    @Test
     fun `GET Items with X-Emby-Token returns 200`() {
         val result =
             mockMvc

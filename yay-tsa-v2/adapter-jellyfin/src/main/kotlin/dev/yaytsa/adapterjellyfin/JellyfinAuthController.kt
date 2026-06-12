@@ -118,8 +118,11 @@ class JellyfinAuthController(
     @GetMapping("/Users/{userId}")
     fun getUser(
         @PathVariable userId: String,
-        principal: Principal,
+        principal: Principal?,
     ): ResponseEntity<Any> {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
         if (principal.name != userId && authQueries.findUser(UserId(principal.name))?.isAdmin != true) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         }
