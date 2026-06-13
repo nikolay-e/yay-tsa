@@ -57,6 +57,7 @@ export function SettingsPage() {
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const handleRescanLibrary = async () => {
@@ -279,18 +280,42 @@ export function SettingsPage() {
           Account
         </h2>
 
-        <button
-          onClick={() => {
-            logout();
-          }}
-          className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
-        >
-          <LogOut className="text-error h-5 w-5 shrink-0" />
-          <div>
-            <div className="font-medium">Sign out</div>
-            <div className="text-text-secondary text-sm">Sign out of your account</div>
+        {confirmLogout ? (
+          <div className="bg-error/10 border-error/30 rounded-lg border p-4">
+            <div className="font-medium">Sign out?</div>
+            <div className="text-text-secondary mb-3 text-sm">
+              You will need your username and password to sign back in.
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  logout();
+                }}
+                className="bg-error/20 text-error hover:bg-error/30 flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+              <button
+                onClick={() => setConfirmLogout(false)}
+                className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-md px-4 py-2 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </button>
+        ) : (
+          <button
+            onClick={() => setConfirmLogout(true)}
+            className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
+          >
+            <LogOut className="text-error h-5 w-5 shrink-0" />
+            <div>
+              <div className="font-medium">Sign out</div>
+              <div className="text-text-secondary text-sm">Sign out of your account</div>
+            </div>
+          </button>
+        )}
       </section>
 
       <TrackUploadDialog

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { UserPlus, Trash2, KeyRound, ShieldCheck, User, Loader2, Copy, Check } from 'lucide-react';
 import { AdminService, type UserSummary } from '@yay-tsa/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/shared/ui/Toast';
 import { useAuthStore } from '../stores/auth.store';
 
 function PasswordReveal({ password, label }: Readonly<{ password: string; label: string }>) {
@@ -79,6 +80,7 @@ function AddUserModal({
             <input
               id="new-username"
               type="text"
+              autoComplete="off"
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="e.g. john"
@@ -151,7 +153,13 @@ function UserRow({
       if (!client) throw new Error('Not authenticated');
       await new AdminService(client).deleteUser(user.Id);
     },
-    onSuccess: onDeleted,
+    onSuccess: () => {
+      toast.add('success', `Deleted ${user.Username}`);
+      onDeleted();
+    },
+    onError: (err: Error) => {
+      toast.add('error', `Could not delete ${user.Username}: ${err.message}`);
+    },
   });
 
   const resetMutation = useMutation({
@@ -160,6 +168,9 @@ function UserRow({
       return new AdminService(client).resetPassword(user.Id);
     },
     onSuccess: onPasswordReset,
+    onError: (err: Error) => {
+      toast.add('error', `Could not reset password for ${user.Username}: ${err.message}`);
+    },
   });
 
   const isSelf = currentUserId === user.Id;

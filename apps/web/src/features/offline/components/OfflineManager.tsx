@@ -9,6 +9,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+import { toast } from '@/shared/ui/Toast';
 import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
 
 function formatBytes(bytes: number): string {
@@ -141,7 +142,9 @@ export function OfflineManager() {
             <button
               type="button"
               onClick={() => {
-                clearListeningCache().catch(() => {});
+                clearListeningCache().catch(() => {
+                  toast.add('error', 'Could not clear the cache. Try again.');
+                });
               }}
               className="bg-bg-tertiary text-text-secondary hover:text-text-primary border-border flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
             >
@@ -158,7 +161,9 @@ export function OfflineManager() {
                   onClick={() => {
                     setIsClearingAll(true);
                     clearAll()
-                      .catch(() => {})
+                      .catch(() => {
+                        toast.add('error', 'Could not delete downloads. Try again.');
+                      })
                       .finally(() => {
                         setIsClearingAll(false);
                         setConfirmClearAll(false);
@@ -242,7 +247,9 @@ export function OfflineManager() {
                   <button
                     type="button"
                     onClick={() => {
-                      remove(trackId).catch(() => {});
+                      remove(trackId).catch(() => {
+                        toast.add('error', `Could not remove ${entry.name}. Try again.`);
+                      });
                     }}
                     className="text-text-secondary hover:text-error shrink-0 rounded-full p-1.5 transition-colors"
                     aria-label={`Remove ${entry.name}`}

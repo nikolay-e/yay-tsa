@@ -233,7 +233,7 @@ function BottomTabBar() {
               data-testid={item.testId}
               aria-label={item.label}
               className={cn(
-                'flex flex-1 items-center justify-center py-2 transition-colors',
+                'flex min-h-11 flex-1 items-center justify-center py-2 transition-colors',
                 isActive ? 'text-accent' : 'text-text-secondary'
               )}
             >

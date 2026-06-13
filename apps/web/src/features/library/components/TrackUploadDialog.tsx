@@ -249,6 +249,7 @@ export function TrackUploadDialog({
         <button
           onClick={handleClose}
           disabled={isUploading}
+          aria-label="Close upload dialog"
           className="text-text-secondary hover:text-text-primary disabled:opacity-50"
         >
           <X size={24} />
@@ -324,6 +325,7 @@ export function TrackUploadDialog({
                         e.stopPropagation();
                         removeFile(i);
                       }}
+                      aria-label={`Remove ${f.file.name}`}
                       className="text-text-tertiary hover:text-text-primary shrink-0"
                     >
                       <X size={14} />
@@ -360,7 +362,21 @@ export function TrackUploadDialog({
             </div>
 
             {isUploading && uploadingIndex >= 0 && (
-              <div className="bg-bg-tertiary h-1.5 overflow-hidden rounded-full">
+              <div
+                className="bg-bg-tertiary h-1.5 overflow-hidden rounded-full"
+                role="progressbar"
+                aria-label="Upload progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(
+                  ((successCount +
+                    duplicateCount +
+                    errorCount +
+                    (files[uploadingIndex]?.progress ?? 0) / 100) /
+                    files.length) *
+                    100
+                )}
+              >
                 <div
                   className="bg-accent h-full transition-all duration-300"
                   style={{

@@ -2,6 +2,7 @@ import { type MouseEvent } from 'react';
 import { Download, Check, Loader2, AlertCircle } from 'lucide-react';
 import { type AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
+import { toast } from '@/shared/ui/Toast';
 import { useOfflineStore, useOfflineEntry } from '../stores/offline.store';
 
 type DownloadButtonProps = Readonly<{
@@ -22,9 +23,13 @@ export function DownloadButton({ track, size = 'sm', className }: DownloadButton
     e.preventDefault();
     e.stopPropagation();
     if (status === 'ready') {
-      remove(track.Id).catch(() => {});
+      remove(track.Id).catch(() => {
+        toast.add('error', `Could not remove the download for ${track.Name}. Try again.`);
+      });
     } else if (status !== 'downloading') {
-      download(track).catch(() => {});
+      download(track).catch(() => {
+        toast.add('error', `Could not download ${track.Name}. Check your connection.`);
+      });
     }
   };
 
