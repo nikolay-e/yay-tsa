@@ -15,10 +15,10 @@
 const PREFIX = 'yaytsa';
 
 function readEnabled(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (globalThis.window === undefined) return false;
   try {
-    if (new URLSearchParams(window.location.search).has('perf')) return true;
-    return window.localStorage.getItem('yaytsa_perf') === '1';
+    if (new URLSearchParams(globalThis.location.search).has('perf')) return true;
+    return globalThis.localStorage.getItem('yaytsa_perf') === '1';
   } catch {
     return false;
   }
@@ -77,7 +77,7 @@ function observe(type: string, cb: (entry: PerformanceEntry) => void): void {
 }
 
 export function installPerf(): void {
-  if (!enabled || typeof window === 'undefined') return;
+  if (!enabled || globalThis.window === undefined) return;
 
   observe('paint', e => {
     if (e.name === 'first-contentful-paint') vitals.FCP = Math.round(e.startTime);
@@ -97,9 +97,9 @@ export function installPerf(): void {
     vitals.TBT_proxy = Math.round(tbt);
   });
 
-  (window as unknown as { __perfDump: () => void }).__perfDump = dumpPerf;
+  (globalThis as unknown as { __perfDump: () => void }).__perfDump = dumpPerf;
   // Auto-dump once the page has settled so a quick `?perf` run needs no console interaction.
-  window.addEventListener('load', () => {
+  globalThis.addEventListener('load', () => {
     setTimeout(dumpPerf, 4000);
   });
 }

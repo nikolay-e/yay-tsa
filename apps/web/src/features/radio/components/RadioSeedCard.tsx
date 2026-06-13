@@ -9,7 +9,8 @@ import { cn } from '@/shared/utils/cn';
 // Home seed cards display ~150–180px; request a 160px thumbnail capped at 2× DPR.
 const SEED_THUMB_PX = 160;
 function thumbPx(): number {
-  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const dpr =
+    globalThis.window === undefined ? 1 : Math.min(globalThis.window.devicePixelRatio || 1, 2);
   return Math.round(SEED_THUMB_PX * dpr);
 }
 

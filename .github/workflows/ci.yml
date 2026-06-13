@@ -325,9 +325,11 @@ jobs:
     needs: [docker-build-frontend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Schemathesis with --checks all + ZAP + crawler can take ~30min against the
-    # live backend. 30min was too tight and silently truncated the run.
-    timeout-minutes: 60
+    # Schemathesis --checks all (Coverage + Fuzzing + Stateful) alone runs ~60min
+    # against the live backend when chronic endpoints fail (Hypothesis shrinking),
+    # which at timeout-minutes:60 left no budget for crawler/axe/ZAP — they never
+    # ran and the job was SIGTERM'd mid-Stateful. 120 lets the full suite finish.
+    timeout-minutes: 120
     permissions:
       contents: read
 

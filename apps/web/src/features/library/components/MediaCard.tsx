@@ -24,7 +24,8 @@ type MediaCardProps = Readonly<{
 // Display slot is ~150–180px; request 160 CSS px, capped at 2× DPR for retina.
 const GRID_THUMB_PX = 160;
 function thumbPx(cssPx: number): number {
-  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const dpr =
+    globalThis.window === undefined ? 1 : Math.min(globalThis.window.devicePixelRatio || 1, 2);
   return Math.round(cssPx * dpr);
 }
 

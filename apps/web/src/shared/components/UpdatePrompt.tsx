@@ -22,8 +22,7 @@ export function UpdatePrompt() {
   if (!needRefresh) return null;
 
   return (
-    <div
-      role="status"
+    <output
       data-testid="update-prompt"
       className="z-toast border-border bg-bg-secondary fixed top-[max(1rem,env(safe-area-inset-top,0px))] left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-md border px-4 py-2 shadow-lg"
     >
@@ -42,6 +41,6 @@ export function UpdatePrompt() {
       >
         Later
       </button>
-    </div>
+    </output>
   );
 }

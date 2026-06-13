@@ -6,13 +6,18 @@ export interface CacheEntryInfo {
   lastAccessedAt: number;
 }
 
-const PROTECTED_SOURCES: readonly OfflineSource[] = ['manual', 'favorite', 'album', 'playlist'];
+const PROTECTED_SOURCES: ReadonlySet<OfflineSource> = new Set([
+  'manual',
+  'favorite',
+  'album',
+  'playlist',
+]);
 
 // A track is a pure listening-cache entry only when it was auto-cached AND the
 // user never expressed intent to keep it (manual / favorite / album / playlist).
 // Those are the only entries the LRU is allowed to evict.
 export function isEvictableCacheEntry(reasons: OfflineSource[]): boolean {
-  return reasons.includes('listening-cache') && !reasons.some(r => PROTECTED_SOURCES.includes(r));
+  return reasons.includes('listening-cache') && !reasons.some(r => PROTECTED_SOURCES.has(r));
 }
 
 // Pick the oldest listening-cache entries to drop so the cache stays within

@@ -28,7 +28,7 @@ export const SESSION_EXPIRED_FLAG = 'yaytsa_session_expired';
 // device. Deliberately excludes yaytsa_volume (a device preference) and
 // yaytsa_device_id (device identity).
 const USER_SCOPED_KEY_PREFIXES = ['yaytsa_resume:', 'yaytsa_book_speed_'];
-const USER_SCOPED_KEYS = ['yaytsa_audiobook_speed', 'yaytsa_sort_prefs'];
+const USER_SCOPED_KEYS = new Set(['yaytsa_audiobook_speed', 'yaytsa_sort_prefs']);
 
 interface LoginOptions {
   rememberMe?: boolean;
@@ -83,9 +83,10 @@ function clearUserScopedStorage(): void {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (USER_SCOPED_KEY_PREFIXES.some(prefix => key.startsWith(prefix))) {
-        keysToRemove.push(key);
-      } else if (USER_SCOPED_KEYS.includes(key)) {
+      if (
+        USER_SCOPED_KEY_PREFIXES.some(prefix => key.startsWith(prefix)) ||
+        USER_SCOPED_KEYS.has(key)
+      ) {
         keysToRemove.push(key);
       }
     }
