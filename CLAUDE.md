@@ -8,6 +8,12 @@ Yay-Tsa is a self-hosted music streaming system: a multi-protocol Kotlin server 
 
 The system is designed around two hard problems: **a single, consistent music state visible across every protocol and device**, and **correct, efficient audio streaming with seek support**.
 
+## Git Workflow
+
+**We always work on `main`.** Commit and push directly to `main` (fast-forward, no PRs) — this is a solo project. CI (GitHub Actions: `CI` for the PWA, `CI (v2)` for the backend) gates every push.
+
+**Stale branches:** the repo carries many unmerged branches (old `feature/*`, `fix/*`, `claude/*`, and contributor branches). At the start of meaningful work, review the unmerged branches (`git branch -r --no-merged main`), determine whether any hold work that still belongs in `main`, merge what's needed, and delete what's obsolete so the branch list reflects reality. Never assume an unmerged branch is dead without checking its diff against `main`.
+
 ## Common Commands
 
 ```bash
