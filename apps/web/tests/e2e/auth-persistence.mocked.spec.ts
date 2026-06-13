@@ -174,7 +174,8 @@ test.describe('Auth persistence (mocked backend)', () => {
     });
 
     await page.goto('/settings');
-    await page.getByRole('button', { name: /sign out/i }).click();
+    await page.getByRole('button', { name: /sign out of your account/i }).click();
+    await page.getByRole('button', { name: /^sign out$/i }).click();
     await expectGuest(page);
 
     const stored = await page.evaluate(() => ({
