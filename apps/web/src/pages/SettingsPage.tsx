@@ -1,16 +1,15 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   RefreshCw,
-  HardDrive,
   Info,
-  Server,
   LogOut,
   Sparkles,
   Upload,
   Users,
   Smartphone,
   Download,
+  KeyRound,
 } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
@@ -53,30 +52,62 @@ async function forceReload(): Promise<void> {
 export function SettingsPage() {
   const client = useAuthStore(state => state.client);
   const logout = useAuthStore(state => state.logout);
+  const changePassword = useAuthStore(state => state.changePassword);
   const isAdmin = useIsAdmin();
   const [status, setStatus] = useState<string | null>(null);
-  const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const handleRescanLibrary = async () => {
+  const triggerRescanAfterUpload = async () => {
     if (!client) return;
-    const adminService = new AdminService(client);
-    setIsRescanning(true);
-    setStatus(null);
     try {
-      const result = await adminService.rescanLibrary();
-      setStatus(result.message);
+      await new AdminService(client).rescanLibrary();
+    } catch {
+      // Upload already succeeded; a failed rescan trigger is non-fatal because
+      // background refresh will pick up new files on the next library refetch.
+    }
+  };
+
+  const handleChangePassword = async (event: FormEvent) => {
+    event.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (error) {
-      if (error instanceof MediaServerError && error.statusCode === 409) {
-        setStatus('Scan already in progress');
+      if (
+        error instanceof MediaServerError &&
+        (error.statusCode === 401 || error.statusCode === 403)
+      ) {
+        setPasswordError('Current password is incorrect');
       } else {
-        setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
       }
     } finally {
-      setIsRescanning(false);
+      setIsChangingPassword(false);
     }
   };
 
@@ -101,7 +132,7 @@ export function SettingsPage() {
     queryClient.invalidateQueries({ queryKey: ['artists'] });
     queryClient.invalidateQueries({ queryKey: ['album'] });
     queryClient.invalidateQueries({ queryKey: ['artist'] });
-    handleRescanLibrary();
+    triggerRescanAfterUpload();
   };
 
   return (
@@ -127,33 +158,6 @@ export function SettingsPage() {
           </div>
         </button>
       </section>
-
-      {isAdmin && (
-        <section className="mb-8">
-          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
-            <Server className="h-4 w-4" />
-            Library
-          </h2>
-
-          <button
-            onClick={() => {
-              handleRescanLibrary();
-            }}
-            disabled={isRescanning || !client}
-            className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
-          >
-            <HardDrive
-              className={`text-accent h-5 w-5 shrink-0 ${isRescanning ? 'animate-pulse' : ''}`}
-            />
-            <div>
-              <div className="font-medium">Reload Media</div>
-              <div className="text-text-secondary text-sm">
-                Rescan library from disk. Discovers new files and removes deleted ones.
-              </div>
-            </div>
-          </button>
-        </section>
-      )}
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
@@ -281,6 +285,86 @@ export function SettingsPage() {
         <div className="bg-bg-secondary border-border rounded-lg border p-4">
           <VersionInfo />
         </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+          <KeyRound className="h-4 w-4" />
+          Change Password
+        </h2>
+
+        <form
+          onSubmit={handleChangePassword}
+          className="bg-bg-secondary border-border space-y-4 rounded-lg border p-4"
+        >
+          <div>
+            <label
+              htmlFor="current-password"
+              className="text-text-secondary mb-1 block text-sm font-medium"
+            >
+              Current password
+            </label>
+            <input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              required
+              className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="new-password"
+              className="text-text-secondary mb-1 block text-sm font-medium"
+            >
+              New password
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              required
+              minLength={8}
+              className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="confirm-password"
+              className="text-text-secondary mb-1 block text-sm font-medium"
+            >
+              Confirm new password
+            </label>
+            <input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+              className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
+            />
+          </div>
+
+          {passwordError && <div className="text-error text-sm">{passwordError}</div>}
+          {passwordSuccess && (
+            <div className="text-accent text-sm">Password changed successfully.</div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+            className="bg-accent text-bg-primary hover:bg-accent/90 flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            <KeyRound className={`h-4 w-4 ${isChangingPassword ? 'animate-pulse' : ''}`} />
+            {isChangingPassword ? 'Changing…' : 'Change password'}
+          </button>
+        </form>
       </section>
 
       <section>

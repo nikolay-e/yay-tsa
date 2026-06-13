@@ -722,3 +722,26 @@ export const useIsOnline = () => useOfflineStore(state => state.isOnline);
 export const useOfflineEntry = (trackId: string): OfflineEntry | undefined =>
   useOfflineStore(state => state.entries[trackId]);
 export const useOfflineSettings = () => useOfflineStore(state => state.settings);
+
+export type AlbumOfflineState = 'none' | 'partial' | 'full';
+
+// Album-level offline status derived from the per-track manifest: an album is
+// 'full' once every known track is downloaded, 'partial' while only some are.
+// totalTracks (the album's child count) lets a complete album read 'full' even
+// when its track list was never opened; without it we fall back to the count of
+// downloaded tracks, so a fully cached album still reads 'full'.
+export const useAlbumOfflineState = (
+  albumId: string | undefined,
+  totalTracks?: number
+): AlbumOfflineState =>
+  useOfflineStore(state => {
+    if (!albumId) return 'none';
+    let ready = 0;
+    for (const [trackId, item] of Object.entries(state.items)) {
+      if (item.AlbumId !== albumId) continue;
+      if (state.entries[trackId]?.status === 'ready') ready += 1;
+    }
+    if (ready === 0) return 'none';
+    if (totalTracks && totalTracks > 0) return ready >= totalTracks ? 'full' : 'partial';
+    return 'full';
+  });

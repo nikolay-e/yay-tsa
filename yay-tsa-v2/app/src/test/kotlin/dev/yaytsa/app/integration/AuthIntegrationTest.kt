@@ -21,6 +21,8 @@ import java.time.Instant
 import java.util.UUID
 
 class AuthIntegrationTest : HttpIntegrationTestBase() {
+    private val ipCounter = java.util.concurrent.atomic.AtomicInteger(0)
+
     @Autowired
     lateinit var authQueries: AuthQueries
 
@@ -283,6 +285,125 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(403, createResult.response.status, "non-admin must not create users")
     }
 
+    // --- Self-service change password ---
+
+    @Test
+    fun `change password with correct current password reissues a working token and revokes the old one`() {
+        val oldPassword = "old-pass-123"
+        val oldHash =
+            org.springframework.security.crypto.bcrypt.BCrypt
+                .hashpw(
+                    oldPassword,
+                    org.springframework.security.crypto.bcrypt.BCrypt
+                        .gensalt(),
+                )
+        val username = "chpw-ok-${UUID.randomUUID().toString().take(8)}"
+        seedUser(username, oldHash)
+
+        val loginResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .with(uniqueClientIp())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$username","Pw":"$oldPassword"}"""),
+                ).andReturn()
+        assertEquals(200, loginResult.response.status)
+        val oldToken = objectMapper.readTree(loginResult.response.contentAsString).path("AccessToken").asText()
+
+        val newPassword = "brand-new-pass-456"
+        val changeResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/Password")
+                        .header("Authorization", "Bearer $oldToken")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"CurrentPw":"$oldPassword","NewPw":"$newPassword"}"""),
+                ).andReturn()
+        assertEquals(200, changeResult.response.status, "change password should succeed; body=${changeResult.response.contentAsString}")
+        val newToken = objectMapper.readTree(changeResult.response.contentAsString).path("AccessToken").asText()
+        assertFalse(newToken.isNullOrBlank(), "a reissued token must be returned")
+
+        val withNewToken =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Items")
+                        .header("X-Emby-Token", newToken)
+                        .param("IncludeItemTypes", "MusicArtist"),
+                ).andReturn()
+        assertEquals(200, withNewToken.response.status, "the reissued token must authenticate")
+
+        val withOldToken =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Items")
+                        .header("X-Emby-Token", oldToken)
+                        .param("IncludeItemTypes", "MusicArtist"),
+                ).andReturn()
+        assertEquals(401, withOldToken.response.status, "the old token must be revoked after a password change")
+    }
+
+    @Test
+    fun `change password with wrong current password is rejected and does not change the password`() {
+        val password = "real-pass-789"
+        val hash =
+            org.springframework.security.crypto.bcrypt.BCrypt
+                .hashpw(
+                    password,
+                    org.springframework.security.crypto.bcrypt.BCrypt
+                        .gensalt(),
+                )
+        val username = "chpw-wrong-${UUID.randomUUID().toString().take(8)}"
+        seedUser(username, hash)
+
+        val loginResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .with(uniqueClientIp())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$username","Pw":"$password"}"""),
+                ).andReturn()
+        val token = objectMapper.readTree(loginResult.response.contentAsString).path("AccessToken").asText()
+
+        val changeResult =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/Password")
+                        .header("Authorization", "Bearer $token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"CurrentPw":"not-the-password","NewPw":"whatever-new-pass"}"""),
+                ).andReturn()
+        assertEquals(403, changeResult.response.status, "wrong current password must be rejected with 403")
+
+        val stillWorks =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Items")
+                        .header("X-Emby-Token", token)
+                        .param("IncludeItemTypes", "MusicArtist"),
+                ).andReturn()
+        assertEquals(200, stillWorks.response.status, "a rejected change must not revoke the caller's token")
+
+        val originalStillValid =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .with(uniqueClientIp())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"Username":"$username","Pw":"$password"}"""),
+                ).andReturn()
+        assertEquals(200, originalStillValid.response.status, "the original password must be unchanged")
+    }
+
     // --- Actuator auth ---
 
     @Test
@@ -298,6 +419,16 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
     }
 
     // --- Helper ---
+
+    // The login endpoint is IP-rate-limited (bucket key = remoteAddr + URI).
+    // All MockMvc requests default to 127.0.0.1 and share one bucket across the
+    // whole class run, so login-heavy tests can exhaust it. A per-call synthetic
+    // client IP gives each login its own bucket, isolating these tests.
+    private fun uniqueClientIp() =
+        org.springframework.test.web.servlet.request.RequestPostProcessor { req ->
+            req.remoteAddr = "10.${ipCounter.incrementAndGet() % 255}.${(0..254).random()}.${(1..254).random()}"
+            req
+        }
 
     private fun seedUser(
         username: String,

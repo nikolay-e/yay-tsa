@@ -54,6 +54,30 @@ export class AuthService {
   }
 
   /**
+   * Change the current user's password.
+   *
+   * The backend revokes every existing API token (including the one used for
+   * this request) and reissues a fresh token for the current device, returned
+   * as AccessToken. The reissued token is stored on the client so the session
+   * continues seamlessly without a re-login.
+   */
+  async changePassword(currentPw: string, newPw: string): Promise<string> {
+    const userId = this.client.getUserId();
+    if (!userId) {
+      throw new AuthenticationError('Cannot change password: no active session');
+    }
+
+    const response = await this.client.postRequired<{ AccessToken: string }>(
+      '/Users/Password',
+      { CurrentPw: currentPw, NewPw: newPw },
+      'Password change failed'
+    );
+
+    this.client.setToken(response.AccessToken, userId);
+    return response.AccessToken;
+  }
+
+  /**
    * Logout current user
    */
   async logout(): Promise<void> {

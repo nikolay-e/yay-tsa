@@ -1,6 +1,7 @@
 import { useInfiniteQuery, keepPreviousData, type InfiniteData } from '@tanstack/react-query';
 import { type ItemsResult, type MediaServerClient } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { usePrefetchArtwork, type ArtworkItem } from './usePrefetchArtwork';
 
 interface LibraryQueryOptions {
   limit?: number;
@@ -19,7 +20,7 @@ interface UseInfiniteLibraryQueryOptions<TData> {
   staleTime?: number;
 }
 
-export function useInfiniteLibraryQuery<TData>({
+export function useInfiniteLibraryQuery<TData extends ArtworkItem>({
   queryKey,
   fetcher,
   options = {},
@@ -29,7 +30,7 @@ export function useInfiniteLibraryQuery<TData>({
   const client = useAuthStore(state => state.client);
   const { limit = 50, ...otherOptions } = options;
 
-  return useInfiniteQuery<
+  const query = useInfiniteQuery<
     ItemsResult<TData>,
     Error,
     InfiniteData<ItemsResult<TData>>,
@@ -64,6 +65,10 @@ export function useInfiniteLibraryQuery<TData>({
     staleTime,
     placeholderData: keepPreviousData,
   });
+
+  usePrefetchArtwork({ data: query.data });
+
+  return query;
 }
 
 const MAX_RETAINED_PAGES = 50;

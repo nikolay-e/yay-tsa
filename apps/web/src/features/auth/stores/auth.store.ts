@@ -52,6 +52,7 @@ interface AuthState {
 interface AuthActions {
   login: (username: string, password: string, options?: LoginOptions) => Promise<void>;
   logout: (options?: LogoutOptions) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   restoreSession: () => Promise<boolean>;
 }
 
@@ -223,6 +224,28 @@ export const useAuthStore = create<AuthStore>()(
         } finally {
           logoutInFlight = false;
         }
+      },
+
+      changePassword: async (currentPassword, newPassword) => {
+        const { authService, userId } = get();
+        if (!authService || !userId) {
+          throw new AuthenticationError('Not authenticated');
+        }
+
+        // The backend revokes every token (including the caller's) and reissues
+        // a fresh one for this device. Swap the stored token in place so the
+        // session continues without a forced re-login.
+        const newToken = await authService.changePassword(currentPassword, newPassword);
+
+        const existing = loadSessionAuto();
+        const sessionData = { token: newToken, userId };
+        if (existing?.persistent) {
+          saveSessionPersistent(sessionData);
+        } else {
+          saveSession(sessionData);
+        }
+
+        set({ token: newToken });
       },
 
       restoreSession: async () => {

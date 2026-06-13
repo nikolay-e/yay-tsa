@@ -1,5 +1,5 @@
 import { type MouseEvent } from 'react';
-import { Download, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Download, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { type AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
@@ -62,7 +62,7 @@ export function DownloadButton({ track, size = 'sm', className }: DownloadButton
       {status === 'downloading' ? (
         <Loader2 className={cn(iconSize, 'animate-spin')} />
       ) : status === 'ready' ? (
-        <Check className={iconSize} />
+        <CheckCircle2 className={iconSize} />
       ) : status === 'error' ? (
         <AlertCircle className={cn(iconSize, 'text-error')} />
       ) : (

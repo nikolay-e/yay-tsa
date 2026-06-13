@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
 import { type MusicAlbum } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
+import { AlbumOfflineBadge } from '@/features/offline';
 import { MediaCard } from './MediaCard';
 
 type AlbumCardProps = Readonly<{
@@ -21,6 +22,11 @@ function AlbumCardImpl({ album, isPlaying, onPlay, onPause, priority }: AlbumCar
 
   const overlay = (
     <>
+      <AlbumOfflineBadge
+        albumId={album.Id}
+        totalTracks={album.TotalTracks ?? album.ChildCount}
+        className="absolute top-1.5 left-1.5 z-[3] p-0.5 shadow"
+      />
       {isIncomplete && (
         <div
           className="absolute top-1.5 right-1.5 z-[3] rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white shadow"
