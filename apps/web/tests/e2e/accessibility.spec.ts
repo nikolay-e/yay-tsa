@@ -39,12 +39,14 @@ test.describe('Accessibility', () => {
     await checkAccessibility(authenticatedPage);
   });
 
-  test('songs page has no accessibility violations', async ({
+  test('search page has no accessibility violations', async ({
     authenticatedPage,
     checkAccessibility,
   }) => {
-    await authenticatedPage.goto('/songs');
-    await expect(authenticatedPage.getByRole('heading', { name: 'Songs' })).toBeVisible();
+    await authenticatedPage.goto('/search');
+    await expect(
+      authenticatedPage.getByRole('heading', { name: 'Search', exact: true })
+    ).toBeVisible();
 
     await checkAccessibility(authenticatedPage);
   });

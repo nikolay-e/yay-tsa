@@ -350,7 +350,7 @@ function FavoriteTracks({
         message="No favorite songs yet"
         hint="Tap the heart on any track to add it here."
         ctaLabel="Browse all songs"
-        ctaTo="/songs"
+        ctaTo="/search"
       />
     );
   }

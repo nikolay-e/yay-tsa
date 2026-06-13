@@ -4,10 +4,9 @@ import {
   Home,
   Disc3,
   Users,
-  Music,
+  Search,
   Heart,
   Settings,
-  DownloadCloud,
   BookOpen,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,12 +34,11 @@ type NavItem = Readonly<{
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home, testId: 'nav-home' },
+  { href: '/search', label: 'Search', icon: Search, testId: 'nav-search' },
   { href: '/favorites', label: 'Favorites', icon: Heart, testId: 'nav-favorites' },
   { href: '/artists', label: 'Artists', icon: Users, testId: 'nav-artists' },
   { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
-  { href: '/songs', label: 'Songs', icon: Music, testId: 'nav-songs' },
   { href: '/audiobooks', label: 'Audiobooks', icon: BookOpen, testId: 'nav-audiobooks' },
-  { href: '/offline', label: 'Offline', icon: DownloadCloud, testId: 'nav-offline' },
   { href: '/settings', label: 'Settings', icon: Settings, testId: 'nav-settings' },
 ];
 

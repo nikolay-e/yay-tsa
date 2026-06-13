@@ -12,7 +12,7 @@ import { buildWav, TRANSPARENT_PNG } from './helpers/media-fixtures';
 //   strict `media-src 'self'` CSP is satisfied).
 //
 // It deliberately uses the album page + /offline page (both non-virtualised
-// lists) rather than the virtualised /songs list, which does not render reliably
+// lists) rather than the virtualised /search track list, which does not render reliably
 // under the headless mocked harness.
 //
 // In production the audio handler is importScripts'd into the generated Workbox

@@ -58,7 +58,6 @@ export const NAVIGATION_TEST_IDS = {
   NAV_SETTINGS: 'nav-settings',
   NAV_ALBUMS: 'nav-albums',
   NAV_ARTISTS: 'nav-artists',
-  NAV_SONGS: 'nav-songs',
   SEARCH_INPUT: 'search-input',
   SIDEBAR: 'sidebar',
   BOTTOM_TAB_BAR: 'bottom-tab-bar',

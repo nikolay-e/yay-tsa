@@ -132,6 +132,27 @@ test.describe('Search Functionality', () => {
     expect(searchValueAfter).toBe('');
   });
 
+  test('global search surfaces tracks, albums, and artists for a query', async ({
+    authenticatedPage,
+  }) => {
+    await libraryPage.goto();
+    const albumTitle = await libraryPage.getAlbumTitle(0);
+    const query = albumTitle.substring(0, Math.min(3, albumTitle.length));
+
+    await authenticatedPage.goto('/search');
+    await expect(
+      authenticatedPage.getByRole('heading', { name: 'Search', exact: true })
+    ).toBeVisible();
+
+    const searchInput = authenticatedPage.getByTestId('search-input');
+    await searchInput.fill(query);
+
+    await expect(authenticatedPage.getByTestId('search-section-albums')).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(authenticatedPage.getByTestId('search-section-tracks')).toBeVisible();
+  });
+
   test('should perform case-insensitive search', async () => {
     await libraryPage.goto();
     const albumTitle = await libraryPage.getAlbumTitle(0);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   RefreshCw,
   HardDrive,
@@ -206,9 +207,17 @@ export function SettingsPage() {
       {status && <div className="bg-bg-tertiary mb-8 rounded-lg p-3 text-sm">{status}</div>}
 
       <section className="mb-8">
-        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
-          <Download className="h-4 w-4" />
-          Offline Downloads
+        <h2 className="text-text-secondary mb-4 flex items-center justify-between gap-2 text-sm font-medium tracking-wide uppercase">
+          <span className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Offline Downloads
+          </span>
+          <Link
+            to="/offline"
+            className="text-accent min-h-11 text-xs font-medium normal-case underline-offset-4 hover:underline focus-visible:underline"
+          >
+            View downloaded library
+          </Link>
         </h2>
         <div className="bg-bg-secondary border-border rounded-lg border">
           <OfflineManager />

@@ -3,8 +3,8 @@ import { installBaseMock, login } from './helpers/media-fixtures';
 
 // Backend-free favorite-sync suite (chromium-mocked project): every /api/* call is stubbed, so this
 // runs without a live backend. It exercises the real cross-screen favorite flow in a browser:
-// liking on Songs, seeing the same track in Favorites, unliking there, and the heart reconciling
-// back on Songs — plus the rollback path when the server rejects the toggle.
+// liking on Search, seeing the same track in Favorites, unliking there, and the heart reconciling
+// back on Search — plus the rollback path when the server rejects the toggle.
 //
 //   npx playwright test --project=chromium-mocked
 
@@ -79,13 +79,13 @@ function heartInRow(page: Page, trackName: string) {
 }
 
 test.describe('Favorite sync across screens (mocked backend)', () => {
-  test('like on Songs → shows in Favorites → unlike there → empty back on Songs', async ({
+  test('like on Search → shows in Favorites → unlike there → empty back on Search', async ({
     page,
   }) => {
     installMock(page);
     await login(page);
 
-    await page.goto('/songs');
+    await page.goto('/search');
     const heart = heartInRow(page, 'Aurora');
     await expect(heart).toHaveAttribute('aria-pressed', 'false');
 
@@ -103,8 +103,8 @@ test.describe('Favorite sync across screens (mocked backend)', () => {
     await favHeart.click();
     await expect(page.getByTestId('track-row').filter({ hasText: 'Aurora' })).toHaveCount(0);
 
-    // Back on Songs the heart is empty and backend-consistent after refetch.
-    await page.goto('/songs');
+    // Back on Search the heart is empty and backend-consistent after refetch.
+    await page.goto('/search');
     await expect(heartInRow(page, 'Aurora')).toHaveAttribute('aria-pressed', 'false');
   });
 
@@ -112,7 +112,7 @@ test.describe('Favorite sync across screens (mocked backend)', () => {
     installMock(page, { failToggle: true });
     await login(page);
 
-    await page.goto('/songs');
+    await page.goto('/search');
     const heart = heartInRow(page, 'Borealis');
     await expect(heart).toHaveAttribute('aria-pressed', 'false');
 

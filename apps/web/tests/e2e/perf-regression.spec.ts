@@ -51,7 +51,7 @@ test.describe('List perf regression (memo + pagination + tab switch)', () => {
   test('songs: favorite toggle updates the row without corrupting siblings', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/songs');
+    await page.goto('/search');
     const rows = page.getByTestId(LIBRARY_TEST_IDS.TRACK_ROW);
     const hasRows = await rows
       .first()

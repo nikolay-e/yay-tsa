@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { RootLayout } from '@/pages/RootLayout';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -20,7 +20,7 @@ const ArtistDetailPage = lazy(() =>
 const FavoritesPage = lazy(() =>
   import('@/pages/FavoritesPage').then(m => ({ default: m.FavoritesPage }))
 );
-const SongsPage = lazy(() => import('@/pages/SongsPage').then(m => ({ default: m.SongsPage })));
+const SearchPage = lazy(() => import('@/pages/SearchPage').then(m => ({ default: m.SearchPage })));
 const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage }))
 );
@@ -103,14 +103,18 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'songs',
+        path: 'search',
         element: (
           <ProtectedRoute>
             <LazyRoute>
-              <SongsPage />
+              <SearchPage />
             </LazyRoute>
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'songs',
+        element: <Navigate to="/search" replace />,
       },
       {
         path: 'settings',

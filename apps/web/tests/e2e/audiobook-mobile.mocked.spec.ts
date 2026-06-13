@@ -45,7 +45,7 @@ function installMock(page: Page, opts: { audiobook: boolean }): void {
 }
 
 async function openFullPlayer(page: Page): Promise<void> {
-  await page.goto('/songs');
+  await page.goto('/search');
   await page.getByTestId('track-title').filter({ hasText: 'Chapter One' }).first().click();
   await expect(page.getByTestId('player-bar')).toBeVisible({ timeout: 10000 });
   await page.getByRole('button', { name: 'Open player' }).click();

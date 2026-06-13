@@ -3,7 +3,7 @@ import { installBaseMock, login, silentWav } from './helpers/media-fixtures';
 
 // Backend-free queue-panel suite (chromium-mocked project): every /api/* call is stubbed and audio
 // streams are served as generated silent WAVs, so this runs without a live backend. It exercises the
-// real queue UI in a browser: starting a queue from the Songs list, opening the queue panel from the
+// real queue UI in a browser: starting a queue from the Search track list, opening the queue panel from the
 // player bar, jumping to an upcoming track, removing a track, and the Play next / Add to queue row
 // actions.
 //
@@ -50,7 +50,7 @@ function installMock(page: Page): void {
 }
 
 async function startQueueFromSongs(page: Page): Promise<void> {
-  await page.goto('/songs');
+  await page.goto('/search');
   await page.getByTestId('track-title').filter({ hasText: 'Aurora' }).first().click();
   await expect(page.getByTestId('player-bar')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('[data-testid="current-track-title"]:visible')).toHaveText('Aurora', {

@@ -1,6 +1,11 @@
-import { useState, useMemo } from 'react';
-import { useInfiniteTracks, useSemanticSearch } from '@/features/library/hooks';
-import { TrackList } from '@/features/library/components';
+import { useState, useMemo, type ReactNode } from 'react';
+import {
+  useInfiniteAlbums,
+  useInfiniteArtists,
+  useInfiniteTracks,
+  useSemanticSearch,
+} from '@/features/library/hooks';
+import { AlbumGrid, ArtistCard, TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -17,10 +22,12 @@ import {
 
 type SearchMode = 'text' | 'semantic';
 
-export function SongsPage() {
+export function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('text');
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
+  const query = debouncedSearchTerm.trim();
+  const hasQuery = query.length > 0;
   const isSearchPending = searchTerm !== debouncedSearchTerm;
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
@@ -28,7 +35,7 @@ export function SongsPage() {
   const isPlaying = useIsPlaying();
   const { selectedId, activeOption, select } = useSortPreference('songs');
 
-  const isSemanticActive = searchMode === 'semantic' && debouncedSearchTerm.trim().length > 0;
+  const isSemanticActive = searchMode === 'semantic' && hasQuery;
 
   const {
     data: semanticResults,
@@ -51,7 +58,7 @@ export function SongsPage() {
     fetchNextPage,
     fetchPreviousPage,
   } = useInfiniteTracks({
-    searchTerm: isSemanticActive ? undefined : debouncedSearchTerm.trim() || undefined,
+    searchTerm: isSemanticActive ? undefined : query || undefined,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
   });
@@ -72,7 +79,7 @@ export function SongsPage() {
   const emptyState = (
     <div className="flex h-64 items-center justify-center">
       <p className="text-text-secondary">
-        {isSemanticActive ? 'No matching tracks found' : 'No songs found'}
+        {hasQuery ? 'No matching tracks found' : 'Search across tracks, albums, and artists'}
       </p>
     </div>
   );
@@ -122,25 +129,27 @@ export function SongsPage() {
     />
   );
 
-  let loadedContent;
+  let trackContent;
   if (isSemanticActive && isSemanticError && tracks.length === 0) {
-    loadedContent = semanticErrorState;
+    trackContent = semanticErrorState;
   } else if (tracks.length === 0) {
-    loadedContent = emptyState;
+    trackContent = emptyState;
   } else {
-    loadedContent = trackList;
+    trackContent = trackList;
   }
-  const content = showLoading ? <LoadingSpinner /> : loadedContent;
+  const tracksSection = showLoading ? <LoadingSpinner /> : trackContent;
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Songs</h1>
+        <h1 className="text-2xl font-bold">Search</h1>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder={searchMode === 'semantic' ? 'Describe the vibe...' : 'Search songs...'}
+            placeholder={
+              searchMode === 'semantic' ? 'Describe the vibe...' : 'Search everything...'
+            }
           />
           <div className="border-border flex overflow-hidden rounded-md border">
             <button
@@ -183,7 +192,69 @@ export function SongsPage() {
         </div>
       )}
 
-      {content}
+      {hasQuery && !isSemanticActive && <SearchAlbums query={query} />}
+      {hasQuery && !isSemanticActive && <SearchArtists query={query} />}
+
+      <SearchSection title="Tracks">{tracksSection}</SearchSection>
     </div>
+  );
+}
+
+type SearchSectionProps = Readonly<{
+  title: string;
+  children: ReactNode;
+}>;
+
+function SearchSection({ title, children }: SearchSectionProps) {
+  return (
+    <section className="space-y-3" data-testid={`search-section-${title.toLowerCase()}`}>
+      <h2 className="text-text-secondary text-sm font-medium tracking-wide uppercase">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function SearchAlbums({ query }: Readonly<{ query: string }>) {
+  const playAlbum = usePlayerStore(state => state.playAlbum);
+  const { data, isLoading } = useInfiniteAlbums({ searchTerm: query, limit: 12 });
+  const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+
+  if (isLoading) {
+    return (
+      <SearchSection title="Albums">
+        <LoadingSpinner />
+      </SearchSection>
+    );
+  }
+  if (albums.length === 0) return null;
+
+  return (
+    <SearchSection title="Albums">
+      <AlbumGrid albums={albums} onPlayAlbum={album => playAlbum(album.Id)} />
+    </SearchSection>
+  );
+}
+
+function SearchArtists({ query }: Readonly<{ query: string }>) {
+  const { data, isLoading } = useInfiniteArtists({ searchTerm: query, limit: 12 });
+  const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+
+  if (isLoading) {
+    return (
+      <SearchSection title="Artists">
+        <LoadingSpinner />
+      </SearchSection>
+    );
+  }
+  if (artists.length === 0) return null;
+
+  return (
+    <SearchSection title="Artists">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {artists.map(artist => (
+          <ArtistCard key={artist.Id} artist={artist} />
+        ))}
+      </div>
+    </SearchSection>
   );
 }
