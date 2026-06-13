@@ -9,6 +9,7 @@ type DownloadTracksButtonProps = Readonly<{
   label?: string;
   reason?: OfflineSource;
   className?: string;
+  iconOnly?: boolean;
 }>;
 
 // Aggregate download control for a whole album / list. Reflects "all downloaded"
@@ -18,6 +19,7 @@ export function DownloadTracksButton({
   label = 'Download',
   reason = 'manual',
   className,
+  iconOnly = false,
 }: DownloadTracksButtonProps) {
   const downloadMany = useOfflineStore(state => state.downloadMany);
   const entries = useOfflineStore(state => state.entries);
@@ -33,13 +35,22 @@ export function DownloadTracksButton({
     downloadMany(tracks, reason).catch(() => {});
   };
 
+  const text = allDownloaded
+    ? 'Downloaded'
+    : downloading
+      ? `Downloading ${ready}/${tracks.length}`
+      : label;
+
   return (
     <button
       type="button"
       onClick={handleClick}
       disabled={allDownloaded || downloading}
+      aria-label={iconOnly ? text : undefined}
+      title={iconOnly ? text : undefined}
       className={cn(
-        'border-border hover:bg-bg-hover flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-70',
+        'border-border hover:bg-bg-hover flex items-center gap-2 rounded-full border text-sm font-medium transition-colors disabled:opacity-70',
+        iconOnly ? 'p-2' : 'px-4 py-2',
         allDownloaded && 'text-accent',
         className
       )}
@@ -52,7 +63,7 @@ export function DownloadTracksButton({
       ) : (
         <Download className="h-4 w-4" />
       )}
-      {allDownloaded ? 'Downloaded' : downloading ? `Downloading ${ready}/${tracks.length}` : label}
+      {!iconOnly && text}
     </button>
   );
 }

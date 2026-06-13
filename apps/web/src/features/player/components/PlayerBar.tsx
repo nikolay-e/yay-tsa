@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import {
   Mic,
@@ -253,6 +253,16 @@ export function PlayerBar() {
   };
 
   const dismissFullPlayerForNavigation = () => setShowFullPlayer(false);
+
+  const { pathname } = useLocation();
+  const isInitialLocationRef = useRef(true);
+  useEffect(() => {
+    if (isInitialLocationRef.current) {
+      isInitialLocationRef.current = false;
+      return;
+    }
+    setShowLyricsView(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (playerError) {

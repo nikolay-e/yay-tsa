@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   ChevronDown,
   Play,
@@ -226,6 +226,15 @@ export function MobileFullPlayer({
   const artistId = track.ArtistItems?.[0]?.Id;
   const albumName = track.Album ?? '';
   const [showLyrics, setShowLyrics] = useState(false);
+  const { pathname } = useLocation();
+  const isInitialLocationRef = useRef(true);
+  useEffect(() => {
+    if (isInitialLocationRef.current) {
+      isInitialLocationRef.current = false;
+      return;
+    }
+    setShowLyrics(false);
+  }, [pathname]);
   const playerMode = usePlayerStore(s => s.playerMode);
   const playbackRate = usePlayerStore(s => s.playbackRate);
   const setPlaybackRate = usePlayerStore(s => s.setPlaybackRate);
