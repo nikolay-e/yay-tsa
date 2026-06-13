@@ -14,13 +14,13 @@ multi-minute model load / extraction) — the shared-database pgbouncer pooler
 closes idle connections, so a long-held connection dies before the write.
 """
 
+import argparse
 import logging
 import os
 import sys
 import time
 
-import psycopg2
-
+import db
 from extractor.embedding_extractor import DualEmbeddingExtractor
 from extractor.essentia_analyzer import EssentiaAnalyzer
 
@@ -33,35 +33,8 @@ MODELS_DIR = os.getenv("ESSENTIA_MODELS_DIR", "/app/models")
 BATCH_LIMIT = int(os.getenv("EXTRACT_BATCH_LIMIT", "0"))  # 0 = no limit
 
 
-def _db_connect():
-    # A freshly-scheduled pod's Cilium identity can lag the destination's policy
-    # enforcement for a few seconds, so the first connect to the pooler is refused
-    # (RST) before the identity propagates. Retry with backoff to ride that window.
-    last_err = None
-    for attempt in range(1, 7):
-        try:
-            return psycopg2.connect(
-                host=os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432"),
-                dbname=os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "yaytsa_production"),
-                user=os.getenv("POSTGRES_USER") or os.getenv("DB_USERNAME", "yaytsa_production"),
-                password=os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
-            )
-        except psycopg2.OperationalError as exc:
-            last_err = exc
-            log.warning("DB connect attempt %d/6 failed: %s", attempt, exc)
-            time.sleep(5)
-    raise last_err or RuntimeError("DB connection failed after retries")
-
-
-def _vector(values):
-    if not values:
-        return None
-    return "[" + ",".join(str(float(v)) for v in values) + "]"
-
-
 def _pending_tracks(single_id):
-    conn = _db_connect()
+    conn = db.connect()
     try:
         with conn.cursor() as cur:
             if single_id:
@@ -104,7 +77,7 @@ ON CONFLICT (track_id) DO NOTHING
 
 
 def _write_features(row):
-    conn = _db_connect()
+    conn = db.connect()
     try:
         with conn.cursor() as cur:
             cur.execute(INSERT_SQL, row)
@@ -143,10 +116,10 @@ def _extract_one(essentia, embedder, track_id, source_path):
         "spectral_complexity": features.get("spectral_complexity"),
         "dissonance": features.get("dissonance"),
         "onset_rate": features.get("onset_rate"),
-        "embedding_discogs": _vector(essentia_result.get("embedding_discogs")),
-        "embedding_musicnn": _vector(essentia_result.get("embedding_musicnn")),
-        "embedding_clap": _vector(embeddings.get("embedding_clap")),
-        "embedding_mert": _vector(embeddings.get("embedding_mert")),
+        "embedding_discogs": db.vector(essentia_result.get("embedding_discogs")),
+        "embedding_musicnn": db.vector(essentia_result.get("embedding_musicnn")),
+        "embedding_clap": db.vector(embeddings.get("embedding_clap")),
+        "embedding_mert": db.vector(embeddings.get("embedding_mert")),
         "extractor_version": EXTRACTOR_VERSION,
     }
     _write_features(row)
@@ -154,7 +127,17 @@ def _extract_one(essentia, embedder, track_id, source_path):
 
 
 def main():
-    single_id = sys.argv[1] if len(sys.argv) > 1 else None
+    parser = argparse.ArgumentParser(
+        description="Fill core_v2_ml.track_features for tracks that lack it."
+    )
+    parser.add_argument(
+        "track_id",
+        nargs="?",
+        default=None,
+        help="process a single track by entity id (default: all pending tracks)",
+    )
+    args = parser.parse_args()
+    single_id = args.track_id
     pending = _pending_tracks(single_id)
     log.info("found %d track(s) to process", len(pending))
     if not pending:

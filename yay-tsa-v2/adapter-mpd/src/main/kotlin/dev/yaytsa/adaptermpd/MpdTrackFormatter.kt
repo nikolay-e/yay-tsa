@@ -20,23 +20,22 @@ class MpdTrackFormatter(
     fun block(
         track: Track,
         names: Map<EntityId, String>,
-    ): String {
-        val sb = StringBuilder()
-        sb.appendLine("file: ${track.id.value}")
-        val artistName = track.albumArtistId?.let { names[it] }
-        if (artistName != null) {
-            sb.appendLine("Artist: $artistName")
-            sb.appendLine("AlbumArtist: $artistName")
+    ): String =
+        buildString {
+            appendLine("file: ${track.id.value}")
+            val artistName = track.albumArtistId?.let { names[it] }
+            if (artistName != null) {
+                appendLine("Artist: $artistName")
+                appendLine("AlbumArtist: $artistName")
+            }
+            track.albumId?.let { names[it] }?.let { appendLine("Album: $it") }
+            appendLine("Title: ${track.name}")
+            track.trackNumber?.let { appendLine("Track: $it") }
+            track.year?.let { appendLine("Date: $it") }
+            track.genre?.let { appendLine("Genre: $it") }
+            track.durationMs?.let {
+                appendLine("Time: ${it / 1000}")
+                appendLine("duration: ${String.format(Locale.ROOT, "%.3f", it / 1000.0)}")
+            }
         }
-        track.albumId?.let { names[it] }?.let { sb.appendLine("Album: $it") }
-        sb.appendLine("Title: ${track.name}")
-        track.trackNumber?.let { sb.appendLine("Track: $it") }
-        track.year?.let { sb.appendLine("Date: $it") }
-        track.genre?.let { sb.appendLine("Genre: $it") }
-        track.durationMs?.let {
-            sb.appendLine("Time: ${it / 1000}")
-            sb.appendLine("duration: ${String.format(Locale.ROOT, "%.3f", it / 1000.0)}")
-        }
-        return sb.toString()
-    }
 }

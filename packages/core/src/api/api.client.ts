@@ -379,25 +379,11 @@ export class MediaServerClient {
    * Convert headers from RequestInit to Record<string, string>
    */
   private headersFromInit(headers?: HeadersInit): Record<string, string> {
-    if (!headers) return {};
-
-    if (headers instanceof Headers) {
-      const result: Record<string, string> = {};
-      headers.forEach((value, key) => {
-        result[key] = value;
-      });
-      return result;
-    }
-
-    if (Array.isArray(headers)) {
-      const result: Record<string, string> = {};
-      headers.forEach(([key, value]) => {
-        result[key] = value;
-      });
-      return result;
-    }
-
-    return headers;
+    const result: Record<string, string> = {};
+    new Headers(headers ?? {}).forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
   }
 
   private buildQueryString(params: Record<string, unknown>): string {

@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.shared.Hashing
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -8,7 +9,6 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
@@ -174,7 +174,7 @@ class ThumbnailService(
         th: Int,
         q: Int,
         fmt: String,
-    ): String = sha256("${source.toAbsolutePath()}|$mtime|$size|$tw|$th|$q|$fmt")
+    ): String = Hashing.sha256Hex("${source.toAbsolutePath()}|$mtime|$size|$tw|$th|$q|$fmt")
 
     private fun etag(
         source: Path,
@@ -184,8 +184,6 @@ class ThumbnailService(
         th: Int,
         fmt: String,
     ): String = "\"${cacheKey(source, mtime, size, tw, th, 0, fmt)}\""
-
-    private fun sha256(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 
     private fun contentTypeForFile(path: Path): String =
         when (path.toString().substringAfterLast('.').lowercase()) {

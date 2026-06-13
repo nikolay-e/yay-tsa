@@ -168,21 +168,23 @@ class McpTools(
 
     private fun searchLibrary(query: String): McpToolResult {
         val results = libraryQueries.searchText(query, 20, 0)
-        val sb = StringBuilder()
-        if (results.artists.isNotEmpty()) {
-            sb.appendLine("Artists:")
-            results.artists.forEach { sb.appendLine("  - ${it.name} (id: ${it.id.value})") }
-        }
-        if (results.albums.isNotEmpty()) {
-            sb.appendLine("Albums:")
-            results.albums.forEach { sb.appendLine("  - ${it.name} (id: ${it.id.value})") }
-        }
-        if (results.tracks.isNotEmpty()) {
-            sb.appendLine("Tracks:")
-            results.tracks.map { it.toMcpJson() }.forEach { sb.appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
-        }
-        if (sb.isEmpty()) sb.append("No results found.")
-        return textResult(sb.toString())
+        val text =
+            buildString {
+                if (results.artists.isNotEmpty()) {
+                    appendLine("Artists:")
+                    results.artists.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
+                }
+                if (results.albums.isNotEmpty()) {
+                    appendLine("Albums:")
+                    results.albums.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
+                }
+                if (results.tracks.isNotEmpty()) {
+                    appendLine("Tracks:")
+                    results.tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
+                }
+                if (isEmpty()) append("No results found.")
+            }
+        return textResult(text)
     }
 
     private fun getPlaybackState(args: Map<String, Any?>): McpToolResult {

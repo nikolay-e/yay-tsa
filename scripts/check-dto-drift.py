@@ -72,13 +72,7 @@ def resolve_ts_fields(name: str, interfaces: dict[str, dict], visited: set[str] 
     for parent in info["extends"]:
         fields.extend(resolve_ts_fields(parent, interfaces, visited))
     fields.extend(info["fields"])
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for f in fields:
-        if f not in seen:
-            seen.add(f)
-            deduped.append(f)
-    return deduped
+    return list(dict.fromkeys(fields))
 
 
 def load_config() -> dict:

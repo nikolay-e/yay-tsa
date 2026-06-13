@@ -42,17 +42,13 @@ export class PlaybackController {
 }
 
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Engine timeout after ${ms}ms`)), ms);
-    promise.then(
-      val => {
-        clearTimeout(timer);
-        resolve(val);
-      },
-      err => {
-        clearTimeout(timer);
-        reject(err);
-      }
-    );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Engine timeout after ${ms}ms`)), ms);
   });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

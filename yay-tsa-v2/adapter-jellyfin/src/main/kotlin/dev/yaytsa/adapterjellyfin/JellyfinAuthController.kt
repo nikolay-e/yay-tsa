@@ -32,6 +32,8 @@ class JellyfinAuthController(
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
+    private val secureRandom = SecureRandom()
+
     data class LoginRequest(
         @com.fasterxml.jackson.annotation.JsonProperty("Username")
         @com.fasterxml.jackson.annotation.JsonAlias("username")
@@ -178,8 +180,8 @@ class JellyfinAuthController(
 
     private fun generateToken(): String {
         val bytes = ByteArray(32)
-        SecureRandom().nextBytes(bytes)
-        return bytes.joinToString("") { "%02x".format(it) }
+        secureRandom.nextBytes(bytes)
+        return Hashing.hexEncode(bytes)
     }
 
     private fun revokeTokenForUser(

@@ -3,6 +3,7 @@ package dev.yaytsa.adapteropensubsonic
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import dev.yaytsa.application.auth.AuthQueries
+import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.UserId
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -12,7 +13,6 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import java.security.MessageDigest
 import java.time.Duration
 
 @Component
@@ -95,20 +95,9 @@ class SubsonicAuthFilter(
             false
         }
 
-    private fun decodeHex(hex: String): String? {
-        if (hex.length % 2 != 0) return null
-        return try {
-            val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-            String(bytes, Charsets.UTF_8)
-        } catch (_: NumberFormatException) {
-            null
-        }
-    }
+    private fun decodeHex(hex: String): String? = Hashing.hexDecode(hex)?.let { String(it, Charsets.UTF_8) }
 
-    private fun sha256(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(input.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-    }
+    private fun sha256(input: String): String = Hashing.sha256Hex(input)
 }
 
 class SubsonicAuthentication(

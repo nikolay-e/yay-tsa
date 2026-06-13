@@ -15,6 +15,7 @@ select = [
   "I",    # isort (import ordering)
   "UP",   # pyupgrade (modern Python syntax)
   "B",    # flake8-bugbear (common bug patterns)
+  "S",    # flake8-bandit (security)
   "C4",   # flake8-comprehensions
   "SIM",  # flake8-simplify
   "RUF",  # ruff-specific rules
@@ -31,12 +32,17 @@ ignore = [
   "E501",    # line too long — enforced by ruff-format
   "B008",    # function calls in defaults — FastAPI Depends() pattern
   "PLC0415", # import not at top-level — intentional lazy imports for heavy ML libraries
+  "S404",    # subprocess import — legitimate for FFmpeg orchestration (bandit B404)
+  "S603",    # subprocess without shell — fixed-arg FFmpeg invocations (bandit B603)
+  "S607",    # partial executable path — ffmpeg expected in PATH (bandit B607)
+  "S110",    # try/except/pass — optional model/feature loading (bandit B110)
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "extractor/**" = ["B006"]
 "**/patches/**" = ["T20"]
 "**/vulture_whitelist.py" = ["F821", "E501"]
+"**/tests/**" = ["S101"]
 
 [tool.mypy]
 python_version = "3.13"

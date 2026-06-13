@@ -15,9 +15,11 @@ import os
 import re
 import sys
 import time
+from pathlib import Path
 
-import psycopg2
 import requests
+
+import db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("lyrics_sync")
@@ -40,29 +42,8 @@ ORDER BY e.created_at
 """
 
 
-def _db_connect():
-    # A freshly-scheduled pod's Cilium identity can lag the destination's policy
-    # enforcement for a few seconds, so the first connect to the pooler is refused
-    # (RST) before the identity propagates. Retry with backoff to ride that window.
-    last_err = None
-    for attempt in range(1, 7):
-        try:
-            return psycopg2.connect(
-                host=os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432"),
-                dbname=os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "yaytsa_production"),
-                user=os.getenv("POSTGRES_USER") or os.getenv("DB_USERNAME", "yaytsa_production"),
-                password=os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
-            )
-        except psycopg2.OperationalError as exc:
-            last_err = exc
-            log.warning("DB connect attempt %d/6 failed: %s", attempt, exc)
-            time.sleep(5)
-    raise last_err or RuntimeError("DB connection failed after retries")
-
-
 def _load_tracks():
-    conn = _db_connect()
+    conn = db.connect()
     try:
         with conn.cursor() as cur:
             sql = TRACK_QUERY + (f" LIMIT {BATCH_LIMIT}" if BATCH_LIMIT > 0 else "")
@@ -79,20 +60,19 @@ def _is_synced(text):
 def _existing_lrc(audio_path):
     """Mirror the backend's findSidecarLrc: <parent>/.lyrics/<basename>.lrc, with a
     loose track-number-prefix fallback. Returns the path of an existing .lrc or None."""
-    parent = os.path.dirname(audio_path)
-    lyrics_dir = os.path.join(parent, ".lyrics")
-    if not os.path.isdir(lyrics_dir):
+    lyrics_dir = Path(audio_path).parent / ".lyrics"
+    if not lyrics_dir.is_dir():
         return None
-    base = os.path.splitext(os.path.basename(audio_path))[0]
-    direct = os.path.join(lyrics_dir, base + ".lrc")
-    if os.path.isfile(direct):
-        return direct
+    base = Path(audio_path).stem
+    direct = lyrics_dir / (base + ".lrc")
+    if direct.is_file():
+        return str(direct)
     m = NUM_PREFIX_RE.match(base)
     if m:
         prefix = m.group(0)
-        for name in sorted(os.listdir(lyrics_dir)):
-            if name.endswith(".lrc") and name.startswith(prefix):
-                return os.path.join(lyrics_dir, name)
+        for path in sorted(lyrics_dir.glob("*.lrc")):
+            if path.name.startswith(prefix):
+                return str(path)
     return None
 
 
@@ -130,8 +110,8 @@ def _fetch_synced(title, artist, album, duration_ms):
 
 def _process(track):
     source_path, title, artist, album, duration_ms = track
-    audio_path = os.path.join(MUSIC_PATH, source_path)
-    if not os.path.isfile(audio_path):
+    audio_path = str(Path(MUSIC_PATH) / source_path)
+    if not Path(audio_path).is_file():
         return "missing_file"
 
     existing = _existing_lrc(audio_path)
@@ -147,12 +127,12 @@ def _process(track):
     if not synced:
         return "no_synced_available"
 
-    target = existing or os.path.join(
-        os.path.dirname(audio_path),
-        ".lyrics",
-        os.path.splitext(os.path.basename(audio_path))[0] + ".lrc",
+    target = (
+        Path(existing)
+        if existing
+        else (Path(audio_path).parent / ".lyrics" / (Path(audio_path).stem + ".lrc"))
     )
-    os.makedirs(os.path.dirname(target), exist_ok=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
     with open(target, "w", encoding="utf-8") as fh:
         fh.write(synced)
     return "upgraded" if existing else "created"

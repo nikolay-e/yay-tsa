@@ -1,6 +1,6 @@
 package dev.yaytsa.application.shared
 
-import java.security.MessageDigest
+import dev.yaytsa.shared.Hashing
 
 /**
  * Computes a deterministic fingerprint of a command payload for idempotency.
@@ -24,8 +24,6 @@ object PayloadFingerprint {
         }
         val className = command::class.qualifiedName ?: command::class.simpleName ?: "unknown"
         val canonical = "$className:$command"
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(canonical.toByteArray(Charsets.UTF_8))
-        return hash.joinToString("") { "%02x".format(it) }
+        return Hashing.sha256Hex(canonical)
     }
 }

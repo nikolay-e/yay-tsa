@@ -167,48 +167,48 @@ class MpdCommandHandler(
 
     private fun status(): String {
         val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
-        val sb = StringBuilder()
-        sb.appendLine("volume: 100")
-        sb.appendLine("repeat: 0")
-        sb.appendLine("random: 0")
-        sb.appendLine("single: 0")
-        sb.appendLine("consume: 0")
-        sb.appendLine("playlist: ${playlistVersionOf(state)}")
-        sb.appendLine("playlistlength: ${state?.queue?.size ?: 0}")
-        sb.appendLine(
-            "state: ${when (state?.playbackState?.name) {
-                "PLAYING" -> "play"
-                "PAUSED" -> "pause"
-                else -> "stop"
-            }}",
-        )
-        val currentId = state?.currentEntryId
-        if (currentId != null) {
-            val idx = state.queue.indexOfFirst { it.id == currentId }
-            if (idx >= 0) {
-                sb.appendLine("song: $idx")
-                sb.appendLine("songid: ${songIdOf(currentId)}")
+        return buildString {
+            appendLine("volume: 100")
+            appendLine("repeat: 0")
+            appendLine("random: 0")
+            appendLine("single: 0")
+            appendLine("consume: 0")
+            appendLine("playlist: ${playlistVersionOf(state)}")
+            appendLine("playlistlength: ${state?.queue?.size ?: 0}")
+            appendLine(
+                "state: ${when (state?.playbackState?.name) {
+                    "PLAYING" -> "play"
+                    "PAUSED" -> "pause"
+                    else -> "stop"
+                }}",
+            )
+            val currentId = state?.currentEntryId
+            if (currentId != null) {
+                val idx = state.queue.indexOfFirst { it.id == currentId }
+                if (idx >= 0) {
+                    appendLine("song: $idx")
+                    appendLine("songid: ${songIdOf(currentId)}")
+                }
+                val durationMs =
+                    state.queue
+                        .find { it.id == currentId }
+                        ?.trackId
+                        ?.let { libraryQueries.getTrack(EntityId(it.value))?.durationMs }
+                val now = ctxFactory.create(MPD_USER, AggregateVersion.INITIAL).requestTime
+                var elapsed = state.computePosition(now)
+                if (durationMs != null && elapsed.toMillis() > durationMs) {
+                    elapsed = Duration.ofMillis(durationMs)
+                }
+                appendLine("elapsed: ${String.format(Locale.ROOT, "%.3f", elapsed.toMillis() / 1000.0)}")
+                if (durationMs != null) {
+                    appendLine("duration: ${String.format(Locale.ROOT, "%.3f", durationMs / 1000.0)}")
+                    appendLine("time: ${elapsed.toMillis() / 1000}:${durationMs / 1000}")
+                } else {
+                    appendLine("time: ${elapsed.toMillis() / 1000}:0")
+                }
             }
-            val durationMs =
-                state.queue
-                    .find { it.id == currentId }
-                    ?.trackId
-                    ?.let { libraryQueries.getTrack(EntityId(it.value))?.durationMs }
-            val now = ctxFactory.create(MPD_USER, AggregateVersion.INITIAL).requestTime
-            var elapsed = state.computePosition(now)
-            if (durationMs != null && elapsed.toMillis() > durationMs) {
-                elapsed = Duration.ofMillis(durationMs)
-            }
-            sb.appendLine("elapsed: ${String.format(Locale.ROOT, "%.3f", elapsed.toMillis() / 1000.0)}")
-            if (durationMs != null) {
-                sb.appendLine("duration: ${String.format(Locale.ROOT, "%.3f", durationMs / 1000.0)}")
-                sb.appendLine("time: ${elapsed.toMillis() / 1000}:${durationMs / 1000}")
-            } else {
-                sb.appendLine("time: ${elapsed.toMillis() / 1000}:0")
-            }
+            appendLine("OK")
         }
-        sb.appendLine("OK")
-        return sb.toString()
     }
 
     private fun currentSong(): String {

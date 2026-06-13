@@ -575,7 +575,6 @@ class SubsonicController(
         val pid = PlaylistId(playlistId)
         val playlist = playlistQueries.find(pid) ?: return notFound("Playlist", playlistId, f)
         val userId = UserId(principal.name)
-        var version = playlist.version
         val steps =
             buildList<(CommandContext) -> PlaylistCommand> {
                 name?.let { newName -> add { RenamePlaylist(pid, newName) } }
@@ -586,9 +585,7 @@ class SubsonicController(
                     add { ctx -> AddTracksToPlaylist(pid, ids.map { TrackId(it) }, ctx.requestTime) }
                 }
             }
-        for (step in steps) {
-            version = executePlaylistCommand(userId, version, step)
-        }
+        steps.fold(playlist.version) { version, step -> executePlaylistCommand(userId, version, step) }
         return responseWriter.write(ok(), f)
     }
 

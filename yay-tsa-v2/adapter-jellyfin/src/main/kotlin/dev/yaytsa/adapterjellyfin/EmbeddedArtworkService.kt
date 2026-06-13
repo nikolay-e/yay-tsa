@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.shared.Hashing
 import org.jaudiotagger.audio.AudioFileIO
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -7,7 +8,6 @@ import org.springframework.stereotype.Service
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.io.path.exists
@@ -36,7 +36,7 @@ class EmbeddedArtworkService(
     fun extract(audioFile: Path): Path? {
         val mtime = runCatching { Files.getLastModifiedTime(audioFile).toMillis() }.getOrNull() ?: return null
         val size = runCatching { Files.size(audioFile) }.getOrNull() ?: return null
-        val key = sha256("${audioFile.toAbsolutePath()}|$mtime|$size|embedded")
+        val key = Hashing.sha256Hex("${audioFile.toAbsolutePath()}|$mtime|$size|embedded")
         val cached = cacheRoot.resolve("$key.img")
         if (cached.exists()) return cached
 
@@ -53,6 +53,4 @@ class EmbeddedArtworkService(
             null
         }
     }
-
-    private fun sha256(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 }

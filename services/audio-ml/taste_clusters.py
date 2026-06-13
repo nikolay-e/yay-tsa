@@ -14,16 +14,18 @@ Radio reads these representatives so the queue spans the user's real taste facet
 Runs as a CronJob (scheduled re-cluster) or manually. Needs DB creds.
 """
 
+import json
 import logging
 import os
 import sys
 import time
 
 import numpy as np
-import psycopg2
 from psycopg2.extras import execute_values
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+
+import db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("taste_clusters")
@@ -33,25 +35,6 @@ TRACKS_PER_CLUSTER = int(os.getenv("TASTE_TRACKS_PER_CLUSTER", "70"))
 MIN_CLUSTER_SIZE = int(os.getenv("TASTE_MIN_CLUSTER_SIZE", "5"))
 REPRESENTATIVE_VARIANCE = float(os.getenv("TASTE_PCA_VARIANCE", "0.85"))
 USER_LIMIT = int(os.getenv("TASTE_USER_LIMIT", "0"))  # 0 = all users
-
-
-def _db_connect():
-    # Retry rides the Cilium identity-propagation window (fresh pod's first connect is RST).
-    last_err = None
-    for attempt in range(1, 7):
-        try:
-            return psycopg2.connect(
-                host=os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432"),
-                dbname=os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "yaytsa_production"),
-                user=os.getenv("POSTGRES_USER") or os.getenv("DB_USERNAME", "yaytsa_production"),
-                password=os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
-            )
-        except psycopg2.OperationalError as exc:
-            last_err = exc
-            log.warning("DB connect attempt %d/6 failed: %s", attempt, exc)
-            time.sleep(5)
-    raise last_err or RuntimeError("DB connection failed after retries")
 
 
 def _load_user_embeddings(conn):
@@ -69,7 +52,7 @@ def _load_user_embeddings(conn):
             "ORDER BY a.user_id"
         )
         for user_id, track_id, score, emb in cur:
-            v = np.fromstring(str(emb).strip("[]"), sep=",", dtype=np.float32)
+            v = np.asarray(json.loads(str(emb)), dtype=np.float32)
             if v.size == 768:
                 by_user.setdefault(str(user_id), []).append((str(track_id), v, float(score)))
     return by_user
@@ -103,15 +86,11 @@ def _cluster(vecs):
     return out
 
 
-def _vector(v):
-    return "[" + ",".join(str(float(x)) for x in v) + "]"
-
-
 def _write(conn, user_id, clusters, vecs):
     with conn.cursor() as cur:
         cur.execute("DELETE FROM core_v2_ml.taste_clusters WHERE user_id = %s", (user_id,))
         rows = [
-            (user_id, cid, len(idx), vecs[medoid][0], _vector(centroid))
+            (user_id, cid, len(idx), vecs[medoid][0], db.vector(centroid))
             for cid, (medoid, idx, centroid) in enumerate(clusters)
         ]
         if rows:
@@ -127,7 +106,7 @@ def _write(conn, user_id, clusters, vecs):
 
 
 def main():
-    conn = _db_connect()
+    conn = db.connect()
     try:
         by_user = _load_user_embeddings(conn)
         users = [u for u, v in by_user.items() if len(v) >= MIN_TRACKS]
