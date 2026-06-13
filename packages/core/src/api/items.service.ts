@@ -35,6 +35,7 @@ export class ItemsService extends BaseService {
     if (query.ArtistIds) params.ArtistIds = query.ArtistIds.join(',');
     if (query.AlbumIds) params.AlbumIds = query.AlbumIds.join(',');
     if (query.GenreIds) params.GenreIds = query.GenreIds.join(',');
+    if (query.ExcludeGenres?.length) params.ExcludeGenres = query.ExcludeGenres.join(',');
     if (query.IsFavorite !== undefined) params.IsFavorite = query.IsFavorite;
     if (query.Ids?.length) params.Ids = query.Ids.join(',');
     if (query.Fields && query.Fields.length > 0) params.Fields = query.Fields.join(',');
@@ -140,6 +141,7 @@ export class ItemsService extends BaseService {
     limit?: number;
     searchTerm?: string;
     isFavorite?: boolean;
+    excludeGenres?: string[];
   }): Promise<ItemsResult<AudioItem>> {
     const query: ItemsQuery = {
       IncludeItemTypes: 'Audio',
@@ -161,6 +163,7 @@ export class ItemsService extends BaseService {
       Limit: options?.limit,
       SearchTerm: options?.searchTerm,
       IsFavorite: options?.isFavorite,
+      ExcludeGenres: options?.excludeGenres,
     };
 
     if (options?.parentId) {

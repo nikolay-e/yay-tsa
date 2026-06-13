@@ -12,6 +12,8 @@ import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
 
+const BYTES_PER_GB = 1024 * 1024 * 1024;
+
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 MB';
   const mb = bytes / (1024 * 1024);
@@ -96,23 +98,23 @@ export function OfflineManager() {
         />
         <ToggleRow
           label="Cache songs I play"
-          description="Recently played songs are cached and rotated out by the limit below."
+          description="Recently played songs are cached and rotated out by the size limit below."
           checked={settings.autoCachePlayed}
           onChange={value => setSetting({ autoCachePlayed: value })}
         />
         <div className="flex items-center justify-between gap-3">
-          <label htmlFor="max-cache-tracks" className="text-sm">
-            Max cached played songs{' '}
-            <span className="text-text-secondary text-xs">(0 = unlimited)</span>
+          <label htmlFor="max-cache-gb" className="text-sm">
+            Cache size limit <span className="text-text-secondary text-xs">GB (0 = unlimited)</span>
           </label>
           <input
-            id="max-cache-tracks"
+            id="max-cache-gb"
             type="number"
             min={0}
-            value={settings.maxCacheTracks}
+            step={0.5}
+            value={settings.maxCacheBytes / BYTES_PER_GB}
             onChange={event =>
               setSetting({
-                maxCacheTracks: Math.max(0, Math.floor(Number(event.target.value) || 0)),
+                maxCacheBytes: Math.max(0, Number(event.target.value) || 0) * BYTES_PER_GB,
               })
             }
             className="bg-bg-tertiary border-border text-text-primary w-24 rounded-lg border px-3 py-2 text-sm"

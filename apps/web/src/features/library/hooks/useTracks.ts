@@ -1,4 +1,4 @@
-import { ItemsService, type AudioItem } from '@yay-tsa/core';
+import { AUDIOBOOK_GENRES, ItemsService, type AudioItem } from '@yay-tsa/core';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
 interface UseInfiniteTracksOptions {
@@ -16,7 +16,7 @@ export function useInfiniteTracks(options: UseInfiniteTracksOptions = {}) {
 
   return useInfiniteLibraryQuery<AudioItem>({
     queryKey: ['tracks', 'infinite'],
-    options: { limit, ...queryOptions },
+    options: { limit, excludeGenres: AUDIOBOOK_GENRES, ...queryOptions },
     fetcher: async (client, params) => {
       const itemsService = new ItemsService(client);
       return itemsService.getTracks(params);

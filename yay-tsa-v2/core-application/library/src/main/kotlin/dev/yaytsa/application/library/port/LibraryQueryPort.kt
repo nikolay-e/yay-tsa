@@ -71,6 +71,16 @@ interface LibraryQueryPort {
         sortOrder: String,
     ): List<Track>
 
+    fun browseTracksExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track>
+
+    fun countTracksExcludingGenres(excludedGenreNames: Collection<String>): Int
+
     fun browseTracksRandom(limit: Int): List<Track>
 
     fun searchText(

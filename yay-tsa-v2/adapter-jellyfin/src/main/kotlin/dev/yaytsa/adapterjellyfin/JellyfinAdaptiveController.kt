@@ -381,7 +381,15 @@ class JellyfinAdaptiveController(
         limit: Int,
     ): List<dev.yaytsa.domain.library.Track> {
         val candidates = collectRecommendationCandidates(userId, limit)
-        return filterRedLines(candidates, userId).take(limit)
+        return filterRedLines(candidates.filterNot { isAudiobookTrack(it) }, userId).take(limit)
+    }
+
+    // Keep spoken-word audiobooks out of music surfaces (Daily Mix, radio seeds). Matches the
+    // PWA's AUDIOBOOK_GENRES marker on the track's primary genre, mirroring how red-line filtering
+    // inspects track.genre. The dedicated /v1/me/audiobooks endpoint still surfaces them.
+    private fun isAudiobookTrack(track: dev.yaytsa.domain.library.Track): Boolean {
+        val genre = track.genre?.trim()?.lowercase() ?: return false
+        return genre in AUDIOBOOK_GENRES
     }
 
     private fun collectRecommendationCandidates(
@@ -490,6 +498,7 @@ class JellyfinAdaptiveController(
 
         // Pre-build lookups on a representative sample so the red-line filter has artist/album names.
         fun blocked(track: dev.yaytsa.domain.library.Track): Boolean {
+            if (isAudiobookTrack(track)) return true
             if (redLineTerms.isEmpty()) return false
             val lookups = trackLookups(listOf(track))
             return matchesRedLine(track, redLineTerms, lookups)
@@ -569,6 +578,8 @@ class JellyfinAdaptiveController(
     }
 
     companion object {
+        private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
+
         private const val REFRESH_QUEUE_BOOTSTRAP_SIZE = 10
 
         // Larger pool than [limit] so .shuffled() gives the user a fresh slice on each refresh

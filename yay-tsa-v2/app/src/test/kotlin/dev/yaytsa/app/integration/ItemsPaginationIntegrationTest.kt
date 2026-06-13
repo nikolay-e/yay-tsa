@@ -118,6 +118,57 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `ExcludeGenres drops audiobook tracks from Items and TotalRecordCount`() {
+        val tag = "excl-${UUID.randomUUID().toString().take(6)}"
+        val audiobookGenreId = UUID.randomUUID()
+        jdbc.update("INSERT INTO core_v2_library.genres (id, name) VALUES (?,?)", audiobookGenreId, "Audiobook")
+
+        fun seedTrack(
+            suffix: String,
+            genreId: UUID?,
+        ) {
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, search_text) VALUES (?,?,?,?,?,?)",
+                id,
+                "TRACK",
+                "$tag-$suffix",
+                "$tag-$suffix",
+                "/excltest/$id.flac",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 100000L)
+            if (genreId != null) {
+                jdbc.update("INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?,?)", id, genreId)
+            }
+        }
+
+        seedTrack("music-a", null)
+        seedTrack("music-b", null)
+        seedTrack("book-a", audiobookGenreId)
+        seedTrack("book-b", audiobookGenreId)
+
+        fun namesAndTotal(query: String): Pair<List<String>, Int> {
+            val body = objectMapper.readTree(get(query, token).response.contentAsString)
+            val names = body.get("Items").map { it.get("Name").asText() }.filter { it.startsWith(tag) }
+            return names to body.get("TotalRecordCount").asInt()
+        }
+
+        val (allNames, allTotal) = namesAndTotal("/Items?IncludeItemTypes=Audio&Recursive=true&Limit=500&SortBy=SortName")
+        assertEquals(setOf("$tag-music-a", "$tag-music-b", "$tag-book-a", "$tag-book-b"), allNames.toSet(), "baseline includes audiobooks")
+
+        val (filteredNames, filteredTotal) =
+            namesAndTotal("/Items?IncludeItemTypes=Audio&Recursive=true&Limit=500&SortBy=SortName&ExcludeGenres=Audiobook")
+        assertEquals(setOf("$tag-music-a", "$tag-music-b"), filteredNames.toSet(), "ExcludeGenres=Audiobook must remove audiobook tracks")
+        assertTrue(filteredNames.none { it.contains("book") }, "no audiobook track may leak through")
+        assertEquals(
+            allTotal - 2,
+            filteredTotal,
+            "TotalRecordCount must drop by the two excluded audiobook tracks (all=$allTotal, filtered=$filteredTotal)",
+        )
+    }
+
+    @Test
     fun `favorites honor custom order, date liked, and name sort (not all the same)`() {
         val tag = "favsort-${UUID.randomUUID().toString().take(6)}"
         val baseTime = Instant.parse("2026-01-01T00:00:00Z")

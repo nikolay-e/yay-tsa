@@ -77,11 +77,13 @@ class JellyfinItemsController(
         @RequestParam(name = "AlbumIds", required = false) albumIds: String?,
         @RequestParam(name = "IsFavorite", required = false) isFavorite: Boolean?,
         @RequestParam(name = "Ids", required = false) ids: String?,
+        @RequestParam(name = "ExcludeGenres", required = false) excludeGenres: String?,
         principal: Principal?,
     ): ResponseEntity<Any> {
         if (userId != null && userId != principal?.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         val uid = principal?.name
         val limit = limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
+        val excludedGenres = excludeGenres?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }.orEmpty()
         val favTrackIds =
             if (uid != null) {
                 preferencesQueries.findFavoriteTrackIds(UserId(uid))
@@ -213,7 +215,7 @@ class JellyfinItemsController(
                 // user's top ML affinities (real "what you actually listened to"),
                 // then fold in favorites, then fill from a varied library sample.
                 val isPersonalized = uid != null && sortBy in setOf("DatePlayed", "Personalized", "PlayCount")
-                if (isPersonalized && startIndex == 0) {
+                if (isPersonalized && startIndex == 0 && excludedGenres.isEmpty()) {
                     val personalized = buildPersonalizedTracks(UserId(uid!!), limit)
                     if (personalized.isNotEmpty()) {
                         val lookups = tracksLookups(personalized)
@@ -221,10 +223,17 @@ class JellyfinItemsController(
                         return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
                     }
                 }
-                val browsed = libraryQueries.browseTracks(limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending")
+                val browsed =
+                    libraryQueries.browseTracksExcludingGenres(
+                        excludedGenres,
+                        limit,
+                        startIndex,
+                        sortBy ?: "SortName",
+                        sortOrder ?: "Ascending",
+                    )
                 val trackLookups = tracksLookups(browsed)
                 val items = withResume(browsed.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
-                return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
+                return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracksExcludingGenres(excludedGenres), startIndex))
             }
             "Playlist" in types && uid != null -> {
                 val playlists = playlistQueries.findByOwner(UserId(uid))

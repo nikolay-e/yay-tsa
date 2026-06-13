@@ -1,6 +1,7 @@
 import { Sparkles, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { isAudiobook } from '@yay-tsa/core';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -48,7 +49,7 @@ export function DailyMix() {
 
   const { data, isLoading, isError, refetch } = useDailyMix(DAILY_MIX_LIMIT);
 
-  const tracks = data ?? [];
+  const tracks = (data ?? []).filter(track => !isAudiobook(track));
 
   const handlePlayTrack = (_track: unknown, index: number) => {
     playTracks(tracks, index);

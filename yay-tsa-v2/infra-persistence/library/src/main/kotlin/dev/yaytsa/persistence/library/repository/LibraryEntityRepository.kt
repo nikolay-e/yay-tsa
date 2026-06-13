@@ -115,6 +115,43 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
 
     fun countByEntityType(entityType: String): Long
 
+    // Page tracks whose genre set is disjoint from :excludedGenres. NOT EXISTS over entity_genres
+    // matches ALL of a track's genres (not just the primary), so a track tagged Audiobook is
+    // dropped even when it also carries another genre. :descending flips between two fixed orderings
+    // (no string interpolation into SQL); id is the stable OFFSET tie-breaker, mirroring browseTracks.
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN (:excludedGenres)) " +
+                "ORDER BY " +
+                "CASE WHEN :descending THEN COALESCE(e.sort_name, e.name) END DESC, " +
+                "CASE WHEN NOT :descending THEN COALESCE(e.sort_name, e.name) END ASC, " +
+                "CASE WHEN :descending THEN e.id END DESC, " +
+                "CASE WHEN NOT :descending THEN e.id END ASC " +
+                "LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findTracksExcludingGenres(
+        excludedGenres: Collection<String>,
+        limit: Int,
+        offset: Int,
+        descending: Boolean,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT count(*) FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN (:excludedGenres))",
+        nativeQuery = true,
+    )
+    fun countTracksExcludingGenres(excludedGenres: Collection<String>): Long
+
     @Query(
         value =
             "SELECT count(*) FROM core_v2_library.entities e " +

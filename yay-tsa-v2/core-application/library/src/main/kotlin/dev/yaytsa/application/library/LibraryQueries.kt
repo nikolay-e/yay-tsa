@@ -79,6 +79,28 @@ class LibraryQueries(
         sortOrder: String,
     ): List<Track> = libraryQuery.browseTracks(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
 
+    fun browseTracksExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track> =
+        if (excludedGenreNames.isEmpty()) {
+            libraryQuery.browseTracks(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
+        } else {
+            libraryQuery.browseTracksExcludingGenres(
+                excludedGenreNames,
+                limit.coerceIn(1, MAX_PAGE_SIZE),
+                offset.coerceAtLeast(0),
+                sortBy,
+                sortOrder,
+            )
+        }
+
+    fun countTracksExcludingGenres(excludedGenreNames: Collection<String>): Int =
+        if (excludedGenreNames.isEmpty()) libraryQuery.countTracks() else libraryQuery.countTracksExcludingGenres(excludedGenreNames)
+
     fun browseTracksRandom(limit: Int): List<Track> = libraryQuery.browseTracksRandom(limit)
 
     fun searchText(

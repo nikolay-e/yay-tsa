@@ -38,7 +38,7 @@ export interface OfflineEntry {
 export interface OfflineSettings {
   autoDownloadFavorites: boolean;
   autoCachePlayed: boolean;
-  maxCacheTracks: number; // <= 0 means unlimited
+  maxCacheBytes: number; // <= 0 means unlimited
   removeUnlikedDownloads: boolean;
 }
 
@@ -87,10 +87,11 @@ const store = new IndexedDbOfflineStore<AudioItem>();
 const coverUrls = new Map<string, string>();
 
 const SETTINGS_STORAGE_KEY = 'yaytsa_offline_settings';
+const BYTES_PER_GB = 1024 * 1024 * 1024;
 const DEFAULT_SETTINGS: OfflineSettings = {
   autoDownloadFavorites: true,
   autoCachePlayed: true,
-  maxCacheTracks: 100,
+  maxCacheBytes: 2 * BYTES_PER_GB,
   removeUnlikedDownloads: false,
 };
 // Favorites are fetched a page at a time so the whole set is reconciled even for
@@ -106,8 +107,11 @@ function loadSettings(): OfflineSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<OfflineSettings>;
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      const parsed = JSON.parse(raw) as Partial<OfflineSettings> & { maxCacheTracks?: number };
+      // Drop the retired count-based limit so an upgraded install starts from the
+      // byte budget default instead of a stale track count.
+      const { maxCacheTracks: _legacyCount, ...rest } = parsed;
+      return { ...DEFAULT_SETTINGS, ...rest };
     }
   } catch {
     // Ignore storage / parse errors and fall back to defaults.
@@ -574,8 +578,9 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
           trackId,
           reasons: entry.reasons,
           lastAccessedAt: entry.lastAccessedAt,
+          size: entry.size,
         }));
-      const toEvict = selectCacheEvictions(infos, settings.maxCacheTracks);
+      const toEvict = selectCacheEvictions(infos, settings.maxCacheBytes);
       for (const trackId of toEvict) {
         await get().remove(trackId);
       }
@@ -590,7 +595,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
           .reconcileFavorites()
           .catch(() => {});
       }
-      if (patch.maxCacheTracks !== undefined) {
+      if (patch.maxCacheBytes !== undefined) {
         get()
           .enforceCacheLimit()
           .catch(() => {});

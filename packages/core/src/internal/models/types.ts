@@ -167,6 +167,7 @@ export interface ItemsQuery {
   ArtistIds?: string[];
   AlbumIds?: string[];
   GenreIds?: string[];
+  ExcludeGenres?: string[];
   IsFavorite?: boolean;
   Ids?: string[];
 }

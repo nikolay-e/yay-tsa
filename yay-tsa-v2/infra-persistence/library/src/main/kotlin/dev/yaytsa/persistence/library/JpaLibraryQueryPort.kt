@@ -274,6 +274,32 @@ class JpaLibraryQueryPort(
         }
     }
 
+    override fun browseTracksExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track> {
+        if (excludedGenreNames.isEmpty()) return browseTracks(limit, offset, sortBy, sortOrder)
+        val lowered = excludedGenreNames.map { it.lowercase() }
+        val descending = sortOrder.equals("Descending", ignoreCase = true)
+        val entities = entityRepo.findTracksExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0), descending)
+        val entityIds = entities.map { it.id }
+        val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
+        val primaryImages = findPrimaryImages(entityIds)
+        val genreNames = findPrimaryGenreNames(entityIds)
+        return entities.mapNotNull { entity ->
+            val track = tracksByEntityId[entity.id] ?: return@mapNotNull null
+            LibraryMappers.toTrack(entity, track, primaryImages[entity.id], genreNames[entity.id])
+        }
+    }
+
+    override fun countTracksExcludingGenres(excludedGenreNames: Collection<String>): Int {
+        if (excludedGenreNames.isEmpty()) return countTracks()
+        return entityRepo.countTracksExcludingGenres(excludedGenreNames.map { it.lowercase() }).toInt()
+    }
+
     override fun browseTracksRandom(limit: Int): List<Track> {
         val entities = entityRepo.findRandomByEntityType(EntityType.TRACK.name, maxOf(limit, 1))
         val entityIds = entities.map { it.id }

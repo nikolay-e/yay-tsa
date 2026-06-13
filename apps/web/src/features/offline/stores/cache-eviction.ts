@@ -4,6 +4,7 @@ export interface CacheEntryInfo {
   trackId: string;
   reasons: OfflineSource[];
   lastAccessedAt: number;
+  size: number;
 }
 
 const PROTECTED_SOURCES: ReadonlySet<OfflineSource> = new Set([
@@ -20,15 +21,21 @@ export function isEvictableCacheEntry(reasons: OfflineSource[]): boolean {
   return reasons.includes('listening-cache') && !reasons.some(r => PROTECTED_SOURCES.has(r));
 }
 
-// Pick the oldest listening-cache entries to drop so the cache stays within
-// maxCacheTracks. Protected downloads are never returned and never count toward
-// the limit. A non-positive limit means "unlimited" — nothing is evicted.
-export function selectCacheEvictions(entries: CacheEntryInfo[], maxCacheTracks: number): string[] {
-  if (maxCacheTracks <= 0) return [];
+// Drop the oldest listening-cache entries until their combined size fits within
+// maxCacheBytes. Protected downloads are never returned and never count toward
+// the budget. A non-positive budget means "unlimited" — nothing is evicted.
+export function selectCacheEvictions(entries: CacheEntryInfo[], maxCacheBytes: number): string[] {
+  if (maxCacheBytes <= 0) return [];
   const evictable = entries
     .filter(entry => isEvictableCacheEntry(entry.reasons))
     .sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
-  const overflow = evictable.length - maxCacheTracks;
-  if (overflow <= 0) return [];
-  return evictable.slice(0, overflow).map(entry => entry.trackId);
+
+  let cacheBytes = evictable.reduce((total, entry) => total + entry.size, 0);
+  const toEvict: string[] = [];
+  for (const entry of evictable) {
+    if (cacheBytes <= maxCacheBytes) break;
+    toEvict.push(entry.trackId);
+    cacheBytes -= entry.size;
+  }
+  return toEvict;
 }

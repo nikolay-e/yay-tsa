@@ -243,6 +243,35 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
             }.sortedBy { (it.sortName ?: it.name).lowercase() }
     }
 
+    private fun trackHasAnyGenre(
+        track: Track,
+        lowered: Set<String>,
+    ): Boolean {
+        val byColumn = track.genre?.trim()?.lowercase() in lowered
+        val byJoin = (genres[track.id] ?: emptyList()).any { it.name.trim().lowercase() in lowered }
+        return byColumn || byJoin
+    }
+
+    override fun browseTracksExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): List<Track> {
+        if (excludedGenreNames.isEmpty()) return browseTracks(limit, offset, sortBy, sortOrder)
+        val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
+        val kept = tracks.values.filter { !trackHasAnyGenre(it, lowered) }.sortedBy { it.name.lowercase() }
+        val ordered = if (sortOrder.equals("Descending", ignoreCase = true)) kept.reversed() else kept
+        return ordered.drop(maxOf(offset, 0)).take(maxOf(limit, 1))
+    }
+
+    override fun countTracksExcludingGenres(excludedGenreNames: Collection<String>): Int {
+        if (excludedGenreNames.isEmpty()) return tracks.size
+        val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
+        return tracks.values.count { !trackHasAnyGenre(it, lowered) }
+    }
+
     override fun browseTracksRandom(limit: Int) = tracks.values.shuffled().take(limit)
 
     override fun browseTracks(
