@@ -46,12 +46,14 @@ export function TrackUploadDialog({
   const [files, setFiles] = useState<FileUploadStatus[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeXhrRef = useRef<XMLHttpRequest | null>(null);
   const client = useAuthStore(s => s.client);
 
   const handleReset = useCallback(() => {
     setFiles([]);
+    setConfirmClear(false);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -373,14 +375,26 @@ export function TrackUploadDialog({
         <div className="flex gap-3">
           {!isUploading && !allDone && files.length > 0 && (
             <>
+              {confirmClear ? (
+                <button
+                  onClick={handleReset}
+                  className="bg-error/10 text-error border-error/30 hover:bg-error/20 flex-1 rounded-lg border px-4 py-2 font-medium transition-colors"
+                >
+                  Clear {files.length} file{files.length === 1 ? '' : 's'}?
+                </button>
+              ) : (
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  className="text-text-primary border-border hover:bg-bg-hover flex-1 rounded-lg border px-4 py-2 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
               <button
-                onClick={handleReset}
-                className="text-text-primary border-border hover:bg-bg-hover flex-1 rounded-lg border px-4 py-2 transition-colors"
-              >
-                Clear
-              </button>
-              <button
-                onClick={handleUpload}
+                onClick={() => {
+                  setConfirmClear(false);
+                  handleUpload();
+                }}
                 disabled={pendingCount === 0}
                 className="bg-accent hover:bg-accent/90 text-text-on-accent flex-1 rounded-lg px-4 py-2 font-medium transition-colors disabled:opacity-50"
               >

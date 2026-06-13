@@ -76,7 +76,7 @@ export function DailyMix() {
         if (tracks.length === 0) {
           return (
             <p className="text-text-tertiary py-8 text-center text-sm">
-              Listen to some tracks to build your daily mix
+              Play a few tracks and your Daily Mix will appear here.
             </p>
           );
         }

@@ -110,12 +110,14 @@ export function ArtistDetailPage() {
         </div>
       </div>
 
-      {albums.length > 0 && (
-        <section>
-          <h2 className="mb-4 text-xl font-semibold">Albums</h2>
+      <section>
+        <h2 className="mb-4 text-xl font-semibold">Albums</h2>
+        {albums.length > 0 ? (
           <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
-        </section>
-      )}
+        ) : (
+          <p className="text-text-tertiary text-sm">No albums for this artist yet.</p>
+        )}
+      </section>
     </div>
   );
 }

@@ -586,9 +586,9 @@ export function PlayerBar() {
             data-testid={PLAYER_TEST_IDS.SLEEP_TIMER_BUTTON}
           >
             <Timer className="h-4 w-4" />
-            {sleepTimer.endTime && sleepMinutesLeft > 0 && (
-              <span className="bg-accent text-text-on-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px]">
-                {sleepMinutesLeft}
+            {sleepTimer.endTime && (
+              <span className="bg-accent text-text-on-accent absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none">
+                {sleepMinutesLeft > 0 ? sleepMinutesLeft : '<1'}
               </span>
             )}
           </button>

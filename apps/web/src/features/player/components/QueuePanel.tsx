@@ -1,5 +1,6 @@
 import { X, ListMusic } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { toast } from '@/shared/ui/Toast';
 import { cn } from '@/shared/utils/cn';
 import { formatTicks } from '@/shared/utils/time';
 import { usePlayerStore, useQueueItems, useQueueIndex } from '../stores/player.store';
@@ -97,7 +98,10 @@ export default function QueuePanel({
                     <button
                       type="button"
                       data-testid="queue-item-remove"
-                      onClick={() => removeFromQueue(track.Id)}
+                      onClick={() => {
+                        removeFromQueue(track.Id);
+                        toast.add('info', `Removed ${track.Name} from queue`);
+                      }}
                       className="text-text-tertiary hover:text-error flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full transition-colors"
                       aria-label={`Remove ${track.Name} from queue`}
                     >

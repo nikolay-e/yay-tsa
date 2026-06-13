@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
@@ -22,14 +23,18 @@ export function SleepTimerModal({
   onSetTimer,
   onClearTimer,
 }: SleepTimerModalProps) {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
   const handleSetTimer = (mins: number) => {
     onSetTimer(mins);
+    setConfirmCancel(false);
     onClose();
     toast.add('info', `Sleep timer set for ${mins} minutes`);
   };
 
   const handleClearTimer = () => {
     onClearTimer();
+    setConfirmCancel(false);
     onClose();
     toast.add('info', 'Sleep timer cancelled');
   };
@@ -70,14 +75,30 @@ export function SleepTimerModal({
           </button>
         ))}
 
-        {hasActiveTimer && (
-          <button
-            onClick={handleClearTimer}
-            className="bg-error/10 text-error hover:bg-error/20 w-full rounded-md p-3 text-left transition-colors"
-          >
-            Cancel timer
-          </button>
-        )}
+        {hasActiveTimer &&
+          (confirmCancel ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleClearTimer}
+                className="bg-error/10 text-error hover:bg-error/20 flex-1 rounded-md p-3 font-medium transition-colors"
+              >
+                Cancel timer
+              </button>
+              <button
+                onClick={() => setConfirmCancel(false)}
+                className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-md px-4 transition-colors"
+              >
+                Keep
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmCancel(true)}
+              className="bg-error/10 text-error hover:bg-error/20 w-full rounded-md p-3 text-left transition-colors"
+            >
+              Cancel timer
+            </button>
+          ))}
       </div>
     </Modal>
   );

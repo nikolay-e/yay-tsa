@@ -22,6 +22,7 @@ export function AlbumsPage() {
     isLoading,
     isFetchingNextPage,
     isFetchingPreviousPage,
+    isFetchNextPageError,
     error,
     hasNextPage,
     hasPreviousPage,
@@ -67,6 +68,7 @@ export function AlbumsPage() {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
         onLoadMore={handleLoadMore}
         currentCount={albums.length}
         totalCount={totalCount}

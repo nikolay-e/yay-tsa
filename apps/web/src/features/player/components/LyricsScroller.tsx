@@ -169,7 +169,17 @@ export function LyricsScroller({ lines, activeLineIndex, isTimeSynced }: LyricsS
   }, [isTimeSynced]);
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto" style={maskStyle}>
+    <div
+      ref={containerRef}
+      className="focus-visible:ring-accent h-full overflow-y-auto rounded focus-visible:ring-2 focus-visible:outline-none"
+      style={maskStyle}
+      role="region"
+      aria-label="Lyrics"
+      // A scrollable region must be keyboard-focusable so it can be scrolled without a mouse
+      // (axe: scrollable-region-focusable), which the generic non-interactive-tabindex rule misses.
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+    >
       <div ref={innerRef}>
         {isTimeSynced && <div style={{ height: '45%' }} aria-hidden="true" />}
         {(() => {

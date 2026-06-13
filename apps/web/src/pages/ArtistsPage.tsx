@@ -20,6 +20,7 @@ export function ArtistsPage() {
     isLoading,
     isFetchingNextPage,
     isFetchingPreviousPage,
+    isFetchNextPageError,
     error,
     hasNextPage,
     hasPreviousPage,
@@ -61,6 +62,7 @@ export function ArtistsPage() {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
         onLoadMore={handleLoadMore}
         currentCount={artists.length}
         totalCount={totalCount}

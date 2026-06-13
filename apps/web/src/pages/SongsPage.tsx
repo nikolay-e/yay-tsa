@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useInfiniteTracks, useSemanticSearch } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
@@ -33,6 +34,9 @@ export function SongsPage() {
     data: semanticResults,
     isLoading: isSemanticLoading,
     isFetching: isSemanticFetching,
+    isError: isSemanticError,
+    error: semanticError,
+    refetch: refetchSemantic,
   } = useSemanticSearch(debouncedSearchTerm, isSemanticActive);
 
   const {
@@ -40,6 +44,7 @@ export function SongsPage() {
     isLoading,
     isFetchingNextPage,
     isFetchingPreviousPage,
+    isFetchNextPageError,
     error,
     hasNextPage,
     hasPreviousPage,
@@ -98,6 +103,7 @@ export function SongsPage() {
         <InfiniteScrollFooter
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
+          isFetchNextPageError={isFetchNextPageError}
           onLoadMore={handleLoadMore}
           currentCount={textTracks.length}
           totalCount={totalCount}
@@ -107,7 +113,23 @@ export function SongsPage() {
     </div>
   );
 
-  const loadedContent = tracks.length === 0 ? emptyState : trackList;
+  const semanticErrorState = (
+    <LoadErrorState
+      message={semanticError instanceof Error ? semanticError.message : 'Search failed. Try again.'}
+      onRetry={() => {
+        void refetchSemantic();
+      }}
+    />
+  );
+
+  let loadedContent;
+  if (isSemanticActive && isSemanticError && tracks.length === 0) {
+    loadedContent = semanticErrorState;
+  } else if (tracks.length === 0) {
+    loadedContent = emptyState;
+  } else {
+    loadedContent = trackList;
+  }
   const content = showLoading ? <LoadingSpinner /> : loadedContent;
 
   return (
@@ -150,9 +172,14 @@ export function SongsPage() {
         </div>
       </div>
 
-      {error && !isSemanticActive && (
+      {!isSemanticActive && error && (
         <div className="bg-error/10 border-error/20 text-error rounded-md border p-4">
           {error instanceof Error ? error.message : 'Failed to load songs'}
+        </div>
+      )}
+      {isSemanticActive && isSemanticError && tracks.length > 0 && (
+        <div className="bg-error/10 border-error/20 text-error rounded-md border p-4">
+          {semanticError instanceof Error ? semanticError.message : 'Search failed. Try again.'}
         </div>
       )}
 

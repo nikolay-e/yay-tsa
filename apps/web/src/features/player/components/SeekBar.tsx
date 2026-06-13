@@ -12,11 +12,17 @@ function formatTimeText(time: number, total: number): string {
 
 const KEYBOARD_SEEK_STEP_SECONDS = 5;
 
+// Draw the visible track as a thin 4px band centred in a taller (clickable) input so the touch
+// target meets accessibility sizing without thickening the visual bar.
+function trackBackground(progress: number): string {
+  return `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%) center / 100% 4px no-repeat`;
+}
+
 function applySliderState(slider: HTMLInputElement, currentTime: number, duration: number): void {
   slider.value = String(currentTime);
   slider.max = String(duration || 1);
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  slider.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
+  slider.style.background = trackBackground(progress);
   slider.setAttribute('aria-valuetext', formatTimeText(currentTime, duration));
 }
 
@@ -44,7 +50,7 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
     if (!sliderRef.current) return;
     const max = Number.parseFloat(sliderRef.current.max) || 1;
     const progress = max > 0 ? (value / max) * 100 : 0;
-    sliderRef.current.style.background = `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%)`;
+    sliderRef.current.style.background = trackBackground(progress);
     sliderRef.current.setAttribute('aria-valuetext', formatTimeText(value, max));
   };
 
@@ -122,7 +128,8 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
       onKeyUp={handleKeyUp}
       aria-label="Seek"
       aria-valuetext="0:00 of 0:00"
-      className="bg-bg-tertiary accent-accent h-1 w-full cursor-pointer appearance-none"
+      style={{ background: trackBackground(0) }}
+      className="accent-accent h-4 w-full cursor-pointer touch-none appearance-none bg-transparent"
     />
   );
 }

@@ -56,6 +56,7 @@ export function SettingsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
+  const [confirmReload, setConfirmReload] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const handleRescanLibrary = async () => {
@@ -158,23 +159,47 @@ export function SettingsPage() {
           Reset
         </h2>
 
-        <button
-          onClick={() => {
-            handleForceReload();
-          }}
-          disabled={isReloading}
-          className="bg-error/10 hover:bg-error/20 border-error/30 flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
-        >
-          <RefreshCw
-            className={`text-error h-5 w-5 shrink-0 ${isReloading ? 'animate-spin' : ''}`}
-          />
-          <div>
-            <div className="font-medium">Force Reload</div>
-            <div className="text-text-secondary text-sm">
-              Clear all caches and reload the application
+        {confirmReload ? (
+          <div className="bg-error/10 border-error/30 rounded-lg border p-4">
+            <div className="font-medium">Clear all caches and reload?</div>
+            <div className="text-text-secondary mb-3 text-sm">
+              This removes offline downloads and cached audio. You will need to download tracks
+              again for offline playback.
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  handleForceReload();
+                }}
+                disabled={isReloading}
+                className="bg-error/20 text-error hover:bg-error/30 flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isReloading ? 'animate-spin' : ''}`} />
+                Clear and reload
+              </button>
+              <button
+                onClick={() => setConfirmReload(false)}
+                disabled={isReloading}
+                className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-md px-4 py-2 text-sm transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
             </div>
           </div>
-        </button>
+        ) : (
+          <button
+            onClick={() => setConfirmReload(true)}
+            className="bg-error/10 hover:bg-error/20 border-error/30 flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className="text-error h-5 w-5 shrink-0" />
+            <div>
+              <div className="font-medium">Force Reload</div>
+              <div className="text-text-secondary text-sm">
+                Clear all caches and reload the application
+              </div>
+            </div>
+          </button>
+        )}
       </section>
 
       {status && <div className="bg-bg-tertiary mb-8 rounded-lg p-3 text-sm">{status}</div>}

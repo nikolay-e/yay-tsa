@@ -5,6 +5,7 @@ import { useInfiniteAlbums, useInfiniteArtists, useInfiniteTracks } from '@/feat
 import { AlbumGrid, ArtistCard, TrackList, TrackListRow } from '@/features/library/components';
 import { useReorderFavorites } from '@/features/library/hooks/useReorderFavorites';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { SortMenu, FAVORITES_SORT_OPTIONS, useSortPreference } from '@/shared/ui/SortMenu';
 import { SortableList } from '@/shared/ui/SortableList';
@@ -82,7 +83,17 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteAlbums({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteAlbums({
     isFavorite: true,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
@@ -104,6 +115,17 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
   };
 
   if (isLoading) return <LoadingSpinner />;
+
+  if (isError && albums.length === 0) {
+    return (
+      <LoadErrorState
+        message={error instanceof Error ? error.message : 'Failed to load favorite albums'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (albums.length === 0) {
     return (
@@ -140,6 +162,7 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
         onLoadMore={handleLoadMore}
         currentCount={albums.length}
         totalCount={totalCount}
@@ -154,7 +177,17 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteArtists({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteArtists({
     isFavorite: true,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
@@ -172,6 +205,17 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
   };
 
   if (isLoading) return <LoadingSpinner />;
+
+  if (isError && artists.length === 0) {
+    return (
+      <LoadErrorState
+        message={error instanceof Error ? error.message : 'Failed to load favorite artists'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (artists.length === 0) {
     return (
@@ -204,6 +248,7 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
         onLoadMore={handleLoadMore}
         currentCount={artists.length}
         totalCount={totalCount}
@@ -222,7 +267,17 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteTracks({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteTracks({
     isFavorite: true,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
@@ -244,6 +299,17 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
   };
 
   if (isLoading) return <LoadingSpinner />;
+
+  if (isError && tracks.length === 0) {
+    return (
+      <LoadErrorState
+        message={error instanceof Error ? error.message : 'Failed to load favorite songs'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (tracks.length === 0) {
     return (
@@ -294,6 +360,7 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
         onLoadMore={handleLoadMore}
         currentCount={tracks.length}
         totalCount={totalCount}

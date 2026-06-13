@@ -151,8 +151,8 @@ function SecondaryPillControls({
         data-testid="sleep-timer-button"
       >
         <Timer className="h-4 w-4" />
-        {hasSleepTimer && sleepMinutesLeft > 0 && (
-          <span className="text-xs">{sleepMinutesLeft}m</span>
+        {hasSleepTimer && (
+          <span className="text-xs">{sleepMinutesLeft > 0 ? `${sleepMinutesLeft}m` : '<1m'}</span>
         )}
       </button>
     </div>
@@ -254,7 +254,7 @@ export function MobileFullPlayer({
           <button
             type="button"
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Close player"
           >
             <ChevronDown className="h-6 w-6" />
@@ -264,7 +264,7 @@ export function MobileFullPlayer({
             type="button"
             data-testid="full-player-queue-button"
             onClick={onOpenQueue}
-            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Queue"
           >
             <ListMusic className="h-6 w-6" />
@@ -320,7 +320,7 @@ export function MobileFullPlayer({
                 <button
                   type="button"
                   onClick={onThumbsUp}
-                  className="text-text-secondary hover:text-success focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-text-secondary hover:text-success focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   aria-label="Thumbs up"
                 >
                   <ThumbsUp className="h-5 w-5" />
@@ -328,7 +328,7 @@ export function MobileFullPlayer({
                 <button
                   type="button"
                   onClick={onThumbsDown}
-                  className="text-text-secondary hover:text-error focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-text-secondary hover:text-error focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   aria-label="Thumbs down"
                 >
                   <ThumbsDown className="h-5 w-5" />
@@ -357,7 +357,7 @@ export function MobileFullPlayer({
               type="button"
               data-testid="audiobook-back-15"
               onClick={() => skipBy(-15)}
-              className="text-text-secondary hover:text-text-primary focus-visible:ring-accent relative rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              className="text-text-secondary hover:text-text-primary focus-visible:ring-accent relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
               aria-label="Back 15 seconds"
             >
               <RotateCcw className="h-6 w-6" />
@@ -370,7 +370,7 @@ export function MobileFullPlayer({
               type="button"
               onClick={onToggleShuffle}
               className={cn(
-                'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                'focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
                 isShuffle ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
               )}
               aria-label="Shuffle"
@@ -384,7 +384,7 @@ export function MobileFullPlayer({
             type="button"
             data-testid="previous-button"
             onClick={onPrevious}
-            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Previous"
           >
             <SkipBack className="h-7 w-7" fill="currentColor" />
@@ -409,7 +409,7 @@ export function MobileFullPlayer({
             type="button"
             data-testid="next-button"
             onClick={onNext}
-            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="text-text-secondary hover:text-text-primary focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Next"
           >
             <SkipForward className="h-7 w-7" fill="currentColor" />
@@ -420,7 +420,7 @@ export function MobileFullPlayer({
               type="button"
               data-testid="audiobook-forward-30"
               onClick={() => skipBy(30)}
-              className="text-text-secondary hover:text-text-primary focus-visible:ring-accent relative rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              className="text-text-secondary hover:text-text-primary focus-visible:ring-accent relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
               aria-label="Forward 30 seconds"
             >
               <RotateCw className="h-6 w-6" />
@@ -433,7 +433,7 @@ export function MobileFullPlayer({
               type="button"
               onClick={onToggleRepeat}
               className={cn(
-                'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                'focus-visible:ring-accent inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none',
                 repeatMode === 'off' ? 'text-text-secondary hover:text-text-primary' : 'text-accent'
               )}
               aria-label={`Repeat: ${repeatMode}`}

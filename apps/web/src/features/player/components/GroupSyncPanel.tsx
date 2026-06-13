@@ -17,6 +17,7 @@ export function GroupSyncPanel({
   const [isJoining, setIsJoining] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   const { joinCode, isOwner, members, mode, driftMs, createGroup, joinGroup, leaveGroup } =
     useGroupSyncStore();
@@ -146,23 +147,47 @@ export function GroupSyncPanel({
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={handleLeave}
-            className="text-error hover:bg-error/10 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Leave group
-          </button>
+          {confirmLeave ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleLeave}
+                className="bg-error/10 text-error hover:bg-error/20 flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Leave — stop syncing
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmLeave(false)}
+                className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-lg px-4 py-2 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmLeave(true)}
+              className="text-error hover:bg-error/10 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              Leave group
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
           <div>
-            <span className="text-text-secondary mb-1 block text-xs font-medium">
+            <label
+              htmlFor="group-create-name"
+              className="text-text-secondary mb-1 block text-xs font-medium"
+            >
               Create a group
-            </span>
+            </label>
             <div className="flex gap-2">
               <input
+                id="group-create-name"
                 type="text"
                 value={groupName}
                 onChange={e => setGroupName(e.target.value)}
@@ -192,10 +217,18 @@ export function GroupSyncPanel({
           </div>
 
           <div className="border-border border-t pt-4">
-            <span className="text-text-secondary mb-1 block text-xs font-medium">Join a group</span>
+            <label
+              htmlFor="group-join-code"
+              className="text-text-secondary mb-1 block text-xs font-medium"
+            >
+              Join a group
+            </label>
             <div className="flex gap-2">
               <input
+                id="group-join-code"
                 type="text"
+                inputMode="numeric"
+                autoComplete="off"
                 value={joinCodeInput}
                 onChange={e => setJoinCodeInput(e.target.value)}
                 placeholder="Enter 6-digit code"

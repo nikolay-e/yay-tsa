@@ -10,6 +10,7 @@ type InfiniteScrollFooterProps = Readonly<{
   currentCount: number;
   totalCount: number;
   itemLabel: string;
+  isFetchNextPageError?: boolean;
 }>;
 
 export function InfiniteScrollFooter({
@@ -19,10 +20,13 @@ export function InfiniteScrollFooter({
   currentCount,
   totalCount,
   itemLabel,
+  isFetchNextPageError = false,
 }: InfiniteScrollFooterProps) {
   const { ref, isInView } = useInView({
     rootMargin: '200px', // Start loading before reaching bottom
-    enabled: hasNextPage && !isFetchingNextPage,
+    // Auto-fetch stops after a failure so we don't hammer a failing endpoint; the
+    // user re-arms it explicitly via the Retry button below.
+    enabled: hasNextPage && !isFetchingNextPage && !isFetchNextPageError,
   });
 
   // Parents pass a fresh onLoadMore every render; hold it in a ref so the trigger effect depends
@@ -31,14 +35,27 @@ export function InfiniteScrollFooter({
   onLoadMoreRef.current = onLoadMore;
 
   useEffect(() => {
-    if (isInView && hasNextPage && !isFetchingNextPage) {
+    if (isInView && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
       onLoadMoreRef.current();
     }
-  }, [isInView, hasNextPage, isFetchingNextPage]);
+  }, [isInView, hasNextPage, isFetchingNextPage, isFetchNextPageError]);
 
   return (
     <>
-      {hasNextPage && (
+      {isFetchNextPageError && (
+        <div className="flex flex-col items-center gap-2 pt-4 text-center">
+          <p className="text-error text-sm">Could not load more {itemLabel}.</p>
+          <button
+            type="button"
+            onClick={onLoadMore}
+            className="bg-bg-secondary text-text-primary hover:bg-bg-tertiary rounded-md px-6 py-2 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {hasNextPage && !isFetchNextPageError && (
         <div ref={ref} className="flex justify-center pt-4">
           <button
             onClick={onLoadMore}
