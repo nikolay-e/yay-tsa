@@ -27,6 +27,12 @@ http {
     limit_req_zone $binary_remote_addr zone=stream_limit:10m rate=10r/s;
     limit_conn_zone $binary_remote_addr zone=stream_conn:10m;
 
+    # Rate/connection limit rejections answer 429 so the error_page below can
+    # render them as RFC 7807 application/problem+json (matches the backend's
+    # error contract; nginx's default error page is text/html).
+    limit_req_status 429;
+    limit_conn_status 429;
+
     sendfile on;
     tcp_nopush on;
     tcp_nodelay on;
@@ -85,6 +91,15 @@ http {
         # Runtime hashes computed at startup (__CSP_SCRIPT_HASHES__)
         # img-src/media-src use same domains as connect-src (backend serves images/audio)
         add_header Content-Security-Policy "default-src 'self'; script-src 'self' __CSP_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' __CSP_CONNECT_SRC_DOMAINS__ data: blob:; media-src 'self' __CSP_CONNECT_SRC_DOMAINS__ blob:; connect-src 'self' __CSP_CONNECT_SRC_DOMAINS__; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';" always;
+
+        # Render nginx-generated rate/connection-limit rejections (429) as RFC 7807
+        # application/problem+json instead of nginx's default text/html page, so
+        # clients hitting the limit get the same error contract as the backend.
+        error_page 429 = @too_many_requests;
+        location @too_many_requests {
+            default_type application/problem+json;
+            return 429 '{"type":"about:blank","title":"Too Many Requests","status":429,"detail":"Rate limit exceeded. Please retry later."}';
+        }
 
         # Health check endpoint for Docker/Kubernetes
         location = /health {

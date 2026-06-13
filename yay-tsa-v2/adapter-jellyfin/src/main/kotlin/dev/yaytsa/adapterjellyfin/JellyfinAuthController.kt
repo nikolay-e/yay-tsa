@@ -101,6 +101,7 @@ class JellyfinAuthController(
     }
 
     @PostMapping("/Sessions/Logout")
+    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.NO_CONTENT)
     fun logout(principal: Principal): ResponseEntity<Void> {
         val auth =
             org.springframework.security.core.context.SecurityContextHolder
