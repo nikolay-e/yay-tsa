@@ -49,6 +49,7 @@ vi.mock('@yay-tsa/core', () => {
     MediaServerClient,
     AuthService,
     AuthenticationError: h.AuthenticationError,
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     getOrCreateDeviceId: () => 'test-device',
     DEFAULT_CLIENT_NAME: 'Yay-Tsa',
     DEFAULT_DEVICE_NAME: 'Web Browser',
