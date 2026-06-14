@@ -1,4 +1,4 @@
-import { ItemsService, type MusicArtist } from '@yay-tsa/core';
+import { AUDIOBOOK_GENRES, ItemsService, type MusicArtist } from '@yay-tsa/core';
 import { useAuthenticatedQuery } from '@/features/auth/hooks/useAuthenticatedQuery';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
@@ -9,15 +9,16 @@ interface UseArtistsOptions {
   sortBy?: string;
   sortOrder?: 'Ascending' | 'Descending';
   isFavorite?: boolean;
+  excludeGenres?: string[];
   enabled?: boolean;
 }
 
 export function useArtists(options: UseArtistsOptions = {}) {
-  const { enabled = true, ...queryOptions } = options;
+  const { enabled = true, excludeGenres = AUDIOBOOK_GENRES, ...queryOptions } = options;
 
   return useAuthenticatedQuery(
-    ['artists', queryOptions],
-    async client => new ItemsService(client).getArtists(queryOptions),
+    ['artists', { ...queryOptions, excludeGenres }],
+    async client => new ItemsService(client).getArtists({ ...queryOptions, excludeGenres }),
     { enabled }
   );
 }
@@ -28,14 +29,15 @@ interface UseInfiniteArtistsOptions {
   sortBy?: string;
   sortOrder?: 'Ascending' | 'Descending';
   isFavorite?: boolean;
+  excludeGenres?: string[];
 }
 
 export function useInfiniteArtists(options: UseInfiniteArtistsOptions = {}) {
-  const { limit = 50, ...queryOptions } = options;
+  const { limit = 50, excludeGenres = AUDIOBOOK_GENRES, ...queryOptions } = options;
 
   return useInfiniteLibraryQuery<MusicArtist>({
     queryKey: ['artists', 'infinite'],
-    options: { limit, ...queryOptions },
+    options: { limit, excludeGenres, ...queryOptions },
     fetcher: async (client, params) => {
       const itemsService = new ItemsService(client);
       return itemsService.getArtists(params);

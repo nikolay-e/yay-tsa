@@ -152,6 +152,74 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     )
     fun countTracksExcludingGenres(excludedGenres: Collection<String>): Long
 
+    // Keep an album only if it has at least one track whose genres are disjoint from :excludedGenres.
+    // A purely-audiobook album (every track tagged Audiobook) has no such track and is dropped.
+    // Mirrors browseAlbums' COALESCE(sort_name, name) ordering for page stability.
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ALBUM' AND EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks t " +
+                "WHERE t.album_id = e.id AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres))) " +
+                "ORDER BY COALESCE(e.sort_name, e.name) " +
+                "LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findAlbumsExcludingGenres(
+        excludedGenres: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT count(*) FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ALBUM' AND EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks t " +
+                "WHERE t.album_id = e.id AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres)))",
+        nativeQuery = true,
+    )
+    fun countAlbumsExcludingGenres(excludedGenres: Collection<String>): Long
+
+    // Keep an artist only if it has at least one track whose genres are disjoint from :excludedGenres.
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ARTIST' AND EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks t " +
+                "WHERE t.album_artist_id = e.id AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres))) " +
+                "ORDER BY COALESCE(e.sort_name, e.name) " +
+                "LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findArtistsExcludingGenres(
+        excludedGenres: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT count(*) FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ARTIST' AND EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks t " +
+                "WHERE t.album_artist_id = e.id AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres)))",
+        nativeQuery = true,
+    )
+    fun countArtistsExcludingGenres(excludedGenres: Collection<String>): Long
+
     @Query(
         value =
             "SELECT count(*) FROM core_v2_library.entities e " +

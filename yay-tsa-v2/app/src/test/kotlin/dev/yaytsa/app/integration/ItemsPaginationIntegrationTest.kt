@@ -120,8 +120,7 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
     @Test
     fun `ExcludeGenres drops audiobook tracks from Items and TotalRecordCount`() {
         val tag = "excl-${UUID.randomUUID().toString().take(6)}"
-        val audiobookGenreId = UUID.randomUUID()
-        jdbc.update("INSERT INTO core_v2_library.genres (id, name) VALUES (?,?)", audiobookGenreId, "Audiobook")
+        val audiobookGenreId = ensureGenre("Audiobook")
 
         fun seedTrack(
             suffix: String,
@@ -165,6 +164,191 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
             allTotal - 2,
             filteredTotal,
             "TotalRecordCount must drop by the two excluded audiobook tracks (all=$allTotal, filtered=$filteredTotal)",
+        )
+    }
+
+    private fun ensureGenre(name: String): UUID {
+        jdbc.update("INSERT INTO core_v2_library.genres (id, name) VALUES (?,?) ON CONFLICT (name) DO NOTHING", UUID.randomUUID(), name)
+        return jdbc.queryForObject("SELECT id FROM core_v2_library.genres WHERE name = ?", UUID::class.java, name)!!
+    }
+
+    @Test
+    fun `ExcludeGenres drops audiobook-only albums and artists but keeps music ones`() {
+        val tag = "exclaa-${UUID.randomUUID().toString().take(6)}"
+        val audiobookGenreId = ensureGenre("Audiobook")
+
+        fun seedArtist(suffix: String): UUID {
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+                id,
+                "ARTIST",
+                "$tag-$suffix",
+                "$tag-$suffix",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.artists (entity_id) VALUES (?)", id)
+            return id
+        }
+
+        fun seedAlbum(
+            suffix: String,
+            artistId: UUID,
+        ): UUID {
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+                id,
+                "ALBUM",
+                "$tag-$suffix",
+                "$tag-$suffix",
+                tag,
+            )
+            jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", id, artistId)
+            return id
+        }
+
+        fun seedTrack(
+            suffix: String,
+            albumId: UUID,
+            artistId: UUID,
+            genreId: UUID?,
+        ) {
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, search_text) VALUES (?,?,?,?,?,?)",
+                id,
+                "TRACK",
+                "$tag-$suffix",
+                "$tag-$suffix",
+                "/exclaa/$id.flac",
+                tag,
+            )
+            jdbc.update(
+                "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, duration_ms) VALUES (?,?,?,?)",
+                id,
+                albumId,
+                artistId,
+                100000L,
+            )
+            if (genreId != null) {
+                jdbc.update("INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?,?)", id, genreId)
+            }
+        }
+
+        val musicArtist = seedArtist("music-artist")
+        val bookArtist = seedArtist("book-artist")
+        val musicAlbum = seedAlbum("music-album", musicArtist)
+        val bookAlbum = seedAlbum("book-album", bookArtist)
+        seedTrack("music-track", musicAlbum, musicArtist, null)
+        seedTrack("book-track", bookAlbum, bookArtist, audiobookGenreId)
+
+        fun names(query: String): Set<String> {
+            val body = objectMapper.readTree(get(query, token).response.contentAsString)
+            return body
+                .get("Items")
+                .map { it.get("Name").asText() }
+                .filter { it.startsWith(tag) }
+                .toSet()
+        }
+
+        assertEquals(
+            setOf("$tag-music-album", "$tag-book-album"),
+            names("/Items?IncludeItemTypes=MusicAlbum&Limit=500"),
+            "baseline album browse includes audiobook album",
+        )
+        assertEquals(
+            setOf("$tag-music-album"),
+            names("/Items?IncludeItemTypes=MusicAlbum&Limit=500&ExcludeGenres=Audiobook"),
+            "ExcludeGenres=Audiobook must drop the audiobook-only album, keep the music album",
+        )
+
+        assertEquals(
+            setOf("$tag-music-artist", "$tag-book-artist"),
+            names("/Items?IncludeItemTypes=MusicArtist&Limit=500"),
+            "baseline artist browse includes audiobook artist",
+        )
+        assertEquals(
+            setOf("$tag-music-artist"),
+            names("/Items?IncludeItemTypes=MusicArtist&Limit=500&ExcludeGenres=Audiobook"),
+            "ExcludeGenres=Audiobook must drop the audiobook-only artist, keep the music artist",
+        )
+    }
+
+    @Test
+    fun `ExcludeGenres keeps a mixed album and artist that also has music tracks`() {
+        val tag = "exclmix-${UUID.randomUUID().toString().take(6)}"
+        val audiobookGenreId = ensureGenre("Audiobook")
+
+        val artistId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+            artistId,
+            "ARTIST",
+            "$tag-artist",
+            "$tag-artist",
+            tag,
+        )
+        jdbc.update("INSERT INTO core_v2_library.artists (entity_id) VALUES (?)", artistId)
+
+        val albumId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+            albumId,
+            "ALBUM",
+            "$tag-album",
+            "$tag-album",
+            tag,
+        )
+        jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", albumId, artistId)
+
+        fun seedTrack(
+            suffix: String,
+            genreId: UUID?,
+        ) {
+            val id = UUID.randomUUID()
+            jdbc.update(
+                "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, source_path, search_text) VALUES (?,?,?,?,?,?)",
+                id,
+                "TRACK",
+                "$tag-$suffix",
+                "$tag-$suffix",
+                "/exclmix/$id.flac",
+                tag,
+            )
+            jdbc.update(
+                "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, duration_ms) VALUES (?,?,?,?)",
+                id,
+                albumId,
+                artistId,
+                100000L,
+            )
+            if (genreId != null) {
+                jdbc.update("INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?,?)", id, genreId)
+            }
+        }
+
+        seedTrack("book-track", audiobookGenreId)
+        seedTrack("music-track", null)
+
+        fun names(query: String): Set<String> {
+            val body = objectMapper.readTree(get(query, token).response.contentAsString)
+            return body
+                .get("Items")
+                .map { it.get("Name").asText() }
+                .filter { it.startsWith(tag) }
+                .toSet()
+        }
+
+        assertEquals(
+            setOf("$tag-album"),
+            names("/Items?IncludeItemTypes=MusicAlbum&Limit=500&ExcludeGenres=Audiobook"),
+            "a mixed album with at least one non-audiobook track must be kept",
+        )
+        assertEquals(
+            setOf("$tag-artist"),
+            names("/Items?IncludeItemTypes=MusicArtist&Limit=500&ExcludeGenres=Audiobook"),
+            "a mixed artist with at least one non-audiobook track must be kept",
         )
     }
 

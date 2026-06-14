@@ -357,6 +357,26 @@ class JellyfinAdaptiveController(
         return ResponseEntity.ok(mapOf("Items" to items, "TotalRecordCount" to items.size))
     }
 
+    @GetMapping("/recommend/discover")
+    fun getDiscover(
+        @RequestParam(defaultValue = "30") limit: Int,
+        principal: Principal?,
+    ): ResponseEntity<Any> {
+        val uid = principal?.name ?: return ResponseEntity.status(401).build()
+        val userId = UserId(uid)
+        val tracks = pickDiscoveryTracks(userId, limit.coerceIn(1, 100))
+        val favTrackIds =
+            preferencesQueries
+                .find(userId)
+                ?.favorites
+                .orEmpty()
+                .map { it.trackId.value }
+                .toSet()
+        val lookups = trackLookups(tracks)
+        val items = tracks.map { it.toJellyfinBaseItem(favTrackIds, lookups) }
+        return ResponseEntity.ok(mapOf("Items" to items, "TotalRecordCount" to items.size))
+    }
+
     @GetMapping("/recommend/search")
     fun searchRecommendations(
         @RequestParam("q") query: String,
@@ -425,6 +445,79 @@ class JellyfinAdaptiveController(
             libraryQueries.browseTracksRandom(targetPool - out.size).forEach { track ->
                 if (out.size >= targetPool) return@forEach
                 if (seen.add(track.id.value)) out.add(track)
+            }
+        }
+
+        return out
+    }
+
+    /**
+     * Discovery is the inverse of Daily Mix: instead of resurfacing tracks the user already likes,
+     * it surfaces tracks *adjacent* to their taste that they have not heard. We build a "heard" set
+     * (top affinities + favorites), seed kNN search from the user's taste-cluster medoids (the real
+     * facets of their taste), collect similar tracks, drop anything in the heard set, then apply the
+     * same red-line + audiobook filtering as Daily Mix. Cold start falls back to a random library
+     * sample minus heard tracks. Shuffled so each refresh surfaces a fresh slice.
+     */
+    private fun pickDiscoveryTracks(
+        userId: UserId,
+        limit: Int,
+    ): List<dev.yaytsa.domain.library.Track> {
+        val heard = collectHeardTrackIds(userId, limit)
+        val candidates = collectDiscoveryCandidates(userId, limit, heard)
+        return filterRedLines(candidates.filterNot { isAudiobookTrack(it) }, userId)
+            .shuffled()
+            .take(limit)
+    }
+
+    private fun collectHeardTrackIds(
+        userId: UserId,
+        limit: Int,
+    ): Set<String> {
+        val heardPool = (limit * HEARD_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
+        val heard = mutableSetOf<String>()
+        mlQuery.getTopAffinities(userId, heardPool).forEach { heard.add(it.trackId.value) }
+        preferencesQueries
+            .find(userId)
+            ?.favorites
+            .orEmpty()
+            .forEach { heard.add(it.trackId.value) }
+        return heard
+    }
+
+    private fun collectDiscoveryCandidates(
+        userId: UserId,
+        limit: Int,
+        heard: Set<String>,
+    ): List<dev.yaytsa.domain.library.Track> {
+        val seen = mutableSetOf<String>()
+        val out = mutableListOf<dev.yaytsa.domain.library.Track>()
+        val targetPool = limit * 2
+
+        val seeds =
+            mlQuery
+                .getTasteClusterRepresentatives(userId)
+                .ifEmpty {
+                    mlQuery.getTopAffinities(userId, DISCOVERY_SEED_FALLBACK_POOL).map { it.trackId }
+                }
+
+        for (seed in seeds) {
+            if (out.size >= targetPool) break
+            mlQuery.findSimilarTracks(seed, DISCOVERY_SIMILARITY_K).forEach { candidateId ->
+                if (out.size >= targetPool) return@forEach
+                val id = candidateId.value
+                if (id in heard || id in seen) return@forEach
+                val track = libraryQueries.getTrack(EntityId(id)) ?: return@forEach
+                if (seen.add(id)) out.add(track)
+            }
+        }
+
+        if (out.size < targetPool) {
+            libraryQueries.browseTracksRandom((targetPool - out.size) * 2).forEach { track ->
+                if (out.size >= targetPool) return@forEach
+                val id = track.id.value
+                if (id in heard || id in seen) return@forEach
+                if (seen.add(id)) out.add(track)
             }
         }
 
@@ -589,5 +682,15 @@ class JellyfinAdaptiveController(
         // Radio seeds collapse to one-per-artist, so we need a wider pool than [limit] to find
         // [limit] distinct artists even when a user's affinities cluster around a few favorites.
         private const val SEED_POOL_MULTIPLIER = 20
+
+        // Discovery excludes everything the user already knows. Pull a deep affinity history so the
+        // "heard" set is wide enough that kNN neighbours are genuinely new, not recently-played.
+        private const val HEARD_POOL_MULTIPLIER = 20
+
+        // When the user has no taste clusters yet, seed discovery from their strongest affinities.
+        private const val DISCOVERY_SEED_FALLBACK_POOL = 25
+
+        // Neighbours pulled per seed; over-pulled so the heard/red-line/audiobook filters have slack.
+        private const val DISCOVERY_SIMILARITY_K = 25
     }
 }

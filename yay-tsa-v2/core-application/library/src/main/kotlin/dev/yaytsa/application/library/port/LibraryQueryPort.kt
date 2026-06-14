@@ -28,6 +28,22 @@ interface LibraryQueryPort {
         offset: Int,
     ): List<Album>
 
+    fun browseAlbumsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Album>
+
+    fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int
+
+    fun browseArtistsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Artist>
+
+    fun countArtistsExcludingGenres(excludedGenreNames: Collection<String>): Int
+
     fun browseAlbumsByCreatedDesc(
         limit: Int,
         offset: Int,

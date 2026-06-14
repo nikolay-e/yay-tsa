@@ -198,17 +198,31 @@ class JellyfinItemsController(
 
         when {
             "MusicArtist" in types -> {
-                val artists = libraryQueries.browseArtists(limit, startIndex)
+                val artists =
+                    if (excludedGenres.isEmpty()) {
+                        libraryQueries.browseArtists(limit, startIndex)
+                    } else {
+                        libraryQueries.browseArtistsExcludingGenres(excludedGenres, limit, startIndex)
+                    }
+                val total =
+                    if (excludedGenres.isEmpty()) {
+                        libraryQueries.countArtists()
+                    } else {
+                        libraryQueries.countArtistsExcludingGenres(excludedGenres)
+                    }
                 val items = artists.withAlbumCounts()
-                return ResponseEntity.ok(ItemsResult(items, libraryQueries.countArtists(), startIndex))
+                return ResponseEntity.ok(ItemsResult(items, total, startIndex))
             }
             "MusicAlbum" in types -> {
                 val (albums, total) =
                     if (artistIds != null) {
                         val list = libraryQueries.browseAlbumsByArtist(EntityId(artistIds.split(",").first()))
                         list to list.size
-                    } else {
+                    } else if (excludedGenres.isEmpty()) {
                         libraryQueries.browseAlbums(limit, startIndex) to libraryQueries.countAlbums()
+                    } else {
+                        libraryQueries.browseAlbumsExcludingGenres(excludedGenres, limit, startIndex) to
+                            libraryQueries.countAlbumsExcludingGenres(excludedGenres)
                     }
                 val albumNames = albumArtistNames(albums)
                 val items = albums.map { it.toBaseItem(favTrackIds, albumNames) }

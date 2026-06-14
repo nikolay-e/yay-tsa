@@ -74,6 +74,7 @@ export class ItemsService extends BaseService {
     limit?: number;
     searchTerm?: string;
     isFavorite?: boolean;
+    excludeGenres?: string[];
   }): Promise<ItemsResult<MusicAlbum>> {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicAlbum',
@@ -85,6 +86,7 @@ export class ItemsService extends BaseService {
       Limit: options?.limit,
       SearchTerm: options?.searchTerm,
       IsFavorite: options?.isFavorite,
+      ExcludeGenres: options?.excludeGenres,
     };
 
     if (options?.parentId) {
@@ -112,6 +114,7 @@ export class ItemsService extends BaseService {
     isFavorite?: boolean;
     sortBy?: string;
     sortOrder?: 'Ascending' | 'Descending';
+    excludeGenres?: string[];
   }): Promise<ItemsResult<MusicArtist>> {
     const query: ItemsQuery = {
       IncludeItemTypes: 'MusicArtist',
@@ -130,6 +133,7 @@ export class ItemsService extends BaseService {
       Limit: options?.limit,
       SearchTerm: options?.searchTerm,
       IsFavorite: options?.isFavorite,
+      ExcludeGenres: options?.excludeGenres,
     };
 
     return this.queryItems<MusicArtist>(query);

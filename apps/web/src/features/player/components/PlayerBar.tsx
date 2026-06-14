@@ -262,6 +262,10 @@ export function PlayerBar() {
       return;
     }
     setShowLyricsView(false);
+    setShowQueue(false);
+    setShowSleepModal(false);
+    setShowDevices(false);
+    setShowGroupSync(false);
   }, [pathname]);
 
   useEffect(() => {

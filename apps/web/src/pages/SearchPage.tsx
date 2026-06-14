@@ -1,4 +1,5 @@
 import { useState, useMemo, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   useInfiniteAlbums,
   useInfiniteArtists,
@@ -23,7 +24,8 @@ import {
 type SearchMode = 'text' | 'semantic';
 
 export function SearchPage() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '');
   const [searchMode, setSearchMode] = useState<SearchMode>('text');
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
   const query = debouncedSearchTerm.trim();

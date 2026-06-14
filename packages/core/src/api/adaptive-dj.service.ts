@@ -88,6 +88,14 @@ export class AdaptiveDjService extends BaseService {
     return result?.Items ?? [];
   }
 
+  async getDiscover(limit = 30): Promise<AudioItem[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const result = await this.client.get<ItemsResult<AudioItem>>(
+      `/v1/recommend/discover?${params.toString()}`
+    );
+    return result?.Items ?? [];
+  }
+
   async searchByText(query: string, limit = 20): Promise<RecommendedTrack[]> {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     const result = await this.client.get<RecommendedTrack[]>(

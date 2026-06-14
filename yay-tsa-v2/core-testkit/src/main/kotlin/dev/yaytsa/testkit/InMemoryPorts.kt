@@ -176,6 +176,56 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
         .drop(offset)
         .take(limit)
 
+    override fun browseAlbumsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        if (excludedGenreNames.isEmpty()) return browseAlbums(limit, offset)
+        val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
+        return albums.values
+            .filter { album -> albumHasKeptTrack(album.id, lowered) }
+            .sortedBy { it.name }
+            .drop(maxOf(offset, 0))
+            .take(maxOf(limit, 1))
+    }
+
+    override fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int {
+        if (excludedGenreNames.isEmpty()) return albums.size
+        val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
+        return albums.values.count { albumHasKeptTrack(it.id, lowered) }
+    }
+
+    override fun browseArtistsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Artist> {
+        if (excludedGenreNames.isEmpty()) return browseArtists(limit, offset)
+        val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
+        return artists.values
+            .filter { artist -> artistHasKeptTrack(artist.id, lowered) }
+            .sortedBy { it.name }
+            .drop(maxOf(offset, 0))
+            .take(maxOf(limit, 1))
+    }
+
+    override fun countArtistsExcludingGenres(excludedGenreNames: Collection<String>): Int {
+        if (excludedGenreNames.isEmpty()) return artists.size
+        val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
+        return artists.values.count { artistHasKeptTrack(it.id, lowered) }
+    }
+
+    private fun albumHasKeptTrack(
+        albumId: EntityId,
+        lowered: Set<String>,
+    ): Boolean = tracks.values.any { it.albumId == albumId && !trackHasAnyGenre(it, lowered) }
+
+    private fun artistHasKeptTrack(
+        artistId: EntityId,
+        lowered: Set<String>,
+    ): Boolean = tracks.values.any { it.albumArtistId == artistId && !trackHasAnyGenre(it, lowered) }
+
     override fun browseAlbumsByCreatedDesc(
         limit: Int,
         offset: Int,

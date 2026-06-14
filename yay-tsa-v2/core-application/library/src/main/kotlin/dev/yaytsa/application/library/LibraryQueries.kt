@@ -35,6 +35,42 @@ class LibraryQueries(
         offset: Int,
     ): List<Album> = libraryQuery.browseAlbums(limit, offset)
 
+    fun browseAlbumsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Album> =
+        if (excludedGenreNames.isEmpty()) {
+            libraryQuery.browseAlbums(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+        } else {
+            libraryQuery.browseAlbumsExcludingGenres(
+                excludedGenreNames,
+                limit.coerceIn(1, MAX_PAGE_SIZE),
+                offset.coerceAtLeast(0),
+            )
+        }
+
+    fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int =
+        if (excludedGenreNames.isEmpty()) libraryQuery.countAlbums() else libraryQuery.countAlbumsExcludingGenres(excludedGenreNames)
+
+    fun browseArtistsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Artist> =
+        if (excludedGenreNames.isEmpty()) {
+            libraryQuery.browseArtists(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+        } else {
+            libraryQuery.browseArtistsExcludingGenres(
+                excludedGenreNames,
+                limit.coerceIn(1, MAX_PAGE_SIZE),
+                offset.coerceAtLeast(0),
+            )
+        }
+
+    fun countArtistsExcludingGenres(excludedGenreNames: Collection<String>): Int =
+        if (excludedGenreNames.isEmpty()) libraryQuery.countArtists() else libraryQuery.countArtistsExcludingGenres(excludedGenreNames)
+
     fun browseAlbumsByCreatedDesc(
         limit: Int,
         offset: Int,

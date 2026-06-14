@@ -108,6 +108,43 @@ class JpaLibraryQueryPort(
         return assembleAlbumsFromEntities(entities)
     }
 
+    override fun browseAlbumsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Album> {
+        if (excludedGenreNames.isEmpty()) return browseAlbums(limit, offset)
+        val lowered = excludedGenreNames.map { it.lowercase() }
+        return assembleAlbumsFromEntities(entityRepo.findAlbumsExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0)))
+    }
+
+    override fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int {
+        if (excludedGenreNames.isEmpty()) return countAlbums()
+        return entityRepo.countAlbumsExcludingGenres(excludedGenreNames.map { it.lowercase() }).toInt()
+    }
+
+    override fun browseArtistsExcludingGenres(
+        excludedGenreNames: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<Artist> {
+        if (excludedGenreNames.isEmpty()) return browseArtists(limit, offset)
+        val lowered = excludedGenreNames.map { it.lowercase() }
+        val entities = entityRepo.findArtistsExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0))
+        val artistIds = entities.map { it.id }
+        val artists = artistRepo.findAllById(artistIds).associateBy { it.entityId }
+        val primaryImages = findPrimaryImages(artistIds)
+        return entities.mapNotNull { entity ->
+            val artist = artists[entity.id] ?: return@mapNotNull null
+            LibraryMappers.toArtist(entity, artist, primaryImages[entity.id])
+        }
+    }
+
+    override fun countArtistsExcludingGenres(excludedGenreNames: Collection<String>): Int {
+        if (excludedGenreNames.isEmpty()) return countArtists()
+        return entityRepo.countArtistsExcludingGenres(excludedGenreNames.map { it.lowercase() }).toInt()
+    }
+
     override fun browseAlbumsByCreatedDesc(
         limit: Int,
         offset: Int,
