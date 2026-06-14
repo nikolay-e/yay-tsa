@@ -116,7 +116,7 @@ spec:
             {{- if .Values.backend.media.enabled }}
             - name: media
               mountPath: {{ .Values.backend.media.mountPath }}
-              readOnly: true
+              readOnly: {{ .Values.backend.media.readOnly }}
             {{- end }}
             {{- if .Values.backend.stems.enabled }}
             - name: stems

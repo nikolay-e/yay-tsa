@@ -21,6 +21,7 @@ COPY yay-tsa-v2/infra-persistence/build.gradle.kts infra-persistence/
 COPY yay-tsa-v2/infra-library-scanner/build.gradle.kts infra-library-scanner/
 COPY yay-tsa-v2/infra-ml-worker/build.gradle.kts infra-ml-worker/
 COPY yay-tsa-v2/infra-karaoke-worker/build.gradle.kts infra-karaoke-worker/
+COPY yay-tsa-v2/infra-metadata-enricher/build.gradle.kts infra-metadata-enricher/
 COPY yay-tsa-v2/infra-llm/build.gradle.kts infra-llm/
 COPY yay-tsa-v2/infra-media/build.gradle.kts infra-media/
 COPY yay-tsa-v2/infra-notifications/build.gradle.kts infra-notifications/
@@ -42,6 +43,7 @@ COPY yay-tsa-v2/infra-persistence infra-persistence
 COPY yay-tsa-v2/infra-library-scanner infra-library-scanner
 COPY yay-tsa-v2/infra-ml-worker infra-ml-worker
 COPY yay-tsa-v2/infra-karaoke-worker infra-karaoke-worker
+COPY yay-tsa-v2/infra-metadata-enricher infra-metadata-enricher
 COPY yay-tsa-v2/infra-llm infra-llm
 COPY yay-tsa-v2/infra-media infra-media
 COPY yay-tsa-v2/infra-notifications infra-notifications

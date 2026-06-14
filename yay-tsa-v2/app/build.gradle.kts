@@ -48,6 +48,7 @@ dependencies {
     implementation(project(":infra-library-scanner"))
     implementation(project(":infra-ml-worker"))
     implementation(project(":infra-karaoke-worker"))
+    implementation(project(":infra-metadata-enricher"))
     implementation(project(":infra-llm"))
 
     // Adapters

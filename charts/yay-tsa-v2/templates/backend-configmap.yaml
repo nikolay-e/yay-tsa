@@ -22,6 +22,10 @@ data:
   ML_EXTRACTOR_SCRIPT: {{ .Values.backend.config.ml.extractorScript | quote }}
   ML_PROCESS_TIMEOUT_SECONDS: {{ .Values.backend.config.ml.processTimeoutSeconds | quote }}
   ML_BATCH_SIZE: {{ .Values.backend.config.ml.batchSize | quote }}
+  METADATA_ENABLED: {{ default false .Values.backend.config.metadata.enabled | quote }}
+  METADATA_USER_AGENT: {{ .Values.backend.config.metadata.userAgent | quote }}
+  METADATA_POLL_INTERVAL_MS: {{ .Values.backend.config.metadata.pollIntervalMs | quote }}
+  METADATA_BATCH_SIZE: {{ .Values.backend.config.metadata.batchSize | quote }}
   LLM_ENABLED: {{ default false .Values.backend.config.llm.enabled | quote }}
   LLM_MODEL: {{ .Values.backend.config.llm.model | quote }}
   MPD_ENABLED: {{ default false .Values.backend.config.mpd.enabled | quote }}

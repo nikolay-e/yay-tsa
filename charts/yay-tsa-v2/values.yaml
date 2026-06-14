@@ -107,6 +107,11 @@ backend:
       extractorScript: '' # path to in-container Python feature-extractor (absent = disabled)
       processTimeoutSeconds: 600
       batchSize: 50
+    metadata:
+      enabled: false # MusicBrainz ID + Cover Art Archive enrichment; writes cover.jpg into album folders
+      userAgent: 'Yaytsa/1.0 ( https://yay-tsa.com )'
+      pollIntervalMs: 300000
+      batchSize: 50
     llm:
       enabled: false # stub until a local LLM is wired in; no external provider
       model: 'local-stub'
@@ -121,6 +126,9 @@ backend:
     enabled: false
     hostPath: ''
     mountPath: /media
+    # Keep read-only by default. Set false to let the metadata enricher write
+    # cover.jpg into album folders (the only writes it performs; never audio).
+    readOnly: true
 
   # Read-only mount of the audio-separator stems directory (separator writes
   # in `yay-tsa-production`, backend reads from the SAME host path in

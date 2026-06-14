@@ -47,6 +47,7 @@ include("infra-persistence:karaoke")
 include("infra-library-scanner")
 include("infra-ml-worker")
 include("infra-karaoke-worker")
+include("infra-metadata-enricher")
 include("infra-llm")
 
 // Existing infrastructure

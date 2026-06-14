@@ -77,6 +77,13 @@ yaytsa:
     lrclib:
       enabled: ${LYRICS_LRCLIB_ENABLED:true}
       base-url: ${LYRICS_LRCLIB_BASE_URL:https://lrclib.net}
+  metadata:
+    enabled: ${METADATA_ENABLED:false}
+    user-agent: ${METADATA_USER_AGENT:Yaytsa/1.0 ( https://yay-tsa.com )}
+    poll-interval-ms: ${METADATA_POLL_INTERVAL_MS:300000}
+    batch-size: ${METADATA_BATCH_SIZE:50}
+    musicbrainz-base-url: ${METADATA_MUSICBRAINZ_BASE_URL:https://musicbrainz.org/ws/2}
+    coverart-base-url: ${METADATA_COVERART_BASE_URL:https://coverartarchive.org}
 
 management:
   endpoints:

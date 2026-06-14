@@ -1,0 +1,26 @@
+plugins {
+    alias(libs.plugins.kotlin.spring)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencyManagement {
+    imports {
+        mavenBom(
+            libs.spring.boot.bom
+                .get()
+                .toString(),
+        )
+    }
+}
+
+dependencies {
+    implementation(project(":core-application:shared"))
+    implementation(project(":infra-persistence:library"))
+    implementation(libs.spring.boot.starter.data.jpa)
+    implementation(libs.jackson.module.kotlin)
+
+    testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotlin.test)
+}

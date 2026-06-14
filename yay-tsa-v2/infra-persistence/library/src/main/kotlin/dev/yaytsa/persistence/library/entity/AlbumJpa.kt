@@ -5,6 +5,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 @Entity
@@ -23,4 +24,10 @@ class AlbumJpa(
     val totalDiscs: Int = 1,
     @Column(name = "is_complete")
     val isComplete: Boolean = true,
+    @Column(name = "musicbrainz_id", length = 36)
+    var musicbrainzId: String? = null,
+    @Column(name = "release_group_mbid", length = 36)
+    var releaseGroupMbid: String? = null,
+    @Column(name = "metadata_checked_at")
+    var metadataCheckedAt: OffsetDateTime? = null,
 )

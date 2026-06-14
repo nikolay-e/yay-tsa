@@ -9,6 +9,17 @@ import java.util.UUID
 interface AlbumRepository : JpaRepository<AlbumJpa, UUID> {
     fun findByArtistId(artistId: UUID): List<AlbumJpa>
 
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.albums " +
+                "WHERE metadata_checked_at IS NULL ORDER BY entity_id LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findByMetadataCheckedAtIsNull(
+        limit: Int,
+        offset: Int,
+    ): List<AlbumJpa>
+
     fun findByReleaseDateBetween(
         from: java.time.LocalDate,
         to: java.time.LocalDate,
