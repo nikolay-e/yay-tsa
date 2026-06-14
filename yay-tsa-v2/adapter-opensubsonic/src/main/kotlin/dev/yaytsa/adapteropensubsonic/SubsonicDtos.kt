@@ -77,6 +77,15 @@ data class NowPlayingWrapper(
     val entry: List<ChildElement> = emptyList(),
 )
 
+data class PlayQueueWrapper(
+    val current: String? = null,
+    val position: Long? = null,
+    val changed: String? = null,
+    val changedBy: String? = null,
+    val username: String? = null,
+    val entry: List<ChildElement> = emptyList(),
+)
+
 data class SearchResult3(
     val artist: List<ArtistElement> = emptyList(),
     val album: List<AlbumElement> = emptyList(),

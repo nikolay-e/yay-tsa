@@ -9,6 +9,7 @@ import dev.yaytsa.adaptershared.TrackLookups
 import dev.yaytsa.adaptershared.toSubsonicChild
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.application.playback.SavedPlayQueueService
 import dev.yaytsa.application.playback.ScrobbleService
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.playlists.PlaylistUseCases
@@ -65,6 +66,7 @@ class SubsonicController(
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val scrobbleService: ScrobbleService,
+    private val savedPlayQueueService: SavedPlayQueueService,
     private val lyricsResolver: LyricsResolver,
     private val clock: Clock,
     private val responseWriter: SubsonicResponseWriter,
@@ -664,6 +666,60 @@ class SubsonicController(
     fun getNowPlaying(
         @RequestParam(required = false) f: String?,
     ): ResponseEntity<String> = responseWriter.write(ok { copy(nowPlaying = NowPlayingWrapper()) }, f)
+
+    @GetMapping("/savePlayQueue", "/savePlayQueue.view")
+    fun savePlayQueue(
+        @RequestParam(required = false) id: List<String>?,
+        @RequestParam(required = false) current: String?,
+        @RequestParam(required = false) position: Long?,
+        @RequestParam(required = false) c: String?,
+        @RequestParam(required = false) f: String?,
+        principal: Principal,
+    ): ResponseEntity<String> {
+        val userId = UserId(principal.name)
+        savedPlayQueueService.save(
+            userId = userId,
+            trackIds = id.orEmpty(),
+            currentTrackId = current,
+            positionMs = position ?: 0,
+            changedBy = c,
+            requestTime = clock.now(),
+        )
+        return responseWriter.write(ok(), f)
+    }
+
+    @GetMapping("/getPlayQueue", "/getPlayQueue.view")
+    fun getPlayQueue(
+        @RequestParam(required = false) f: String?,
+        principal: Principal,
+    ): ResponseEntity<String> {
+        val userId = UserId(principal.name)
+        val saved =
+            savedPlayQueueService.find(userId)
+                ?: return responseWriter.write(ok(), f)
+        if (saved.trackIds.isEmpty()) return responseWriter.write(ok(), f)
+        val username = authQueries.findUser(userId)?.username
+        val entries =
+            libraryQueries
+                .getTracksByIds(saved.trackIds.mapNotNull { safeEntityId(it) })
+                .toSubsonicChildren()
+        return responseWriter.write(
+            ok {
+                copy(
+                    playQueue =
+                        PlayQueueWrapper(
+                            current = saved.currentTrackId,
+                            position = saved.positionMs,
+                            changed = saved.changedAt.toString(),
+                            changedBy = saved.changedBy,
+                            username = username,
+                            entry = entries,
+                        ),
+                )
+            },
+            f,
+        )
+    }
 
     // --- Fallback & errors ---
 

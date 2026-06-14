@@ -24,6 +24,7 @@ object PlaybackHandler {
             is AcquireLease -> acquireLease(snapshot, cmd, ctx)
             is ReleaseLease -> releaseLease(snapshot, cmd, ctx)
             is RefreshLease -> refreshLease(snapshot, cmd, ctx)
+            is TransferLease -> transferLease(snapshot, cmd, ctx)
             is AddToQueue -> withLease(snapshot, cmd.deviceId, ctx) { addToQueue(it, cmd, deps) }
             is RemoveFromQueue -> withLease(snapshot, cmd.deviceId, ctx) { removeFromQueue(it, cmd, ctx) }
             is ReplaceQueue -> withLease(snapshot, cmd.deviceId, ctx) { replaceQueue(it, cmd, deps) }
@@ -102,6 +103,24 @@ object PlaybackHandler {
         return s
             .copy(
                 lease = lease.copy(expiresAt = ctx.requestTime + cmd.leaseDuration),
+                version = v,
+            ).asSuccess(v)
+    }
+
+    private fun transferLease(
+        s: PlaybackSessionAggregate,
+        cmd: TransferLease,
+        ctx: CommandContext,
+    ): CommandResult<PlaybackSessionAggregate> {
+        val lease = s.lease ?: return Failure.NotFound("Lease", s.sessionId.value).asCommandFailure()
+        if (ctx.requestTime >= lease.expiresAt) return Failure.Unauthorized("Lease expired, must re-acquire").asCommandFailure()
+        if (lease.owner != cmd.fromDeviceId) return Failure.Unauthorized("Not lease owner").asCommandFailure()
+        val v = s.version.next()
+        return s
+            .copy(
+                lease = PlaybackLease(cmd.toDeviceId, ctx.requestTime + cmd.leaseDuration),
+                lastKnownPosition = s.computePosition(ctx.requestTime),
+                lastKnownAt = ctx.requestTime,
                 version = v,
             ).asSuccess(v)
     }

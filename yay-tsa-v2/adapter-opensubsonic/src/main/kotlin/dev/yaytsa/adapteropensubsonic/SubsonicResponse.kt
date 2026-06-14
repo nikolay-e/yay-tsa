@@ -33,6 +33,7 @@ data class SubsonicBody(
     val starred: StarredWrapper? = null,
     val starred2: Starred2? = null,
     val nowPlaying: NowPlayingWrapper? = null,
+    val playQueue: PlayQueueWrapper? = null,
     val musicFolders: MusicFoldersWrapper? = null,
     val genres: GenresWrapper? = null,
     val user: UserDetail? = null,

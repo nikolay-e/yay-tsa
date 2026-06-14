@@ -24,15 +24,13 @@ export interface DeviceStateEvent {
   timestamp: number;
 }
 
-export interface TransferPayload {
-  trackId?: string;
-  trackName?: string;
+export interface TransferLeaseResult {
+  sessionId: string;
+  version: number;
+  deviceId?: string;
+  currentEntryId?: string;
   positionMs: number;
-  paused: boolean;
-  volumeLevel: number;
-  sourceDeviceId: string;
-  sourceSessionId: string;
-  listeningSessionId?: string;
+  playbackState: string;
 }
 
 export interface RemoteCommand {

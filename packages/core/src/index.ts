@@ -32,7 +32,7 @@ export { DeviceService } from './api/device.service.js';
 export type {
   DeviceInfo,
   DeviceStateEvent,
-  TransferPayload,
+  TransferLeaseResult,
   RemoteCommand,
   RemoteCommandType,
 } from './api/device.types.js';

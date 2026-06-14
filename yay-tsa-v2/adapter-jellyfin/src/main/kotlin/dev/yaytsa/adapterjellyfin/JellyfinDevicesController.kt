@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.playback.DeviceSessionProjection
 import dev.yaytsa.application.playback.PlaybackUseCases
@@ -10,6 +11,7 @@ import dev.yaytsa.domain.playback.Seek
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
+import dev.yaytsa.domain.playback.TransferLease
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
@@ -197,17 +199,53 @@ class JellyfinDevicesController(
         principal: Principal,
     ): ResponseEntity<Any> {
         log.info("Transfer lease requested for session {} to device {}", sessionId, request.toDeviceId)
-        // TODO: atomic lease transfer use case not yet implemented in core-application/playback.
-        // Requires a TransferLease command + handler that releases the current lease and acquires
-        // a new one for the target device in a single transaction.
-        return ResponseEntity
-            .status(HttpStatus.NOT_IMPLEMENTED)
-            .body(
-                mapOf(
-                    "error" to "lease_transfer_not_implemented",
-                    "sessionId" to sessionId,
-                    "toDeviceId" to request.toDeviceId,
-                ),
+        val uid = UserId(principal.name)
+        val sid = SessionId(sessionId)
+        if (request.toDeviceId.isBlank()) {
+            return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "toDeviceId required")
+        }
+        val current =
+            playbackUseCases.getPlaybackState(uid, sid)
+                ?: return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Session not found")
+        val currentOwner =
+            current.lease?.owner
+                ?: return problemDetail(HttpStatus.CONFLICT, "Conflict", "No active lease on session")
+
+        val cmd =
+            TransferLease(
+                sessionId = sid,
+                fromDeviceId = currentOwner,
+                toDeviceId = DeviceId(request.toDeviceId),
+                leaseDuration = LEASE_DURATION,
             )
+        val ctx =
+            CommandContext(
+                uid,
+                ProtocolId("JELLYFIN"),
+                clock.now(),
+                IdempotencyKey(UUID.randomUUID().toString()),
+                current.version,
+            )
+        return when (val result = playbackUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> {
+                val updated = result.value
+                ResponseEntity.ok(
+                    mapOf(
+                        "sessionId" to sid.value,
+                        "version" to result.newVersion.value,
+                        "deviceId" to (updated.lease?.owner?.value),
+                        "currentEntryId" to updated.currentEntryId?.value,
+                        "positionMs" to updated.computePosition(ctx.requestTime).toMillis(),
+                        "playbackState" to updated.playbackState.name,
+                    ),
+                )
+            }
+            is CommandResult.Failed -> failureTranslator.translate(result.failure)
+        }
+    }
+
+    companion object {
+        private val LEASE_DURATION: Duration = Duration.ofSeconds(60)
+        private val failureTranslator = HttpFailureTranslator()
     }
 }

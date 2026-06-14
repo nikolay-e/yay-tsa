@@ -1,4 +1,4 @@
-import type { DeviceInfo, TransferPayload } from './device.types.js';
+import type { DeviceInfo, TransferLeaseResult } from './device.types.js';
 import { BaseService } from './base-api.service.js';
 
 export class DeviceService extends BaseService {
@@ -22,8 +22,11 @@ export class DeviceService extends BaseService {
     });
   }
 
-  async transferPlayback(sourceSessionId: string): Promise<TransferPayload> {
-    return this.client.postRequired<TransferPayload>(`/v1/me/devices/${sourceSessionId}/transfer`);
+  async transferLease(sourceSessionId: string, toDeviceId: string): Promise<TransferLeaseResult> {
+    return this.client.postRequired<TransferLeaseResult>(
+      `/v1/me/devices/${sourceSessionId}/transfer`,
+      { toDeviceId }
+    );
   }
 
   buildSseUrl(path: string): string {

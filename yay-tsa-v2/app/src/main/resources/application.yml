@@ -67,7 +67,10 @@ yaytsa:
     enabled: ${MPD_ENABLED:false}
   llm:
     enabled: ${LLM_ENABLED:false}
-    model: ${LLM_MODEL:local-stub}
+    model: ${LLM_MODEL:claude-haiku-4-5}
+    api-key: ${LLM_API_KEY:${ANTHROPIC_API_KEY:#{null}}}
+    base-url: ${LLM_BASE_URL:https://api.anthropic.com}
+    max-tokens: ${LLM_MAX_TOKENS:1024}
   ml:
     enabled: ${ML_ENABLED:false}
     extractor-script: ${ML_EXTRACTOR_SCRIPT:#{null}}

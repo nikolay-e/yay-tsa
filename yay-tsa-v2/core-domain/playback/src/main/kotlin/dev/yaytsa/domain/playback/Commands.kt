@@ -26,6 +26,13 @@ data class RefreshLease(
     val leaseDuration: Duration,
 ) : PlaybackCommand
 
+data class TransferLease(
+    override val sessionId: SessionId,
+    val fromDeviceId: DeviceId,
+    val toDeviceId: DeviceId,
+    val leaseDuration: Duration,
+) : PlaybackCommand
+
 // Queue commands — all require deviceId for lease ownership check
 data class AddToQueue(
     override val sessionId: SessionId,

@@ -627,6 +627,73 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `savePlayQueue then getPlayQueue round-trips ids current and position`() {
+        val builder = MockMvcRequestBuilders.get("/rest/savePlayQueue")
+        builder
+            .param("u", username)
+            .param("p", password)
+            .param("v", "1.16.1")
+            .param("c", "test")
+        builder
+            .param("id", trackIds[0])
+            .param("id", trackIds[1])
+            .param("current", trackIds[1])
+            .param("position", "42000")
+        val saveResult = mockMvc.perform(builder).andReturn()
+        assertEquals("ok", xmlRoot(saveResult).getAttribute("status"))
+
+        val body = jsonBody(restGet("getPlayQueue", "f" to "json"))
+        assertEquals("ok", body.get("status").asText())
+        val playQueue = body.get("playQueue")
+        assertEquals(trackIds[1], playQueue.get("current").asText())
+        assertEquals(42000L, playQueue.get("position").asLong())
+        assertEquals("test", playQueue.get("changedBy").asText())
+        assertEquals(username, playQueue.get("username").asText())
+        val entries = playQueue.get("entry")
+        val entryIds = (0 until entries.size()).map { entries.get(it).get("id").asText() }
+        assertEquals(listOf(trackIds[0], trackIds[1]), entryIds, "queue order must round-trip")
+    }
+
+    @Test
+    fun `getPlayQueue without a saved queue returns ok with no playQueue`() {
+        val body = jsonBody(restGet("getPlayQueue", "f" to "json"))
+        assertEquals("ok", body.get("status").asText())
+        assertTrue(body.get("playQueue") == null, "absent saved queue must yield ok-empty, not an error")
+    }
+
+    @Test
+    fun `savePlayQueue overwrites the previous snapshot`() {
+        val first = MockMvcRequestBuilders.get("/rest/savePlayQueue")
+        first
+            .param("u", username)
+            .param("p", password)
+            .param("v", "1.16.1")
+            .param("c", "test")
+        first
+            .param("id", trackIds[0])
+            .param("id", trackIds[1])
+            .param("current", trackIds[0])
+            .param("position", "1000")
+        assertEquals("ok", xmlRoot(mockMvc.perform(first).andReturn()).getAttribute("status"))
+
+        val second = MockMvcRequestBuilders.get("/rest/savePlayQueue")
+        second
+            .param("u", username)
+            .param("p", password)
+            .param("v", "1.16.1")
+            .param("c", "test")
+        second.param("id", trackIds[2]).param("current", trackIds[2]).param("position", "5000")
+        assertEquals("ok", xmlRoot(mockMvc.perform(second).andReturn()).getAttribute("status"))
+
+        val playQueue = jsonBody(restGet("getPlayQueue", "f" to "json")).get("playQueue")
+        assertEquals(trackIds[2], playQueue.get("current").asText())
+        assertEquals(5000L, playQueue.get("position").asLong())
+        val entries = playQueue.get("entry")
+        val entryIds = (0 until entries.size()).map { entries.get(it).get("id").asText() }
+        assertEquals(listOf(trackIds[2]), entryIds, "later savePlayQueue must replace, not append")
+    }
+
+    @Test
     fun `getNowPlaying returns well-formed nowPlaying element`() {
         val result = restGet("getNowPlaying")
         val root = xmlRoot(result)

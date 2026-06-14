@@ -31,6 +31,7 @@ import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.domain.playback.StartPlaybackWithTracks
 import dev.yaytsa.domain.playback.Stop
+import dev.yaytsa.domain.playback.TransferLease
 import dev.yaytsa.domain.playlists.AddTracksToPlaylist
 import dev.yaytsa.domain.playlists.CreatePlaylist
 import dev.yaytsa.domain.playlists.DeletePlaylist
@@ -68,6 +69,7 @@ object JellyfinCapabilities : ProtocolCapabilities {
             AcquireLease::class,
             ReleaseLease::class,
             RefreshLease::class,
+            TransferLease::class,
             AddToQueue::class,
             RemoveFromQueue::class,
             ReplaceQueue::class,

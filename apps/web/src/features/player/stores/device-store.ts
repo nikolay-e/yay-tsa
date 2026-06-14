@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { DeviceService, type DeviceInfo } from '@yay-tsa/core';
+import { DeviceService, getOrCreateDeviceId, type DeviceInfo } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 
@@ -65,21 +65,12 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
     const service = getService();
     if (!service) throw new Error('Not authenticated');
     try {
-      const payload = await service.transferPlayback(sourceSessionId);
-      if (payload.trackId && payload.listeningSessionId) {
-        const { useSessionStore } = await import('./session-store');
-        await useSessionStore.getState().restoreSession();
-      } else if (payload.trackId) {
+      const result = await service.transferLease(sourceSessionId, getOrCreateDeviceId());
+      const { useSessionStore } = await import('./session-store');
+      await useSessionStore.getState().restoreSession();
+      if (result.positionMs > 0) {
         const { usePlayerStore } = await import('./player.store');
-        const { ItemsService } = await import('@yay-tsa/core');
-        const client = useAuthStore.getState().client;
-        if (!client) return;
-        const items = await new ItemsService(client).getItemsByIds([payload.trackId]);
-        if (items.length > 0) {
-          const track = items[0];
-          if (track) await usePlayerStore.getState().playTrack(track);
-          usePlayerStore.getState().seek(payload.positionMs / 1000);
-        }
+        usePlayerStore.getState().seek(result.positionMs / 1000);
       }
     } catch (error) {
       log.player.error('Transfer failed', error);
