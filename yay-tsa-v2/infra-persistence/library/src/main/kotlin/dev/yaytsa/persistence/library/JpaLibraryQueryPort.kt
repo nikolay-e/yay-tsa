@@ -356,13 +356,31 @@ class JpaLibraryQueryPort(
         query: String,
         limit: Int,
         offset: Int,
+        excludedGenres: Collection<String>,
     ): SearchResults {
         val pattern = escapeLikePattern(query)
-        val page = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), maxOf(limit, 1))
+        val cappedLimit = maxOf(limit, 1)
+        val cappedOffset = maxOf(offset, 0)
+        val page = OffsetBasedPageRequest(cappedOffset.toLong(), cappedLimit)
 
-        val artistEntities = entityRepo.searchByNameAndType(pattern, EntityType.ARTIST.name, page)
-        val albumEntities = entityRepo.searchByNameAndType(pattern, EntityType.ALBUM.name, page)
-        val trackEntities = entityRepo.searchByNameAndType(pattern, EntityType.TRACK.name, page)
+        val artistEntities =
+            if (excludedGenres.isEmpty()) {
+                entityRepo.searchByNameAndType(pattern, EntityType.ARTIST.name, page)
+            } else {
+                entityRepo.searchArtistsExcludingGenres(pattern, excludedGenres, cappedLimit, cappedOffset)
+            }
+        val albumEntities =
+            if (excludedGenres.isEmpty()) {
+                entityRepo.searchByNameAndType(pattern, EntityType.ALBUM.name, page)
+            } else {
+                entityRepo.searchAlbumsExcludingGenres(pattern, excludedGenres, cappedLimit, cappedOffset)
+            }
+        val trackEntities =
+            if (excludedGenres.isEmpty()) {
+                entityRepo.searchByNameAndType(pattern, EntityType.TRACK.name, page)
+            } else {
+                entityRepo.searchTracksExcludingGenres(pattern, excludedGenres, cappedLimit, cappedOffset)
+            }
 
         val allIds = (artistEntities + albumEntities + trackEntities).map { it.id }
         val primaryImages = findPrimaryImages(allIds)

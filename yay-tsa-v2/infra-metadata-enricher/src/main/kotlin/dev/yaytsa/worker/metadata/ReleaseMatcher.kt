@@ -38,6 +38,7 @@ object ReleaseMatcher {
         candidates: List<MetadataCandidate>,
     ): MatchResult? {
         if (candidates.isEmpty()) return null
+        if (normalize(local.title).isEmpty()) return null
 
         val scored =
             candidates

@@ -116,7 +116,7 @@ class JellyfinItemsController(
 
         // Handle search
         if (!searchTerm.isNullOrBlank()) {
-            val results = libraryQueries.searchText(searchTerm, limit, startIndex)
+            val results = libraryQueries.searchText(searchTerm, limit, startIndex, excludedGenres)
             val trackLookups = tracksLookups(results.tracks)
             val albumNames = albumArtistNames(results.albums)
             val items = mutableListOf<BaseItem>()

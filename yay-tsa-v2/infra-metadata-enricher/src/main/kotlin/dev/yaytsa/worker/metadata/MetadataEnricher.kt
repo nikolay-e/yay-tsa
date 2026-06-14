@@ -68,8 +68,14 @@ class MetadataEnricher(
                 artist.metadataCheckedAt = now()
                 artistRepo.save(artist)
                 processed++
+            } catch (e: MetadataProviderUnavailableException) {
+                log.warn("Artist enrichment deferred (provider unavailable) for {}: {}", artist.entityId, e.message)
             } catch (e: Exception) {
-                log.warn("Artist metadata enrichment failed for {}", artist.entityId, e)
+                log.error("Artist enrichment permanently failed for {}; marking checked to unblock batch", artist.entityId, e)
+                runCatching {
+                    artist.metadataCheckedAt = now()
+                    artistRepo.save(artist)
+                }
             }
         }
         return processed
@@ -82,8 +88,14 @@ class MetadataEnricher(
             try {
                 enrichAlbum(album.entityId)
                 processed++
+            } catch (e: MetadataProviderUnavailableException) {
+                log.warn("Album enrichment deferred (provider unavailable) for {}: {}", album.entityId, e.message)
             } catch (e: Exception) {
-                log.warn("Album metadata enrichment failed for {}", album.entityId, e)
+                log.error("Album enrichment permanently failed for {}; marking checked to unblock batch", album.entityId, e)
+                runCatching {
+                    album.metadataCheckedAt = now()
+                    albumRepo.save(album)
+                }
             }
         }
         return processed

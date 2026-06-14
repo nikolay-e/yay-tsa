@@ -339,12 +339,26 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
         query: String,
         limit: Int,
         offset: Int,
+        excludedGenres: Collection<String>,
     ): SearchResults {
         val q = query.lowercase()
+        val lowered = excludedGenres.map { it.lowercase() }.toSet()
         return SearchResults(
-            artists = artists.values.filter { it.name.lowercase().contains(q) }.take(limit),
-            albums = albums.values.filter { it.name.lowercase().contains(q) }.take(limit),
-            tracks = tracks.values.filter { it.name.lowercase().contains(q) }.take(limit),
+            artists =
+                artists.values
+                    .filter { it.name.lowercase().contains(q) }
+                    .filter { lowered.isEmpty() || artistHasKeptTrack(it.id, lowered) }
+                    .take(limit),
+            albums =
+                albums.values
+                    .filter { it.name.lowercase().contains(q) }
+                    .filter { lowered.isEmpty() || albumHasKeptTrack(it.id, lowered) }
+                    .take(limit),
+            tracks =
+                tracks.values
+                    .filter { it.name.lowercase().contains(q) }
+                    .filter { lowered.isEmpty() || !trackHasAnyGenre(it, lowered) }
+                    .take(limit),
         )
     }
 

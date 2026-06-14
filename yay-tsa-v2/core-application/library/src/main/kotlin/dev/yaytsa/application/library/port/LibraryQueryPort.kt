@@ -103,6 +103,7 @@ interface LibraryQueryPort {
         query: String,
         limit: Int,
         offset: Int,
+        excludedGenres: Collection<String> = emptyList(),
     ): SearchResults
 
     fun trackIdsExist(trackIds: Set<TrackId>): Set<TrackId>

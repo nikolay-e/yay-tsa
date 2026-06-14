@@ -143,7 +143,14 @@ class LibraryQueries(
         query: String,
         limit: Int,
         offset: Int,
-    ): SearchResults = libraryQuery.searchText(query, limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+        excludedGenres: Collection<String> = emptyList(),
+    ): SearchResults =
+        libraryQuery.searchText(
+            query,
+            limit.coerceIn(1, MAX_PAGE_SIZE),
+            offset.coerceAtLeast(0),
+            excludedGenres.map { it.lowercase() },
+        )
 
     fun trackIdsExist(trackIds: Set<TrackId>): Set<TrackId> = libraryQuery.trackIdsExist(trackIds)
 

@@ -231,6 +231,64 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         entityType: String,
     ): Long
 
+    // Name search variants that also drop excluded genres, mirroring the browse-exclusion predicates:
+    // a track is dropped if it has an excluded genre; an album/artist is kept only if it has >=1 track
+    // whose genres are disjoint from :excludedGenres.
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND e.name ILIKE :pattern ESCAPE '\\' AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN (:excludedGenres)) " +
+                "ORDER BY COALESCE(e.sort_name, e.name) LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun searchTracksExcludingGenres(
+        pattern: String,
+        excludedGenres: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ALBUM' AND e.name ILIKE :pattern ESCAPE '\\' AND EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks t " +
+                "WHERE t.album_id = e.id AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres))) " +
+                "ORDER BY COALESCE(e.sort_name, e.name) LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun searchAlbumsExcludingGenres(
+        pattern: String,
+        excludedGenres: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ARTIST' AND e.name ILIKE :pattern ESCAPE '\\' AND EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks t " +
+                "WHERE t.album_artist_id = e.id AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres))) " +
+                "ORDER BY COALESCE(e.sort_name, e.name) LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun searchArtistsExcludingGenres(
+        pattern: String,
+        excludedGenres: Collection<String>,
+        limit: Int,
+        offset: Int,
+    ): List<LibraryEntityJpa>
+
     @Modifying
     @Transactional
     @Query(
