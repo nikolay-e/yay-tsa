@@ -157,3 +157,11 @@ For the generic forms of these — Spring `ResponseEntity<String>` charset, `Map
 ---
 
 Generic patterns (CI continue-on-error/aggregate-gate, two-CI-cancel, ArgoCD Image-Updater write-back & disabled-service, kubectl connection-reset, Helm chart versioning, ZAP SQLi rate-limit FP, Sonar S3735/S7766, accessibility, pgbouncer idle-connection) live in the global `/qa` skill — do not duplicate here.
+
+## Backend-rollout 502s in post-deploy-qa (when a /qa pass ships backend changes)
+
+`post-deploy-qa` waits only for the **frontend** rollout (`EXPECTED` PWA version), not the backend. When the same pass also changes the Kotlin backend (new image → legitimate rollout), the schemathesis phase can land mid-rollout and report a burst of **`502 Bad Gateway` (Cloudflare HTML)** as "Server error: N" — plus derived "JSON deserialization error" / "Undocumented Content-Type/HTTP status" from the 502 HTML body. These are transient deploy artifacts, NOT app bugs; verify by reading the 502 body (`yay-tsa.com | 502: Bad gateway`) and by confirming crawler/axe (frontend) stayed at 0 violations and ZAP HIGH = 0. The authoritative clean schemathesis run is the next post-deploy-qa that lands entirely **after** `kubectl rollout status deploy/yay-tsa-v2-production-backend` reports complete and the new pod is `1/1 Running` with a settled age. Don't file the 502s.
+
+## Audiobook exclusion is layered (genre `Audiobook`)
+
+Three independent filters, by surface: (1) main library `/Items` — backend `ExcludeGenres` param (count-correct, drops `TotalRecordCount`; the PWA sends it on `useInfiniteTracks`); (2) daily-mix + radio-seeds — backend adaptive filter (`isAudiobookTrack` in `JellyfinAdaptiveController`), because the `RadioSeed` DTO carries no genre so the client cannot filter it; (3) daily-mix also has a client `!isAudiobook` belt-and-suspenders in `DailyMix.tsx`. If audiobooks reappear in radio/daily-mix it's the **backend** (check it's deployed); if in the main library list with a wrong count, it's the `ExcludeGenres` query. Favourites filter uses `IsFavorite=true` (the Jellyfin `Filters=IsFavorite` form is ignored and returns the full library — don't use it to count favourites).
