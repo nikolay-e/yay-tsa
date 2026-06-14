@@ -1,4 +1,4 @@
-package dev.yaytsa.adapterjellyfin
+package dev.yaytsa.adaptershared
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -24,9 +24,6 @@ class LrclibClient(
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
-    // Synchronized .lrc is the goal (the PWA overlay scrolls line-by-line). Plain text
-    // is only a last resort: scan EVERY candidate (exact /api/get + all /api/search hits)
-    // for syncedLyrics first, and fall back to plain only when no candidate has synced.
     fun fetch(
         trackName: String,
         artistName: String?,
@@ -38,7 +35,6 @@ class LrclibClient(
         val candidates = mutableListOf<JsonNode>()
         getExact(trackName, artistName, albumName, durationSeconds)?.let { candidates.add(it) }
 
-        // Short-circuit only when the exact match already carries synced lyrics.
         candidates.firstNotNullOfOrNull(::syncedOf)?.let { return it }
 
         candidates.addAll(search(trackName, artistName))

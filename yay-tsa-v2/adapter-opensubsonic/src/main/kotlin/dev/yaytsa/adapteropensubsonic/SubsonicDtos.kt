@@ -140,3 +140,26 @@ data class UserDetail(
 data class LicenseDetail(
     val valid: Boolean = true,
 )
+
+data class OpenSubsonicExtension(
+    val name: String,
+    val versions: List<Int>,
+)
+
+data class LyricsListWrapper(
+    val structuredLyrics: List<StructuredLyrics> = emptyList(),
+)
+
+data class StructuredLyrics(
+    val displayArtist: String? = null,
+    val displayTitle: String? = null,
+    val lang: String = "xxx",
+    val synced: Boolean = false,
+    val offset: Int = 0,
+    val line: List<LyricsLineElement> = emptyList(),
+)
+
+data class LyricsLineElement(
+    val start: Long? = null,
+    val value: String,
+)

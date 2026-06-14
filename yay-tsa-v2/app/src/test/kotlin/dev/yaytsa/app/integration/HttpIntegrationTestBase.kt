@@ -62,6 +62,7 @@ abstract class HttpIntegrationTestBase {
             registry.add("yaytsa.llm.enabled") { "false" }
             registry.add("yaytsa.ml.enabled") { "false" }
             registry.add("yaytsa.karaoke.enabled") { "false" }
+            registry.add("yaytsa.lyrics.lrclib.enabled") { "false" }
         }
     }
 

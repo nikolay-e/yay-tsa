@@ -32,7 +32,8 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
 
     @Query(
         value =
-            "SELECT * FROM core_v2_library.entities e WHERE e.name ILIKE :pattern ESCAPE '\\' " +
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE core_v2_library.f_unaccent(lower(e.name)) ILIKE core_v2_library.f_unaccent(lower(:pattern)) ESCAPE '\\' " +
                 "AND e.entity_type = :entityType ORDER BY COALESCE(e.sort_name, e.name)",
         nativeQuery = true,
     )
@@ -223,7 +224,8 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     @Query(
         value =
             "SELECT count(*) FROM core_v2_library.entities e " +
-                "WHERE e.name ILIKE :pattern ESCAPE '\\' AND e.entity_type = :entityType",
+                "WHERE core_v2_library.f_unaccent(lower(e.name)) ILIKE core_v2_library.f_unaccent(lower(:pattern)) ESCAPE '\\' " +
+                "AND e.entity_type = :entityType",
         nativeQuery = true,
     )
     fun countByNameAndType(
@@ -237,7 +239,9 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
-                "WHERE e.entity_type = 'TRACK' AND e.name ILIKE :pattern ESCAPE '\\' AND NOT EXISTS (" +
+                "WHERE e.entity_type = 'TRACK' " +
+                "AND core_v2_library.f_unaccent(lower(e.name)) ILIKE core_v2_library.f_unaccent(lower(:pattern)) ESCAPE '\\' " +
+                "AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +
                 "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
                 "WHERE eg.entity_id = e.id AND lower(g.name) IN (:excludedGenres)) " +
@@ -254,7 +258,9 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
-                "WHERE e.entity_type = 'ALBUM' AND e.name ILIKE :pattern ESCAPE '\\' AND EXISTS (" +
+                "WHERE e.entity_type = 'ALBUM' " +
+                "AND core_v2_library.f_unaccent(lower(e.name)) ILIKE core_v2_library.f_unaccent(lower(:pattern)) ESCAPE '\\' " +
+                "AND EXISTS (" +
                 "SELECT 1 FROM core_v2_library.audio_tracks t " +
                 "WHERE t.album_id = e.id AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +
@@ -273,7 +279,9 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
-                "WHERE e.entity_type = 'ARTIST' AND e.name ILIKE :pattern ESCAPE '\\' AND EXISTS (" +
+                "WHERE e.entity_type = 'ARTIST' " +
+                "AND core_v2_library.f_unaccent(lower(e.name)) ILIKE core_v2_library.f_unaccent(lower(:pattern)) ESCAPE '\\' " +
+                "AND EXISTS (" +
                 "SELECT 1 FROM core_v2_library.audio_tracks t " +
                 "WHERE t.album_artist_id = e.id AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +

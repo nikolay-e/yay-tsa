@@ -60,6 +60,8 @@ yaytsa:
     music-path: ${MUSIC_PATH:#{null}}
   media:
     root-path: ${MEDIA_ROOT_PATH:#{null}}
+  playback:
+    play-history-dedup-window-seconds: ${PLAY_HISTORY_DEDUP_WINDOW_SECONDS:30}
   mpd:
     port: ${MPD_PORT:6600}
     enabled: ${MPD_ENABLED:false}

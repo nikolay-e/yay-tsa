@@ -633,4 +633,146 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
         assertEquals("ok", root.getAttribute("status"))
         assertEquals(1, root.getElementsByTagName("nowPlaying").length)
     }
+
+    // --- OpenSubsonic extensions ---
+
+    @Test
+    fun `getOpenSubsonicExtensions advertises songLyrics and apiKeyAuthentication`() {
+        val body = jsonBody(restGet("getOpenSubsonicExtensions", "f" to "json"))
+        assertTrue(body.get("openSubsonic").asBoolean(), "responses must keep openSubsonic flag")
+        val extensions = body.get("openSubsonicExtensions")
+        val names = (0 until extensions.size()).map { extensions.get(it).get("name").asText() }
+        assertTrue("songLyrics" in names)
+        assertTrue("apiKeyAuthentication" in names)
+        assertFalse("transcodeOffset" in names, "must not advertise unimplemented transcodeOffset")
+        assertFalse("formPost" in names, "endpoints are GET-only, formPost must not be advertised")
+        assertTrue(
+            (0 until extensions.size()).all { extensions.get(it).get("versions").size() > 0 },
+            "each extension entry must carry a versions array",
+        )
+    }
+
+    // --- songLyrics: getLyricsBySongId ---
+
+    private fun insertTrackWithSyncedSidecar(name: String): String {
+        val id = UUID.randomUUID()
+        val dir =
+            java.nio.file.Files
+                .createTempDirectory("subsonic-lyrics")
+        val audioFile = dir.resolve("$name.flac")
+        java.nio.file.Files
+            .writeString(audioFile, "audio")
+        val lyricsDir =
+            java.nio.file.Files
+                .createDirectory(dir.resolve(".lyrics"))
+        java.nio.file.Files
+            .writeString(lyricsDir.resolve("$name.lrc"), "[00:01.50]first line\n[00:03.00]second line\n")
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text, source_path) VALUES (?,?,?,?,?,?)",
+            id,
+            "TRACK",
+            name,
+            name.lowercase(),
+            name.lowercase(),
+            audioFile.toString(),
+        )
+        jdbc.update(
+            "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, track_number, duration_ms) VALUES (?,?,?,?,?)",
+            id,
+            UUID.fromString(albumOldId),
+            UUID.fromString(artistId),
+            9,
+            180_000L,
+        )
+        return id.toString()
+    }
+
+    @Test
+    fun `getLyricsBySongId returns synced structured lyrics from a sidecar`() {
+        val trackId = insertTrackWithSyncedSidecar("LyricTrack-${UUID.randomUUID().toString().take(6)}")
+        val body = jsonBody(restGet("getLyricsBySongId", "id" to trackId, "f" to "json"))
+        assertEquals("ok", body.get("status").asText())
+        val structured = body.get("lyricsList").get("structuredLyrics")
+        assertEquals(1, structured.size())
+        val entry = structured.get(0)
+        assertTrue(entry.get("synced").asBoolean(), "sidecar carries timestamps so synced must be true")
+        val lines = entry.get("line")
+        assertEquals(2, lines.size())
+        assertEquals(1500L, lines.get(0).get("start").asLong())
+        assertEquals("first line", lines.get(0).get("value").asText())
+        assertEquals(3000L, lines.get(1).get("start").asLong())
+    }
+
+    @Test
+    fun `getLyricsBySongId returns empty structuredLyrics when no lyrics exist`() {
+        val body = jsonBody(restGet("getLyricsBySongId", "id" to trackIds[0], "f" to "json"))
+        assertEquals("ok", body.get("status").asText())
+        val structured = body.get("lyricsList").get("structuredLyrics")
+        assertTrue(structured == null || structured.size() == 0, "absent lyrics must yield empty structuredLyrics, not an error")
+    }
+
+    @Test
+    fun `getLyricsBySongId for unknown id returns not found code 70`() {
+        val result = restGet("getLyricsBySongId", "id" to UUID.randomUUID().toString())
+        assertEquals(70, xmlErrorCode(result))
+    }
+
+    // --- apiKeyAuthentication ---
+
+    private fun issueApiToken(): String {
+        val builder =
+            MockMvcRequestBuilders
+                .post("/Users/AuthenticateByName")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("Username" to username, "Pw" to password)))
+        val result = mockMvc.perform(builder).andReturn()
+        assertEquals(200, result.response.status)
+        return objectMapper
+            .readTree(result.response.contentAsString)
+            .path("AccessToken")
+            .asText()
+    }
+
+    @Test
+    fun `apiKey authenticates a request with a valid opaque token`() {
+        val apiKey = issueApiToken()
+        val builder =
+            MockMvcRequestBuilders
+                .get("/rest/ping")
+                .param("apiKey", apiKey)
+                .param("v", "1.16.1")
+                .param("c", "test")
+        val result = mockMvc.perform(builder).andReturn()
+        assertEquals(200, result.response.status)
+        assertEquals("ok", xmlRoot(result).getAttribute("status"))
+    }
+
+    @Test
+    fun `apiKey resolves the calling user for getUser`() {
+        val apiKey = issueApiToken()
+        val builder =
+            MockMvcRequestBuilders
+                .get("/rest/getUser")
+                .param("apiKey", apiKey)
+                .param("f", "json")
+                .param("v", "1.16.1")
+                .param("c", "test")
+        val result = mockMvc.perform(builder).andReturn()
+        val body = objectMapper.readTree(result.response.contentAsString).get("subsonic-response")
+        assertEquals("ok", body.get("status").asText())
+        assertEquals(username, body.get("user").get("username").asText())
+    }
+
+    @Test
+    fun `invalid apiKey returns Subsonic error code 44`() {
+        val builder =
+            MockMvcRequestBuilders
+                .get("/rest/ping")
+                .param("apiKey", "not-a-real-token")
+                .param("v", "1.16.1")
+                .param("c", "test")
+        val result = mockMvc.perform(builder).andReturn()
+        assertEquals(200, result.response.status)
+        assertEquals(44, xmlErrorCode(result))
+    }
 }

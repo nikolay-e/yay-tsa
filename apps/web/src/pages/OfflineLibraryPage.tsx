@@ -51,6 +51,7 @@ export function OfflineLibraryPage() {
       ) : (
         <TrackList
           tracks={tracks}
+          virtualized
           showArtist
           showAlbum
           currentTrackId={currentTrack?.Id}

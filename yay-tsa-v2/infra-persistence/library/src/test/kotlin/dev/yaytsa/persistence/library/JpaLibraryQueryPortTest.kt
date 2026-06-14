@@ -250,6 +250,89 @@ class JpaLibraryQueryPortTest : LibraryPersistenceTestBase() {
     }
 
     @Test
+    fun `searchText folds Latin diacritics so cafe matches Cafe`() {
+        val cafeId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = cafeId,
+                entityType = EntityType.TRACK.name,
+                name = "Café",
+                sortName = "Cafe",
+                searchText = "cafe",
+            ),
+        )
+        trackRepo.save(AudioTrackJpa(entityId = cafeId, albumId = albumId, albumArtistId = artistId, durationMs = 1000))
+
+        val results = port.searchText("cafe", limit = 10, offset = 0)
+        assertEquals(1, results.tracks.size)
+        assertEquals("Café", results.tracks[0].name)
+    }
+
+    @Test
+    fun `searchText folds Latin accents in the query against an accented name`() {
+        val sergeId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = sergeId,
+                entityType = EntityType.TRACK.name,
+                name = "Sergé",
+                sortName = "Serge",
+                searchText = "serge",
+            ),
+        )
+        trackRepo.save(AudioTrackJpa(entityId = sergeId, albumId = albumId, albumArtistId = artistId, durationMs = 1000))
+
+        assertEquals(
+            "Sergé",
+            port
+                .searchText("serge", limit = 10, offset = 0)
+                .tracks
+                .single()
+                .name,
+        )
+        assertEquals(
+            "Sergé",
+            port
+                .searchText("sergé", limit = 10, offset = 0)
+                .tracks
+                .single()
+                .name,
+        )
+    }
+
+    @Test
+    fun `searchText folds Cyrillic yo so Сергей matches Сергёй`() {
+        val cyrillicId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = cyrillicId,
+                entityType = EntityType.TRACK.name,
+                name = "Сергёй",
+                sortName = "Сергёй",
+                searchText = "сергёй",
+            ),
+        )
+        trackRepo.save(AudioTrackJpa(entityId = cyrillicId, albumId = albumId, albumArtistId = artistId, durationMs = 1000))
+
+        assertEquals(
+            "Сергёй",
+            port
+                .searchText("Сергей", limit = 10, offset = 0)
+                .tracks
+                .single()
+                .name,
+        )
+        assertEquals(
+            "Сергёй",
+            port
+                .searchText("сергей", limit = 10, offset = 0)
+                .tracks
+                .single()
+                .name,
+        )
+    }
+
+    @Test
     fun `trackIdsExist returns only existing track ids`() {
         val existing = port.trackIdsExist(setOf(TrackId(track1Id.toString()), TrackId(UUID.randomUUID().toString())))
         assertEquals(1, existing.size)

@@ -14,6 +14,7 @@ import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
+import java.time.Instant
 
 @Component
 class SubsonicAuthFilter(
@@ -35,11 +36,13 @@ class SubsonicAuthFilter(
         filterChain: FilterChain,
     ) {
         val username = request.getParameter("u")
+        val apiKey = request.getParameter("apiKey")
         val token = request.getParameter("t")
         val salt = request.getParameter("s")
         val password = request.getParameter("p")
 
         when {
+            apiKey != null -> authenticateWithApiKey(request, response, filterChain, apiKey)
             username == null || (password == null && (token == null || salt == null)) ->
                 reject(request, response, 10, "Required authentication parameter is missing")
             password == null ->
@@ -49,11 +52,47 @@ class SubsonicAuthFilter(
                 if (userId == null) {
                     reject(request, response, 40, "Wrong username or password")
                 } else {
-                    SecurityContextHolder.getContext().authentication = SubsonicAuthentication(userId, username)
-                    filterChain.doFilter(request, response)
+                    proceedAs(request, response, filterChain, userId, username)
                 }
             }
         }
+    }
+
+    private fun authenticateWithApiKey(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        filterChain: FilterChain,
+        apiKey: String,
+    ) {
+        val user = authenticateApiKey(apiKey)
+        if (user == null) {
+            reject(request, response, 44, "Invalid API key")
+        } else {
+            proceedAs(request, response, filterChain, user.id, user.username)
+        }
+    }
+
+    private fun authenticateApiKey(apiKey: String): ApiKeyPrincipal? {
+        if (apiKey.isBlank()) return null
+        val user = authQueries.findByApiToken(apiKey) ?: return null
+        if (!user.isActive) return null
+        val hashedToken = Hashing.sha256Hex(apiKey)
+        val apiToken = user.apiTokens.find { Hashing.constantTimeEquals(it.token, hashedToken) } ?: return null
+        if (apiToken.revoked) return null
+        val expired = apiToken.expiresAt?.let { Instant.now().isAfter(it) } ?: false
+        if (expired) return null
+        return ApiKeyPrincipal(user.id, user.username)
+    }
+
+    private fun proceedAs(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        filterChain: FilterChain,
+        userId: UserId,
+        username: String,
+    ) {
+        SecurityContextHolder.getContext().authentication = SubsonicAuthentication(userId, username)
+        filterChain.doFilter(request, response)
     }
 
     private fun reject(
@@ -99,6 +138,11 @@ class SubsonicAuthFilter(
 
     private fun sha256(input: String): String = Hashing.sha256Hex(input)
 }
+
+private data class ApiKeyPrincipal(
+    val id: UserId,
+    val username: String,
+)
 
 class SubsonicAuthentication(
     val userId: UserId,

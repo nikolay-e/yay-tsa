@@ -2,6 +2,8 @@ package dev.yaytsa.adapteropensubsonic
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.ChildElement
+import dev.yaytsa.adaptershared.LyricsResolver
+import dev.yaytsa.adaptershared.LyricsSource
 import dev.yaytsa.adaptershared.SubsonicFailureTranslator
 import dev.yaytsa.adaptershared.TrackLookups
 import dev.yaytsa.adaptershared.toSubsonicChild
@@ -63,6 +65,7 @@ class SubsonicController(
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val scrobbleService: ScrobbleService,
+    private val lyricsResolver: LyricsResolver,
     private val clock: Clock,
     private val responseWriter: SubsonicResponseWriter,
     @Qualifier("subsonicCommandContextFactory")
@@ -105,7 +108,7 @@ class SubsonicController(
     @GetMapping("/getOpenSubsonicExtensions", "/getOpenSubsonicExtensions.view")
     fun getExtensions(
         @RequestParam(required = false) f: String?,
-    ): ResponseEntity<String> = responseWriter.write(ok { copy(openSubsonicExtensions = emptyList()) }, f)
+    ): ResponseEntity<String> = responseWriter.write(ok { copy(openSubsonicExtensions = SupportedExtensions.all) }, f)
 
     @GetMapping("/getUser", "/getUser.view")
     fun getUser(
@@ -243,6 +246,33 @@ class SubsonicController(
         val entityId = safeEntityId(id) ?: return notFound("Song", id, f)
         val track = libraryQueries.getTrack(entityId) ?: return notFound("Song", id, f)
         return responseWriter.write(ok { copy(song = track.toSubsonicChild(tracksLookups(listOf(track)))) }, f)
+    }
+
+    @GetMapping("/getLyricsBySongId", "/getLyricsBySongId.view")
+    fun getLyricsBySongId(
+        @RequestParam id: String,
+        @RequestParam(required = false) f: String?,
+    ): ResponseEntity<String> {
+        val entityId = safeEntityId(id) ?: return notFound("Song", id, f)
+        if (libraryQueries.getTrack(entityId) == null) return notFound("Song", id, f)
+        val resolved = lyricsResolver.resolve(entityId.value)
+        val structured =
+            if (resolved.source == LyricsSource.NONE) {
+                emptyList()
+            } else {
+                listOf(
+                    StructuredLyrics(
+                        displayArtist = resolved.displayArtist,
+                        displayTitle = resolved.displayTitle,
+                        synced = resolved.synced,
+                        line =
+                            lyricsResolver.parseLines(resolved).map { line ->
+                                LyricsLineElement(start = line.start, value = line.value)
+                            },
+                    ),
+                )
+            }
+        return responseWriter.write(ok { copy(lyricsList = LyricsListWrapper(structuredLyrics = structured)) }, f)
     }
 
     private fun tracksLookups(tracks: List<Track>): TrackLookups =

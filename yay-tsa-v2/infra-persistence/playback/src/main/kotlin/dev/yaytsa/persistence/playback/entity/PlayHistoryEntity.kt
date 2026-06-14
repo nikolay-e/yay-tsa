@@ -28,4 +28,6 @@ class PlayHistoryEntity(
     val scrobbled: Boolean = false,
     @Column(nullable = false)
     val skipped: Boolean = false,
+    @Column(name = "recorded_at", nullable = false)
+    val recordedAt: Instant = Instant.now(),
 )

@@ -37,7 +37,8 @@ data class SubsonicBody(
     val genres: GenresWrapper? = null,
     val user: UserDetail? = null,
     val license: LicenseDetail? = null,
-    val openSubsonicExtensions: List<Any>? = null,
+    val lyricsList: LyricsListWrapper? = null,
+    val openSubsonicExtensions: List<OpenSubsonicExtension>? = null,
 )
 
 data class SubsonicError(

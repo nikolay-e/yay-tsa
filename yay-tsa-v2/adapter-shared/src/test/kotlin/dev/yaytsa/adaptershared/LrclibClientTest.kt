@@ -1,4 +1,4 @@
-package dev.yaytsa.adapterjellyfin
+package dev.yaytsa.adaptershared
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.sun.net.httpserver.HttpExchange
