@@ -142,9 +142,13 @@ test.describe('Offline audio (mocked backend)', () => {
     await page.goto('/albums/album-1');
     await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
     await page.getByTestId('download-album-button').click();
-    await expect(page.getByTestId('download-album-button')).toContainText('Downloaded', {
-      timeout: 15000,
-    });
+    await expect(page.getByTestId('download-album-button')).toHaveAttribute(
+      'aria-label',
+      'Downloaded',
+      {
+        timeout: 15000,
+      }
+    );
 
     // 2. Full reload onto the offline library. It reads only IndexedDB, so the
     //    track appearing here proves it was persisted, not re-fetched.
