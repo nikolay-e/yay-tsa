@@ -239,7 +239,11 @@ class JellyfinAuthController(
         val deviceId = DeviceId("web-${UUID.randomUUID().toString().take(8)}")
         val newToken =
             issueTokenForUser(updatedUser, deviceId)
-                ?: return problemDetail(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", "Password changed but session token could not be reissued; please log in again")
+                ?: return problemDetail(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Service Unavailable",
+                    "Password changed but session token could not be reissued; please log in again",
+                )
 
         return ResponseEntity.ok(mapOf("AccessToken" to newToken))
     }

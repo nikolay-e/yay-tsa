@@ -83,7 +83,12 @@ class JellyfinItemsController(
         if (userId != null && userId != principal?.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         val uid = principal?.name
         val limit = limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
-        val excludedGenres = excludeGenres?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }.orEmpty()
+        val excludedGenres =
+            excludeGenres
+                ?.split(",")
+                ?.map { it.trim().lowercase() }
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
         val favTrackIds =
             if (uid != null) {
                 preferencesQueries.findFavoriteTrackIds(UserId(uid))

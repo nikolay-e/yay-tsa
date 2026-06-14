@@ -21,7 +21,9 @@ import java.time.Instant
 import java.util.UUID
 
 class AuthIntegrationTest : HttpIntegrationTestBase() {
-    private val ipCounter = java.util.concurrent.atomic.AtomicInteger(0)
+    private val ipCounter =
+        java.util.concurrent.atomic
+            .AtomicInteger(0)
 
     @Autowired
     lateinit var authQueries: AuthQueries
