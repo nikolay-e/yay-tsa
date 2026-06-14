@@ -260,6 +260,7 @@ export interface ServerInfo {
   ServerName: string;
   Version: string;
   StartupWizardCompleted?: boolean;
+  BuildSha?: string;
 }
 
 // ============================================================================
