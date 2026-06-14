@@ -113,8 +113,12 @@ backend:
       pollIntervalMs: 300000
       batchSize: 50
     llm:
-      enabled: false # stub until a local LLM is wired in; no external provider
-      model: 'local-stub'
+      enabled: false # adaptive LLM-DJ; routes through the in-cluster LiteLLM gateway
+      model: 'GPT-5.4 Mini' # LiteLLM model_name alias (maps to openai/gpt-5.4-mini)
+      baseUrl: 'http://litellm.litellm.svc.cluster.local:8080'
+      apiKeySecret: 'yay-tsa-production-secrets'
+      apiKeySecretKey: 'LLM_API_KEY'
+      gatewayPort: 8080
     mpd:
       enabled: false
       port: 6600

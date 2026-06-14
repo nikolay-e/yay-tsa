@@ -16,8 +16,8 @@ import kotlin.random.Random
 class LlmClient(
     @Value("\${yaytsa.llm.enabled:false}") private val enabled: Boolean,
     @Value("\${yaytsa.llm.api-key:#{null}}") private val apiKey: String?,
-    @Value("\${yaytsa.llm.model:claude-haiku-4-5}") private val model: String,
-    @Value("\${yaytsa.llm.base-url:https://api.anthropic.com}") private val baseUrl: String,
+    @Value("\${yaytsa.llm.model:GPT-5.4 Mini}") private val model: String,
+    @Value("\${yaytsa.llm.base-url:http://litellm.litellm.svc.cluster.local:8080}") private val baseUrl: String,
     @Value("\${yaytsa.llm.max-tokens:1024}") private val maxTokens: Int,
     @Value("\${yaytsa.llm.system-prompt:#{null}}") private val systemPrompt: String?,
     private val objectMapper: ObjectMapper,
@@ -49,10 +49,13 @@ class LlmClient(
         val root = objectMapper.createObjectNode()
         root.put("model", model)
         root.put("max_tokens", maxTokens)
-        if (!systemPrompt.isNullOrBlank()) {
-            root.put("system", systemPrompt)
-        }
         val messages = objectMapper.createArrayNode()
+        if (!systemPrompt.isNullOrBlank()) {
+            val systemMessage = objectMapper.createObjectNode()
+            systemMessage.put("role", "system")
+            systemMessage.put("content", systemPrompt)
+            messages.add(systemMessage)
+        }
         val userMessage = objectMapper.createObjectNode()
         userMessage.put("role", "user")
         userMessage.put("content", prompt)
@@ -62,15 +65,14 @@ class LlmClient(
     }
 
     private fun post(body: String): String? {
-        val uri = URI.create(baseUrl.trimEnd('/') + "/v1/messages")
+        val uri = URI.create(baseUrl.trimEnd('/') + "/v1/chat/completions")
         var attempt = 0
         var lastError = "unknown"
         while (attempt <= MAX_RETRIES) {
             val request =
                 HttpRequest
                     .newBuilder(uri)
-                    .header("x-api-key", apiKey)
-                    .header("anthropic-version", ANTHROPIC_VERSION)
+                    .header("Authorization", "Bearer $apiKey")
                     .header("content-type", "application/json")
                     .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
                     .POST(HttpRequest.BodyPublishers.ofString(body))
@@ -79,16 +81,16 @@ class LlmClient(
             val response = result.getOrNull()
             if (response == null) {
                 lastError = result.exceptionOrNull()?.message ?: "request failed"
-                log.warn("Anthropic request failed: {}", lastError)
+                log.warn("LLM request failed: {}", lastError)
             } else {
                 when (val code = response.statusCode()) {
                     in 200..299 -> return response.body()
                     429, in 500..599 -> {
                         lastError = "HTTP $code"
-                        log.debug("Anthropic transient {} on attempt {}", code, attempt + 1)
+                        log.debug("LLM transient {} on attempt {}", code, attempt + 1)
                     }
                     else -> {
-                        log.warn("Anthropic returned {}: {}", code, response.body().take(ERROR_BODY_LIMIT))
+                        log.warn("LLM returned {}: {}", code, response.body().take(ERROR_BODY_LIMIT))
                         return null
                     }
                 }
@@ -96,26 +98,27 @@ class LlmClient(
             attempt++
             if (attempt <= MAX_RETRIES) backoff(attempt)
         }
-        log.warn("Anthropic unavailable after {} retries: {}; falling back to ML-only", MAX_RETRIES, lastError)
+        log.warn("LLM unavailable after {} retries: {}; falling back to ML-only", MAX_RETRIES, lastError)
         return null
     }
 
     private fun parseCompletion(responseBody: String): String? =
         try {
             val root = objectMapper.readTree(responseBody)
-            val content = root.path("content")
             val text =
-                content
-                    .firstOrNull { it.path("type").asText() == "text" }
-                    ?.path("text")
+                root
+                    .path("choices")
+                    .firstOrNull()
+                    ?.path("message")
+                    ?.path("content")
                     ?.asText()
                     ?.ifBlank { null }
             if (text == null) {
-                log.warn("Anthropic response had no text content block; falling back to ML-only")
+                log.warn("LLM response had no message content; falling back to ML-only")
             }
             text
         } catch (e: Exception) {
-            log.warn("Failed to parse Anthropic response; falling back to ML-only: {}", e.message)
+            log.warn("Failed to parse LLM response; falling back to ML-only: {}", e.message)
             null
         }
 
@@ -131,7 +134,6 @@ class LlmClient(
     }
 
     companion object {
-        private const val ANTHROPIC_VERSION = "2023-06-01"
         private const val MAX_RETRIES = 2
         private const val REQUEST_TIMEOUT_SECONDS = 30L
         private const val BACKOFF_BASE_MS = 500L

@@ -67,9 +67,9 @@ yaytsa:
     enabled: ${MPD_ENABLED:false}
   llm:
     enabled: ${LLM_ENABLED:false}
-    model: ${LLM_MODEL:claude-haiku-4-5}
-    api-key: ${LLM_API_KEY:${ANTHROPIC_API_KEY:#{null}}}
-    base-url: ${LLM_BASE_URL:https://api.anthropic.com}
+    model: ${LLM_MODEL:GPT-5.4 Mini}
+    api-key: ${LLM_API_KEY:#{null}}
+    base-url: ${LLM_BASE_URL:http://litellm.litellm.svc.cluster.local:8080}
     max-tokens: ${LLM_MAX_TOKENS:1024}
   ml:
     enabled: ${ML_ENABLED:false}

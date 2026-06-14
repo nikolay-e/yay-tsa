@@ -80,7 +80,17 @@ spec:
     ports:
     - protocol: TCP
       port: 8000
-  # HTTPS for external APIs (lrclib lyrics, LLM provider)
+  {{- if .Values.backend.config.llm.enabled }}
+  # LiteLLM gateway (in-cluster) for the adaptive LLM-DJ
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.backend.networkPolicy.llmNamespace | default "litellm" }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.config.llm.gatewayPort | default 8080 }}
+  {{- end }}
+  # HTTPS for external APIs (lrclib lyrics, MusicBrainz/CoverArt enrichment)
   - to:
     - ipBlock:
         cidr: 0.0.0.0/0

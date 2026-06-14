@@ -92,6 +92,13 @@ spec:
             - name: MUSIC_PATH
               value: {{ .Values.backend.config.libraryMusicPath | quote }}
             {{- end }}
+            {{- if .Values.backend.config.llm.enabled }}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.config.llm.apiKeySecret }}
+                  key: {{ .Values.backend.config.llm.apiKeySecretKey }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "yay-tsa-v2.fullname" . }}-backend
