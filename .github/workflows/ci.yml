@@ -395,7 +395,7 @@ jobs:
           # (429 is not in its expected-rejection set). Their input validation is
           # covered by backend integration tests instead. SSE/event streams are
           # excluded because they never return a fuzzable JSON body.
-          schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{id}/events,/v1/sessions/{sessionId}/queue/events,/Users/AuthenticateByName,/v1/groups/join,/mcp'
+          schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{groupId}/events,/Karaoke/{trackId}/status/stream,/Users/AuthenticateByName,/v1/groups/join,/mcp'
 
           zap-enabled: 'true'
 
