@@ -345,16 +345,7 @@ class JellyfinAdaptiveController(
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
         val tracks = pickRecommendedTracks(userId, limit.coerceIn(1, 100))
-        val favTrackIds =
-            preferencesQueries
-                .find(userId)
-                ?.favorites
-                .orEmpty()
-                .map { it.trackId.value }
-                .toSet()
-        val lookups = trackLookups(tracks)
-        val items = tracks.map { it.toJellyfinBaseItem(favTrackIds, lookups) }
-        return ResponseEntity.ok(mapOf("Items" to items, "TotalRecordCount" to items.size))
+        return recommendationResponse(userId, tracks)
     }
 
     @GetMapping("/recommend/discover")
@@ -365,6 +356,13 @@ class JellyfinAdaptiveController(
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
         val tracks = pickDiscoveryTracks(userId, limit.coerceIn(1, 100))
+        return recommendationResponse(userId, tracks)
+    }
+
+    private fun recommendationResponse(
+        userId: UserId,
+        tracks: List<dev.yaytsa.domain.library.Track>,
+    ): ResponseEntity<Any> {
         val favTrackIds =
             preferencesQueries
                 .find(userId)
@@ -401,8 +399,13 @@ class JellyfinAdaptiveController(
         limit: Int,
     ): List<dev.yaytsa.domain.library.Track> {
         val candidates = collectRecommendationCandidates(userId, limit)
-        return filterRedLines(candidates.filterNot { isAudiobookTrack(it) }, userId).take(limit)
+        return musicSurfaceFilter(candidates, userId).take(limit)
     }
+
+    private fun musicSurfaceFilter(
+        tracks: List<dev.yaytsa.domain.library.Track>,
+        userId: UserId,
+    ): List<dev.yaytsa.domain.library.Track> = filterRedLines(tracks.filterNot { isAudiobookTrack(it) }, userId)
 
     // Keep spoken-word audiobooks out of music surfaces (Daily Mix, radio seeds). Matches the
     // PWA's AUDIOBOOK_GENRES marker on the track's primary genre, mirroring how red-line filtering
@@ -465,7 +468,7 @@ class JellyfinAdaptiveController(
     ): List<dev.yaytsa.domain.library.Track> {
         val heard = collectHeardTrackIds(userId, limit)
         val candidates = collectDiscoveryCandidates(userId, limit, heard)
-        return filterRedLines(candidates.filterNot { isAudiobookTrack(it) }, userId)
+        return musicSurfaceFilter(candidates, userId)
             .shuffled()
             .take(limit)
     }

@@ -1,0 +1,34 @@
+name: Wait for backend rollout
+description: Poll the live backend until /System/Info/Public echoes the expected BuildSha for three consecutive healthy reads
+
+inputs:
+  base-url:
+    description: Public base URL of the deployed system
+    default: 'https://yay-tsa.com'
+
+runs:
+  using: composite
+  steps:
+    - name: Poll backend BuildSha
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base-url }}
+      run: |
+        EXPECTED="main-${GITHUB_SHA:0:7}"
+        DEADLINE=$((SECONDS + 1500))
+        HEALTHY=0
+        echo "Polling ${BASE_URL}/api/System/Info/Public until BuildSha=${EXPECTED}"
+        while [ "$SECONDS" -lt "$DEADLINE" ]; do
+          SHA=$(curl -fsS --max-time 10 "${BASE_URL}/api/System/Info/Public" | jq -r '.BuildSha // empty' || true)
+          if [ "$SHA" = "$EXPECTED" ]; then
+            HEALTHY=$((HEALTHY + 1))
+            echo "Backend serves ${EXPECTED} (${HEALTHY}/3 consecutive)"
+            [ "$HEALTHY" -ge 3 ] && echo "Backend settled on ${EXPECTED}" && exit 0
+          else
+            HEALTHY=0
+            echo "Backend BuildSha='${SHA:-<none>}' != ${EXPECTED}; retrying in 15s"
+          fi
+          sleep 15
+        done
+        echo "::error::Backend never settled on ${EXPECTED} after 25 minutes (Image Updater lag or rollout failure). Schemathesis would fuzz a mid-rollout backend; failing fast instead of reporting transient 502s as conformance bugs."
+        exit 1

@@ -39,7 +39,7 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       'no-debugger': 'error',
       'no-var': 'error',
       'prefer-const': 'error',
@@ -121,7 +121,7 @@ export default [
       '@typescript-eslint/return-await': ['error', 'in-try-catch'],
 
       // Code quality
-      'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+      'no-console': ['error', { allow: ['warn', 'error', 'info'] }],
       'no-debugger': 'error',
       'no-alert': 'error',
       eqeqeq: ['error', 'always', { null: 'ignore' }],
@@ -269,7 +269,7 @@ export default [
       ],
 
       // Code quality
-      'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+      'no-console': ['error', { allow: ['warn', 'error', 'info'] }],
       'prefer-const': 'error',
       'no-var': 'error',
     },

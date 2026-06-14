@@ -83,6 +83,7 @@ jobs:
           image-name: yay-tsa-v2/backend
           context: .
           dockerfile: yay-tsa-v2/Dockerfile
+          include-git-sha: 'false'
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -104,27 +105,9 @@ jobs:
       # outside. Poll for the exact SHA plus three consecutive healthy reads
       # instead of blindly sleeping out the Image Updater + rollout window.
       - name: Wait for backend rollout
-        run: |
-          EXPECTED="main-${GITHUB_SHA:0:7}"
-          DEADLINE=$((SECONDS + 1500))
-          HEALTHY=0
-          echo "Polling ${BASE_URL}/api/System/Info/Public until BuildSha=${EXPECTED}"
-          while [ "$SECONDS" -lt "$DEADLINE" ]; do
-            SHA=$(curl -fsS --max-time 10 "${BASE_URL}/api/System/Info/Public" | jq -r '.BuildSha // empty' || true)
-            if [ "$SHA" = "$EXPECTED" ]; then
-              HEALTHY=$((HEALTHY + 1))
-              echo "Backend serves ${EXPECTED} (${HEALTHY}/3 consecutive probes)"
-              if [ "$HEALTHY" -ge 3 ]; then
-                exit 0
-              fi
-            else
-              HEALTHY=0
-              echo "Backend BuildSha='${SHA:-<none>}' != ${EXPECTED}; retrying"
-            fi
-            sleep 15
-          done
-          echo "::error::Backend never settled on ${EXPECTED} within 25 minutes after the image push. This is a deploy failure (Image Updater lag, crash loop, or sync failure), not a QA failure."
-          exit 1
+        uses: ./.github/actions/wait-backend-rollout
+        with:
+          base-url: ${{ env.BASE_URL }}
 
       - name: Auth round-trip
         env:

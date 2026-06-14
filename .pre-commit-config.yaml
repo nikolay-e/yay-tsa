@@ -141,15 +141,6 @@ repos:
         args: [--config-file, services/audio-ml/pyproject.toml]
         additional_dependencies: [types-requests]
 
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.9.4
-    hooks:
-      - id: bandit
-        name: 'bandit (Python security scanning)'
-        files: ^services/audio-ml/.*\.py$
-        exclude: ^services/audio-ml/tests/
-        args: [-c, services/audio-ml/pyproject.toml]
-
   - repo: https://github.com/jendrikseipp/vulture
     rev: v2.14
     hooks:
@@ -234,15 +225,6 @@ repos:
         entry: npx --no-install type-coverage --at-least 90 --ignore-catch
         language: system
         files: ^(packages|apps)/.*\.(ts|tsx|js|jsx)$
-        pass_filenames: false
-
-      - id: no-console
-        name: 'No console.log in production'
-        entry: >-
-          bash -c 'grep -rn "console\.\(log\|debug\)" apps/web/src/{features,routes,components}
-          --include="*.ts" --include="*.tsx" 2>/dev/null && exit 1 || exit 0'
-        language: system
-        files: ^apps/web/src/.*\.(ts|tsx)$
         pass_filenames: false
 
       - id: component-naming

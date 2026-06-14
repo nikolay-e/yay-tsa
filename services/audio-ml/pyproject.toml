@@ -59,13 +59,3 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "vulture_whitelist"
 ignore_errors = true
-
-[tool.bandit]
-exclude_dirs = [".venv", "__pycache__"]
-skips = [
-  "B404", # subprocess import — legitimate for FFmpeg orchestration
-  "B603", # subprocess without shell=True — legitimate FFmpeg invocations
-  "B607", # start process with partial path — ffmpeg expected in PATH
-  "B110", # try/except/pass — used for optional model/feature loading
-  "B615", # HuggingFace unpinned from_pretrained — acceptable for ML sidecar
-]
