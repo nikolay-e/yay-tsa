@@ -26,11 +26,6 @@ data class MbArtistSearch(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class MbReleaseSearch(
-    @JsonProperty("releases") val releases: List<MbRelease> = emptyList(),
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class MbEntity(
     val id: String = "",
     val score: Int = 0,
@@ -38,21 +33,6 @@ data class MbEntity(
     val name: String? = null,
     @JsonProperty("first-release-date") val firstReleaseDate: String? = null,
     @JsonProperty("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class MbRelease(
-    val id: String = "",
-    val score: Int = 0,
-    val title: String? = null,
-    @JsonProperty("track-count") val trackCount: Int? = null,
-    @JsonProperty("release-group") val releaseGroup: MbReleaseGroupRef? = null,
-    @JsonProperty("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class MbReleaseGroupRef(
-    val id: String = "",
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -114,22 +94,6 @@ class MusicBrainzClient(
                 score = it.score,
             )
         }
-    }
-
-    fun searchReleases(
-        album: String,
-        artist: String?,
-    ): List<MbRelease> {
-        val query =
-            buildString {
-                append("release:\"").append(escapeLucene(album)).append("\"")
-                if (!artist.isNullOrBlank() && !ReleaseMatcher.isVariousArtists(artist)) {
-                    append(" AND artist:\"").append(escapeLucene(artist)).append("\"")
-                }
-            }
-        val body = get("/release?query=${encode(query)}&fmt=json&limit=10") ?: return emptyList()
-        val parsed = runCatching { mapper.readValue<MbReleaseSearch>(body) }.getOrNull() ?: return emptyList()
-        return parsed.releases
     }
 
     private fun get(path: String): String? {

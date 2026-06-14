@@ -81,17 +81,17 @@ export class AdaptiveDjService extends BaseService {
   }
 
   async getDailyMix(limit = 30): Promise<AudioItem[]> {
-    const params = new URLSearchParams({ limit: String(limit) });
-    const result = await this.client.get<ItemsResult<AudioItem>>(
-      `/v1/recommend/daily-mix?${params.toString()}`
-    );
-    return result?.Items ?? [];
+    return this.getRecommendationFeed('daily-mix', limit);
   }
 
   async getDiscover(limit = 30): Promise<AudioItem[]> {
+    return this.getRecommendationFeed('discover', limit);
+  }
+
+  private async getRecommendationFeed(feed: string, limit: number): Promise<AudioItem[]> {
     const params = new URLSearchParams({ limit: String(limit) });
     const result = await this.client.get<ItemsResult<AudioItem>>(
-      `/v1/recommend/discover?${params.toString()}`
+      `/v1/recommend/${feed}?${params.toString()}`
     );
     return result?.Items ?? [];
   }

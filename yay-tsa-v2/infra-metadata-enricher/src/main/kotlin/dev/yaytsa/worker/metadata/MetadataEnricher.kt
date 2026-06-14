@@ -118,22 +118,12 @@ class MetadataEnricher(
             val match = ReleaseMatcher.match(local, candidates)
             if (match != null) {
                 album.releaseGroupMbid = match.candidate.mbid
-                album.musicbrainzId = representativeReleaseMbid(albumName, artistName, match.candidate.mbid)
                 downloadCoverIfMissing(albumId, match.candidate.mbid)
             }
         }
 
         album.metadataCheckedAt = now()
         albumRepo.save(album)
-    }
-
-    private fun representativeReleaseMbid(
-        albumName: String,
-        artistName: String?,
-        releaseGroupMbid: String,
-    ): String? {
-        val releases = musicBrainz.searchReleases(albumName, artistName)
-        return releases.firstOrNull { it.releaseGroup?.id == releaseGroupMbid }?.id
     }
 
     private fun downloadCoverIfMissing(
@@ -161,7 +151,6 @@ class MetadataEnricher(
                 return
             }
 
-        imageRepo.findByEntityIdAndIsPrimaryTrue(albumId)?.let { imageRepo.delete(it) }
         imageRepo.save(
             ImageJpa(
                 id = UUID.randomUUID(),
