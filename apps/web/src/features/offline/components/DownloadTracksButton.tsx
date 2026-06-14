@@ -35,11 +35,13 @@ export function DownloadTracksButton({
     downloadMany(tracks, reason).catch(() => {});
   };
 
-  const text = allDownloaded
-    ? 'Downloaded'
-    : downloading
-      ? `Downloading ${ready}/${tracks.length}`
-      : label;
+  let text = label;
+  if (allDownloaded) text = 'Downloaded';
+  else if (downloading) text = `Downloading ${ready}/${tracks.length}`;
+
+  let icon = <Download className="h-4 w-4" />;
+  if (downloading) icon = <Loader2 className="h-4 w-4 animate-spin" />;
+  else if (allDownloaded) icon = <Check className="h-4 w-4" />;
 
   return (
     <button
@@ -56,13 +58,7 @@ export function DownloadTracksButton({
       )}
       data-testid="download-album-button"
     >
-      {downloading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : allDownloaded ? (
-        <Check className="h-4 w-4" />
-      ) : (
-        <Download className="h-4 w-4" />
-      )}
+      {icon}
       {!iconOnly && text}
     </button>
   );

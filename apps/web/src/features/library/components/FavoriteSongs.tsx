@@ -55,7 +55,7 @@ export function FavoriteSongs() {
             <LoadErrorState
               message="Couldn't load your favorite songs"
               onRetry={() => {
-                void refetch();
+                refetch().catch(() => undefined);
               }}
             />
           );

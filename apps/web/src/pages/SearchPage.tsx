@@ -124,7 +124,7 @@ export function SearchPage() {
     <LoadErrorState
       message={semanticError instanceof Error ? semanticError.message : 'Search failed. Try again.'}
       onRetry={() => {
-        void refetchSemantic();
+        refetchSemantic().catch(() => undefined);
       }}
     />
   );

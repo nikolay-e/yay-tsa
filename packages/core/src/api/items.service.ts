@@ -32,13 +32,20 @@ export class ItemsService extends BaseService {
     if (query.StartIndex !== undefined) params.StartIndex = query.StartIndex;
     if (query.Limit !== undefined) params.Limit = query.Limit;
     if (query.SearchTerm) params.SearchTerm = query.SearchTerm;
-    if (query.ArtistIds) params.ArtistIds = query.ArtistIds.join(',');
-    if (query.AlbumIds) params.AlbumIds = query.AlbumIds.join(',');
-    if (query.GenreIds) params.GenreIds = query.GenreIds.join(',');
-    if (query.ExcludeGenres?.length) params.ExcludeGenres = query.ExcludeGenres.join(',');
     if (query.IsFavorite !== undefined) params.IsFavorite = query.IsFavorite;
-    if (query.Ids?.length) params.Ids = query.Ids.join(',');
-    if (query.Fields && query.Fields.length > 0) params.Fields = query.Fields.join(',');
+
+    const csvKeys = [
+      'ArtistIds',
+      'AlbumIds',
+      'GenreIds',
+      'ExcludeGenres',
+      'Ids',
+      'Fields',
+    ] as const;
+    for (const key of csvKeys) {
+      const value = query[key];
+      if (value && value.length > 0) params[key] = value.join(',');
+    }
 
     return params;
   }
