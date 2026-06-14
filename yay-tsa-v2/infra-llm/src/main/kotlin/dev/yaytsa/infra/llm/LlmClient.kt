@@ -30,7 +30,10 @@ class LlmClient(
             .connectTimeout(Duration.ofSeconds(10))
             .build()
 
-    fun complete(prompt: String): String? {
+    fun complete(
+        prompt: String,
+        user: String? = null,
+    ): String? {
         if (!enabled) {
             log.debug("LLM disabled; skipping completion ({} char prompt)", prompt.length)
             return null
@@ -40,15 +43,21 @@ class LlmClient(
             return null
         }
 
-        val body = buildRequestBody(prompt)
+        val body = buildRequestBody(prompt, user)
         val response = post(body) ?: return null
         return parseCompletion(response)
     }
 
-    private fun buildRequestBody(prompt: String): String {
+    private fun buildRequestBody(
+        prompt: String,
+        user: String?,
+    ): String {
         val root = objectMapper.createObjectNode()
         root.put("model", model)
         root.put("max_tokens", maxTokens)
+        if (!user.isNullOrBlank()) {
+            root.put("user", user)
+        }
         val messages = objectMapper.createArrayNode()
         if (!systemPrompt.isNullOrBlank()) {
             val systemMessage = objectMapper.createObjectNode()

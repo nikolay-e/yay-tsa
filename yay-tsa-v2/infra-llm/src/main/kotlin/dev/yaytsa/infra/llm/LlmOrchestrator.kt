@@ -101,7 +101,7 @@ class LlmOrchestrator(
                 seedCandidates,
             )
         val callStartMs = System.currentTimeMillis()
-        val response = llmClient.complete(prompt) ?: return
+        val response = llmClient.complete(prompt, user = userId.value) ?: return
         val latencyMs = (System.currentTimeMillis() - callStartMs).toInt()
 
         val trackSuggestions = parseTrackSuggestions(response)

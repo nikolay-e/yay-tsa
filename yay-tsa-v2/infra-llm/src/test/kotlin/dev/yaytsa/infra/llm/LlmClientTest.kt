@@ -101,7 +101,7 @@ class LlmClientTest :
             }
         }
 
-        "sends Bearer auth and a well-formed OpenAI chat body" {
+        "sends Bearer auth and a well-formed OpenAI chat body with the end-user id" {
             var seenAuth: String? = null
             var seenBody = ""
             withStub({ exchange ->
@@ -109,14 +109,26 @@ class LlmClientTest :
                 seenBody = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
                 exchange.respond(200, CHAT_COMPLETION_RESPONSE)
             }) { baseUrl ->
-                client(baseUrl).complete("suggest tracks")
+                client(baseUrl).complete("suggest tracks", user = "user-42")
             }
             seenAuth shouldBe "Bearer test-key"
             val body = ObjectMapper().readTree(seenBody)
             body.path("model").asText() shouldBe "GPT-5.4 Mini"
+            body.path("user").asText() shouldBe "user-42"
             val lastMessage = body.path("messages").last()
             lastMessage.path("role").asText() shouldBe "user"
             lastMessage.path("content").asText() shouldContain "suggest tracks"
+        }
+
+        "omits the user field when no end-user id is provided" {
+            var seenBody = ""
+            withStub({ exchange ->
+                seenBody = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
+                exchange.respond(200, CHAT_COMPLETION_RESPONSE)
+            }) { baseUrl ->
+                client(baseUrl).complete("suggest tracks")
+            }
+            ObjectMapper().readTree(seenBody).has("user") shouldBe false
         }
 
         "returns null without calling the API when disabled" {
