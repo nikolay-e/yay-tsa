@@ -374,7 +374,7 @@ jobs:
           base-url: https://yay-tsa.com
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@684072d5d468e8ab8f4f13ab829c40c1fa19137e # main (exit-gate on report contents + ZAP absolute servers)
+        uses: nikolay-e/autoqa@7941469a3b69430842e379faaa1a12c56cf877bf # main (exit-gate on report contents + ZAP absolute servers)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
