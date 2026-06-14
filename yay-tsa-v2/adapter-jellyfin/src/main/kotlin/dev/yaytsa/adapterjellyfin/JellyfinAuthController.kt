@@ -33,6 +33,8 @@ class JellyfinAuthController(
     private val eventPublisher: org.springframework.context.ApplicationEventPublisher,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
+    @org.springframework.beans.factory.annotation.Value("\${yaytsa.build.sha:unknown}")
+    private val buildSha: String,
 ) {
     private val secureRandom = SecureRandom()
 
@@ -141,7 +143,7 @@ class JellyfinAuthController(
     }
 
     @GetMapping("/System/Info/Public")
-    fun serverInfoPublic(): ResponseEntity<ServerInfo> = ResponseEntity.ok(ServerInfo())
+    fun serverInfoPublic(): ResponseEntity<ServerInfo> = ResponseEntity.ok(ServerInfo(buildSha = buildSha))
 
     @GetMapping("/System/Info")
     fun serverInfo(principal: Principal): ResponseEntity<Any> =

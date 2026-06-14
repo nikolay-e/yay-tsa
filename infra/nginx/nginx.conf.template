@@ -183,11 +183,15 @@ http {
 
         # Block access to hidden files (dotfiles) for security
         # Prevents exposure of .git, .env, .htaccess, etc.
-        # Note: ^~ prefix on .well-known above takes precedence
+        # Note: ^~ prefix on .well-known above takes precedence.
+        # Answer with RFC 7807 application/problem+json (not nginx's default
+        # text/html) so dotfile/encoded-dot fuzzing of /api/* paths returns the
+        # same error contract as the backend (content-type conformance).
         location ~ /\. {
-            deny all;
             access_log off;
             log_not_found off;
+            default_type application/problem+json;
+            return 403 '{"type":"about:blank","title":"Forbidden","status":403,"detail":"Access denied."}';
         }
 
         # X-Accel-Redirect internal location for media streaming

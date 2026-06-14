@@ -86,6 +86,7 @@ data class ServerInfo(
     @JsonProperty("Version") val version: String = "0.1.0",
     @JsonProperty("Id") val id: String = "yaytsa",
     @JsonProperty("StartupWizardCompleted") val startupWizardCompleted: Boolean = true,
+    @JsonProperty("BuildSha") val buildSha: String = "unknown",
 )
 
 val TICKS_PER_MS: Long = Constants.TICKS_PER_MS

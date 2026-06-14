@@ -99,31 +99,31 @@ jobs:
       BASE_URL: https://yay-tsa.com
 
     steps:
-      # /api/System/Info/Public exposes no build sha, so the new image cannot
-      # be fingerprinted from outside. Best effort instead: sit out the Image
-      # Updater + rollout window, then require three consecutive healthy
-      # answers from the permitAll system endpoints.
+      # /api/System/Info/Public echoes BuildSha (=main-<sha7> from the GIT_SHA the
+      # deployment injects), so the rolled-out image is fingerprintable from
+      # outside. Poll for the exact SHA plus three consecutive healthy reads
+      # instead of blindly sleeping out the Image Updater + rollout window.
       - name: Wait for backend rollout
         run: |
-          echo "Waiting 300s for Image Updater detection + rollout to settle"
-          sleep 300
-          DEADLINE=$((SECONDS + 900))
+          EXPECTED="main-${GITHUB_SHA:0:7}"
+          DEADLINE=$((SECONDS + 1500))
           HEALTHY=0
+          echo "Polling ${BASE_URL}/api/System/Info/Public until BuildSha=${EXPECTED}"
           while [ "$SECONDS" -lt "$DEADLINE" ]; do
-            if curl -fsS --max-time 10 "${BASE_URL}/api/System/Ping" >/dev/null &&
-              curl -fsS --max-time 10 "${BASE_URL}/api/System/Info/Public" | jq -e '.Id == "yaytsa"' >/dev/null; then
+            SHA=$(curl -fsS --max-time 10 "${BASE_URL}/api/System/Info/Public" | jq -r '.BuildSha // empty' || true)
+            if [ "$SHA" = "$EXPECTED" ]; then
               HEALTHY=$((HEALTHY + 1))
-              echo "Backend healthy (${HEALTHY}/3 consecutive probes)"
+              echo "Backend serves ${EXPECTED} (${HEALTHY}/3 consecutive probes)"
               if [ "$HEALTHY" -ge 3 ]; then
                 exit 0
               fi
             else
               HEALTHY=0
-              echo "Backend not healthy yet; retrying"
+              echo "Backend BuildSha='${SHA:-<none>}' != ${EXPECTED}; retrying"
             fi
-            sleep 10
+            sleep 15
           done
-          echo "::error::Rollout never became healthy: ${BASE_URL}/api/System/Ping did not answer 3 consecutive probes within 20 minutes after the image push. This is a deploy failure (crash loop or sync failure), not a QA failure."
+          echo "::error::Backend never settled on ${EXPECTED} within 25 minutes after the image push. This is a deploy failure (Image Updater lag, crash loop, or sync failure), not a QA failure."
           exit 1
 
       - name: Auth round-trip
