@@ -227,7 +227,10 @@ object PlaybackHandler {
             .copy(
                 currentEntryId = resolved,
                 playbackState = PlaybackState.PLAYING,
-                lastKnownPosition = if (resetPos) Duration.ZERO else s.lastKnownPosition,
+                // Snapshot the live position before re-anchoring lastKnownAt: a redundant Play on
+                // an already-PLAYING entry must not discard the elapsed delta (computePosition is
+                // a no-op when not PLAYING, so resume-from-paused is unaffected).
+                lastKnownPosition = if (resetPos) Duration.ZERO else s.computePosition(ctx.requestTime),
                 lastKnownAt = ctx.requestTime,
                 version = v,
             ).asSuccess(v)

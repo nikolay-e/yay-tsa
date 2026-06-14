@@ -30,6 +30,7 @@ import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -54,6 +55,10 @@ class LlmOrchestrator(
     companion object {
         private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
         private const val SIMILARITY_CANDIDATES = 20
+
+        // The prompt asks for 5; cap defensively so a model returning a long list cannot
+        // append an unbounded tail to the queue on a single tick (RewriteQueueTail only appends).
+        private const val MAX_SUGGESTIONS_PER_TICK = 10
     }
 
     @Scheduled(fixedDelay = 30_000, initialDelay = 10_000)
@@ -78,6 +83,18 @@ class LlmOrchestrator(
 
         val signals = adaptiveQuery.getSignals(sessionId, 20)
         if (signals.isEmpty()) return
+
+        // Cost/idempotency gate: only spend a (paid) LLM completion when a NEW signal has
+        // arrived since the last decision. getSignals returns the latest-N-ever, never
+        // "since last decision", so without this gate every active session is billed a full
+        // completion on every 30s scheduler tick forever, even with zero new listening activity.
+        val newestSignalId = runCatching { UUID.fromString(signals.first().id) }.getOrNull()
+        val lastDecisionSignalId =
+            decisionRepo
+                .findBySessionIdOrderByCreatedAtDesc(UUID.fromString(sessionId.value), PageRequest.of(0, 1))
+                .firstOrNull()
+                ?.triggerSignalId
+        if (newestSignalId != null && newestSignalId == lastDecisionSignalId) return
 
         val queueEntries = adaptiveQuery.getQueueEntries(sessionId)
 
@@ -282,6 +299,7 @@ class LlmOrchestrator(
                 val reason = node.path("reason").asText("llm-suggestion")
                 TrackId(trackId) to reason
             }.distinctBy { it.first }
+            .take(MAX_SUGGESTIONS_PER_TICK)
     }
 
     private fun extractJsonArray(response: String): com.fasterxml.jackson.databind.JsonNode {

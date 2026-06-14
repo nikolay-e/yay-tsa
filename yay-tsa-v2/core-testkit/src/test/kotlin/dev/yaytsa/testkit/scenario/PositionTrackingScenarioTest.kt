@@ -109,4 +109,62 @@ class PositionTrackingScenarioTest :
 
             readState().computePosition(clock.now()) shouldBe Duration.ofSeconds(5)
         }
+
+        test("redundant Play while already PLAYING preserves accumulated position") {
+            val clock = FixedClock()
+            val sessionRepo = InMemoryPlaybackSessionRepository()
+            val knownTracks = setOf(TrackId("t1"))
+            val useCases =
+                PlaybackUseCases(
+                    sessionRepo = sessionRepo,
+                    idempotencyStore = InMemoryIdempotencyStore(),
+                    capabilities = testCapabilitiesRegistry(),
+                    txExecutor = DirectTransactionalExecutor(),
+                    outbox = RecordingOutbox(),
+                    trackValidator = { ids -> ids.filter { it in knownTracks }.toSet() },
+                    trackDurationLoader = { Duration.ofMinutes(5) },
+                )
+
+            val userId = UserId("user-1")
+            val sessionId = SessionId("session-1")
+            val deviceId = DeviceId("device-1")
+            var cmdCounter = 0
+
+            fun ctx(expectedVersion: AggregateVersion) =
+                CommandContext(
+                    userId = userId,
+                    protocolId = ProtocolId("JELLYFIN"),
+                    requestTime = clock.now(),
+                    idempotencyKey = IdempotencyKey("idem-${++cmdCounter}"),
+                    expectedVersion = expectedVersion,
+                )
+
+            fun currentVersion() = sessionRepo.find(userId, sessionId)?.version ?: AggregateVersion.INITIAL
+
+            fun readState() = useCases.getPlaybackState(userId, sessionId)!!
+
+            useCases
+                .execute(
+                    StartPlaybackWithTracks(
+                        sessionId = sessionId,
+                        deviceId = deviceId,
+                        leaseDuration = Duration.ofMinutes(30),
+                        entries = listOf(QueueEntry(QueueEntryId("e1"), TrackId("t1"))),
+                    ),
+                    ctx(currentVersion()),
+                ).shouldBeInstanceOf<CommandResult.Success<*>>()
+
+            clock.advance(45)
+            readState().computePosition(clock.now()) shouldBe Duration.ofSeconds(45)
+
+            // Redundant Play (no entryId) on the already-PLAYING entry must NOT rewind the
+            // position: it re-anchors lastKnownAt, so lastKnownPosition has to be snapshotted.
+            useCases
+                .execute(Play(sessionId, deviceId), ctx(currentVersion()))
+                .shouldBeInstanceOf<CommandResult.Success<*>>()
+
+            readState().computePosition(clock.now()) shouldBe Duration.ofSeconds(45)
+            clock.advance(15)
+            readState().computePosition(clock.now()) shouldBe Duration.ofSeconds(60)
+        }
     })
