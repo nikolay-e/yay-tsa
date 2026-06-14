@@ -135,6 +135,7 @@ class MusicBrainzClient(
     private fun get(path: String): String? {
         val uri = URI.create(baseUrl + path)
         var attempt = 0
+        var lastError = "unknown"
         while (attempt <= maxRetries) {
             rateLimiter.acquire()
             val request =
@@ -145,31 +146,31 @@ class MusicBrainzClient(
                     .timeout(Duration.ofSeconds(10))
                     .GET()
                     .build()
-            val response =
-                runCatching { httpClient.send(request, HttpResponse.BodyHandlers.ofString()) }
-                    .getOrElse {
-                        log.warn("MusicBrainz request to {} failed: {}", uri, it.message)
-                        attempt++
-                        backoff(attempt)
-                        return@getOrElse null
+            val result = runCatching { httpClient.send(request, HttpResponse.BodyHandlers.ofString()) }
+            val response = result.getOrNull()
+            if (response == null) {
+                lastError = result.exceptionOrNull()?.message ?: "request failed"
+                log.warn("MusicBrainz request to {} failed: {}", uri, lastError)
+            } else {
+                when (val code = response.statusCode()) {
+                    in 200..299 -> return response.body()
+                    404 -> return null
+                    429, 503, in 500..599 -> {
+                        lastError = "HTTP $code"
+                        log.debug("MusicBrainz transient {} for {}", code, uri)
                     }
-            if (response == null) continue
-
-            when (response.statusCode()) {
-                in 200..299 -> return response.body()
-                429, 503 -> {
-                    attempt++
-                    log.debug("MusicBrainz throttled ({}) for {}, retry {}", response.statusCode(), uri, attempt)
-                    backoff(attempt)
-                }
-                404 -> return null
-                else -> {
-                    log.warn("MusicBrainz returned {} for {}", response.statusCode(), uri)
-                    return null
+                    else -> {
+                        log.warn("MusicBrainz returned {} for {}", code, uri)
+                        return null
+                    }
                 }
             }
+            attempt++
+            if (attempt <= maxRetries) backoff(attempt)
         }
-        return null
+        throw MetadataProviderUnavailableException(
+            "MusicBrainz unavailable after $maxRetries retries for $uri: $lastError",
+        )
     }
 
     private fun backoff(attempt: Int) {

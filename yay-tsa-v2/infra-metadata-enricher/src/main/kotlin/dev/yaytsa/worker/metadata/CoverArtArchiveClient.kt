@@ -46,21 +46,21 @@ class CoverArtArchiveClient(
         val response =
             runCatching { httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray()) }
                 .getOrElse {
-                    log.warn("Cover Art Archive request to {} failed: {}", uri, it.message)
-                    return null
+                    throw MetadataProviderUnavailableException(
+                        "Cover Art Archive request to $uri failed: ${it.message}",
+                        it,
+                    )
                 }
-        return when (response.statusCode()) {
+        return when (val code = response.statusCode()) {
             in 200..299 -> {
                 val contentType = response.headers().firstValue("Content-Type").orElse("")
                 CoverArt(response.body(), extensionFor(contentType))
             }
             404 -> null
-            429, 503 -> {
-                log.debug("Cover Art Archive throttled ({}) for {}", response.statusCode(), uri)
-                null
-            }
+            429, 503, in 500..599 ->
+                throw MetadataProviderUnavailableException("Cover Art Archive transient $code for $uri")
             else -> {
-                log.debug("Cover Art Archive returned {} for {}", response.statusCode(), uri)
+                log.debug("Cover Art Archive returned {} for {}", code, uri)
                 null
             }
         }
