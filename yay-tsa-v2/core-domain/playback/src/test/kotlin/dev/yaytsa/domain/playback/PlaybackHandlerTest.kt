@@ -351,7 +351,11 @@ class PlaybackHandlerTest :
                 )
             val r = PlaybackHandler.handle(s, Play(sessionId, devA, entry.id), ctx(s.version), deps())
             r.shouldBeInstanceOf<CommandResult.Success<PlaybackSessionAggregate>>()
-            r.value.lastKnownPosition shouldBe Duration.ofSeconds(42)
+            // True position at command time is 42s + 5s elapsed = 47s. A redundant Play
+            // re-anchors lastKnownAt to now, so lastKnownPosition must be snapshotted to the
+            // live 47s — keeping the stale 42s would silently rewind playback by the elapsed delta.
+            r.value.lastKnownPosition shouldBe Duration.ofSeconds(47)
+            r.value.computePosition(now) shouldBe Duration.ofSeconds(47)
         }
 
         test("MoveQueueEntry reorders entries") {
