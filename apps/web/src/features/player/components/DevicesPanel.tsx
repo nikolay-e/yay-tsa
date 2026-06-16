@@ -20,7 +20,7 @@ import { toast } from '@/shared/ui/Toast';
 import { Modal } from '@/shared/ui/Modal';
 import { useDeviceStore } from '../stores/device-store';
 
-function deviceIcon(clientName: string | null) {
+function deviceIcon(clientName: string | null | undefined) {
   const name = (clientName ?? '').toLowerCase();
   if (name.includes('mobile') || name.includes('phone') || name.includes('android'))
     return Smartphone;
@@ -84,7 +84,7 @@ function DeviceItem({
             <p className="text-text-secondary truncate text-xs">
               {device.nowPlayingItemName}
               {' · '}
-              {formatPosition(device.positionMs)}
+              {formatPosition(device.positionMs ?? 0)}
             </p>
           ) : (
             <p className="text-text-tertiary text-xs">{device.isOnline ? 'Idle' : 'Offline'}</p>

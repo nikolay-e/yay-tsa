@@ -1,10 +1,30 @@
 import type { DeviceInfo, TransferLeaseResult } from './device.types.js';
 import { BaseService } from './base-api.service.js';
 
+interface DeviceSessionDto {
+  sessionId: string;
+  deviceId: string;
+  userId?: string;
+  lastSeenAt: string;
+}
+
+// 3 missed 15s heartbeats — a device quiet longer than this is treated as offline.
+const ONLINE_WINDOW_MS = 45_000;
+
 export class DeviceService extends BaseService {
   async listDevices(): Promise<DeviceInfo[]> {
-    const result = await this.client.get<DeviceInfo[]>('/v1/me/devices');
-    return result ?? [];
+    const rows = await this.client.get<DeviceSessionDto[]>('/v1/me/devices');
+    if (!rows) return [];
+    const now = Date.now();
+    return rows.map(row => {
+      const lastSeenMs = Date.parse(row.lastSeenAt);
+      return {
+        sessionId: row.sessionId,
+        deviceId: row.deviceId,
+        lastUpdate: row.lastSeenAt,
+        isOnline: Number.isFinite(lastSeenMs) && now - lastSeenMs < ONLINE_WINDOW_MS,
+      };
+    });
   }
 
   async heartbeat(): Promise<void> {

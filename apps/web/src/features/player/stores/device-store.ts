@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { DeviceService, getOrCreateDeviceId, type DeviceInfo } from '@yay-tsa/core';
+import { DeviceService, ItemsService, getOrCreateDeviceId, type DeviceInfo } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 
@@ -67,10 +67,26 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
     try {
       const result = await service.transferLease(sourceSessionId, getOrCreateDeviceId());
       const { useSessionStore } = await import('./session-store');
+      const { usePlayerStore } = await import('./player.store');
+      // Repopulate the adaptive/DJ queue tail if the transferred session had one
+      // (no-op for a plain now-playing transfer — restoreSession early-returns).
       await useSessionStore.getState().restoreSession();
-      if (result.positionMs > 0) {
-        const { usePlayerStore } = await import('./player.store');
-        usePlayerStore.getState().seek(result.positionMs / 1000);
+      // restoreSession only rebuilds the queue; it never starts the *current* entry.
+      // The backend hands back the live track + position, so play it here — otherwise
+      // a plain transfer lands on an empty audio engine and the seek hits nothing.
+      // playTrack advances within the restored DJ queue when a session is active and
+      // sets a single-track queue otherwise.
+      if (result.currentEntryId) {
+        const client = useAuthStore.getState().client;
+        if (client) {
+          const [track] = await new ItemsService(client).getItemsByIds([result.currentEntryId]);
+          if (track) {
+            await usePlayerStore.getState().playTrack(track);
+            if (result.positionMs > 0) {
+              usePlayerStore.getState().seek(result.positionMs / 1000);
+            }
+          }
+        }
       }
     } catch (error) {
       log.player.error('Transfer failed', error);

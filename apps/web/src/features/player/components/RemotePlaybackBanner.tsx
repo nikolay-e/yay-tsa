@@ -5,7 +5,7 @@ import { toast } from '@/shared/ui/Toast';
 import { useDeviceStore } from '../stores/device-store';
 import { useActiveRemotePlayback } from '../hooks/useActiveRemotePlayback';
 
-function deviceIcon(clientName: string | null) {
+function deviceIcon(clientName: string | null | undefined) {
   const name = (clientName ?? '').toLowerCase();
   if (name.includes('mobile') || name.includes('phone') || name.includes('android'))
     return Smartphone;
