@@ -436,6 +436,7 @@ Range `8ab416a0..HEAD` (commits f8458059 bridge, 483bb7aa lease-transfer/SSE, 14
 ### 🔴 TRANSFER-404 GOAL NOT MET — "transfer here" still 404s for web devices (task drift)
 
 `JellyfinDevicesController.transferLease` (adapter-jellyfin/.../JellyfinDevicesController.kt:201-256):
+
 ```kotlin
 val current =
     playbackUseCases.getPlaybackState(uid, sid)
@@ -444,12 +445,14 @@ val currentOwner =
     current.lease?.owner
         ?: return problemDetail(HttpStatus.CONFLICT, "Conflict", "No active lease on session")
 ```
+
 `getPlaybackState` = `sessionRepo.find(userId, sessionId)` (PlaybackUseCases.kt:79-82) — returns null unless a `PlaybackSessionAggregate` was persisted. An aggregate is persisted ONLY inside `PlaybackUseCases.execute` on a successful command (PlaybackUseCases.kt:62-72: `empty(...)` is created in-memory, but only `sessionRepo.save` on Success persists it). The only commands that can succeed on an empty session are `AcquireLease`/`StartPlaybackWithTracks` (PlaybackUseCases.kt:60-61 comment).
 
 Across the whole adapter layer (`grep AcquireLease( / StartPlaybackWithTracks(` non-test) the ONLY `playbackUseCases.execute` calls are:
+
 - `JellyfinDevicesController.kt:170` (`/command`) — itself gated on a pre-existing aggregate + lease.
 - `JellyfinDevicesController.kt:235` (`/transfer`) — itself gated on a pre-existing aggregate + lease.
-`AcquireLease(` non-test appears ONLY in `core-domain/playback/Commands.kt` (definition) and `adapter-mpd/MpdCommandHandler.kt`. **No Jellyfin/web endpoint ever issues AcquireLease or StartPlaybackWithTracks.**
+  `AcquireLease(` non-test appears ONLY in `core-domain/playback/Commands.kt` (definition) and `adapter-mpd/MpdCommandHandler.kt`. **No Jellyfin/web endpoint ever issues AcquireLease or StartPlaybackWithTracks.**
 
 The web client confirms this: `packages/core` has NO `AcquireLease`/`StartPlaybackWithTracks`/`startPlayback`/lease call anywhere (grep clean). Web playback is local HTML5 audio + reporting via `/Sessions/Playing[/Progress|/Stopped]`, and `reportPlaying`/`reportProgress`/`reportStopped` (JellyfinSessionsController.kt:130-176) only record signals + resume positions — they do NOT touch the playback aggregate. A web device appears in the device list purely via `/v1/me/devices/heartbeat` → `DeviceSessionProjection.register` (an in-memory presence map, NO aggregate).
 
@@ -480,6 +483,7 @@ Consequence: `RemoteCommandSseBridge.publish` reads the live `DeviceEventBroadca
 `DeviceEventBroadcaster` has no scheduled ping. A dead emitter is removed only on the next `emit` that throws (:44-47) or at the 30-min timeout (:52). Bounded and self-healing via client reconnect; minor. (Same shape as the existing `GroupEventBroadcaster`, so consistent with the codebase.)
 
 ### Client hooks — no regression found
+
 `useRemoteCommands.ts` and `useDeviceEvents.ts`: the consecutive-failure/`degradedReported` counters reset correctly on `onopen` (:131-135 / :90-93) and increment per `onerror`; reconnect backoff `min(2000*attempts, 30000)` is intact; cleanup closes the EventSource and clears the timer. Wire shape matches: bridge emits `{targetDeviceId, type, payload}`; client `JSON.parse` → `RemoteCommand` with `targetDeviceId`/`type`/`payload` (device.types.ts:46-52); target-device filter `cmd.targetDeviceId !== ownDeviceId` (:95) is correct. STOP handling (halts local audio on transfer-away, :60-64) is correct IF a STOP ever arrives — which, per the 🔴 above, it will not for web-to-web transfers.
 
 **Severity counts (Scout C): 🔴 1 · 🟡 2 · 🔵 2.** TRANSFER-404 GOAL: **NOT MET** — the 404 is structurally guaranteed for PWA devices because no web/Jellyfin path ever creates the `PlaybackSessionAggregate` that `transfer`/`command` require; the SSE delivery pipeline is correct but sits behind an unreachable gate.
@@ -489,46 +493,59 @@ Consequence: `RemoteCommandSseBridge.publish` reads the live `DeviceEventBroadca
 Range `8ab416a0..HEAD`, artwork area only. Build + tests already green; these are logic bugs the compiler/tests miss.
 
 ### 🟡 Image-driven backfill re-hammers external APIs forever for permanently-coverless entities
+
 `infra-metadata-enricher/.../MetadataEnricher.kt` `enrichAlbums()` / `enrichArtists()` / `enrichAudiobookTrackCovers()`.
+
 ```kotlin
 val pending =
     (albumRepo.findByMetadataCheckedAtIsNull(batchSize, 0) + albumRepo.findWithoutPrimaryImage(batchSize, 0))
         .distinctBy { it.entityId }
 ```
-`findWithoutPrimaryImage` selects rows with NO primary image and is **not gated by `metadata_checked_at`** (by design — "self-healing"). But there is **no negative-result memo and no success requirement**: an album/artist/audiobook track that legitimately has no obtainable cover (no MusicBrainz release-group match, or CAA/OpenLibrary 404) writes no image row, so it reappears in `findWithoutPrimaryImage` on the *next* poll cycle (default 5 min, `poll-interval-ms:300000`). Each cycle re-runs a full `musicBrainz.searchReleaseGroups(...)` / `searchArtists(...)` / CAA fetch for the same permanently-failing entities — indefinitely. `enrichAlbum` does stamp `metadata_checked_at = now()`, but that stamp is irrelevant to the image-driven query, so it does not break the loop.
+
+`findWithoutPrimaryImage` selects rows with NO primary image and is **not gated by `metadata_checked_at`** (by design — "self-healing"). But there is **no negative-result memo and no success requirement**: an album/artist/audiobook track that legitimately has no obtainable cover (no MusicBrainz release-group match, or CAA/OpenLibrary 404) writes no image row, so it reappears in `findWithoutPrimaryImage` on the _next_ poll cycle (default 5 min, `poll-interval-ms:300000`). Each cycle re-runs a full `musicBrainz.searchReleaseGroups(...)` / `searchArtists(...)` / CAA fetch for the same permanently-failing entities — indefinitely. `enrichAlbum` does stamp `metadata_checked_at = now()`, but that stamp is irrelevant to the image-driven query, so it does not break the loop.
 Why it's wrong: unbounded external-API traffic to MusicBrainz/CAA for entities that can never resolve; violates "fetch once, then leave it alone" etiquette even though the global 1 req/s `RateLimiter` and `batchSize` cap throughput. On a large art-less library this is continuous background hammering.
-Fix: record a per-entity *artwork* attempt timestamp (separate from `metadata_checked_at`) and exclude entities attempted within a backoff window (e.g. `image_checked_at > now() - 7d`), or add an `image_attempts`/`image_checked_at` column to the WHERE of `findWithoutPrimaryImage`. Success (image row written) naturally drops them from the set; failures need their own cooldown.
+Fix: record a per-entity _artwork_ attempt timestamp (separate from `metadata_checked_at`) and exclude entities attempted within a backoff window (e.g. `image_checked_at > now() - 7d`), or add an `image_attempts`/`image_checked_at` column to the WHERE of `findWithoutPrimaryImage`. Success (image row written) naturally drops them from the set; failures need their own cooldown.
 
 ### 🟡 Backfill starves entities beyond the first batch (OFFSET pinned to 0)
+
 `AlbumRepository.findWithoutPrimaryImage` / `ArtistRepository.findWithoutPrimaryImage` / `EntityGenreRepository.findAudiobookTrackIdsWithoutPrimaryImage`, called as `findWithoutPrimaryImage(batchSize, 0)` every cycle.
+
 ```kotlin
 "... ORDER BY a.entity_id LIMIT :limit OFFSET :offset"   // always offset = 0
 ```
-Combined with the no-memo issue above: each cycle the query returns the *same* first `batchSize` art-less rows (deterministic `ORDER BY entity_id`, `OFFSET 0`). If those first N can never get a cover, art-less entities ranked after them by UUID are **never reached** — the cursor never advances. The one-shot `findByMetadataCheckedAtIsNull` path doesn't help because it stamps and drops out, but the image-driven path is stuck on the head of the list.
+
+Combined with the no-memo issue above: each cycle the query returns the _same_ first `batchSize` art-less rows (deterministic `ORDER BY entity_id`, `OFFSET 0`). If those first N can never get a cover, art-less entities ranked after them by UUID are **never reached** — the cursor never advances. The one-shot `findByMetadataCheckedAtIsNull` path doesn't help because it stamps and drops out, but the image-driven path is stuck on the head of the list.
 Why it's wrong: a wrong "backfill set" in practice — only a prefix of art-less entities is ever attempted once the prefix is saturated with permanent failures.
 Fix: same as above — a cooldown column makes resolved/cooled entities fall out of the result so the window advances. Without that, OFFSET 0 + permanent failures = permanent starvation of the tail.
 
 ### 🔵 `.img` cover-cache files served with assumed `image/jpeg` content-type
+
 `EmbeddedCoverExtractor.kt` writes `"$key.img"`; `ThumbnailService.contentTypeForFile` maps unknown extensions (incl. `.img`) to `image/jpeg`:
+
 ```kotlin
 private fun contentTypeForFile(path: Path): String =
     when (path.toString().substringAfterLast('.').lowercase()) {
         "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg"
     }
 ```
+
 Embedded tag artwork can be PNG. When the client requests the image with **no** `maxWidth/maxHeight` (original passthrough), the bytes are served verbatim but labelled `image/jpeg`. Browsers sniff `<img>` content so it renders, but the declared Content-Type is wrong (matters for strict consumers / `fetch().blob().type`). With a size param `ImageIO.read` transparently decodes and re-encodes to real JPEG, so the mislabel only bites on raw passthrough. Low impact.
 Fix: store the artwork's real extension (jaudiotagger `Artwork.mimeType` → ext) instead of a generic `.img`, or sniff magic bytes in `contentTypeForFile`.
 
 ### 🔵 Delete-then-insert of a same-entity Primary row risks the partial-unique-index under Hibernate flush ordering
+
 New `ensureAudiobookTrackCover` (scanner) and the unchanged `ensureAlbumCover` both do, when a stale row exists whose file is gone:
+
 ```kotlin
 if (existing != null) imageRepo.delete(existing)
 imageRepo.save(ImageJpa(... entityId = trackId, isPrimary = true ...))
 ```
+
 `V006__images_primary_unique.sql` adds `CREATE UNIQUE INDEX idx_images_one_primary ON images(entity_id) WHERE is_primary`. Hibernate's default action-queue order within a flush is INSERT-before-DELETE, so within the one `@Transactional upsertTrack` the new row can hit the partial unique index before the old row is deleted → constraint violation at flush/commit. Narrow trigger (only when a prior Primary row points at a now-missing file). Pre-existing pattern (`ensureAlbumCover`, `downloadCoverIfMissing` guard against it by existing-checks), but `ensureAudiobookTrackCover` newly extends the delete-then-insert branch to track entities.
 Fix: `imageRepo.flush()` (or `saveAndFlush` on the delete) between delete and save, or update the existing row's `path`/`size` in place instead of delete+insert.
 
 ### Verified correct (no finding)
+
 - External-API claims confirmed via Open Library docs: `?default=false` returns a real 404 (not a blank placeholder), and the **CoverID** path (`/b/id/{id}-L.jpg`) is **not** rate-limited (only ISBN/OCLC/LCCN/OLID are, 100/IP/5min). `OpenLibraryCoverClient` correctly uses `/b/id/` and `default=false`. Comment is accurate.
 - MusicBrainz 1 req/s etiquette preserved: `OpenLibraryCoverClient` shares the enricher's single global `RateLimiter` (`rateLimiter.acquire()` before both search.json and cover fetch).
 - Flag gating is default-OFF and consistent end to end: `openlibrary-enabled:false` (application.yml), `METADATA_OPENLIBRARY_ENABLED: {{ default false ... }}` (configmap), `openLibraryEnabled:false` (values.yaml). `enrichAudiobookTrackCover` only calls Open Library inside `if (openLibraryEnabled)`.
@@ -544,43 +561,60 @@ Fix: `imageRepo.flush()` (or `saveAndFlush` on the delete) between delete and sa
 **Root cause shared by all findings below:** the diff gates cover requests on `track.AlbumPrimaryImageTag`, but the v2 backend **never populates that field**. Verified in `TrackProjection.kt:11-38` (`Track.toJellyfinBaseItem`) and `JellyfinItemsController.kt:455,507` — the only image signal a v2 item carries is `ImageTags = {Primary: <ownId>}` (set when `coverImagePath != null`); `albumPrimaryImageTag` is declared in the DTO (`JellyfinDtos.kt:14`, `adapter-shared JellyfinDtos.kt:14`) but is assigned nowhere in the backend (`grep 'albumPrimaryImageTag =' yay-tsa-v2/` → zero hits). Therefore on the wire `AudioItem.AlbumPrimaryImageTag` is **always `undefined`** for this server. Additionally the image endpoint `GET /Items/{itemId}/Images/{imageType}` (`JellyfinMediaController.kt:40-76`) **ignores the `tag` query param** (it isn't even a declared parameter) and resolves the cover purely by id — `getPrimaryImage(id)` or embedded artwork, handling both album ids and track ids (`:88-99`). So the pre-change "request by id, no tag" path returned 200, and the new tag-gate suppresses valid covers. The canonical pattern these files were meant to mirror (MediaCard.tsx:51, AlbumCard/ArtistCard, AlbumDetailPage/ArtistDetailPage, usePrefetchArtwork) gates on **`ImageTags?.Primary`** — NOT `AlbumPrimaryImageTag`. The track-image helpers gate on the wrong field.
 
 ### 🔴 1 — Offline cover download dead-gated: downloaded tracks lose offline artwork
+
 `apps/web/src/features/offline/stores/offline.store.ts:355`
+
 ```ts
 if (track.AlbumPrimaryImageTag && !(await store.getCover(coverKey))) {
   const imageUrl = client.getImageUrl(coverKey, 'Primary', { tag: track.AlbumPrimaryImageTag, ... });
 ```
+
 `coverKeyFor(track)` is `AlbumId ?? Id` (:130-132) — a valid id the backend serves covers for. The pre-change code (8ab416a0) fetched `getImageUrl(coverKey, 'Primary', {tag: undefined})` with NO `AlbumPrimaryImageTag` guard, and because the endpoint ignores the tag, it returned 200 and cached the cover. The new `track.AlbumPrimaryImageTag &&` guard is **always false** for v2, so the entire cover-fetch block is now dead code: **no offline cover is ever cached**. Combined with `TrackList.tsx:74-78` falling back to `getCoverUrl(track)` when offline, downloaded tracks now render the placeholder offline. **Why wrong:** gates on a field that is structurally always undefined. **Fix:** gate on the real cover signal — `if (!(await store.getCover(coverKey)))` and fetch by `coverKey` with `tag: track.ImageTags?.Primary ?? track.AlbumPrimaryImageTag` (tag is cosmetic; the id drives the 200). At minimum drop the `AlbumPrimaryImageTag &&` precondition.
 
 ### 🔴 2 — Track-list / player-bar / album-colors covers all fall to placeholder
+
 `apps/web/src/shared/utils/track-image.ts:20-32` (helper) — callers: `TrackList.tsx:61-67`, `PlayerBar.tsx:401-415`, `useAlbumColors.ts:49-55`, all passing `albumPrimaryImageTag: track.AlbumPrimaryImageTag`.
+
 ```ts
 if (albumPrimaryImageTag) {
   return getImageUrl(albumId ?? trackId, 'Primary', { tag: albumPrimaryImageTag, ... });
 }
 return getImagePlaceholder();   // <- ALWAYS taken for v2
 ```
+
 The removed branch was `if (albumId) return getImageUrl(albumId, 'Primary', { maxWidth, maxHeight });` — the path that actually delivered every track cover (request album cover by album id, no tag, endpoint serves 200). Since `AlbumPrimaryImageTag` is always undefined, the helper now returns the CSS placeholder for **every** track in every list, the player bar, and the now-playing color extraction. **Why wrong:** the gate's positive branch is unreachable on this backend; the only working path was deleted. **Fix:** gate on the real signal. Either thread `imageTags?.Primary` into `TrackImageOptions` and gate on it, or restore the id-based fallback: when no tag, still `return getImageUrl(albumId ?? trackId, 'Primary', { maxWidth, maxHeight })` (the endpoint resolves the cover by id, and a track-id request also serves embedded/track-level art for audiobooks). The placeholder should only be the final fallback when neither `albumId` nor `trackId` exists.
 
 ### 🔴 3 — Media Session lockscreen artwork never populated
+
 `apps/web/src/features/player/stores/player.store.ts:433-444` (`updateSessionMetadata`)
+
 ```ts
 let imageUrl: string | undefined;
 if (track.AlbumPrimaryImageTag) {
-  imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', { tag, maxWidth:256, maxHeight:256 });
+  imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
+    tag,
+    maxWidth: 256,
+    maxHeight: 256,
+  });
 }
 // removed: else if (track.AlbumId) { imageUrl = getImageUrl(track.AlbumId, 'Primary', {256x256}); }
 ```
+
 Same always-undefined field. The deleted `else if (track.AlbumId)` branch was the one that ever produced a URL. Result: `session.updateMetadata({ ..., imageUrl: undefined })` for every track → **OS lockscreen / media-notification artwork is now always blank** on this backend. **Why wrong:** the comment claims it "leaves artwork undefined rather than pointing at a missing cover," but the cover is NOT missing — it's served by id; the gate is reading the wrong field. **Fix:** mirror the helper fix — populate `imageUrl` from `track.AlbumId ?? track.Id` whenever the track has any cover (`track.ImageTags?.Primary`), passing the tag only as a cache hint.
 
 ### 🔵 4 — RadioSeedCard gate is too loose (does not actually suppress 404s), but no cover regression
+
 `apps/web/src/features/radio/components/RadioSeedCard.tsx:22-27`
+
 ```ts
 if (hasError || !seed.albumId || !seed.imageTag) return getImagePlaceholder();
 return getImageUrl(seed.albumId, 'Primary', { maxWidth: px, maxHeight: px, tag: seed.imageTag });
 ```
+
 Here the field IS populated (distinct `/v1` DTO): backend sets `imageTag = track.albumId?.value` (`JellyfinAdaptiveController.kt:699`) — i.e. the album id, not a content hash and **not** a presence signal for an actual cover. So: (a) covers still load for seeds with an album (✅ no regression vs the old `albumId`-based path); but (b) the gate's intent — "only request a cover the seed actually advertises" — is NOT achieved: a seed whose album has no `coverImagePath` still has `imageTag == albumId` (truthy), so the request still fires and still 404s into a ResourceError. The 404-noise goal is unmet for cover-less albums. **Why minor:** no valid cover is hidden; only the noise-suppression objective is partially missed. **Fix (backend, optional):** set `imageTag` to the album id only when the album/track actually has a cover (mirror `coverImagePath?.let { albumId }`), so the client gate becomes meaningful.
 
 ### 🔵 5 — Audiobook covers OK (separate code path), confirming the correct pattern
+
 `apps/web/src/pages/AudiobooksPage.tsx:158-159` renders via `MediaCard itemId={book.coverItemId} imageTag={book.coverImageTag}`, where `useAudiobooks.ts:145-146` sets `coverItemId = first.Id ?? albumId` and `coverImageTag = first.AlbumPrimaryImageTag ?? first.ImageTags?.Primary`. Because it falls back to `ImageTags?.Primary` (which v2 DOES populate, = track id) and passes the track id as the image id, audiobook covers render correctly — verified against `AudiobookCoverIntegrationTest.kt` (track-level Primary row → `/Items/{trackId}/Images/Primary` 200 AND `ImageTags.Primary == trackId`). This is the pattern the three regressed call-sites above should have used: **gate on `ImageTags?.Primary`, request by id**. No bug here; included as the reference for the fixes.
 
 **Severity counts (Scout B): 🔴 3 · 🟡 0 · 🔵 2.** GATING-CORRECTNESS GOAL: **NOT MET** — the gate keys off `AlbumPrimaryImageTag`, a field the v2 backend never sets, so it is the always-gated (too-aggressive) failure mode: every track-list cover, every offline cover download, and all Media Session lockscreen artwork silently fall to the placeholder. The endpoint ignores the tag and serves covers by id, so the pre-change id-based requests were correct; the fix is to gate on `ImageTags?.Primary` (matching MediaCard / the audiobook path) and keep requesting by id.
@@ -595,17 +629,22 @@ Range `git diff 8ab416a0..HEAD`. Build/tests reported GREEN; findings below are 
 `apps/web/src/features/player/stores/player.store.ts` `loadAndPlay` (lines 649–718) and `packages/platform/src/web/html5-audio.ts` `load()` (340–428) + `play()` (440–484).
 
 The engine's `blendActive` flag is set `false` in only two places: `dispose()` (html5-audio.ts:686) and `exitVocalBlend()` (html5-audio.ts:846). Plain `load()`/`seek()` never reset it. During karaoke, `schedulePreload()` skips preloading (player.store.ts:464-466), so on natural track end `onEnded` ALWAYS takes the non-gapless branch:
+
 ```
 if (preloader.isReady(next.Id)) { await gaplessTransition(...) }   // never true in karaoke
 else { ... await loadAndPlay(next, signal); }                       // player.store.ts:859-864
 ```
+
 `loadAndPlay` resets only store state (`set({ ..., isKaraokeMode: false })`, line 679) and then:
+
 ```
 await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);   // line 691 — does NOT clear blendActive
 ...
 await engine.play();                                            // line 711
 ```
+
 `engine.play()` hits the blend branch:
+
 ```
 await this.audio.play();
 if (this.blendActive) {                                         // html5-audio.ts:463 — still true
@@ -613,6 +652,7 @@ if (this.blendActive) {                                         // html5-audio.t
   await this.audioSecondary.play().catch(() => {});             // resumes PREVIOUS track's vocals stem
 }
 ```
+
 `audioSecondary` still holds the previous track's vocals `src` (only cleared in `exitVocalBlend`/`dispose`). Result: the new track's full-mix plays on the primary element WHILE the previous track's vocals stem plays on the secondary at the blend gain — audible double-audio. It self-corrects only once `commitPlaybackSideEffects` → `syncKaraokeForTrack` → `enterVocalBlend(newTrack)` finishes its async stem reload (a network fetch), so the glitch lasts the whole stem-load window on every karaoke track change.
 Worse case: re-entry in `commitPlaybackSideEffects` is gated on `get().karaokeEnabled` (line 612). If a track is in per-track karaoke with `karaokeEnabled` false, blend is never re-entered and `blendActive` stays `true` with stale vocals indefinitely.
 Why wrong: `loadAndPlay`/`load` implicitly assume the engine is in single-stream mode, but the engine can be left in blend mode. The contract that "load resets to single-stream" is not honored by the engine.
@@ -647,21 +687,55 @@ Severity counts: HIGH 1, LOW 2.
 Deterministic layer green before audit: `tsc -b` ✅, frontend `npm run build` ✅, backend `compileKotlin compileTestKotlin spotlessCheck` ✅ — "non-existent API / wrong signature / fake package" class largely cleared by compilers; 6 read-only web-sourced scouts verified logic + dynamic refs only.
 
 ### 🔴 Must-fix (genuine logic defect in new code)
+
 1. **DO** — `apps/web/.../stores/group-sync-store.ts:409` — reconnect snapshot reconcile is a **no-op for the exact desync it was added to fix**. Adopts `snapshot.schedule` only when `scheduleEpoch > currentEpoch`, but optimistic `applySchedule` in `sendAction` already bumped `currentEpoch`, so a reconnect snapshot with epoch `<= currentEpoch` is skipped → device keeps playing while group paused. Fix: adopt snapshot schedule unconditionally on reconnect; keep strict-`>` only on the live `schedule_changed` path.
 
 ### 🟡 Fixing this pass (cheap, real, our new code)
-2. **DO** — `DeviceSessionProjection.register` full-replace wipes `deviceName` to null when a heartbeat's `auth.deviceName` is null → "Unknown Device" resurfaces. Preserve existing non-null name; add `?: clientName ?: "Unknown Device"` fallback in `/Sessions` + device DTO.
-3. **DO** — `adapter-shared/HttpEmbeddingClient.kt:61` — wrong-length embedding 500s instead of degrading (`CAST vector(512)` throws, bypassing `null→lexical`). Validate `node.size()==CLAP_DIM`, else log+null.
-4. **DO** — `html5-audio.ts:838` `setVocalBlend(NaN)` bypasses clamp → `setTargetAtTime(NaN)` throws (masked by store clamp today). `Number.isFinite` guard. + `:908` drift watchdog lacks stalled-primary guard (`if(audio.paused||readyState<3) return`) → vocal stutter when instrumental rebuffers.
-5. **DO** — `useRemoteCommands.ts:42` group SEEK casts `positionMs as number` w/o the `typeof` guard the solo path (:72) has → `NaN` corrupts group anchor for all members. + `:95` untargeted command fails open → ignore engine commands lacking `targetDeviceId`.
-6. **DO** — `GlobalSearchBar.tsx:22` `navigate()` per keystroke without `replace:true` → one history entry per char, back-button broken.
-7. **DO** — `JellyfinDevicesController` `/commands` SSE endpoint dead/misleading (works only because it shares the `/events` broadcaster) → delete it + comment. + `sendCommand` maps all `CommandResult.Failed`→409; route through `failureTranslator` (expired lease should be 401/403).
-8. **DO** — e2e `search.spec.ts:147` expects `search-input` on `/search` (per-page input removed for global bar) → repoint at `global-search-input`/URL flow (legitimate update for intended UI change, not assertion-weakening).
+
+1. **DO** — `DeviceSessionProjection.register` full-replace wipes `deviceName` to null when a heartbeat's `auth.deviceName` is null → "Unknown Device" resurfaces. Preserve existing non-null name; add `?: clientName ?: "Unknown Device"` fallback in `/Sessions` + device DTO.
+2. **DO** — `adapter-shared/HttpEmbeddingClient.kt:61` — wrong-length embedding 500s instead of degrading (`CAST vector(512)` throws, bypassing `null→lexical`). Validate `node.size()==CLAP_DIM`, else log+null.
+3. **DO** — `html5-audio.ts:838` `setVocalBlend(NaN)` bypasses clamp → `setTargetAtTime(NaN)` throws (masked by store clamp today). `Number.isFinite` guard. + `:908` drift watchdog lacks stalled-primary guard (`if(audio.paused||readyState<3) return`) → vocal stutter when instrumental rebuffers.
+4. **DO** — `useRemoteCommands.ts:42` group SEEK casts `positionMs as number` w/o the `typeof` guard the solo path (:72) has → `NaN` corrupts group anchor for all members. + `:95` untargeted command fails open → ignore engine commands lacking `targetDeviceId`.
+5. **DO** — `GlobalSearchBar.tsx:22` `navigate()` per keystroke without `replace:true` → one history entry per char, back-button broken.
+6. **DO** — `JellyfinDevicesController` `/commands` SSE endpoint dead/misleading (works only because it shares the `/events` broadcaster) → delete it + comment. + `sendCommand` maps all `CommandResult.Failed`→409; route through `failureTranslator` (expired lease should be 401/403).
+7. **DO** — e2e `search.spec.ts:147` expects `search-input` on `/search` (per-page input removed for global bar) → repoint at `global-search-input`/URL flow (legitimate update for intended UI change, not assertion-weakening).
 
 ### 🔵 Noted follow-up (not blocking)
+
 Outbox at-least-once: `NEXT`/`PREV` remote command can double-execute in a narrow crash window (no idempotency key on SSE fan-out). Server-side `targetDeviceId` routing (today client-filter; no cross-user leak). Subsonic `getNowPlaying` omits `username`/`minutesAgo`/`playerId`; `getAlbumList type=starred` unstable pagination order + per-track→album approximation. MCP semantic search skips `musicSurfaceFilter`. `ScanStatus.lastCompletedAt` stamped even on failed walk.
 
 ### Verified-correct (feared bugs ABSENT)
+
 pgvector cosine `<=>` matches `vector_cosine_ops` HNSW + `vector(512)` + ASC nearest-first. Scan-guard `compareAndSet`+`finally` (no TOCTOU/permanent-block). `control_mode` boolean not inverted, owner-only setter, migration default `host`. WebSocket/STOMP removal clean. LlmClient log string-only. Karaoke engine: instrumental=base@1.0/vocals=variable (not swapped), watchdog interval created+cleared every path, pause/seek/play hit both elements, position preserved on exit, MediaElementSource reused (no node leak), 15ms gain smoothing. vocalBlend `0..1` consistent. STOP halts local; other-device commands ignored; reconnect refetch fires every reconnect not initial. transferLease STOP→OLD owner, best-effort can't roll back aggregate, outbox fields round-trip. Nav removal clean, query URL-encoded, SearchPage reacts to `?q=`, semantic opt-in preserved.
 
 _Scouts/synthesis: 6/1 (arbiter consolidation)._
+
+---
+
+## 2026-06-21 · 6373e4b6 · full-file re-review resolution (verified every prior finding against HEAD before acting)
+
+Re-verified the ENTIRE log (2026-06-14 + 2026-06-20 entries) against current code via 4 read-only cluster agents — findings go stale, most prior ones already landed.
+
+**2026-06-14 entry — status against HEAD:**
+
+- #1 LLM-DJ freshness gate, #2 CI exclude-paths, #3 DeviceDto/isOnline/transfer-button, #4 transferHere playback, #5 play() resume position (code+test), #6 RewriteQueueTail cap+dedup — **all FIXED-ALREADY** in later commits. Verified with file:line.
+- #7 `yaytsa.llm.system-prompt` read-but-never-configured (dead branch) — **LEFT**: latent, only bites when `LLM_ENABLED` (off in prod); wiring a real prompt is a product decision, not a correctness bug.
+- #8 spend-audit token columns unpopulated — **LEFT**: write-path missing but only matters when LLM-DJ live AND wanting per-decision cost; LiteLLM key-spend is the live cost signal (QA.md). Additive follow-up, not "has to fix".
+- #9 getPlayQueue `mapNotNull` — **premise wrong**: `current` is a track-id (spec), not an index, so no out-of-bounds; only a benign "current may dangle if its track was deleted". **LEFT**.
+- #10 V005 Flyway comment, #11 lease-transfer cross-user — **DON'T** (unchanged).
+
+**2026-06-20 🔵 follow-ups — fixed in 6373e4b6:**
+
+- **MCP semantic/lexical search bypassed `musicSurfaceFilter`** → red-line + audiobook leak on the MCP protocol surface (user red-line contract bypass, violates one-core invariant). Fixed via a proper shared extraction: new `core-application:recommendation` module `MusicSurfaceFilter`, injected into BOTH `JellyfinAdaptiveController` (private filter methods deleted) and `McpTools` (semantic + lexical paths). DRY, not copy-paste.
+- **NEXT/PREV remote command double-execute** (outbox at-least-once, no idempotency key) → stamped a stable `commandId` on `DomainNotification.RemoteCommand` (`JpaRemoteCommandPort`), round-tripped through `JpaOutboxPort`, carried into the SSE `command` event (`RemoteCommandSseBridge`), deduped client-side in `useRemoteCommands.ts` (bounded 64-id Set, only when present → back-compat).
+- **`LibraryScanner.lastCompletedAt` stamped on a FAILED walk** → moved the stamp below the `if (!walkCompleted) return` guard (honest operational signal).
+- **Also fixed the CI-reddening flake** `ItemsPaginationIntegrationTest > ExcludeGenres`: brittle exact `== allTotal - 2` over the shared-Testcontainer GLOBAL `TotalRecordCount` (other classes seed audiobook rows concurrently) rebounded to tag-scoped-names-exact + bounded total. Test-isolation fix; no production code touched for it.
+
+**2026-06-20 🔵 — LEFT (justified):**
+
+- Server-side `targetDeviceId` SSE routing — client filter already **fails closed**, no cross-user leak; per-device keying is a 4-layer SSE-contract change for zero correctness gain. Defer until the broadcaster is next refactored.
+- Subsonic `getNowPlaying` missing `username`/`minutesAgo`/`playerId` — additive, single-user/single-server in practice, no consumer. Subsonic `getAlbumList type=starred` ordering — already deterministic given a fixed favorites set (favorites carry a stable `position`); only generic offset-pagination drift remains.
+
+Verify: backend `spotlessApply`/`compileKotlin`/`compileTestKotlin` + `:app:test` 202 pass (incl. ArchUnit on the new module + Spring wiring); frontend `type-check`+`build` green.
+
+_Scouts/synthesis: 4 read-only verifiers + 1 fix executor._
