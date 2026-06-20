@@ -216,3 +216,40 @@ Three independent filters, by surface: (1) main library `/Items` — backend `Ex
 ## Run the FULL module test suite before pushing a domain-logic fix
 
 A domain fix can be correct yet break an **existing** test that encoded the old (buggy) behavior — and the `core-domain:playback` suite runs in `./gradlew build`, so CI catches it, but only after a ~15min build + the Testcontainers flake lottery. Example: the `play()`-resume position fix (snapshot `computePosition` instead of keeping the stale `lastKnownPosition`) was correct, but `PlaybackHandlerTest "Play with current entryId preserves position"` asserted the rewound `42s` (the bug) instead of the true `47s`. Compiling the changed module + running only the _new_ test is NOT enough — run the changed module's whole `:test` task (`./gradlew :core-domain:playback:test`) locally before pushing. When an existing test fails on a domain fix, first decide whether it encodes the bug (update the assertion to the correct value, with a comment) vs. a real regression (revert) — never blindly flip it green.
+
+## Client-error telemetry review (every /qa pass)
+
+The PWA ships sanitized client-side error reports to `POST /v1/client-errors` (unauthenticated, bucket4j 30/min/IP). Backend writes one compact JSON line via the dedicated `client-error` SLF4J logger (→ stdout → Promtail → Loki) and increments `yaytsa_client_errors_total{category,type,version}` (+ `yaytsa_client_errors_dropped_total{reason}`). This is the ONLY window into client-only failures that never reach the backend (render crashes, offline DECODE errors, CSP violations). **Reviewing it is the point of the feature — read the captured errors and fix the real bugs, don't just confirm the pipe is alive.**
+
+Coordinates: namespace `yay-tsa`, deployment `yay-tsa-v2-production-backend`, logger name `client-error`, public URL `https://yay-tsa.com/api/v1/client-errors` (nginx/Traefik strip `/api` → backend `/v1/client-errors`).
+
+### Pull the captured errors
+
+```bash
+# Structured client-error lines (last 24h), pretty
+kubectl logs -n yay-tsa deploy/yay-tsa-v2-production-backend --since=24h 2>/dev/null \
+  | grep '"src":"client_error"' | sed 's/.*: {/{/' | python3 -m json.tool 2>/dev/null | less
+# Group by fingerprint (which distinct bugs, how often)
+kubectl logs -n yay-tsa deploy/yay-tsa-v2-production-backend --since=24h 2>/dev/null \
+  | grep -o '"fp":"[^"]*"' | sort | uniq -c | sort -rn
+# Counter breakdown (Prometheus / Grafana): yaytsa_client_errors_total by category,type,version
+#   and yaytsa_client_errors_dropped_total{reason=oversize|malformed}
+```
+
+### Triage rule (zero-deferral, like every /qa finding)
+
+- **Every distinct fingerprint is a real client-only defect** → reproduce + fix or `gh issue create`. The whole reason this channel exists is that backend `http.server.requests` 5xx can't see these.
+- **Post-deploy spike** on any fingerprint right after a release = regression signal — bisect against the `version` tag.
+- **Tag-domain health**: `category`/`type`/`version` are server-coerced to finite domains. A surge of `type="other"` = a real JS error class worth adding to the controller allow-list; a surge of distinct legit-looking but non-`main-<sha>` `version=unknown` or a flood of `dropped{reason=malformed}` = someone probing the public endpoint (cardinality/log-flood attempt), not an app bug — confirm bucket4j is holding.
+- **Redaction audit (🔴 if it fails)**: spot-check `msg`/`stack` for any surviving `api_key`/`Bearer`/`token=`/`X-Emby-Token`/high-entropy run. A live leak means the redaction missed a vector → fix the server regex immediately (client redaction is bypassable).
+
+### Live pipeline smoke (validates strip-prefix + permitAll + CSRF-off + redaction in prod — closes must-fix #6)
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://yay-tsa.com/api/v1/client-errors \
+  -H "Content-Type: text/plain" \
+  --data-binary '{"category":"runtime","type":"TypeError","message":"QA-SMOKE api_key=LEAKTEST","appVersion":"qa-smoke"}'   # expect 204
+kubectl logs -n yay-tsa deploy/yay-tsa-v2-production-backend --since=2m | grep QA-SMOKE   # expect api_key=[REDACTED], single line
+```
+
+Synthetic smoke rows carry `version=qa-smoke` → coerced to `unknown` (not a real `main-<sha>` tag), so they never pollute the per-release metric; filter them out of log review by `version!=qa-smoke` in the message.

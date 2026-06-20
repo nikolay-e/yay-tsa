@@ -114,11 +114,7 @@ class JellyfinClientErrorsController(
 
     private fun coerceType(value: String?): String = if (value in ALLOWED_TYPES) value!! else "other"
 
-    private fun coerceVersion(value: String?): String =
-        value
-            ?.takeIf { VERSION_PATTERN.matches(it) }
-            ?.let { if (it.length > VERSION_LIMIT) it.substring(0, VERSION_LIMIT) else it }
-            ?: "unknown"
+    private fun coerceVersion(value: String?): String = if (value != null && VERSION_PATTERN.matches(value)) value else "unknown"
 
     private fun sanitize(value: String?): String? {
         if (value == null) return null
@@ -159,7 +155,7 @@ class JellyfinClientErrorsController(
                 "Error",
             )
 
-        private val VERSION_PATTERN = Regex("^[A-Za-z0-9._-]{1,32}$")
+        private val VERSION_PATTERN = Regex("^main-[a-f0-9]{7,40}$")
 
         private val SECRET_PATTERNS =
             listOf(

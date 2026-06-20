@@ -79,6 +79,15 @@ class ClientErrorsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `arbitrary client-supplied version is coerced to unknown to bound metric cardinality`() {
+        val before = counter("runtime", "TypeError", "unknown")
+        val body =
+            """{"category":"runtime","type":"TypeError","message":"x","appVersion":"evil-cardinality-v00001"}"""
+        assertEquals(204, postRaw(body))
+        assertEquals(before + 1.0, counter("runtime", "TypeError", "unknown"))
+    }
+
+    @Test
     fun `secrets in message and stack are redacted before logging`() {
         val secret = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEF"
         val body =
