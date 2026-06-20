@@ -124,7 +124,7 @@ class JellyfinKaraokeController(
             response.sendError(HttpStatus.NOT_FOUND.value(), "Stem not available")
             return
         }
-        val filePath = MediaPathSafety.resolveServableFile(Path.of(stemPath), safeRoot)
+        val filePath = MediaPathSafety.resolveStemFile(Path.of(stemPath), safeRoot)
         if (filePath == null) {
             response.sendError(HttpStatus.NOT_FOUND.value(), "Stem file missing on disk")
             return

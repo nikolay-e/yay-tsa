@@ -207,7 +207,8 @@ audioSeparator:
       nvidia.com/gpu: 1
   config:
     modelName: 'model_bs_roformer_ep_317_sdr_12.9755.yaml'
-    outputFormat: 'wav'
+    outputFormat: 'mp3'
+    outputBitrate: '192k'
     device: 'cuda'
     stemsOutputRoot: '/app/stems'
   stemsStorage:

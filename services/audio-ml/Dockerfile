@@ -67,7 +67,8 @@ RUN getent group 1000 >/dev/null || groupadd --gid 1000 appuser && \
     chown -R 1000:1000 /app
 
 ENV MODEL_NAME=model_bs_roformer_ep_317_sdr_12.9755.yaml
-ENV OUTPUT_FORMAT=wav
+ENV OUTPUT_FORMAT=mp3
+ENV OUTPUT_BITRATE=192k
 ENV DEVICE=cpu
 ENV ESSENTIA_MODELS_DIR=/app/models
 

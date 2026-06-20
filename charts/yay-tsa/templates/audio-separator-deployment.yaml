@@ -41,6 +41,8 @@ spec:
               value: {{ .Values.audioSeparator.config.modelName | quote }}
             - name: OUTPUT_FORMAT
               value: {{ .Values.audioSeparator.config.outputFormat | quote }}
+            - name: OUTPUT_BITRATE
+              value: {{ .Values.audioSeparator.config.outputBitrate | quote }}
             - name: STEMS_OUTPUT_ROOT
               value: {{ .Values.audioSeparator.config.stemsOutputRoot | quote }}
             - name: NUMBA_CACHE_DIR

@@ -50,7 +50,8 @@ except ImportError:
 
 MODEL_NAME = os.getenv("MODEL_NAME", "htdemucs")
 MODEL_STEM_SUFFIX = Path(MODEL_NAME).stem
-OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "wav")
+OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "mp3")
+OUTPUT_BITRATE = os.getenv("OUTPUT_BITRATE", "192k")
 USE_CUDA = os.getenv("DEVICE", "cpu") == "cuda"
 ALLOWED_MEDIA_ROOT = os.path.realpath(os.getenv("MEDIA_PATH", "/media"))
 STEMS_OUTPUT_ROOT = os.getenv("STEMS_OUTPUT_ROOT", "")
@@ -102,7 +103,7 @@ async def lifespan(_app: FastAPI):
         from audio_separator.separator import Separator
 
         log.info("Loading Separator model %s at startup", MODEL_NAME)
-        sep = Separator(output_format=OUTPUT_FORMAT)
+        sep = Separator(output_format=OUTPUT_FORMAT, output_bitrate=OUTPUT_BITRATE or None)
         sep.load_model(model_filename=MODEL_NAME)
         _app.state.separator = sep
         log.info("Separator model loaded successfully")
