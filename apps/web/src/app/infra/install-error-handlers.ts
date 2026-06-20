@@ -9,6 +9,7 @@ export function installErrorHandlers(): void {
     event => {
       const target = event.target;
       if (target && target !== win && target instanceof Element) {
+        if (target.tagName === 'AUDIO' || target.tagName === 'VIDEO') return;
         const el = target as Element & { src?: string; href?: string; currentSrc?: string };
         const url = [el.currentSrc, el.src, el.href].find(candidate => candidate) ?? '';
         reportError(new Error(`Resource load failed: ${el.tagName} ${url}`), 'resource', {
@@ -29,14 +30,11 @@ export function installErrorHandlers(): void {
 
   win.addEventListener('unhandledrejection', event => {
     const reason: unknown = event.reason;
-    reportError(reason instanceof Error ? reason : new Error(String(reason)), 'promise');
+    reportError(reason, 'promise');
   });
 
   const swContainer = globalThis.navigator?.serviceWorker;
   if (swContainer) {
-    swContainer.addEventListener('error', () => {
-      reportError(new Error('Service worker error'), 'sw', { type: 'ServiceWorkerError' });
-    });
     swContainer.addEventListener('messageerror', () => {
       reportError(new Error('Service worker message deserialization error'), 'sw', {
         type: 'ServiceWorkerMessageError',

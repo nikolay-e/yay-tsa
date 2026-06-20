@@ -9,7 +9,7 @@ export class BeaconErrorTransport implements ErrorTransport {
   send(report: ClientErrorReport): void {
     try {
       const body = redactSecrets(JSON.stringify(report));
-      if (body.length > KEEPALIVE_BYTE_BUDGET) return;
+      if (new TextEncoder().encode(body).length > KEEPALIVE_BYTE_BUDGET) return;
 
       const nav = globalThis.navigator;
       if (nav && typeof nav.sendBeacon === 'function') {

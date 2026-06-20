@@ -58,7 +58,7 @@ class JellyfinClientErrorsController(
                 "ua" to sanitize(stringField(parsed["ua"], UA_LIMIT)),
                 "sid" to sanitize(stringField(parsed["sessionId"], CATEGORY_LIMIT)),
                 "fp" to sanitize(stringField(parsed["fingerprint"], CATEGORY_LIMIT)),
-                "user" to principal?.name,
+                "user" to sanitize(principal?.name),
                 "msg" to sanitize(stringField(parsed["message"], MESSAGE_LIMIT)),
                 "stack" to sanitize(stringField(parsed["stack"], STACK_LIMIT)),
             )
@@ -76,7 +76,7 @@ class JellyfinClientErrorsController(
         request.inputStream.use { input ->
             while (total <= MAX_BODY) {
                 val read = input.read(buffer, total, buffer.size - total)
-                if (read == -1) break
+                if (read <= 0) break
                 total += read
             }
         }
@@ -169,7 +169,7 @@ class JellyfinClientErrorsController(
                 Regex("(?i)\"(token|accesstoken|access_token|password|api_key)\"\\s*:\\s*\"[^\"]*\"") to "\"$1\":\"[REDACTED]\"",
             )
 
-        private val HIGH_ENTROPY = Regex("\\b[A-Za-z0-9+/=_-]{32,}\\b")
+        private val HIGH_ENTROPY = Regex("[A-Za-z0-9_-]{32,}")
 
         private val CONTROL_CHARS = Regex("[\\u0000-\\u001F\\u007F\\u2028\\u2029]")
     }

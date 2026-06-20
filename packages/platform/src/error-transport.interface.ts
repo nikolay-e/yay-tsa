@@ -15,7 +15,6 @@ export interface ClientErrorReport {
   appVersion: string;
   telemetrySessionId: string;
   fingerprint?: string;
-  count?: number;
   route?: string;
   stack?: string;
   uaReduced?: string;

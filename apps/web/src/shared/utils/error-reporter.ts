@@ -18,7 +18,7 @@ interface CaptureExtra {
 
 export class ErrorReporter {
   private readonly sessionId = newSessionId();
-  private readonly seen = new Map<string, number>();
+  private readonly seen = new Set<string>();
   private route: string | undefined;
   private capturing = false;
 
@@ -36,13 +36,9 @@ export class ErrorReporter {
       const message = redactSecrets(truncate(errorMessage(error), MAX_MESSAGE_LENGTH));
       const fingerprint = fingerprintOf(category, type, message);
 
-      const previous = this.seen.get(fingerprint);
-      if (previous !== undefined) {
-        this.seen.set(fingerprint, previous + 1);
-        return;
-      }
+      if (this.seen.has(fingerprint)) return;
       if (this.seen.size >= MAX_DISTINCT_PER_SESSION) return;
-      this.seen.set(fingerprint, 1);
+      this.seen.add(fingerprint);
 
       const stack = extra.stack ?? errorStack(error);
       const report: ClientErrorReport = {
@@ -52,7 +48,6 @@ export class ErrorReporter {
         appVersion: APP_VERSION,
         telemetrySessionId: this.sessionId,
         fingerprint,
-        count: 1,
         route: extra.route ?? this.route,
         stack: stack ? redactSecrets(truncate(stack, MAX_STACK_LENGTH)) : undefined,
         uaReduced: reduceUserAgent(globalThis.navigator?.userAgent),

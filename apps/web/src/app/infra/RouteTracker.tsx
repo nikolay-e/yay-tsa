@@ -14,11 +14,15 @@ export function RouteTracker() {
 }
 
 function toRouteTemplate(pathname: string, params: Record<string, string | undefined>): string {
-  let template = pathname;
+  const valueToKey = new Map<string, string>();
   for (const [key, value] of Object.entries(params)) {
-    if (value && value.length > 0) {
-      template = template.split(value).join(`:${key}`);
-    }
+    if (value && value.length > 0) valueToKey.set(value, key);
   }
-  return template;
+  return pathname
+    .split('/')
+    .map(segment => {
+      const key = valueToKey.get(segment);
+      return key ? `:${key}` : segment;
+    })
+    .join('/');
 }
