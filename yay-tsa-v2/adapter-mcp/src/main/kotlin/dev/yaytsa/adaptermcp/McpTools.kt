@@ -4,6 +4,7 @@ import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.toMcpJson
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.application.playback.DeviceSessionProjection
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.playlists.PlaylistQueries
@@ -43,6 +44,7 @@ class McpTools(
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val adaptiveUseCases: AdaptiveUseCases,
+    private val deviceSessionProjection: DeviceSessionProjection,
     @Qualifier("mcpCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -56,6 +58,11 @@ class McpTools(
                     "properties" to mapOf("query" to mapOf("type" to "string", "description" to "Search query")),
                     "required" to listOf("query"),
                 ),
+            ),
+            McpToolDefinition(
+                "list_devices",
+                "List the caller's active player devices with their session_id and device_id (use these to drive play/pause/queue)",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "get_playback_state",
@@ -219,6 +226,7 @@ class McpTools(
         val args = clientArgs + mapOf("user_id" to authenticatedUserId)
         return when (name) {
             "search_library" -> searchLibrary(args["query"] as? String ?: "")
+            "list_devices" -> listDevices(args)
             "get_playback_state" -> getPlaybackState(args)
             "play" -> playbackCommand(args) { _, sid, did -> Play(sid, did, null) }
             "pause" -> playbackCommand(args) { _, sid, did -> Pause(sid, did) }
@@ -252,6 +260,22 @@ class McpTools(
                     results.tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
                 }
                 if (isEmpty()) append("No results found.")
+            }
+        return textResult(text)
+    }
+
+    private fun listDevices(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val sessions = deviceSessionProjection.getByUser(uid)
+        if (sessions.isEmpty()) {
+            return textResult("No active player devices. Open the Yaytsa app on a device, then retry.")
+        }
+        val text =
+            sessions.joinToString("\n") { s ->
+                val state = playbackQueries.getPlaybackState(uid, s.sessionId)
+                "- device_id: ${s.deviceId.value}, session_id: ${s.sessionId.value}, " +
+                    "state: ${state?.playbackState ?: "unknown"}, queue: ${state?.queue?.size ?: 0}, " +
+                    "current: ${state?.currentEntryId?.value ?: "none"}, lastSeen: ${s.lastSeenAt}"
             }
         return textResult(text)
     }
