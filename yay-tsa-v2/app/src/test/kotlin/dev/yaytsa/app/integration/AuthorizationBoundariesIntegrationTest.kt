@@ -1,7 +1,9 @@
 package dev.yaytsa.app.integration
 
+import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.application.playlists.PlaylistUseCases
+import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.domain.auth.ApiTokenId
 import dev.yaytsa.domain.auth.CreateApiToken
 import dev.yaytsa.domain.auth.CreateUser
@@ -32,6 +34,12 @@ class AuthorizationBoundariesIntegrationTest : HttpIntegrationTestBase() {
 
     @Autowired
     lateinit var jdbc: org.springframework.jdbc.core.JdbcTemplate
+
+    @Autowired
+    lateinit var preferencesQueries: PreferencesQueries
+
+    @Autowired
+    lateinit var adaptiveQuery: AdaptiveQueryPort
 
     private fun seedTrack(): String {
         val id = UUID.randomUUID()
@@ -200,5 +208,44 @@ class AuthorizationBoundariesIntegrationTest : HttpIntegrationTestBase() {
     fun `mcp rejects unauthenticated requests`() {
         val body = mapOf("jsonrpc" to "2.0", "id" to 1, "method" to "tools/list")
         assertEquals(401, post("/mcp", body).response.status)
+    }
+
+    @Test
+    fun `mcp set_preference_contract persists the contract through the use case`() {
+        val user = seedUser("mcp-prefs")
+        val redLine = "never play screamo ${UUID.randomUUID().toString().take(8)}"
+        val body =
+            mapOf(
+                "jsonrpc" to "2.0",
+                "id" to 1,
+                "method" to "tools/call",
+                "params" to
+                    mapOf(
+                        "name" to "set_preference_contract",
+                        "arguments" to mapOf("red_lines" to redLine, "dj_style" to "smooth transitions"),
+                    ),
+            )
+        assertEquals(200, post("/mcp", body, user.token).response.status)
+
+        val contract = preferencesQueries.find(UserId(user.id))?.preferenceContract
+        assertEquals(redLine, contract?.redLines, "MCP set_preference_contract must persist red lines through the use case")
+        assertEquals("smooth transitions", contract?.djStyle)
+    }
+
+    @Test
+    fun `mcp start_radio creates an adaptive session bound to the principal`() {
+        val user = seedUser("mcp-radio")
+        val body =
+            mapOf(
+                "jsonrpc" to "2.0",
+                "id" to 1,
+                "method" to "tools/call",
+                "params" to mapOf("name" to "start_radio", "arguments" to mapOf("attention_mode" to "active")),
+            )
+        assertEquals(200, post("/mcp", body, user.token).response.status)
+        assertTrue(
+            adaptiveQuery.findActiveSession(UserId(user.id)) != null,
+            "MCP start_radio must create a live adaptive session for the authenticated user",
+        )
     }
 }

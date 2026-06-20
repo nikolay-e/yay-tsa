@@ -2,24 +2,35 @@ package dev.yaytsa.adaptermcp
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.toMcpJson
+import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.playlists.PlaylistQueries
 import dev.yaytsa.application.playlists.PlaylistUseCases
+import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
+import dev.yaytsa.domain.adaptive.ListeningSessionId
+import dev.yaytsa.domain.adaptive.StartListeningSession
+import dev.yaytsa.domain.playback.AddToQueue
+import dev.yaytsa.domain.playback.ClearQueue
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
+import dev.yaytsa.domain.playback.QueueEntry
+import dev.yaytsa.domain.playback.QueueEntryId
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
+import dev.yaytsa.domain.preferences.UpdatePreferenceContract
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
+import java.util.UUID
 
 @Component
 class McpTools(
@@ -29,8 +40,9 @@ class McpTools(
     private val playlistQueries: PlaylistQueries,
     @Suppress("unused")
     private val playlistUseCases: PlaylistUseCases,
-    @Suppress("unused")
+    private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
+    private val adaptiveUseCases: AdaptiveUseCases,
     @Qualifier("mcpCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -144,6 +156,59 @@ class McpTools(
                     "required" to listOf("user_id"),
                 ),
             ),
+            McpToolDefinition(
+                "set_preference_contract",
+                "Modify the user's preference contract for the adaptive DJ. Any omitted field keeps its current value.",
+                mapOf(
+                    "type" to "object",
+                    "properties" to
+                        mapOf(
+                            "hard_rules" to mapOf("type" to "string", "description" to "Inviolable rules, e.g. 'never play screamo'"),
+                            "soft_prefs" to mapOf("type" to "string", "description" to "Soft preferences, e.g. 'prefer jazz in the evening'"),
+                            "dj_style" to mapOf("type" to "string", "description" to "DJ style, e.g. 'transition smoothly between genres'"),
+                            "red_lines" to mapOf("type" to "string", "description" to "Hard red lines the DJ must never cross"),
+                        ),
+                ),
+            ),
+            McpToolDefinition(
+                "add_to_queue",
+                "Add tracks to the end of the playback queue (requires the device to hold the playback lease)",
+                mapOf(
+                    "type" to "object",
+                    "properties" to
+                        mapOf(
+                            "session_id" to mapOf("type" to "string"),
+                            "device_id" to mapOf("type" to "string"),
+                            "track_ids" to mapOf("type" to "array", "items" to mapOf("type" to "string")),
+                        ),
+                    "required" to listOf("session_id", "device_id", "track_ids"),
+                ),
+            ),
+            McpToolDefinition(
+                "clear_queue",
+                "Clear the playback queue (requires the device to hold the playback lease)",
+                mapOf(
+                    "type" to "object",
+                    "properties" to
+                        mapOf(
+                            "session_id" to mapOf("type" to "string"),
+                            "device_id" to mapOf("type" to "string"),
+                        ),
+                    "required" to listOf("session_id", "device_id"),
+                ),
+            ),
+            McpToolDefinition(
+                "start_radio",
+                "Steer adaptive behavior: start a radio/adaptive listening session, optionally seeded by a track. Returns the new session id.",
+                mapOf(
+                    "type" to "object",
+                    "properties" to
+                        mapOf(
+                            "seed_track_id" to mapOf("type" to "string", "description" to "Optional track id to seed similarity-driven radio"),
+                            "attention_mode" to mapOf("type" to "string", "default" to "active"),
+                        ),
+                ),
+            ),
         )
 
     fun executeTool(
@@ -162,6 +227,10 @@ class McpTools(
             "browse_artists" -> browseArtists(args)
             "get_album" -> getAlbum(args)
             "list_playlists" -> listPlaylists(args)
+            "set_preference_contract" -> setPreferenceContract(args)
+            "add_to_queue" -> addToQueue(args)
+            "clear_queue" -> clearQueue(args)
+            "start_radio" -> startRadio(args)
             else -> errorResult("Unknown tool: $name")
         }
     }
@@ -243,5 +312,65 @@ class McpTools(
                 .joinToString("\n") { "- ${it.name} (${it.tracks.size} tracks, id: ${it.id.value})" }
                 .ifEmpty { "No playlists." },
         )
+    }
+
+    private fun setPreferenceContract(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val current = preferencesQueries.find(uid)?.preferenceContract
+        val cmd =
+            UpdatePreferenceContract(
+                userId = uid,
+                hardRules = args["hard_rules"] as? String ?: current?.hardRules ?: "",
+                softPrefs = args["soft_prefs"] as? String ?: current?.softPrefs ?: "",
+                djStyle = args["dj_style"] as? String ?: current?.djStyle ?: "",
+                redLines = args["red_lines"] as? String ?: current?.redLines ?: "",
+                updatedAt = ctxFactory.create(uid).requestTime,
+            )
+        val version = preferencesQueries.find(uid)?.version ?: AggregateVersion.INITIAL
+        return when (val result = preferencesUseCases.execute(cmd, ctxFactory.create(uid, version))) {
+            is CommandResult.Success -> textResult("Preference contract updated.")
+            is CommandResult.Failed -> errorResult(result.failure.toString())
+        }
+    }
+
+    private fun addToQueue(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val sid = SessionId(args["session_id"] as? String ?: return errorResult("session_id is required"))
+        val did = DeviceId(args["device_id"] as? String ?: return errorResult("device_id is required"))
+        val trackIds = (args["track_ids"] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
+        if (trackIds.isEmpty()) return errorResult("track_ids must contain at least one track id")
+        val entries = trackIds.map { QueueEntry(QueueEntryId(UUID.randomUUID().toString()), TrackId(it)) }
+        val version = playbackQueries.getPlaybackState(uid, sid)?.version ?: AggregateVersion.INITIAL
+        return when (val result = playbackUseCases.execute(AddToQueue(sid, did, entries), ctxFactory.create(uid, version))) {
+            is CommandResult.Success -> textResult("Added ${entries.size} track(s) to the queue.")
+            is CommandResult.Failed -> errorResult(result.failure.toString())
+        }
+    }
+
+    private fun clearQueue(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val sid = SessionId(args["session_id"] as? String ?: return errorResult("session_id is required"))
+        val did = DeviceId(args["device_id"] as? String ?: return errorResult("device_id is required"))
+        val version = playbackQueries.getPlaybackState(uid, sid)?.version ?: AggregateVersion.INITIAL
+        return when (val result = playbackUseCases.execute(ClearQueue(sid, did), ctxFactory.create(uid, version))) {
+            is CommandResult.Success -> textResult("Queue cleared.")
+            is CommandResult.Failed -> errorResult(result.failure.toString())
+        }
+    }
+
+    private fun startRadio(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val sessionId = ListeningSessionId(UUID.randomUUID().toString())
+        val cmd =
+            StartListeningSession(
+                sessionId = sessionId,
+                attentionMode = args["attention_mode"] as? String ?: "active",
+                seedTrackId = (args["seed_track_id"] as? String)?.let { EntityId(it) },
+                seedGenres = emptyList(),
+            )
+        return when (val result = adaptiveUseCases.execute(cmd, ctxFactory.create(uid, AggregateVersion.INITIAL))) {
+            is CommandResult.Success -> textResult("Radio session started (id: ${sessionId.value}).")
+            is CommandResult.Failed -> errorResult(result.failure.toString())
+        }
     }
 }
