@@ -45,6 +45,7 @@ data class Album(
     val totalDiscs: Int,
     val coverImagePath: String?,
     val createdAt: Instant?,
+    val productionYear: Int? = null,
 ) : LibraryEntity
 
 data class Artist(

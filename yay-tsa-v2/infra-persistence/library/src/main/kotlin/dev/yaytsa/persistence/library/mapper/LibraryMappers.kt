@@ -45,6 +45,7 @@ object LibraryMappers {
         entity: LibraryEntityJpa,
         album: AlbumJpa,
         primaryImagePath: String?,
+        productionYear: Int? = null,
     ): Album =
         Album(
             id = EntityId(entity.id.toString()),
@@ -57,6 +58,7 @@ object LibraryMappers {
             totalDiscs = album.totalDiscs,
             coverImagePath = primaryImagePath,
             createdAt = entity.createdAt?.toInstant(),
+            productionYear = productionYear ?: album.releaseDate?.year,
         )
 
     fun toArtist(

@@ -54,7 +54,7 @@ class JpaLibraryQueryPort(
         val entity = entityRepo.findById(id).orElse(null) ?: return null
         val album = albumRepo.findById(id).orElse(null) ?: return null
         val imagePath = imageRepo.findByEntityIdAndIsPrimaryTrue(id)?.path
-        return LibraryMappers.toAlbum(entity, album, imagePath)
+        return LibraryMappers.toAlbum(entity, album, imagePath, trackRepo.findMinYearByAlbumId(id))
     }
 
     override fun getArtist(artistId: EntityId): Artist? {

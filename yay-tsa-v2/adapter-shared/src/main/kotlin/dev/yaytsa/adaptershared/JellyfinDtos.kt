@@ -20,6 +20,7 @@ data class BaseItem(
     @JsonProperty("ImageTags") val imageTags: Map<String, String>? = null,
     @JsonProperty("UserData") val userData: UserItemData? = null,
     @JsonProperty("DateCreated") val dateCreated: String? = null,
+    @JsonProperty("ProductionYear") val productionYear: Int? = null,
     @JsonProperty("Genres") val genres: List<String>? = null,
     @JsonProperty("ChildCount") val childCount: Int? = null,
     @JsonProperty("TotalTracks") val totalTracks: Int? = null,

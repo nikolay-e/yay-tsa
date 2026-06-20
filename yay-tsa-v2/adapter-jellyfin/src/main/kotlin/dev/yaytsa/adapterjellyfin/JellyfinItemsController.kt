@@ -456,6 +456,7 @@ class JellyfinItemsController(
         sortName = sortName,
         parentId = artistId?.value,
         dateCreated = createdAt?.toString(),
+        productionYear = productionYear,
     )
 
     private fun buildPersonalizedTracks(

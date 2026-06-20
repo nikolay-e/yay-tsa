@@ -28,4 +28,9 @@ interface AudioTrackRepository : JpaRepository<AudioTrackJpa, UUID> {
     ): List<AudioTrackJpa>
 
     fun countByAlbumArtistId(albumArtistId: UUID): Long
+
+    @Query("SELECT MIN(t.year) FROM AudioTrackJpa t WHERE t.albumId = :albumId AND t.year IS NOT NULL")
+    fun findMinYearByAlbumId(
+        @Param("albumId") albumId: UUID,
+    ): Int?
 }

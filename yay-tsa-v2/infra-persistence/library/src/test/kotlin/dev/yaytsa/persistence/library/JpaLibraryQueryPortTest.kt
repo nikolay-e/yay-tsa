@@ -198,6 +198,37 @@ class JpaLibraryQueryPortTest : LibraryPersistenceTestBase() {
         assertEquals(EntityId(artistId.toString()), album.artistId)
         assertEquals(LocalDate.of(1973, 3, 1), album.releaseDate)
         assertEquals("/covers/dsotm.jpg", album.coverImagePath)
+        assertEquals(1973, album.productionYear)
+    }
+
+    @Test
+    fun `getAlbum derives productionYear from earliest track year when releaseDate is null`() {
+        val albumOnlyId = UUID.randomUUID()
+        val trackAId = UUID.randomUUID()
+        val trackBId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = albumOnlyId,
+                entityType = EntityType.ALBUM.name,
+                name = "Untagged Release",
+                sortName = "untagged release",
+                searchText = "untagged release",
+            ),
+        )
+        albumRepo.save(AlbumJpa(entityId = albumOnlyId, artistId = artistId, releaseDate = null))
+        entityRepo.save(
+            LibraryEntityJpa(id = trackAId, entityType = EntityType.TRACK.name, name = "A", sortName = "a", searchText = "a"),
+        )
+        trackRepo.save(AudioTrackJpa(entityId = trackAId, albumId = albumOnlyId, albumArtistId = artistId, durationMs = 1000, year = 1995))
+        entityRepo.save(
+            LibraryEntityJpa(id = trackBId, entityType = EntityType.TRACK.name, name = "B", sortName = "b", searchText = "b"),
+        )
+        trackRepo.save(AudioTrackJpa(entityId = trackBId, albumId = albumOnlyId, albumArtistId = artistId, durationMs = 1000, year = 1992))
+
+        val album = port.getAlbum(EntityId(albumOnlyId.toString()))
+        assertNotNull(album)
+        assertNull(album.releaseDate)
+        assertEquals(1992, album.productionYear)
     }
 
     @Test
