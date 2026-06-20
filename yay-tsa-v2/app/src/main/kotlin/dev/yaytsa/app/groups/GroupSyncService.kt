@@ -28,6 +28,7 @@ data class GroupSnapshotDto(
     val ownerId: String,
     val joinCode: String,
     val name: String,
+    val controlMode: String,
     val schedule: PlaybackScheduleDto,
     val members: List<GroupMemberDto>,
 )
@@ -125,12 +126,13 @@ class GroupSyncService(
         val group =
             jdbc
                 .query(
-                    "SELECT id, owner_id, name, join_code FROM core_v2_groups.playback_group WHERE id = ?",
+                    "SELECT owner_id, name, join_code, control_mode FROM core_v2_groups.playback_group WHERE id = ?",
                     { rs, _ ->
-                        Triple(
-                            rs.getObject("owner_id", UUID::class.java).toString(),
-                            rs.getString("name"),
-                            rs.getString("join_code"),
+                        GroupRow(
+                            ownerId = rs.getObject("owner_id", UUID::class.java).toString(),
+                            name = rs.getString("name"),
+                            joinCode = rs.getString("join_code"),
+                            controlMode = rs.getString("control_mode"),
                         )
                     },
                     groupId,
@@ -150,8 +152,23 @@ class GroupSyncService(
                 },
                 groupId,
             )
-        return GroupSnapshotDto(groupId.toString(), group.first, group.third, group.second, schedule, members)
+        return GroupSnapshotDto(
+            groupId.toString(),
+            group.ownerId,
+            group.joinCode,
+            group.name,
+            group.controlMode,
+            schedule,
+            members,
+        )
     }
+
+    private data class GroupRow(
+        val ownerId: String,
+        val name: String,
+        val joinCode: String,
+        val controlMode: String,
+    )
 
     private fun readSchedule(groupId: UUID): PlaybackScheduleDto? =
         jdbc
@@ -243,6 +260,32 @@ class GroupSyncService(
         jdbc
             .queryForObject("SELECT count(*) FROM core_v2_groups.playback_group WHERE id = ? AND owner_id = ?", Long::class.java, groupId, userId)
             ?.let { it > 0 } ?: false
+
+    @Transactional
+    fun setControlMode(
+        groupId: UUID,
+        mode: String,
+    ): Boolean {
+        val normalized = if (mode == "everyone") "everyone" else "host"
+        return jdbc.update("UPDATE core_v2_groups.playback_group SET control_mode = ? WHERE id = ?", normalized, groupId) > 0
+    }
+
+    fun controlMode(groupId: UUID): String? =
+        jdbc
+            .query(
+                "SELECT control_mode FROM core_v2_groups.playback_group WHERE id = ?",
+                { rs, _ -> rs.getString("control_mode") },
+                groupId,
+            ).firstOrNull()
+
+    fun canControlSchedule(
+        groupId: UUID,
+        userId: UUID,
+    ): Boolean =
+        when (controlMode(groupId)) {
+            "everyone" -> isMember(groupId, userId)
+            else -> isOwner(groupId, userId)
+        }
 
     fun isMember(
         groupId: UUID,

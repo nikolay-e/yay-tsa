@@ -37,6 +37,16 @@ interface MlQueryPort {
     ): List<TrackId>
 
     /**
+     * HNSW kNN search over the CLAP audio embedding space for a raw 512-dim query vector
+     * (e.g. a CLAP text embedding), ordered by cosine distance. Empty if no tracks carry a
+     * CLAP embedding yet.
+     */
+    fun findTracksByClapVector(
+        vector: FloatArray,
+        limit: Int,
+    ): List<TrackId>
+
+    /**
      * Representative tracks (medoids) of the user's taste clusters, biggest facet first.
      * Empty until the taste-clusters batch job has run for the user.
      */

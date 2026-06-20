@@ -20,6 +20,22 @@ interface AlbumRepository : JpaRepository<AlbumJpa, UUID> {
         offset: Int,
     ): List<AlbumJpa>
 
+    // Image-driven artwork backfill: albums with no primary image row, regardless of whether
+    // metadata_checked_at is already stamped. Self-healing — when a cover source improves, art-less
+    // albums are reconsidered on the next cycle without a manual metadata_checked_at reset.
+    @Query(
+        value =
+            "SELECT a.* FROM core_v2_library.albums a " +
+                "WHERE NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.images i WHERE i.entity_id = a.entity_id AND i.is_primary) " +
+                "ORDER BY a.entity_id LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findWithoutPrimaryImage(
+        limit: Int,
+        offset: Int,
+    ): List<AlbumJpa>
+
     fun findByReleaseDateBetween(
         from: java.time.LocalDate,
         to: java.time.LocalDate,

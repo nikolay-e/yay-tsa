@@ -16,4 +16,18 @@ interface ArtistRepository : JpaRepository<ArtistJpa, UUID> {
         limit: Int,
         offset: Int,
     ): List<ArtistJpa>
+
+    // Image-driven artwork backfill: artists with no primary image row (self-healing, see AlbumRepository).
+    @Query(
+        value =
+            "SELECT a.* FROM core_v2_library.artists a " +
+                "WHERE NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.images i WHERE i.entity_id = a.entity_id AND i.is_primary) " +
+                "ORDER BY a.entity_id LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findWithoutPrimaryImage(
+        limit: Int,
+        offset: Int,
+    ): List<ArtistJpa>
 }

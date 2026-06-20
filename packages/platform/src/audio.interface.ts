@@ -129,14 +129,31 @@ export interface AudioEngine {
   getAudioElement?(): HTMLAudioElement | null;
 
   /**
-   * Enable or disable karaoke mode (vocal removal via phase cancellation)
+   * Enter karaoke vocal-blend co-play: instrumental stem on the primary element at
+   * fixed gain 1.0, vocals stem on the secondary element at the current blend gain.
+   * Both stems play time-locked so the vocal level is mixable live via setVocalBlend.
    */
-  setKaraokeMode?(enabled: boolean): void;
+  enterVocalBlend?(
+    instrumentalUrl: string,
+    vocalsUrl: string,
+    positionSec: number,
+    playing: boolean
+  ): Promise<void>;
 
   /**
-   * Check if karaoke mode is currently enabled
+   * Set the vocal-blend gain (0 = pure instrumental/karaoke, 1 = original mix).
    */
-  isKaraokeModeEnabled?(): boolean;
+  setVocalBlend?(level: number): void;
+
+  /**
+   * Leave vocal-blend co-play and resume single-stream playback of resumeUrl.
+   */
+  exitVocalBlend?(resumeUrl: string, positionSec: number, playing: boolean): Promise<void>;
+
+  /**
+   * Whether vocal-blend co-play is currently active.
+   */
+  isVocalBlendActive?(): boolean;
 
   /**
    * Apply ReplayGain normalization (null = reset to 0 dB)

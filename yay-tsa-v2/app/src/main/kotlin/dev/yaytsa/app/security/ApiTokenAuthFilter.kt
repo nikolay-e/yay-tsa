@@ -39,6 +39,7 @@ class ApiTokenAuthFilter(
                             userId = user.id,
                             tokenValue = token,
                             deviceId = apiToken.deviceId?.value,
+                            deviceName = apiToken.deviceName,
                             isAdmin = user.isAdmin,
                         )
                 }

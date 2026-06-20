@@ -23,4 +23,11 @@ dependencies {
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.testcontainers.junit.jupiter)
+}
+
+tasks.withType<Test>().configureEach {
+    maxParallelForks = 1
+    systemProperty("testcontainers.reuse.enable", "true")
 }

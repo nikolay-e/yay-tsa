@@ -65,11 +65,15 @@ class LibraryWriterHygieneTest {
         }
 
         @JvmStatic
+        val coverCacheDir: Path = Files.createTempDirectory("scanner-cover-cache")
+
+        @JvmStatic
         @DynamicPropertySource
         fun props(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url") { postgres.jdbcUrl + "&stringtype=unspecified" }
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
+            registry.add("yaytsa.image.cover-cache-dir") { coverCacheDir.toString() }
         }
     }
 
@@ -147,6 +151,82 @@ class LibraryWriterHygieneTest {
         val cover = imageRepo.findByEntityIdAndIsPrimaryTrue(album!!.id)
         assertTrue(cover != null, "multi-disc album must get a Primary cover from the album root")
         assertTrue(cover!!.path.endsWith("2020 - Pansarfolk/cover.jpg"), "cover must resolve to the album-root file, was ${cover.path}")
+    }
+
+    private val onePixelPng: ByteArray =
+        java.util.Base64
+            .getDecoder()
+            .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
+
+    private fun setEmbeddedArtwork(file: Path) {
+        val af = AudioFileIO.read(file.toFile())
+        val tag = af.tagOrCreateAndSetDefault
+        val artwork =
+            org.jaudiotagger.tag.images.ArtworkFactory
+                .getNew()
+        artwork.binaryData = onePixelPng
+        artwork.mimeType = "image/png"
+        artwork.pictureType = 3
+        artwork.setImageFromData()
+        tag.setField(artwork)
+        AudioFileIO.write(af)
+    }
+
+    @Test
+    fun `music track with embedded art and no folder cover materializes an album-level Primary image`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "Pink Floyd/Animals/01 - Pigs.flac")
+        setEmbeddedArtwork(file)
+
+        writer.upsertTrack(root, file)
+
+        val album = entityRepo.findByEntityTypeOrderBySortName("ALBUM").firstOrNull()
+        assertTrue(album != null, "album entity must be created")
+        val cover = imageRepo.findByEntityIdAndIsPrimaryTrue(album!!.id)
+        assertTrue(cover != null, "album with only embedded art must get a materialized Primary image")
+        assertTrue(cover!!.path.contains("scanner-cover-cache"), "materialized cover must live in the cover cache, was ${cover.path}")
+        assertTrue(Files.isRegularFile(Path.of(cover.path)), "the cached cover bytes must exist on disk")
+    }
+
+    @Test
+    fun `audiobook track with embedded art gets a track-level Primary image so imageTags is advertised`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "Sektor Gaza/Kashchey/01 - Chapter One.flac")
+        val af = AudioFileIO.read(file.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.GENRE, "Audiobook")
+        AudioFileIO.write(af)
+        setEmbeddedArtwork(file)
+
+        val trackId = writer.upsertTrack(root, file)
+
+        assertTrue(trackId != null, "audiobook track must be inserted")
+        val cover = imageRepo.findByEntityIdAndIsPrimaryTrue(trackId!!)
+        assertTrue(cover != null, "audiobook track must get its OWN track-level Primary image (so TrackProjection emits imageTags)")
+        assertTrue(cover!!.path.contains("scanner-cover-cache"), "audiobook cover must live in the cover cache, was ${cover.path}")
+        assertTrue(Files.isRegularFile(Path.of(cover.path)), "the cached audiobook cover bytes must exist on disk")
+    }
+
+    @Test
+    fun `rescan of an audiobook track with an existing valid cover does not duplicate the image row`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "Sektor Gaza/Kashchey/01 - Chapter One.flac")
+        val af = AudioFileIO.read(file.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.GENRE, "Audiobook")
+        AudioFileIO.write(af)
+        setEmbeddedArtwork(file)
+
+        val trackId = writer.upsertTrack(root, file)!!
+        Files.setLastModifiedTime(
+            file,
+            java.nio.file.attribute.FileTime
+                .from(Files.getLastModifiedTime(file).toInstant().plusSeconds(60)),
+        )
+        writer.upsertTrack(root, file)
+
+        assertEquals(1, imageRepo.findByEntityId(trackId).count { it.isPrimary }, "rescan must not create a second Primary image row")
     }
 
     @Test

@@ -1,9 +1,11 @@
 import { createLogger, redactSecrets } from '@yay-tsa/core';
 import { type AudioEngine, type MediaPlaybackError } from '../audio.interface.js';
 import { createFade } from './fade.js';
-import { VocalRemovalProcessor } from './vocal-removal.js';
 
 const log = createLogger('Audio');
+
+const VOCAL_BLEND_DRIFT_THRESHOLD_SEC = 0.05;
+const VOCAL_BLEND_GAIN_SMOOTHING_SEC = 0.015;
 
 export interface HTML5AudioEngineOptions {
   loadTimeoutMs?: number;
@@ -130,9 +132,13 @@ export class HTML5AudioEngine implements AudioEngine {
   // Track element fades for crossfade cancellation (fallback path only)
   private readonly activeElementFades: Set<() => void> = new Set();
 
-  // Vocal removal processor for karaoke mode
-  private vocalRemovalProcessor: VocalRemovalProcessor | null = null;
-  private karaokeEnabled: boolean = false;
+  // Karaoke vocal-blend co-play: primary element plays the instrumental stem at a
+  // fixed gain of 1.0, the secondary element plays the vocals stem at a variable gain
+  // (0 = pure instrumental/karaoke, 1 = instrumental+vocals sum ≈ original mix). Both
+  // elements play simultaneously, time-locked by a drift watchdog.
+  private blendActive: boolean = false;
+  private vocalBlendLevel: number = 0;
+  private blendDriftWatchdog: ReturnType<typeof setInterval> | null = null;
 
   // AudioContext interrupt recovery cleanup
   private contextRecoveryCleanup: (() => void) | null = null;
@@ -454,6 +460,10 @@ export class HTML5AudioEngine implements AudioEngine {
           }
 
           await this.audio.play();
+          if (this.blendActive) {
+            this.audioSecondary.currentTime = this.audio.currentTime;
+            await this.audioSecondary.play().catch(() => {});
+          }
         } catch (error) {
           const err = error as Error;
           if (err.name !== 'AbortError') {
@@ -480,6 +490,7 @@ export class HTML5AudioEngine implements AudioEngine {
     this.playPromiseChain = this.playPromiseChain
       .then(() => {
         this.audio.pause();
+        if (this.blendActive) this.audioSecondary.pause();
       })
       .catch(error => {
         // Pause errors are usually due to race conditions with play()
@@ -501,6 +512,7 @@ export class HTML5AudioEngine implements AudioEngine {
     const duration = this.getDuration();
     const clampedSeconds = duration > 0 ? Math.min(seconds, duration) : seconds;
     this.audio.currentTime = clampedSeconds;
+    if (this.blendActive) this.audioSecondary.currentTime = clampedSeconds;
     if (this._isPlaying) this.scheduleApproachingEndTimer();
     else this.clearApproachingEndTimer();
   }
@@ -670,11 +682,8 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audioSecondary.load();
     this.audioSecondary.remove();
 
-    // Dispose vocal removal processor
-    if (this.vocalRemovalProcessor) {
-      this.vocalRemovalProcessor.dispose();
-      this.vocalRemovalProcessor = null;
-    }
+    this.stopBlendDriftWatchdog();
+    this.blendActive = false;
 
     // Disconnect WebAudio nodes (ignore errors from already-disconnected nodes)
     if (this.webAudioInitialized) {
@@ -777,48 +786,139 @@ export class HTML5AudioEngine implements AudioEngine {
     return this.audio;
   }
 
-  setKaraokeMode(enabled: boolean): void {
+  async enterVocalBlend(
+    instrumentalUrl: string,
+    vocalsUrl: string,
+    positionSec: number,
+    playing: boolean
+  ): Promise<void> {
     this.ensureNotDisposed();
 
     const ctx = this.ensureAudioContext();
-    if (!ctx || !this.webAudioInitialized || !this.inputBus || !this.masterGain) {
-      log.warn('WebAudio not available for karaoke mode');
-      this.karaokeEnabled = false;
-      return;
+    if (!ctx || !this.webAudioInitialized || !this.elemGainPrimary || !this.elemGainSecondary) {
+      throw new Error('WebAudio not available for vocal blend');
     }
 
-    this.karaokeEnabled = enabled;
+    // Bypass the preload/swap machinery while co-playing two stems.
+    this.cancelCurrentLoad();
+    this.preloadedUrl = null;
+    this.preloadPromise = null;
 
-    if (enabled && !this.vocalRemovalProcessor) {
-      try {
-        // Disconnect direct path: inputBus → masterGain
-        this.inputBus.disconnect(this.masterGain);
+    this.blendActive = true;
+    this.audioSecondary.muted = false;
 
-        // Create and insert vocal removal processor between inputBus and masterGain
-        this.vocalRemovalProcessor = new VocalRemovalProcessor(ctx, {
-          enabled: true,
-          bassPreservationCutoff: 120,
-        });
-        this.vocalRemovalProcessor.connectToGraph(this.inputBus, this.masterGain);
-        log.info('Karaoke mode enabled');
-      } catch (error) {
-        log.error('Failed to enable karaoke mode', { error: String(error) });
-        // Restore direct connection on failure
-        try {
-          this.inputBus.connect(this.masterGain);
-        } catch {
-          // intentionally ignored
-        }
-        this.karaokeEnabled = false;
-      }
-    } else if (this.vocalRemovalProcessor) {
-      this.vocalRemovalProcessor.setEnabled(enabled);
-      log.info(`Karaoke mode ${enabled ? 'enabled' : 'disabled'}`);
+    await Promise.all([
+      this.loadElement(this.audio, instrumentalUrl),
+      this.loadElement(this.audioSecondary, vocalsUrl),
+    ]);
+
+    const d = this.audio.duration;
+    this.stableDuration = Number.isFinite(d) && d > 0 ? d : 0;
+
+    const clamped =
+      this.stableDuration > 0 ? Math.min(positionSec, this.stableDuration) : positionSec;
+    this.audio.currentTime = clamped;
+    this.audioSecondary.currentTime = clamped;
+
+    this.elemGainPrimary.gain.setValueAtTime(1, ctx.currentTime);
+    this.applyVocalBlendGain(this.vocalBlendLevel);
+
+    this.approachingEndFired = false;
+
+    if (playing) {
+      await this.play();
     }
+
+    this.startBlendDriftWatchdog();
+    log.info('Vocal blend co-play started', { positionSec: clamped, playing });
   }
 
-  isKaraokeModeEnabled(): boolean {
-    return this.karaokeEnabled;
+  setVocalBlend(level: number): void {
+    this.ensureNotDisposed();
+    this.vocalBlendLevel = Math.max(0, Math.min(1, level));
+    if (this.blendActive) this.applyVocalBlendGain(this.vocalBlendLevel);
+  }
+
+  async exitVocalBlend(resumeUrl: string, positionSec: number, playing: boolean): Promise<void> {
+    this.ensureNotDisposed();
+
+    this.stopBlendDriftWatchdog();
+    this.blendActive = false;
+
+    if (this.elemGainSecondary && this.audioContext) {
+      this.elemGainSecondary.gain.setTargetAtTime(
+        0,
+        this.audioContext.currentTime,
+        VOCAL_BLEND_GAIN_SMOOTHING_SEC
+      );
+    }
+    this.audioSecondary.pause();
+    this.audioSecondary.src = '';
+    this.audioSecondary.load();
+    this.audioSecondary.muted = true;
+
+    await this.load(resumeUrl);
+    this.seek(positionSec);
+    if (playing) await this.play();
+    log.info('Vocal blend co-play stopped', { positionSec, playing });
+  }
+
+  isVocalBlendActive(): boolean {
+    return this.blendActive;
+  }
+
+  private applyVocalBlendGain(level: number): void {
+    if (!this.elemGainSecondary || !this.audioContext) return;
+    this.elemGainSecondary.gain.setTargetAtTime(
+      level,
+      this.audioContext.currentTime,
+      VOCAL_BLEND_GAIN_SMOOTHING_SEC
+    );
+  }
+
+  private async loadElement(element: HTMLAudioElement, url: string): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const handleCanPlay = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        const message = element.error?.message ?? 'Unknown error';
+        reject(new Error(`Failed to load stem: ${this.sanitizeError(message)}`));
+      };
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Stem load timeout after ${this.loadTimeoutMs / 1000} seconds`));
+      }, this.loadTimeoutMs);
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        element.removeEventListener('canplay', handleCanPlay);
+        element.removeEventListener('error', handleError);
+      };
+      element.addEventListener('canplay', handleCanPlay, { once: true });
+      element.addEventListener('error', handleError, { once: true });
+      element.src = url;
+      element.load();
+    });
+  }
+
+  private startBlendDriftWatchdog(): void {
+    this.stopBlendDriftWatchdog();
+    this.blendDriftWatchdog = setInterval(() => {
+      if (!this.blendActive) return;
+      const drift = Math.abs(this.audio.currentTime - this.audioSecondary.currentTime);
+      if (drift > VOCAL_BLEND_DRIFT_THRESHOLD_SEC) {
+        this.audioSecondary.currentTime = this.audio.currentTime;
+      }
+    }, 250);
+  }
+
+  private stopBlendDriftWatchdog(): void {
+    if (this.blendDriftWatchdog) {
+      clearInterval(this.blendDriftWatchdog);
+      this.blendDriftWatchdog = null;
+    }
   }
 
   async preload(url: string): Promise<void> {

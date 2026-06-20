@@ -93,7 +93,7 @@ interface PlayerState {
   isKaraokeTransitioning: boolean;
   karaokeStatus: KaraokeStatus | null;
   karaokeEnabled: boolean;
-  karaokeStem: 'instrumental' | 'vocals';
+  vocalBlend: number;
   sleepTimerMinutes: number | null;
   sleepTimerEndTime: number | null;
   playerMode: PlayerMode;
@@ -116,7 +116,7 @@ interface PlayerActions {
   toggleRepeat: () => void;
   stop: () => void;
   toggleKaraoke: () => Promise<void>;
-  toggleKaraokeStem: () => Promise<void>;
+  setVocalBlend: (level: number) => void;
   refreshKaraokeStatus: () => Promise<void>;
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
@@ -272,7 +272,7 @@ const initialState: PlayerState = {
   isKaraokeTransitioning: false,
   karaokeStatus: null,
   karaokeEnabled: false,
-  karaokeStem: 'instrumental',
+  vocalBlend: 0,
   sleepTimerMinutes: null,
   sleepTimerEndTime: null,
   playerMode: 'music',
@@ -304,7 +304,7 @@ export const usePlayerStore = create<PlayerStore>()(
         toggleRepeat: () => {},
         stop: () => {},
         toggleKaraoke: async () => {},
-        toggleKaraokeStem: async () => {},
+        setVocalBlend: () => {},
         refreshKaraokeStatus: async () => {},
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
@@ -430,15 +430,12 @@ export const usePlayerStore = create<PlayerStore>()(
 
     function updateSessionMetadata(track: AudioItem): void {
       if (!currentClient) return;
+      // Only advertise artwork the track actually has (Primary tag present). Without it the server
+      // would 404, so leave artwork undefined rather than pointing Media Session at a missing cover.
       let imageUrl: string | undefined;
       if (track.AlbumPrimaryImageTag) {
         imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
           tag: track.AlbumPrimaryImageTag,
-          maxWidth: 256,
-          maxHeight: 256,
-        });
-      } else if (track.AlbumId) {
-        imageUrl = currentClient.getImageUrl(track.AlbumId, 'Primary', {
           maxWidth: 256,
           maxHeight: 256,
         });
@@ -487,14 +484,6 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
-    // The active karaoke stem (instrumental by default, vocals when toggled) selects
-    // which stem stream the karaoke flow loads and re-loads for the current track.
-    function karaokeStemUrl(client: MediaServerClient, trackId: string): string {
-      return get().karaokeStem === 'vocals'
-        ? client.getVocalStreamUrl(trackId)
-        : client.getInstrumentalStreamUrl(trackId);
-    }
-
     // A stem URL handed straight to the audio engine turns a 404 (stems not
     // generated yet) into a scary MEDIA_ELEMENT_ERROR. Probe availability first
     // so the normal "no stems yet" case stays a quiet, expected outcome.
@@ -521,13 +510,13 @@ export const usePlayerStore = create<PlayerStore>()(
       set({ isKaraokeTransitioning: true });
       try {
         if (!currentClient) return;
-        const url = karaokeStemUrl(currentClient, trackId);
-        if (!(await isKaraokeStemAvailable(url, signal))) {
+        const instrumentalUrl = currentClient.getInstrumentalStreamUrl(trackId);
+        if (!(await isKaraokeStemAvailable(instrumentalUrl, signal))) {
           if (!signal.aborted) markKaraokeUnavailable('stem not ready');
           return;
         }
         if (signal.aborted) return;
-        await karaokeSwitchUrl(url, signal);
+        await enterVocalBlend(trackId, signal);
         if (!signal.aborted) {
           set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
           preloader.invalidate();
@@ -564,30 +553,42 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
-    async function karaokeSwitchUrl(url: string, signal: AbortSignal): Promise<void> {
-      if (engine.preload && engine.seamlessSwitch) {
-        const hint = engine.getCurrentTime();
-        await withTimeout(engine.preload(url), ENGINE_TIMEOUT_MS);
-        if (signal.aborted) return;
-        const result = await withTimeout(engine.seamlessSwitch(hint, 50), ENGINE_TIMEOUT_MS);
-        if (!get().isPlaying) engine.pause();
-        if (result) {
-          useTimingStore.getState().updateTiming(result.position, result.duration);
-        }
-      } else {
-        const position = engine.getCurrentTime();
-        await withTimeout(engine.load(url), ENGINE_TIMEOUT_MS);
-        if (signal.aborted) return;
-        engine.seek(position);
-        if (get().isPlaying) await engine.play();
-      }
+    // Co-play instrumental + vocals stems for the live vocal-blend slider. The
+    // instrumental drives position/seek; the vocals stem is mixed in at the current
+    // blend gain. Online-only: stems stream from the backend Range endpoints.
+    async function enterVocalBlend(trackId: string, signal: AbortSignal): Promise<void> {
+      if (!currentClient || !engine.enterVocalBlend) return;
+      const position = engine.getCurrentTime();
+      const wasPlaying = get().isPlaying;
+      const instrumentalUrl = currentClient.getInstrumentalStreamUrl(trackId);
+      const vocalsUrl = currentClient.getVocalStreamUrl(trackId);
+      engine.setVocalBlend?.(get().vocalBlend);
+      await withTimeout(
+        engine.enterVocalBlend(instrumentalUrl, vocalsUrl, position, wasPlaying),
+        ENGINE_TIMEOUT_MS
+      );
+      if (signal.aborted) return;
+      useTimingStore.getState().updateTiming(engine.getCurrentTime(), engine.getDuration());
 
       const seekTarget = pendingSeek;
-      if (!signal.aborted && seekTarget && seekTarget.itemId === get().currentTrack?.Id) {
+      if (seekTarget && seekTarget.itemId === get().currentTrack?.Id) {
         engine.seek(seekTarget.seconds);
         useTimingStore.getState().seekTo(seekTarget.seconds, engine.getDuration());
         pendingSeek = null;
       }
+    }
+
+    async function exitVocalBlend(resumeUrl: string, signal: AbortSignal): Promise<void> {
+      if (!engine.exitVocalBlend) {
+        await withTimeout(engine.load(resumeUrl), ENGINE_TIMEOUT_MS);
+        if (!signal.aborted && get().isPlaying) await engine.play();
+        return;
+      }
+      const position = engine.getCurrentTime();
+      const wasPlaying = get().isPlaying;
+      await withTimeout(engine.exitVocalBlend(resumeUrl, position, wasPlaying), ENGINE_TIMEOUT_MS);
+      if (signal.aborted) return;
+      useTimingStore.getState().updateTiming(engine.getCurrentTime(), engine.getDuration());
     }
 
     // --- Core playback commands ---
@@ -678,9 +679,6 @@ export const usePlayerStore = create<PlayerStore>()(
         isKaraokeMode: false,
         isKaraokeTransitioning: false,
         karaokeStatus: null,
-        // Reset the stem so a karaoke auto-re-enable on the new track starts from the
-        // instrumental default instead of inheriting a 'vocals' selection from the prior track.
-        karaokeStem: 'instrumental',
         playerMode: audiobook ? 'audiobook' : 'music',
         playbackRate: rate,
       });
@@ -914,13 +912,16 @@ export const usePlayerStore = create<PlayerStore>()(
       void controller.interrupt(async signal => {
         try {
           if (!currentClient) throw new Error('Not authenticated');
-          let streamUrl: string;
           if (get().isKaraokeMode) {
-            streamUrl = karaokeStemUrl(currentClient, track.Id);
-          } else {
-            const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
-            streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
+            await enterVocalBlend(track.Id, signal);
+            if (signal.aborted) return;
+            engine.setPlaybackRate?.(get().playbackRate);
+            if (lastKnownPosition > 0) engine.seek(lastKnownPosition);
+            set({ error: null, isPlaying: wasPlaying, isLoading: false });
+            return;
           }
+          const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
+          const streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
           await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
           if (signal.aborted) return;
           engine.setPlaybackRate?.(get().playbackRate);
@@ -1025,8 +1026,8 @@ export const usePlayerStore = create<PlayerStore>()(
         }
 
         if (status.state === 'READY') {
-          const stemUrl = karaokeStemUrl(currentClient, currentTrack.Id);
-          if (!(await isKaraokeStemAvailable(stemUrl, signal))) {
+          const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
+          if (!(await isKaraokeStemAvailable(instrumentalUrl, signal))) {
             if (!signal.aborted) {
               set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: null });
               log.player.debug('Karaoke stem unavailable on enable, skipping preload', {
@@ -1037,7 +1038,7 @@ export const usePlayerStore = create<PlayerStore>()(
           }
           if (signal.aborted) return;
           set({ isKaraokeMode: true, karaokeStatus: status });
-          await karaokeSwitchUrl(stemUrl, signal);
+          await enterVocalBlend(currentTrack.Id, signal);
           if (!signal.aborted) {
             preloader.invalidate();
             schedulePreload();
@@ -1055,19 +1056,17 @@ export const usePlayerStore = create<PlayerStore>()(
 
     async function disableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) return;
-      // Reset to instrumental so the next karaoke enable starts from the default stem.
       set({
         isKaraokeMode: false,
         isKaraokeTransitioning: true,
         karaokeEnabled: false,
-        karaokeStem: 'instrumental',
       });
       try {
         const networkUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
         const streamUrl = await useOfflineStore
           .getState()
           .getPlaybackUrl(currentTrack.Id, networkUrl);
-        await karaokeSwitchUrl(streamUrl, signal);
+        await exitVocalBlend(streamUrl, signal);
         if (!signal.aborted) {
           preloader.invalidate();
           schedulePreload();
@@ -1437,42 +1436,10 @@ export const usePlayerStore = create<PlayerStore>()(
         });
       },
 
-      toggleKaraokeStem: async () => {
-        const { currentTrack, isKaraokeMode, isKaraokeTransitioning } = get();
-        // Only meaningful while karaoke is active on a ready track: flips the served
-        // stem between instrumental (vocals removed) and vocals (instrumental removed).
-        if (!currentTrack || !currentClient || !isKaraokeMode || isKaraokeTransitioning) return;
-
-        await controller.ifIdle(async signal => {
-          const nextStem = get().karaokeStem === 'vocals' ? 'instrumental' : 'vocals';
-          set({ karaokeStem: nextStem, isKaraokeTransitioning: true });
-          try {
-            if (!currentClient) return;
-            const stemUrl = karaokeStemUrl(currentClient, currentTrack.Id);
-            if (!(await isKaraokeStemAvailable(stemUrl, signal))) {
-              if (!signal.aborted) {
-                log.player.debug('Alternate karaoke stem unavailable, reverting', {
-                  trackId: currentTrack.Id,
-                  stem: nextStem,
-                });
-                set({ karaokeStem: get().karaokeStem === 'vocals' ? 'instrumental' : 'vocals' });
-              }
-              return;
-            }
-            if (signal.aborted) return;
-            await karaokeSwitchUrl(stemUrl, signal);
-            if (!signal.aborted) {
-              preloader.invalidate();
-              schedulePreload();
-            }
-          } catch (error) {
-            if (signal.aborted) return;
-            log.player.error('Failed to switch karaoke stem', error);
-            set({ karaokeStem: get().karaokeStem === 'vocals' ? 'instrumental' : 'vocals' });
-          } finally {
-            set({ isKaraokeTransitioning: false });
-          }
-        });
+      setVocalBlend: (level: number) => {
+        const clamped = Math.max(0, Math.min(1, level));
+        set({ vocalBlend: clamped });
+        engine.setVocalBlend?.(clamped);
       },
 
       refreshKaraokeStatus: async () => {
@@ -1511,13 +1478,13 @@ export const usePlayerStore = create<PlayerStore>()(
           set({ isKaraokeTransitioning: true, isKaraokeMode: true });
           try {
             if (!currentClient) return;
-            const stemUrl = karaokeStemUrl(currentClient, ct2.Id);
-            if (!(await isKaraokeStemAvailable(stemUrl, signal))) {
+            const instrumentalUrl = currentClient.getInstrumentalStreamUrl(ct2.Id);
+            if (!(await isKaraokeStemAvailable(instrumentalUrl, signal))) {
               if (!signal.aborted) markKaraokeUnavailable('stem not ready on refresh');
               return;
             }
             if (signal.aborted) return;
-            await karaokeSwitchUrl(stemUrl, signal);
+            await enterVocalBlend(ct2.Id, signal);
             if (!signal.aborted) {
               preloader.invalidate();
               schedulePreload();
@@ -1899,6 +1866,7 @@ export const useIsKaraokeTransitioning = () =>
   usePlayerStore(state => state.isKaraokeTransitioning);
 export const useKaraokeEnabled = () => usePlayerStore(state => state.karaokeEnabled);
 export const useKaraokeStatus = () => usePlayerStore(state => state.karaokeStatus);
+export const useVocalBlend = () => usePlayerStore(state => state.vocalBlend);
 export const useSleepTimer = () =>
   usePlayerStore(
     useShallow(state => ({

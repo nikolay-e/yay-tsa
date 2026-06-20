@@ -5,6 +5,7 @@ import dev.yaytsa.persistence.library.entity.ImageJpa
 import dev.yaytsa.persistence.library.repository.AlbumRepository
 import dev.yaytsa.persistence.library.repository.ArtistRepository
 import dev.yaytsa.persistence.library.repository.AudioTrackRepository
+import dev.yaytsa.persistence.library.repository.EntityGenreRepository
 import dev.yaytsa.persistence.library.repository.ImageRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import org.slf4j.LoggerFactory
@@ -27,9 +28,11 @@ class MetadataEnricher(
     private val imageRepo: ImageRepository,
     private val trackRepo: AudioTrackRepository,
     private val entityRepo: LibraryEntityRepository,
+    private val entityGenreRepo: EntityGenreRepository,
     private val clock: Clock,
     @Value("\${yaytsa.metadata.user-agent:Yaytsa/1.0 ( https://yay-tsa.com )}") private val userAgent: String,
     @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
+    @Value("\${yaytsa.image.cover-cache-dir:#{null}}") coverCacheDir: String?,
     @Value("\${yaytsa.metadata.batch-size:50}") private val batchSize: Int,
     @Value("\${yaytsa.metadata.musicbrainz-base-url:https://musicbrainz.org/ws/2}") private val musicBrainzBaseUrl: String,
     @Value("\${yaytsa.metadata.coverart-base-url:https://coverartarchive.org}") private val coverArtBaseUrl: String,
@@ -37,8 +40,13 @@ class MetadataEnricher(
     @Value("\${yaytsa.metadata.wikidata-base-url:https://www.wikidata.org/wiki}") wikidataBaseUrl: String,
     @Value("\${yaytsa.metadata.commons-api-url:https://commons.wikimedia.org/w/api.php}") commonsApiUrl: String,
     @Value("\${yaytsa.metadata.rate-limit-ms:1000}") rateLimitMs: Long,
+    @Value("\${yaytsa.metadata.openlibrary-enabled:false}") private val openLibraryEnabled: Boolean,
+    @Value("\${yaytsa.metadata.openlibrary-base-url:https://openlibrary.org}") openLibraryBaseUrl: String,
+    @Value("\${yaytsa.metadata.openlibrary-covers-base-url:https://covers.openlibrary.org}") openLibraryCoversBaseUrl: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private val audiobookGenres = listOf("audiobook", "audiobooks")
 
     private val safeRoot: Path? =
         musicPath
@@ -50,11 +58,18 @@ class MetadataEnricher(
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { Files.createDirectories(Path.of(it)).toRealPath() }.getOrNull() }
 
+    private val coverCacheRoot: Path? =
+        coverCacheDir
+            ?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { Files.createDirectories(Path.of(it)).toRealPath() }.getOrNull() }
+
     private val rateLimiter = RateLimiter(clock, rateLimitMs)
     private val musicBrainz = MusicBrainzClient(musicBrainzBaseUrl, userAgent, rateLimiter)
     private val coverArt = CoverArtArchiveClient(coverArtBaseUrl, userAgent, rateLimiter)
     private val artistImageSource =
         ArtistImageSourceClient(userAgent, rateLimiter, musicBrainzBaseUrl, wikidataBaseUrl, commonsApiUrl)
+    private val openLibrary =
+        OpenLibraryCoverClient(openLibraryBaseUrl, openLibraryCoversBaseUrl, userAgent, rateLimiter)
 
     private fun now(): OffsetDateTime = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
 
@@ -63,11 +78,21 @@ class MetadataEnricher(
         log.info("Metadata enrichment cycle starting")
         val artists = enrichArtists()
         val albums = enrichAlbums()
-        log.info("Metadata enrichment cycle complete: {} artists, {} albums", artists, albums)
+        val audiobooks = enrichAudiobookTrackCovers()
+        log.info(
+            "Metadata enrichment cycle complete: {} artists, {} albums, {} audiobook tracks",
+            artists,
+            albums,
+            audiobooks,
+        )
     }
 
     private fun enrichArtists(): Int {
-        val pending = artistRepo.findByMetadataCheckedAtIsNull(batchSize, 0)
+        // Re-attempt artwork for any artist still lacking a primary image (image-driven, self-healing),
+        // unioned with the one-shot MusicBrainz-ID enrichment of never-checked artists.
+        val pending =
+            (artistRepo.findByMetadataCheckedAtIsNull(batchSize, 0) + artistRepo.findWithoutPrimaryImage(batchSize, 0))
+                .distinctBy { it.entityId }
         var processed = 0
         for (artist in pending) {
             try {
@@ -155,7 +180,10 @@ class MetadataEnricher(
     }
 
     private fun enrichAlbums(): Int {
-        val pending = albumRepo.findByMetadataCheckedAtIsNull(batchSize, 0)
+        // Image-driven artwork backfill unioned with one-shot release-group MBID enrichment.
+        val pending =
+            (albumRepo.findByMetadataCheckedAtIsNull(batchSize, 0) + albumRepo.findWithoutPrimaryImage(batchSize, 0))
+                .distinctBy { it.entityId }
         var processed = 0
         for (album in pending) {
             try {
@@ -251,6 +279,111 @@ class MetadataEnricher(
             }
         val parent = absolutePath.parent ?: return null
         return runCatching { parent.toRealPath() }.getOrNull()
+    }
+
+    // Audiobook items are genre=Audiobook TRACKS, not albums, so the read path keys artwork on the
+    // track's own entity id. For each such track still lacking a primary image, resolve a cover via a
+    // universal-then-external chain and write a track-level Primary row pointing into the cover cache
+    // (the media mount is typically read-only, so covers are cached in the writable cover dir).
+    private fun enrichAudiobookTrackCovers(): Int {
+        if (coverCacheRoot == null) return 0
+        val pending = entityGenreRepo.findAudiobookTrackIdsWithoutPrimaryImage(audiobookGenres, batchSize, 0)
+        var processed = 0
+        for (trackId in pending) {
+            try {
+                if (enrichAudiobookTrackCover(trackId)) processed++
+            } catch (e: MetadataProviderUnavailableException) {
+                log.warn("Audiobook cover deferred (provider unavailable) for {}: {}", trackId, e.message)
+            } catch (e: Exception) {
+                log.warn("Audiobook cover enrichment failed for {}: {}", trackId, e.toString())
+            }
+        }
+        return processed
+    }
+
+    private fun enrichAudiobookTrackCover(trackId: UUID): Boolean {
+        if (imageRepo.findByEntityIdAndIsPrimaryTrue(trackId) != null) return false
+
+        val track = trackRepo.findById(trackId).orElse(null)
+        val borrowed = track?.albumId?.let { borrowParentCover(it) }
+        if (borrowed != null && writeCachedCover(trackId, borrowed.first, borrowed.second)) {
+            log.info("Borrowed parent album cover for audiobook track {}", trackId)
+            return true
+        }
+
+        val title = entityRepo.findById(trackId).orElse(null)?.name ?: return false
+        val artistName = track?.albumArtistId?.let { entityRepo.findById(it).orElse(null)?.name }
+
+        val coverArtCover = fetchAudiobookCoverArt(track?.albumId)
+        if (coverArtCover != null && writeCachedCover(trackId, coverArtCover.bytes, coverArtCover.extension)) {
+            log.info("Wrote Cover Art Archive cover for audiobook track {}", trackId)
+            return true
+        }
+
+        if (openLibraryEnabled) {
+            val olCover = runCatching { openLibrary.fetchCover(title, artistName) }.getOrNull()
+            if (olCover != null && writeCachedCover(trackId, olCover.bytes, olCover.extension)) {
+                log.info("Wrote Open Library cover for audiobook track {}", trackId)
+                return true
+            }
+        }
+        return false
+    }
+
+    // Universal graph-walk fallback: borrow the parent album's already-resolved Primary cover bytes.
+    private fun borrowParentCover(albumId: UUID): Pair<ByteArray, String>? {
+        val image = imageRepo.findByEntityIdAndIsPrimaryTrue(albumId) ?: return null
+        val path = Path.of(image.path)
+        if (!Files.isRegularFile(path)) return null
+        val bytes = runCatching { Files.readAllBytes(path) }.getOrNull() ?: return null
+        val ext = path.fileName.toString().substringAfterLast('.', "jpg")
+        return bytes to ext
+    }
+
+    private fun fetchAudiobookCoverArt(albumId: UUID?): CoverArt? {
+        val album = albumId?.let { albumRepo.findById(it).orElse(null) } ?: return null
+        val mbid = album.releaseGroupMbid
+        if (mbid != null) return coverArt.fetchReleaseGroupFront(mbid)
+        val albumName = entityRepo.findById(album.entityId).orElse(null)?.name ?: return null
+        val artistName = album.artistId?.let { entityRepo.findById(it).orElse(null)?.name }
+        val candidates = musicBrainz.searchReleaseGroups(albumName, artistName)
+        val match =
+            ReleaseMatcher.match(
+                LocalAlbum(title = albumName, artistName = artistName, trackCount = album.totalTracks, year = album.releaseDate?.year),
+                candidates,
+            ) ?: return null
+        album.releaseGroupMbid = match.candidate.mbid
+        albumRepo.save(album)
+        return coverArt.fetchReleaseGroupFront(match.candidate.mbid)
+    }
+
+    private fun writeCachedCover(
+        entityId: UUID,
+        bytes: ByteArray,
+        extension: String,
+    ): Boolean {
+        val root = coverCacheRoot ?: return false
+        if (bytes.isEmpty()) return false
+        val safeExt = extension.takeIf { it.matches(Regex("^[a-z0-9]{1,5}$")) } ?: "jpg"
+        val target = root.resolve("$entityId.$safeExt")
+        val written =
+            runCatching { Files.write(target, bytes) }
+                .getOrElse {
+                    log.warn("Failed to write cached cover to {}: {}", target, it.message)
+                    return false
+                }
+        imageRepo.save(
+            ImageJpa(
+                id = UUID.randomUUID(),
+                entityId = entityId,
+                imageType = "Primary",
+                path = written.toAbsolutePath().toString(),
+                sizeBytes = bytes.size.toLong(),
+                isPrimary = true,
+                createdAt = now(),
+            ),
+        )
+        return true
     }
 
     private fun bestArtist(

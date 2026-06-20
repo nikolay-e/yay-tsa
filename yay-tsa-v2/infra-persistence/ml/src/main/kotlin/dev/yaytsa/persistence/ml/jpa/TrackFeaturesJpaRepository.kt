@@ -66,4 +66,20 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
         @Param("seed") seed: UUID,
         @Param("lim") limit: Int,
     ): List<UUID>
+
+    @Query(
+        value =
+            """
+            SELECT track_id
+            FROM core_v2_ml.track_features
+            WHERE embedding_clap IS NOT NULL
+            ORDER BY embedding_clap <=> CAST(:vec AS vector(512))
+            LIMIT :lim
+            """,
+        nativeQuery = true,
+    )
+    fun findByClapVector(
+        @Param("vec") vector: String,
+        @Param("lim") limit: Int,
+    ): List<UUID>
 }

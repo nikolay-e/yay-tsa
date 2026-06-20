@@ -31,6 +31,7 @@ export function useDeviceEvents() {
     let reconnectAttempts = 0;
     let consecutiveFailures = 0;
     let degradedReported = false;
+    let sawOpen = false;
 
     const handleDeviceStateChanged = (event: MessageEvent) => {
       try {
@@ -90,6 +91,15 @@ export function useDeviceEvents() {
         reconnectAttempts = 0;
         consecutiveFailures = 0;
         degradedReported = false;
+        // A device_state_changed lost while the stream was down would leave a stale list;
+        // refetch the authoritative snapshot on every reconnect (not the first open).
+        if (sawOpen) {
+          useDeviceStore
+            .getState()
+            .fetchDevices()
+            .catch(() => {});
+        }
+        sawOpen = true;
       };
     };
 

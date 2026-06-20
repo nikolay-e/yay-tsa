@@ -39,7 +39,7 @@ class LlmClient(
             return null
         }
         if (apiKey.isNullOrBlank()) {
-            log.warn("LLM enabled but no API key configured; falling back to ML-only")
+            log.warn("LLM enabled but no API key configured; adaptive DJ rewrite skipped (queue unchanged)")
             return null
         }
 
@@ -107,7 +107,7 @@ class LlmClient(
             attempt++
             if (attempt <= MAX_RETRIES) backoff(attempt)
         }
-        log.warn("LLM unavailable after {} retries: {}; falling back to ML-only", MAX_RETRIES, lastError)
+        log.warn("LLM unavailable after {} retries: {}; adaptive DJ rewrite skipped (queue unchanged)", MAX_RETRIES, lastError)
         return null
     }
 
@@ -123,11 +123,11 @@ class LlmClient(
                     ?.asText()
                     ?.ifBlank { null }
             if (text == null) {
-                log.warn("LLM response had no message content; falling back to ML-only")
+                log.warn("LLM response had no message content; adaptive DJ rewrite skipped (queue unchanged)")
             }
             text
         } catch (e: Exception) {
-            log.warn("Failed to parse LLM response; falling back to ML-only: {}", e.message)
+            log.warn("Failed to parse LLM response; adaptive DJ rewrite skipped (queue unchanged): {}", e.message)
             null
         }
 

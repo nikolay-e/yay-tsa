@@ -5,6 +5,8 @@ interface DeviceSessionDto {
   sessionId: string;
   deviceId: string;
   userId?: string;
+  deviceName?: string | null;
+  clientName?: string | null;
   lastSeenAt: string;
   nowPlayingItemId?: string | null;
   nowPlayingItemName?: string | null;
@@ -25,6 +27,8 @@ export class DeviceService extends BaseService {
       return {
         sessionId: row.sessionId,
         deviceId: row.deviceId,
+        deviceName: row.deviceName ?? undefined,
+        clientName: row.clientName ?? undefined,
         lastUpdate: row.lastSeenAt,
         isOnline: Number.isFinite(lastSeenMs) && now - lastSeenMs < ONLINE_WINDOW_MS,
         nowPlayingItemId: row.nowPlayingItemId ?? undefined,

@@ -107,6 +107,11 @@ backend:
       extractorScript: '' # path to in-container Python feature-extractor (absent = disabled)
       processTimeoutSeconds: 600
       batchSize: 50
+    image:
+      # Materialized embedded cover art (scan time) + audiobook/Open Library covers (enricher) land here
+      # instead of the (often read-only) media mount, so imageTags and the Images endpoint agree by
+      # construction. Mounted as a writable emptyDir below (backend.coverCache); re-derivable on rescan.
+      coverCacheDir: '/app/cover-cache'
     metadata:
       enabled: false # MusicBrainz ID + Cover Art Archive enrichment; writes cover.jpg into album folders
       userAgent: 'Yaytsa/1.0 ( https://yay-tsa.com )'
@@ -116,6 +121,10 @@ backend:
       # of in the (often read-only) media mount. Served via /Items/{artistId}/Images/Primary. Mounted
       # as a writable emptyDir below (backend.artistImages) since the root filesystem is read-only.
       artistImageDir: '/app/artist-images'
+      # Last-resort keyless open-source book-cover fallback for audiobooks (Open Library search.json ->
+      # covers.openlibrary.org). Default OFF: this library's "audiobooks" are largely Russian music in
+      # Cover Art Archive, not ISBN books. Enable only if genuine book audiobooks are present.
+      openLibraryEnabled: false
     llm:
       enabled: false # adaptive LLM-DJ; routes through the in-cluster LiteLLM gateway
       model: 'GPT-5.4 Mini' # LiteLLM model_name alias (maps to openai/gpt-5.4-mini)
@@ -137,6 +146,13 @@ backend:
   artistImages:
     mountPath: /app/artist-images
     sizeLimit: 1Gi
+
+  # Writable cache for materialized embedded cover art (scan time) and audiobook/Open Library covers
+  # (enricher). emptyDir is sufficient: covers are re-derivable on the next scan/enrichment cycle, so
+  # losing them on pod restart is harmless. Must stay writable while readOnlyRootFilesystem is true.
+  coverCache:
+    mountPath: /app/cover-cache
+    sizeLimit: 2Gi
 
   media:
     enabled: false

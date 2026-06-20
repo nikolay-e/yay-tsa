@@ -5,6 +5,7 @@ import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.playback.DeviceSessionProjection
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.shared.port.Clock
+import dev.yaytsa.application.shared.port.RemoteCommandPort
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.Seek
@@ -37,6 +38,7 @@ class JellyfinDevicesController(
     private val playbackUseCases: PlaybackUseCases,
     private val deviceEventBroadcaster: DeviceEventBroadcaster,
     private val nowPlayingResolver: DeviceNowPlayingResolver,
+    private val remoteCommandPort: RemoteCommandPort,
     private val clock: Clock,
 ) {
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
@@ -60,6 +62,7 @@ class JellyfinDevicesController(
         val deviceId: String,
         val userId: String,
         val lastSeenAt: String,
+        val deviceName: String?,
         val nowPlayingItemId: String?,
         val nowPlayingItemName: String?,
         val positionMs: Long,
@@ -75,23 +78,12 @@ class JellyfinDevicesController(
     }
 
     @GetMapping("/commands", produces = [org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun commands(): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
-        // Remote-control SSE stub. Real command delivery routes through
-        // infra-notifications; this keeps the EventSource healthy in the meantime.
-        val emitter =
-            org.springframework.web.servlet.mvc.method.annotation
-                .SseEmitter(0L)
-        try {
-            emitter.send(
-                org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-                    .event()
-                    .name("ready")
-                    .data(mapOf("ts" to clock.now().toString())),
-            )
-        } catch (_: java.io.IOException) {
-            emitter.completeWithError(java.lang.RuntimeException("SSE write failed on open"))
-        }
-        return emitter
+    fun commands(principal: Principal): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
+        // Per-user remote-command inbox. RemoteCommandSseBridge forwards outbox
+        // `device-command` notifications here as `command` events carrying a
+        // targetDeviceId, so a remote PAUSE/PLAY/SEEK (and a transfer-away STOP)
+        // reaches the device that must actually act on it.
+        return deviceEventBroadcaster.subscribe(principal.name)
     }
 
     @GetMapping
@@ -105,6 +97,7 @@ class JellyfinDevicesController(
                     deviceId = s.deviceId.value,
                     userId = s.userId.value,
                     lastSeenAt = s.lastSeenAt.toString(),
+                    deviceName = s.deviceName,
                     nowPlayingItemId = nowPlaying.nowPlayingItemId,
                     nowPlayingItemName = nowPlaying.nowPlayingItemName,
                     positionMs = nowPlaying.positionMs,
@@ -121,12 +114,11 @@ class JellyfinDevicesController(
     ): ResponseEntity<Any> {
         val uid = UserId(principal.name)
         val now = clock.now()
-        val authDeviceId =
-            (
-                org.springframework.security.core.context.SecurityContextHolder
-                    .getContext()
-                    .authentication as? DeviceBoundAuthentication
-            )?.deviceId
+        val auth =
+            org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .authentication as? DeviceBoundAuthentication
+        val authDeviceId = auth?.deviceId
         val deviceIdValue =
             request?.deviceId?.takeIf { it.isNotBlank() }
                 ?: authDeviceId
@@ -134,7 +126,7 @@ class JellyfinDevicesController(
         val sessionIdValue =
             request?.sessionId?.takeIf { it.isNotBlank() }
                 ?: deviceIdValue
-        deviceSessionProjection.register(uid, SessionId(sessionIdValue), DeviceId(deviceIdValue), now)
+        deviceSessionProjection.register(uid, SessionId(sessionIdValue), DeviceId(deviceIdValue), now, auth?.deviceName)
         return ResponseEntity.noContent().build()
     }
 
@@ -176,7 +168,13 @@ class JellyfinDevicesController(
                 current.version,
             )
         return when (val result = playbackUseCases.execute(cmd, ctx)) {
-            is CommandResult.Success ->
+            is CommandResult.Success -> {
+                remoteCommandPort.publish(
+                    userId = uid.value,
+                    targetDeviceId = leaseOwner.value,
+                    command = remoteCommandType(request.command),
+                    params = request.params,
+                )
                 ResponseEntity.ok(
                     mapOf(
                         "sessionId" to sid.value,
@@ -184,10 +182,21 @@ class JellyfinDevicesController(
                         "command" to request.command,
                     ),
                 )
+            }
             is CommandResult.Failed ->
                 problemDetail(HttpStatus.CONFLICT, "Conflict", result.failure.toString())
         }
     }
+
+    private fun remoteCommandType(command: String): String =
+        when (command.lowercase()) {
+            "play" -> "PLAY"
+            "pause" -> "PAUSE"
+            "skip_next" -> "NEXT"
+            "skip_previous" -> "PREV"
+            "seek" -> "SEEK"
+            else -> command.uppercase()
+        }
 
     @PostMapping("/{sessionId}/transfer")
     fun transferLease(
@@ -226,6 +235,11 @@ class JellyfinDevicesController(
         return when (val result = playbackUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> {
                 val updated = result.value
+                remoteCommandPort.publish(
+                    userId = uid.value,
+                    targetDeviceId = currentOwner.value,
+                    command = "STOP",
+                )
                 ResponseEntity.ok(
                     mapOf(
                         "sessionId" to sid.value,

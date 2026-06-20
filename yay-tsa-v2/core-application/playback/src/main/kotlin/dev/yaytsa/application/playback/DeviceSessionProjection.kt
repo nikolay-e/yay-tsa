@@ -11,6 +11,7 @@ data class DeviceSession(
     val sessionId: SessionId,
     val deviceId: DeviceId,
     val lastSeenAt: Instant,
+    val deviceName: String? = null,
 )
 
 class DeviceSessionProjection {
@@ -21,8 +22,9 @@ class DeviceSessionProjection {
         sessionId: SessionId,
         deviceId: DeviceId,
         now: Instant,
+        deviceName: String? = null,
     ) {
-        sessions[deviceId] = DeviceSession(userId, sessionId, deviceId, now)
+        sessions[deviceId] = DeviceSession(userId, sessionId, deviceId, now, deviceName)
     }
 
     fun heartbeat(

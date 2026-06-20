@@ -28,6 +28,7 @@ dependencies {
     implementation(project(":core-application:playlists"))
     implementation(project(":core-application:preferences"))
     implementation(project(":core-application:adaptive"))
+    implementation(project(":core-application:ml"))
     implementation(libs.spring.boot.starter.web)
     implementation(libs.jackson.module.kotlin)
 

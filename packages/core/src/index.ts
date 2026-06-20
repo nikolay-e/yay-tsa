@@ -35,6 +35,7 @@ export type {
   TransferLeaseResult,
   RemoteCommand,
   RemoteCommandType,
+  RemoteCommandWireType,
 } from './api/device.types.js';
 export type {
   ListeningSession,
@@ -106,6 +107,7 @@ export type {
   PlaybackSchedule,
   GroupMember,
   GroupSnapshot,
+  GroupControlMode,
   ScheduleUpdateResponse,
   ScheduleAction,
 } from './sync/group-sync.types.js';

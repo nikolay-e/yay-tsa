@@ -37,6 +37,12 @@ abstract class HttpIntegrationTestBase {
 
         private val externalDbUrl: String? = System.getenv("PERF_DB_URL")
 
+        @JvmStatic
+        val coverCacheDir: String =
+            java.nio.file.Files
+                .createTempDirectory("yaytsa-app-cover-cache")
+                .toString()
+
         init {
             if (externalDbUrl == null) postgres.start()
         }
@@ -56,6 +62,7 @@ abstract class HttpIntegrationTestBase {
             registry.add("spring.flyway.enabled") { "false" }
             registry.add("spring.jpa.hibernate.ddl-auto") { "none" }
             registry.add("yaytsa.library.music-path") { System.getProperty("java.io.tmpdir") }
+            registry.add("yaytsa.image.cover-cache-dir") { coverCacheDir }
             registry.add("yaytsa.karaoke.output-path") { System.getProperty("java.io.tmpdir") }
             registry.add("yaytsa.mpd.enabled") { "true" }
             registry.add("yaytsa.mpd.port") { mpdPort.toString() }

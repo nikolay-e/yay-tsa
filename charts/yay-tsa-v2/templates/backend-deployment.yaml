@@ -122,6 +122,8 @@ spec:
               mountPath: /app/logs
             - name: artist-images
               mountPath: {{ .Values.backend.config.metadata.artistImageDir }}
+            - name: cover-cache
+              mountPath: {{ .Values.backend.config.image.coverCacheDir }}
             {{- if .Values.backend.media.enabled }}
             - name: media
               mountPath: {{ .Values.backend.media.mountPath }}
@@ -146,6 +148,9 @@ spec:
         - name: artist-images
           emptyDir:
             sizeLimit: {{ .Values.backend.artistImages.sizeLimit }}
+        - name: cover-cache
+          emptyDir:
+            sizeLimit: {{ .Values.backend.coverCache.sizeLimit }}
         {{- if .Values.backend.media.enabled }}
         - name: media
           hostPath:

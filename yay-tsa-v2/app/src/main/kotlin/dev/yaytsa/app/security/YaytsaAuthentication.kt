@@ -8,6 +8,7 @@ class YaytsaAuthentication(
     val userId: UserId,
     private val tokenValue: String,
     override val deviceId: String? = null,
+    override val deviceName: String? = null,
     val isAdmin: Boolean = false,
 ) : AbstractAuthenticationToken(emptyList()),
     DeviceBoundAuthentication {

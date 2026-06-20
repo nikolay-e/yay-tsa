@@ -60,7 +60,7 @@ class JellyfinAuthFilter(
                     } ?: false
                 if (apiToken != null && !apiToken.revoked && !expired) {
                     SecurityContextHolder.getContext().authentication =
-                        JellyfinAuthentication(user.id, user.isAdmin, token, apiToken?.deviceId?.value)
+                        JellyfinAuthentication(user.id, user.isAdmin, token, apiToken.deviceId.value, apiToken.deviceName)
                 }
             }
         }
@@ -84,6 +84,7 @@ class JellyfinAuthFilter(
 
 interface DeviceBoundAuthentication {
     val deviceId: String?
+    val deviceName: String?
 }
 
 class JellyfinAuthentication(
@@ -91,6 +92,7 @@ class JellyfinAuthentication(
     val isAdmin: Boolean,
     private val token: String,
     override val deviceId: String? = null,
+    override val deviceName: String? = null,
 ) : AbstractAuthenticationToken(emptyList()),
     DeviceBoundAuthentication {
     init {

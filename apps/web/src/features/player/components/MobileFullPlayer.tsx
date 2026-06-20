@@ -15,8 +15,6 @@ import {
   RotateCw,
   Mic,
   MicOff,
-  MicVocal,
-  Music2,
   Timer,
   AlignLeft,
   ListMusic,
@@ -33,6 +31,7 @@ import { usePlayerStore } from '../stores/player.store';
 import { nextAudiobookSpeed } from '../playback-speed';
 import { SeekBar } from './SeekBar';
 import { InlineLyricsPanel } from './InlineLyricsPanel';
+import { KaraokeBlendSlider } from './KaraokeBlendSlider';
 
 type MobileFullPlayerProps = Readonly<{
   track: AudioItem;
@@ -45,7 +44,7 @@ type MobileFullPlayerProps = Readonly<{
   isKaraokeMode: boolean;
   isKaraokeTransitioning: boolean;
   karaokeStatus: { state: string } | null;
-  karaokeStem: 'instrumental' | 'vocals';
+  vocalBlend: number;
   hasSleepTimer: boolean;
   sleepMinutesLeft: number;
   showThumbs: boolean;
@@ -57,7 +56,7 @@ type MobileFullPlayerProps = Readonly<{
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
   onToggleKaraoke: () => void;
-  onToggleKaraokeStem: () => void;
+  onVocalBlendChange: (value: number) => void;
   onOpenSleepTimer: () => void;
   onOpenQueue: () => void;
   onSeek: (seconds: number) => void;
@@ -69,7 +68,6 @@ type SecondaryPillControlsProps = Readonly<{
   isKaraokeMode: boolean;
   isKaraokeTransitioning: boolean;
   karaokeStatus: { state: string } | null | undefined;
-  karaokeStem: 'instrumental' | 'vocals';
   showLyrics: boolean;
   hasSleepTimer: boolean;
   sleepMinutesLeft: number;
@@ -77,7 +75,6 @@ type SecondaryPillControlsProps = Readonly<{
   playbackRate: number;
   onCycleSpeed: () => void;
   onToggleKaraoke: () => void;
-  onToggleKaraokeStem: () => void;
   onToggleLyrics: () => void;
   onOpenSleepTimer: () => void;
 }>;
@@ -86,7 +83,6 @@ function SecondaryPillControls({
   isKaraokeMode,
   isKaraokeTransitioning,
   karaokeStatus,
-  karaokeStem,
   showLyrics,
   hasSleepTimer,
   sleepMinutesLeft,
@@ -94,7 +90,6 @@ function SecondaryPillControls({
   playbackRate,
   onCycleSpeed,
   onToggleKaraoke,
-  onToggleKaraokeStem,
   onToggleLyrics,
   onOpenSleepTimer,
 }: SecondaryPillControlsProps) {
@@ -118,28 +113,6 @@ function SecondaryPillControls({
       >
         {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
       </button>
-
-      {isKaraokeMode && (
-        <button
-          type="button"
-          onClick={onToggleKaraokeStem}
-          disabled={isKaraokeTransitioning}
-          className={cn(
-            'focus-visible:ring-accent bg-bg-tertiary text-text-secondary hover:text-text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50',
-            isKaraokeTransitioning && 'animate-pulse'
-          )}
-          aria-label={
-            karaokeStem === 'vocals' ? 'Switch to instrumental only' : 'Switch to vocals only'
-          }
-          aria-pressed={karaokeStem === 'vocals'}
-        >
-          {karaokeStem === 'vocals' ? (
-            <Music2 className="h-4 w-4" />
-          ) : (
-            <MicVocal className="h-4 w-4" />
-          )}
-        </button>
-      )}
 
       {isAudiobook && (
         <button
@@ -235,7 +208,7 @@ export function MobileFullPlayer({
   isKaraokeMode,
   isKaraokeTransitioning,
   karaokeStatus,
-  karaokeStem,
+  vocalBlend,
   hasSleepTimer,
   sleepMinutesLeft,
   showThumbs,
@@ -247,7 +220,7 @@ export function MobileFullPlayer({
   onToggleShuffle,
   onToggleRepeat,
   onToggleKaraoke,
-  onToggleKaraokeStem,
+  onVocalBlendChange,
   onOpenSleepTimer,
   onOpenQueue,
   onSeek,
@@ -489,12 +462,23 @@ export function MobileFullPlayer({
           )}
         </div>
 
+        {isKaraokeMode && (
+          <div className="px-8">
+            <KaraokeBlendSlider
+              active={isKaraokeMode}
+              value={vocalBlend}
+              disabled={isKaraokeTransitioning}
+              onChange={onVocalBlendChange}
+              className="w-full"
+            />
+          </div>
+        )}
+
         {/* Secondary pill controls */}
         <SecondaryPillControls
           isKaraokeMode={isKaraokeMode}
           isKaraokeTransitioning={isKaraokeTransitioning}
           karaokeStatus={karaokeStatus}
-          karaokeStem={karaokeStem}
           showLyrics={showLyrics}
           hasSleepTimer={hasSleepTimer}
           sleepMinutesLeft={sleepMinutesLeft}
@@ -502,7 +486,6 @@ export function MobileFullPlayer({
           playbackRate={playbackRate}
           onCycleSpeed={() => setPlaybackRate(nextAudiobookSpeed(playbackRate), 'book')}
           onToggleKaraoke={onToggleKaraoke}
-          onToggleKaraokeStem={onToggleKaraokeStem}
           onToggleLyrics={() => setShowLyrics(v => !v)}
           onOpenSleepTimer={onOpenSleepTimer}
         />

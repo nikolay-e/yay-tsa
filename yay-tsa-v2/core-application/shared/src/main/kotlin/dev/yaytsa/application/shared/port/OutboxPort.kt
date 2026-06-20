@@ -47,4 +47,13 @@ sealed interface DomainNotification {
     ) : DomainNotification {
         override val context = "adaptive"
     }
+
+    data class RemoteCommand(
+        val userId: String,
+        val targetDeviceId: String,
+        val command: String,
+        val params: Map<String, Any?> = emptyMap(),
+    ) : DomainNotification {
+        override val context = "device-command"
+    }
 }

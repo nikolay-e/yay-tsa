@@ -1,5 +1,10 @@
 import { BaseService } from '../api/base-api.service.js';
-import type { GroupSnapshot, ScheduleAction, ScheduleUpdateResponse } from './group-sync.types.js';
+import type {
+  GroupControlMode,
+  GroupSnapshot,
+  ScheduleAction,
+  ScheduleUpdateResponse,
+} from './group-sync.types.js';
 
 export class GroupSyncService extends BaseService {
   async createGroup(name: string, trackId: string): Promise<{ id: string; joinCode: string }> {
@@ -46,5 +51,9 @@ export class GroupSyncService extends BaseService {
 
   async endGroup(groupId: string): Promise<void> {
     await this.client.delete(`/v1/groups/${groupId}`);
+  }
+
+  async setControlMode(groupId: string, controlMode: GroupControlMode): Promise<void> {
+    await this.client.post(`/v1/groups/${groupId}/control-mode`, { controlMode });
   }
 }

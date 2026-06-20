@@ -74,6 +74,9 @@ yaytsa:
   ml:
     enabled: ${ML_ENABLED:false}
     extractor-script: ${ML_EXTRACTOR_SCRIPT:#{null}}
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:false}
+    base-url: ${EMBEDDING_BASE_URL:http://audio-separator.yay-tsa-production.svc.cluster.local:8000}
   karaoke:
     enabled: ${KARAOKE_ENABLED:false}
     output-path: ${KARAOKE_OUTPUT_PATH:#{null}}
@@ -84,6 +87,8 @@ yaytsa:
     lrclib:
       enabled: ${LYRICS_LRCLIB_ENABLED:true}
       base-url: ${LYRICS_LRCLIB_BASE_URL:https://lrclib.net}
+  image:
+    cover-cache-dir: ${IMAGE_COVER_CACHE_DIR:/app/cover-cache}
   metadata:
     enabled: ${METADATA_ENABLED:false}
     user-agent: ${METADATA_USER_AGENT:Yaytsa/1.0 ( https://yay-tsa.com )}
@@ -95,6 +100,9 @@ yaytsa:
     wikidata-base-url: ${METADATA_WIKIDATA_BASE_URL:https://www.wikidata.org/wiki}
     commons-api-url: ${METADATA_COMMONS_API_URL:https://commons.wikimedia.org/w/api.php}
     rate-limit-ms: ${METADATA_RATE_LIMIT_MS:1000}
+    openlibrary-enabled: ${METADATA_OPENLIBRARY_ENABLED:false}
+    openlibrary-base-url: ${METADATA_OPENLIBRARY_BASE_URL:https://openlibrary.org}
+    openlibrary-covers-base-url: ${METADATA_OPENLIBRARY_COVERS_BASE_URL:https://covers.openlibrary.org}
 
 management:
   endpoints:

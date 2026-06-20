@@ -79,7 +79,6 @@ dependencies {
 
     testImplementation(project(":core-testkit"))
     testImplementation(libs.spring.boot.starter.test)
-    testImplementation(libs.spring.boot.starter.websocket)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.kotlin.test)

@@ -45,6 +45,8 @@ class McpTools(
     private val preferencesUseCases: PreferencesUseCases,
     private val adaptiveUseCases: AdaptiveUseCases,
     private val deviceSessionProjection: DeviceSessionProjection,
+    private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
+    private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
     @Qualifier("mcpCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -52,10 +54,16 @@ class McpTools(
         listOf(
             McpToolDefinition(
                 "search_library",
-                "Search the music library for artists, albums, and tracks",
+                "Search the music library for artists, albums, and tracks. Set semantic=true for a " +
+                    "vibe/mood audio-embedding search over tracks (e.g. 'dreamy synth at sunset').",
                 mapOf(
                     "type" to "object",
-                    "properties" to mapOf("query" to mapOf("type" to "string", "description" to "Search query")),
+                    "properties" to
+                        mapOf(
+                            "query" to mapOf("type" to "string", "description" to "Search query"),
+                            "semantic" to
+                                mapOf("type" to "boolean", "description" to "Use audio-embedding vibe search over tracks"),
+                        ),
                     "required" to listOf("query"),
                 ),
             ),
@@ -225,7 +233,7 @@ class McpTools(
     ): McpToolResult {
         val args = clientArgs + mapOf("user_id" to authenticatedUserId)
         return when (name) {
-            "search_library" -> searchLibrary(args["query"] as? String ?: "")
+            "search_library" -> searchLibrary(args["query"] as? String ?: "", args["semantic"] as? Boolean ?: false)
             "list_devices" -> listDevices(args)
             "get_playback_state" -> getPlaybackState(args)
             "play" -> playbackCommand(args) { _, sid, did -> Play(sid, did, null) }
@@ -243,7 +251,14 @@ class McpTools(
         }
     }
 
-    private fun searchLibrary(query: String): McpToolResult {
+    private fun searchLibrary(
+        query: String,
+        semantic: Boolean,
+    ): McpToolResult {
+        if (semantic) {
+            val semanticResult = semanticSearch(query)
+            if (semanticResult != null) return semanticResult
+        }
         val results = libraryQueries.searchText(query, 20, 0)
         val text =
             buildString {
@@ -260,6 +275,18 @@ class McpTools(
                     results.tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
                 }
                 if (isEmpty()) append("No results found.")
+            }
+        return textResult(text)
+    }
+
+    private fun semanticSearch(query: String): McpToolResult? {
+        val vector = embeddingPort.encodeText(query) ?: return null
+        val tracks = mlQuery.findTracksByClapVector(vector, 20).mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+        if (tracks.isEmpty()) return null
+        val text =
+            buildString {
+                appendLine("Tracks (vibe match):")
+                tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
             }
         return textResult(text)
     }

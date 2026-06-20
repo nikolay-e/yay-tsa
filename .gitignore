@@ -36,6 +36,9 @@ apps/web/tests/e2e/.auth/
 *~
 *.tmp
 
+# Personal/private data (never tracked)
+private/
+
 # OS
 .DS_Store
 Thumbs.db

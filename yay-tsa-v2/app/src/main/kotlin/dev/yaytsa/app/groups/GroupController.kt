@@ -92,6 +92,15 @@ class GroupController(
         return null
     }
 
+    private fun scheduleControlFailure(
+        groupId: UUID,
+        principal: Principal,
+    ): ResponseEntity<Any>? {
+        if (!service.groupExists(groupId)) return ResponseEntity.status(404).build()
+        if (!service.canControlSchedule(groupId, UUID.fromString(principal.name))) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        return null
+    }
+
     @GetMapping("/{groupId}")
     fun snapshot(
         @PathVariable groupId: String,
@@ -121,7 +130,7 @@ class GroupController(
         principal: Principal,
     ): ResponseEntity<Any> {
         val gid = UUID.fromString(groupId)
-        ownerAccessFailure(gid, principal)?.let { return it }
+        scheduleControlFailure(gid, principal)?.let { return it }
         return when (
             val outcome =
                 service.updateSchedule(
@@ -140,6 +149,26 @@ class GroupController(
             ScheduleOutcome.Conflict -> problemDetail(HttpStatus.CONFLICT, "Conflict", "schedule epoch conflict")
             ScheduleOutcome.NotFound -> ResponseEntity.status(404).build()
         }
+    }
+
+    data class ControlModeRequest(
+        val controlMode: String,
+    )
+
+    @PostMapping("/{groupId}/control-mode")
+    fun setControlMode(
+        @PathVariable groupId: String,
+        @RequestBody request: ControlModeRequest,
+        principal: Principal,
+    ): ResponseEntity<Any> {
+        val gid = UUID.fromString(groupId)
+        ownerAccessFailure(gid, principal)?.let { return it }
+        if (request.controlMode != "host" && request.controlMode != "everyone") {
+            return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "controlMode must be 'host' or 'everyone'")
+        }
+        service.setControlMode(gid, request.controlMode)
+        broadcaster.emit(gid, "control_mode_changed", mapOf("controlMode" to request.controlMode))
+        return ResponseEntity.ok(mapOf("controlMode" to request.controlMode))
     }
 
     @PostMapping("/{groupId}/heartbeat")

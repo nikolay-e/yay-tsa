@@ -40,6 +40,8 @@ class JellyfinSessionsController(
     private val scrobbleService: ScrobbleService,
     private val resumePositionService: ResumePositionService,
     private val libraryQueries: LibraryQueries,
+    private val deviceSessionProjection: dev.yaytsa.application.playback.DeviceSessionProjection,
+    private val nowPlayingResolver: DeviceNowPlayingResolver,
     private val clock: Clock,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
@@ -98,7 +100,32 @@ class JellyfinSessionsController(
     )
 
     @GetMapping
-    fun getSessions(principal: Principal): ResponseEntity<Any> = ResponseEntity.ok(emptyList<Any>())
+    fun getSessions(principal: Principal): ResponseEntity<Any> {
+        val uid = UserId(principal.name)
+        val sessions =
+            deviceSessionProjection.getByUser(uid).map { s ->
+                val nowPlaying = nowPlayingResolver.resolve(uid, s.sessionId)
+                val nowPlayingItem =
+                    nowPlaying.nowPlayingItemId?.let { itemId ->
+                        mapOf("Id" to itemId, "Name" to nowPlaying.nowPlayingItemName, "Type" to "Audio")
+                    }
+                mapOf(
+                    "Id" to s.sessionId.value,
+                    "UserId" to uid.value,
+                    "DeviceId" to s.deviceId.value,
+                    "DeviceName" to s.deviceName,
+                    "LastActivityDate" to s.lastSeenAt.toString(),
+                    "NowPlayingItem" to nowPlayingItem,
+                    "PlayState" to
+                        mapOf(
+                            "PositionTicks" to nowPlaying.positionMs * TICKS_PER_MS,
+                            "IsPaused" to (nowPlaying.playbackState != "PLAYING"),
+                            "CanSeek" to true,
+                        ),
+                )
+            }
+        return ResponseEntity.ok(sessions)
+    }
 
     @PostMapping("/Playing")
     fun reportPlaying(

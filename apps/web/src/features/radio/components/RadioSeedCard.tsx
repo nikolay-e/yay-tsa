@@ -19,11 +19,12 @@ function resolveImageSrc(
   seed: RadioSeed,
   getImageUrl: ReturnType<typeof useImageUrl>['getImageUrl']
 ): string {
-  if (hasError || !seed.albumId) return getImagePlaceholder();
+  // Only request a cover the seed actually advertises (imageTag present). Without it the server has
+  // no cover and would 404 (forwarded as a ResourceError), so render the placeholder and skip the
+  // request, mirroring MediaCard's tag-gated rendering.
+  if (hasError || !seed.albumId || !seed.imageTag) return getImagePlaceholder();
   const px = thumbPx();
-  const opts = { maxWidth: px, maxHeight: px };
-  if (seed.imageTag) return getImageUrl(seed.albumId, 'Primary', { ...opts, tag: seed.imageTag });
-  return getImageUrl(seed.albumId, 'Primary', opts);
+  return getImageUrl(seed.albumId, 'Primary', { maxWidth: px, maxHeight: px, tag: seed.imageTag });
 }
 
 export function RadioSeedCard({

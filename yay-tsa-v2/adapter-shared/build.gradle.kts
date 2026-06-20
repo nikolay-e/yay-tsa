@@ -20,6 +20,7 @@ dependencies {
     implementation(project(":core-domain:playback"))
     implementation(project(":core-application:shared"))
     implementation(project(":core-application:library"))
+    implementation(project(":core-application:ml"))
     implementation(libs.spring.boot.starter.web)
     implementation(libs.jackson.module.kotlin)
 

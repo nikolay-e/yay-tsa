@@ -350,7 +350,9 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         // a failed cover never fails the track download. Skip if already stored.
         const coverKey = coverKeyFor(track);
         try {
-          if (!(await store.getCover(coverKey))) {
+          // Only fetch a cover the track advertises (Primary tag present). Without it the request
+          // would 404, so skip it rather than caching nothing and logging a resource error.
+          if (track.AlbumPrimaryImageTag && !(await store.getCover(coverKey))) {
             const imageUrl = client.getImageUrl(coverKey, 'Primary', {
               tag: track.AlbumPrimaryImageTag,
               maxWidth: 256,

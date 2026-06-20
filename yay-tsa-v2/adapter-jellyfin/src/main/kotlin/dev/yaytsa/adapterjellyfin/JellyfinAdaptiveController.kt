@@ -53,6 +53,7 @@ class JellyfinAdaptiveController(
     private val preferencesUseCases: PreferencesUseCases,
     private val libraryQueries: LibraryQueries,
     private val mlQuery: MlQueryPort,
+    private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
     private val clock: Clock,
     private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
     @Qualifier("jellyfinCommandContextFactory")
@@ -379,9 +380,35 @@ class JellyfinAdaptiveController(
     fun searchRecommendations(
         @RequestParam("q") query: String,
         @RequestParam(defaultValue = "20") limit: Int,
+        principal: Principal?,
     ): ResponseEntity<Any> {
-        // TODO: wire to ML-based recommendation search (semantic / text)
-        return ResponseEntity.ok(emptyList<Any>())
+        val uid = principal?.name ?: return ResponseEntity.status(401).build()
+        val userId = UserId(uid)
+        val cappedLimit = limit.coerceIn(1, 100)
+        val tracks = semanticOrLexicalSearch(userId, query, cappedLimit)
+        val results = tracks.map { trackToSeedMap(it) + mapOf("source" to "semantic", "score" to 0.0) }
+        return ResponseEntity.ok(results)
+    }
+
+    private fun semanticOrLexicalSearch(
+        userId: UserId,
+        query: String,
+        limit: Int,
+    ): List<dev.yaytsa.domain.library.Track> {
+        val vector = embeddingPort.encodeText(query)
+        val semanticTracks =
+            if (vector != null) {
+                mlQuery
+                    .findTracksByClapVector(vector, limit * 2)
+                    .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+            } else {
+                emptyList()
+            }
+        val filtered = musicSurfaceFilter(semanticTracks, userId).take(limit)
+        if (filtered.isNotEmpty()) return filtered
+        // Degrade to lexical search when the embedding service is disabled/unreachable or
+        // no track carries a CLAP embedding yet — better UX than an empty result.
+        return musicSurfaceFilter(libraryQueries.searchText(query, limit, 0).tracks, userId).take(limit)
     }
 
     private fun buildRecommendedTracks(

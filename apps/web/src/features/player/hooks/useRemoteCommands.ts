@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { DeviceService, type RemoteCommand } from '@yay-tsa/core';
+import { DeviceService, getOrCreateDeviceId, type RemoteCommand } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 import { usePlayerStore } from '../stores/player.store';
@@ -14,9 +14,12 @@ export function useRemoteCommands() {
     if (!client) return;
 
     const service = new DeviceService(client);
+    const ownDeviceId = getOrCreateDeviceId();
     let sseUrl: string;
     try {
-      sseUrl = service.buildSseUrl('/v1/me/devices/commands');
+      // Remote commands ride the same SSE channel as device-state events; the backend
+      // tags each command with the target device id and we act only on our own.
+      sseUrl = service.buildSseUrl('/v1/me/devices/events');
     } catch {
       return;
     }
@@ -54,6 +57,11 @@ export function useRemoteCommands() {
         case 'PLAY':
           store.resume().catch(() => {});
           break;
+        case 'STOP':
+          // A device that lost its lease (transfer-away) must halt local audio at once
+          // rather than wait for the next lazy reconciliation.
+          store.pause();
+          break;
         case 'NEXT':
           store.next().catch(() => {});
           break;
@@ -84,10 +92,12 @@ export function useRemoteCommands() {
     const handleCommand = (event: MessageEvent) => {
       try {
         const cmd = JSON.parse(event.data as string) as RemoteCommand;
+        if (cmd.targetDeviceId && cmd.targetDeviceId !== ownDeviceId) return;
+
         const groupSync = useGroupSyncStore.getState();
         const store = usePlayerStore.getState();
 
-        if (groupSync.mode === 'group' && cmd.type !== 'SET_VOLUME') {
+        if (cmd.type !== 'STOP' && groupSync.mode === 'group' && cmd.type !== 'SET_VOLUME') {
           handleGroupCommand(cmd, groupSync);
           return;
         }
@@ -111,7 +121,7 @@ export function useRemoteCommands() {
         if (consecutiveFailures >= DEGRADED_STREAM_THRESHOLD && !degradedReported) {
           degradedReported = true;
           log.player.warn('Device event stream degraded', {
-            stream: 'devices/commands',
+            stream: 'devices/events',
             attempts: consecutiveFailures,
           });
         }

@@ -6,6 +6,8 @@ import {
   ItemsService,
   type PlaybackSchedule,
   type GroupMember,
+  type GroupControlMode,
+  type GroupSnapshot,
   type ScheduleAction,
 } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
@@ -26,6 +28,7 @@ interface GroupSyncState {
   currentEpoch: number;
   mode: 'solo' | 'group';
   driftMs: number;
+  controlMode: GroupControlMode;
 }
 
 interface GroupSyncActions {
@@ -39,6 +42,8 @@ interface GroupSyncActions {
     paused?: boolean
   ) => Promise<void>;
   applySchedule: (schedule: PlaybackSchedule) => void;
+  reconcileSnapshot: () => Promise<void>;
+  setControlMode: (controlMode: GroupControlMode) => Promise<void>;
   reset: () => void;
 }
 
@@ -193,7 +198,21 @@ function connectSSE(groupId: string, store: typeof useGroupSyncStore) {
     }
   });
 
-  // Let browser handle reconnect with Last-Event-Id automatically
+  // The browser auto-reconnects with Last-Event-Id, but the in-memory broadcaster keeps
+  // no replay buffer: a schedule_changed emitted during the gap is lost and the client
+  // (which only advances on a strictly-increasing epoch) would desync permanently. On
+  // every successful (re)open after the first, refetch the snapshot to close that hole.
+  let sawOpen = false;
+  sseSource.onopen = () => {
+    if (sawOpen) {
+      store
+        .getState()
+        .reconcileSnapshot()
+        .catch(() => {});
+    }
+    sawOpen = true;
+  };
+
   // Only close manually on leaveGroup/reset via stopEngine()
   sseSource.onerror = () => {
     log.player.debug('Group SSE error, browser will auto-reconnect');
@@ -209,6 +228,7 @@ const initialState: GroupSyncState = {
   currentEpoch: 0,
   mode: 'solo',
   driftMs: 0,
+  controlMode: 'host',
 };
 
 export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
@@ -234,6 +254,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
         schedule: snapshot.schedule,
         currentEpoch: snapshot.schedule.scheduleEpoch,
         mode: 'group',
+        controlMode: snapshot.controlMode ?? 'host',
       });
 
       get().applySchedule(snapshot.schedule);
@@ -265,6 +286,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
         schedule: snapshot.schedule,
         currentEpoch: snapshot.schedule.scheduleEpoch,
         mode: 'group',
+        controlMode: snapshot.controlMode ?? 'host',
       });
 
       get().applySchedule(snapshot.schedule);
@@ -362,6 +384,43 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
     } else {
       player.seek(expectedMs / 1000);
       player.resume().catch(() => {});
+    }
+  },
+
+  reconcileSnapshot: async () => {
+    const { groupId } = get();
+    const services = getServices();
+    if (!services || !groupId) return;
+    let snapshot: GroupSnapshot;
+    try {
+      snapshot = await services.sync.getSnapshot(groupId);
+    } catch {
+      return;
+    }
+    if (get().groupId !== groupId) return;
+
+    const userId = useAuthStore.getState().userId;
+    set({
+      members: snapshot.members,
+      isOwner: snapshot.ownerId === userId,
+      controlMode: snapshot.controlMode ?? get().controlMode,
+    });
+
+    if (snapshot.schedule.scheduleEpoch > get().currentEpoch) {
+      get().applySchedule(snapshot.schedule);
+    }
+  },
+
+  setControlMode: async controlMode => {
+    const { groupId, controlMode: previous } = get();
+    const services = getServices();
+    if (!services || !groupId) return;
+    set({ controlMode });
+    try {
+      await services.sync.setControlMode(groupId, controlMode);
+    } catch (error) {
+      log.player.warn('Failed to set group control mode', { error: String(error) });
+      set({ controlMode: previous });
     }
   },
 

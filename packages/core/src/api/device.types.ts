@@ -38,7 +38,15 @@ export interface TransferLeaseResult {
   playbackState: string;
 }
 
+// STOP is delivered to a device that lost its lease (e.g. on transfer-away); it is
+// not a user-issued command type, so it lives alongside the RemoteCommandType union
+// rather than inside it.
+export type RemoteCommandWireType = RemoteCommandType | 'STOP';
+
 export interface RemoteCommand {
-  type: RemoteCommandType;
+  type: RemoteCommandWireType;
+  // Set by the backend when a command targets one specific device on the SSE fan-out;
+  // a receiving client acts only when it matches its own device id.
+  targetDeviceId?: string;
   payload?: Record<string, unknown>;
 }

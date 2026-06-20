@@ -67,6 +67,8 @@ class SubsonicController(
     private val preferencesUseCases: PreferencesUseCases,
     private val scrobbleService: ScrobbleService,
     private val savedPlayQueueService: SavedPlayQueueService,
+    private val deviceSessionProjection: dev.yaytsa.application.playback.DeviceSessionProjection,
+    private val playbackQueries: dev.yaytsa.application.playback.PlaybackQueries,
     private val lyricsResolver: LyricsResolver,
     private val clock: Clock,
     private val responseWriter: SubsonicResponseWriter,
@@ -294,8 +296,9 @@ class SubsonicController(
         @RequestParam(required = false) toYear: Int?,
         @RequestParam(required = false) genre: String?,
         @RequestParam(required = false) f: String?,
+        principal: Principal,
     ): ResponseEntity<String> {
-        val albums = albumsForListType(type, size, offset, fromYear, toYear, genre)
+        val albums = albumsForListType(type, size, offset, fromYear, toYear, genre, UserId(principal.name))
         val artistNames = libraryQueries.getEntityNamesByIds(albums.mapNotNull { it.artistId }.toSet())
         return responseWriter.write(
             ok { copy(albumList = AlbumListV1Wrapper(albums.map { it.toDirectoryChild(it.artistId?.let { aid -> artistNames[aid] }) })) },
@@ -312,8 +315,9 @@ class SubsonicController(
         @RequestParam(required = false) toYear: Int?,
         @RequestParam(required = false) genre: String?,
         @RequestParam(required = false) f: String?,
+        principal: Principal,
     ): ResponseEntity<String> {
-        val albums = albumsForListType(type, size, offset, fromYear, toYear, genre)
+        val albums = albumsForListType(type, size, offset, fromYear, toYear, genre, UserId(principal.name))
         return responseWriter.write(ok { copy(albumList2 = AlbumListWrapper(albums.toAlbumElements())) }, f)
     }
 
@@ -324,6 +328,7 @@ class SubsonicController(
         fromYear: Int?,
         toYear: Int?,
         genre: String?,
+        userId: UserId,
     ): List<Album> =
         when (type.trim()) {
             "random" -> libraryQueries.browseAlbumsRandom(size)
@@ -338,9 +343,26 @@ class SubsonicController(
                 if (genre.isNullOrBlank()) throw SubsonicApiException(10, "Required parameter is missing: genre")
                 libraryQueries.browseAlbumsByGenre(genre, size, offset)
             }
-            "starred" -> emptyList()
+            "starred" -> starredAlbums(userId, size, offset)
             else -> libraryQueries.browseAlbums(size.coerceIn(1, 500), offset.coerceAtLeast(0))
         }
+
+    // Subsonic "starred" albums are derived from favorited tracks: an album is starred when it
+    // holds at least one favorited track (the favorites model is per-track, there is no album star).
+    private fun starredAlbums(
+        userId: UserId,
+        size: Int,
+        offset: Int,
+    ): List<Album> {
+        val favorites = preferencesQueries.find(userId)?.favorites.orEmpty()
+        if (favorites.isEmpty()) return emptyList()
+        val favoritedTracks = libraryQueries.getTracksByIds(favorites.map { EntityId(it.trackId.value) })
+        val albumIds = favoritedTracks.mapNotNull { it.albumId }.distinct()
+        return albumIds
+            .drop(offset.coerceAtLeast(0))
+            .take(size.coerceIn(1, 500))
+            .mapNotNull { libraryQueries.getAlbum(it) }
+    }
 
     // --- Search ---
 
@@ -665,7 +687,20 @@ class SubsonicController(
     @GetMapping("/getNowPlaying", "/getNowPlaying.view")
     fun getNowPlaying(
         @RequestParam(required = false) f: String?,
-    ): ResponseEntity<String> = responseWriter.write(ok { copy(nowPlaying = NowPlayingWrapper()) }, f)
+        principal: Principal,
+    ): ResponseEntity<String> {
+        val userId = UserId(principal.name)
+        val currentTrackIds =
+            deviceSessionProjection
+                .getByUser(userId)
+                .mapNotNull { session ->
+                    val state = playbackQueries.getPlaybackState(userId, session.sessionId) ?: return@mapNotNull null
+                    val entry = state.currentEntryId ?: return@mapNotNull null
+                    state.queue.firstOrNull { it.id == entry }?.trackId
+                }.distinct()
+        val tracks = libraryQueries.getTracksByIds(currentTrackIds.map { EntityId(it.value) })
+        return responseWriter.write(ok { copy(nowPlaying = NowPlayingWrapper(entry = tracks.toSubsonicChildren())) }, f)
+    }
 
     @GetMapping("/savePlayQueue", "/savePlayQueue.view")
     fun savePlayQueue(

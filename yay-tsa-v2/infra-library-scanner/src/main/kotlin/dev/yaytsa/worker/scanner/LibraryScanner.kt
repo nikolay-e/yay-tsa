@@ -1,5 +1,7 @@
 package dev.yaytsa.worker.scanner
 
+import dev.yaytsa.application.library.port.LibraryScanTriggerPort
+import dev.yaytsa.application.library.port.ScanStatus
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
@@ -10,6 +12,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 import kotlin.io.path.extension
 import kotlin.io.path.name
 
@@ -17,13 +24,48 @@ import kotlin.io.path.name
 class LibraryScanner(
     private val libraryWriter: LibraryWriter,
     @Value("\${yaytsa.library.music-path:#{null}}") private val musicPath: String?,
-) {
+) : LibraryScanTriggerPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val audioExtensions = setOf("mp3", "flac", "ogg", "opus", "m4a", "aac", "wav", "wma", "alac")
+    private val audioExtensions = setOf("mp3", "flac", "ogg", "opus", "m4a", "m4b", "aac", "wav", "wma", "alac")
+
+    private val scanning = AtomicBoolean(false)
+    private val lastCompletedAt = AtomicReference<Instant?>(null)
+    private val lastTrackCount = AtomicInteger(-1)
+
+    override fun triggerScan(): Boolean {
+        if (!scanning.compareAndSet(false, true)) return false
+        thread(name = "library-scan-trigger", isDaemon = true) {
+            try {
+                scanInternal()
+            } finally {
+                scanning.set(false)
+            }
+        }
+        return true
+    }
+
+    override fun status(): ScanStatus =
+        ScanStatus(
+            scanning = scanning.get(),
+            lastCompletedAt = lastCompletedAt.get()?.toString(),
+            lastTrackCount = lastTrackCount.get().takeIf { it >= 0 },
+        )
 
     @Scheduled(fixedDelay = 3_600_000, initialDelay = 5_000)
     fun scan() {
+        if (!scanning.compareAndSet(false, true)) {
+            log.info("Scan already in progress; skipping scheduled run")
+            return
+        }
+        try {
+            scanInternal()
+        } finally {
+            scanning.set(false)
+        }
+    }
+
+    private fun scanInternal() {
         val root =
             musicPath ?: run {
                 log.info("yaytsa.library.music-path not configured, skipping scan")
@@ -100,6 +142,8 @@ class LibraryScanner(
         }
 
         log.info("Library scan complete: {} tracks processed", count)
+        lastTrackCount.set(count)
+        lastCompletedAt.set(Instant.now())
 
         if (!walkCompleted) return
 

@@ -19,8 +19,18 @@ export function GroupSyncPanel({
   const [joinError, setJoinError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const { joinCode, isOwner, members, mode, driftMs, createGroup, joinGroup, leaveGroup } =
-    useGroupSyncStore();
+  const {
+    joinCode,
+    isOwner,
+    members,
+    mode,
+    driftMs,
+    controlMode,
+    createGroup,
+    joinGroup,
+    leaveGroup,
+    setControlMode,
+  } = useGroupSyncStore();
   const devices = useDeviceStore(s => s.devices);
   const fetchDevices = useDeviceStore(s => s.fetchDevices);
   const currentTrack = useCurrentTrack();
@@ -139,6 +149,33 @@ export function GroupSyncPanel({
               ))}
             </div>
           </div>
+
+          {isOwner && (
+            <div>
+              <h3 className="text-text-secondary mb-2 text-xs font-medium uppercase">
+                Who can control
+              </h3>
+              <div className="border-border flex overflow-hidden rounded-lg border">
+                {(['host', 'everyone'] as const).map(modeOption => (
+                  <button
+                    key={modeOption}
+                    type="button"
+                    data-testid={`group-control-${modeOption}`}
+                    onClick={() => void setControlMode(modeOption)}
+                    aria-pressed={controlMode === modeOption}
+                    className={cn(
+                      'flex-1 px-3 py-2 text-sm font-medium transition-colors',
+                      controlMode === modeOption
+                        ? 'bg-accent text-text-on-accent'
+                        : 'text-text-secondary hover:bg-bg-tertiary'
+                    )}
+                  >
+                    {modeOption === 'host' ? 'Only me' : 'Everyone'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {Math.abs(driftMs) > 30 && (
             <p className="text-text-tertiary text-xs">

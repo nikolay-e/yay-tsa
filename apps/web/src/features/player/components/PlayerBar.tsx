@@ -38,6 +38,7 @@ import {
   useIsLoading,
   useKaraokeEnabled,
   useKaraokeStatus,
+  useVocalBlend,
   useSleepTimer,
 } from '../stores/player.store';
 import { useActiveSession, useSessionActions } from '../stores/session-store';
@@ -46,7 +47,7 @@ import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 import { nextAudiobookSpeed } from '../playback-speed';
 import { MobileFullPlayer } from './MobileFullPlayer';
-import { KaraokeStemButton } from './KaraokeStemButton';
+import { KaraokeBlendSlider } from './KaraokeBlendSlider';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
 import { SleepTimerModal } from './SleepTimerModal';
@@ -156,6 +157,7 @@ export function PlayerBar() {
   const karaokeEnabled = useKaraokeEnabled();
   const isKaraokeTransitioning = useIsKaraokeTransitioning();
   const karaokeStatus = useKaraokeStatus();
+  const vocalBlend = useVocalBlend();
   const sleepTimer = useSleepTimer();
   useAlbumColors();
   useSignalEmitter();
@@ -180,8 +182,7 @@ export function PlayerBar() {
   const next = usePlayerStore(s => s.next);
   const previous = usePlayerStore(s => s.previous);
   const toggleKaraoke = usePlayerStore(s => s.toggleKaraoke);
-  const toggleKaraokeStem = usePlayerStore(s => s.toggleKaraokeStem);
-  const karaokeStem = usePlayerStore(s => s.karaokeStem);
+  const setVocalBlend = usePlayerStore(s => s.setVocalBlend);
   const setSleepTimer = usePlayerStore(s => s.setSleepTimer);
   const clearSleepTimer = usePlayerStore(s => s.clearSleepTimer);
 
@@ -581,11 +582,11 @@ export function PlayerBar() {
             <Mic className="h-4 w-4" />
           </button>
 
-          <KaraokeStemButton
+          <KaraokeBlendSlider
             active={isKaraokeMode}
-            stem={karaokeStem}
+            value={vocalBlend}
             disabled={isLoading || isKaraokeTransitioning}
-            onToggle={() => void toggleKaraokeStem()}
+            onChange={setVocalBlend}
           />
 
           <button
@@ -674,7 +675,7 @@ export function PlayerBar() {
           isKaraokeMode={isKaraokeMode}
           isKaraokeTransitioning={isKaraokeTransitioning}
           karaokeStatus={karaokeStatus}
-          karaokeStem={karaokeStem}
+          vocalBlend={vocalBlend}
           hasSleepTimer={!!sleepTimer.endTime}
           sleepMinutesLeft={sleepMinutesLeft}
           showThumbs={!!activeSession}
@@ -686,7 +687,7 @@ export function PlayerBar() {
           onToggleShuffle={handleToggleShuffle}
           onToggleRepeat={handleToggleRepeat}
           onToggleKaraoke={handleToggleKaraoke}
-          onToggleKaraokeStem={() => void toggleKaraokeStem()}
+          onVocalBlendChange={setVocalBlend}
           onOpenSleepTimer={() => setShowSleepModal(true)}
           onOpenQueue={() => setShowQueue(true)}
           onSeek={handleSeek}

@@ -29,11 +29,13 @@ class JellyfinMediaController(
     private val embeddedArtwork: EmbeddedArtworkService,
     @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
     @Value("\${yaytsa.metadata.artist-image-dir:#{null}}") artistImageDir: String?,
+    @Value("\${yaytsa.image.cover-cache-dir:#{null}}") coverCacheDir: String?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val safeRoot = MediaPathSafety.resolveRoot(musicPath)
     private val artistImageRoot = MediaPathSafety.resolveRoot(artistImageDir)
-    private val imageRoots = listOfNotNull(safeRoot, artistImageRoot)
+    private val coverCacheRoot = MediaPathSafety.resolveRoot(coverCacheDir)
+    private val imageRoots = listOfNotNull(safeRoot, artistImageRoot, coverCacheRoot)
 
     @GetMapping("/Items/{itemId}/Images/{imageType}")
     fun getImage(

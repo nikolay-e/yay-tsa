@@ -28,6 +28,13 @@ class JpaOutboxPort(
                     mapOf("userId" to notification.userId)
                 is DomainNotification.AdaptiveQueueChanged ->
                     mapOf("sessionId" to notification.sessionId)
+                is DomainNotification.RemoteCommand ->
+                    mapOf(
+                        "userId" to notification.userId,
+                        "targetDeviceId" to notification.targetDeviceId,
+                        "command" to notification.command,
+                        "params" to notification.params,
+                    )
             }
         val entity =
             OutboxEntity(

@@ -1,15 +1,6 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
-import {
-  Home,
-  Disc3,
-  Users,
-  Search,
-  Heart,
-  Settings,
-  BookOpen,
-  type LucideIcon,
-} from 'lucide-react';
+import { Home, Disc3, Users, Heart, Settings, BookOpen, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar, RemotePlaybackBanner } from '@/features/player/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
@@ -18,6 +9,7 @@ import { useRemoteCommands } from '@/features/player/hooks/useRemoteCommands';
 import { useDeviceEvents } from '@/features/player/hooks/useDeviceEvents';
 import { OfflineIndicator } from '@/features/offline';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
+import { GlobalSearchBar } from '@/shared/ui/GlobalSearchBar';
 import { cn } from '@/shared/utils/cn';
 import { mark, markOnce, measure } from '@/shared/perf/perf';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
@@ -35,7 +27,6 @@ type NavItem = Readonly<{
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home, testId: 'nav-home' },
-  { href: '/search', label: 'Search', icon: Search, testId: 'nav-search' },
   { href: '/favorites', label: 'Favorites', icon: Heart, testId: 'nav-favorites' },
   { href: '/artists', label: 'Artists', icon: Users, testId: 'nav-artists' },
   { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
@@ -142,12 +133,14 @@ export function RootLayout() {
       <main
         ref={mainRef}
         className={cn(
-          'pt-safe h-full min-h-screen flex-1 overflow-y-auto',
+          'h-full min-h-screen flex-1 overflow-y-auto',
+          showNavigation ? '' : 'pt-safe',
           showNavigation && 'md:ml-sidebar',
           showNavigation && (showPlayer ? 'pb-mobile-nav-player' : 'pb-mobile-nav'),
           showNavigation && (showPlayer ? 'md:pb-20' : 'md:pb-0')
         )}
       >
+        {showNavigation && <GlobalSearchBar />}
         <Outlet />
       </main>
       {showNavigation && <BottomTabBar />}

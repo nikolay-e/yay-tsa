@@ -20,10 +20,6 @@ export type {
 export { PinkNoiseGenerator } from './web/pink-noise-generator.js';
 export type { PinkNoiseConfig } from './web/pink-noise-generator.js';
 
-// Vocal removal processor for karaoke mode
-export { VocalRemovalProcessor } from './web/vocal-removal.js';
-export type { VocalRemovalConfig } from './web/vocal-removal.js';
-
 // Media Session API for background playback
 export { MediaSessionManager } from './web/media-session.js';
 export type { TrackMetadata, MediaSessionHandlers } from './web/media-session.js';

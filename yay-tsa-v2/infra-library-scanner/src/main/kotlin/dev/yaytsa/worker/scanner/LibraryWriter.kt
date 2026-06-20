@@ -39,8 +39,11 @@ class LibraryWriter(
     private val entityGenreRepo: EntityGenreRepository,
     private val imageRepo: ImageRepository,
     private val clock: Clock,
+    private val embeddedCovers: EmbeddedCoverExtractor,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private val audiobookGenres = setOf("audiobook", "audiobooks")
 
     private val coverFilenames =
         listOf(
@@ -118,7 +121,7 @@ class LibraryWriter(
         val albumId = probed.albumName?.let { ensureAlbum(it, probed.artistName, artistId, now, session) }
 
         if (albumId != null) {
-            ensureAlbumCover(albumId, file.parent, probed.albumRootDir, now, session)
+            ensureAlbumCover(albumId, file.parent, probed.albumRootDir, file, now, session)
         }
 
         val searchText =
@@ -127,6 +130,7 @@ class LibraryWriter(
 
         if (existing != null) {
             refreshTrackMetadata(existing, root, codec, sizeBytes, mtime, searchText, probed, albumId, artistId, now)
+            ensureAudiobookTrackCover(existing.id, probed.genre, file, now)
             return existing.id
         }
 
@@ -166,8 +170,40 @@ class LibraryWriter(
         )
 
         linkGenre(entityId, probed.genre)
+        ensureAudiobookTrackCover(entityId, probed.genre, file, now)
 
         return entityId
+    }
+
+    private fun isAudiobook(genre: String?): Boolean = genre?.lowercase() in audiobookGenres
+
+    // Each /audiobooks item is a Track (genre=Audiobook), not an album, so the read path
+    // (TrackProjection imageTags / getPrimaryImage) keys on the track's OWN entity id. Materialize
+    // embedded art into a track-level Primary image row so the cover is both advertised and servable
+    // by construction — no external lookup, no advertise-but-can't-serve asymmetry. Idempotent
+    // (skip when a row already exists), bounded (only audiobook tracks with embedded art).
+    private fun ensureAudiobookTrackCover(
+        trackId: UUID,
+        genre: String?,
+        file: Path,
+        now: OffsetDateTime,
+    ) {
+        if (!isAudiobook(genre)) return
+        val existing = imageRepo.findByEntityIdAndIsPrimaryTrue(trackId)
+        if (existing != null && Files.isRegularFile(Path.of(existing.path))) return
+        val extracted = embeddedCovers.extractToCache(file) ?: return
+        if (existing != null) imageRepo.delete(existing)
+        imageRepo.save(
+            ImageJpa(
+                id = UUID.randomUUID(),
+                entityId = trackId,
+                imageType = "Primary",
+                path = extracted.path.toAbsolutePath().toString(),
+                sizeBytes = extracted.sizeBytes,
+                isPrimary = true,
+                createdAt = now,
+            ),
+        )
     }
 
     private fun fileUnchanged(
@@ -485,6 +521,7 @@ class LibraryWriter(
         albumId: UUID,
         trackDir: Path?,
         albumRootDir: Path?,
+        trackFile: Path,
         now: OffsetDateTime,
         session: ScanSession,
     ) {
@@ -495,10 +532,15 @@ class LibraryWriter(
             return
         }
         // Prefer a cover next to the track (single-disc albums, or per-disc art); fall
-        // back to the album root so multi-disc albums whose cover sits at <Album>/ resolve.
-        val coverPath = trackDir?.let(::findCoverFile) ?: albumRootDir?.let(::findCoverFile) ?: return
+        // back to the album root so multi-disc albums whose cover sits at <Album>/ resolve;
+        // last, materialize the track's embedded artwork into the cover cache so albums whose
+        // files carry only tag art still get an indexed Primary row (advertised == servable).
+        val (coverPath, sizeBytes) =
+            (trackDir?.let(::findCoverFile) ?: albumRootDir?.let(::findCoverFile))
+                ?.let { it to runCatching { Files.size(it) }.getOrNull() }
+                ?: embeddedCovers.extractToCache(trackFile)?.let { it.path.toAbsolutePath() to it.sizeBytes }
+                ?: return
         if (existing != null) imageRepo.delete(existing)
-        val sizeBytes = runCatching { Files.size(coverPath) }.getOrNull()
         imageRepo.save(
             ImageJpa(
                 id = UUID.randomUUID(),

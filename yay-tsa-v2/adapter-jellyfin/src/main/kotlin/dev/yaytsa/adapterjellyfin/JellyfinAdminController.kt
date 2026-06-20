@@ -26,6 +26,7 @@ import java.util.UUID
 class JellyfinAdminController(
     private val authUseCases: AuthUseCases,
     private val authQueries: AuthQueries,
+    private val libraryScanTrigger: dev.yaytsa.application.library.port.LibraryScanTriggerPort,
     private val eventPublisher: org.springframework.context.ApplicationEventPublisher,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
@@ -172,18 +173,24 @@ class JellyfinAdminController(
     @PostMapping("/Library/Rescan")
     fun rescan(): ResponseEntity<Any> {
         requireAdmin()?.let { return it }
-        // TODO: wire to infra-library-scanner. The scanner is a worker module that adapter-jellyfin
-        // cannot depend on directly (architecture rule: adapters do not depend on workers).
-        // Proper fix: expose a port (e.g. LibraryScanTrigger) in core-application/library,
-        // implemented by infra-library-scanner, and inject the port here.
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(mapOf("status" to "started", "note" to "scanner trigger port not yet defined"))
+        val started = libraryScanTrigger.triggerScan()
+        return ResponseEntity
+            .status(if (started) HttpStatus.ACCEPTED else HttpStatus.CONFLICT)
+            .body(mapOf("status" to if (started) "started" else "already_running"))
     }
 
     @GetMapping("/Library/ScanStatus")
     fun scanStatus(): ResponseEntity<Any> {
         requireAdmin()?.let { return it }
-        // TODO: no ScanRecord query port exists yet; return inert stub for the PWA.
-        return ResponseEntity.ok(mapOf("scanning" to false, "isScanning" to false, "progress" to 100))
+        val status = libraryScanTrigger.status()
+        return ResponseEntity.ok(
+            mapOf(
+                "scanning" to status.scanning,
+                "isScanning" to status.scanning,
+                "lastCompletedAt" to status.lastCompletedAt,
+                "lastTrackCount" to status.lastTrackCount,
+            ),
+        )
     }
 
     companion object {

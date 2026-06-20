@@ -9,7 +9,6 @@ import {
 import { AlbumGrid, ArtistCard, TrackList } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { LoadErrorState } from '@/shared/ui/LoadErrorState';
-import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
@@ -25,7 +24,9 @@ type SearchMode = 'text' | 'semantic';
 
 export function SearchPage() {
   const [searchParams] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '');
+  // The query lives in the URL (?q=), driven by the global top search bar; the page
+  // reflects it reactively so typing in the bar updates results without a duplicate input.
+  const searchTerm = searchParams.get('q') ?? '';
   const [searchMode, setSearchMode] = useState<SearchMode>('text');
   const debouncedSearchTerm = useDebouncedValue(searchTerm);
   const query = debouncedSearchTerm.trim();
@@ -146,14 +147,11 @@ export function SearchPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Search</h1>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <SearchInput
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder={
-              searchMode === 'semantic' ? 'Describe the vibe...' : 'Search everything...'
-            }
-          />
-          <div className="border-border flex overflow-hidden rounded-md border">
+          <div
+            className="border-border flex overflow-hidden rounded-md border"
+            role="group"
+            aria-label="Search mode"
+          >
             <button
               onClick={() => setSearchMode('text')}
               aria-pressed={searchMode === 'text'}
@@ -169,6 +167,7 @@ export function SearchPage() {
             <button
               onClick={() => setSearchMode('semantic')}
               aria-pressed={searchMode === 'semantic'}
+              title="Describe the vibe — semantic search"
               className={cn(
                 'px-2.5 py-1.5 text-xs font-medium transition-colors',
                 searchMode === 'semantic'

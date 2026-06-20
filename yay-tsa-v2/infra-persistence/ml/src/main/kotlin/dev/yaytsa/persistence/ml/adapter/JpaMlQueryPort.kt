@@ -70,6 +70,16 @@ class JpaMlQueryPort(
         return ids.map { TrackId(it.toString()) }
     }
 
+    override fun findTracksByClapVector(
+        vector: FloatArray,
+        limit: Int,
+    ): List<TrackId> {
+        if (vector.isEmpty()) return emptyList()
+        val cappedLimit = limit.coerceIn(1, MlQueryPort.MAX_QUERY_LIMIT)
+        val literal = vector.joinToString(prefix = "[", postfix = "]", separator = ",")
+        return trackFeaturesJpa.findByClapVector(literal, cappedLimit).map { TrackId(it.toString()) }
+    }
+
     override fun getTasteClusterRepresentatives(userId: UserId): List<TrackId> {
         val uid = UUID.fromString(userId.value)
         return tasteClustersJpa.findRepresentativesByUserId(uid).map { TrackId(it.toString()) }

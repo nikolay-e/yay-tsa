@@ -16,6 +16,10 @@ export interface GroupMember {
   reportedLatencyMs: number;
 }
 
+// host = only the owner may change the schedule; everyone = any member may.
+// Optional so a backend that has not yet shipped the field defaults to host.
+export type GroupControlMode = 'host' | 'everyone';
+
 export interface GroupSnapshot {
   id: string;
   ownerId: string;
@@ -23,6 +27,7 @@ export interface GroupSnapshot {
   name: string;
   schedule: PlaybackSchedule;
   members: GroupMember[];
+  controlMode?: GroupControlMode;
 }
 
 export interface ScheduleUpdateResponse {
