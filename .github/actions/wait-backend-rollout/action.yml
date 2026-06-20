@@ -5,6 +5,15 @@ inputs:
   base-url:
     description: Public base URL of the deployed system
     default: 'https://yay-tsa.com'
+  commit-sha:
+    description: >-
+      Commit SHA whose backend image we expect the live backend to serve
+      (as main-<sha7>). Defaults to the workflow commit, which is correct when
+      the workflow only runs on backend changes (v2-ci.yml). The frontend CI
+      runs post-deploy-qa on every push, including commits that do not rebuild
+      the backend; it must pass the SHA of the last backend-touching commit
+      instead, otherwise this poll waits for an image tag that is never built.
+    default: ${{ github.sha }}
 
 runs:
   using: composite
@@ -13,8 +22,9 @@ runs:
       shell: bash
       env:
         BASE_URL: ${{ inputs.base-url }}
+        COMMIT_SHA: ${{ inputs.commit-sha }}
       run: |
-        EXPECTED="main-${GITHUB_SHA:0:7}"
+        EXPECTED="main-${COMMIT_SHA:0:7}"
         DEADLINE=$((SECONDS + 1500))
         HEALTHY=0
         echo "Polling ${BASE_URL}/api/System/Info/Public until BuildSha=${EXPECTED}"

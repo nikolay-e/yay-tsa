@@ -334,9 +334,13 @@ jobs:
       contents: read
 
     steps:
-      # The local wait-backend-rollout composite action below needs the repo on disk.
+      # The local wait-backend-rollout composite action below needs the repo on
+      # disk; fetch-depth:0 also lets the step below walk history to find the
+      # last commit that rebuilt the backend.
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       # The frontend image pushed above auto-deploys via Argo CD Image Updater
       # (Strategy 1). The build bakes VITE_APP_VERSION=main-<sha7> into the
@@ -370,12 +374,31 @@ jobs:
       # Kotlin backend, its image rolls out independently of the frontend, so QA
       # that starts on the frontend signal alone can hit the backend mid-rollout
       # and report transient 502s (Cloudflare HTML) as conformance failures.
-      # /System/Info/Public now echoes BuildSha (=main-<sha7>); wait for it AND
+      # /System/Info/Public echoes BuildSha (=main-<sha7>); wait for it AND
       # three consecutive healthy reads so the backend is settled before fuzzing.
+      #
+      # The backend image is rebuilt ONLY when v2-ci.yml's path filter matches
+      # (yay-tsa-v2/**, charts/yay-tsa-v2/**, the v2-ci workflow). A frontend- or
+      # docs-only push never produces a main-<this-sha> backend image, so waiting
+      # for the current SHA would time out forever. Resolve the SHA of the last
+      # commit that actually rebuilt the backend and wait for THAT instead.
+      - name: Resolve expected backend SHA
+        id: backend-sha
+        run: |
+          BACKEND_SHA=$(git log -1 --format=%H -- \
+            yay-tsa-v2 charts/yay-tsa-v2 .github/workflows/v2-ci.yml)
+          if [ -z "$BACKEND_SHA" ]; then
+            echo "::warning::No backend-touching commit found in history; falling back to ${GITHUB_SHA}"
+            BACKEND_SHA="$GITHUB_SHA"
+          fi
+          echo "Expected backend rollout: main-${BACKEND_SHA:0:7} (from ${BACKEND_SHA})"
+          echo "sha=${BACKEND_SHA}" >> "$GITHUB_OUTPUT"
+
       - name: Wait for backend rollout
         uses: ./.github/actions/wait-backend-rollout
         with:
           base-url: https://yay-tsa.com
+          commit-sha: ${{ steps.backend-sha.outputs.sha }}
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
         uses: nikolay-e/autoqa@57bd5440ea51c320b13ccd60e962236b1bda9e98 # main (exit-gate on report contents + ZAP absolute servers)
