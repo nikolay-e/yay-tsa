@@ -12,6 +12,7 @@ Re-checking is the point: as LRCLIB grows, previously-plain tracks get upgraded.
 
 import logging
 import os
+import random
 import re
 import sys
 import time
@@ -27,6 +28,12 @@ log = logging.getLogger("lyrics_sync")
 MUSIC_PATH = os.getenv("MUSIC_PATH", "/media")
 LRCLIB_URL = os.getenv("LRCLIB_BASE_URL", "https://lrclib.net").rstrip("/")
 BATCH_LIMIT = int(os.getenv("LYRICS_BATCH_LIMIT", "0"))  # 0 = all tracks
+# Wall-clock budget for one run. lrclib enrichment is best-effort: when lrclib is
+# slow, querying every track's missing lyrics cannot finish inside the CronJob's
+# activeDeadlineSeconds, so the job was hard-failing with DeadlineExceeded (and
+# firing alerts) instead of making partial progress. Stop cleanly under the
+# deadline and exit 0; the next run picks up where lrclib has new matches.
+BUDGET_SECONDS = int(os.getenv("LYRICS_SYNC_BUDGET_SECONDS", "3000"))
 USER_AGENT = "yay-tsa (https://github.com/nikolay-e/yay-tsa)"
 SYNC_RE = re.compile(r"\[\d{1,2}:\d{2}")
 NUM_PREFIX_RE = re.compile(r"^(\d{1,3})\s*[-._]\s*")
@@ -139,11 +146,24 @@ def _process(track):
 
 
 def main():
-    tracks = _load_tracks()
-    log.info("checking %d track(s) for synced lyrics", len(tracks))
+    tracks = list(_load_tracks())
+    # Process in a random order each run so a slow lrclib (which forces an early
+    # budget stop) still covers different tracks across nights instead of
+    # re-attempting the same prefix forever.
+    random.shuffle(tracks)
+    log.info("checking %d track(s) for synced lyrics (budget %ds)", len(tracks), BUDGET_SECONDS)
     counts: dict[str, int] = {}
     started = time.time()
-    for track in tracks:
+    for processed, track in enumerate(tracks):
+        if time.time() - started > BUDGET_SECONDS:
+            counts["skipped_budget"] = len(tracks) - processed
+            log.info(
+                "budget %ds reached; stopping after %d/%d track(s)",
+                BUDGET_SECONDS,
+                processed,
+                len(tracks),
+            )
+            break
         try:
             outcome = _process(track)
         except Exception as exc:  # keep the batch going on per-track errors
