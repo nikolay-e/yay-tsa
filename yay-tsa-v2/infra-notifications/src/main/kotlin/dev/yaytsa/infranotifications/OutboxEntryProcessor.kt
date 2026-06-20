@@ -15,10 +15,17 @@ class OutboxEntryProcessor(
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun publishAndMark(id: UUID) {
         val entry = outboxJpa.findUnpublishedByIdForUpdate(id) ?: return
-        // Fan out to every channel (e.g. WebSocket + device-SSE bridge). A failure in one
-        // publisher must not drop the others or block marking the entry published.
+        // Fan out to every channel (e.g. WebSocket + device-SSE bridge). Best-effort
+        // publishers are isolated so a derived-channel failure never blocks the entry.
+        // An authoritative publisher's failure must propagate, rolling back this
+        // REQUIRES_NEW transaction so publishedAt stays null and the poller retries —
+        // that is the transactional-outbox at-least-once guarantee.
         publishers.forEach { publisher ->
-            runCatching { publisher.publish(entry.context, entry.payload) }
+            if (publisher is BestEffortNotificationPublisher) {
+                runCatching { publisher.publish(entry.context, entry.payload) }
+            } else {
+                publisher.publish(entry.context, entry.payload)
+            }
         }
         entry.publishedAt = clock.now()
         outboxJpa.save(entry)

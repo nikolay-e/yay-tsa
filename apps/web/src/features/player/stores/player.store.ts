@@ -653,6 +653,9 @@ export const usePlayerStore = create<PlayerStore>()(
         isKaraokeMode: false,
         isKaraokeTransitioning: false,
         karaokeStatus: null,
+        // Reset the stem so a karaoke auto-re-enable on the new track starts from the
+        // instrumental default instead of inheriting a 'vocals' selection from the prior track.
+        karaokeStem: 'instrumental',
         playerMode: audiobook ? 'audiobook' : 'music',
         playbackRate: rate,
       });
@@ -989,8 +992,8 @@ export const usePlayerStore = create<PlayerStore>()(
 
         if (status.state === 'READY') {
           set({ isKaraokeMode: true, karaokeStatus: status });
-          const instrumentalUrl = karaokeStemUrl(currentClient, currentTrack.Id);
-          await karaokeSwitchUrl(instrumentalUrl, signal);
+          const stemUrl = karaokeStemUrl(currentClient, currentTrack.Id);
+          await karaokeSwitchUrl(stemUrl, signal);
           if (!signal.aborted) {
             preloader.invalidate();
             schedulePreload();
@@ -1452,8 +1455,8 @@ export const usePlayerStore = create<PlayerStore>()(
           set({ isKaraokeTransitioning: true, isKaraokeMode: true });
           try {
             if (!currentClient) return;
-            const instrumentalUrl = karaokeStemUrl(currentClient, ct2.Id);
-            await karaokeSwitchUrl(instrumentalUrl, signal);
+            const stemUrl = karaokeStemUrl(currentClient, ct2.Id);
+            await karaokeSwitchUrl(stemUrl, signal);
             if (!signal.aborted) {
               preloader.invalidate();
               schedulePreload();

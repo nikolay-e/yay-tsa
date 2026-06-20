@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import dev.yaytsa.adapterjellyfin.DeviceEventBroadcaster
 import dev.yaytsa.adapterjellyfin.DeviceNowPlayingResolver
 import dev.yaytsa.domain.playback.SessionId
-import dev.yaytsa.infranotifications.NotificationPublisher
+import dev.yaytsa.infranotifications.BestEffortNotificationPublisher
 import dev.yaytsa.shared.UserId
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -25,7 +25,7 @@ class DeviceSseNotificationBridge(
     private val deviceEventBroadcaster: DeviceEventBroadcaster,
     private val nowPlayingResolver: DeviceNowPlayingResolver,
     private val objectMapper: ObjectMapper,
-) : NotificationPublisher {
+) : BestEffortNotificationPublisher {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun publish(
@@ -37,6 +37,11 @@ class DeviceSseNotificationBridge(
         val userId = node.get("userId")?.takeIf { it.isTextual }?.asText() ?: return
         val sessionId = node.get("sessionId")?.takeIf { it.isTextual }?.asText() ?: return
         val nowPlaying = runCatching { nowPlayingResolver.resolve(UserId(userId), SessionId(sessionId)) }.getOrNull() ?: return
+        // The PWA patches by deviceId; with no lease owner there is no device to patch
+        // (the field would be null and match nothing), so skip — the device list refetch
+        // on the next heartbeat reflects the stop. Only emit a live patch when a
+        // controlling device actually owns the session.
+        val deviceId = nowPlaying.controllingDeviceId ?: return
         // Field shape matches the PWA's DeviceStateEvent (deviceId + isPaused), so
         // useDeviceEvents patches the controlling device's now-playing in place.
         deviceEventBroadcaster.emit(
@@ -44,7 +49,7 @@ class DeviceSseNotificationBridge(
             DEVICE_STATE_CHANGED,
             mapOf(
                 "sessionId" to sessionId,
-                "deviceId" to nowPlaying.controllingDeviceId,
+                "deviceId" to deviceId,
                 "nowPlayingItemId" to nowPlaying.nowPlayingItemId,
                 "nowPlayingItemName" to nowPlaying.nowPlayingItemName,
                 "positionMs" to nowPlaying.positionMs,

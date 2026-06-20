@@ -64,3 +64,39 @@ The shipped logic is mostly correct — the core idempotency, the audiobook-excl
 - 🟡 Mismatched-extension cover (user `cover.png` + enricher `cover.jpg`) can coexist with non-deterministic scanner pickup.
 
 Scouts/synthesis: 5/2.
+
+---
+
+## 2026-06-20 — Correctness audit of newly-added features (MCP tools, device WS→SSE bridge, vocals toggle)
+
+Scope: the four feature commits `c0b64969` (MCP tools), `f8458059` (device bridge), `14465468` (vocals toggle). Build + integration tests were green before this audit, so scouts focused on logic, not existence. Pyramid 4 scouts → reconcile. All confirmed findings below were **fixed in the same pass**.
+
+### 🔴 1 — Outbox fan-out swallowed the authoritative WebSocket publisher's failures → permanent notification drop
+
+- `infra-notifications/.../OutboxEntryProcessor.kt` — the device-bridge change rewrote the single `publisher.publish(...)` into `publishers.forEach { runCatching { it.publish(...) } }` then unconditionally `entry.publishedAt = clock.now()`. The prior path let a publish exception propagate → `REQUIRES_NEW` rollback → `OutboxPoller` retry (the manifesto's at-least-once guarantee). The new `runCatching` swallowed **every** publisher's exception, including `WebSocketNotificationPublisher`, marking the entry published → a WebSocket broker failure now drops the notification permanently. (The SSE bridge already swallows its own failures internally, so the only publisher whose exceptions the blanket `runCatching` newly swallowed was the authoritative WebSocket one — pure regression.)
+- **Fix**: added marker interface `BestEffortNotificationPublisher`; `OutboxEntryProcessor` isolates only best-effort publishers (`runCatching`) and lets authoritative ones propagate (rollback+retry). `DeviceSseNotificationBridge` now implements the marker.
+- **Acceptance**: with the WebSocket publisher throwing, the outbox entry stays `publishedAt = null` and is retried; an SSE-bridge failure does not block the entry.
+
+### 🔴 2 — Karaoke `karaokeStem='vocals'` survived a track change → next track silently auto-enabled vocals-only
+
+- `apps/web/.../player.store.ts` — `karaokeStem` was reset only in `initialState` and `disableKaraokeMode`, not on track change. With karaoke left enabled, advancing the queue ran `syncKaraokeForTrack → applyReadyKaraokeState → karaokeStemUrl(...)`, which read the leftover `'vocals'`, so the new track played vocals-only — contradicting the in-code intent ("each fresh enable starts from the instrumental default").
+- **Fix**: reset `karaokeStem: 'instrumental'` in `loadAndPlay`'s state-set (same set that resets `isKaraokeMode`/`karaokeStatus`).
+- **Acceptance**: enable karaoke + toggle to vocals on track A, advance to track B → B plays the instrumental stem (default), not vocals.
+
+### 🟡 3 — MCP `set_preference_contract` read the aggregate twice and built two CommandContexts
+
+- `adapter-mcp/.../McpTools.kt` — `preferencesQueries.find(uid)` was called twice (once for the merge `current`, once for the OCC `version`) and `ctxFactory.create(uid)` twice (once for `updatedAt`'s `requestTime`, once for execute). The two reads could straddle a concurrent write (merged fields from an older snapshot than the reported `version` → a narrow lost-update OCC cannot catch), and `updatedAt` came from a throwaway clock read (violates single-requestTime).
+- **Fix**: read the aggregate once and build the `CommandContext` once; derive `updatedAt` from `ctx.requestTime`.
+
+### 🔵 4 — Device SSE could emit `deviceId: null` (no lease) + misleading `instrumentalUrl` locals
+
+- Bridge emitted `deviceId = controllingDeviceId` which is null when no device holds the lease (the PWA then matched nothing and full-refetched). **Fix**: skip the live patch when `controllingDeviceId == null` (the heartbeat refetch reflects the stop); this also makes the non-optional `DeviceStateEvent.deviceId` type honest. Added `?? undefined` normalization on the SSE handler for parity with the list path.
+- Two `player.store.ts` locals named `instrumentalUrl` actually held whatever stem was active. **Fix**: renamed to `stemUrl`.
+
+### Confirmed correct-as-written (no change)
+
+- MCP `start_radio` matches `JellyfinAdaptiveController.startSession` (INITIAL version is inert — no OCC on session create); capability whitelist exactly matches the issuing tools (no 403 gaps, no orphans); queue-tool lease/deviceId/`QueueEntryId` plumbing correct (errors surfaced, not swallowed).
+- Vocals `toggleKaraokeStem` optimistic-set-then-revert lands on the correct previous stem (no double-flip); guards (`isKaraokeMode && !isKaraokeTransitioning` + `controller.ifIdle`) are right; preload is a safe no-op in karaoke mode; the stem stream paths match the backend `/Karaoke/{id}/{instrumental,vocals}` routes byte-for-byte.
+- Device contract is camelCase on both sides for the `/v1/*` extension (matches), `isPaused = playbackState != "PLAYING"` derived consistently on list + SSE paths, `DeviceNowPlayingResolver` entry/queue matching + `computePosition` correct, `DeviceEventBroadcaster` CopyOnWriteArrayList iteration + dead-emitter removal concurrency-safe.
+
+Scouts/synthesis: 4/1 (+ fixes applied same pass).

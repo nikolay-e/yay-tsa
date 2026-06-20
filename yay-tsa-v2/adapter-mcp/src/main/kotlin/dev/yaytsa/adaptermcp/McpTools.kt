@@ -316,7 +316,12 @@ class McpTools(
 
     private fun setPreferenceContract(args: Map<String, Any?>): McpToolResult {
         val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
-        val current = preferencesQueries.find(uid)?.preferenceContract
+        // Read the aggregate ONCE so the merged fields and the OCC expectedVersion come
+        // from the same snapshot, and build the context ONCE so updatedAt is the same
+        // requestTime the command executes with (single clock read per command).
+        val existing = preferencesQueries.find(uid)
+        val current = existing?.preferenceContract
+        val ctx = ctxFactory.create(uid, existing?.version ?: AggregateVersion.INITIAL)
         val cmd =
             UpdatePreferenceContract(
                 userId = uid,
@@ -324,10 +329,9 @@ class McpTools(
                 softPrefs = args["soft_prefs"] as? String ?: current?.softPrefs ?: "",
                 djStyle = args["dj_style"] as? String ?: current?.djStyle ?: "",
                 redLines = args["red_lines"] as? String ?: current?.redLines ?: "",
-                updatedAt = ctxFactory.create(uid).requestTime,
+                updatedAt = ctx.requestTime,
             )
-        val version = preferencesQueries.find(uid)?.version ?: AggregateVersion.INITIAL
-        return when (val result = preferencesUseCases.execute(cmd, ctxFactory.create(uid, version))) {
+        return when (val result = preferencesUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> textResult("Preference contract updated.")
             is CommandResult.Failed -> errorResult(result.failure.toString())
         }

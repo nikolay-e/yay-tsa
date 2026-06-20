@@ -36,8 +36,8 @@ export function useDeviceEvents() {
           store.updateDeviceState(data.deviceId, {
             positionMs: data.positionMs,
             isPaused: data.isPaused,
-            nowPlayingItemId: data.nowPlayingItemId,
-            nowPlayingItemName: data.nowPlayingItemName,
+            nowPlayingItemId: data.nowPlayingItemId ?? undefined,
+            nowPlayingItemName: data.nowPlayingItemName ?? undefined,
             isOnline: true,
           });
         } else {
