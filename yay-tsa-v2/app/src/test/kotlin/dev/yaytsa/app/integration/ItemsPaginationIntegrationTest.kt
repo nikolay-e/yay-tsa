@@ -565,12 +565,22 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
         fun pageQueryCount(artistId: String): Long {
             val url = "/Items?IncludeItemTypes=MusicAlbum&ArtistIds=$artistId"
             // Warm once: the first request after context boot pays one-off setup queries that are
-            // unrelated to page size. Measure the second, steady-state request.
+            // unrelated to page size.
             get(url, token)
-            stats.clear()
-            val res = get(url, token)
-            assertEquals(200, res.response.status)
-            return stats.prepareStatementCount
+            // prepareStatementCount is a process-global SessionFactory statistic, so background
+            // @Scheduled workers (the OutboxPoller polls every 1s) can add prepared statements
+            // between clear() and the read, inflating a single sample nondeterministically. A
+            // request's own query count is constant and background ticks only ever ADD queries,
+            // so the MIN over a few samples is the noise-free per-request cost. A real N+1 inflates
+            // every sample equally, so the comparison below still catches it.
+            var minCount = Long.MAX_VALUE
+            repeat(5) {
+                stats.clear()
+                val res = get(url, token)
+                assertEquals(200, res.response.status)
+                minCount = minOf(minCount, stats.prepareStatementCount)
+            }
+            return minCount
         }
 
         val small = pageQueryCount(smallArtist)
