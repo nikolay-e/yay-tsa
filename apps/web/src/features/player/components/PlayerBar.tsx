@@ -3,8 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import {
   Mic,
-  MicVocal,
-  Music2,
   Timer,
   AlignLeft,
   ThumbsUp,
@@ -48,6 +46,7 @@ import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 import { nextAudiobookSpeed } from '../playback-speed';
 import { MobileFullPlayer } from './MobileFullPlayer';
+import { KaraokeStemButton } from './KaraokeStemButton';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
 import { SleepTimerModal } from './SleepTimerModal';
@@ -582,29 +581,12 @@ export function PlayerBar() {
             <Mic className="h-4 w-4" />
           </button>
 
-          {isKaraokeMode && (
-            <button
-              type="button"
-              onClick={() => void toggleKaraokeStem()}
-              disabled={isLoading || isKaraokeTransitioning}
-              className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={
-                karaokeStem === 'vocals' ? 'Switch to instrumental only' : 'Switch to vocals only'
-              }
-              aria-pressed={karaokeStem === 'vocals'}
-              title={
-                karaokeStem === 'vocals'
-                  ? 'Vocals only — switch to instrumental'
-                  : 'Instrumental — switch to vocals only'
-              }
-            >
-              {karaokeStem === 'vocals' ? (
-                <Music2 className="h-4 w-4" />
-              ) : (
-                <MicVocal className="h-4 w-4" />
-              )}
-            </button>
-          )}
+          <KaraokeStemButton
+            active={isKaraokeMode}
+            stem={karaokeStem}
+            disabled={isLoading || isKaraokeTransitioning}
+            onToggle={() => void toggleKaraokeStem()}
+          />
 
           <button
             type="button"
