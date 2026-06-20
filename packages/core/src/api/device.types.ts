@@ -19,7 +19,9 @@ export interface DeviceInfo {
 }
 
 export interface DeviceStateEvent {
-  deviceId: string;
+  // Absent on a lease release (no controlling device); the PWA then full-refetches
+  // the device list instead of patching a single device in place.
+  deviceId?: string;
   nowPlayingItemId?: string;
   nowPlayingItemName?: string;
   positionMs: number;

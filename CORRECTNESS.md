@@ -67,6 +67,33 @@ Scouts/synthesis: 5/2.
 
 ---
 
+## 2026-06-20 (run 2) — Audit of the fixes themselves (`85222010`) + the PlayerBar refactor (`f512cd48`)
+
+Scope: the only un-audited code since run 1 was the fix commit `85222010` (which applied run 1's prescriptions) and the presentational refactor `f512cd48`. Build + type-check green before this pass, so scouts verified the **fixes' own correctness + regression-freedom + consistency**, not existence. Pyramid 4 scouts → 1 reconcile + adversarial verify of the one defect. Fix applied + type-check/`:app:compileKotlin` green this pass.
+
+### 🟡 1 — `DeviceSseNotificationBridge` null-lease early-return stranded the observer's device card on a stale track (regression introduced by run 1's fix #4)
+
+- Run 1 logged a 🔵 "SSE could emit `deviceId: null`" and "fixed" it (`85222010`) with `val deviceId = nowPlaying.controllingDeviceId ?: return` — dropping the `device_state_changed` emit entirely when no device owns the lease — justified by "the device list refetch on the next heartbeat reflects the stop."
+- **That justification is false.** Traced end-to-end: (a) `releaseLease` (`PlaybackHandler.kt:78` → `lease = null`) is the case that nulls `controllingDeviceId`; `stop()` keeps the lease so it still emits a real deviceId — so the null path is exactly the genuine "device stopped owning playback" event, which `PlaybackUseCases` still enqueues to the outbox. (b) The PWA heartbeat (`useDeviceHeartbeat.ts:5`) is **POST-only every 15s and never re-reads the device list** — there is no periodic `fetchDevices`. (c) `device_offline` is emitted by **no** backend code (only group `member_joined/left` + this `device_state_changed`); the PWA's `handleDeviceOffline` listener is dead — no compensating path. (d) Pre-fix, the `deviceId: null` event hit the PWA's `else` branch (`useDeviceEvents.ts:44`, unknown deviceId) → `store.fetchDevices()` → the **only** live refresh that cleared the releasing device's card. The early-return removed it; the observer's card now shows the released device stuck on its last track until the Devices panel is manually reopened.
+- **Fix (this pass):** `DeviceSseNotificationBridge.kt` — removed the `?: return`, restored emitting `controllingDeviceId` (nullable). On a release the PWA can't patch (no deviceId matches) and falls through to the full-list refetch — the intended handling of an unmatchable event, not a bug. Made the type honest the _correct_ way: `DeviceStateEvent.deviceId` → optional (`device.types.ts`). `useDeviceEvents.ts` now passes `knownDevice.deviceId` (guaranteed string in the matched branch) so the in-place patch path still type-checks. Comment rewritten to state the real mechanism.
+- **Acceptance:** release a lease on device A while device B observes → B's card clears via the full-refetch fallback (not stale); normal play/pause/stop on A still patches B's card in place.
+
+### Confirmed correct-as-written (3 of 4 fixes + the refactor — no change)
+
+- **Outbox publisher isolation (`OutboxEntryProcessor` + `BestEffortNotificationPublisher`)** — exhaustive: the only 3 prod `NotificationPublisher`s are `WebSocketNotificationPublisher` (authoritative, `@Primary`, unmarked, genuinely throws `MessagingException` on send failure so rollback+retry is reachable — not cosmetic), `LoggingNotificationPublisher` (`@ConditionalOnMissingBean`, never instantiated in prod, can't throw), and `DeviceSseNotificationBridge` (correctly the only one marked best-effort). Injection (`List<NotificationPublisher>`), `REQUIRES_NEW`, and `OutboxPoller` retry intact. At-least-once duplicate SSE on retry is idempotent on the client (no-op re-patch). Op-note: no retry cap / dead-letter — pre-existing design property, not a regression.
+- **`McpTools.setPreferenceContract` single-read/single-ctx** — `ctxFactory.create(uid, version=INITIAL default)` is one function with a defaulted arg (compiles as both 1- and 2-arg forms); `AggregateVersion.INITIAL` is the correct create-default (handler substitutes `empty()` at version 0, strict-equality OCC); `updatedAt = ctx.requestTime` is the single clock read. **Consistency sweep:** no other `McpTools` write method (`playbackCommand`, `addToQueue`, `clearQueue`, `startRadio`) retains a double-find/double-create — the dedup was unique to the merge-then-write path.
+- **`karaokeStem: 'instrumental'` reset** sits in the same track-change `set()` as `isKaraokeMode`/`karaokeStatus`; unreachable for same-track stem switches (those go through `toggleKaraokeStem`→`karaokeSwitchUrl`, never `loadAndPlay`), so it never clobbers an intentional mid-track vocals selection; the gapless path can't run in karaoke mode (preload disabled), so `loadAndPlay` is the only reachable advance and the stale-`vocals` leak is closed on every path. `toggleKaraokeStem` failure-revert is a single correct inverse flip (no double-flip).
+- **`KaraokeStemButton` extraction (`f512cd48`)** is byte-for-byte behavior-preserving: `active`/`if (!active) return null` ≡ `isKaraokeMode && (…)`; all aria/title/icon (Music2=vocals, MicVocal=instrumental)/disabled/className/onClick identical; `MicVocal`/`Music2` imports removed from `PlayerBar` with no dangling refs.
+- **`useDeviceEvents` `?? undefined`** for now-playing fields is type-honest and rendering-neutral (consumers use truthy checks; no consumer distinguished null from undefined).
+
+### Systemic pattern
+
+- **A "type-honesty" cleanup silently amputated a functional path.** Run 1 read the PWA's full-refetch-on-unmatched-deviceId as wasteful noise and removed the event that triggered it, on a false belief about a heartbeat refetch that doesn't exist. Lesson: before deleting an emit because its payload "matches nothing," confirm what the receiver _does_ with an unmatched payload — here the no-match was the load-bearing refresh signal.
+
+Scouts/synthesis: 4/1 (+ adversarial verify of the one defect, fix applied same pass).
+
+---
+
 ## 2026-06-20 — Correctness audit of newly-added features (MCP tools, device WS→SSE bridge, vocals toggle)
 
 Scope: the four feature commits `c0b64969` (MCP tools), `f8458059` (device bridge), `14465468` (vocals toggle). Build + integration tests were green before this audit, so scouts focused on logic, not existence. Pyramid 4 scouts → reconcile. All confirmed findings below were **fixed in the same pass**.

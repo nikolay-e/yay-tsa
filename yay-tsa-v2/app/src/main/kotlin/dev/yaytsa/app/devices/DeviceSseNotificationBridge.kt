@@ -37,19 +37,19 @@ class DeviceSseNotificationBridge(
         val userId = node.get("userId")?.takeIf { it.isTextual }?.asText() ?: return
         val sessionId = node.get("sessionId")?.takeIf { it.isTextual }?.asText() ?: return
         val nowPlaying = runCatching { nowPlayingResolver.resolve(UserId(userId), SessionId(sessionId)) }.getOrNull() ?: return
-        // The PWA patches by deviceId; with no lease owner there is no device to patch
-        // (the field would be null and match nothing), so skip — the device list refetch
-        // on the next heartbeat reflects the stop. Only emit a live patch when a
-        // controlling device actually owns the session.
-        val deviceId = nowPlaying.controllingDeviceId ?: return
-        // Field shape matches the PWA's DeviceStateEvent (deviceId + isPaused), so
-        // useDeviceEvents patches the controlling device's now-playing in place.
+        // Field shape matches the PWA's DeviceStateEvent (deviceId + isPaused). When a
+        // controlling device owns the session, useDeviceEvents patches that device's
+        // now-playing in place. On a lease release controllingDeviceId is null: the PWA
+        // can't patch (no deviceId matches) and falls through to a full device-list
+        // refetch — the ONLY live signal that clears the releasing device's card, since
+        // the 15s heartbeat is POST-only and never re-reads the list. So still emit;
+        // dropping the event here strands the observer's card on the stale track.
         deviceEventBroadcaster.emit(
             userId,
             DEVICE_STATE_CHANGED,
             mapOf(
                 "sessionId" to sessionId,
-                "deviceId" to deviceId,
+                "deviceId" to nowPlaying.controllingDeviceId,
                 "nowPlayingItemId" to nowPlaying.nowPlayingItemId,
                 "nowPlayingItemName" to nowPlaying.nowPlayingItemName,
                 "positionMs" to nowPlaying.positionMs,

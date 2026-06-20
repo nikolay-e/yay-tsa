@@ -33,7 +33,7 @@ export function useDeviceEvents() {
         const store = useDeviceStore.getState();
         const knownDevice = store.devices.find(d => d.deviceId === data.deviceId);
         if (knownDevice) {
-          store.updateDeviceState(data.deviceId, {
+          store.updateDeviceState(knownDevice.deviceId, {
             positionMs: data.positionMs,
             isPaused: data.isPaused,
             nowPlayingItemId: data.nowPlayingItemId ?? undefined,
