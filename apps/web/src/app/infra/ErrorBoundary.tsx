@@ -23,7 +23,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    log.app.error('Uncaught error in component tree', error, {
+    log.app.debug('Uncaught error in component tree', {
+      error: String(error),
       componentStack: errorInfo.componentStack,
     });
     reportError(error, 'react', { stack: errorInfo.componentStack ?? error.stack });

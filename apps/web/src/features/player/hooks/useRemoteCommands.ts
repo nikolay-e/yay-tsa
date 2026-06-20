@@ -5,6 +5,8 @@ import { log } from '@/shared/utils/logger';
 import { usePlayerStore } from '../stores/player.store';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 
+const DEGRADED_STREAM_THRESHOLD = 5;
+
 export function useRemoteCommands() {
   const client = useAuthStore(s => s.client);
 
@@ -23,6 +25,8 @@ export function useRemoteCommands() {
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectAttempts = 0;
+    let consecutiveFailures = 0;
+    let degradedReported = false;
 
     const handleGroupCommand = (
       cmd: RemoteCommand,
@@ -90,7 +94,7 @@ export function useRemoteCommands() {
 
         handleSoloCommand(cmd, store);
       } catch {
-        // ignore malformed
+        log.player.debug('Discarded malformed remote command event');
       }
     };
 
@@ -103,11 +107,21 @@ export function useRemoteCommands() {
         es = null;
         if (closed) return;
         reconnectAttempts++;
+        consecutiveFailures++;
+        if (consecutiveFailures >= DEGRADED_STREAM_THRESHOLD && !degradedReported) {
+          degradedReported = true;
+          log.player.warn('Device event stream degraded', {
+            stream: 'devices/commands',
+            attempts: consecutiveFailures,
+          });
+        }
         const delay = Math.min(2000 * reconnectAttempts, 30000);
         reconnectTimer = setTimeout(connect, delay);
       };
       es.onopen = () => {
         reconnectAttempts = 0;
+        consecutiveFailures = 0;
+        degradedReported = false;
       };
     };
 

@@ -91,6 +91,10 @@ yaytsa:
     batch-size: ${METADATA_BATCH_SIZE:50}
     musicbrainz-base-url: ${METADATA_MUSICBRAINZ_BASE_URL:https://musicbrainz.org/ws/2}
     coverart-base-url: ${METADATA_COVERART_BASE_URL:https://coverartarchive.org}
+    artist-image-dir: ${METADATA_ARTIST_IMAGE_DIR:/app/artist-images}
+    wikidata-base-url: ${METADATA_WIKIDATA_BASE_URL:https://www.wikidata.org/wiki}
+    commons-api-url: ${METADATA_COMMONS_API_URL:https://commons.wikimedia.org/w/api.php}
+    rate-limit-ms: ${METADATA_RATE_LIMIT_MS:1000}
 
 management:
   endpoints:

@@ -10,6 +10,7 @@ const MAX_TYPE_LENGTH = 100;
 
 interface CaptureExtra {
   type?: string;
+  message?: string;
   route?: string;
   stack?: string;
   http?: ClientErrorReport['http'];
@@ -33,7 +34,9 @@ export class ErrorReporter {
     this.capturing = true;
     try {
       const type = truncate(extra.type ?? errorName(error), MAX_TYPE_LENGTH);
-      const message = redactSecrets(truncate(errorMessage(error), MAX_MESSAGE_LENGTH));
+      const message = redactSecrets(
+        truncate(extra.message ?? errorMessage(error), MAX_MESSAGE_LENGTH)
+      );
       const fingerprint = fingerprintOf(category, type, message);
 
       if (this.seen.has(fingerprint)) return;

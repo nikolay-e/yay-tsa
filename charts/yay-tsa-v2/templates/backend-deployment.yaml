@@ -120,6 +120,8 @@ spec:
               mountPath: /tmp
             - name: logs-volume
               mountPath: /app/logs
+            - name: artist-images
+              mountPath: {{ .Values.backend.config.metadata.artistImageDir }}
             {{- if .Values.backend.media.enabled }}
             - name: media
               mountPath: {{ .Values.backend.media.mountPath }}
@@ -141,6 +143,9 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 256Mi
+        - name: artist-images
+          emptyDir:
+            sizeLimit: {{ .Values.backend.artistImages.sizeLimit }}
         {{- if .Values.backend.media.enabled }}
         - name: media
           hostPath:

@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import { DeviceService, type DeviceStateEvent } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
+import { log } from '@/shared/utils/logger';
 import { useDeviceStore } from '../stores/device-store';
+
+const DEGRADED_STREAM_THRESHOLD = 5;
 
 export function useDeviceEvents() {
   const client = useAuthStore(s => s.client);
@@ -26,6 +29,8 @@ export function useDeviceEvents() {
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectAttempts = 0;
+    let consecutiveFailures = 0;
+    let degradedReported = false;
 
     const handleDeviceStateChanged = (event: MessageEvent) => {
       try {
@@ -44,7 +49,7 @@ export function useDeviceEvents() {
           store.fetchDevices().catch(() => {});
         }
       } catch {
-        // ignore
+        log.player.debug('Discarded malformed device_state_changed event');
       }
     };
 
@@ -53,7 +58,7 @@ export function useDeviceEvents() {
         const data = JSON.parse(event.data as string) as { deviceId: string };
         useDeviceStore.getState().setDeviceOffline(data.deviceId);
       } catch {
-        // ignore
+        log.player.debug('Discarded malformed device_offline event');
       }
     };
 
@@ -69,12 +74,22 @@ export function useDeviceEvents() {
         es = null;
         if (closed) return;
         reconnectAttempts++;
+        consecutiveFailures++;
+        if (consecutiveFailures >= DEGRADED_STREAM_THRESHOLD && !degradedReported) {
+          degradedReported = true;
+          log.player.warn('Device event stream degraded', {
+            stream: 'devices/events',
+            attempts: consecutiveFailures,
+          });
+        }
         const delay = Math.min(2000 * reconnectAttempts, 30000);
         reconnectTimer = setTimeout(connect, delay);
       };
 
       es.onopen = () => {
         reconnectAttempts = 0;
+        consecutiveFailures = 0;
+        degradedReported = false;
       };
     };
 

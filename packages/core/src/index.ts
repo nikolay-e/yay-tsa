@@ -91,9 +91,11 @@ export {
 export {
   createLogger,
   logger,
+  setLogSink,
   type Logger,
   type LogContext,
   type LogLevel,
+  type LogSink,
 } from './internal/utils/logger.js';
 export { redactSecrets } from './internal/utils/redact.js';
 

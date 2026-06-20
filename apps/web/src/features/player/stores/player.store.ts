@@ -495,6 +495,24 @@ export const usePlayerStore = create<PlayerStore>()(
         : client.getInstrumentalStreamUrl(trackId);
     }
 
+    // A stem URL handed straight to the audio engine turns a 404 (stems not
+    // generated yet) into a scary MEDIA_ELEMENT_ERROR. Probe availability first
+    // so the normal "no stems yet" case stays a quiet, expected outcome.
+    async function isKaraokeStemAvailable(url: string, signal: AbortSignal): Promise<boolean> {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { Range: 'bytes=0-0' },
+        credentials: 'same-origin',
+        signal,
+      });
+      return response.ok;
+    }
+
+    function markKaraokeUnavailable(reason: string): void {
+      log.player.debug('Karaoke stem unavailable, skipping preload', { reason });
+      set({ isKaraokeMode: false, isKaraokeTransitioning: false, karaokeStatus: null });
+    }
+
     async function applyReadyKaraokeState(
       trackId: string,
       status: KaraokeStatus,
@@ -504,6 +522,11 @@ export const usePlayerStore = create<PlayerStore>()(
       try {
         if (!currentClient) return;
         const url = karaokeStemUrl(currentClient, trackId);
+        if (!(await isKaraokeStemAvailable(url, signal))) {
+          if (!signal.aborted) markKaraokeUnavailable('stem not ready');
+          return;
+        }
+        if (signal.aborted) return;
         await karaokeSwitchUrl(url, signal);
         if (!signal.aborted) {
           set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
@@ -853,7 +876,7 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     engine.onError(error => {
-      log.player.error('Audio engine error', error);
+      log.player.debug('Audio engine error', { error: String(error) });
 
       const mediaErrorCode = (error as Partial<MediaPlaybackError>).mediaErrorCode ?? null;
       const audioEl = engine.getAudioElement?.() ?? null;
@@ -1002,8 +1025,18 @@ export const usePlayerStore = create<PlayerStore>()(
         }
 
         if (status.state === 'READY') {
-          set({ isKaraokeMode: true, karaokeStatus: status });
           const stemUrl = karaokeStemUrl(currentClient, currentTrack.Id);
+          if (!(await isKaraokeStemAvailable(stemUrl, signal))) {
+            if (!signal.aborted) {
+              set({ isKaraokeMode: false, karaokeEnabled: false, karaokeStatus: null });
+              log.player.debug('Karaoke stem unavailable on enable, skipping preload', {
+                trackId: currentTrack.Id,
+              });
+            }
+            return;
+          }
+          if (signal.aborted) return;
+          set({ isKaraokeMode: true, karaokeStatus: status });
           await karaokeSwitchUrl(stemUrl, signal);
           if (!signal.aborted) {
             preloader.invalidate();
@@ -1415,7 +1448,19 @@ export const usePlayerStore = create<PlayerStore>()(
           set({ karaokeStem: nextStem, isKaraokeTransitioning: true });
           try {
             if (!currentClient) return;
-            await karaokeSwitchUrl(karaokeStemUrl(currentClient, currentTrack.Id), signal);
+            const stemUrl = karaokeStemUrl(currentClient, currentTrack.Id);
+            if (!(await isKaraokeStemAvailable(stemUrl, signal))) {
+              if (!signal.aborted) {
+                log.player.debug('Alternate karaoke stem unavailable, reverting', {
+                  trackId: currentTrack.Id,
+                  stem: nextStem,
+                });
+                set({ karaokeStem: get().karaokeStem === 'vocals' ? 'instrumental' : 'vocals' });
+              }
+              return;
+            }
+            if (signal.aborted) return;
+            await karaokeSwitchUrl(stemUrl, signal);
             if (!signal.aborted) {
               preloader.invalidate();
               schedulePreload();
@@ -1467,6 +1512,11 @@ export const usePlayerStore = create<PlayerStore>()(
           try {
             if (!currentClient) return;
             const stemUrl = karaokeStemUrl(currentClient, ct2.Id);
+            if (!(await isKaraokeStemAvailable(stemUrl, signal))) {
+              if (!signal.aborted) markKaraokeUnavailable('stem not ready on refresh');
+              return;
+            }
+            if (signal.aborted) return;
             await karaokeSwitchUrl(stemUrl, signal);
             if (!signal.aborted) {
               preloader.invalidate();

@@ -127,3 +127,304 @@ Scope: the four feature commits `c0b64969` (MCP tools), `f8458059` (device bridg
 - Device contract is camelCase on both sides for the `/v1/*` extension (matches), `isPaused = playbackState != "PLAYING"` derived consistently on list + SSE paths, `DeviceNowPlayingResolver` entry/queue matching + `computePosition` correct, `DeviceEventBroadcaster` CopyOnWriteArrayList iteration + dead-emitter removal concurrency-safe.
 
 Scouts/synthesis: 4/1 (+ fixes applied same pass).
+
+## Correctness — Frontend reporter + transport (da63f717)
+
+Scope: `error-reporter.ts` (ErrorReporter), `beacon-error-transport.ts` (BeaconErrorTransport), `redact.ts`, `error-transport.interface.ts`. Read-only audit; no code edited.
+
+### 1. never-throw guarantee — NO BUG
+
+`ErrorReporter.capture` (`error-reporter.ts:31-68`): the only statements outside `try` are `if (this.capturing) return; this.capturing = true;` (`:32-33`) — neither can throw. Every throwing call (`truncate`, `errorName`/`errorMessage`/`errorStack`, `redactSecrets`, `fingerprintOf`→`hash`, `Map.get/set/size`, `reduceUserAgent`, `transport.send`) is inside the `try` (`:34-62`), `catch{}` swallows (`:63-64`), `finally{this.capturing=false}` (`:65-67`) always resets the guard even on throw/early-return. `transport.send` is synchronous and itself wrapped (see #2). `errorMessage` String() is guarded (`:104-108`). `crypto.randomUUID` runs once in the field initializer `newSessionId()` (`:20,90-94`), uses optional chaining + fallback — but note it runs at construction time, NOT inside capture's try (see minor note #7). **No throw escapes capture().**
+
+### 2. self-suppression / reentrancy — NO BUG (firebreak is the transport's .catch, as the prompt suspected)
+
+The `capturing` flag (`:23,32-33,66`) only blocks **synchronous** re-entry. `transport.send` is fire-and-forget; by the time `nav.sendBeacon`/`fetch` settles, `capture()` has already returned and `capturing===false`. So the flag does NOT protect the async case — confirmed. The REAL firebreak for the async path is `beacon-error-transport.ts:27` `.catch(() => {})` on the fetch promise: a rejected keepalive fetch is swallowed and never becomes an `unhandledrejection` (which would re-enter `capture` with category `'promise'`). `sendBeacon` returns a boolean (never rejects), so it can't feed the loop. Verified: there is **no path where the reporter's own failure becomes an uncaught error/rejection**. The `capturing` flag still has value: it prevents a throw _inside_ capture (e.g. a future synchronous transport) from synchronously re-entering. Acceptable as-is.
+
+### 3a. 🟡 dedup — `count` is always 1 on the wire (under-reporting, low severity)
+
+`error-reporter.ts:39-45,55`: first occurrence sends `count: 1` (`:55`); repeats only increment the in-memory `seen` map (`:41`) and `return` (`:42`) — they are **never re-sent**, and the already-sent report's `count` is never updated. So the server sees `count:1` for every distinct fingerprint regardless of true frequency; `ClientErrorReport.count` (`error-transport.interface.ts:18`) is effectively dead data. Not a crash bug, but the field is misleading — a high-frequency error looks identical to a one-off. **Fix (if frequency matters):** periodically flush updated counts, or send count on session end / page hide via a second beacon. Otherwise drop the field to avoid implying it's meaningful.
+
+### 3b. cap off-by-one + Map bound — NO BUG (correct, intentional)
+
+`error-reporter.ts:44`: `if (this.seen.size >= MAX_DISTINCT_PER_SESSION) return;` is checked **before** `this.seen.set(fingerprint, 1)` (`:45`), and only for _new_ fingerprints (existing ones already returned at `:42`). So the map caps at exactly 25 distinct entries (sizes 0..24 pass; at 25 it stops). Existing fingerprints keep incrementing forever (no new map entries), so the map is hard-bounded at 25 — memory is fine. The count integer could theoretically overflow for an absurdly hot error, but JS numbers don't throw on overflow and it never leaves the process. **No correctness bug.**
+
+### 4. fingerprint normalization — 🟡 over-match in `[0-9a-f-]{8,}` (collapses distinct errors, low severity)
+
+`error-reporter.ts:146-155`. The regex chain order is correct (url → id → digits → whitespace), and each `.replace` is total/cannot throw; `hash()` (`:157-163`) is djb2-xor on char codes, no throw, collision risk acceptable for fingerprint bucketing. **The real issue is `/[0-9a-f-]{8,}/gi` (`:150`):** the char class includes `-` and the a–f letters, so it matches any run of ≥8 chars drawn from `{0-9 a-f -}` — which hits ordinary hyphenated/lowercase words. Examples that get collapsed to `<id>`: `"deadbeef"`, `"facebface"`, `"add-edac"` (8 hyphen/hex chars), `"cafe-bed"`-style tokens, and crucially any all-lowercase a–f word ≥8 long. Two genuinely different error messages whose only distinguishing token is such a word would share a fingerprint → **under-reporting (errors silently merged)**, and the 25-distinct cap fills slightly slower (mostly harmless). It does NOT over-fingerprint (no false splitting). **Fix:** anchor to hex-ID shape, e.g. require word boundaries and a digit, or `\b[0-9a-f]{8,}\b` plus a separate UUID pattern `\b[0-9a-f-]{8,}\b` that requires at least one digit — narrowing to real IDs. Low severity: it only mis-buckets, never crashes.
+
+### 5. 🟠 BeaconErrorTransport byte-budget uses char length, not bytes (real gap — beacon can silently drop)
+
+`beacon-error-transport.ts:4,12`: `KEEPALIVE_BYTE_BUDGET = 60*1024`; `if (body.length > KEEPALIVE_BYTE_BUDGET) return;`. `String.length` counts UTF-16 code units, but `navigator.sendBeacon`'s limit and the keepalive quota are measured in **encoded UTF-8 bytes**. A report dominated by multi-byte text (Cyrillic error messages are routine in this project; CJK; emoji) can be ≤ 60K chars yet > 60K (even > 64K) bytes. Path-by-path:
+
+- The pre-guard at `:12` under-counts → a too-large body passes the guard.
+- `nav.sendBeacon(...)` (`:16`) then returns `false` because the body exceeds the UA byte limit. `if (queued) return;` (`:17`) is correctly written — **on `false` it falls through to the fetch path** (good, the fallback wiring is correct).
+- `globalThis.fetch?.(..., {keepalive:true})` (`:20-26`) is then attempted, but `keepalive` fetch shares the same per-origin keepalive **byte** quota; an oversized body makes the fetch reject with a TypeError. That rejection is caught by `.catch(()=>{})` (`:27`), so it doesn't throw — but **the error report is silently lost** (neither beacon nor fetch delivered it).
+  Net: large multi-byte reports are dropped without trace. Not a crash, but a telemetry-correctness gap precisely for the non-ASCII errors this app produces. **Fix:** measure real bytes — `new TextEncoder().encode(body).length` (or a `Blob([body]).size`) — and compare against the byte budget; consider truncating `stack`/`message` to fit rather than dropping. (The upstream truncation caps are in _chars_ too: `MAX_STACK_LENGTH=4096`, `MAX_MESSAGE_LENGTH=1024` at `error-reporter.ts:7-8` — a 4096-char Cyrillic stack is ~8KB, still well under 60K, so the cap alone doesn't prevent the byte overflow once http/audio/ua fields and a worst-case stack combine.)
+
+### 5b. fetch absence & rejection guards — NO BUG
+
+`globalThis.fetch?.(...)` (`:20-21`) optional-chains a missing `fetch` (returns `undefined`); the trailing `.catch` would throw on `undefined`, BUT the whole block is inside the transport's outer `try/catch` (`:10,28-30`), so a missing `fetch` is swallowed harmlessly. When `fetch` exists, `.catch(()=>{})` (`:27`) covers rejection. `sendBeacon` is feature-detected (`:15`). All firebreaks present.
+
+### 6. truncate / reduceUserAgent / matchLabel — NO BUG (one intentional quirk)
+
+- `truncate` (`error-reporter.ts:115-117`): `value.slice(0,max)+'…'` yields max+1 _chars_ (max content chars + one ellipsis). This is the normal "keep max chars then mark truncation" convention, not an off-by-one defect; downstream byte budget (#5) is the only place length matters and it's char-counted there too. Acceptable.
+- `reduceUserAgent` (`:141-144`): returns `undefined` only when `ua` is falsy (`:142`), matching the optional `uaReduced?` field (`error-transport.interface.ts:21`). Otherwise always returns a non-empty `"Browser / OS"` string via `matchLabel` (`:134-139`) which always returns at least `'Other'`. No throw. Correct.
+- `matchLabel` ordering (`:119-132`): Edge tested before Chrome (Edge UA contains `Chrome/`), correct precedence. iOS-before-Windows etc. fine. No bug.
+
+### Net for this run
+
+- 🟠 #5 byte-vs-char budget — real, drops large non-ASCII telemetry silently. Highest-impact item here.
+- 🟡 #3a `count` always 1 — dead/misleading field.
+- 🟡 #4 `[0-9a-f-]{8,}` over-match — merges some distinct errors (under-report).
+- Areas 1, 2, 3b, 5b, 6: explicitly **no bug** — never-throw, reentrancy firebreak (transport `.catch`), cap/Map bound, fetch guards, and truncate/UA helpers are all correct.
+
+Scouts/synthesis: 1 (small self-contained surface, single coupled file pair) — non-parallel by topology rule 8.
+
+## Correctness — Config + cross-cutting (da63f717)
+
+Scope: bucket4j filter YAML, SecurityConfig permitAll, build.gradle.kts micrometer-core,
+CSRF (highest priority), counter naming. No code edited.
+
+### 🟢 #4 CSRF — VERIFIED SAFE (highest-priority check, definitive: NO bug)
+
+`yay-tsa-v2/app/src/main/kotlin/dev/yaytsa/app/security/SecurityConfig.kt:43`
+
+```kotlin
+http
+    .csrf { it.disable() }
+```
+
+CSRF is **disabled globally** on the application security filter chain (`@Order(1)`, the one
+that handles `/v1/*`), and also on the management chain (line 33). The new
+`POST /v1/client-errors` is therefore NOT subject to CSRF. A real-browser `sendBeacon`
+POST without a CSRF token will succeed in production — the feature is **not** dead in prod.
+
+Cross-check: the existing permitAll POST `/Users/AuthenticateByName` (line 64) lives on the
+same chain and relies on the same global `csrf.disable()` — identical, proven-working
+posture. The MockMvc test passing 204 unauthenticated is consistent with prod, not a
+false positive: `HttpIntegrationTestBase` uses `@SpringBootTest` + `@AutoConfigureMockMvc`
+(full real context, real `SecurityFilterChain`), and does not apply any CSRF-mutating
+test config. Definitive: no CSRF bug.
+
+### 🟢 #2 SecurityConfig permitAll — NO bug
+
+`SecurityConfig.kt:70-71`
+
+```kotlin
+.requestMatchers("/v1/client-errors")
+.permitAll()
+```
+
+- Correct matcher syntax, placed in the chain **before** `anyRequest().authenticated()`
+  (line 79-80). Spring evaluates matchers in declaration order; this rule is reached first.
+- No broader `/v1/**` authenticated rule exists anywhere in the chain that could shadow it
+  (the only `/v1/*` permitAll entries are `/v1/time` and `/v1/client-errors`; everything else
+  falls through to `anyRequest().authenticated()`). Not shadowed.
+- Reachable unauthenticated → 204, matching the integration test. Correct.
+
+### 🟢 #1 bucket4j filter YAML — NO bug
+
+`yay-tsa-v2/app/src/main/resources/application.yml:180-192`
+
+Structure matches the existing filters exactly:
+
+- `cache-name: rate-limit-buckets` — same shared cache as `jellyfin-login`, `subsonic-rest`,
+  `group-join`, `mcp`. Correct (no typo, no separate cache).
+- `url: ^/v1/client-errors$` — properly anchored, same regex style as `group-join`
+  (`^/v1/groups/join$`). After Traefik strip-prefix (`charts/yay-tsa-v2/values.yaml:168
+stripApiPrefix: true`) the backend sees `/v1/client-errors`, NOT `/api/...`, so the regex
+  matches the post-strip path. Correct.
+- `cache-key: getRemoteAddr()` — same per-IP key used by `group-join` and `mcp`. With
+  `X-Forwarded-For` remote-ip handling configured (application.yml:120-123), this resolves to
+  the real client IP behind Traefik. Correct.
+- `id: client-errors` — unique; no collision with existing ids
+  (jellyfin-login/subsonic-rest/group-join/mcp).
+- Bandwidth fields (`capacity/time/unit/refill-speed: interval`) all valid and recognized.
+- 30 req/min per IP is sane for client-error telemetry (matches `group-join`'s 30/min).
+
+### 🟢 #3 build.gradle.kts micrometer-core — NO bug
+
+`yay-tsa-v2/adapter-jellyfin/build.gradle.kts:40`
+
+```kotlin
+implementation("io.micrometer:micrometer-core")
+```
+
+- Correct coordinate; version omitted and supplied by the Spring Boot BOM imported at the top
+  of this module (`dependencyManagement { imports { mavenBom(spring.boot.bom) } }`). No version
+  skew risk.
+- No conflict: `micrometer-core` is already on the runtime classpath transitively via
+  `app/build.gradle.kts:65 micrometer-registry-prometheus`; declaring it explicitly in the
+  adapter module that uses `MeterRegistry` is the correct, BOM-aligned move (compile-time
+  dependency where the import lives).
+- `MeterRegistry` is injectable: Spring Boot Actuator + the prometheus registry auto-configure
+  a `MeterRegistry` bean; constructor injection in `JellyfinClientErrorsController` resolves it.
+
+### 🟢 #5 Counter naming — NO bug
+
+`JellyfinClientErrorsController.kt:39,68 (yaytsa.client.errors)`, `:28,37 (yaytsa.client.errors.dropped)`
+
+- Micrometer→Prometheus mapping is clean: dots→underscores yields
+  `yaytsa_client_errors_total` and `yaytsa_client_errors_dropped_total` (counters get the
+  `_total` suffix automatically). Valid Prometheus names.
+- No clash with existing metric names (only prometheus registry app-side metric is the
+  actuator default set; `yaytsa.client.errors*` is a new namespace).
+- Tags are bounded before use (`coerceCategory`/`coerceType`/`coerceVersion` clamp to allow-lists
+  / regex), so no unbounded-cardinality label explosion. Correct.
+
+**Verdict: no correctness or config bugs found in the audited config/cross-cutting surface of
+da63f717. The CSRF concern (#4) — the one that could have killed the feature in prod — is
+definitively resolved: CSRF is globally disabled, so `sendBeacon` POST works in production.**
+
+## Correctness — Frontend handlers + wiring (da63f717)
+
+### 🟠 unhandledrejection: `new Error(String(reason))` can throw inside the listener body (unguarded)
+
+- **File**: `apps/web/src/app/infra/install-error-handlers.ts:30-33`
+- **Quote**: `win.addEventListener('unhandledrejection', event => { const reason: unknown = event.reason; reportError(reason instanceof Error ? reason : new Error(String(reason)), 'promise'); });`
+- **Why**: `String(reason)` runs in the listener body, BEFORE `reportError` → `ErrorReporter.capture`'s try/catch. If a promise rejects with a value whose `String()` conversion throws, the listener itself throws. Two real cases: (1) `Promise.reject(Symbol('x'))` — `String(symbol)` does NOT throw (it returns `"Symbol(x)"`), so symbols are safe; but `` `${symbol}` `` template would throw — `String()` is the safe form, good. (2) `Promise.reject({ toString() { throw new Error('boom'); } })` — `String(obj)` invokes the throwing `toString` and propagates. (3) `Promise.reject(Object.create(null))` — `String()` on a null-prototype object throws `TypeError: Cannot convert object to primitive value`. Both (2) and (3) throw synchronously in the listener, escaping the reporter's guard. The reporter's own `errorMessage()` helper wraps `String()` in try/catch precisely for this — but that protection is bypassed here because the conversion happens before `capture()`. A throwing listener does not crash the app but the rejection goes unreported and an "Uncaught (in promise handler)" error is logged.
+- **Fix**: Pass the raw `reason` to `reportError` and let the reporter's guarded `errorMessage()` stringify it: `reportError(reason instanceof Error ? reason : reason, 'promise')` — but `capture` expects `unknown` already, so simply `reportError(reason, 'promise')` (the reporter handles non-Error via `errorMessage`). If an explicit Error wrapper is wanted, wrap the `String()` call in try/catch or use the same guarded helper.
+
+### 🔵 ServiceWorkerContainer `error` listener is dead code (event never fires)
+
+- **File**: `apps/web/src/app/infra/install-error-handlers.ts:37-39`
+- **Quote**: `swContainer.addEventListener('error', () => { reportError(new Error('Service worker error'), 'sw', { type: 'ServiceWorkerError' }); });`
+- **Why**: Confirmed against MDN — `ServiceWorkerContainer` fires only `controllerchange`, `message`, and `messageerror`. There is NO `error` event on the container (the `error` event lives on the `ServiceWorker` object, e.g. `registration.active.onerror`, not on `navigator.serviceWorker`). This handler will never be invoked → dead code. SW script load/parse failures surface via `registration.update().catch()` (already handled in `main.tsx:38`) or the registration promise, not via a container `error` event. Not harmful, just inert. The `messageerror` handler on line 40 IS correct (that event exists on the container).
+- **Fix**: Remove the `'error'` listener (lines 37-39), or if SW-script-error reporting is desired, hook it onto the registration's worker (`registration.installing/waiting/active` → `worker.addEventListener('error', ...)` and `worker.addEventListener('statechange', ...)` for `redundant`).
+
+### ✅ Capture-phase `error` listener branch logic — correct
+
+- **File**: `apps/web/src/app/infra/install-error-handlers.ts:9-26`
+- (a) A normal JS runtime error sets `event.target === window`, so `target !== win` is false → does NOT enter the resource branch → falls through to the runtime branch (line 23-25). Correct.
+- (d) `isOpaqueScriptError`: `!event.error && event.message === 'Script error.' && !event.filename`. A real same-origin error virtually always has `event.error` populated (the Error object) and/or a `event.filename`; the only way all three conditions hold is the canonical cross-origin opaque-script case. Misclassification of a real same-origin error is implausible. Correct.
+
+### 🟡 `<audio>` resource error is double-reported (capture listener + engine.onError) with distinct fingerprints — not deduped
+
+- **File**: `apps/web/src/app/infra/install-error-handlers.ts:11-18` AND `apps/web/src/features/player/stores/player.store.ts:855-867`
+- **Why**: When an `<audio>` element fails to load, the HTML5 `error` event fires on the element. It does NOT bubble, but this listener is registered with `capture=true` (line 27), so it DOES catch element resource errors → reports as category `'resource'`, type `'ResourceError'`, message `Resource load failed: AUDIO <url>`. Separately, the html5-audio engine's own error path fires `engine.onError` → reports category `'audio'`, type `'AudioError'` with `mediaError`/`readyState`/`networkState`. The reporter's `fingerprintOf` keys on `category|type|hash(message)` — the two reports have different categories AND types, so they produce different fingerprints and are NOT deduped. One audio failure → two distinct client-error reports. This inflates telemetry counts but each is independently meaningful (resource vs media-error-code view). Whether this is a "bug" depends on intent; flagging because it doubles the per-session distinct-fingerprint budget (`MAX_DISTINCT_PER_SESSION = 25`) consumption for audio incidents.
+- **Fix (optional)**: If single-report is desired, suppress the capture-phase resource branch for media elements (`AUDIO`/`VIDEO` tags) since the engine reports those with richer context: `if (el.tagName !== 'AUDIO' && el.tagName !== 'VIDEO') { ...report... }`. Otherwise document the dual-report as intentional.
+
+### ✅ api_key in `<audio src>` resource URL gets redacted — correct
+
+- **File**: `redact.ts:3` + `error-reporter.ts:36` + `beacon-error-transport.ts:11`
+- The resource message embeds the raw stream URL (`...stream?api_key=SECRET`). `redactSecrets` runs the regex `api_key=[^&\s"')<>]+` over the message in `capture()` (line 36) AND again over the full JSON body in the transport (line 11). At end-of-string the api_key value has no `&` terminator, so `[^&\s"')<>]+` correctly matches the whole secret to EOL → `api_key=[REDACTED]`. Double-redaction (message + body) is defense-in-depth. Correct.
+
+### 🟡 RouteTracker `toRouteTemplate` substring replacement — real but low-severity for this app
+
+- **File**: `apps/web/src/app/infra/RouteTracker.tsx:16-24`
+- **Quote**: `template = template.split(value).join(`:${key}`);`
+- **Why**: `String.split(value)` is plain-string (no regex), so special-char values are safe (b is a non-issue). But it is a global, unanchored substring replace: ALL occurrences of the param value anywhere in the path are replaced, not just the matched segment. (a) Real risk: a short numeric id like `/albums/1` with `id="1"` → `split("1")` replaces every `"1"` in the path; if the static path contained a `1` it would corrupt. For this app the static segments are `albums/artists/audiobooks/...` (no digits) and ids are Jellyfin 32-hex GUIDs or stable numerics, so collisions are improbable but not impossible. (c) Order dependence: if two params share a value, the first replaces both. (d) URL-encoded path vs decoded `useParams` value: `location.pathname` is raw (may be percent-encoded) while `params` values are decoded by react-router; for an id containing a space/unicode the decoded value won't be found as a substring of the encoded pathname → no replacement, route stays un-templated (raw id leaks into telemetry `route`, defeating cardinality reduction). For GUID/numeric ids this never triggers.
+- **Severity**: Low for the current route set (all single-param routes with GUID/numeric ids, digit-free static segments). Would become a correctness problem if a route gained a short/colliding param or a param with encodable chars.
+- **Fix**: Build the template from react-router's matched route pattern instead of string-replacing the pathname — e.g. use the `matches` from `useMatches()`/the route handle, or replace only the trailing/segment-anchored occurrence: split pathname on `/`, replace whole segments that equal a param value.
+
+### ✅ player.store engine.onError insertion — control flow preserved, null-safe
+
+- **File**: `apps/web/src/features/player/stores/player.store.ts:855-867`
+- `reportError(error, 'audio', {...})` is inserted after `log.player.error` and BEFORE the existing recovery logic (`recoverable`/`controller.interrupt`). It is fire-and-forget (returns void, no await) and reads only local `mediaErrorCode` and `engine.getAudioElement?.()`. It does not alter `recoverable`, the early-return, or recovery timing. `reportError` delegates to `instance?.capture` (optional chaining) → if an audio error fires during very early boot before `initErrorReporter` ran, `instance` is null and the call is a silent no-op (no throw). `getAudioElement?.()` is verified present on the engine interface (`audio.interface.ts:129`, optional) and implemented (`html5-audio.ts:776`) returning `HTMLAudioElement | null`. In practice `initErrorReporter` runs at `main.tsx:20` before any player/engine construction, so the reporter is always initialized by the time audio errors can fire. Correct.
+
+### ✅ main.tsx bootstrap order — correct
+
+- **File**: `apps/web/src/main.tsx:17-21, 43`
+- `initErrorReporter(new BeaconErrorTransport('/api/v1/client-errors'))` then `installErrorHandlers()` run BEFORE `createRoot(...).render(...)` and before `registerSW`. This is the right order: handlers installed before the React tree mounts so early render/runtime/resource errors are captured, and the reporter instance exists before any handler can fire. `BeaconErrorTransport` constructor only stores the endpoint string (no window/navigator access at construction) — safe even in a no-window context; actual `navigator.sendBeacon`/`fetch` access is deferred to `send()` and guarded. Endpoint `/api/v1/client-errors`: the v2 backend is served under `/api` on `yay-tsa.com` with a Traefik strip-prefix middleware, so the browser-relative `/api/v1/client-errors` is correct (strip-prefix removes `/api` so the backend sees `/v1/client-errors`, matching the Yaytsa `/v1/*` extension namespace). Correct (assuming the backend route `/v1/client-errors` exists — not in audit scope here).
+
+## Correctness — Backend controller (da63f717)
+
+**File**: `yay-tsa-v2/adapter-jellyfin/src/main/kotlin/dev/yaytsa/adapterjellyfin/JellyfinClientErrorsController.kt`
+**Scope**: unauthenticated (`permitAll`) client-error telemetry ingestion. Findings empirically verified with JDK 21 (Kotlin `Regex` wraps `java.util.regex` identically) + jackson-databind 2.18.3.
+
+### 🟡 HIGH_ENTROPY over-redaction destroys legitimate routes/stacks/messages — `:172`, used `:134`
+
+```kotlin
+private val HIGH_ENTROPY = Regex("\\b[A-Za-z0-9+/=_-]{32,}\\b")
+```
+
+The class includes `/`, `_`, `-`, `+`, `=` — all common in URL paths and stack frames. Verified: `"GET /api/v1/some/very/long/route/path/that/is/normal/text"` → `"GET /[REDACTED]"`; a 32+ char route/file path with no spaces is fully redacted. This silently eats the most useful diagnostic fields (`route`, `stack`, `msg`) for exactly the long, structured errors you most want to read. Why-wrong: `\b` followed by a char class containing path separators makes any long path-like token "high entropy". Fix: drop `/` `-` `_` from the entropy class (keep base64/hex shape `[A-Za-z0-9+/=]{32,}` requires a real charset-balance check) or, better, gate on a Shannon-entropy threshold rather than mere length, and/or never run HIGH_ENTROPY against `route`/`stack` (only against `msg`/headers). At minimum exclude `/` so paths survive.
+
+### 🔵 HIGH_ENTROPY leaks base64 `=`/`==` padding (cosmetic, body still redacted) — `:172`
+
+Verified: `"...Zo=="` → `"[REDACTED]=="`; `"...Zo="` → `"[REDACTED]="`. Because `=` is a non-word char, `\b` sits _before_ the trailing padding, so the `=`/`==` is left in the log. The high-entropy body itself IS redacted, so this is not a secret leak — only stray `=` chars remain. Note also a pure-symbol run (`"+"*32` or `"="*16000`) is NOT matched at all (no `\b` on either side) — verified — but such strings carry no secret. Fix (optional): use lookarounds instead of `\b`, e.g. `(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{32,}(?![A-Za-z0-9+/=_-])`, so padding is captured.
+
+### 🔵 `user`/`sid`/`fp` log-injection vector is closed only by defense-in-depth, `user` is unsanitized — `:61`, `:94`
+
+```kotlin
+"user" to principal?.name,   // NOT passed through sanitize()
+```
+
+`principal.name` is the only field that skips `sanitize()`. In practice safe because (a) `JellyfinAuthentication.getName()` returns `userId.value` (server-issued UUID, not free text — verified in `JellyfinAuthFilter.kt:103`), and (b) `objectMapper.writeValueAsString` escapes `\n`/`\r`/control chars inside string values by default (verified: `"abc\ndef\r"` → `"abc\\ndef\\r"`), so the log stays single-line regardless. No actual injection. Fix (hygiene/consistency): wrap with `sanitize(principal?.name)` so every logged value goes through the same path; cheap and removes the reasoning dependency on the UUID invariant.
+
+### ✅ `readBounded` loop — correct (no off-by-one, no oversize misclassification)
+
+```kotlin
+val buffer = ByteArray(MAX_BODY + 1); var total = 0
+while (total <= MAX_BODY) { val read = input.read(buffer, total, buffer.size - total); if (read == -1) break; total += read }
+if (total > MAX_BODY) return null
+```
+
+Verified end-to-end with a 1-byte-per-call stream:
+
+- Empty body → `""` (NOT null) → flows to JSON parse → throws → **malformed** branch. Intended: empty is malformed, not oversize. Correct.
+- Body of **exactly MAX_BODY (16384)** → accepted, `len=16384`. Correct (not wrongly rejected).
+- Body of MAX_BODY+1 and MAX_BODY+2 → `null` (oversize). Correct discrimination.
+- `buffer.size - total` is always ≥1 while the loop runs: max `total` at loop entry is `MAX_BODY`, giving `len = (MAX_BODY+1) - MAX_BODY = 1`. So a conformant stream never gets a 0-length request and `read()` never returns 0 for `len≥1`. No infinite loop reachable via the servlet stack.
+- Note: this reads at most MAX_BODY+1 bytes; if the actual body is larger the stream is NOT fully drained (closed via `.use`). Returning 204 + closing the stream on oversize is fine for a fire-and-forget beacon endpoint.
+
+### ⚠️ (informational, not a bug) `readBounded` infinite loop only under a non-conformant stream
+
+A stream that returns `0` from `read(b,off,len)` with `len≥1` would spin forever (verified with a deliberately-misbehaving stream: runaway at `total=0`). This violates the `InputStream` contract (0 is only legal when `len==0`), and Tomcat/Coyote servlet input streams are blocking + conformant, so it is not reachable in production. If you want belt-and-suspenders, add `if (read == 0) break` or cap iterations.
+
+### ✅ Secret-redaction group refs (`$1`) — correct
+
+Verified all four `SECRET_PATTERNS`:
+
+- `"$1=[REDACTED]"` correctly substitutes group 1: `api_key=SECRET123abc` → `api_key=[REDACTED]`; `?api_key=abc&x=1` → `?api_key=[REDACTED]&x=1` (the `&x=1` tail survives because the value class excludes `&`).
+- `Bearer ...` → `Bearer [REDACTED]` (no group; literal replacement — fine).
+- `X-Emby-Token: "abc"` → `X-Emby-Token: [REDACTED]`; `token: rawvalue` → `token: [REDACTED]`.
+- `{"token":"abc","a":1}` → `{"token":"[REDACTED]","a":1}`.
+  Kotlin/JVM treats `$1` as group ref; the literal `$` only matters when it appears outside a valid group ref — none of these replacements have a bare `$`. The `\$`-escaping caveat does not apply here. No `IndexOutOfBounds` (every `$1` has a group 1 in its pattern). Correct.
+
+### ✅ No ReDoS
+
+Stress-tested every regex against 16 KB adversarial inputs (long value runs, huge `\s*` whitespace runs, `("a=").repeat(4000)`, all-`=`, whitespace-then-entropy). No pattern exceeded 50 ms; all are linear (no nested/overlapping quantifiers). Correct.
+
+### ✅ Counter cardinality — bounded on every path
+
+Happy path tags (`:67-68`) are `catTag`∈ALLOWED*CATEGORIES∪{"other"}, `typeTag`∈ALLOWED_TYPES∪{"other"}, `verTag` regex-gated `^[A-Za-z0-9.*-]{1,32}$`else`"unknown"`. Malformed path (`:39`) uses hardcoded `other`/`other`/`unknown`. `coerceVersion`runs`VERSION_PATTERN` on the already-`stringField`-truncated (≤32) value before it can become a tag — no pre-coercion leak. Raw `message`/`type`/`status`/`route`/`ua` never reach a tag; they appear only in the (unbounded-cardinality-safe) log line. No unbounded value reaches Micrometer. Correct.
+
+### ✅ Malformed / oversize / empty — all return 204, nothing throws
+
+- Oversize → 204 (`:29`); malformed parse → 204 (`:41`); happy → 204 (`:70`).
+- `stringField` does `value as? String` → a JSON number/object/array for `message`/`type`/etc. yields `null` (no `ClassCastException`). Verified by inspection.
+- `intField` on a `Number` calls Kotlin `toInt()` (→ `intValue()`); verified it never throws and saturates/truncates for `Long`/`BigInteger`/huge `Double` (`9999999999`→`1410065407`, `1e308`→`2147483647`). A string like `"9999999999999999999"` → `toIntOrNull()` → `null`. No throw path.
+- `objectMapper.writeValueAsString(line)` on a `LinkedHashMap<String,Any?>` of strings/ints cannot throw here.
+
+### ✅ `fullType` TYPE_LOG_LIMIT(100) vs `coerceType` CATEGORY_LIMIT(64) — intentional, not a bug
+
+`:44` keeps a richer 100-char `type` for the _log_ field; `:46` truncates to 64 only to feed `coerceType`, which then matches against a fixed allow-set whose longest member is 17 chars — so the 64 vs 100 difference is immaterial to the tag. Two reads of `parsed["type"]` with different limits is deliberate (full-ish in log, coerced in tag). No correctness impact.
+
+### ✅ Single-line log guarantee — holds
+
+Each string field is `sanitize`d (CONTROL_CHARS incl. ` `/` ` → space), AND Jackson escapes any residual `\n`/`\r` in values (verified). `writeValueAsString` of the map introduces no literal newlines (no pretty-printer configured). Log is single-line.
+
+### Summary
+
+- 🔴 none.
+- 🟡 one real bug: HIGH_ENTROPY over-redacts long route/stack/path tokens (`:172`/`:134`), degrading the telemetry it exists to capture.
+- 🔵 two minor: base64 `=`/`==` padding leak (cosmetic), unsanitized `user` field (closed by Jackson escaping + UUID principal — hygiene only).
+- ⚠️ one informational: theoretical infinite loop only under a contract-violating InputStream (not reachable via servlet stack).
+- Everything else audited (buffer loop boundaries, `$1` group refs, ReDoS, counter cardinality, malformed/oversize/empty handling, int/string coercion, fullType limit mismatch, single-line log) is correct.
+
+## Resolution (correctness fixes applied, follow-up to da63f717)
+
+All actionable findings fixed and re-verified (backend 6/6 integration tests, frontend build+eslint green):
+
+- 🟡 HIGH*ENTROPY over-redaction → class narrowed to `[A-Za-z0-9*-]{32,}`(dropped`/ + =` so slash-separated routes/URLs are no longer eaten; hex + base64url tokens still caught).
+- 🟠 Beacon byte-budget → measure `TextEncoder().encode(body).length` (UTF-8 bytes) instead of `String.length` (UTF-16 units) — correct for non-ASCII/Russian payloads.
+- 🟠 `unhandledrejection` unguarded `String(reason)` → pass raw `reason` to `reportError`; stringification now happens inside the reporter's guarded `errorMessage()`.
+- 🟡 Double-report of `<audio>`/`<video>` errors → capture-phase resource branch skips media elements; engine `onError` is the single richer source.
+- 🟡 RouteTracker substring replace → segment-wise replacement (only whole path segments equal to a param value become `:key`).
+- 🔵 Dead `ServiceWorkerContainer` `error` listener removed (container never fires it; `messageerror` retained). Full SW-script-error capture remains deferred (needs SW-side postMessage bridge).
+- 🔵 Misleading `count: 1` removed from the wire report; dedup store simplified `Map<string,number>`→`Set<string>`.
+- 🔵 Backend `user` field now run through `sanitize()` for consistency.
+- defensive: `readBounded` breaks on `read <= 0` (InputStream-contract guard against a 0-return infinite loop).
+
+CSRF verified safe (globally disabled on the `@Order(1)` chain) — endpoint reachable unauthenticated in prod. No 🔴 issues found.

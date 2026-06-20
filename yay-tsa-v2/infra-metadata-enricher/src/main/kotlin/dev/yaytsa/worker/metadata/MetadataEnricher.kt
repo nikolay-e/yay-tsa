@@ -33,6 +33,10 @@ class MetadataEnricher(
     @Value("\${yaytsa.metadata.batch-size:50}") private val batchSize: Int,
     @Value("\${yaytsa.metadata.musicbrainz-base-url:https://musicbrainz.org/ws/2}") private val musicBrainzBaseUrl: String,
     @Value("\${yaytsa.metadata.coverart-base-url:https://coverartarchive.org}") private val coverArtBaseUrl: String,
+    @Value("\${yaytsa.metadata.artist-image-dir:#{null}}") artistImageDir: String?,
+    @Value("\${yaytsa.metadata.wikidata-base-url:https://www.wikidata.org/wiki}") wikidataBaseUrl: String,
+    @Value("\${yaytsa.metadata.commons-api-url:https://commons.wikimedia.org/w/api.php}") commonsApiUrl: String,
+    @Value("\${yaytsa.metadata.rate-limit-ms:1000}") rateLimitMs: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -41,9 +45,16 @@ class MetadataEnricher(
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { Path.of(it).toRealPath() }.getOrNull() }
 
-    private val rateLimiter = RateLimiter(clock)
+    private val artistImageRoot: Path? =
+        artistImageDir
+            ?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { Files.createDirectories(Path.of(it)).toRealPath() }.getOrNull() }
+
+    private val rateLimiter = RateLimiter(clock, rateLimitMs)
     private val musicBrainz = MusicBrainzClient(musicBrainzBaseUrl, userAgent, rateLimiter)
     private val coverArt = CoverArtArchiveClient(coverArtBaseUrl, userAgent, rateLimiter)
+    private val artistImageSource =
+        ArtistImageSourceClient(userAgent, rateLimiter, musicBrainzBaseUrl, wikidataBaseUrl, commonsApiUrl)
 
     private fun now(): OffsetDateTime = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
 
@@ -65,6 +76,7 @@ class MetadataEnricher(
                     val candidates = musicBrainz.searchArtists(name)
                     bestArtist(name, candidates)?.let { artist.musicbrainzId = it.mbid }
                 }
+                enrichArtistImageIfMissing(artist.entityId, artist.musicbrainzId)
                 artist.metadataCheckedAt = now()
                 artistRepo.save(artist)
                 processed++
@@ -79,6 +91,67 @@ class MetadataEnricher(
             }
         }
         return processed
+    }
+
+    private fun enrichArtistImageIfMissing(
+        artistId: UUID,
+        musicbrainzId: String?,
+    ) {
+        if (artistImageRoot == null) return
+        if (imageRepo.findByEntityIdAndIsPrimaryTrue(artistId) != null) return
+
+        val external = musicbrainzId?.let { runCatching { artistImageSource.fetchArtistImage(it) }.getOrNull() }
+        if (external != null && writeArtistImage(artistId, external.bytes, external.extension)) {
+            log.info("Wrote external artist image for {}", artistId)
+            return
+        }
+
+        val albumCover = findRepresentativeAlbumCover(artistId)
+        if (albumCover != null) {
+            val extension = albumCover.fileName.toString().substringAfterLast('.', "jpg")
+            val bytes = runCatching { Files.readAllBytes(albumCover) }.getOrNull() ?: return
+            if (writeArtistImage(artistId, bytes, extension)) {
+                log.info("Wrote artist image for {} from album cover {}", artistId, albumCover)
+            }
+        }
+    }
+
+    private fun findRepresentativeAlbumCover(artistId: UUID): Path? =
+        albumRepo
+            .findByArtistId(artistId)
+            .asSequence()
+            .mapNotNull { imageRepo.findByEntityIdAndIsPrimaryTrue(it.entityId)?.path }
+            .map { Path.of(it) }
+            .firstOrNull { Files.isRegularFile(it) }
+
+    private fun writeArtistImage(
+        artistId: UUID,
+        bytes: ByteArray,
+        extension: String,
+    ): Boolean {
+        val root = artistImageRoot ?: return false
+        if (bytes.isEmpty()) return false
+        val safeExt = extension.takeIf { it.matches(Regex("^[a-z0-9]{1,5}$")) } ?: "jpg"
+        val target = root.resolve("$artistId.$safeExt")
+        val written =
+            runCatching {
+                Files.write(target, bytes)
+            }.getOrElse {
+                log.warn("Failed to write artist image to {}: {}", target, it.message)
+                return false
+            }
+        imageRepo.save(
+            ImageJpa(
+                id = UUID.randomUUID(),
+                entityId = artistId,
+                imageType = "Primary",
+                path = written.toAbsolutePath().toString(),
+                sizeBytes = bytes.size.toLong(),
+                isPrimary = true,
+                createdAt = now(),
+            ),
+        )
+        return true
     }
 
     private fun enrichAlbums(): Int {

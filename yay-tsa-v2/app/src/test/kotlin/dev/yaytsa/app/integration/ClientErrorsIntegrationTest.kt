@@ -79,6 +79,17 @@ class ClientErrorsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `newly added category and type survive as bounded tags and are not coerced to other`() {
+        val before = counter("playback", "AudioError", "main-1a2b3c4")
+        val otherBefore = counter("other", "other", "main-1a2b3c4")
+        val body =
+            """{"category":"playback","type":"AudioError","message":"x","appVersion":"main-1a2b3c4"}"""
+        assertEquals(204, postRaw(body))
+        assertEquals(before + 1.0, counter("playback", "AudioError", "main-1a2b3c4"))
+        assertEquals(otherBefore, counter("other", "other", "main-1a2b3c4"))
+    }
+
+    @Test
     fun `arbitrary client-supplied version is coerced to unknown to bound metric cardinality`() {
         val before = counter("runtime", "TypeError", "unknown")
         val body =

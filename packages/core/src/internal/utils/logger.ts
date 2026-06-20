@@ -13,6 +13,39 @@ interface Logger {
   error(message: string, error?: unknown, context?: LogContext): void;
 }
 
+export type LogSink = (entry: {
+  namespace: string;
+  level: 'warn' | 'error';
+  message: string;
+  error?: unknown;
+  context?: LogContext;
+}) => void;
+
+let activeSink: LogSink | undefined;
+let sinkInProgress = false;
+
+export function setLogSink(sink: LogSink | undefined): void {
+  activeSink = sink;
+}
+
+function forwardToSink(
+  namespace: string,
+  level: 'warn' | 'error',
+  message: string,
+  error?: unknown,
+  context?: LogContext
+): void {
+  if (!activeSink || sinkInProgress) return;
+  sinkInProgress = true;
+  try {
+    activeSink({ namespace, level, message, error, context });
+  } catch {
+    /* a log sink must never throw */
+  } finally {
+    sinkInProgress = false;
+  }
+}
+
 declare global {
   interface Window {
     __YAYTSA_CONFIG__?: {
@@ -148,6 +181,7 @@ export function createLogger(namespace: string): Logger {
           console.warn('%s', formatted);
         }
       }
+      forwardToSink(namespace, 'warn', message, undefined, context);
     },
 
     error(message: string, error?: unknown, context?: LogContext): void {
@@ -165,6 +199,7 @@ export function createLogger(namespace: string): Logger {
           console.error('%s', formatted);
         }
       }
+      forwardToSink(namespace, 'error', message, error, context);
     },
   };
 }

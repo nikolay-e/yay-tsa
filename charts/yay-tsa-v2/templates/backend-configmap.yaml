@@ -26,6 +26,7 @@ data:
   METADATA_USER_AGENT: {{ .Values.backend.config.metadata.userAgent | quote }}
   METADATA_POLL_INTERVAL_MS: {{ .Values.backend.config.metadata.pollIntervalMs | quote }}
   METADATA_BATCH_SIZE: {{ .Values.backend.config.metadata.batchSize | quote }}
+  METADATA_ARTIST_IMAGE_DIR: {{ .Values.backend.config.metadata.artistImageDir | quote }}
   LLM_ENABLED: {{ default false .Values.backend.config.llm.enabled | quote }}
   LLM_MODEL: {{ .Values.backend.config.llm.model | quote }}
   LLM_BASE_URL: {{ .Values.backend.config.llm.baseUrl | quote }}

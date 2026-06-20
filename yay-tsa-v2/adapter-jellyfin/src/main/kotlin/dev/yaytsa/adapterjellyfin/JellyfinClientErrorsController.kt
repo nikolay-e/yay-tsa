@@ -141,7 +141,21 @@ class JellyfinClientErrorsController(
         private const val VERSION_LIMIT = 32
         private const val CATEGORY_LIMIT = 64
 
-        private val ALLOWED_CATEGORIES = setOf("runtime", "promise", "react", "network", "audio", "sw")
+        private val ALLOWED_CATEGORIES =
+            setOf(
+                "runtime",
+                "promise",
+                "react",
+                "network",
+                "audio",
+                "sw",
+                "resource",
+                "playback",
+                "auth",
+                "offline",
+                "device",
+                "other",
+            )
         private val ALLOWED_TYPES =
             setOf(
                 "TypeError",
@@ -153,6 +167,13 @@ class JellyfinClientErrorsController(
                 "NotSupportedError",
                 "NotAllowedError",
                 "Error",
+                "TimeoutError",
+                "MediaServerError",
+                "AuthenticationError",
+                "AudioError",
+                "ResourceError",
+                "OpaqueScriptError",
+                "ServiceWorkerMessageError",
             )
 
         private val VERSION_PATTERN = Regex("^main-[a-f0-9]{7,40}$")

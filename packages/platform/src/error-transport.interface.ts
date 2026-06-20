@@ -6,6 +6,10 @@ export type ClientErrorCategory =
   | 'audio'
   | 'sw'
   | 'resource'
+  | 'playback'
+  | 'auth'
+  | 'offline'
+  | 'device'
   | 'other';
 
 export interface ClientErrorReport {

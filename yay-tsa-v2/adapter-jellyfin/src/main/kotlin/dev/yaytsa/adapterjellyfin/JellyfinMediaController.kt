@@ -28,9 +28,12 @@ class JellyfinMediaController(
     private val thumbnails: ThumbnailService,
     private val embeddedArtwork: EmbeddedArtworkService,
     @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
+    @Value("\${yaytsa.metadata.artist-image-dir:#{null}}") artistImageDir: String?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val safeRoot = MediaPathSafety.resolveRoot(musicPath)
+    private val artistImageRoot = MediaPathSafety.resolveRoot(artistImageDir)
+    private val imageRoots = listOfNotNull(safeRoot, artistImageRoot)
 
     @GetMapping("/Items/{itemId}/Images/{imageType}")
     fun getImage(
@@ -45,7 +48,7 @@ class JellyfinMediaController(
         val filePath =
             libraryQueries
                 .getPrimaryImage(EntityId(itemId))
-                ?.let { MediaPathSafety.resolveServableFile(Path.of(it.path), safeRoot) }
+                ?.let { resolveServableImage(it.path) }
                 ?: embeddedArtworkFile(itemId)
                 ?: return ResponseEntity.notFound().build()
 
@@ -68,6 +71,14 @@ class JellyfinMediaController(
             .header(HttpHeaders.ETAG, rendered.etag)
             .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
             .body(FileSystemResource(rendered.file))
+    }
+
+    // Primary images live either under the music root (album cover.jpg written next to the audio)
+    // or under the dedicated artist-image cache dir (artists are not filesystem folders). Accept a
+    // file confined to any configured safe root.
+    private fun resolveServableImage(rawPath: String): Path? {
+        val candidate = Path.of(rawPath)
+        return imageRoots.firstNotNullOfOrNull { MediaPathSafety.resolveServableFile(candidate, it) }
     }
 
     // Folder has no cover file (audiobook rips ship art only inside the tags): pull the

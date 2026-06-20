@@ -1,10 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { BeaconErrorTransport } from '@yay-tsa/platform';
+import { setLogSink } from '@yay-tsa/core';
+import { BeaconErrorTransport, type ClientErrorCategory } from '@yay-tsa/platform';
 // eslint-disable-next-line import/no-unresolved -- vite-plugin-pwa virtual module, resolved at build time
 import { registerSW } from 'virtual:pwa-register';
-import { initErrorReporter } from '@/shared/utils/error-reporter';
+import { initErrorReporter, reportError } from '@/shared/utils/error-reporter';
 import { App } from './app/App';
 import { ErrorBoundary } from './app/infra/ErrorBoundary';
 import { ToastContainer } from './shared/ui/Toast';
@@ -19,6 +20,46 @@ installPerf();
 
 initErrorReporter(new BeaconErrorTransport('/api/v1/client-errors'));
 installErrorHandlers();
+
+function categoryForNamespace(namespace: string): ClientErrorCategory {
+  switch (namespace.toLowerCase()) {
+    case 'auth':
+      return 'auth';
+    case 'player':
+      return 'playback';
+    case 'api':
+      return 'network';
+    case 'app':
+      return 'react';
+    case 'audio':
+      return 'audio';
+    case 'offlinestore':
+      return 'offline';
+    default:
+      return 'other';
+  }
+}
+
+function errorNameFrom(error: unknown): string | undefined {
+  return error instanceof Error && error.name ? error.name : undefined;
+}
+
+setLogSink(entry => {
+  const category = categoryForNamespace(entry.namespace);
+  const errorText = entry.error instanceof Error ? entry.error.message : undefined;
+  const message = errorText ? `${entry.message}: ${errorText}` : entry.message;
+  const type = errorNameFrom(entry.error) ?? `${entry.namespace}:${entry.level}`;
+  const context = entry.context;
+  reportError(entry.error ?? new Error(entry.message), category, {
+    message,
+    type,
+    stack: entry.error instanceof Error ? entry.error.stack : undefined,
+    http: context?.http as { status?: number; method?: string; route?: string } | undefined,
+    audio: context?.audio as
+      | { state?: string; mediaError?: number | null; readyState?: number; networkState?: number }
+      | undefined,
+  });
+});
 
 const SW_UPDATE_POLL_INTERVAL_MS = 60 * 60 * 1000;
 
