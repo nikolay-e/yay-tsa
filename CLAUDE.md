@@ -89,7 +89,7 @@ The backend is a Kotlin hexagonal monolith composed of **eight bounded contexts*
 
 **System guarantees enforced by the domain layer**: optimistic concurrency control (every aggregate carries a version), client-driven idempotency keys, single-writer device leases for playback sessions, pure functional handlers (no I/O), typed `Failure` results instead of exceptions, externalized time via `CommandContext.requestTime`, and a transactional outbox for notifications.
 
-**Workers populate read-only schemas**: `infra-library-scanner` walks the filesystem and writes the `library` schema; `infra-ml-worker` computes Discogs/MusicNN/CLAP/MERT embeddings into `ml` (HNSW indexes for similarity); `infra-karaoke-worker` runs Demucs for vocal/instrumental separation; `infra-llm` orchestrates the adaptive queue with Claude.
+**Workers populate read-only schemas**: `infra-library-scanner` walks the filesystem and writes the `library` schema; `infra-ml-worker` computes Discogs/MusicNN/CLAP/MERT embeddings into `ml` (HNSW indexes for similarity); `infra-karaoke-worker` runs Demucs for vocal/instrumental separation; `infra-llm` orchestrates the adaptive queue via the in-cluster LiteLLM OpenAI-compatible gateway (model GPT-5.4 Mini), gated on `LLM_ENABLED` with a graceful ML-only fallback.
 
 **Database**: shared CNPG cluster (`shared-postgres` in `shared-database` namespace), single `yaytsa_production` DB with per-context schemas. pgvector for embeddings; pg_trgm + CITEXT for search.
 
@@ -122,7 +122,7 @@ Yaytsa extensions (`/v1/*`) handle device sync (`/v1/me/devices/*`), adaptive se
 
 ## PWA and Mobile Strategy
 
-The web app is a Progressive Web App with service worker caching: NetworkFirst for navigation (10s timeout fallback to cache), StaleWhileRevalidate for album artwork (500 entries, 30-day expiry), and NetworkOnly for audio streams (no offline playback). The manifest enables standalone display mode with dark theme.
+The web app is a Progressive Web App with service worker caching: NetworkFirst for navigation (10s timeout fallback to cache) and StaleWhileRevalidate for album artwork (500 entries, 30-day expiry). Audio streams are served by a custom `audio-offline-sw.js` worker — IndexedDB-with-Range when a track has been downloaded, network otherwise — so the PWA supports offline playback of downloaded tracks (download UI in `apps/web/src/features/offline/*`, auto-download favorites + listening-cache on by default, LRU eviction). The manifest enables standalone display mode with dark theme.
 
 Mobile-specific: safe area insets for notch devices, 44px minimum touch targets, momentum scrolling, bottom tab bar below `md:` breakpoint replacing the desktop sidecar. Infinite scroll with intersection observer for library pagination.
 

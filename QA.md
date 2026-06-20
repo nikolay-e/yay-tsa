@@ -4,21 +4,21 @@ Project-specific QA playbook for yay-tsa: a Kotlin/Spring Boot multi-protocol me
 
 ## Applicability Matrix
 
-| Capability                     | Applies | Notes                                                                |
-| ------------------------------ | ------- | -------------------------------------------------------------------- |
-| CI                             | ✅      | `ci.yml` (PWA + post-deploy-qa), `v2-ci.yml` (Kotlin backend build)  |
-| CD / ArgoCD                    | ✅      | Image Updater write-back; two namespaces (see Coordinates)           |
-| K8s logs                       | ✅      | Backend, frontend, audio-separator, feature-extractor CronJob        |
-| Browser QA (Playwright)        | ✅      | Most click-heavy UI in the fleet — see `walkthrough.safe_click`      |
-| Backend smoke                  | ✅      | Read + binary (Range/206) + write — never trust `/health` alone      |
-| Tests                          | ✅      | Gradle (Testcontainers), `packages/core` integration, Playwright E2E |
-| Diff-context review            | ✅      | `diffctx . --diff <from>..<to>`                                      |
-| autoqa full                    | ✅      | crawler + axe + schemathesis + ZAP                                   |
-| Schemathesis                   | ✅      | OpenAPI at `/api/v3/api-docs`, base-url `https://yay-tsa.com/api`    |
-| ZAP                            | ✅      | Enabled in `post-deploy-qa`                                          |
-| SonarCloud                     | ✅      | Automatic Analysis (see SonarCloud section)                          |
-| Chat-review (LLM-authored msg) | N/A     | No user-facing bot/agent messages; LLM-DJ is a local stub            |
-| Walkthrough Delta Pass         | ✅      | Long lists must be scrolled ≥30 items before screenshot              |
+| Capability                     | Applies | Notes                                                                                                                            |
+| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| CI                             | ✅      | `ci.yml` (PWA + post-deploy-qa), `v2-ci.yml` (Kotlin backend build)                                                              |
+| CD / ArgoCD                    | ✅      | Image Updater write-back; two namespaces (see Coordinates)                                                                       |
+| K8s logs                       | ✅      | Backend, frontend, audio-separator, feature-extractor CronJob                                                                    |
+| Browser QA (Playwright)        | ✅      | Most click-heavy UI in the fleet — see `walkthrough.safe_click`                                                                  |
+| Backend smoke                  | ✅      | Read + binary (Range/206) + write — never trust `/health` alone                                                                  |
+| Tests                          | ✅      | Gradle (Testcontainers), `packages/core` integration, Playwright E2E                                                             |
+| Diff-context review            | ✅      | `diffctx . --diff <from>..<to>`                                                                                                  |
+| autoqa full                    | ✅      | crawler + axe + schemathesis + ZAP                                                                                               |
+| Schemathesis                   | ✅      | OpenAPI at `/api/v3/api-docs`, base-url `https://yay-tsa.com/api`                                                                |
+| ZAP                            | ✅      | Enabled in `post-deploy-qa`                                                                                                      |
+| SonarCloud                     | ✅      | Automatic Analysis (see SonarCloud section)                                                                                      |
+| Chat-review (LLM-authored msg) | N/A     | No user-facing bot/agent messages; LLM-DJ output is queue edits, not user-facing text (wired to LiteLLM, gated on `LLM_ENABLED`) |
+| Walkthrough Delta Pass         | ✅      | Long lists must be scrolled ≥30 items before screenshot                                                                          |
 
 ## Coordinates
 
