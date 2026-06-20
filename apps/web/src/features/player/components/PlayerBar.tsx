@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import {
   Mic,
+  MicVocal,
+  Music2,
   Timer,
   AlignLeft,
   ThumbsUp,
@@ -179,6 +181,8 @@ export function PlayerBar() {
   const next = usePlayerStore(s => s.next);
   const previous = usePlayerStore(s => s.previous);
   const toggleKaraoke = usePlayerStore(s => s.toggleKaraoke);
+  const toggleKaraokeStem = usePlayerStore(s => s.toggleKaraokeStem);
+  const karaokeStem = usePlayerStore(s => s.karaokeStem);
   const setSleepTimer = usePlayerStore(s => s.setSleepTimer);
   const clearSleepTimer = usePlayerStore(s => s.clearSleepTimer);
 
@@ -578,6 +582,30 @@ export function PlayerBar() {
             <Mic className="h-4 w-4" />
           </button>
 
+          {isKaraokeMode && (
+            <button
+              type="button"
+              onClick={() => void toggleKaraokeStem()}
+              disabled={isLoading || isKaraokeTransitioning}
+              className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={
+                karaokeStem === 'vocals' ? 'Switch to instrumental only' : 'Switch to vocals only'
+              }
+              aria-pressed={karaokeStem === 'vocals'}
+              title={
+                karaokeStem === 'vocals'
+                  ? 'Vocals only — switch to instrumental'
+                  : 'Instrumental — switch to vocals only'
+              }
+            >
+              {karaokeStem === 'vocals' ? (
+                <Music2 className="h-4 w-4" />
+              ) : (
+                <MicVocal className="h-4 w-4" />
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowLyricsView(true)}
@@ -664,6 +692,7 @@ export function PlayerBar() {
           isKaraokeMode={isKaraokeMode}
           isKaraokeTransitioning={isKaraokeTransitioning}
           karaokeStatus={karaokeStatus}
+          karaokeStem={karaokeStem}
           hasSleepTimer={!!sleepTimer.endTime}
           sleepMinutesLeft={sleepMinutesLeft}
           showThumbs={!!activeSession}
@@ -675,6 +704,7 @@ export function PlayerBar() {
           onToggleShuffle={handleToggleShuffle}
           onToggleRepeat={handleToggleRepeat}
           onToggleKaraoke={handleToggleKaraoke}
+          onToggleKaraokeStem={() => void toggleKaraokeStem()}
           onOpenSleepTimer={() => setShowSleepModal(true)}
           onOpenQueue={() => setShowQueue(true)}
           onSeek={handleSeek}

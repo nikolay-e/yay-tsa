@@ -637,9 +637,9 @@ export class MediaServerClient {
   }
 
   /**
-   * Build instrumental stream URL for karaoke playback
+   * Build a karaoke stem stream URL (instrumental or vocals) for the given track.
    */
-  getInstrumentalStreamUrl(itemId: string): string {
+  getKaraokeStemStreamUrl(itemId: string, stem: 'instrumental' | 'vocals'): string {
     if (!this.token) {
       throw new AuthenticationError('Cannot build stream URL: not authenticated');
     }
@@ -648,7 +648,21 @@ export class MediaServerClient {
       api_key: this.token,
     });
 
-    return `${this.serverUrl}/Karaoke/${itemId}/instrumental?${params}`;
+    return `${this.serverUrl}/Karaoke/${itemId}/${stem}?${params}`;
+  }
+
+  /**
+   * Build instrumental stream URL for karaoke playback (vocals removed).
+   */
+  getInstrumentalStreamUrl(itemId: string): string {
+    return this.getKaraokeStemStreamUrl(itemId, 'instrumental');
+  }
+
+  /**
+   * Build vocals-only stream URL for karaoke playback (instrumental removed).
+   */
+  getVocalStreamUrl(itemId: string): string {
+    return this.getKaraokeStemStreamUrl(itemId, 'vocals');
   }
 
   getKaraokeStatusStreamUrl(trackId: string): string {

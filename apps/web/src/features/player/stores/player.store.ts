@@ -91,6 +91,7 @@ interface PlayerState {
   isKaraokeTransitioning: boolean;
   karaokeStatus: KaraokeStatus | null;
   karaokeEnabled: boolean;
+  karaokeStem: 'instrumental' | 'vocals';
   sleepTimerMinutes: number | null;
   sleepTimerEndTime: number | null;
   playerMode: PlayerMode;
@@ -113,6 +114,7 @@ interface PlayerActions {
   toggleRepeat: () => void;
   stop: () => void;
   toggleKaraoke: () => Promise<void>;
+  toggleKaraokeStem: () => Promise<void>;
   refreshKaraokeStatus: () => Promise<void>;
   setSleepTimer: (minutes: number | null) => void;
   clearSleepTimer: () => void;
@@ -268,6 +270,7 @@ const initialState: PlayerState = {
   isKaraokeTransitioning: false,
   karaokeStatus: null,
   karaokeEnabled: false,
+  karaokeStem: 'instrumental',
   sleepTimerMinutes: null,
   sleepTimerEndTime: null,
   playerMode: 'music',
@@ -299,6 +302,7 @@ export const usePlayerStore = create<PlayerStore>()(
         toggleRepeat: () => {},
         stop: () => {},
         toggleKaraoke: async () => {},
+        toggleKaraokeStem: async () => {},
         refreshKaraokeStatus: async () => {},
         setSleepTimer: () => {},
         clearSleepTimer: () => {},
@@ -481,6 +485,14 @@ export const usePlayerStore = create<PlayerStore>()(
       }
     }
 
+    // The active karaoke stem (instrumental by default, vocals when toggled) selects
+    // which stem stream the karaoke flow loads and re-loads for the current track.
+    function karaokeStemUrl(client: MediaServerClient, trackId: string): string {
+      return get().karaokeStem === 'vocals'
+        ? client.getVocalStreamUrl(trackId)
+        : client.getInstrumentalStreamUrl(trackId);
+    }
+
     async function applyReadyKaraokeState(
       trackId: string,
       status: KaraokeStatus,
@@ -489,7 +501,7 @@ export const usePlayerStore = create<PlayerStore>()(
       set({ isKaraokeTransitioning: true });
       try {
         if (!currentClient) return;
-        const url = currentClient.getInstrumentalStreamUrl(trackId);
+        const url = karaokeStemUrl(currentClient, trackId);
         await karaokeSwitchUrl(url, signal);
         if (!signal.aborted) {
           set({ isKaraokeMode: true, karaokeStatus: status, isKaraokeTransitioning: false });
@@ -867,7 +879,7 @@ export const usePlayerStore = create<PlayerStore>()(
           if (!currentClient) throw new Error('Not authenticated');
           let streamUrl: string;
           if (get().isKaraokeMode) {
-            streamUrl = currentClient.getInstrumentalStreamUrl(track.Id);
+            streamUrl = karaokeStemUrl(currentClient, track.Id);
           } else {
             const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
             streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
@@ -977,7 +989,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
         if (status.state === 'READY') {
           set({ isKaraokeMode: true, karaokeStatus: status });
-          const instrumentalUrl = currentClient.getInstrumentalStreamUrl(currentTrack.Id);
+          const instrumentalUrl = karaokeStemUrl(currentClient, currentTrack.Id);
           await karaokeSwitchUrl(instrumentalUrl, signal);
           if (!signal.aborted) {
             preloader.invalidate();
@@ -996,7 +1008,13 @@ export const usePlayerStore = create<PlayerStore>()(
 
     async function disableKaraokeMode(currentTrack: AudioItem, signal: AbortSignal): Promise<void> {
       if (!currentClient) return;
-      set({ isKaraokeMode: false, isKaraokeTransitioning: true, karaokeEnabled: false });
+      // Reset to instrumental so the next karaoke enable starts from the default stem.
+      set({
+        isKaraokeMode: false,
+        isKaraokeTransitioning: true,
+        karaokeEnabled: false,
+        karaokeStem: 'instrumental',
+      });
       try {
         const networkUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
         const streamUrl = await useOfflineStore
@@ -1372,6 +1390,32 @@ export const usePlayerStore = create<PlayerStore>()(
         });
       },
 
+      toggleKaraokeStem: async () => {
+        const { currentTrack, isKaraokeMode, isKaraokeTransitioning } = get();
+        // Only meaningful while karaoke is active on a ready track: flips the served
+        // stem between instrumental (vocals removed) and vocals (instrumental removed).
+        if (!currentTrack || !currentClient || !isKaraokeMode || isKaraokeTransitioning) return;
+
+        await controller.ifIdle(async signal => {
+          const nextStem = get().karaokeStem === 'vocals' ? 'instrumental' : 'vocals';
+          set({ karaokeStem: nextStem, isKaraokeTransitioning: true });
+          try {
+            if (!currentClient) return;
+            await karaokeSwitchUrl(karaokeStemUrl(currentClient, currentTrack.Id), signal);
+            if (!signal.aborted) {
+              preloader.invalidate();
+              schedulePreload();
+            }
+          } catch (error) {
+            if (signal.aborted) return;
+            log.player.error('Failed to switch karaoke stem', error);
+            set({ karaokeStem: get().karaokeStem === 'vocals' ? 'instrumental' : 'vocals' });
+          } finally {
+            set({ isKaraokeTransitioning: false });
+          }
+        });
+      },
+
       refreshKaraokeStatus: async () => {
         const { currentTrack, karaokeStatus } = get();
         if (!currentTrack || !currentClient) return;
@@ -1408,7 +1452,7 @@ export const usePlayerStore = create<PlayerStore>()(
           set({ isKaraokeTransitioning: true, isKaraokeMode: true });
           try {
             if (!currentClient) return;
-            const instrumentalUrl = currentClient.getInstrumentalStreamUrl(ct2.Id);
+            const instrumentalUrl = karaokeStemUrl(currentClient, ct2.Id);
             await karaokeSwitchUrl(instrumentalUrl, signal);
             if (!signal.aborted) {
               preloader.invalidate();
