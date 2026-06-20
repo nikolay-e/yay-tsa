@@ -6,6 +6,10 @@ interface DeviceSessionDto {
   deviceId: string;
   userId?: string;
   lastSeenAt: string;
+  nowPlayingItemId?: string | null;
+  nowPlayingItemName?: string | null;
+  positionMs?: number;
+  playbackState?: string;
 }
 
 // 3 missed 15s heartbeats — a device quiet longer than this is treated as offline.
@@ -23,6 +27,10 @@ export class DeviceService extends BaseService {
         deviceId: row.deviceId,
         lastUpdate: row.lastSeenAt,
         isOnline: Number.isFinite(lastSeenMs) && now - lastSeenMs < ONLINE_WINDOW_MS,
+        nowPlayingItemId: row.nowPlayingItemId ?? undefined,
+        nowPlayingItemName: row.nowPlayingItemName ?? undefined,
+        positionMs: row.positionMs,
+        isPaused: row.playbackState ? row.playbackState !== 'PLAYING' : undefined,
       };
     });
   }

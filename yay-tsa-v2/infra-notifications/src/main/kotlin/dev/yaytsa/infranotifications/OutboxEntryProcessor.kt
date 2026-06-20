@@ -9,13 +9,17 @@ import java.util.UUID
 @Component
 class OutboxEntryProcessor(
     private val outboxJpa: OutboxJpaRepository,
-    private val publisher: NotificationPublisher,
+    private val publishers: List<NotificationPublisher>,
     private val clock: dev.yaytsa.application.shared.port.Clock,
 ) {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun publishAndMark(id: UUID) {
         val entry = outboxJpa.findUnpublishedByIdForUpdate(id) ?: return
-        publisher.publish(entry.context, entry.payload)
+        // Fan out to every channel (e.g. WebSocket + device-SSE bridge). A failure in one
+        // publisher must not drop the others or block marking the entry published.
+        publishers.forEach { publisher ->
+            runCatching { publisher.publish(entry.context, entry.payload) }
+        }
         entry.publishedAt = clock.now()
         outboxJpa.save(entry)
     }

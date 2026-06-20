@@ -35,6 +35,8 @@ import java.util.UUID
 class JellyfinDevicesController(
     private val deviceSessionProjection: DeviceSessionProjection,
     private val playbackUseCases: PlaybackUseCases,
+    private val deviceEventBroadcaster: DeviceEventBroadcaster,
+    private val nowPlayingResolver: DeviceNowPlayingResolver,
     private val clock: Clock,
 ) {
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
@@ -58,28 +60,18 @@ class JellyfinDevicesController(
         val deviceId: String,
         val userId: String,
         val lastSeenAt: String,
+        val nowPlayingItemId: String?,
+        val nowPlayingItemName: String?,
+        val positionMs: Long,
+        val playbackState: String,
     )
 
     @GetMapping("/events", produces = [org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun events(): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
-        // Long-lived stub: streams keepalive heartbeats so the PWA EventSource stays open.
-        // Real broadcast (DeviceStateChanged / PlaybackStateChanged) goes through
-        // infra-notifications WebSocket; SSE keepalive is a quiet placeholder until
-        // the bridge controller forwards those events here.
-        val emitter =
-            org.springframework.web.servlet.mvc.method.annotation
-                .SseEmitter(0L)
-        try {
-            emitter.send(
-                org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-                    .event()
-                    .name("ready")
-                    .data(mapOf("ts" to clock.now().toString())),
-            )
-        } catch (_: java.io.IOException) {
-            emitter.completeWithError(java.lang.RuntimeException("SSE write failed on open"))
-        }
-        return emitter
+    fun events(principal: Principal): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
+        // Per-user SSE stream. The DeviceSseNotificationBridge forwards playback-state
+        // notifications here as `device_state_changed` events, so a second device's
+        // now-playing updates live instead of only on the heartbeat poll.
+        return deviceEventBroadcaster.subscribe(principal.name)
     }
 
     @GetMapping("/commands", produces = [org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE])
@@ -107,11 +99,16 @@ class JellyfinDevicesController(
         val uid = UserId(principal.name)
         val sessions =
             deviceSessionProjection.getByUser(uid).map { s ->
+                val nowPlaying = nowPlayingResolver.resolve(uid, s.sessionId)
                 DeviceSessionDto(
                     sessionId = s.sessionId.value,
                     deviceId = s.deviceId.value,
                     userId = s.userId.value,
                     lastSeenAt = s.lastSeenAt.toString(),
+                    nowPlayingItemId = nowPlaying.nowPlayingItemId,
+                    nowPlayingItemName = nowPlaying.nowPlayingItemName,
+                    positionMs = nowPlaying.positionMs,
+                    playbackState = nowPlaying.playbackState,
                 )
             }
         return ResponseEntity.ok(sessions)
