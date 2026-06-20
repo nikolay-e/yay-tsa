@@ -56,16 +56,23 @@ class HttpEmbeddingClient(
             log.warn("Text embedding service returned {}", response.statusCode())
             return null
         }
-        return runCatching {
-            val node = objectMapper.readTree(response.body()).get("embedding") ?: return null
-            FloatArray(node.size()) { node.get(it).floatValue() }
-        }.getOrElse {
-            log.warn("Failed to parse text embedding response: {}", it.message)
-            null
+        val vector =
+            runCatching {
+                val node = objectMapper.readTree(response.body()).get("embedding") ?: return null
+                FloatArray(node.size()) { node.get(it).floatValue() }
+            }.getOrElse {
+                log.warn("Failed to parse text embedding response: {}", it.message)
+                return null
+            }
+        if (vector.size != CLAP_DIM) {
+            log.warn("Text embedding has unexpected dimension {} (expected {}); degrading to lexical", vector.size, CLAP_DIM)
+            return null
         }
+        return vector
     }
 
     private companion object {
         const val REQUEST_TIMEOUT_SECONDS = 10L
+        const val CLAP_DIM = 512
     }
 }

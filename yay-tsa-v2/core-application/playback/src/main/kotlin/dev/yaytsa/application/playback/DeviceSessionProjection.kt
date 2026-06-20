@@ -24,7 +24,9 @@ class DeviceSessionProjection {
         now: Instant,
         deviceName: String? = null,
     ) {
-        sessions[deviceId] = DeviceSession(userId, sessionId, deviceId, now, deviceName)
+        sessions.compute(deviceId) { _, existing ->
+            DeviceSession(userId, sessionId, deviceId, now, deviceName ?: existing?.deviceName)
+        }
     }
 
     fun heartbeat(

@@ -406,9 +406,12 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
       controlMode: snapshot.controlMode ?? get().controlMode,
     });
 
-    if (snapshot.schedule.scheduleEpoch > get().currentEpoch) {
-      get().applySchedule(snapshot.schedule);
-    }
+    // The reconnect snapshot is authoritative: adopt its schedule regardless of epoch
+    // ordering. The strict-> monotonicity guard belongs only on the live SSE event,
+    // where out-of-order/duplicate delivery is the concern. After an optimistic local
+    // action bumped currentEpoch, an equal/lower authoritative epoch would otherwise be
+    // skipped, leaving this device desynced (e.g. still playing while the group paused).
+    get().applySchedule(snapshot.schedule);
   },
 
   setControlMode: async controlMode => {

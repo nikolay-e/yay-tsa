@@ -144,7 +144,7 @@ test.describe('Search Functionality', () => {
       authenticatedPage.getByRole('heading', { name: 'Search', exact: true })
     ).toBeVisible();
 
-    const searchInput = authenticatedPage.getByTestId('search-input');
+    const searchInput = authenticatedPage.getByTestId('global-search-input');
     await searchInput.fill(query);
 
     await expect(authenticatedPage.getByTestId('search-section-albums')).toBeVisible({

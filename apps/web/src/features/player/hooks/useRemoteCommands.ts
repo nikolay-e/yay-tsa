@@ -39,8 +39,13 @@ export function useRemoteCommands() {
       type GroupAction = (typeof groupActions)[number];
       if (!groupActions.includes(cmd.type as GroupAction)) return;
 
-      const posMs =
-        cmd.type === 'SEEK' && cmd.payload ? (cmd.payload.positionMs as number) : undefined;
+      let posMs: number | undefined;
+      if (cmd.type === 'SEEK') {
+        // Never forward a non-number to sendAction — a NaN anchor would corrupt the
+        // shared group schedule for every member. Drop the SEEK instead.
+        if (!cmd.payload || typeof cmd.payload.positionMs !== 'number') return;
+        posMs = cmd.payload.positionMs;
+      }
       groupSync
         .sendAction(cmd.type as GroupAction, undefined, posMs, groupSync.schedule?.isPaused)
         .catch(() => {});
@@ -89,10 +94,18 @@ export function useRemoteCommands() {
       }
     };
 
+    const engineCommands = new Set(['PAUSE', 'PLAY', 'NEXT', 'PREV', 'SEEK', 'STOP', 'SET_VOLUME']);
+
     const handleCommand = (event: MessageEvent) => {
       try {
         const cmd = JSON.parse(event.data as string) as RemoteCommand;
-        if (cmd.targetDeviceId && cmd.targetDeviceId !== ownDeviceId) return;
+        if (engineCommands.has(cmd.type)) {
+          // Lease/remote-control commands are always device-targeted by the backend.
+          // Fail closed: act only on an exact match, never on an untargeted broadcast.
+          if (cmd.targetDeviceId !== ownDeviceId) return;
+        } else if (cmd.targetDeviceId && cmd.targetDeviceId !== ownDeviceId) {
+          return;
+        }
 
         const groupSync = useGroupSyncStore.getState();
         const store = usePlayerStore.getState();

@@ -16,10 +16,12 @@ export function GlobalSearchBar() {
     if (onSearchRoute) setValue(searchParams.get('q') ?? '');
   }, [onSearchRoute, searchParams]);
 
-  const submit = (next: string) => {
+  const submit = (next: string, options?: { replace?: boolean }) => {
     setValue(next);
     const trimmed = next.trim();
-    navigate(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search');
+    navigate(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search', {
+      replace: options?.replace,
+    });
   };
 
   const openMobile = () => {
@@ -59,7 +61,7 @@ export function GlobalSearchBar() {
             ref={inputRef}
             type="search"
             value={value}
-            onChange={e => submit(e.target.value)}
+            onChange={e => submit(e.target.value, { replace: true })}
             placeholder="Search music..."
             aria-label="Search music"
             data-testid="global-search-input"

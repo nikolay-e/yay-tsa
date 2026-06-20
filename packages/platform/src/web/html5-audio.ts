@@ -335,6 +335,12 @@ export class HTML5AudioEngine implements AudioEngine {
   async load(url: string): Promise<void> {
     this.ensureNotDisposed();
 
+    // A fresh load always starts in single-stream mode. In karaoke the natural track-end path
+    // (preload disabled) reaches load()+play() without going through exitVocalBlend, so without
+    // this the secondary element would still hold the previous track's vocals stem and bleed it
+    // over the new track. Idempotent: a no-op when no blend is active.
+    this.teardownVocalBlend();
+
     // Cancel the in-flight load synchronously so a skip during a slow load does not
     // have to wait for the previous load to settle before the new src is assigned.
     const generation = ++this.loadGeneration;
@@ -835,12 +841,26 @@ export class HTML5AudioEngine implements AudioEngine {
 
   setVocalBlend(level: number): void {
     this.ensureNotDisposed();
-    this.vocalBlendLevel = Math.max(0, Math.min(1, level));
+    const v = Number(level);
+    this.vocalBlendLevel = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
     if (this.blendActive) this.applyVocalBlendGain(this.vocalBlendLevel);
   }
 
   async exitVocalBlend(resumeUrl: string, positionSec: number, playing: boolean): Promise<void> {
     this.ensureNotDisposed();
+
+    // load() also tears down the blend (idempotent), so this call is the explicit intent and the
+    // load-time teardown is a defensive no-op.
+    this.teardownVocalBlend();
+
+    await this.load(resumeUrl);
+    this.seek(positionSec);
+    if (playing) await this.play();
+    log.info('Vocal blend co-play stopped', { positionSec, playing });
+  }
+
+  private teardownVocalBlend(): void {
+    if (!this.blendActive) return;
 
     this.stopBlendDriftWatchdog();
     this.blendActive = false;
@@ -856,11 +876,6 @@ export class HTML5AudioEngine implements AudioEngine {
     this.audioSecondary.src = '';
     this.audioSecondary.load();
     this.audioSecondary.muted = true;
-
-    await this.load(resumeUrl);
-    this.seek(positionSec);
-    if (playing) await this.play();
-    log.info('Vocal blend co-play stopped', { positionSec, playing });
   }
 
   isVocalBlendActive(): boolean {
@@ -907,6 +922,9 @@ export class HTML5AudioEngine implements AudioEngine {
     this.stopBlendDriftWatchdog();
     this.blendDriftWatchdog = setInterval(() => {
       if (!this.blendActive) return;
+      // Skip while the instrumental (primary) element is not advancing — correcting drift
+      // against a paused/stalled element would repeatedly snap the vocals element backward.
+      if (this.audio.paused || this.audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
       const drift = Math.abs(this.audio.currentTime - this.audioSecondary.currentTime);
       if (drift > VOCAL_BLEND_DRIFT_THRESHOLD_SEC) {
         this.audioSecondary.currentTime = this.audio.currentTime;

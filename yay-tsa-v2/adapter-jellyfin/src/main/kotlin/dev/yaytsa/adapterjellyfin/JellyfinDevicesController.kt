@@ -77,15 +77,6 @@ class JellyfinDevicesController(
         return deviceEventBroadcaster.subscribe(principal.name)
     }
 
-    @GetMapping("/commands", produces = [org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun commands(principal: Principal): org.springframework.web.servlet.mvc.method.annotation.SseEmitter {
-        // Per-user remote-command inbox. RemoteCommandSseBridge forwards outbox
-        // `device-command` notifications here as `command` events carrying a
-        // targetDeviceId, so a remote PAUSE/PLAY/SEEK (and a transfer-away STOP)
-        // reaches the device that must actually act on it.
-        return deviceEventBroadcaster.subscribe(principal.name)
-    }
-
     @GetMapping
     fun listDevices(principal: Principal): ResponseEntity<List<DeviceSessionDto>> {
         val uid = UserId(principal.name)
@@ -97,7 +88,7 @@ class JellyfinDevicesController(
                     deviceId = s.deviceId.value,
                     userId = s.userId.value,
                     lastSeenAt = s.lastSeenAt.toString(),
-                    deviceName = s.deviceName,
+                    deviceName = s.deviceName ?: "Unknown Device",
                     nowPlayingItemId = nowPlaying.nowPlayingItemId,
                     nowPlayingItemName = nowPlaying.nowPlayingItemName,
                     positionMs = nowPlaying.positionMs,
@@ -183,8 +174,7 @@ class JellyfinDevicesController(
                     ),
                 )
             }
-            is CommandResult.Failed ->
-                problemDetail(HttpStatus.CONFLICT, "Conflict", result.failure.toString())
+            is CommandResult.Failed -> failureTranslator.translate(result.failure)
         }
     }
 

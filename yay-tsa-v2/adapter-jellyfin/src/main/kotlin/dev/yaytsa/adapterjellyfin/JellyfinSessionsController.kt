@@ -113,7 +113,7 @@ class JellyfinSessionsController(
                     "Id" to s.sessionId.value,
                     "UserId" to uid.value,
                     "DeviceId" to s.deviceId.value,
-                    "DeviceName" to s.deviceName,
+                    "DeviceName" to (s.deviceName ?: "Unknown Device"),
                     "LastActivityDate" to s.lastSeenAt.toString(),
                     "NowPlayingItem" to nowPlayingItem,
                     "PlayState" to
