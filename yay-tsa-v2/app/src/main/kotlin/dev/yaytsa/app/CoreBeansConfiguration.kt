@@ -131,6 +131,14 @@ class CoreBeansConfiguration {
     fun libraryQueries(libraryQuery: LibraryQueryPort): LibraryQueries = LibraryQueries(libraryQuery)
 
     @Bean
+    fun musicSurfaceFilter(
+        libraryQueries: LibraryQueries,
+        preferencesQueries: PreferencesQueries,
+    ): dev.yaytsa.application.recommendation.MusicSurfaceFilter =
+        dev.yaytsa.application.recommendation
+            .MusicSurfaceFilter(libraryQueries, preferencesQueries)
+
+    @Bean
     fun deviceSessionProjection(): dev.yaytsa.application.playback.DeviceSessionProjection =
         dev.yaytsa.application.playback
             .DeviceSessionProjection()

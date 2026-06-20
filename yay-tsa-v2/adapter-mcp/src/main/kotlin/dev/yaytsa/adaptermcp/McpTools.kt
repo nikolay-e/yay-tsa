@@ -47,6 +47,7 @@ class McpTools(
     private val deviceSessionProjection: DeviceSessionProjection,
     private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
     private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
+    private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
     @Qualifier("mcpCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -233,7 +234,12 @@ class McpTools(
     ): McpToolResult {
         val args = clientArgs + mapOf("user_id" to authenticatedUserId)
         return when (name) {
-            "search_library" -> searchLibrary(args["query"] as? String ?: "", args["semantic"] as? Boolean ?: false)
+            "search_library" ->
+                searchLibrary(
+                    args["query"] as? String ?: "",
+                    args["semantic"] as? Boolean ?: false,
+                    UserId(authenticatedUserId),
+                )
             "list_devices" -> listDevices(args)
             "get_playback_state" -> getPlaybackState(args)
             "play" -> playbackCommand(args) { _, sid, did -> Play(sid, did, null) }
@@ -254,12 +260,14 @@ class McpTools(
     private fun searchLibrary(
         query: String,
         semantic: Boolean,
+        userId: UserId,
     ): McpToolResult {
         if (semantic) {
-            val semanticResult = semanticSearch(query)
+            val semanticResult = semanticSearch(query, userId)
             if (semanticResult != null) return semanticResult
         }
         val results = libraryQueries.searchText(query, 20, 0)
+        val tracks = musicSurfaceFilter.filter(results.tracks, userId)
         val text =
             buildString {
                 if (results.artists.isNotEmpty()) {
@@ -270,18 +278,22 @@ class McpTools(
                     appendLine("Albums:")
                     results.albums.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
                 }
-                if (results.tracks.isNotEmpty()) {
+                if (tracks.isNotEmpty()) {
                     appendLine("Tracks:")
-                    results.tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
+                    tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
                 }
                 if (isEmpty()) append("No results found.")
             }
         return textResult(text)
     }
 
-    private fun semanticSearch(query: String): McpToolResult? {
+    private fun semanticSearch(
+        query: String,
+        userId: UserId,
+    ): McpToolResult? {
         val vector = embeddingPort.encodeText(query) ?: return null
-        val tracks = mlQuery.findTracksByClapVector(vector, 20).mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+        val matches = mlQuery.findTracksByClapVector(vector, 20).mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+        val tracks = musicSurfaceFilter.filter(matches, userId)
         if (tracks.isEmpty()) return null
         val text =
             buildString {

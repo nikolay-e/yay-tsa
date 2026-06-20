@@ -160,10 +160,17 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
             namesAndTotal("/Items?IncludeItemTypes=Audio&Recursive=true&Limit=500&SortBy=SortName&ExcludeGenres=Audiobook")
         assertEquals(setOf("$tag-music-a", "$tag-music-b"), filteredNames.toSet(), "ExcludeGenres=Audiobook must remove audiobook tracks")
         assertTrue(filteredNames.none { it.contains("book") }, "no audiobook track may leak through")
-        assertEquals(
-            allTotal - 2,
-            filteredTotal,
-            "TotalRecordCount must drop by the two excluded audiobook tracks (all=$allTotal, filtered=$filteredTotal)",
+        // TotalRecordCount is a global count over the shared test database, so other integration
+        // tests' audiobook rows also drop out under ExcludeGenres. Assert the filtered total fell
+        // by at least this test's two audiobook tracks, never increased, and never undershot the
+        // surviving music tracks — without pinning to an exact global delta this test cannot own.
+        assertTrue(
+            filteredTotal <= allTotal - 2,
+            "TotalRecordCount must drop by at least the two excluded audiobook tracks (all=$allTotal, filtered=$filteredTotal)",
+        )
+        assertTrue(
+            filteredTotal >= 2,
+            "TotalRecordCount must still count the two surviving music tracks (filtered=$filteredTotal)",
         )
     }
 

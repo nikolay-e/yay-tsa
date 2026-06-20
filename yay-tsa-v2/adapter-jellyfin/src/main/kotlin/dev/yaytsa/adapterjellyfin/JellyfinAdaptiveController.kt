@@ -54,6 +54,7 @@ class JellyfinAdaptiveController(
     private val libraryQueries: LibraryQueries,
     private val mlQuery: MlQueryPort,
     private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
+    private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
     private val clock: Clock,
     private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
     @Qualifier("jellyfinCommandContextFactory")
@@ -178,16 +179,14 @@ class JellyfinAdaptiveController(
         if (entries.isNotEmpty()) return ResponseEntity.noContent().build()
 
         val uid = UserId(principal.name)
-        val redLineTerms = loadRedLineTerms(uid)
         val seedTrackId = aggregate.seedTrackId
         val similarTracks =
             seedTrackId
                 ?.let { mlQuery.findSimilarTracks(TrackId(it.value), REFRESH_QUEUE_BOOTSTRAP_SIZE * 2) }
                 .orEmpty()
                 .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
-                .let { tracks ->
-                    if (redLineTerms.isEmpty()) tracks else filterRedLines(tracks, uid)
-                }.take(REFRESH_QUEUE_BOOTSTRAP_SIZE)
+                .let { tracks -> musicSurfaceFilter.filterRedLines(tracks, uid) }
+                .take(REFRESH_QUEUE_BOOTSTRAP_SIZE)
         val orderedTrackIds = mutableListOf<String>()
         val reasonByTrack = mutableMapOf<String, String>()
         seedTrackId?.value?.let {
@@ -404,11 +403,11 @@ class JellyfinAdaptiveController(
             } else {
                 emptyList()
             }
-        val filtered = musicSurfaceFilter(semanticTracks, userId).take(limit)
+        val filtered = musicSurfaceFilter.filter(semanticTracks, userId).take(limit)
         if (filtered.isNotEmpty()) return filtered
         // Degrade to lexical search when the embedding service is disabled/unreachable or
         // no track carries a CLAP embedding yet — better UX than an empty result.
-        return musicSurfaceFilter(libraryQueries.searchText(query, limit, 0).tracks, userId).take(limit)
+        return musicSurfaceFilter.filter(libraryQueries.searchText(query, limit, 0).tracks, userId).take(limit)
     }
 
     private fun buildRecommendedTracks(
@@ -426,20 +425,7 @@ class JellyfinAdaptiveController(
         limit: Int,
     ): List<dev.yaytsa.domain.library.Track> {
         val candidates = collectRecommendationCandidates(userId, limit)
-        return musicSurfaceFilter(candidates, userId).take(limit)
-    }
-
-    private fun musicSurfaceFilter(
-        tracks: List<dev.yaytsa.domain.library.Track>,
-        userId: UserId,
-    ): List<dev.yaytsa.domain.library.Track> = filterRedLines(tracks.filterNot { isAudiobookTrack(it) }, userId)
-
-    // Keep spoken-word audiobooks out of music surfaces (Daily Mix, radio seeds). Matches the
-    // PWA's AUDIOBOOK_GENRES marker on the track's primary genre, mirroring how red-line filtering
-    // inspects track.genre. The dedicated /v1/me/audiobooks endpoint still surfaces them.
-    private fun isAudiobookTrack(track: dev.yaytsa.domain.library.Track): Boolean {
-        val genre = track.genre?.trim()?.lowercase() ?: return false
-        return genre in AUDIOBOOK_GENRES
+        return musicSurfaceFilter.filter(candidates, userId).take(limit)
     }
 
     private fun collectRecommendationCandidates(
@@ -495,7 +481,8 @@ class JellyfinAdaptiveController(
     ): List<dev.yaytsa.domain.library.Track> {
         val heard = collectHeardTrackIds(userId, limit)
         val candidates = collectDiscoveryCandidates(userId, limit, heard)
-        return musicSurfaceFilter(candidates, userId)
+        return musicSurfaceFilter
+            .filter(candidates, userId)
             .shuffled()
             .take(limit)
     }
@@ -554,16 +541,6 @@ class JellyfinAdaptiveController(
         return out
     }
 
-    private fun filterRedLines(
-        tracks: List<dev.yaytsa.domain.library.Track>,
-        userId: UserId,
-    ): List<dev.yaytsa.domain.library.Track> {
-        val terms = loadRedLineTerms(userId)
-        if (terms.isEmpty() || tracks.isEmpty()) return tracks
-        val lookups = trackLookups(tracks)
-        return tracks.filterNot { matchesRedLine(it, terms, lookups) }
-    }
-
     private fun trackLookups(tracks: List<dev.yaytsa.domain.library.Track>): TrackLookups {
         if (tracks.isEmpty()) return TrackLookups()
         val albumIds = tracks.mapNotNull { it.albumId }.toSet()
@@ -572,37 +549,6 @@ class JellyfinAdaptiveController(
             albumNames = libraryQueries.getEntityNamesByIds(albumIds),
             artistNames = libraryQueries.getEntityNamesByIds(artistIds),
         )
-    }
-
-    /**
-     * User-declared "never play this" terms from PreferenceContract.redLines (comma-separated).
-     * Matched case-insensitively against track name / genre / artist name / album name. A track
-     * matching any term is filtered out of recommendations.
-     */
-    private fun loadRedLineTerms(userId: UserId): List<String> =
-        preferencesQueries
-            .find(userId)
-            ?.preferenceContract
-            ?.redLines
-            ?.split(",")
-            ?.map { it.trim().lowercase() }
-            ?.filter { it.isNotEmpty() }
-            .orEmpty()
-
-    private fun matchesRedLine(
-        track: dev.yaytsa.domain.library.Track,
-        terms: List<String>,
-        lookups: TrackLookups,
-    ): Boolean {
-        if (terms.isEmpty()) return false
-        val haystack =
-            buildString {
-                append(track.name.lowercase())
-                track.genre?.let { append(' ').append(it.lowercase()) }
-                track.albumId?.let { lookups.albumNames[it]?.let { name -> append(' ').append(name.lowercase()) } }
-                track.albumArtistId?.let { lookups.artistNames[it]?.let { name -> append(' ').append(name.lowercase()) } }
-            }
-        return terms.any { it in haystack }
     }
 
     /**
@@ -615,17 +561,11 @@ class JellyfinAdaptiveController(
         userId: UserId,
         limit: Int,
     ): List<Map<String, Any?>> {
-        val redLineTerms = loadRedLineTerms(userId)
+        val redLineTerms = musicSurfaceFilter.loadRedLineTerms(userId)
         val perArtist = LinkedHashMap<String, dev.yaytsa.domain.library.Track>()
         val seenTracks = mutableSetOf<String>()
 
-        // Pre-build lookups on a representative sample so the red-line filter has artist/album names.
-        fun blocked(track: dev.yaytsa.domain.library.Track): Boolean {
-            if (isAudiobookTrack(track)) return true
-            if (redLineTerms.isEmpty()) return false
-            val lookups = trackLookups(listOf(track))
-            return matchesRedLine(track, redLineTerms, lookups)
-        }
+        fun blocked(track: dev.yaytsa.domain.library.Track): Boolean = musicSurfaceFilter.isBlocked(track, redLineTerms)
 
         // Primary: the representative track (medoid) of each of the user's taste clusters —
         // one seed per real taste facet (metal / russian-rap / folk-metal / …), so radio
@@ -701,8 +641,6 @@ class JellyfinAdaptiveController(
     }
 
     companion object {
-        private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
-
         private const val REFRESH_QUEUE_BOOTSTRAP_SIZE = 10
 
         // Larger pool than [limit] so .shuffled() gives the user a fresh slice on each refresh

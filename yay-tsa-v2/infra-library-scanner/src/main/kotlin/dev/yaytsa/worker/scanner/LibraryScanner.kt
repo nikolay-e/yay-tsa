@@ -141,11 +141,11 @@ class LibraryScanner(
             log.error("Library walk failed; skipping reconcile to avoid deleting live rows", e)
         }
 
+        if (!walkCompleted) return
+
         log.info("Library scan complete: {} tracks processed", count)
         lastTrackCount.set(count)
         lastCompletedAt.set(Instant.now())
-
-        if (!walkCompleted) return
 
         try {
             val removedTracks = libraryWriter.deleteVanishedTracks(rootPath, presentSourcePaths)

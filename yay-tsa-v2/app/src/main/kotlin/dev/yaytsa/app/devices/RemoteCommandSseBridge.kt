@@ -26,14 +26,16 @@ class RemoteCommandSseBridge(
             node.get("params")?.let {
                 runCatching { objectMapper.convertValue(it, Map::class.java) }.getOrNull()
             } ?: emptyMap<String, Any?>()
+        val commandId = node.get("commandId")?.takeIf { it.isTextual }?.asText()
         deviceEventBroadcaster.emit(
             userId,
             COMMAND_EVENT,
-            mapOf(
-                "targetDeviceId" to targetDeviceId,
-                "type" to command,
-                "payload" to params,
-            ),
+            buildMap {
+                put("targetDeviceId", targetDeviceId)
+                put("type", command)
+                put("payload", params)
+                commandId?.let { put("commandId", it) }
+            },
         )
         log.debug("Forwarded remote command {} to user {} device {}", command, userId, targetDeviceId)
     }

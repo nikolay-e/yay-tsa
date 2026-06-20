@@ -53,6 +53,7 @@ sealed interface DomainNotification {
         val targetDeviceId: String,
         val command: String,
         val params: Map<String, Any?> = emptyMap(),
+        val commandId: String,
     ) : DomainNotification {
         override val context = "device-command"
     }

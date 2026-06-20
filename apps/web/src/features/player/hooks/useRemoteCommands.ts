@@ -96,9 +96,26 @@ export function useRemoteCommands() {
 
     const engineCommands = new Set(['PAUSE', 'PLAY', 'NEXT', 'PREV', 'SEEK', 'STOP', 'SET_VOLUME']);
 
+    // Outbox delivery is at-least-once: a crash between the SSE emit and the publishedAt
+    // commit re-delivers the same command on the next poll. NEXT/PREV are not idempotent,
+    // so a redelivery would double-skip. Drop any command whose id we've already acted on.
+    const SEEN_COMMAND_LIMIT = 64;
+    const seenCommandIds = new Set<string>();
+    const alreadySeen = (commandId: string): boolean => {
+      if (seenCommandIds.has(commandId)) return true;
+      seenCommandIds.add(commandId);
+      if (seenCommandIds.size > SEEN_COMMAND_LIMIT) {
+        const oldest = seenCommandIds.values().next().value;
+        if (oldest !== undefined) seenCommandIds.delete(oldest);
+      }
+      return false;
+    };
+
     const handleCommand = (event: MessageEvent) => {
       try {
         const cmd = JSON.parse(event.data as string) as RemoteCommand;
+        // Only dedup when the backend stamped an id; older backends omit it and act every time.
+        if (cmd.commandId && alreadySeen(cmd.commandId)) return;
         if (engineCommands.has(cmd.type)) {
           // Lease/remote-control commands are always device-targeted by the backend.
           // Fail closed: act only on an exact match, never on an untargeted broadcast.

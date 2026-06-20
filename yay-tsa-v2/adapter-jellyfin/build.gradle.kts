@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":core-application:adaptive"))
     implementation(project(":core-application:ml"))
     implementation(project(":core-application:karaoke"))
+    implementation(project(":core-application:recommendation"))
     implementation(libs.spring.boot.starter.web)
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation(libs.jackson.module.kotlin)

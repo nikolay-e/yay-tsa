@@ -32,6 +32,7 @@ include("core-application:preferences")
 include("core-application:playlists")
 include("core-application:ml")
 include("core-application:karaoke")
+include("core-application:recommendation")
 
 // Per-context: infra-persistence
 include("infra-persistence:auth")

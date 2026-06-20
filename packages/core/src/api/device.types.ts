@@ -49,4 +49,7 @@ export interface RemoteCommand {
   // a receiving client acts only when it matches its own device id.
   targetDeviceId?: string;
   payload?: Record<string, unknown>;
+  // Stable per-command id stamped by the outbox; lets the client dedup at-least-once
+  // re-delivery of non-idempotent commands (NEXT/PREV). Absent on older backends.
+  commandId?: string;
 }

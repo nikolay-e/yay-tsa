@@ -34,6 +34,7 @@ class JpaOutboxPort(
                         "targetDeviceId" to notification.targetDeviceId,
                         "command" to notification.command,
                         "params" to notification.params,
+                        "commandId" to notification.commandId,
                     )
             }
         val entity =

@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":core-application:playlists"))
     implementation(project(":core-application:ml"))
     implementation(project(":core-application:karaoke"))
+    implementation(project(":core-application:recommendation"))
 
     // Persistence
     implementation(project(":infra-persistence:shared"))
