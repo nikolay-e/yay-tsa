@@ -3,6 +3,10 @@
  * Abstracts audio playback across web, desktop, and mobile platforms
  */
 
+export interface MediaPlaybackError extends Error {
+  mediaErrorCode: number | null;
+}
+
 export interface AudioEngine {
   /**
    * Load an audio source URL

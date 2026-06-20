@@ -21,6 +21,7 @@ import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import { cn } from '@/shared/utils/cn';
 import { mark, markOnce, measure } from '@/shared/perf/perf';
 import { ErrorBoundary } from '@/app/infra/ErrorBoundary';
+import { RouteTracker } from '@/app/infra/RouteTracker';
 
 const MAX_SCROLL_ENTRIES = 200;
 const scrollPositions = new Map<string, number>();
@@ -135,6 +136,7 @@ export function RootLayout() {
 
   return (
     <div className="flex h-full min-h-screen">
+      <RouteTracker />
       {showNavigation && <OfflineIndicator />}
       {showNavigation && <Sidebar hasPlayer={!!showPlayer} />}
       <main

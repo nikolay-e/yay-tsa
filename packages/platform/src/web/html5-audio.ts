@@ -1,5 +1,5 @@
 import { createLogger, redactSecrets } from '@yay-tsa/core';
-import { type AudioEngine } from '../audio.interface.js';
+import { type AudioEngine, type MediaPlaybackError } from '../audio.interface.js';
 import { createFade } from './fade.js';
 import { VocalRemovalProcessor } from './vocal-removal.js';
 
@@ -99,7 +99,7 @@ export class HTML5AudioEngine implements AudioEngine {
     const errorMessage = mediaError?.message ?? 'Unknown error';
     if (isEmptySrc || errorMessage.includes('Empty src')) return;
     const sanitized = this.sanitizeError(errorMessage);
-    const error = Object.assign(new Error(`Audio error: ${sanitized}`), {
+    const error: MediaPlaybackError = Object.assign(new Error(`Audio error: ${sanitized}`), {
       mediaErrorCode: mediaError?.code ?? null,
     });
     for (const cb of this.errorCallbacks) cb(error);

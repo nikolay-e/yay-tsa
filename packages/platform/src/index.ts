@@ -4,9 +4,17 @@
  */
 
 // Audio engine interface and implementations
-export type { AudioEngine } from './audio.interface.js';
+export type { AudioEngine, MediaPlaybackError } from './audio.interface.js';
 export { HTML5AudioEngine } from './web/html5-audio.js';
 export type { HTML5AudioEngineOptions } from './web/html5-audio.js';
+
+// Client error telemetry transport (sanitized beacon to the backend)
+export { BeaconErrorTransport } from './web/beacon-error-transport.js';
+export type {
+  ClientErrorReport,
+  ClientErrorCategory,
+  ErrorTransport,
+} from './error-transport.interface.js';
 
 // Pink noise generator for sleep mode
 export { PinkNoiseGenerator } from './web/pink-noise-generator.js';

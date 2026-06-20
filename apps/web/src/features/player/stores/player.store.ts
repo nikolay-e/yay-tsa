@@ -19,7 +19,9 @@ import {
   PinkNoiseGenerator,
   WakeLockManager,
   type AudioEngine,
+  type MediaPlaybackError,
 } from '@yay-tsa/platform';
+import { reportError } from '@/shared/utils/error-reporter';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import {
@@ -853,7 +855,16 @@ export const usePlayerStore = create<PlayerStore>()(
     engine.onError(error => {
       log.player.error('Audio engine error', error);
 
-      const mediaErrorCode = (error as { mediaErrorCode?: number | null }).mediaErrorCode;
+      const mediaErrorCode = (error as Partial<MediaPlaybackError>).mediaErrorCode ?? null;
+      const audioEl = engine.getAudioElement?.() ?? null;
+      reportError(error, 'audio', {
+        type: 'AudioError',
+        audio: {
+          mediaError: mediaErrorCode,
+          readyState: audioEl?.readyState,
+          networkState: audioEl?.networkState,
+        },
+      });
       const track = get().currentTrack;
       const recoverable =
         (mediaErrorCode === MEDIA_ERR_NETWORK || mediaErrorCode === MEDIA_ERR_DECODE) &&

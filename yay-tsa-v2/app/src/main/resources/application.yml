@@ -177,6 +177,19 @@ bucket4j:
               time: 1
               unit: minutes
               refill-speed: interval
+    - id: client-errors
+      cache-name: rate-limit-buckets
+      url: ^/v1/client-errors$
+      http-status-code: TOO_MANY_REQUESTS
+      http-content-type: application/problem+json
+      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
+      rate-limits:
+        - cache-key: getRemoteAddr()
+          bandwidths:
+            - capacity: 30
+              time: 1
+              unit: minutes
+              refill-speed: interval
 
 logging:
   level:

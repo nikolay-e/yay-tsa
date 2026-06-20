@@ -1,5 +1,6 @@
 import React, { Component, type ReactNode } from 'react';
 import { log } from '@/shared/utils/logger';
+import { reportError } from '@/shared/utils/error-reporter';
 
 interface Props {
   children: ReactNode;
@@ -25,6 +26,7 @@ export class ErrorBoundary extends Component<Props, State> {
     log.app.error('Uncaught error in component tree', error, {
       componentStack: errorInfo.componentStack,
     });
+    reportError(error, 'react', { stack: errorInfo.componentStack ?? error.stack });
   }
 
   handleRetry = () => {
