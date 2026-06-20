@@ -16,9 +16,12 @@ import org.springframework.stereotype.Component
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
+import java.time.Duration
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Component
 @ConditionalOnProperty(name = ["yaytsa.metadata.enabled"], havingValue = "true")
@@ -43,10 +46,21 @@ class MetadataEnricher(
     @Value("\${yaytsa.metadata.openlibrary-enabled:false}") private val openLibraryEnabled: Boolean,
     @Value("\${yaytsa.metadata.openlibrary-base-url:https://openlibrary.org}") openLibraryBaseUrl: String,
     @Value("\${yaytsa.metadata.openlibrary-covers-base-url:https://covers.openlibrary.org}") openLibraryCoversBaseUrl: String,
+    @Value("\${yaytsa.metadata.cover-retry-cooldown-hours:168}") coverRetryCooldownHours: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val audiobookGenres = listOf("audiobook", "audiobooks")
+
+    // Negative-result memo for the image-driven backfill: an entity whose cover lookup yields nothing
+    // (no MusicBrainz match, CAA/Open Library 404) is parked here until nextEligibleInstant so it is not
+    // re-hammered every poll cycle. Cooled entities also drop out of the candidate set, which advances the
+    // effective scan window past permanent failures (fixes tail-starvation under OFFSET 0). A successful
+    // cover write clears the entry; success otherwise removes the entity from the no-image-row query anyway.
+    // In-memory by design: zero schema change, resets on pod restart (restarts are infrequent and a reset
+    // merely re-attempts once, still bounded by the global RateLimiter).
+    private val coverRetryCooldown = Duration.ofHours(coverRetryCooldownHours)
+    private val coverAttemptCooldownUntil = ConcurrentHashMap<UUID, Instant>()
 
     private val safeRoot: Path? =
         musicPath
@@ -73,6 +87,40 @@ class MetadataEnricher(
 
     private fun now(): OffsetDateTime = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
 
+    private fun isCoolingDown(entityId: UUID): Boolean {
+        val until = coverAttemptCooldownUntil[entityId] ?: return false
+        if (!clock.now().isBefore(until)) {
+            coverAttemptCooldownUntil.remove(entityId, until)
+            return false
+        }
+        return true
+    }
+
+    private fun parkCoverAttempt(entityId: UUID) {
+        coverAttemptCooldownUntil[entityId] = clock.now().plus(coverRetryCooldown)
+    }
+
+    private fun clearCoverCooldown(entityId: UUID) {
+        coverAttemptCooldownUntil.remove(entityId)
+    }
+
+    // The DB query is OFFSET 0 + ORDER BY entity_id and knows nothing of the in-memory cooldown, so it
+    // would keep returning the same saturated prefix of permanently-coverless entities. Fetch a window that
+    // extends past every currently-parked entity (their count + batchSize), drop the cooled ones in memory,
+    // and take batchSize fresh candidates. This lets the effective scan advance to the tail once the head is
+    // parked, without any schema change.
+    private fun <T> selectFreshCandidates(
+        idOf: (T) -> UUID,
+        fetch: (limit: Int, offset: Int) -> List<T>,
+    ): List<T> {
+        val window = batchSize + coverAttemptCooldownUntil.size
+        return fetch(window, 0)
+            .asSequence()
+            .filterNot { isCoolingDown(idOf(it)) }
+            .take(batchSize)
+            .toList()
+    }
+
     @Scheduled(fixedDelayString = "\${yaytsa.metadata.poll-interval-ms:300000}", initialDelay = 30_000)
     fun enrich() {
         log.info("Metadata enrichment cycle starting")
@@ -91,8 +139,10 @@ class MetadataEnricher(
         // Re-attempt artwork for any artist still lacking a primary image (image-driven, self-healing),
         // unioned with the one-shot MusicBrainz-ID enrichment of never-checked artists.
         val pending =
-            (artistRepo.findByMetadataCheckedAtIsNull(batchSize, 0) + artistRepo.findWithoutPrimaryImage(batchSize, 0))
-                .distinctBy { it.entityId }
+            (
+                artistRepo.findByMetadataCheckedAtIsNull(batchSize, 0) +
+                    selectFreshCandidates({ it.entityId }, artistRepo::findWithoutPrimaryImage)
+            ).distinctBy { it.entityId }
         var processed = 0
         for (artist in pending) {
             try {
@@ -102,6 +152,11 @@ class MetadataEnricher(
                     bestArtist(name, candidates)?.let { artist.musicbrainzId = it.mbid }
                 }
                 enrichArtistImageIfMissing(artist.entityId, artist.musicbrainzId)
+                if (imageRepo.findByEntityIdAndIsPrimaryTrue(artist.entityId) != null) {
+                    clearCoverCooldown(artist.entityId)
+                } else {
+                    parkCoverAttempt(artist.entityId)
+                }
                 artist.metadataCheckedAt = now()
                 artistRepo.save(artist)
                 processed++
@@ -182,12 +237,19 @@ class MetadataEnricher(
     private fun enrichAlbums(): Int {
         // Image-driven artwork backfill unioned with one-shot release-group MBID enrichment.
         val pending =
-            (albumRepo.findByMetadataCheckedAtIsNull(batchSize, 0) + albumRepo.findWithoutPrimaryImage(batchSize, 0))
-                .distinctBy { it.entityId }
+            (
+                albumRepo.findByMetadataCheckedAtIsNull(batchSize, 0) +
+                    selectFreshCandidates({ it.entityId }, albumRepo::findWithoutPrimaryImage)
+            ).distinctBy { it.entityId }
         var processed = 0
         for (album in pending) {
             try {
                 enrichAlbum(album.entityId)
+                if (imageRepo.findByEntityIdAndIsPrimaryTrue(album.entityId) != null) {
+                    clearCoverCooldown(album.entityId)
+                } else {
+                    parkCoverAttempt(album.entityId)
+                }
                 processed++
             } catch (e: MetadataProviderUnavailableException) {
                 log.warn("Album enrichment deferred (provider unavailable) for {}: {}", album.entityId, e.message)
@@ -287,11 +349,19 @@ class MetadataEnricher(
     // (the media mount is typically read-only, so covers are cached in the writable cover dir).
     private fun enrichAudiobookTrackCovers(): Int {
         if (coverCacheRoot == null) return 0
-        val pending = entityGenreRepo.findAudiobookTrackIdsWithoutPrimaryImage(audiobookGenres, batchSize, 0)
+        val pending =
+            selectFreshCandidates({ it }) { limit, offset ->
+                entityGenreRepo.findAudiobookTrackIdsWithoutPrimaryImage(audiobookGenres, limit, offset)
+            }
         var processed = 0
         for (trackId in pending) {
             try {
-                if (enrichAudiobookTrackCover(trackId)) processed++
+                if (enrichAudiobookTrackCover(trackId)) {
+                    clearCoverCooldown(trackId)
+                    processed++
+                } else {
+                    parkCoverAttempt(trackId)
+                }
             } catch (e: MetadataProviderUnavailableException) {
                 log.warn("Audiobook cover deferred (provider unavailable) for {}: {}", trackId, e.message)
             } catch (e: Exception) {

@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicInteger
     properties = [
         "yaytsa.metadata.enabled=true",
         "yaytsa.metadata.rate-limit-ms=0",
+        "yaytsa.metadata.batch-size=2",
+        "yaytsa.metadata.cover-retry-cooldown-hours=1",
         "spring.flyway.enabled=true",
         "spring.flyway.locations=classpath:db/library",
         "spring.flyway.schemas=core_v2_library",
@@ -43,6 +45,10 @@ class MetadataEnricherIntegrationTest {
 
     @Autowired lateinit var jdbc: JdbcTemplate
 
+    @Autowired lateinit var clock: dev.yaytsa.application.shared.port.Clock
+
+    private val testClock get() = clock as MutableTestClock
+
     companion object {
         private val jpeg =
             byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x00, 0x10, 0xFF.toByte(), 0xD9.toByte())
@@ -56,9 +62,20 @@ class MetadataEnricherIntegrationTest {
             HttpServer.create(InetSocketAddress(0), 0).apply {
                 createContext("/coverart/") { ex ->
                     coverArtHits.incrementAndGet()
-                    ex.responseHeaders.add("Content-Type", "image/jpeg")
-                    ex.sendResponseHeaders(200, jpeg.size.toLong())
-                    ex.responseBody.use { it.write(jpeg) }
+                    if (ex.requestURI.path.contains("missing")) {
+                        ex.sendResponseHeaders(404, -1)
+                        ex.responseBody.close()
+                    } else {
+                        ex.responseHeaders.add("Content-Type", "image/jpeg")
+                        ex.sendResponseHeaders(200, jpeg.size.toLong())
+                        ex.responseBody.use { it.write(jpeg) }
+                    }
+                }
+                createContext("/mb/") { ex ->
+                    val body = """{"release-groups":[],"artists":[]}""".toByteArray()
+                    ex.responseHeaders.add("Content-Type", "application/json")
+                    ex.sendResponseHeaders(200, body.size.toLong())
+                    ex.responseBody.use { it.write(body) }
                 }
                 createContext("/openlibrary/search.json") { ex ->
                     openLibrarySearchHits.incrementAndGet()
@@ -105,6 +122,7 @@ class MetadataEnricherIntegrationTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("yaytsa.image.cover-cache-dir") { coverCacheDir.toString() }
+            registry.add("yaytsa.metadata.musicbrainz-base-url") { "$baseUrl/mb" }
             registry.add("yaytsa.metadata.coverart-base-url") { "$baseUrl/coverart" }
             registry.add("yaytsa.metadata.openlibrary-base-url") { "$baseUrl/openlibrary" }
             registry.add("yaytsa.metadata.openlibrary-covers-base-url") { "$baseUrl/openlibrary-covers" }
@@ -118,6 +136,13 @@ class MetadataEnricherIntegrationTest {
         coverArtHits.set(0)
         openLibrarySearchHits.set(0)
         openLibraryCoverHits.set(0)
+        // Keep the clock monotonic across tests: a per-test forward jump prevents the shared RateLimiter's
+        // lastRequestAt (set in a prior test that advanced time) from forcing a multi-hour sleep.
+        testClock.advance(
+            java.time.Duration
+                .ofDays(30)
+                .seconds,
+        )
     }
 
     @AfterEach
@@ -129,8 +154,8 @@ class MetadataEnricherIntegrationTest {
         title: String,
         albumId: UUID?,
         artistId: UUID?,
+        id: UUID = UUID.randomUUID(),
     ): UUID {
-        val id = UUID.randomUUID()
         jdbc.update(
             "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, parent_id, search_text) VALUES (?,?,?,?,?,?)",
             id,
@@ -226,5 +251,43 @@ class MetadataEnricherIntegrationTest {
         enricher.enrich()
 
         assertNotNull(imageRepo.findByEntityIdAndIsPrimaryTrue(track), "image-driven backfill must fill the missing cover")
+    }
+
+    @Test
+    fun `permanently coverless track is not re-hammered next cycle, then eligible again after the cooldown window`() {
+        val album = seedAlbum("Lost Tome", null, "rg-missing-1")
+        seedAudiobookTrack("Unfindable Chapter", album, null)
+
+        enricher.enrich()
+        assertTrue(coverArtHits.get() >= 1, "first cycle must attempt the CAA fetch")
+        val afterFirst = coverArtHits.get()
+
+        enricher.enrich()
+        assertEquals(afterFirst, coverArtHits.get(), "second immediate cycle must NOT re-attempt a parked coverless entity")
+
+        testClock.advance(2 * 3600)
+        enricher.enrich()
+        assertTrue(coverArtHits.get() > afterFirst, "after the cooldown window the entity is eligible and re-attempted")
+    }
+
+    @Test
+    fun `art-less entity beyond the first batch is eventually processed once head failures are parked`() {
+        // batch-size=2: a deterministic UUID order puts two permanent failures ahead of the resolvable one.
+        val headA = seedAlbum("Dead End A", null, "rg-missing-a")
+        val headB = seedAlbum("Dead End B", null, "rg-missing-b")
+        val resolvable = seedAlbum("Reachable", null, "rg-present-1")
+
+        seedAudiobookTrack("Fail A", headA, null, id = UUID.fromString("00000000-0000-0000-0000-000000000001"))
+        seedAudiobookTrack("Fail B", headB, null, id = UUID.fromString("00000000-0000-0000-0000-000000000002"))
+        val tail = seedAudiobookTrack("Tail Track", resolvable, null, id = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+
+        // First cycle: only the first batch-size head failures are reached (OFFSET 0, ORDER BY entity_id);
+        // they get parked. The tail track is still uncovered.
+        enricher.enrich()
+        assertNull(imageRepo.findByEntityIdAndIsPrimaryTrue(tail), "tail not reachable while head fills the first batch")
+
+        // Second cycle: parked head failures drop out, so the tail track is now in the candidate window.
+        enricher.enrich()
+        assertNotNull(imageRepo.findByEntityIdAndIsPrimaryTrue(tail), "tail art-less entity must eventually be processed")
     }
 }

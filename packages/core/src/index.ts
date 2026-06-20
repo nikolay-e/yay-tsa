@@ -28,7 +28,7 @@ export {
   type CreateUserResult,
 } from './api/admin.service.js';
 export { AdaptiveDjService } from './api/adaptive-dj.service.js';
-export { DeviceService } from './api/device.service.js';
+export { DeviceService, TransferUnavailableError } from './api/device.service.js';
 export type {
   DeviceInfo,
   DeviceStateEvent,

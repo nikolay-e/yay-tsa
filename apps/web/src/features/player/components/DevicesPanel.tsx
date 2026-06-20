@@ -14,7 +14,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { DeviceInfo } from '@yay-tsa/core';
-import { getOrCreateDeviceId } from '@yay-tsa/core';
+import { getOrCreateDeviceId, TransferUnavailableError } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { Modal } from '@/shared/ui/Modal';
@@ -169,8 +169,12 @@ export function DevicesPanel({
   const handleTransfer = async (sessionId: string) => {
     try {
       await transferHere(sessionId);
-    } catch {
-      toast.add('error', 'Transfer failed — try again');
+    } catch (error) {
+      if (error instanceof TransferUnavailableError) {
+        toast.add('info', "Can't transfer to that device");
+      } else {
+        toast.add('error', 'Transfer failed — try again');
+      }
       return;
     }
     toast.add('success', 'Playback transferred');

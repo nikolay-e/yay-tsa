@@ -430,12 +430,14 @@ export const usePlayerStore = create<PlayerStore>()(
 
     function updateSessionMetadata(track: AudioItem): void {
       if (!currentClient) return;
-      // Only advertise artwork the track actually has (Primary tag present). Without it the server
-      // would 404, so leave artwork undefined rather than pointing Media Session at a missing cover.
+      // The image endpoint resolves covers by id (ignoring the tag), so advertise the cover by
+      // album id (falling back to the track id) whenever the track has any Primary cover. The tag
+      // is only a cache hint; a coverless track 404s and the OS simply shows no artwork.
       let imageUrl: string | undefined;
-      if (track.AlbumPrimaryImageTag) {
+      const coverTag = track.ImageTags?.Primary ?? track.AlbumPrimaryImageTag;
+      if (coverTag) {
         imageUrl = currentClient.getImageUrl(track.AlbumId ?? track.Id, 'Primary', {
-          tag: track.AlbumPrimaryImageTag,
+          tag: coverTag,
           maxWidth: 256,
           maxHeight: 256,
         });

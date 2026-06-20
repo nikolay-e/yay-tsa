@@ -17,11 +17,14 @@ type GetImageUrlFn = (
 export function getTrackImageUrl(getImageUrl: GetImageUrlFn, options: TrackImageOptions): string {
   const { albumId, albumPrimaryImageTag, trackId, maxWidth = 64, maxHeight = 64 } = options;
 
-  // Only request a cover the item actually advertises. Without a Primary image tag the server has
-  // no cover to serve, so requesting it guarantees a 404 (forwarded as a ResourceError); render the
-  // CSS placeholder instead, mirroring MediaCard's tag-gated rendering.
-  if (albumPrimaryImageTag) {
-    return getImageUrl(albumId ?? trackId, 'Primary', {
+  // The image endpoint resolves covers by id and ignores the tag, so request the album cover by
+  // album id (falling back to the track id, which serves track-level/embedded art). The tag is
+  // passed only as a cache hint when present. The CSS placeholder is the fallback only when there
+  // is genuinely no id to resolve a cover from; a coverless item returns a clean 404 the <img>
+  // onError already handles.
+  const imageId = albumId ?? trackId;
+  if (imageId) {
+    return getImageUrl(imageId, 'Primary', {
       tag: albumPrimaryImageTag,
       maxWidth,
       maxHeight,

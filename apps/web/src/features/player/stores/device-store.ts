@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import { DeviceService, ItemsService, getOrCreateDeviceId, type DeviceInfo } from '@yay-tsa/core';
+import {
+  DeviceService,
+  ItemsService,
+  TransferUnavailableError,
+  getOrCreateDeviceId,
+  type DeviceInfo,
+} from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 
@@ -89,6 +95,15 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
         }
       }
     } catch (error) {
+      // Web devices have no server-side playback session yet, so the backend 404s the transfer
+      // by design. Treat it as an expected "unavailable" condition — debug-level (never forwarded
+      // to telemetry), not a MediaServerError/API:error — and let the UI show a calm message.
+      if (error instanceof TransferUnavailableError) {
+        log.player.debug('Transfer unavailable for target device', {
+          sessionId: sourceSessionId,
+        });
+        throw error;
+      }
       log.player.error('Transfer failed', error);
       throw error instanceof Error ? error : new Error(String(error));
     }

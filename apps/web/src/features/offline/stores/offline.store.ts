@@ -350,11 +350,13 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         // a failed cover never fails the track download. Skip if already stored.
         const coverKey = coverKeyFor(track);
         try {
-          // Only fetch a cover the track advertises (Primary tag present). Without it the request
-          // would 404, so skip it rather than caching nothing and logging a resource error.
-          if (track.AlbumPrimaryImageTag && !(await store.getCover(coverKey))) {
+          // The image endpoint resolves covers by id (ignoring the tag), so fetch by coverKey when
+          // the track advertises any Primary cover. The tag is a cache hint; a coverless track 404s
+          // and is simply not cached (handled by the response.ok check below).
+          const coverTag = track.ImageTags?.Primary ?? track.AlbumPrimaryImageTag;
+          if (coverTag && !(await store.getCover(coverKey))) {
             const imageUrl = client.getImageUrl(coverKey, 'Primary', {
-              tag: track.AlbumPrimaryImageTag,
+              tag: coverTag,
               maxWidth: 256,
               maxHeight: 256,
             });

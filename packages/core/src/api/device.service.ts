@@ -1,5 +1,16 @@
+import { MediaServerError } from '../internal/models/types.js';
 import type { DeviceInfo, TransferLeaseResult } from './device.types.js';
 import { BaseService } from './base-api.service.js';
+
+// A web device never owns a server-side PlaybackSessionAggregate, so transferring playback to it
+// 404s by design until that feature exists. Callers treat this as an expected "transfer
+// unavailable" condition (calm UX, no error-level telemetry), distinct from a real failure.
+export class TransferUnavailableError extends Error {
+  constructor(message = 'Transfer unavailable') {
+    super(message);
+    this.name = 'TransferUnavailableError';
+  }
+}
 
 interface DeviceSessionDto {
   sessionId: string;
@@ -55,10 +66,17 @@ export class DeviceService extends BaseService {
   }
 
   async transferLease(sourceSessionId: string, toDeviceId: string): Promise<TransferLeaseResult> {
-    return this.client.postRequired<TransferLeaseResult>(
-      `/v1/me/devices/${sourceSessionId}/transfer`,
-      { toDeviceId }
-    );
+    try {
+      return await this.client.postRequired<TransferLeaseResult>(
+        `/v1/me/devices/${sourceSessionId}/transfer`,
+        { toDeviceId }
+      );
+    } catch (error) {
+      if (error instanceof MediaServerError && error.statusCode === 404) {
+        throw new TransferUnavailableError();
+      }
+      throw error;
+    }
   }
 
   buildSseUrl(path: string): string {
