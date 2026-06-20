@@ -401,7 +401,7 @@ jobs:
           commit-sha: ${{ steps.backend-sha.outputs.sha }}
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@d835f3aaaea1b4dbf4ec74fc864c80bc9442f1e3 # main (crawler-decorative-paths downgrade for optional-asset 4xx)
+        uses: nikolay-e/autoqa@24a03033c03e2301129baf608625e6324df7fa7a # main (v1.2.0: zap-rate-limited-paths #7 + decorative-paths)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
@@ -431,19 +431,7 @@ jobs:
           # from settling into the crawler baseline. Downgrade those 4xx to
           # non-blocking info instead of failing the gate (autoqa #11).
           crawler-decorative-paths: '/Images/'
-
-      - name: Gate on ZAP HIGH findings
-        if: always()
-        run: |
-          REPORT=/tmp/qa-reports/zap-report.json
-          if [ ! -f "$REPORT" ]; then
-            echo "::error::ZAP report not generated"
-            exit 1
-          fi
-          HIGH=$(jq '[.site[]?.alerts[]? | select(.riskcode=="3")] | length' "$REPORT")
-          echo "ZAP HIGH findings: $HIGH"
-          if [ "$HIGH" -gt 0 ]; then
-            echo "::error::ZAP detected $HIGH HIGH-severity findings"
-            jq '.site[]?.alerts[]? | select(.riskcode=="3") | {name, riskdesc, url: (.instances[0]?.uri // "n/a")}' "$REPORT"
-            exit 1
-          fi
+          # ZAP HIGH gating is owned by the autoqa step above (zap-fail-on-violations
+          # defaults true). The previous standalone "Gate on ZAP HIGH findings" step
+          # duplicated that gate and ignored zap-rate-limited-paths, defeating autoqa
+          # #7; removed so a rate-limited-endpoint HIGH FP can be tuned in one place.
