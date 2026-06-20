@@ -15,8 +15,8 @@ export function RouteTracker() {
 
 function toRouteTemplate(pathname: string, params: Record<string, string | undefined>): string {
   const valueToKey = new Map<string, string>();
-  for (const [key, value] of Object.entries(params)) {
-    if (value && value.length > 0) valueToKey.set(value, key);
+  for (const [paramName, paramValue] of Object.entries(params)) {
+    if (paramValue && paramValue.length > 0) valueToKey.set(paramValue, paramName);
   }
   return pathname
     .split('/')

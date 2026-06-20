@@ -11,7 +11,7 @@ export function installErrorHandlers(): void {
       if (target && target !== win && target instanceof Element) {
         if (target.tagName === 'AUDIO' || target.tagName === 'VIDEO') return;
         const el = target as Element & { src?: string; href?: string; currentSrc?: string };
-        const url = [el.currentSrc, el.src, el.href].find(candidate => candidate) ?? '';
+        const url = [el.currentSrc, el.src, el.href].find(Boolean) ?? '';
         reportError(new Error(`Resource load failed: ${el.tagName} ${url}`), 'resource', {
           type: 'ResourceError',
         });

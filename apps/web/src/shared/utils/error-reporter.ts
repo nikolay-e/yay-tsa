@@ -152,7 +152,7 @@ function fingerprintOf(category: string, type: string, message: string): string 
 function hash(input: string): string {
   let h = 5381;
   for (let i = 0; i < input.length; i++) {
-    h = (h * 33) ^ input.charCodeAt(i);
+    h = (h * 33) ^ (input.codePointAt(i) ?? 0);
   }
   return (h >>> 0).toString(36);
 }
