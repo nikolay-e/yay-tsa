@@ -22,8 +22,23 @@ object SharedPostgresContainer {
                 container.start()
                 container.createConnection("").use { connection ->
                     connection.createStatement().use { statement ->
-                        statement.execute("CREATE EXTENSION IF NOT EXISTS citext")
-                        statement.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                        // Testcontainers reuse (withReuse) shares one Postgres across the
+                        // parallel per-module Gradle test JVMs. `CREATE EXTENSION IF NOT
+                        // EXISTS` is NOT concurrency-safe: two sessions can both pass the
+                        // existence check and both INSERT, one then failing with "duplicate
+                        // key value violates unique constraint pg_extension_name_index".
+                        // A session advisory lock serializes the whole block across JVMs.
+                        // Every extension any module's Flyway needs is created here first, so
+                        // those later IF NOT EXISTS calls are pure no-ops and never INSERT.
+                        statement.execute("SELECT pg_advisory_lock(742042)")
+                        try {
+                            statement.execute("CREATE EXTENSION IF NOT EXISTS citext")
+                            statement.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                            statement.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                            statement.execute("CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public")
+                        } finally {
+                            statement.execute("SELECT pg_advisory_unlock(742042)")
+                        }
                     }
                 }
             }
