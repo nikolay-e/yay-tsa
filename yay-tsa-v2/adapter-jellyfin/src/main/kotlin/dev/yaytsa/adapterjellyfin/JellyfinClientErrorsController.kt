@@ -2,7 +2,6 @@ package dev.yaytsa.adapterjellyfin
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
-import io.swagger.v3.oas.annotations.responses.ApiResponse
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -20,7 +19,6 @@ class JellyfinClientErrorsController(
     private val log = LoggerFactory.getLogger("client-error")
 
     @PostMapping("/client-errors")
-    @ApiResponse(responseCode = "204", description = "Report accepted; nothing returned")
     fun ingest(
         principal: Principal?,
         request: HttpServletRequest,

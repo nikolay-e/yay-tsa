@@ -8,6 +8,9 @@ import io.swagger.v3.oas.models.responses.ApiResponses
 import org.springdoc.core.customizers.OperationCustomizer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.ResponseEntity
+import org.springframework.web.method.HandlerMethod
+import java.lang.reflect.ParameterizedType
 
 @Configuration
 class OpenApiConfig {
@@ -27,6 +30,35 @@ class OpenApiConfig {
             }
             operation
         }
+
+    // Handlers returning ResponseEntity<Void> / Unit answer with 204 No Content, but spring-doc
+    // only infers a default 200 — so a real 204 trips schemathesis "Undocumented HTTP status code".
+    // Declaring 204 for no-content handlers (e.g. POST /v1/client-errors) keeps the gate honest
+    // without adding swagger annotations to the thin adapters.
+    @Bean
+    fun noContentResponseCustomizer(): OperationCustomizer =
+        OperationCustomizer { operation, handlerMethod ->
+            if (returnsNoContent(handlerMethod)) {
+                val responses = operation.responses ?: ApiResponses().also { operation.responses = it }
+                if (!responses.containsKey("204")) {
+                    responses.addApiResponse("204", ApiResponse().description("No content"))
+                }
+            }
+            operation
+        }
+
+    private fun returnsNoContent(handlerMethod: HandlerMethod): Boolean {
+        val method = handlerMethod.method
+        if (method.returnType == Void.TYPE) return true
+        val generic = method.genericReturnType
+        if (generic is ParameterizedType) {
+            val raw = generic.rawType
+            if (raw is Class<*> && ResponseEntity::class.java.isAssignableFrom(raw)) {
+                return generic.actualTypeArguments.firstOrNull() == Void::class.java
+            }
+        }
+        return false
+    }
 
     // Path ids are UUIDs, device ids, or positional indices — never semicolons, percent escapes
     // or control characters. Without a declared pattern, fuzzers legitimately generate strings
