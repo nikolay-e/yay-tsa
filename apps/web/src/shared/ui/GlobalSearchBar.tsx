@@ -61,7 +61,7 @@ export function GlobalSearchBar() {
             ref={inputRef}
             type="search"
             value={value}
-            onChange={e => submit(e.target.value, { replace: true })}
+            onChange={e => submit(e.target.value, { replace: onSearchRoute })}
             placeholder="Search music..."
             aria-label="Search music"
             data-testid="global-search-input"

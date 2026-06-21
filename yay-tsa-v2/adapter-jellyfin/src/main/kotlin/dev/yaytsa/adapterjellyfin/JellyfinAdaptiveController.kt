@@ -1,8 +1,8 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.adaptershared.TrackLookups
-import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.adaptershared.toJellyfinBaseItem
 import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
@@ -57,6 +57,7 @@ class JellyfinAdaptiveController(
     private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
     private val clock: Clock,
     private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
+    private val failureTranslator: HttpFailureTranslator,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -102,7 +103,7 @@ class JellyfinAdaptiveController(
                         "isRadioMode" to false,
                     ),
                 )
-            is CommandResult.Failed -> problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", result.failure.toString())
+            is CommandResult.Failed -> failureTranslator.translate(result.failure)
         }
     }
 
@@ -116,8 +117,10 @@ class JellyfinAdaptiveController(
         val uid = UserId(principal.name)
         val cmd = UpdateSessionContext(ListeningSessionId(sessionId), state.energy, state.intensity, state.moodTags, state.attentionMode)
         val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
-        adaptiveUseCases.execute(cmd, ctx)
-        return ResponseEntity.noContent().build()
+        return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> ResponseEntity.noContent().build()
+            is CommandResult.Failed -> failureTranslator.empty(result.failure)
+        }
     }
 
     @DeleteMapping("/sessions/{sessionId}")
@@ -129,8 +132,10 @@ class JellyfinAdaptiveController(
         val uid = UserId(principal.name)
         val cmd = EndListeningSession(ListeningSessionId(sessionId), null)
         val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
-        adaptiveUseCases.execute(cmd, ctx)
-        return ResponseEntity.noContent().build()
+        return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> ResponseEntity.noContent().build()
+            is CommandResult.Failed -> failureTranslator.empty(result.failure)
+        }
     }
 
     private fun <T> sessionAccessFailure(
@@ -185,7 +190,7 @@ class JellyfinAdaptiveController(
                 ?.let { mlQuery.findSimilarTracks(TrackId(it.value), REFRESH_QUEUE_BOOTSTRAP_SIZE * 2) }
                 .orEmpty()
                 .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
-                .let { tracks -> musicSurfaceFilter.filterRedLines(tracks, uid) }
+                .let { tracks -> musicSurfaceFilter.filter(tracks, uid) }
                 .take(REFRESH_QUEUE_BOOTSTRAP_SIZE)
         val orderedTrackIds = mutableListOf<String>()
         val reasonByTrack = mutableMapOf<String, String>()
@@ -227,8 +232,10 @@ class JellyfinAdaptiveController(
                     },
             )
         val ctx = ctxFactory.create(uid, aggregate.version)
-        adaptiveUseCases.execute(cmd, ctx)
-        return ResponseEntity.noContent().build()
+        return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> ResponseEntity.noContent().build()
+            is CommandResult.Failed -> failureTranslator.empty(result.failure)
+        }
     }
 
     @PostMapping("/sessions/{sessionId}/signals")
@@ -249,8 +256,10 @@ class JellyfinAdaptiveController(
                 body["context"]?.toString(),
             )
         val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
-        adaptiveUseCases.execute(cmd, ctx)
-        return ResponseEntity.noContent().build()
+        return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> ResponseEntity.noContent().build()
+            is CommandResult.Failed -> failureTranslator.empty(result.failure)
+        }
     }
 
     @GetMapping("/sessions/active")
@@ -307,8 +316,10 @@ class JellyfinAdaptiveController(
                 clock.now(),
             )
         val ctx = ctxFactory.create(uid, prefs.version)
-        preferencesUseCases.execute(cmd, ctx)
-        return ResponseEntity.noContent().build()
+        return when (val result = preferencesUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> ResponseEntity.noContent().build()
+            is CommandResult.Failed -> failureTranslator.empty(result.failure)
+        }
     }
 
     // Frontend may send the JSON object inline OR as a pre-stringified blob. Map<String,?> .toString()

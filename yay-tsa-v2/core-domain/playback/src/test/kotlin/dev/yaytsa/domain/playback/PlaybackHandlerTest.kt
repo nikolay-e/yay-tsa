@@ -262,6 +262,23 @@ class PlaybackHandlerTest :
             r.value.lastKnownPosition shouldBe Duration.ofSeconds(30)
         }
 
+        test("Play after RemoveFromQueue of current starts fallback track at zero") {
+            val e2 = QueueEntry(QueueEntryId("e2"), TrackId("t2"))
+            val s =
+                withLease().copy(
+                    queue = listOf(e2),
+                    currentEntryId = null,
+                    playbackState = PlaybackState.STOPPED,
+                    lastKnownPosition = Duration.ofSeconds(30),
+                    lastKnownAt = now.minusSeconds(5),
+                )
+            val r = PlaybackHandler.handle(s, Play(sessionId, devA), ctx(s.version), deps())
+            r.shouldBeInstanceOf<CommandResult.Success<PlaybackSessionAggregate>>()
+            r.value.currentEntryId shouldBe e2.id
+            r.value.playbackState shouldBe PlaybackState.PLAYING
+            r.value.lastKnownPosition shouldBe Duration.ZERO
+        }
+
         test("Pause when stopped fails") {
             val s = withLease().copy(playbackState = PlaybackState.STOPPED)
             val r = PlaybackHandler.handle(s, Pause(sessionId, devA), ctx(s.version), deps())

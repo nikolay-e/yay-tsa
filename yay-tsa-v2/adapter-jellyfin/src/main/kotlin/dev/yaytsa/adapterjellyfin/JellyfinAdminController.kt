@@ -1,6 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
+import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.auth.AuthUseCases
@@ -28,6 +29,7 @@ class JellyfinAdminController(
     private val authQueries: AuthQueries,
     private val libraryScanTrigger: dev.yaytsa.application.library.port.LibraryScanTriggerPort,
     private val eventPublisher: org.springframework.context.ApplicationEventPublisher,
+    private val failureTranslator: HttpFailureTranslator,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -104,7 +106,7 @@ class JellyfinAdminController(
                         "initialPassword" to initialPassword,
                     ),
                 )
-            is CommandResult.Failed -> problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", result.failure.toString())
+            is CommandResult.Failed -> failureTranslator.translate(result.failure)
         }
     }
 

@@ -35,7 +35,9 @@ export function useReorderFavorites() {
 
           const allItems = data.pages.flatMap(p => p.Items);
           const matchCount = allItems.filter(item => idSet.has(item.Id)).length;
-          if (matchCount / allItems.length < 0.5) continue;
+          const isFullPermutation =
+            itemIds.length === allItems.length && matchCount === allItems.length;
+          if (!isFullPermutation) continue;
 
           snapshots.push({ queryKey: key, data });
 

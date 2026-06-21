@@ -178,12 +178,14 @@ class JellyfinSessionsController(
         playbackStarts.invalidate(startKey)
 
         // Delegate scrobble decision to core-application
+        val runTimeMs = libraryQueries.getTrack(EntityId(info.itemId))?.durationMs ?: 0L
         scrobbleService.recordScrobble(
             userId = uid,
             trackId = trackId,
             startedAt = startedAt,
             stoppedAt = now,
             positionMs = positionMs,
+            runTimeMs = runTimeMs,
         )
 
         return ResponseEntity.noContent().build()

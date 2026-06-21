@@ -32,6 +32,7 @@ class JellyfinItemsController(
     private val preferencesQueries: PreferencesQueries,
     private val playlistQueries: PlaylistQueries,
     private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
+    private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
     private val resumePositionService: ResumePositionService,
 ) {
     // Hydrate per-(user,item) resume into UserData.PlaybackPositionTicks so clients seek-on-load.
@@ -496,7 +497,7 @@ class JellyfinItemsController(
             }
         }
 
-        return out.take(limit)
+        return musicSurfaceFilter.filter(out, userId).take(limit)
     }
 
     private fun Artist.toBaseItem(albumCount: Int? = null) =

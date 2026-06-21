@@ -3,6 +3,7 @@ package dev.yaytsa.app.integration
 import dev.yaytsa.worker.ml.AffinityAggregator
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.JdbcTemplate
@@ -16,6 +17,11 @@ class AffinityWorkerIntegrationTest : HttpIntegrationTestBase() {
 
     @Autowired
     lateinit var jdbc: JdbcTemplate
+
+    @BeforeEach
+    fun resetWatermark() {
+        jdbc.update("UPDATE core_v2_ml.affinity_cursor SET last_signal_at = 'epoch' WHERE id = TRUE")
+    }
 
     private fun seedSession(userId: UUID): UUID {
         val sessionId = UUID.randomUUID()

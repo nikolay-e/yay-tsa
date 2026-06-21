@@ -361,8 +361,9 @@ class McpTools(
 
     private fun getAlbum(args: Map<String, Any?>): McpToolResult {
         val albumId = args["album_id"] as? String ?: return errorResult("album_id is required")
+        val userId = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
         val album = libraryQueries.getAlbum(EntityId(albumId)) ?: return errorResult("Album not found")
-        val tracks = libraryQueries.browseTracksByAlbum(EntityId(albumId))
+        val tracks = musicSurfaceFilter.filter(libraryQueries.browseTracksByAlbum(EntityId(albumId)), userId)
         val sb = StringBuilder("Album: ${album.name}\nTracks:\n")
         tracks.map { it.toMcpJson() }.forEach { sb.appendLine("  ${it["trackNumber"] ?: "?"}: ${it["name"]} (id: ${it["trackId"]})") }
         return textResult(sb.toString())

@@ -679,6 +679,7 @@ class SubsonicController(
                 startedAt = startedAt,
                 stoppedAt = startedAt.plusMillis(durationMs),
                 positionMs = durationMs,
+                runTimeMs = durationMs,
             )
         }
         return responseWriter.write(ok(), f)

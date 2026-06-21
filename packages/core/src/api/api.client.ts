@@ -221,15 +221,16 @@ export class MediaServerClient {
    */
   private async parseResponse<T>(response: Response): Promise<T | undefined> {
     const contentLength = response.headers.get('content-length');
-    const contentType = response.headers.get('content-type');
 
-    // If no content (204) or empty body, return undefined
-    if (response.status === 204 || contentLength === '0' || !contentType?.includes('json')) {
+    if (response.status === 204 || response.status === 205 || contentLength === '0') {
       return undefined;
     }
 
-    const data: T = (await response.json()) as T;
-    return data;
+    try {
+      return (await response.json()) as T;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

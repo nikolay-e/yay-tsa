@@ -221,7 +221,7 @@ object PlaybackHandler {
         if (target != null && s.queue.none { it.id == target }) return Failure.NotFound("QueueEntry", target.value).asCommandFailure()
         if (target == null && s.queue.isEmpty()) return Failure.InvariantViolation("Queue is empty").asCommandFailure()
         val resolved = target ?: s.queue.first().id
-        val resetPos = cmd.entryId != null && cmd.entryId != s.currentEntryId
+        val resetPos = resolved != s.currentEntryId
         val v = s.version.next()
         return s
             .copy(
