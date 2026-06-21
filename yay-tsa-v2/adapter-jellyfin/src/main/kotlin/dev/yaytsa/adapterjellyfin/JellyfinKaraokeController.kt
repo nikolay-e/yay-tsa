@@ -1,6 +1,8 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.karaoke.port.KaraokeQueryPort
+import dev.yaytsa.shared.ByteRangeParser
+import dev.yaytsa.shared.ByteRangeResult
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.generated.KaraokeState
 import org.springframework.beans.factory.annotation.Value
@@ -145,69 +147,53 @@ class JellyfinKaraokeController(
         response.setHeader(HttpHeaders.CONTENT_TYPE, contentType)
         response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
 
-        if (range != null && range.startsWith("bytes=")) {
-            val rangeSpec = range.removePrefix("bytes=")
-            val parts = rangeSpec.split("-")
-            val suffixSpec = parts.size == 2 && parts[0].isEmpty()
-            val start: Long
-            val requestedEnd: Long
-            if (suffixSpec) {
-                val suffixLength = parts[1].toLongOrNull() ?: 0L
-                start = (fileSize - suffixLength).coerceAtLeast(0L)
-                requestedEnd = fileSize - 1
-            } else {
-                start = parts[0].toLongOrNull() ?: 0L
-                requestedEnd =
-                    if (parts.size > 1 && parts[1].isNotEmpty()) {
-                        parts[1].toLongOrNull() ?: (fileSize - 1)
-                    } else {
-                        fileSize - 1
-                    }
-            }
+        when (val parsedRange = ByteRangeParser.parse(range, fileSize)) {
             // RFC 7233 §2.1: a last-byte-pos past EOF is clamped, not rejected. 416 is only
             // for an unsatisfiable first-byte-pos (start beyond the resource).
-            if (start < 0 || start >= fileSize || requestedEnd < start) {
+            is ByteRangeResult.Unsatisfiable -> {
                 response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
                 response.sendError(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value())
-                return
             }
-            val end = minOf(requestedEnd, fileSize - 1)
-            val length = end - start + 1
-            response.status = HttpStatus.PARTIAL_CONTENT.value()
-            response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
-            response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
-            java.io.RandomAccessFile(filePath.toFile(), "r").use { raf ->
-                raf.seek(start)
-                val out = response.outputStream
-                val buf = ByteArray(64 * 1024)
-                var remaining = length
-                while (remaining > 0) {
-                    val read = raf.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
-                    if (read < 0) break
-                    try {
-                        out.write(buf, 0, read)
-                    } catch (_: java.io.IOException) {
-                        // Client disconnected mid-stream (pause/skip) — common, debug-level.
-                        return
+            is ByteRangeResult.Satisfiable -> {
+                val start = parsedRange.start
+                val end = minOf(parsedRange.requestedEnd, fileSize - 1)
+                val length = end - start + 1
+                response.status = HttpStatus.PARTIAL_CONTENT.value()
+                response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
+                response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
+                java.io.RandomAccessFile(filePath.toFile(), "r").use { raf ->
+                    raf.seek(start)
+                    val out = response.outputStream
+                    val buf = ByteArray(64 * 1024)
+                    var remaining = length
+                    while (remaining > 0) {
+                        val read = raf.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
+                        if (read < 0) break
+                        try {
+                            out.write(buf, 0, read)
+                        } catch (_: java.io.IOException) {
+                            // Client disconnected mid-stream (pause/skip) — common, debug-level.
+                            return
+                        }
+                        remaining -= read
                     }
-                    remaining -= read
                 }
             }
-            return
-        }
-
-        response.status = HttpStatus.OK.value()
-        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
-        Files.newInputStream(filePath).use { input ->
-            val out = response.outputStream
-            val buf = ByteArray(64 * 1024)
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                try {
-                    out.write(buf, 0, n)
-                } catch (_: java.io.IOException) {
-                    return
+            is ByteRangeResult.FullContent -> {
+                response.status = HttpStatus.OK.value()
+                response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
+                Files.newInputStream(filePath).use { input ->
+                    val out = response.outputStream
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        try {
+                            out.write(buf, 0, n)
+                        } catch (_: java.io.IOException) {
+                            return
+                        }
+                    }
                 }
             }
         }

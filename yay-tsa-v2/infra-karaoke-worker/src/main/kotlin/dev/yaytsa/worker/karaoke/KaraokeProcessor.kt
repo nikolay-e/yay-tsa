@@ -85,6 +85,11 @@ class KaraokeProcessor(
         if (!separatorUrl.isNullOrBlank()) {
             try {
                 val result = separatorClient.separate(separatorUrl, filePath, trackId.toString())
+                if (!Files.exists(Path.of(result.instrumentalPath)) || !Files.exists(Path.of(result.vocalPath))) {
+                    log.warn("Separator reported success but stems missing on disk for track {}", trackId)
+                    recordFailure(trackId, existing, "separator stems missing on disk")
+                    return
+                }
                 karaokeRepo.save(
                     KaraokeAssetEntity(
                         trackId = trackId,

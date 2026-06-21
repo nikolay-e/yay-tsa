@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.playback.DeviceSessionProjection
@@ -13,12 +14,10 @@ import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.domain.playback.TransferLease
-import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
-import dev.yaytsa.shared.IdempotencyKey
-import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -29,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
 import java.time.Duration
-import java.util.UUID
 
 @RestController
 @RequestMapping("/v1/me/devices")
@@ -40,6 +38,8 @@ class JellyfinDevicesController(
     private val nowPlayingResolver: DeviceNowPlayingResolver,
     private val remoteCommandPort: RemoteCommandPort,
     private val clock: Clock,
+    @Qualifier("jellyfinCommandContextFactory")
+    private val commandContextFactory: AdapterCommandContextFactory,
 ) {
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
@@ -150,14 +150,7 @@ class JellyfinDevicesController(
                     return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Unknown command: ${request.command}")
             }
 
-        val ctx =
-            CommandContext(
-                uid,
-                ProtocolId("JELLYFIN"),
-                clock.now(),
-                IdempotencyKey(UUID.randomUUID().toString()),
-                current.version,
-            )
+        val ctx = commandContextFactory.create(uid, current.version)
         return when (val result = playbackUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> {
                 remoteCommandPort.publish(
@@ -214,14 +207,7 @@ class JellyfinDevicesController(
                 toDeviceId = DeviceId(request.toDeviceId),
                 leaseDuration = LEASE_DURATION,
             )
-        val ctx =
-            CommandContext(
-                uid,
-                ProtocolId("JELLYFIN"),
-                clock.now(),
-                IdempotencyKey(UUID.randomUUID().toString()),
-                current.version,
-            )
+        val ctx = commandContextFactory.create(uid, current.version)
         return when (val result = playbackUseCases.execute(cmd, ctx)) {
             is CommandResult.Success -> {
                 val updated = result.value

@@ -5,7 +5,6 @@ import {
   Info,
   LogOut,
   Sparkles,
-  Upload,
   Users,
   Smartphone,
   Download,
@@ -14,7 +13,6 @@ import {
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
 import { useAuthStore, useIsAdmin } from '@/features/auth/stores/auth.store';
-import { TrackUploadDialog } from '@/features/library/components';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
 import { UsersPanel } from '@/features/auth/components/UsersPanel';
@@ -58,23 +56,12 @@ export function SettingsPage() {
   const [isReloading, setIsReloading] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
-
-  const triggerRescanAfterUpload = async () => {
-    if (!client) return;
-    try {
-      await new AdminService(client).rescanLibrary();
-    } catch {
-      // Upload already succeeded; a failed rescan trigger is non-fatal because
-      // background refresh will pick up new files on the next library refetch.
-    }
-  };
 
   const handleChangePassword = async (event: FormEvent) => {
     event.preventDefault();
@@ -125,39 +112,9 @@ export function SettingsPage() {
     await forceReload();
   };
 
-  const handleUploadSuccess = () => {
-    setStatus('Album uploaded successfully. Rescanning library...');
-    queryClient.invalidateQueries({ queryKey: ['tracks'] });
-    queryClient.invalidateQueries({ queryKey: ['albums'] });
-    queryClient.invalidateQueries({ queryKey: ['artists'] });
-    queryClient.invalidateQueries({ queryKey: ['album'] });
-    queryClient.invalidateQueries({ queryKey: ['artist'] });
-    triggerRescanAfterUpload();
-  };
-
   return (
     <div className="mx-auto max-w-2xl p-6">
       <h1 className="mb-6 text-2xl font-bold">Settings</h1>
-
-      <section className="mb-8">
-        <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
-          <Upload className="h-4 w-4" />
-          Upload
-        </h2>
-
-        <button
-          onClick={() => setIsUploadOpen(true)}
-          className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
-        >
-          <Upload className="text-accent h-5 w-5 shrink-0" />
-          <div>
-            <div className="font-medium">Upload Album</div>
-            <div className="text-text-secondary text-sm">
-              Upload audio files to the library. Select all tracks of an album at once.
-            </div>
-          </div>
-        </button>
-      </section>
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
@@ -410,12 +367,6 @@ export function SettingsPage() {
           </button>
         )}
       </section>
-
-      <TrackUploadDialog
-        isOpen={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
-      />
     </div>
   );
 }

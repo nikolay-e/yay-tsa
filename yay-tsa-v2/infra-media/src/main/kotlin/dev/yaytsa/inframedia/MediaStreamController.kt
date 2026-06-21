@@ -1,6 +1,8 @@
 package dev.yaytsa.inframedia
 
 import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.shared.ByteRangeParser
+import dev.yaytsa.shared.ByteRangeResult
 import dev.yaytsa.shared.EntityId
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
@@ -93,60 +95,52 @@ class MediaStreamController(
         response.setHeader(HttpHeaders.CONTENT_TYPE, contentType)
         response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
 
-        if (rangeHeader != null && rangeHeader.startsWith("bytes=") && !rangeHeader.contains(",")) {
-            val parts = rangeHeader.removePrefix("bytes=").split("-")
-            val suffixSpec = parts.size == 2 && parts[0].isEmpty()
-            val start: Long
-            val requestedEnd: Long
-            if (suffixSpec) {
-                start = (fileSize - (parts[1].toLongOrNull() ?: 0L)).coerceAtLeast(0L)
-                requestedEnd = fileSize - 1
-            } else {
-                start = parts[0].toLongOrNull() ?: 0L
-                requestedEnd = if (parts.size > 1 && parts[1].isNotEmpty()) parts[1].toLongOrNull() ?: (fileSize - 1) else fileSize - 1
-            }
-            // RFC 7233: 416 only when first-byte-pos is unsatisfiable; an over-long end is clamped.
-            if (start < 0 || start >= fileSize || requestedEnd < start) {
+        when (val range = ByteRangeParser.parse(rangeHeader, fileSize)) {
+            is ByteRangeResult.Unsatisfiable -> {
                 response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
                 response.sendError(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value())
                 return
             }
-            val end = minOf(requestedEnd, fileSize - 1)
-            val length = end - start + 1
-            response.status = HttpStatus.PARTIAL_CONTENT.value()
-            response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
-            response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
-            java.io.RandomAccessFile(filePath.toFile(), "r").use { raf ->
-                raf.seek(start)
-                val out = response.outputStream
-                val buf = ByteArray(64 * 1024)
-                var remaining = length
-                while (remaining > 0) {
-                    val read = raf.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
-                    if (read < 0) break
-                    try {
-                        out.write(buf, 0, read)
-                    } catch (_: java.io.IOException) {
-                        return
+            is ByteRangeResult.Satisfiable -> {
+                val start = range.start
+                // RFC 7233: an over-long end is clamped to EOF.
+                val end = minOf(range.requestedEnd, fileSize - 1)
+                val length = end - start + 1
+                response.status = HttpStatus.PARTIAL_CONTENT.value()
+                response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
+                response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
+                java.io.RandomAccessFile(filePath.toFile(), "r").use { raf ->
+                    raf.seek(start)
+                    val out = response.outputStream
+                    val buf = ByteArray(64 * 1024)
+                    var remaining = length
+                    while (remaining > 0) {
+                        val read = raf.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
+                        if (read < 0) break
+                        try {
+                            out.write(buf, 0, read)
+                        } catch (_: java.io.IOException) {
+                            return
+                        }
+                        remaining -= read
                     }
-                    remaining -= read
                 }
             }
-            return
-        }
-
-        response.status = HttpStatus.OK.value()
-        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
-        Files.newInputStream(filePath).use { input ->
-            val out = response.outputStream
-            val buf = ByteArray(64 * 1024)
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                try {
-                    out.write(buf, 0, n)
-                } catch (_: java.io.IOException) {
-                    return
+            is ByteRangeResult.FullContent -> {
+                response.status = HttpStatus.OK.value()
+                response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
+                Files.newInputStream(filePath).use { input ->
+                    val out = response.outputStream
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        try {
+                            out.write(buf, 0, n)
+                        } catch (_: java.io.IOException) {
+                            return
+                        }
+                    }
                 }
             }
         }

@@ -30,6 +30,7 @@ import {
   bumpResumeVersion,
 } from '@/features/audiobooks/stores/local-resume';
 import { log } from '@/shared/utils/logger';
+import { queryClient } from '@/shared/lib/query-client';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
 import { PlaybackController, withTimeout } from './playback-controller';
@@ -144,6 +145,9 @@ const APPROACHING_END_MS = CROSSFADE_MS + 350;
 const ENGINE_TIMEOUT_MS = 10000;
 const MEDIA_ERR_NETWORK = 2;
 const MEDIA_ERR_DECODE = 3;
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+
+export const UNSUPPORTED_FORMAT_MESSAGE = 'This track format is not supported on this device';
 
 let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
@@ -889,6 +893,19 @@ export const usePlayerStore = create<PlayerStore>()(
         },
       });
       const track = get().currentTrack;
+
+      // An unsupported codec can never be recovered by reloading the same source, so don't stall:
+      // surface a format-specific error and skip to the next track using the shared advance path.
+      if (mediaErrorCode === MEDIA_ERR_SRC_NOT_SUPPORTED) {
+        const unsupportedError: MediaPlaybackError = Object.assign(
+          new Error(UNSUPPORTED_FORMAT_MESSAGE),
+          { mediaErrorCode }
+        );
+        set({ error: unsupportedError, isPlaying: false, isLoading: false });
+        autoAdvanceOnError(get);
+        return;
+      }
+
       const recoverable =
         (mediaErrorCode === MEDIA_ERR_NETWORK || mediaErrorCode === MEDIA_ERR_DECODE) &&
         track !== null &&
@@ -1377,8 +1394,14 @@ export const usePlayerStore = create<PlayerStore>()(
             sleepTimerId = null;
           }
 
-          const { queue: currentQueue } = get();
+          const { queue: currentQueue, playerMode } = get();
           currentQueue.setQueue([], 0);
+
+          // Audiobook resume ticks are written server-side on stop; drop the cached audiobooks
+          // shelf so reopening within staleTime re-reads the fresh resume point, not a stale tick.
+          if (playerMode === 'audiobook') {
+            void queryClient.invalidateQueries({ queryKey: ['audiobooks'] });
+          }
 
           set({
             currentTrack: null,

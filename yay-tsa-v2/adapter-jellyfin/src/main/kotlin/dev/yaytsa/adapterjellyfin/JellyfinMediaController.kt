@@ -1,6 +1,8 @@
 package dev.yaytsa.adapterjellyfin
 
 import dev.yaytsa.application.library.LibraryQueries
+import dev.yaytsa.shared.ByteRangeParser
+import dev.yaytsa.shared.ByteRangeResult
 import dev.yaytsa.shared.EntityId
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
@@ -137,45 +139,31 @@ class JellyfinMediaController(
         val contentType = resolveAudioContentType(track.codec, filePath)
         val fileSize = Files.size(filePath)
 
-        if (range != null && range.startsWith("bytes=")) {
-            val rangeSpec = range.removePrefix("bytes=")
-            val parts = rangeSpec.split("-")
-            val suffixSpec = parts.size == 2 && parts[0].isEmpty()
-            val start: Long
-            val end: Long
-            if (suffixSpec) {
-                val suffixLength = parts[1].toLongOrNull() ?: 0L
-                start = (fileSize - suffixLength).coerceAtLeast(0L)
-                end = fileSize - 1
-            } else {
-                start = parts[0].toLongOrNull() ?: 0L
-                end =
-                    if (parts.size > 1 && parts[1].isNotEmpty()) {
-                        parts[1].toLongOrNull() ?: (fileSize - 1)
-                    } else {
-                        fileSize - 1
-                    }
-            }
-            if (start < 0 || start >= fileSize || end < start) {
+        when (val parsedRange = ByteRangeParser.parse(range, fileSize)) {
+            is ByteRangeResult.Unsatisfiable -> {
                 response.status = 416
                 response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */$fileSize")
-                return
             }
-            val length = end - start + 1
-            response.status = 206
-            response.contentType = contentType
-            response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
-            response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
-            response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
-            writeRangeQuietly(filePath, start, length, response)
-            return
+            is ByteRangeResult.Satisfiable -> {
+                val start = parsedRange.start
+                // RFC 7233: an over-long end is clamped to EOF.
+                val end = minOf(parsedRange.requestedEnd, fileSize - 1)
+                val length = end - start + 1
+                response.status = 206
+                response.contentType = contentType
+                response.setHeader(HttpHeaders.CONTENT_LENGTH, length.toString())
+                response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes $start-$end/$fileSize")
+                response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+                writeRangeQuietly(filePath, start, length, response)
+            }
+            is ByteRangeResult.FullContent -> {
+                response.status = 200
+                response.contentType = contentType
+                response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
+                response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
+                writeFullFileQuietly(filePath, response)
+            }
         }
-
-        response.status = 200
-        response.contentType = contentType
-        response.setHeader(HttpHeaders.CONTENT_LENGTH, fileSize.toString())
-        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes")
-        writeFullFileQuietly(filePath, response)
     }
 
     private fun writeRangeQuietly(

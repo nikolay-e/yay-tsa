@@ -102,7 +102,7 @@ Vocal-instrumental separation is provided by an optional sidecar service running
 - **Frontend**: React 19, Zustand, TanStack Query, Tailwind CSS 4, React Router 7, Vite
 - **Backend (v2)**: Kotlin 2.1, JDK 21, Spring Boot 3.4 (kotlin DSL Gradle), Spring Data JPA + Hibernate 6, PostgreSQL 17 (pgvector, pg_trgm, CITEXT, pgcrypto), Flyway (per-context schemas)
 - **Auth**: Opaque device-bound tokens (256-bit SecureRandom, SHA-256 at rest, Caffeine-cached validation)
-- **ML/Audio**: BS-Roformer / Demucs / Spleeter (karaoke), MERT / CLAP / Discogs / MusicNN embeddings, Claude (adaptive queue / DJ)
+- **ML/Audio**: BS-Roformer / Demucs / Spleeter (karaoke), MERT / CLAP / Discogs / MusicNN embeddings, GPT-5.4 Mini via in-cluster LiteLLM gateway (adaptive queue / DJ, gated on `LLM_ENABLED`)
 
 ### API: Jellyfin-Compatible Plus Yaytsa Extensions
 

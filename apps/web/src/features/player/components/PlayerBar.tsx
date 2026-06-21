@@ -40,6 +40,7 @@ import {
   useKaraokeStatus,
   useVocalBlend,
   useSleepTimer,
+  UNSUPPORTED_FORMAT_MESSAGE,
 } from '../stores/player.store';
 import { useActiveSession, useSessionActions } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
@@ -274,12 +275,17 @@ export function PlayerBar() {
 
   useEffect(() => {
     if (playerError) {
-      toast.add('error', 'Playback failed — check your connection', 8000, {
-        label: 'Retry',
-        onClick: () => {
-          void usePlayerStore.getState().retryCurrentTrack();
-        },
-      });
+      const unsupported = playerError.message === UNSUPPORTED_FORMAT_MESSAGE;
+      if (unsupported) {
+        toast.add('error', 'Track format not supported — skipping', 8000);
+      } else {
+        toast.add('error', 'Playback failed — check your connection', 8000, {
+          label: 'Retry',
+          onClick: () => {
+            void usePlayerStore.getState().retryCurrentTrack();
+          },
+        });
+      }
     }
   }, [playerError]);
 

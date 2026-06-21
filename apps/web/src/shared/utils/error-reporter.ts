@@ -145,7 +145,8 @@ function fingerprintOf(category: string, type: string, message: string): string 
   const normalized = message
     .toLowerCase()
     .replace(/https?:\/\/\S+/g, '<url>')
-    .replace(/[0-9a-f-]{8,}/gi, '<id>')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<id>')
+    .replace(/\b(?=[0-9a-f-]*[0-9])[0-9a-f]{8,}\b/gi, '<id>')
     .replace(/\d+/g, '<n>')
     .replace(/\s+/g, ' ')
     .trim();

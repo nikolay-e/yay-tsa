@@ -397,7 +397,11 @@ export class HTML5AudioEngine implements AudioEngine {
           const mediaError = this.audio.error;
           const errorMessage = mediaError?.message ?? 'Unknown error';
           const sanitized = this.sanitizeError(errorMessage);
-          reject(new Error(`Failed to load audio: ${sanitized}`));
+          const error: MediaPlaybackError = Object.assign(
+            new Error(`Failed to load audio: ${sanitized}`),
+            { mediaErrorCode: mediaError?.code ?? null }
+          );
+          reject(error);
         };
 
         const handleTimeout = () => {

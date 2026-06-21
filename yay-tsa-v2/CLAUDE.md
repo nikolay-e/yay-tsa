@@ -292,6 +292,10 @@ The adaptive queue has its own concurrency model. Playback sessions use a device
 
 These are fundamentally different write patterns that must not be conflated in a single aggregate.
 
+### Deferred / Known Limitations
+
+The LLM-DJ adaptive path (`infra-llm`) is wired but gated off by default (`LLM_ENABLED=false` in production) and degrades gracefully to ML-only seeding/similarity. A null LLM completion or a disabled orchestrator is the expected steady state, not a bug.
+
 ---
 
 ## Module Layout

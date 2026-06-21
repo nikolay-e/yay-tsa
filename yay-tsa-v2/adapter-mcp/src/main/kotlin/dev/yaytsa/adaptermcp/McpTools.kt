@@ -221,6 +221,12 @@ class McpTools(
                     "properties" to
                         mapOf(
                             "seed_track_id" to mapOf("type" to "string", "description" to "Optional track id to seed similarity-driven radio"),
+                            "seed_genres" to
+                                mapOf(
+                                    "type" to "array",
+                                    "items" to mapOf("type" to "string"),
+                                    "description" to "Optional genres to seed the adaptive session",
+                                ),
                             "attention_mode" to mapOf("type" to "string", "default" to "active"),
                         ),
                 ),
@@ -434,7 +440,7 @@ class McpTools(
                 sessionId = sessionId,
                 attentionMode = args["attention_mode"] as? String ?: "active",
                 seedTrackId = (args["seed_track_id"] as? String)?.let { EntityId(it) },
-                seedGenres = emptyList(),
+                seedGenres = (args["seed_genres"] as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
             )
         return when (val result = adaptiveUseCases.execute(cmd, ctxFactory.create(uid, AggregateVersion.INITIAL))) {
             is CommandResult.Success -> textResult("Radio session started (id: ${sessionId.value}).")

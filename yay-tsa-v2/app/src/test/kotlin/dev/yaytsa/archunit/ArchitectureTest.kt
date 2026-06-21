@@ -350,6 +350,7 @@ class ArchitectureTest {
         noClasses()
             .that()
             .resideInAnyPackage(
+                "dev.yaytsa.adapterjellyfin..",
                 "dev.yaytsa.adapteropensubsonic..",
                 "dev.yaytsa.adaptermcp..",
                 "dev.yaytsa.adaptermpd..",

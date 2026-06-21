@@ -18,6 +18,8 @@ export function DownloadButton({ track, size = 'sm', className }: DownloadButton
 
   const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5';
   const status = entry?.status ?? 'idle';
+  const progress = entry?.progress ?? 0;
+  const percent = Math.round(progress * 100);
 
   const handleClick = (e: MouseEvent) => {
     e.preventDefault();
@@ -37,7 +39,9 @@ export function DownloadButton({ track, size = 'sm', className }: DownloadButton
     status === 'ready'
       ? 'Remove download'
       : status === 'downloading'
-        ? 'Downloading…'
+        ? progress > 0
+          ? `Downloading… ${percent}%`
+          : 'Downloading…'
         : status === 'error'
           ? 'Download failed — retry'
           : 'Download for offline';
@@ -60,7 +64,38 @@ export function DownloadButton({ track, size = 'sm', className }: DownloadButton
       data-testid="download-button"
     >
       {status === 'downloading' ? (
-        <Loader2 className={cn(iconSize, 'animate-spin')} />
+        progress > 0 ? (
+          <span className={cn('relative inline-flex items-center justify-center', iconSize)}>
+            <svg viewBox="0 0 36 36" className={iconSize} aria-hidden="true">
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                fill="none"
+                strokeWidth="4"
+                className="stroke-border"
+              />
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                fill="none"
+                strokeWidth="4"
+                strokeLinecap="round"
+                pathLength={100}
+                strokeDasharray={100}
+                strokeDashoffset={100 - percent}
+                transform="rotate(-90 18 18)"
+                className="stroke-accent transition-[stroke-dashoffset] duration-200"
+              />
+            </svg>
+            <span className="absolute text-[0.5rem] leading-none font-medium tabular-nums">
+              {percent}
+            </span>
+          </span>
+        ) : (
+          <Loader2 className={cn(iconSize, 'animate-spin')} />
+        )
       ) : status === 'ready' ? (
         <CheckCircle2 className={iconSize} />
       ) : status === 'error' ? (
