@@ -47,6 +47,7 @@ class MetadataEnricher(
     @Value("\${yaytsa.metadata.openlibrary-base-url:https://openlibrary.org}") openLibraryBaseUrl: String,
     @Value("\${yaytsa.metadata.openlibrary-covers-base-url:https://covers.openlibrary.org}") openLibraryCoversBaseUrl: String,
     @Value("\${yaytsa.metadata.cover-retry-cooldown-hours:168}") coverRetryCooldownHours: Long,
+    @Value("\${yaytsa.metadata.cover-provider-retry-cooldown-hours:6}") coverProviderRetryCooldownHours: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -60,6 +61,13 @@ class MetadataEnricher(
     // In-memory by design: zero schema change, resets on pod restart (restarts are infrequent and a reset
     // merely re-attempts once, still bounded by the global RateLimiter).
     private val coverRetryCooldown = Duration.ofHours(coverRetryCooldownHours)
+
+    // A provider that times out / 5xx / 429 (vs cleanly 404s) must still be parked, just for a shorter,
+    // self-healing window: an entity whose cover download throws MetadataProviderUnavailableException is
+    // otherwise never parked, so it stays at the OFFSET-0 head of the candidate query every poll cycle,
+    // re-hammering the failing provider forever and starving the tail (the exact thing selectFreshCandidates
+    // advances past via parking). The shorter window preserves the "transient failures are retried" contract.
+    private val coverProviderRetryCooldown = Duration.ofHours(coverProviderRetryCooldownHours)
     private val coverAttemptCooldownUntil = ConcurrentHashMap<UUID, Instant>()
 
     private val safeRoot: Path? =
@@ -96,8 +104,11 @@ class MetadataEnricher(
         return true
     }
 
-    private fun parkCoverAttempt(entityId: UUID) {
-        coverAttemptCooldownUntil[entityId] = clock.now().plus(coverRetryCooldown)
+    private fun parkCoverAttempt(
+        entityId: UUID,
+        cooldown: Duration = coverRetryCooldown,
+    ) {
+        coverAttemptCooldownUntil[entityId] = clock.now().plus(cooldown)
     }
 
     private fun clearCoverCooldown(entityId: UUID) {
@@ -363,8 +374,10 @@ class MetadataEnricher(
                     parkCoverAttempt(trackId)
                 }
             } catch (e: MetadataProviderUnavailableException) {
+                parkCoverAttempt(trackId, coverProviderRetryCooldown)
                 log.warn("Audiobook cover deferred (provider unavailable) for {}: {}", trackId, e.message)
             } catch (e: Exception) {
+                parkCoverAttempt(trackId, coverProviderRetryCooldown)
                 log.warn("Audiobook cover enrichment failed for {}: {}", trackId, e.toString())
             }
         }

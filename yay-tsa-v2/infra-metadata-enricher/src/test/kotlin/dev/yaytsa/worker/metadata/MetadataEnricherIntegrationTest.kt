@@ -65,6 +65,9 @@ class MetadataEnricherIntegrationTest {
                     if (ex.requestURI.path.contains("missing")) {
                         ex.sendResponseHeaders(404, -1)
                         ex.responseBody.close()
+                    } else if (ex.requestURI.path.contains("transient")) {
+                        ex.sendResponseHeaders(503, -1)
+                        ex.responseBody.close()
                     } else {
                         ex.responseHeaders.add("Content-Type", "image/jpeg")
                         ex.sendResponseHeaders(200, jpeg.size.toLong())
@@ -289,5 +292,27 @@ class MetadataEnricherIntegrationTest {
         // Second cycle: parked head failures drop out, so the tail track is now in the candidate window.
         enricher.enrich()
         assertNotNull(imageRepo.findByEntityIdAndIsPrimaryTrue(tail), "tail art-less entity must eventually be processed")
+    }
+
+    @Test
+    fun `head track whose provider is unavailable is parked so a tail track is still reached`() {
+        // A provider timeout/5xx (MetadataProviderUnavailableException) must park the head entity too —
+        // otherwise it sits at the OFFSET-0 head every cycle, re-hammering the provider and starving the tail.
+        val headA = seedAlbum("Timeout Tome A", null, "rg-transient-a")
+        val headB = seedAlbum("Timeout Tome B", null, "rg-transient-b")
+        val resolvable = seedAlbum("Reachable Tome", null, "rg-present-9")
+
+        seedAudiobookTrack("Failing Chapter A", headA, null, id = UUID.fromString("00000000-0000-0000-0000-000000000001"))
+        seedAudiobookTrack("Failing Chapter B", headB, null, id = UUID.fromString("00000000-0000-0000-0000-000000000002"))
+        val tail = seedAudiobookTrack("Tail Track", resolvable, null, id = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+
+        // First cycle: only the first batch-size head failures are reached (OFFSET 0, ORDER BY entity_id);
+        // they throw provider-unavailable and must be parked despite the exception. The tail is still uncovered.
+        enricher.enrich()
+        assertNull(imageRepo.findByEntityIdAndIsPrimaryTrue(tail), "tail not reachable while head fills the first batch")
+
+        // Second cycle: parked provider-unavailable head failures drop out, so the tail is now in the window.
+        enricher.enrich()
+        assertNotNull(imageRepo.findByEntityIdAndIsPrimaryTrue(tail), "tail must be reached once provider-unavailable heads are parked")
     }
 }
