@@ -21,10 +21,6 @@ import java.time.Instant
 import java.util.UUID
 
 class AuthIntegrationTest : HttpIntegrationTestBase() {
-    private val ipCounter =
-        java.util.concurrent.atomic
-            .AtomicInteger(0)
-
     @Autowired
     lateinit var authQueries: AuthQueries
 
@@ -438,16 +434,6 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
     }
 
     // --- Helper ---
-
-    // The login endpoint is IP-rate-limited (bucket key = remoteAddr + URI).
-    // All MockMvc requests default to 127.0.0.1 and share one bucket across the
-    // whole class run, so login-heavy tests can exhaust it. A per-call synthetic
-    // client IP gives each login its own bucket, isolating these tests.
-    private fun uniqueClientIp() =
-        org.springframework.test.web.servlet.request.RequestPostProcessor { req ->
-            req.remoteAddr = "10.${ipCounter.incrementAndGet() % 255}.${(0..254).random()}.${(1..254).random()}"
-            req
-        }
 
     private fun seedUser(
         username: String,

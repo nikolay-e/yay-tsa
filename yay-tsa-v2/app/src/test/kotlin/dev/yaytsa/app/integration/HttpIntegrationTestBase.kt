@@ -21,6 +21,19 @@ abstract class HttpIntegrationTestBase {
     @Autowired
     lateinit var objectMapper: ObjectMapper
 
+    private val clientIpCounter =
+        java.util.concurrent.atomic
+            .AtomicInteger(0)
+
+    // Auth endpoints are rate-limited per client IP. MockMvc requests all share one default
+    // remoteAddr, so logins across the shared :app:test JVM contend for a single bucket and 429
+    // intermittently. Stamp a distinct IP per call to isolate each test from that cross-test bleed.
+    protected fun uniqueClientIp() =
+        org.springframework.test.web.servlet.request.RequestPostProcessor { req ->
+            req.remoteAddr = "10.${clientIpCounter.incrementAndGet() % 255}.${(0..254).random()}.${(1..254).random()}"
+            req
+        }
+
     companion object {
         @JvmStatic
         val postgres: PostgreSQLContainer<*> =
@@ -68,6 +81,10 @@ abstract class HttpIntegrationTestBase {
             registry.add("yaytsa.mpd.port") { mpdPort.toString() }
             registry.add("yaytsa.llm.enabled") { "false" }
             registry.add("yaytsa.ml.enabled") { "false" }
+            // The @Scheduled library scan fires ~5s into the shared test JVM and reconciles against
+            // the empty tmpdir music-path, deleting freshly-seeded entities mid-test (FK violations,
+            // flaky failures). Tests seed library rows directly via JDBC; no background scan needed.
+            registry.add("yaytsa.scanner.scheduled-enabled") { "false" }
             registry.add("yaytsa.karaoke.enabled") { "false" }
             registry.add("yaytsa.lyrics.lrclib.enabled") { "false" }
         }

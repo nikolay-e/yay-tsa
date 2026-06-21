@@ -24,6 +24,7 @@ import kotlin.io.path.name
 class LibraryScanner(
     private val libraryWriter: LibraryWriter,
     @Value("\${yaytsa.library.music-path:#{null}}") private val musicPath: String?,
+    @Value("\${yaytsa.scanner.scheduled-enabled:true}") private val scheduledScanEnabled: Boolean = true,
 ) : LibraryScanTriggerPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -54,6 +55,7 @@ class LibraryScanner(
 
     @Scheduled(fixedDelay = 3_600_000, initialDelay = 5_000)
     fun scan() {
+        if (!scheduledScanEnabled) return
         if (!scanning.compareAndSet(false, true)) {
             log.info("Scan already in progress; skipping scheduled run")
             return

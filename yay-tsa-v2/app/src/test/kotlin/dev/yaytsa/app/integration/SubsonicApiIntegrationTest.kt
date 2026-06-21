@@ -792,6 +792,7 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
                 .post("/Users/AuthenticateByName")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("Username" to username, "Pw" to password)))
+                .with(uniqueClientIp())
         val result = mockMvc.perform(builder).andReturn()
         assertEquals(200, result.response.status)
         return objectMapper
