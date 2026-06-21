@@ -55,6 +55,7 @@ RUN if [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" != "arm64" ]; then \
 
 COPY extractor/ extractor/
 COPY radio/ radio/
+COPY db.py .
 COPY app.py .
 COPY extractor_cli.py .
 COPY lyrics_sync.py .
