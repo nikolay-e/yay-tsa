@@ -98,6 +98,23 @@ class AuthIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `login with non-JSON content type returns 415 not 500`() {
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Users/AuthenticateByName")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("not json"),
+                ).andReturn()
+        assertEquals(415, result.response.status)
+        assertTrue(
+            result.response.contentType?.startsWith(MediaType.APPLICATION_PROBLEM_JSON_VALUE) == true,
+            "415 must be application/problem+json, was ${result.response.contentType}",
+        )
+    }
+
+    @Test
     fun `login with nonexistent user returns 401`() {
         val result =
             mockMvc

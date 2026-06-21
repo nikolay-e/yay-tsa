@@ -10,6 +10,8 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.security.access.AccessDeniedException
+import org.springframework.web.HttpMediaTypeNotAcceptableException
+import org.springframework.web.HttpMediaTypeNotSupportedException
 import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -96,6 +98,25 @@ class GlobalExceptionHandler {
         ex: HttpRequestMethodNotSupportedException,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", "Method ${ex.method} not allowed", request)
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException::class)
+    fun handleUnsupportedMediaType(
+        ex: HttpMediaTypeNotSupportedException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> =
+        problemDetail(
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+            "Unsupported Media Type",
+            "Content-Type '${ex.contentType ?: "none"}' is not supported",
+            request,
+        )
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException::class)
+    fun handleNotAcceptable(
+        ex: HttpMediaTypeNotAcceptableException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> =
+        problemDetail(HttpStatus.NOT_ACCEPTABLE, "Not Acceptable", "No acceptable representation for the requested media types", request)
 
     @ExceptionHandler(InvalidDataAccessApiUsageException::class)
     fun handleInvalidDataAccess(

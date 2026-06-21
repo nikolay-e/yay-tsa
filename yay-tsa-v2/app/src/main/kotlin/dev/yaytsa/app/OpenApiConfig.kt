@@ -94,7 +94,9 @@ class OpenApiConfig {
                 "401" to "Unauthorized — missing or invalid token",
                 "403" to "Forbidden — admin/lease/ownership check failed",
                 "404" to "Not found",
+                "406" to "Not Acceptable — no representation matches the Accept header",
                 "409" to "Conflict — OCC version mismatch or storage conflict",
+                "415" to "Unsupported Media Type — request Content-Type not supported",
                 "429" to "Too Many Requests — rate limit exceeded",
                 "500" to "Internal server error",
             )
