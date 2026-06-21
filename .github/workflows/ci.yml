@@ -401,7 +401,7 @@ jobs:
           commit-sha: ${{ steps.backend-sha.outputs.sha }}
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@26437458890b9ebd4aece0e34cc4e98a50d91a1f # main (v1.2.0: zap-rate-limited-paths #7 + decorative-paths)
+        uses: nikolay-e/autoqa@b4ff697eb0c58590d470b49f8c250607b29c510d # main (v1.2.0: zap-rate-limited-paths #7 + decorative-paths)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
