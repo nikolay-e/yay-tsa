@@ -180,6 +180,41 @@ test.describe('Playback and Player Controls', () => {
     expect(secondTrack).toBeTruthy();
   });
 
+  test('should auto-advance when the tab is unfocused (no focus required)', async ({
+    libraryPage,
+    albumPage,
+    playerBar,
+    authenticatedPage,
+  }) => {
+    await libraryPage.clickAlbum(0);
+    await albumPage.waitForAlbumToLoad();
+
+    const trackCount = await albumPage.getTrackCount();
+    test.skip(trackCount < 2, 'Album has fewer than 2 tracks');
+
+    await albumPage.playAlbum();
+    await playerBar.waitForPlayerToLoad();
+    await playerBar.waitForAudioReady();
+
+    // Report the tab as unfocused: the approaching-end gapless crossfade must be skipped so the
+    // advance rides the media-clock `ended` event, which keeps firing without window focus. This is
+    // the regression guard for "tracks only switch after returning focus to the browser".
+    await authenticatedPage.evaluate(() => {
+      document.hasFocus = () => false;
+    });
+
+    const firstTrack = await playerBar.getCurrentTrackTitle();
+
+    await playerBar.seek(98);
+
+    await expect(async () => {
+      const currentTrack = await playerBar.getCurrentTrackTitle();
+      expect(currentTrack).not.toBe(firstTrack);
+    }).toPass({ timeout: 30000 });
+
+    expect(await playerBar.isPlaying()).toBe(true);
+  });
+
   test('should toggle play/pause via keyboard on focused button', async ({
     playAlbumFromLibrary,
     playerBar,

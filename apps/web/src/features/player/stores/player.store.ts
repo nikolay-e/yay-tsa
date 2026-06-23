@@ -170,6 +170,17 @@ function isRetryableTimeout(error: unknown, retryCount: number): boolean {
   return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
 }
 
+// The gapless crossfade rides an approaching-end timer plus AudioContext/element-volume ramps, all
+// of which browsers freeze or clamp once the page leaves the foreground (hidden tab, minimized, or a
+// window that lost OS focus / got occluded). Starting it there can wedge the playback controller and
+// starve the authoritative `ended` advance. Outside the foreground we skip the optimization so the
+// media-clock `ended` event — which keeps firing regardless of focus — drives a plain hard-cut
+// advance. visibilityState misses the unfocused-but-visible case, so hasFocus() is also required.
+function isPlaybackForeground(): boolean {
+  if (typeof document === 'undefined') return true;
+  return document.visibilityState === 'visible' && document.hasFocus();
+}
+
 // The track item may carry stale UserData (React Query caches on album/search/queue surfaces),
 // so the device's own localStorage write-through competes with it — except for finished
 // chapters, whose ticks are deliberately zeroed so a re-listen starts clean.
@@ -823,6 +834,10 @@ export const usePlayerStore = create<PlayerStore>()(
     });
 
     engine.onApproachingEnd?.(() => {
+      // Background/unfocused tabs throttle the timers and freeze the AudioContext ramps this
+      // crossfade depends on, so skip it and let the `ended` handler advance instead — otherwise a
+      // half-run transition wedges the controller and playback stalls until the window regains focus.
+      if (!isPlaybackForeground()) return;
       void controller.ifIdle(async signal => {
         const { queue, repeatMode } = get();
         if (repeatMode === 'one') return;
