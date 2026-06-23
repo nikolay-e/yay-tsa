@@ -1,0 +1,327 @@
+// Canonical, dependency-free client-error telemetry module — the source of truth
+// for replication across the other client-server apps. It has NO imports from
+// @yay-tsa/* (or any package) by design: copy this one file into another app's
+// src/, call installClientTelemetry(), done. Edit it HERE (yay-tsa is canonical),
+// then re-sync the copies.
+//
+// What it does: installs global error/unhandledrejection/resource/SW handlers,
+// dedupes + fingerprints + caps, scrubs secrets and URLs, drops known browser
+// noise (extensions / ResizeObserver / opaque Script error.), and ships each
+// surviving report to `endpoint` via sendBeacon (fetch keepalive fallback).
+//
+// Privacy hard-lines baked in: never captures request/response bodies or DOM,
+// scrubs tokens/JWT/cookies/CSRF and strips URL query-strings + fragments, caps
+// the payload at 16 KB. ChunkLoadError / "Loading chunk … failed" are treated as
+// SIGNAL (a deploy/CDN regression), not dropped as noise.
+
+export type ClientTelemetryCategory =
+  | 'runtime'
+  | 'promise'
+  | 'react'
+  | 'network'
+  | 'audio'
+  | 'sw'
+  | 'resource'
+  | 'playback'
+  | 'auth'
+  | 'offline'
+  | 'device'
+  | 'other';
+
+export interface ClientTelemetryReport {
+  category: ClientTelemetryCategory;
+  type: string;
+  message: string;
+  appVersion: string;
+  telemetrySessionId: string;
+  fingerprint?: string;
+  route?: string;
+  stack?: string;
+  uaReduced?: string;
+  http?: { status?: number; method?: string; route?: string };
+  audio?: {
+    state?: string;
+    mediaError?: number | null;
+    readyState?: number;
+    networkState?: number;
+  };
+}
+
+export interface ClientTelemetryOptions {
+  endpoint: string;
+  appVersion: string;
+  denyList?: ReadonlyArray<RegExp>;
+  scrub?: (input: string) => string;
+}
+
+export interface ClientTelemetryHandle {
+  report(error: unknown, category: ClientTelemetryCategory, extra?: CaptureExtra): void;
+  setRoute(route: string): void;
+  uninstall(): void;
+}
+
+interface CaptureExtra {
+  type?: string;
+  message?: string;
+  route?: string;
+  stack?: string;
+  http?: ClientTelemetryReport['http'];
+  audio?: ClientTelemetryReport['audio'];
+}
+
+const MAX_DISTINCT_PER_SESSION = 25;
+const MAX_MESSAGE_LENGTH = 1024;
+const MAX_STACK_LENGTH = 4096;
+const MAX_TYPE_LENGTH = 100;
+const KEEPALIVE_BYTE_BUDGET = 16 * 1024;
+
+// Browser noise that is never your bug and never actionable. ChunkLoadError is
+// deliberately NOT here — it signals a stale-cache/deploy regression.
+const DEFAULT_DENY_LIST: ReadonlyArray<RegExp> = [
+  /ResizeObserver loop (limit exceeded|completed with undelivered notifications)/i,
+  /Non-Error promise rejection captured/i,
+];
+
+const EXTENSION_FRAME = /(chrome|moz|safari|safari-web)-extension:\/\//i;
+
+export function redactSecrets(input: string): string {
+  let out = input
+    .replaceAll(/api_key=[^&\s"')<>]+/gi, 'api_key=[REDACTED]')
+    .replaceAll(/access_token=[^&\s"')<>]+/gi, 'access_token=[REDACTED]')
+    .replaceAll(/token=[^&\s"')<>]+/gi, 'token=[REDACTED]')
+    .replaceAll(/password=[^&\s"')<>]+/gi, 'password=[REDACTED]')
+    .replaceAll(/Bearer\s+[^\s"')<>]+/gi, 'Bearer [REDACTED]')
+    // Bare JWTs (header.payload.signature) anywhere in the text.
+    .replaceAll(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]')
+    // Cookie / CSRF header-ish key:value pairs.
+    .replaceAll(/(cookie|csrf[-_]?token|x-csrf-token)\s*[:=]\s*[^\s;"']+/gi, '$1=[REDACTED]');
+  // Strip query strings and fragments from any URL — they routinely carry
+  // reset/magic-link/signed-URL tokens. Keep scheme://host/path only.
+  out = out.replaceAll(/(https?:\/\/[^\s"'<>]+?)[?#][^\s"'<>]*/gi, '$1');
+  return out;
+}
+
+function defaultScrub(input: string): string {
+  return redactSecrets(input);
+}
+
+class ClientTelemetry implements ClientTelemetryHandle {
+  private readonly sessionId = newSessionId();
+  private readonly seen = new Set<string>();
+  private readonly denyList: ReadonlyArray<RegExp>;
+  private readonly scrub: (input: string) => string;
+  private route: string | undefined;
+  private capturing = false;
+  private listeners: Array<() => void> = [];
+
+  constructor(private readonly options: ClientTelemetryOptions) {
+    this.denyList = [...DEFAULT_DENY_LIST, ...(options.denyList ?? [])];
+    this.scrub = options.scrub ?? defaultScrub;
+  }
+
+  setRoute(route: string): void {
+    this.route = route;
+  }
+
+  report(error: unknown, category: ClientTelemetryCategory, extra: CaptureExtra = {}): void {
+    if (this.capturing) return;
+    this.capturing = true;
+    try {
+      const type = truncate(extra.type ?? errorName(error), MAX_TYPE_LENGTH);
+      const rawMessage = extra.message ?? errorMessage(error);
+      const rawStack = extra.stack ?? errorStack(error);
+
+      if (this.isNoise(rawMessage, rawStack)) return;
+
+      const message = this.scrub(truncate(rawMessage, MAX_MESSAGE_LENGTH));
+      const fingerprint = fingerprintOf(category, type, message);
+      if (this.seen.has(fingerprint)) return;
+      if (this.seen.size >= MAX_DISTINCT_PER_SESSION) return;
+      this.seen.add(fingerprint);
+
+      const report: ClientTelemetryReport = {
+        category,
+        type,
+        message,
+        appVersion: this.options.appVersion,
+        telemetrySessionId: this.sessionId,
+        fingerprint,
+        route: extra.route ?? this.route,
+        stack: rawStack ? this.scrub(truncate(rawStack, MAX_STACK_LENGTH)) : undefined,
+        uaReduced: reduceUserAgent(globalThis.navigator?.userAgent),
+        http: extra.http,
+        audio: extra.audio,
+      };
+      this.send(report);
+    } catch {
+      /* telemetry must never throw */
+    } finally {
+      this.capturing = false;
+    }
+  }
+
+  install(): void {
+    const win = globalThis.window;
+    if (!win) return;
+
+    const onError = (event: ErrorEvent): void => {
+      const target = event.target;
+      if (target && target !== win && target instanceof Element) {
+        if (target.tagName === 'AUDIO' || target.tagName === 'VIDEO') return;
+        const el = target as Element & { src?: string; href?: string; currentSrc?: string };
+        const url = [el.currentSrc, el.src, el.href].find(Boolean) ?? '';
+        this.report(new Error(`Resource load failed: ${el.tagName} ${url}`), 'resource', {
+          type: 'ResourceError',
+        });
+        return;
+      }
+      if (isOpaqueScriptError(event)) return;
+      const rawError: unknown = event.error;
+      const runtimeError = rawError instanceof Error ? rawError : new Error(event.message);
+      this.report(runtimeError, 'runtime');
+    };
+    win.addEventListener('error', onError, true);
+    this.listeners.push(() => win.removeEventListener('error', onError, true));
+
+    const onRejection = (event: PromiseRejectionEvent): void => {
+      this.report(event.reason, 'promise');
+    };
+    win.addEventListener('unhandledrejection', onRejection);
+    this.listeners.push(() => win.removeEventListener('unhandledrejection', onRejection));
+
+    const swContainer = globalThis.navigator?.serviceWorker;
+    if (swContainer) {
+      const onSwMessageError = (): void => {
+        this.report(new Error('Service worker message deserialization error'), 'sw', {
+          type: 'ServiceWorkerMessageError',
+        });
+      };
+      swContainer.addEventListener('messageerror', onSwMessageError);
+      this.listeners.push(() => swContainer.removeEventListener('messageerror', onSwMessageError));
+    }
+  }
+
+  uninstall(): void {
+    for (const off of this.listeners) off();
+    this.listeners = [];
+  }
+
+  private isNoise(message: string, stack: string | undefined): boolean {
+    // Opaque cross-origin "Script error." carries no actionable stack.
+    if (message === 'Script error.' && !stack) return true;
+    // Extension frames in the stack are the #1 noise source.
+    if (stack && EXTENSION_FRAME.test(stack)) return true;
+    for (const pattern of this.denyList) {
+      if (pattern.test(message)) return true;
+    }
+    return false;
+  }
+
+  private send(report: ClientTelemetryReport): void {
+    try {
+      const body = this.scrub(JSON.stringify(report));
+      if (new TextEncoder().encode(body).length > KEEPALIVE_BYTE_BUDGET) return;
+
+      const nav = globalThis.navigator;
+      if (nav && typeof nav.sendBeacon === 'function') {
+        if (nav.sendBeacon(this.options.endpoint, body)) return;
+      }
+      void globalThis
+        .fetch?.(this.options.endpoint, {
+          method: 'POST',
+          body,
+          keepalive: true,
+          credentials: 'same-origin',
+        })
+        .catch(() => {});
+    } catch {
+      /* transport must never throw */
+    }
+  }
+}
+
+export function installClientTelemetry(options: ClientTelemetryOptions): ClientTelemetryHandle {
+  const telemetry = new ClientTelemetry(options);
+  telemetry.install();
+  return telemetry;
+}
+
+function newSessionId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return uuid;
+  return `sess-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
+}
+
+function errorName(error: unknown): string {
+  if (error instanceof Error && error.name) return error.name;
+  return 'Error';
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  try {
+    return String(error);
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+function errorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+function isOpaqueScriptError(event: ErrorEvent): boolean {
+  return !event.error && event.message === 'Script error.' && !event.filename;
+}
+
+const BROWSER_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/edg\//i, 'Edge'],
+  [/chrome\//i, 'Chrome'],
+  [/firefox\//i, 'Firefox'],
+  [/safari\//i, 'Safari'],
+];
+
+const OS_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/android/i, 'Android'],
+  [/iphone|ipad|ipod/i, 'iOS'],
+  [/windows/i, 'Windows'],
+  [/mac os/i, 'macOS'],
+  [/linux/i, 'Linux'],
+];
+
+function matchLabel(value: string, patterns: ReadonlyArray<readonly [RegExp, string]>): string {
+  for (const [pattern, label] of patterns) {
+    if (pattern.test(value)) return label;
+  }
+  return 'Other';
+}
+
+function reduceUserAgent(ua: string | undefined): string | undefined {
+  if (!ua) return undefined;
+  return `${matchLabel(ua, BROWSER_PATTERNS)} / ${matchLabel(ua, OS_PATTERNS)}`;
+}
+
+function fingerprintOf(category: string, type: string, message: string): string {
+  const normalized = message
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, '<url>')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<id>')
+    .replace(/\b(?=[0-9a-f-]*[0-9])[0-9a-f]{8,}\b/gi, '<id>')
+    .replace(/\d+/g, '<n>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${category}|${type}|${hash(normalized)}`;
+}
+
+function hash(input: string): string {
+  let h = 5381;
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 33) ^ (input.codePointAt(i) ?? 0);
+  }
+  return (h >>> 0).toString(36);
+}

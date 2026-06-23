@@ -129,7 +129,24 @@ export function RootLayout() {
     <div className="flex h-full min-h-screen">
       <RouteTracker />
       {showNavigation && <OfflineIndicator />}
-      {showNavigation && <Sidebar hasPlayer={!!showPlayer} />}
+      {showNavigation && (
+        <ErrorBoundary
+          fallback={
+            <aside
+              data-testid="sidebar"
+              className="w-sidebar border-border bg-bg-secondary pt-safe fixed top-0 left-0 z-40 hidden h-full flex-col border-r md:flex"
+            >
+              <div className="px-4 py-5">
+                <span className="text-accent text-xl font-bold" aria-hidden="true">
+                  Yay-Tsa
+                </span>
+              </div>
+            </aside>
+          }
+        >
+          <Sidebar hasPlayer={!!showPlayer} />
+        </ErrorBoundary>
+      )}
       <main
         ref={mainRef}
         className={cn(
@@ -141,7 +158,9 @@ export function RootLayout() {
         )}
       >
         {showNavigation && <GlobalSearchBar />}
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       {showNavigation && <BottomTabBar />}
       {showNavigation && <RemotePlaybackBanner hasLocalPlayer={!!showPlayer} />}

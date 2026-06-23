@@ -30,10 +30,23 @@ ARG APP_ENVIRONMENT=development
 
 RUN apk add --no-cache brotli gzip && \
     VITE_APP_VERSION=${GIT_SHA} VITE_APP_ENVIRONMENT=${APP_ENVIRONMENT} npm run build && \
+    # Move hidden sourcemaps out of the served tree, keyed by GIT_SHA, BEFORE
+    # compression and BEFORE the nginx stage copies dist/. Maps must never reach
+    # nginx/CDN (they would leak source). The dist-maps/<GIT_SHA> dir is the
+    # offline-symbolication artifact (apps/web/scripts/symbolicate.ts).
+    mkdir -p /app/apps/web/dist-maps/${GIT_SHA} && \
+    find /app/apps/web/dist -type f -name '*.map' \
+        -exec sh -c 'dest="/app/apps/web/dist-maps/'"${GIT_SHA}"'/${1#/app/apps/web/dist/}"; mkdir -p "$(dirname "$dest")"; mv "$1" "$dest"' _ {} \; && \
     find /app/apps/web/dist -type f \
         \( -name '*.js' -o -name '*.css' -o -name '*.html' \
         -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \
         -exec sh -c 'gzip -9 -k "$1" && brotli -9 -k "$1"' _ {} \;
+
+# Optional CI artifact stage: `docker build --target sourcemaps -o type=local,dest=./out`
+# extracts dist-maps/<GIT_SHA> so the pipeline can retain maps keyed by commit
+# without ever shipping them in the production image.
+FROM scratch AS sourcemaps
+COPY --from=builder /app/apps/web/dist-maps /
 
 FROM mcr.microsoft.com/playwright:v1.58.0-noble AS test
 

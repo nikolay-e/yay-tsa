@@ -113,6 +113,11 @@ export default defineConfig(() => {
     },
     build: {
       target: 'es2021',
+      // Emit maps without the //# sourceMappingURL= comment so browsers/scrapers
+      // can't auto-fetch source. The Dockerfile builder stage moves dist/**/*.map
+      // into dist-maps/ (out of the nginx-served tree); nginx also denies *.map.
+      // Offline symbolication: apps/web/scripts/symbolicate.ts.
+      sourcemap: 'hidden',
       minify: 'terser',
       terserOptions: {
         compress: {

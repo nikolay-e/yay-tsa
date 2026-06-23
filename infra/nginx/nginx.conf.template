@@ -194,6 +194,16 @@ http {
             return 403 '{"type":"about:blank","title":"Forbidden","status":403,"detail":"Access denied."}';
         }
 
+        # Belt-and-suspenders: never serve sourcemaps. The Dockerfile builder stage
+        # already moves dist/**/*.map out of the served tree (hidden sourcemaps), so
+        # a stray .map is a deploy mistake — refuse it rather than leak source.
+        location ~ \.map$ {
+            access_log off;
+            log_not_found off;
+            deny all;
+            return 404;
+        }
+
         # X-Accel-Redirect internal location for media streaming
         # Backend returns X-Accel-Redirect header, nginx serves the file directly
         location /_internal/media/ {

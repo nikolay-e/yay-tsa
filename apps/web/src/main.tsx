@@ -2,24 +2,27 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { setLogSink } from '@yay-tsa/core';
-import { BeaconErrorTransport, type ClientErrorCategory } from '@yay-tsa/platform';
 // eslint-disable-next-line import/no-unresolved -- vite-plugin-pwa virtual module, resolved at build time
 import { registerSW } from 'virtual:pwa-register';
-import { initErrorReporter, reportError } from '@/shared/utils/error-reporter';
+import {
+  initErrorReporter,
+  reportError,
+  type ClientErrorCategory,
+} from '@/shared/utils/error-reporter';
 import { App } from './app/App';
 import { ErrorBoundary } from './app/infra/ErrorBoundary';
 import { ToastContainer } from './shared/ui/Toast';
 import { UpdatePrompt, useUpdatePromptStore } from './shared/components/UpdatePrompt';
 import { queryClient } from './shared/lib/query-client';
 import { installPerf, mark } from './shared/perf/perf';
-import { installErrorHandlers } from './app/infra/install-error-handlers';
 import './index.css';
 
 mark('app_start');
 installPerf();
 
-initErrorReporter(new BeaconErrorTransport('/api/v1/client-errors'));
-installErrorHandlers();
+// Installs all global error/rejection/resource/SW handlers via the canonical
+// dependency-free @yay-tsa/platform module (the copy-out source of truth).
+initErrorReporter('/api/v1/client-errors');
 
 function categoryForNamespace(namespace: string): ClientErrorCategory {
   switch (namespace.toLowerCase()) {

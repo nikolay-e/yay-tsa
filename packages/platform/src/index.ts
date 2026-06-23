@@ -16,6 +16,16 @@ export type {
   ErrorTransport,
 } from './error-transport.interface.js';
 
+// Canonical dependency-free client telemetry module (source of truth for
+// copy-out replication into the other apps). yay-tsa's own main.tsx uses it.
+export { installClientTelemetry, redactSecrets } from './web/client-telemetry.js';
+export type {
+  ClientTelemetryOptions,
+  ClientTelemetryHandle,
+  ClientTelemetryReport,
+  ClientTelemetryCategory,
+} from './web/client-telemetry.js';
+
 // Pink noise generator for sleep mode
 export { PinkNoiseGenerator } from './web/pink-noise-generator.js';
 export type { PinkNoiseConfig } from './web/pink-noise-generator.js';

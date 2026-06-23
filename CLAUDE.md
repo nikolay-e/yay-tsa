@@ -97,6 +97,32 @@ The backend is a Kotlin hexagonal monolith composed of **eight bounded contexts*
 
 Vocal-instrumental separation is provided by an optional sidecar service running BS-Roformer (default) or Hybrid Demucs via Python FastAPI (`services/audio-ml/`). The v2 backend coordinates processing, stores stems on a shared volume, and serves instrumental/vocal tracks through the standard streaming API. v2 also has its own in-process Demucs path (disabled in production via `DEMUCS_COMMAND=unsupported` — production uses the GPU sidecar).
 
+## Client Error Telemetry
+
+The PWA captures runtime / promise / resource / SW / React / network / audio errors, dedupes and fingerprints them, scrubs secrets (×3: client module, beacon, server), and ships each survivor via `navigator.sendBeacon` to `POST /api/v1/client-errors`. The Kotlin `JellyfinClientErrorsController` (`adapter-jellyfin`) re-sanitizes, enforces a top-level key allowlist, bounds metric cardinality, and emits one structured `src=client_error` JSON line to stdout (→ Promtail → Loki) plus Micrometer counters `yaytsa.client.errors{category,type,version}` and `yaytsa.client.errors.dropped{reason}`.
+
+**Wire schema** (`packages/platform/src/error-transport.interface.ts`, also the shape `installClientTelemetry` emits): `{category, type, message, appVersion, telemetrySessionId, fingerprint?, route?, stack?, uaReduced?, http?:{status,method,route}, audio?:{state,mediaError,readyState,networkState}}`.
+
+**Server log line** (the token + field names the Loki alert must match): `{"src":"client_error","category","type","version","route","status","mediaError","ua","sid","fp","user","msg","stack"}` — `sid` comes from `telemetrySessionId`, `ua` from `uaReduced`, `status` from `http.status`, `mediaError` from `audio.mediaError`.
+
+**Canonical module (source of truth for copy-out replication):** `packages/platform/src/web/client-telemetry.ts` exports `installClientTelemetry({ endpoint, appVersion, denyList?, scrub? })` — a dependency-free module (no `@yay-tsa/*` imports) merging capture + dedup + scrub + beacon transport + global-handler install. yay-tsa's own `main.tsx` uses it (via the thin `error-reporter.ts` adapter), which proves the module. Defaults: drop extension/`ResizeObserver`/opaque `Script error.` noise, treat `ChunkLoadError` as SIGNAL, scrub tokens/JWT/cookies/CSRF + URL query-string/fragment, never capture bodies/DOM, 16 KB cap, `appVersion=GIT_SHA`. To replicate into another app: copy that one file into its `src/`, call `installClientTelemetry(...)`; edit the canonical copy here and re-sync.
+
+**Prod sourcemaps (hidden) + offline symbolication.** `vite.config.ts` sets `build.sourcemap:'hidden'` (maps emitted, no `//# sourceMappingURL=` comment). The web `Dockerfile` builder stage moves `dist/**/*.map` into `dist-maps/<GIT_SHA>/` BEFORE the nginx stage copies `dist/`, so maps never reach nginx/CDN; nginx also `deny`s `*.map` (404). The maps for a commit can be extracted as a CI artifact without shipping them:
+
+```bash
+docker build --target sourcemaps -o type=local,dest=./sourcemaps-out apps/web   # → ./sourcemaps-out/<GIT_SHA>/...
+```
+
+Resolve a minified frame from a Loki `client_error` line offline (no service, nothing uploaded):
+
+```bash
+node --experimental-strip-types apps/web/scripts/symbolicate.ts \
+  --version main-<sha> --maps-dir ./sourcemaps-out \
+  assets/index-Co1OT0gP.js:1:88213
+```
+
+**Ingest hardening.** `/v1/client-errors` is `permitAll()` (browser has no server secret) but rate-limited per-IP via a Bucket4j+Caffeine `OncePerRequestFilter` (`app` module) — excess → 429 + `Retry-After`, counted as `yaytsa.client.errors.dropped{reason=ratelimited}`. Body is bounded to 16 KB (matches the client's 16 KB keepalive budget). CORS is origin-locked via `CORS_ORIGINS` (never `*` with credentials). Top-level keys outside the allowlist are dropped before logging.
+
 ## Technology Stack
 
 - **Frontend**: React 19, Zustand, TanStack Query, Tailwind CSS 4, React Router 7, Vite
