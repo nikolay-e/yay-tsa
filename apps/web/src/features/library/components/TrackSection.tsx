@@ -52,6 +52,7 @@ type TrackSectionProps = Readonly<{
   isPlaying: boolean;
   onPlayTrack: (index: number) => void;
   onPause: () => void;
+  variant?: 'list' | 'grid';
 }>;
 
 export function TrackSection({
@@ -68,6 +69,7 @@ export function TrackSection({
   isPlaying,
   onPlayTrack,
   onPause,
+  variant = 'list',
 }: TrackSectionProps) {
   if (!isLoading && !isError && tracks.length === 0 && emptyState === undefined) {
     return null;
@@ -98,6 +100,7 @@ export function TrackSection({
             showAlbum
             showArtist
             showImage
+            variant={variant}
           />
         );
       })()}

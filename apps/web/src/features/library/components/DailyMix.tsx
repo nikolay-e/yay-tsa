@@ -41,6 +41,7 @@ export function DailyMix() {
       isPlaying={isPlaying}
       onPlayTrack={index => playTracks(tracks, index)}
       onPause={pause}
+      variant="grid"
     />
   );
 }

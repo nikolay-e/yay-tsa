@@ -46,7 +46,7 @@ export function RadioSeeds() {
           <h2 className="text-text-primary text-base font-semibold">Radio</h2>
           <RadioRefreshButton />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="grid grid-cols-2 gap-1 lg:grid-cols-3">
           {Array.from({ length: 8 }, (_, i) => (
             <div key={i} className="flex items-center gap-3 p-2">
               <div className="skeleton-bg animate-skeleton h-10 w-10 shrink-0 rounded-sm" />
@@ -87,7 +87,7 @@ export function RadioSeeds() {
         <h2 className="text-text-primary text-base font-semibold">Radio</h2>
         <RadioRefreshButton />
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="grid grid-cols-2 gap-1 lg:grid-cols-3">
         {data.seeds.map((seed, i) => (
           <RadioSeedCard key={seed.trackId} seed={seed} priority={i === 0} />
         ))}

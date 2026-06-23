@@ -1,4 +1,4 @@
-import { DailyMix, ExploreNew, FavoriteSongs } from '@/features/library/components';
+import { DailyMix, ExploreNew } from '@/features/library/components';
 import { RadioSeeds } from '@/features/radio';
 
 export function HomePage() {
@@ -8,7 +8,6 @@ export function HomePage() {
       <RadioSeeds />
       <DailyMix />
       <ExploreNew />
-      <FavoriteSongs />
     </div>
   );
 }

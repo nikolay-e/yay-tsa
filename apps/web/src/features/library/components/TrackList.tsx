@@ -25,6 +25,7 @@ type TrackListProps = Readonly<{
   showArtist?: boolean;
   showImage?: boolean;
   virtualized?: boolean;
+  variant?: 'list' | 'grid';
 }>;
 
 export type TrackListRowProps = Readonly<{
@@ -37,6 +38,7 @@ export type TrackListRowProps = Readonly<{
   showAlbum?: boolean;
   showArtist?: boolean;
   showImage?: boolean;
+  compact?: boolean;
 }>;
 
 const TrackImage = memo(
@@ -174,6 +176,7 @@ function TrackListRowImpl({
   showAlbum = false,
   showArtist = true,
   showImage = true,
+  compact = false,
 }: TrackListRowProps) {
   const duration = formatTicks(track.RunTimeTicks);
   const artistName = track.Artists?.[0] ?? UNKNOWN_ARTIST;
@@ -184,7 +187,8 @@ function TrackListRowImpl({
       data-testid="track-row"
       aria-current={isCurrentTrack ? 'true' : undefined}
       className={cn(
-        'flex w-full items-center gap-4 rounded-sm p-2 text-left',
+        'flex w-full items-center rounded-sm p-2 text-left',
+        compact ? 'gap-3' : 'gap-4',
         'group hover:bg-bg-secondary transition-colors',
         isCurrentTrack && 'bg-bg-secondary'
       )}
@@ -233,25 +237,29 @@ function TrackListRowImpl({
         )}
       </div>
 
-      <DownloadButton
-        track={track}
-        className="shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60"
-      />
-      <FavoriteButton
-        itemId={track.Id}
-        itemType="track"
-        isFavorite={getIsFavorite(track)}
-        className={cn(
-          'shrink-0',
-          !getIsFavorite(track) &&
-            'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60'
-        )}
-      />
-      <TrackRowMenu
-        track={track}
-        className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60"
-      />
-      <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>
+      {!compact && (
+        <>
+          <DownloadButton
+            track={track}
+            className="shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60"
+          />
+          <FavoriteButton
+            itemId={track.Id}
+            itemType="track"
+            isFavorite={getIsFavorite(track)}
+            className={cn(
+              'shrink-0',
+              !getIsFavorite(track) &&
+                'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60'
+            )}
+          />
+          <TrackRowMenu
+            track={track}
+            className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60"
+          />
+          <span className="text-text-tertiary shrink-0 text-sm">{duration}</span>
+        </>
+      )}
     </div>
   );
 }
@@ -270,7 +278,8 @@ export const TrackListRow = memo(
     prev.isPlaying === next.isPlaying &&
     prev.showAlbum === next.showAlbum &&
     prev.showArtist === next.showArtist &&
-    prev.showImage === next.showImage
+    prev.showImage === next.showImage &&
+    prev.compact === next.compact
 );
 
 function TrackIndexIcon({
@@ -384,11 +393,34 @@ export function TrackList({
   showArtist = true,
   showImage = true,
   virtualized = false,
+  variant = 'list',
 }: TrackListProps) {
   if (tracks.length === 0) {
     return (
       <div className="flex h-32 items-center justify-center">
         <p className="text-text-secondary">No tracks found</p>
+      </div>
+    );
+  }
+
+  if (variant === 'grid') {
+    return (
+      <div className="grid grid-cols-2 gap-1 lg:grid-cols-3">
+        {tracks.map((track, index) => (
+          <TrackListRow
+            key={track.Id}
+            track={track}
+            index={index}
+            isCurrentTrack={track.Id === currentTrackId}
+            isPlaying={isPlaying}
+            onPlay={() => onPlayTrack?.(track, index)}
+            onPause={() => onPauseTrack?.()}
+            showAlbum={showAlbum}
+            showArtist={showArtist}
+            showImage={showImage}
+            compact
+          />
+        ))}
       </div>
     );
   }
