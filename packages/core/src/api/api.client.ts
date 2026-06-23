@@ -241,7 +241,8 @@ export class MediaServerClient {
   async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    retries = this.DEFAULT_RETRY_COUNT
+    retries = this.DEFAULT_RETRY_COUNT,
+    bestEffort = false
   ): Promise<T | undefined> {
     const url = `${this.serverUrl}${endpoint}`;
     const method = options.method ?? 'GET';
@@ -280,10 +281,17 @@ export class MediaServerClient {
             continue;
           }
 
-          log.error(`${method} ${endpoint} failed`, undefined, {
-            status: response.status,
-            durationMs: duration,
-          });
+          if (bestEffort) {
+            log.debug(`${method} ${endpoint} failed (best-effort, ignored)`, {
+              status: response.status,
+              durationMs: duration,
+            });
+          } else {
+            log.error(`${method} ${endpoint} failed`, undefined, {
+              status: response.status,
+              durationMs: duration,
+            });
+          }
           await this.handleErrorResponse(response);
         }
 
@@ -318,7 +326,13 @@ export class MediaServerClient {
           throw error;
         }
 
-        log.error(`${method} ${endpoint} network error`, error, { durationMs: duration });
+        if (bestEffort) {
+          log.debug(`${method} ${endpoint} network error (best-effort, ignored)`, {
+            durationMs: duration,
+          });
+        } else {
+          log.error(`${method} ${endpoint} network error`, error, { durationMs: duration });
+        }
         throw new NetworkError(
           `Network request failed: ${normalizedError.message}`,
           error as Error
@@ -469,17 +483,23 @@ export class MediaServerClient {
   async post<T>(
     endpoint: string,
     data?: unknown,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
+    bestEffort = false
   ): Promise<T | undefined> {
     let url = endpoint;
     if (params) {
       const queryString = this.buildQueryString(params);
       if (queryString) url += `?${queryString}`;
     }
-    return this.request<T>(url, {
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-    });
+    return this.request<T>(
+      url,
+      {
+        method: 'POST',
+        body: data ? JSON.stringify(data) : undefined,
+      },
+      this.DEFAULT_RETRY_COUNT,
+      bestEffort
+    );
   }
 
   /**

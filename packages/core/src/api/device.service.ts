@@ -51,7 +51,10 @@ export class DeviceService extends BaseService {
   }
 
   async heartbeat(): Promise<void> {
-    await this.client.post('/v1/me/devices/heartbeat');
+    // Best-effort: a 15s background heartbeat whose failures the caller ignores. A transient
+    // "Failed to fetch" (page navigating, network blip) must not be logged as an error and
+    // forwarded to telemetry — it is expected noise, not a client bug.
+    await this.client.post('/v1/me/devices/heartbeat', undefined, undefined, true);
   }
 
   async sendCommand(
