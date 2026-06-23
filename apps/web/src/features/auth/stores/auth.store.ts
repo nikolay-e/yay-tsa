@@ -21,9 +21,8 @@ import { log } from '@/shared/utils/logger';
 
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
 
-const runtimeServerUrl =
-  typeof window !== 'undefined' ? window.__YAYTSA_CONFIG__?.serverUrl?.trim() : undefined;
-const API_BASE_PATH = runtimeServerUrl ? runtimeServerUrl : '/api';
+const runtimeServerUrl = globalThis.window?.__YAYTSA_CONFIG__?.serverUrl?.trim();
+const API_BASE_PATH = runtimeServerUrl || '/api';
 
 export const SESSION_EXPIRED_FLAG = 'yaytsa_session_expired';
 
