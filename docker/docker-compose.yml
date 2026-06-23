@@ -51,6 +51,9 @@ services:
       ML_ENABLED: ${ML_ENABLED:-false}
       LLM_ENABLED: ${LLM_ENABLED:-false}
       MPD_ENABLED: ${MPD_ENABLED:-false}
+      ADMIN_BOOTSTRAP_ENABLED: 'true'
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
     volumes:
       - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
       - karaoke_stems:/app/stems

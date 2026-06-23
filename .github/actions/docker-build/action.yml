@@ -101,6 +101,10 @@ runs:
           TAGS="${TAGS},${IMAGE}:${GIT_REF_NAME}"
           TAGS="${TAGS},${IMAGE}:latest"
           APP_ENVIRONMENT="production"
+        elif [[ "$GIT_REF" == refs/heads/main ]]; then
+          # Refresh the rolling `latest` on every main build so the published Helm
+          # umbrella and docker-compose (both default to :latest) install OOTB.
+          TAGS="${TAGS},${IMAGE}:latest"
         fi
 
         {

@@ -20,7 +20,10 @@ import { queryClient } from '@/shared/lib/query-client';
 import { log } from '@/shared/utils/logger';
 
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
-const API_BASE_PATH = '/api';
+
+const runtimeServerUrl =
+  typeof window !== 'undefined' ? window.__YAYTSA_CONFIG__?.serverUrl?.trim() : undefined;
+const API_BASE_PATH = runtimeServerUrl ? runtimeServerUrl : '/api';
 
 export const SESSION_EXPIRED_FLAG = 'yaytsa_session_expired';
 

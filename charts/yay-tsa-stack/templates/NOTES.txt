@@ -1,0 +1,26 @@
+Yay-Tsa is installing into namespace "{{ .Release.Namespace }}" (release "{{ .Release.Name }}").
+
+Components:
+  - PWA frontend        ({{ .Release.Name }}-yay-tsa)
+  - Backend             ({{ .Release.Name }}-yay-tsa-v2-backend)
+{{- if .Values.postgresql.enabled }}
+  - Bundled Postgres    ({{ .Release.Name }}-postgres)  [pgvector/pgvector:pg17]
+{{- else }}
+  - External database   (postgresql.enabled=false)
+{{- end }}
+
+{{- if not (index (index .Values "yay-tsa-v2") "backend" "adminBootstrap" "password") }}
+
+WARNING: backend.adminBootstrap.password was not set. No admin user will be created
+(fail-closed). Reinstall/upgrade with:
+    --set yay-tsa-v2.backend.adminBootstrap.password=YOUR_PASSWORD
+{{- end }}
+
+Watch rollout:
+    kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ .Release.Name }}-yay-tsa-v2-backend
+
+Reach the PWA (no ingress by default):
+    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-yay-tsa 8080:80
+    open http://localhost:8080   # log in as "{{ index (index .Values "yay-tsa-v2") "backend" "adminBootstrap" "username" }}"
+
+Expose publicly by setting yay-tsa.ingress.* and yay-tsa-v2.ingress.* (and a real host/TLS).

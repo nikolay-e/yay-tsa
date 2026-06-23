@@ -1,4 +1,8 @@
 {{- if .Values.backend.enabled }}
+{{- $global := .Values.global | default dict }}
+{{- $gdb := $global.yaytsaDatabase | default dict }}
+{{- $dbSecret := .Values.backend.database.existingSecret | default .Values.backend.database.secretName | default $gdb.secretName | default (printf "%s-backend-db" (include "yay-tsa-v2.fullname" .)) }}
+{{- $adminSecret := .Values.backend.adminBootstrap.existingSecret | default (printf "%s-backend-admin" (include "yay-tsa-v2.fullname" .)) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,25 +69,39 @@ spec:
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.backend.database.secretName }}
+                  name: {{ $dbSecret }}
                   key: POSTGRES_HOST
             - name: DB_PORT
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.backend.database.secretName }}
+                  name: {{ $dbSecret }}
                   key: POSTGRES_PORT
             - name: DB_NAME
               value: {{ .Values.backend.database.name | quote }}
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.backend.database.secretName }}
+                  name: {{ $dbSecret }}
                   key: POSTGRES_USER
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.backend.database.secretName }}
+                  name: {{ $dbSecret }}
                   key: POSTGRES_PASSWORD
+            - name: ADMIN_BOOTSTRAP_ENABLED
+              value: {{ .Values.backend.adminBootstrap.enabled | quote }}
+            - name: ADMIN_BOOTSTRAP_USERNAME
+              value: {{ .Values.backend.adminBootstrap.username | quote }}
+            - name: ADMIN_BOOTSTRAP_DISPLAY_NAME
+              value: {{ .Values.backend.adminBootstrap.displayName | quote }}
+            {{- if .Values.backend.adminBootstrap.enabled }}
+            - name: ADMIN_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $adminSecret }}
+                  key: {{ .Values.backend.adminBootstrap.existingSecretKey }}
+                  optional: true
+            {{- end }}
             - name: KARAOKE_SEPARATOR_URL
               value: {{ .Values.backend.config.karaokeSeparatorUrl | quote }}
             - name: DEMUCS_COMMAND

@@ -9,7 +9,7 @@ affinity: {}
 backend:
   enabled: true
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa-v2/backend
+    repository: ghcr.io/nikolay-e/yay-tsa/yay-tsa-v2/backend
     pullPolicy: IfNotPresent
     tag: ''
   # HARD INVARIANT: keep at 1. The backend holds per-JVM state — device-presence projection
@@ -83,19 +83,47 @@ backend:
       failureThreshold: 3
 
   database:
+    # Resolution order for the DB connection Secret (must contain keys POSTGRES_HOST,
+    # POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD):
+    #   1. existingSecret      (BYO; highest priority)
+    #   2. secretName          (legacy BYO alias; the production GitOps path)
+    #   3. global.yaytsaDatabase.secretName  (set by the yay-tsa-stack umbrella's bundled DB)
+    #   4. a Secret this chart renders from the host/port/user/password fields below
+    existingSecret: ''
     secretName: 'yay-tsa-postgres'
     name: 'yaytsa_production'
+    # Used only when this chart renders its own DB Secret (cases 1–3 above all empty):
+    host: ''
+    port: 5432
+    user: 'yaytsa'
+    password: ''
     hikari:
       maximumPoolSize: 10
       minimumIdle: 5
+
+  # First-admin bootstrap. The backend seeds one admin on an empty database (idempotent,
+  # fail-closed: no password => no admin, never an insecure default).
+  adminBootstrap:
+    enabled: true
+    username: admin
+    password: ''
+    displayName: Administrator
+    # BYO secret carrying the admin password; takes precedence over .password above.
+    existingSecret: ''
+    existingSecretKey: ADMIN_BOOTSTRAP_PASSWORD
 
   config:
     profile: 'prod'
     logLevel: 'INFO'
     appLogLevel: 'INFO'
     corsEnabled: true
-    corsOrigins: 'https://yay-tsa-v2.nikolay-eremeev.com'
-    karaokeSeparatorUrl: 'http://yay-tsa-production-audio-separator:8000'
+    # Comma-separated allowed origins. Empty by default (same-origin deploys, e.g. the PWA
+    # served behind the same host with an /api proxy, need none). Set to your public URL(s)
+    # for cross-origin clients.
+    corsOrigins: ''
+    # Set when karaoke is enabled; defaults empty. The yay-tsa-stack umbrella wires this to
+    # the bundled audio-separator Service.
+    karaokeSeparatorUrl: ''
     demucsCommand: 'unsupported'
     libraryMusicPath: '/media'
     karaoke:
@@ -171,8 +199,11 @@ backend:
     hostPath: ''
     mountPath: /app/stems
 
+  # Off by default for portability: the policy below encodes the author's cluster topology
+  # (Traefik in kube-system, Prometheus in monitoring, a shared DB namespace). Enable and
+  # retarget these namespaces to match your cluster, or leave disabled.
   networkPolicy:
-    enabled: true
+    enabled: false
     ingressNamespace: kube-system
     monitoringNamespace: monitoring
     databaseNamespace: shared-database

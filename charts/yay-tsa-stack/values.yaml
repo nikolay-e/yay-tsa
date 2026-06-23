@@ -1,0 +1,109 @@
+# yay-tsa-stack — the third-party "one helm install" entrypoint.
+#
+# Out of the box (zero extra config beyond an admin password) this installs:
+#   PWA frontend + Kotlin backend + a bundled single-instance Postgres/pgvector,
+#   with ML / LLM / karaoke / MPD OFF, ingress OFF, NetworkPolicy OFF.
+#
+#   helm install yay-tsa yay-tsa/yay-tsa-stack -n yay-tsa --create-namespace \
+#     --set backend.adminBootstrap.password=CHANGE_ME
+#
+# For production / BYO database, set postgresql.enabled=false and fill externalDatabase.
+
+# ---------------------------------------------------------------------------
+# Shared database identity (consumed by the bundled Postgres AND the backend).
+# ---------------------------------------------------------------------------
+global:
+  yaytsaDatabase:
+    secretName: yaytsa-db
+    name: yaytsa
+    username: yaytsa
+    # Leave empty for the bundled DB: a strong password is generated on first
+    # install and preserved across upgrades. Required if you point at an external DB
+    # via externalDatabase without an existingSecret.
+    password: ''
+
+# ---------------------------------------------------------------------------
+# Bundled database (default ON). Turn OFF to use externalDatabase.
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+
+# ---------------------------------------------------------------------------
+# External database (used only when postgresql.enabled=false).
+#   - existingSecret set  -> backend reads it directly (must hold POSTGRES_HOST/
+#     PORT/USER/PASSWORD); ALSO set global.yaytsaDatabase.secretName to that name.
+#   - existingSecret empty -> this chart renders global.yaytsaDatabase.secretName
+#     from the host/port/user/password/database fields below.
+# ---------------------------------------------------------------------------
+externalDatabase:
+  existingSecret: ''
+  host: ''
+  port: 5432
+  user: yaytsa
+  password: ''
+  database: yaytsa
+
+# ---------------------------------------------------------------------------
+# Bundled Postgres sizing (only when postgresql.enabled=true).
+# ---------------------------------------------------------------------------
+postgres-pgvector:
+  persistence:
+    enabled: true
+    size: 8Gi
+    storageClass: ''
+
+# ---------------------------------------------------------------------------
+# Backend (yay-tsa-v2 subchart). DB wiring is driven by global.yaytsaDatabase,
+# so secretName/existingSecret are cleared here to fall through to it.
+# ---------------------------------------------------------------------------
+yay-tsa-v2:
+  backend:
+    enabled: true
+    image:
+      tag: latest
+    database:
+      existingSecret: ''
+      secretName: ''
+      name: yaytsa
+    adminBootstrap:
+      enabled: true
+      username: admin
+      # REQUIRED. No insecure default — empty => no admin is created (fail-closed).
+      password: ''
+      displayName: Administrator
+    config:
+      corsEnabled: true
+      corsOrigins: ''
+      ml:
+        enabled: false
+      llm:
+        enabled: false
+      karaoke:
+        enabled: false
+      metadata:
+        enabled: false
+      mpd:
+        enabled: false
+    media:
+      enabled: false
+    networkPolicy:
+      enabled: false
+  ingress:
+    enabled: false
+
+# ---------------------------------------------------------------------------
+# Frontend (yay-tsa subchart). nginx proxies /api to the in-release backend.
+# ---------------------------------------------------------------------------
+yay-tsa:
+  frontend:
+    image:
+      tag: latest
+  config:
+    serverUrl: /api
+    backendUrl: 'http://{{ .Release.Name }}-yay-tsa-v2-backend'
+  ingress:
+    enabled: false
+  networkPolicy:
+    enabled: false
+  featureExtractor:
+    enabled: false

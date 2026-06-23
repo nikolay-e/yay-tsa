@@ -21,6 +21,7 @@ jobs:
         chart:
           - yay-tsa
           - yay-tsa-v2
+          - yay-tsa-stack
     runs-on: ubuntu-latest
     # Serialize matrix legs on the shared gh-pages branch.
     concurrency:

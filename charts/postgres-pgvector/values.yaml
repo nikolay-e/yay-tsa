@@ -1,0 +1,41 @@
+fullnameOverride: ''
+
+image:
+  repository: pgvector/pgvector
+  tag: pg17
+  pullPolicy: IfNotPresent
+
+service:
+  port: 5432
+
+persistence:
+  enabled: true
+  size: 8Gi
+  storageClass: ''
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: '2'
+    memory: 1Gi
+
+# Postgres image runs as uid 999 (debian) by default; fsGroup lets it own the PVC.
+podSecurityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Shared DB identity. The umbrella sets these via global.yaytsaDatabase; the Secret
+# named here is rendered by the umbrella (single source of truth) and consumed below.
+global:
+  yaytsaDatabase:
+    secretName: yaytsa-db
+    name: yaytsa
+    username: yaytsa
+    password: ''

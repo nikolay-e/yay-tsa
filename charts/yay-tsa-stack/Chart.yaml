@@ -1,0 +1,33 @@
+apiVersion: v2
+name: yay-tsa-stack
+description: One-command Yay-Tsa install — PWA frontend + Kotlin backend + bundled Postgres/pgvector
+type: application
+
+version: 0.1.0
+appVersion: 'latest'
+
+keywords:
+  - jellyfin
+  - music
+  - server
+  - pwa
+  - umbrella
+
+maintainers:
+  - name: Nikolay Eremeev
+
+home: https://github.com/nikolay-e/yay-tsa
+sources:
+  - https://github.com/nikolay-e/yay-tsa
+
+dependencies:
+  - name: yay-tsa-v2
+    version: '*'
+    repository: 'file://../yay-tsa-v2'
+  - name: yay-tsa
+    version: '*'
+    repository: 'file://../yay-tsa'
+  - name: postgres-pgvector
+    version: '*'
+    repository: 'file://../postgres-pgvector'
+    condition: postgresql.enabled

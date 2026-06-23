@@ -54,6 +54,11 @@ spring:
     timeout-per-shutdown-phase: 30s
 
 yaytsa:
+  admin-bootstrap:
+    enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
+    username: ${ADMIN_BOOTSTRAP_USERNAME:admin}
+    password: ${ADMIN_BOOTSTRAP_PASSWORD:#{null}}
+    display-name: ${ADMIN_BOOTSTRAP_DISPLAY_NAME:Administrator}
   build:
     sha: ${GIT_SHA:unknown}
   library:

@@ -45,20 +45,60 @@ docker compose pull && docker compose up -d
 
 ## Install with Helm (Kubernetes)
 
+The `yay-tsa-stack` umbrella chart installs the whole system — PWA + backend + a
+bundled Postgres/pgvector — with one command on a fresh namespace. ML, LLM, karaoke,
+MPD, ingress and NetworkPolicy are all off by default.
+
 ```bash
 helm repo add yay-tsa https://nikolay-e.github.io/yay-tsa
 helm repo update
-helm install yay-tsa yay-tsa/yay-tsa \
+
+helm install yay-tsa yay-tsa/yay-tsa-stack \
   --namespace yay-tsa --create-namespace \
-  --set backend.enabled=true \
-  --set backend.database.secretName=my-postgres-secret \
-  --set backend.media.enabled=true \
-  --set backend.media.hostPath=/path/to/music \
-  --set ingress.enabled=true \
-  --set ingress.hosts[0].host=music.example.com
+  --set yay-tsa-v2.backend.adminBootstrap.password=CHANGE_ME
 ```
 
-See [charts/yay-tsa/values.yaml](charts/yay-tsa/values.yaml) for all configuration options.
+That's it — a strong DB password is generated and preserved across upgrades, and the
+first admin (`admin` / your password) is seeded on the empty database. Reach it with:
+
+```bash
+kubectl -n yay-tsa rollout status deploy/yay-tsa-yay-tsa-v2-backend
+kubectl -n yay-tsa port-forward svc/yay-tsa 8080:80   # then open http://localhost:8080
+```
+
+Point it at your music and expose it publicly:
+
+```bash
+helm upgrade yay-tsa yay-tsa/yay-tsa-stack -n yay-tsa \
+  --reuse-values \
+  --set yay-tsa-v2.backend.media.enabled=true \
+  --set yay-tsa-v2.backend.media.hostPath=/path/to/music \
+  --set yay-tsa.ingress.enabled=true \
+  --set yay-tsa.ingress.hosts[0].host=music.example.com \
+  --set yay-tsa-v2.ingress.enabled=true \
+  --set yay-tsa-v2.ingress.hosts[0].host=music.example.com
+```
+
+**Production / external database.** Disable the bundled Postgres and point at your own
+(must have the `vector`, `pg_trgm`, `citext`, `unaccent` extensions available — the app
+creates them on first boot if the DB user may, e.g. an RDS/CloudSQL master user):
+
+```bash
+helm install yay-tsa yay-tsa/yay-tsa-stack -n yay-tsa --create-namespace \
+  --set postgresql.enabled=false \
+  --set externalDatabase.host=db.internal \
+  --set externalDatabase.user=yaytsa \
+  --set externalDatabase.password=... \
+  --set externalDatabase.database=yaytsa \
+  --set yay-tsa-v2.backend.adminBootstrap.password=CHANGE_ME
+# (or --set externalDatabase.existingSecret=my-db-secret and
+#  --set global.yaytsaDatabase.secretName=my-db-secret, with the four POSTGRES_* keys)
+```
+
+See [charts/yay-tsa-stack/values.yaml](charts/yay-tsa-stack/values.yaml) for every option.
+The individual [`yay-tsa`](charts/yay-tsa/values.yaml) (PWA) and
+[`yay-tsa-v2`](charts/yay-tsa-v2/values.yaml) (backend) charts remain available for
+GitOps deployments that manage their own database.
 
 ## Stack
 

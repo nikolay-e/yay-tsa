@@ -1,0 +1,19 @@
+apiVersion: v2
+name: postgres-pgvector
+description: Bundled PostgreSQL 17 with pgvector for the yay-tsa-stack umbrella (single-instance, OOTB)
+type: application
+
+version: 0.1.0
+appVersion: 'pg17'
+
+keywords:
+  - postgresql
+  - pgvector
+  - database
+
+maintainers:
+  - name: Nikolay Eremeev
+
+home: https://github.com/nikolay-e/yay-tsa
+sources:
+  - https://github.com/nikolay-e/yay-tsa
