@@ -28,7 +28,9 @@ export class AdaptiveDjService extends BaseService {
   }
 
   async endSession(sessionId: string): Promise<void> {
-    await this.client.delete(`/v1/sessions/${sessionId}`);
+    // Best-effort: the caller clears the local session regardless. A transient failure
+    // (backend rollout) must not forward to error telemetry as a false client error.
+    await this.client.delete(`/v1/sessions/${sessionId}`, undefined, true);
   }
 
   async getQueue(sessionId: string): Promise<AdaptiveQueueTrack[]> {
@@ -43,20 +45,27 @@ export class AdaptiveDjService extends BaseService {
   }
 
   async sendSignal(sessionId: string, signal: PlaybackSignal): Promise<void> {
-    await this.client.post(`/v1/sessions/${sessionId}/signals`, {
-      signal_type: signal.signalType,
-      track_id: signal.trackId,
-      queue_entry_id: signal.queueEntryId,
-      context: signal.context
-        ? {
-            position_pct: signal.context.positionPct,
-            elapsed_sec: signal.context.elapsedSec,
-            autoplay: signal.context.autoplay,
-            selected_by_user: signal.context.selectedByUser,
-            time_of_day: signal.context.timeOfDay,
-          }
-        : undefined,
-    });
+    await this.client.post(
+      `/v1/sessions/${sessionId}/signals`,
+      {
+        signal_type: signal.signalType,
+        track_id: signal.trackId,
+        queue_entry_id: signal.queueEntryId,
+        context: signal.context
+          ? {
+              position_pct: signal.context.positionPct,
+              elapsed_sec: signal.context.elapsedSec,
+              autoplay: signal.context.autoplay,
+              selected_by_user: signal.context.selectedByUser,
+              time_of_day: signal.context.timeOfDay,
+            }
+          : undefined,
+        // Best-effort: playback signals are throttled, fire-and-forget adaptive hints. A
+        // transient send failure is ignored by the caller and must not forward to telemetry.
+      },
+      undefined,
+      true
+    );
   }
 
   async getActiveSession(): Promise<ListeningSession | null> {

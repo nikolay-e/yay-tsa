@@ -271,7 +271,10 @@ export class MediaServerClient {
         if (!response.ok) {
           if (this.shouldRetryRequest(response.status, isIdempotent, attempt, retries)) {
             const delay = this.calculateRetryDelay(attempt);
-            log.warn(`${method} ${endpoint} failed, retrying`, {
+            // A retry-in-progress is not a failure — only exhausted retries (the log.error
+            // below) are. Keep at debug so a transient that succeeds on retry never forwards
+            // to error telemetry as a false "client error".
+            log.debug(`${method} ${endpoint} failed, retrying`, {
               status: response.status,
               attempt: attempt + 1,
               maxRetries: retries,
@@ -311,7 +314,7 @@ export class MediaServerClient {
         // Retry network errors for idempotent requests
         if (this.shouldRetryRequest(normalizedError, isIdempotent, attempt, retries)) {
           const delay = this.calculateRetryDelay(attempt);
-          log.warn(`${method} ${endpoint} network error, retrying`, {
+          log.debug(`${method} ${endpoint} network error, retrying`, {
             error: normalizedError.message,
             attempt: attempt + 1,
             maxRetries: retries,
@@ -505,13 +508,17 @@ export class MediaServerClient {
   /**
    * DELETE request
    */
-  async delete<T>(endpoint: string, params?: Record<string, unknown>): Promise<T | undefined> {
+  async delete<T>(
+    endpoint: string,
+    params?: Record<string, unknown>,
+    bestEffort = false
+  ): Promise<T | undefined> {
     let url = endpoint;
     if (params) {
       const queryString = this.buildQueryString(params);
       if (queryString) url += `?${queryString}`;
     }
-    return this.request<T>(url, { method: 'DELETE' });
+    return this.request<T>(url, { method: 'DELETE' }, this.DEFAULT_RETRY_COUNT, bestEffort);
   }
 
   /**

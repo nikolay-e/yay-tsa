@@ -238,7 +238,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     try {
       await service.endSession(activeSession.id);
     } catch (error) {
-      log.player.warn('Failed to end DJ session gracefully', {
+      log.player.debug('Failed to end DJ session gracefully (best-effort, local session cleared)', {
         error: String(error),
       });
     }
@@ -307,7 +307,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     try {
       await service.sendSignal(activeSession.id, signal);
     } catch (error) {
-      log.player.warn('Failed to send playback signal', {
+      log.player.debug('Failed to send playback signal (best-effort, throttled)', {
         error: String(error),
       });
     }

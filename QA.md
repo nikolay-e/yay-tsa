@@ -268,9 +268,17 @@ kubectl logs -n yay-tsa deploy/yay-tsa-v2-production-backend --since=2m | grep Q
 
 Synthetic smoke rows carry `version=qa-smoke` → coerced to `unknown` (not a real `main-<sha>` tag), so they never pollute the per-release metric; filter them out of log review by `version!=qa-smoke` in the message.
 
-### Known class: device-heartbeat "Failed to fetch" (best-effort, fixed 2026-06-24)
+### Known class: backend-rollout transient burst (best-effort, fixed 2026-06-24)
 
-`POST /v1/me/devices/heartbeat` fires every 15s fire-and-forget (`useDeviceHeartbeat`, caller `.catch` ignored). The core HTTP client logged EVERY network failure at `log.error` → forwarded to telemetry, so transient blips (backend rollout windows, brief offline) surfaced as `category=other/type=other` (~5/24h, confirmed via `increase(yaytsa_client_errors_total[24h])`). Two-tier fix: (1) `MediaServerClient.post(..., bestEffort=true)` downgrades that one call's network/HTTP-error log to `debug` (sink does not forward debug) — the caller already ignores the failure; (2) `useDeviceHeartbeat` escalates to ONE real `log.player.warn` only after 3 consecutive failures (~45s sustained = a genuine "device offline" signal). **Pattern for any fire-and-forget background poll: `bestEffort` to silence per-call transients AND a consecutive-failure escalator to surface sustained outages — never blanket-`debug` (hides real outages), never blanket-`error` (spams telemetry on every transient).**
+**Reading method (don't repeat my mistake):** the `yaytsa_client_errors_total` Prometheus counter is PER-POD and resets on every backend restart, so a 48h `increase()` query after a recent rollout only shows the malformed-probe noise from the current pod's lifetime and reads as "almost no errors" — it MISSED a whole real-error cluster. **Loki is the authoritative 48h+ source** (QA.md says so; I ignored it first). loki-0 has no `wget`/`curl` and `loki:3100` refuses cross-pod from prometheus — so `kubectl -n monitoring port-forward svc/loki 13100:3100` and curl `/loki/api/v1/query_range?query={namespace="yay-tsa"}|="client_error"` from the host. Filter real errors with `select(.version|test("^main-"))` — `version=unknown` is smoke (`qa-smoke`) or public-endpoint probes (also the `type=malformed` / `dropped{reason=malformed}` rows), NOT app bugs.
+
+The real cluster (one user, version `main-26b4985`, one ~30s window) was ~10 entries that were all ONE root cause — the backend briefly unreachable during a rollout: 5× `GET …recommend/* | /Items | /me/devices network error, retrying`, `POST …/signals failed`, `DELETE /v1/sessions/… failed`, `POST …/heartbeat Failed to fetch`, `Failed to send playback signal`, `Failed to end DJ session gracefully`. The PWA forwarded every one to error/warn telemetry. Fixes:
+
+- **Per-retry "retrying" logs → `debug`** (`api.client.ts`): a retry in progress is not a failure; only EXHAUSTED retries log `error` (real). Kills the 5 `API:warn …retrying` whenever the retry then succeeds, without hiding a true all-retries-failed.
+- **Fire-and-forget calls → `bestEffort`** (heartbeat, DJ `sendSignal`, DJ `endSession`): `post/delete(..., bestEffort=true)` downgrades THAT call's network/HTTP-error log to `debug` (sink doesn't forward debug). The caller already ignores these.
+- **Sustained-failure escalators preserved**: `useDeviceHeartbeat` warns after 3 consecutive (~45s); DJ death still surfaces via `refreshQueue`'s `MAX_REFRESH_ERRORS` → `error`. So transient = silent, sustained = surfaced.
+
+**Pattern: a retry-in-progress is `debug`, not `warn`; a fire-and-forget background call uses `bestEffort` + a consecutive-failure escalator. Never blanket-`debug` (hides real outages), never blanket-`error`/`warn` (every backend rollout then spams telemetry).**
 
 ## Affinity worker: signal-time cursor migration double-counts a pre-populated projection
 
