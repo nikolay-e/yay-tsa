@@ -86,18 +86,18 @@ const EXTENSION_FRAME = /(chrome|moz|safari|safari-web)-extension:\/\//i;
 
 export function redactSecrets(input: string): string {
   let out = input
-    .replaceAll(/api_key=[^&\s"')<>]+/gi, 'api_key=[REDACTED]')
-    .replaceAll(/access_token=[^&\s"')<>]+/gi, 'access_token=[REDACTED]')
-    .replaceAll(/token=[^&\s"')<>]+/gi, 'token=[REDACTED]')
-    .replaceAll(/password=[^&\s"')<>]+/gi, 'password=[REDACTED]')
-    .replaceAll(/Bearer\s+[^\s"')<>]+/gi, 'Bearer [REDACTED]')
+    .replace(/api_key=[^&\s"')<>]+/gi, 'api_key=[REDACTED]')
+    .replace(/access_token=[^&\s"')<>]+/gi, 'access_token=[REDACTED]')
+    .replace(/token=[^&\s"')<>]+/gi, 'token=[REDACTED]')
+    .replace(/password=[^&\s"')<>]+/gi, 'password=[REDACTED]')
+    .replace(/Bearer\s+[^\s"')<>]+/gi, 'Bearer [REDACTED]')
     // Bare JWTs (header.payload.signature) anywhere in the text.
-    .replaceAll(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]')
     // Cookie / CSRF header-ish key:value pairs.
-    .replaceAll(/(cookie|csrf[-_]?token|x-csrf-token)\s*[:=]\s*[^\s;"']+/gi, '$1=[REDACTED]');
+    .replace(/(cookie|csrf[-_]?token|x-csrf-token)\s*[:=]\s*[^\s;"']+/gi, '$1=[REDACTED]');
   // Strip query strings and fragments from any URL — they routinely carry
   // reset/magic-link/signed-URL tokens. Keep scheme://host/path only.
-  out = out.replaceAll(/(https?:\/\/[^\s"'<>]+?)[?#][^\s"'<>]*/gi, '$1');
+  out = out.replace(/(https?:\/\/[^\s"'<>]+?)[?#][^\s"'<>]*/gi, '$1');
   return out;
 }
 
@@ -252,7 +252,9 @@ function newSessionId(): string {
   // Fallback for browsers without randomUUID: still use the CSPRNG (getRandomValues),
   // never Math.random — keeps the id collision-resistant and avoids the insecure-RNG flag.
   const buf = globalThis.crypto?.getRandomValues?.(new Uint32Array(2));
-  const rand = buf ? `${buf[0].toString(36)}${buf[1].toString(36)}` : Date.now().toString(36);
+  const rand = buf
+    ? `${(buf[0] ?? 0).toString(36)}${(buf[1] ?? 0).toString(36)}`
+    : Date.now().toString(36);
   return `sess-${Date.now().toString(36)}-${rand}`;
 }
 
