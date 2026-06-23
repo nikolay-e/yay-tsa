@@ -249,7 +249,11 @@ export function installClientTelemetry(options: ClientTelemetryOptions): ClientT
 function newSessionId(): string {
   const uuid = globalThis.crypto?.randomUUID?.();
   if (uuid) return uuid;
-  return `sess-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
+  // Fallback for browsers without randomUUID: still use the CSPRNG (getRandomValues),
+  // never Math.random — keeps the id collision-resistant and avoids the insecure-RNG flag.
+  const buf = globalThis.crypto?.getRandomValues?.(new Uint32Array(2));
+  const rand = buf ? `${buf[0].toString(36)}${buf[1].toString(36)}` : Date.now().toString(36);
+  return `sess-${Date.now().toString(36)}-${rand}`;
 }
 
 function errorName(error: unknown): string {
