@@ -40,17 +40,17 @@ class SchemaDriftTest : AbstractPersistenceTest() {
     }
 
     @Test
-    fun `playback_signals context is jsonb`() {
+    fun `playback_signals context is text`() {
         val columns = getColumnTypes("core_v2_adaptive", "playback_signals")
-        assertEquals("jsonb", columns["context"], "context should be JSONB")
+        assertEquals("text", columns["context"], "context should be TEXT (matches PlaybackSignalEntity)")
     }
 
     @Test
-    fun `llm_decisions jsonb columns are correct type`() {
+    fun `llm_decisions json columns are text`() {
         val columns = getColumnTypes("core_v2_adaptive", "llm_decisions")
-        assertEquals("jsonb", columns["intent"], "intent should be JSONB")
-        assertEquals("jsonb", columns["edits"], "edits should be JSONB")
-        assertEquals("jsonb", columns["validation_details"], "validation_details should be JSONB")
+        assertEquals("text", columns["intent"], "intent should be TEXT (matches LlmDecisionEntity)")
+        assertEquals("text", columns["edits"], "edits should be TEXT (matches LlmDecisionEntity)")
+        assertEquals("text", columns["validation_details"], "validation_details should be TEXT")
     }
 
     private fun getColumnTypes(

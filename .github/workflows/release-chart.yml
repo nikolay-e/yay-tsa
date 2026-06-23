@@ -17,6 +17,10 @@ jobs:
   release:
     strategy:
       fail-fast: false
+      # Run legs one at a time: they all push to gh-pages, and the job-level
+      # concurrency group allows only one running + one pending, so a third
+      # parallel leg would be cancelled.
+      max-parallel: 1
       matrix:
         chart:
           - yay-tsa
