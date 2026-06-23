@@ -33,6 +33,12 @@ echo "==> [1/6] Creating kind cluster '$CLUSTER'"
 kind create cluster --name "$CLUSTER" --wait 120s
 
 echo "==> [2/6] Building chart dependencies"
+# Build bottom-up: helm dependency build is NOT recursive, so the subcharts must vendor
+# their own yay-tsa-common BEFORE the umbrella packages them (else the umbrella tgz omits
+# the shared library and rendering fails on yay-tsa-common.* helpers).
+CHARTS_ROOT="$(cd "$CHART_DIR/.." && pwd)"
+helm dependency build "$CHARTS_ROOT/yay-tsa-v2" >/dev/null
+helm dependency build "$CHARTS_ROOT/yay-tsa" >/dev/null
 helm dependency build "$CHART_DIR" >/dev/null
 
 echo "==> [3/6] helm install (bundled DB, admin bootstrap, everything else off)"

@@ -81,6 +81,11 @@ jobs:
           # values keep `latest` only for local-clone convenience.
           if [ "${{ matrix.chart }}" = "yay-tsa-stack" ]; then
             sed -i "s/tag: latest/tag: ${{ steps.version.outputs.app_version }}/" charts/yay-tsa-stack/values.yaml
+            # helm dependency build is NOT recursive: the subcharts must vendor their own
+            # yay-tsa-common library before the umbrella packages them, or the published
+            # umbrella tgz omits it and rendering fails on yay-tsa-common.* helpers.
+            helm dependency build charts/yay-tsa-v2
+            helm dependency build charts/yay-tsa
           fi
           helm dependency build charts/${{ matrix.chart }}
           helm package charts/${{ matrix.chart }} -d .packaged
