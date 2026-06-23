@@ -66,7 +66,10 @@ backend:
       initialDelaySeconds: 10
       periodSeconds: 5
       timeoutSeconds: 5
-      failureThreshold: 30
+      # ~5 min budget (60*5s): a JVM cold start + Flyway across 9 schemas on a small/
+      # CPU-constrained node (the typical self-host target) can exceed 150s and otherwise
+      # looks like CrashLoopBackOff on first install.
+      failureThreshold: 60
     liveness:
       path: /manage/health/liveness
       port: 9090
@@ -184,6 +187,9 @@ backend:
 
   media:
     enabled: false
+    # Provide ONE source. existingClaim (a pre-created PVC) works on any/multi-node cluster
+    # and is preferred; hostPath is node-local (single-node only). existingClaim wins if set.
+    existingClaim: ''
     hostPath: ''
     mountPath: /media
     # Keep read-only by default. Set false to let the metadata enricher write

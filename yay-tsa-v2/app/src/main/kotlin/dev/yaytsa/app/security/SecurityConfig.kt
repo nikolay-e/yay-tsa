@@ -1,6 +1,7 @@
 package dev.yaytsa.app.security
 
 import jakarta.servlet.DispatcherType
+import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
@@ -10,6 +11,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableWebSecurity
@@ -19,6 +23,8 @@ class SecurityConfig(
     private val subsonicAuthFilter: dev.yaytsa.adapteropensubsonic.SubsonicAuthFilter,
     private val problemDetailSecurityHandler: ProblemDetailSecurityHandler,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Bean
     @Order(0)
     fun managementPortSecurityFilterChain(
@@ -38,23 +44,14 @@ class SecurityConfig(
 
     @Bean
     @Order(1)
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun securityFilterChain(
+        http: HttpSecurity,
+        environment: Environment,
+    ): SecurityFilterChain {
         http
             .csrf { it.disable() }
-            .cors { cors ->
-                cors.configurationSource {
-                    org.springframework.web.cors.CorsConfiguration().apply {
-                        allowedOriginPatterns =
-                            listOf(
-                                System.getenv("CORS_ORIGINS") ?: "http://localhost:*",
-                            )
-                        allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-                        allowedHeaders = listOf("*")
-                        allowCredentials = true
-                        maxAge = 3600
-                    }
-                }
-            }.sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .cors { cors -> cors.configurationSource(corsConfigurationSource(environment)) }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it
                     .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
@@ -85,5 +82,42 @@ class SecurityConfig(
             .addFilterBefore(jellyfinAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(subsonicAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
         return http.build()
+    }
+
+    private fun corsConfigurationSource(environment: Environment): CorsConfigurationSource {
+        val source = UrlBasedCorsConfigurationSource()
+        val corsEnabled = environment.getProperty("CORS_ENABLED")?.toBooleanStrictOrNull() ?: true
+        if (!corsEnabled) {
+            source.registerCorsConfiguration("/**", CorsConfiguration())
+            return source
+        }
+
+        val origins =
+            (environment.getProperty("CORS_ORIGINS") ?: "http://localhost:*")
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+        val configuration =
+            CorsConfiguration().apply {
+                allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                allowedHeaders = listOf("*")
+                maxAge = 3600
+            }
+
+        if (origins.any { it == "*" }) {
+            log.warn(
+                "CORS_ORIGINS contains a wildcard '*', which browsers forbid together with credentials; " +
+                    "downgrading to allowCredentials=false for the wildcard origin.",
+            )
+            configuration.allowedOriginPatterns = listOf("*")
+            configuration.allowCredentials = false
+        } else {
+            configuration.allowedOriginPatterns = origins
+            configuration.allowCredentials = true
+        }
+
+        source.registerCorsConfiguration("/**", configuration)
+        return source
     }
 }

@@ -171,9 +171,14 @@ spec:
             sizeLimit: {{ .Values.backend.coverCache.sizeLimit }}
         {{- if .Values.backend.media.enabled }}
         - name: media
+          {{- if .Values.backend.media.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.backend.media.existingClaim }}
+          {{- else }}
           hostPath:
             path: {{ .Values.backend.media.hostPath }}
             type: Directory
+          {{- end }}
         {{- end }}
         {{- if .Values.backend.stems.enabled }}
         - name: stems
