@@ -72,12 +72,20 @@ Point it at your music and expose it publicly:
 helm upgrade yay-tsa yay-tsa/yay-tsa-stack -n yay-tsa \
   --reuse-values \
   --set yay-tsa-v2.backend.media.enabled=true \
-  --set yay-tsa-v2.backend.media.hostPath=/path/to/music \
+  --set yay-tsa-v2.backend.media.existingClaim=my-music-pvc \
   --set yay-tsa.ingress.enabled=true \
   --set yay-tsa.ingress.hosts[0].host=music.example.com \
   --set yay-tsa-v2.ingress.enabled=true \
   --set yay-tsa-v2.ingress.hosts[0].host=music.example.com
 ```
+
+`media.existingClaim` (a pre-created PVC) works on any/multi-node cluster; on a single node
+you can use `media.hostPath=/path/to/music` instead. After mounting, trigger a scan:
+`POST /api/Admin/Library/Rescan` with your admin bearer token.
+
+**TLS:** the ingress examples set a host but no certificate. Terminate TLS at your ingress
+(e.g. cert-manager `cluster-issuer` annotation + a `tls:` block) before exposing publicly —
+login credentials and tokens travel in clear over plain HTTP.
 
 **Production / external database.** Disable the bundled Postgres and point at your own
 (must have the `vector`, `pg_trgm`, `citext`, `unaccent` extensions available — the app
@@ -115,8 +123,10 @@ packages/core/           # Framework-agnostic business logic
 packages/platform/       # Platform-specific audio adapters
 yay-tsa-v2/              # Kotlin hexagonal backend (8 bounded contexts)
 services/audio-ml/        # Audio ML sidecar: stem separation (Demucs) + feature extraction (Essentia)
+charts/yay-tsa-stack/    # Umbrella chart (PWA + backend + bundled Postgres) — the install entrypoint
 charts/yay-tsa/          # Helm chart (PWA + audio-separator)
 charts/yay-tsa-v2/       # Helm chart (backend)
+charts/postgres-pgvector/ # Bundled Postgres/pgvector subchart (used by the umbrella)
 docker/                  # Docker Compose for self-hosting
 ```
 

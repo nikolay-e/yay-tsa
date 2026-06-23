@@ -17,6 +17,10 @@ jobs:
   release:
     strategy:
       fail-fast: false
+      # Run legs one at a time: they all push to gh-pages, and the job-level
+      # concurrency group allows only one running + one pending, so a third
+      # parallel leg would be cancelled.
+      max-parallel: 1
       matrix:
         chart:
           - yay-tsa
@@ -72,6 +76,12 @@ jobs:
         run: |
           sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" charts/${{ matrix.chart }}/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: '${{ steps.version.outputs.app_version }}'/" charts/${{ matrix.chart }}/Chart.yaml
+          # The umbrella pins frontend+backend to a concrete, reproducible tag in the
+          # PUBLISHED artifact (both images build from the same monorepo SHA). The committed
+          # values keep `latest` only for local-clone convenience.
+          if [ "${{ matrix.chart }}" = "yay-tsa-stack" ]; then
+            sed -i "s/tag: latest/tag: ${{ steps.version.outputs.app_version }}/" charts/yay-tsa-stack/values.yaml
+          fi
           helm dependency build charts/${{ matrix.chart }}
           helm package charts/${{ matrix.chart }} -d .packaged
 

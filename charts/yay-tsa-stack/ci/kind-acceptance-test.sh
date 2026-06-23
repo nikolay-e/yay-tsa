@@ -64,7 +64,7 @@ if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
 fi
 echo "    login OK (token ${TOKEN:0:8}...)"
 
-echo "==> [6/6] Browsing the empty library"
+echo "==> [6/7] Browsing the empty library"
 ITEMS=$(curl -fsS "http://localhost:18080/Items?Recursive=true" -H "Authorization: Bearer ${TOKEN}")
 COUNT=$(echo "$ITEMS" | jq -r '.TotalRecordCount')
 if [[ "$COUNT" != "0" ]]; then
@@ -72,5 +72,26 @@ if [[ "$COUNT" != "0" ]]; then
   exit 1
 fi
 
+# The backend should not have flapped during a normal startup.
+RESTARTS=$(kubectl -n "$NS" get pods -l app.kubernetes.io/component=backend \
+  -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}')
+echo "    backend restartCount=${RESTARTS:-?}"
+
+echo "==> [7/7] uninstall -> reinstall must NOT lock out the retained DB volume"
+# Regression guard for the password<->orphaned-PVC footgun: the generated DB password Secret
+# is resource-policy:keep, so a reinstall reuses it and Postgres accepts the existing data dir.
+kill "$PF_PID" 2>/dev/null || true
+PF_PID=""
+helm uninstall "$RELEASE" -n "$NS" >/dev/null
+helm install "$RELEASE" "$CHART_DIR" \
+  --namespace "$NS" \
+  --set "yay-tsa-v2.backend.adminBootstrap.username=${ADMIN_USER}" \
+  --set "yay-tsa-v2.backend.adminBootstrap.password=${ADMIN_PW}" \
+  ${TAG_ARGS[@]+"${TAG_ARGS[@]}"} >/dev/null
+if ! kubectl -n "$NS" rollout status "deployment/${RELEASE}-yay-tsa-v2-backend" --timeout=420s; then
+  echo "FAIL: backend did not come back up after uninstall->reinstall (likely DB auth lockout)"
+  exit 1
+fi
+
 echo
-echo "PASS: fresh kind cluster -> helm install -> admin login -> empty library (TotalRecordCount=0)"
+echo "PASS: fresh install -> login -> empty library -> uninstall/reinstall survives (DB password persisted)"

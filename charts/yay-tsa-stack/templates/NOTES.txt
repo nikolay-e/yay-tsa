@@ -23,4 +23,22 @@ Reach the PWA (no ingress by default):
     kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-yay-tsa 8080:80
     open http://localhost:8080   # log in as "{{ index (index .Values "yay-tsa-v2") "backend" "adminBootstrap" "username" }}"
 
+The library starts EMPTY. To add music, mount it and trigger a scan:
+    # 1. Make your library available to the backend (preferred: a pre-created PVC):
+    #    --set yay-tsa-v2.backend.media.enabled=true \
+    #    --set yay-tsa-v2.backend.media.existingClaim=<your-pvc>   (or .hostPath on single-node)
+    # 2. Trigger a rescan (admin token from login):
+    #    curl -X POST http://localhost:8080/api/Admin/Library/Rescan -H "Authorization: Bearer <token>"
+
 Expose publicly by setting yay-tsa.ingress.* and yay-tsa-v2.ingress.* (and a real host/TLS).
+{{- if .Values.postgresql.enabled }}
+{{- $sc := (index .Values "postgres-pgvector").persistence.storageClass }}
+{{- if not $sc }}
+
+NOTE: the bundled Postgres PVC uses the cluster's DEFAULT StorageClass. If your cluster has
+none, the PVC stays Pending — set: --set postgres-pgvector.persistence.storageClass=<class>
+
+The generated DB password Secret is retained on `helm uninstall` (so a reinstall keeps access
+to the existing data volume). To wipe completely: delete the PVC AND the "{{ include "yay-tsa-stack.dbSecretName" . }}" Secret.
+{{- end }}
+{{- end }}

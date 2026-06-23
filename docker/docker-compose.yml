@@ -1,8 +1,8 @@
 # Yay-Tsa - Self-Hosted Music Streaming
 #
 # Quick start:
-#   1. Copy example.env to .env and configure MEDIA_PATH
-#   2. docker compose up -d
+#   1. Copy example.env to .env and set ADMIN_PASSWORD + DB_PASSWORD
+#   2. docker compose up -d   (set MEDIA_PATH in .env to scan your library; defaults to ./music)
 #
 # Optional services:
 #   docker compose --profile karaoke up -d   # Enable vocal separation (GPU recommended)
@@ -17,7 +17,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-yaytsa}
       POSTGRES_USER: ${DB_USER:-yaytsa}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +37,7 @@ services:
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-yaytsa}
       DB_USERNAME: ${DB_USER:-yaytsa}
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       CORS_ENABLED: true
@@ -55,7 +55,7 @@ services:
       ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
     volumes:
-      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media:ro
+      - ${MEDIA_PATH:-./music}:/media:ro
       - karaoke_stems:/app/stems
     depends_on:
       database:
@@ -95,7 +95,7 @@ services:
       OUTPUT_FORMAT: wav
       DEVICE: ${KARAOKE_DEVICE:-cpu}
     volumes:
-      - ${MEDIA_PATH:?Set MEDIA_PATH in .env}:/media
+      - ${MEDIA_PATH:-./music}:/media
       - karaoke_stems:/app/stems
     healthcheck:
       test:
