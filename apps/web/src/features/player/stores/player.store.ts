@@ -140,6 +140,7 @@ const PROGRESS_REPORT_INTERVAL_MS = 10000;
 // durability layer; this tighter network heartbeat keeps cross-device resume fresh.
 const AUDIOBOOK_PROGRESS_REPORT_INTERVAL_MS = 2000;
 const LOCAL_RESUME_WRITE_INTERVAL_MS = 1000;
+const RADIO_LOW_WATERMARK = 5;
 const CROSSFADE_MS = 150;
 const APPROACHING_END_MS = CROSSFADE_MS + 350;
 const ENGINE_TIMEOUT_MS = 10000;
@@ -363,6 +364,20 @@ export const usePlayerStore = create<PlayerStore>()(
       const { queue } = get();
       set({ queueItems: queue.getAllItems(), queueIndex: queue.getCurrentIndex() });
       updateMediaSessionNav();
+      maybeExtendRadioQueue();
+    }
+
+    // Endless radio: the backend has no playback position, so the client asks for more tracks as it
+    // nears the end of its local queue. refreshQueue is debounced/in-flight-guarded in the session
+    // store, so firing it on every queue sync is safe; we only import + call it once the unplayed
+    // tail is actually short, keeping the hot path free of dynamic-import churn.
+    function maybeExtendRadioQueue(): void {
+      const { queueItems, queueIndex } = get();
+      if (queueItems.length - (queueIndex + 1) > RADIO_LOW_WATERMARK) return;
+      void import('./session-store').then(({ useSessionStore }) => {
+        const session = useSessionStore.getState();
+        if (session.activeSession?.isRadioMode) void session.refreshQueue();
+      });
     }
 
     // Keep the lock-screen next/previous controls in sync with the queue. nexttrack is removed when

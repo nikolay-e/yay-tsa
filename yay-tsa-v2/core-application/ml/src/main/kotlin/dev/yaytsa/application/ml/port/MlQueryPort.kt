@@ -51,4 +51,28 @@ interface MlQueryPort {
      * Empty until the taste-clusters batch job has run for the user.
      */
     fun getTasteClusterRepresentatives(userId: UserId): List<TrackId>
+
+    /**
+     * A wide, similarity-ordered candidate pool for building a varied radio station from a single
+     * seed (MERT, falling back to CLAP, then Discogs). Unlike [findSimilarTracks] this raises the
+     * HNSW `ef_search` runtime so a large [poolSize] is actually recalled instead of being silently
+     * truncated at the pgvector default; callers then diversify the pool (per-album / per-artist
+     * caps) to break the same-album nearest-neighbour clustering. Ordered most-similar first; the
+     * seed is excluded. Empty when the seed has no embedding in any space.
+     */
+    fun findRadioPool(
+        seedTrackId: TrackId,
+        poolSize: Int,
+    ): List<TrackId>
+
+    /** Fraction of the library that carries each embedding type — for operator-visible coverage gauges. */
+    fun embeddingCoverage(): EmbeddingCoverage
 }
+
+data class EmbeddingCoverage(
+    val total: Long,
+    val mert: Long,
+    val clap: Long,
+    val discogs: Long,
+    val musicnn: Long,
+)

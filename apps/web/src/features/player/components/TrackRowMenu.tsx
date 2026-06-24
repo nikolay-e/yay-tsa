@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, ListStart, ListPlus } from 'lucide-react';
+import { MoreVertical, ListStart, ListPlus, Radio } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
+import { useIsOnline } from '@/features/offline/stores/offline.store';
 import { usePlayerStore } from '../stores/player.store';
+import { useSessionStore } from '../stores/session-store';
 
-const ESTIMATED_MENU_HEIGHT_PX = 110;
+const ESTIMATED_MENU_HEIGHT_PX = 150;
 
 type MenuPosition = { top?: number; bottom?: number; right: number };
 
@@ -18,6 +20,7 @@ export function TrackRowMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isOpen = menuPosition !== null;
+  const isOnline = useIsOnline();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,6 +79,11 @@ export function TrackRowMenu({
     }
   };
 
+  const handleStartRadio = () => {
+    setMenuPosition(null);
+    void useSessionStore.getState().startSession(track.Id);
+  };
+
   return (
     <div className={cn('shrink-0', className)}>
       <button
@@ -120,6 +128,17 @@ export function TrackRowMenu({
             >
               <ListPlus className="h-4 w-4" />
               Add to queue
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="track-menu-start-radio"
+              onClick={handleStartRadio}
+              disabled={!isOnline}
+              className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Radio className="h-4 w-4" />
+              Start radio
             </button>
           </div>,
           document.body

@@ -65,6 +65,27 @@ function buildSessionState(): SessionState {
   };
 }
 
+function radioStartedMessage(degraded?: string | null): string {
+  switch (degraded) {
+    case 'no_embedding':
+      return "Radio started — this track isn't analyzed yet, playing best-effort";
+    case 'sparse_neighbourhood':
+      return 'Radio started — limited selection for this track';
+    default:
+      return 'Radio started';
+  }
+}
+
+async function restoreQueueSnapshot(snapshot: { items: AudioItem[]; index: number } | null) {
+  const player = usePlayerStore.getState();
+  await useSessionStore.getState().endSession();
+  if (snapshot && snapshot.items.length > 0) {
+    await player.playTracks(snapshot.items, Math.max(0, snapshot.index));
+  } else {
+    player.stop();
+  }
+}
+
 function saveSession(sessionId: string | null) {
   if (sessionId) {
     localStorage.setItem(DJ_SESSION_KEY, sessionId);
@@ -150,6 +171,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     activeStartController = controller;
     const { signal } = controller;
 
+    // Snapshot the current queue BEFORE radio replaces it, so the success toast can offer Undo.
+    // Starting radio is a destructive queue replace; an inline Undo keeps the one-tap feel while
+    // making it reversible (the snapshot restores what playTracks would otherwise wipe).
+    const playerBefore = usePlayerStore.getState();
+    const queueSnapshot = seedTrackId
+      ? { items: [...playerBefore.queueItems], index: playerBefore.queueIndex }
+      : null;
+
     const { activeSession } = get();
     if (activeSession) {
       await service.endSession(activeSession.id).catch(() => {});
@@ -168,14 +197,23 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       if (signal.aborted) return;
       set({ activeSession: session, isStarting: false });
       saveSession(session.id);
+
+      if (seedTrackId) {
+        toast.add('success', radioStartedMessage(session.degraded), 8000, {
+          label: 'Undo',
+          onClick: () => {
+            void restoreQueueSnapshot(queueSnapshot);
+          },
+        });
+      }
     } catch (error) {
       if (signal.aborted) return;
-      log.player.error('Failed to start DJ session', error);
+      log.player.error('Failed to start radio session', error);
       set({
         isStarting: false,
         error: error instanceof Error ? error : new Error(String(error)),
       });
-      toast.add('error', 'Failed to start DJ');
+      toast.add('error', 'Could not start radio');
     } finally {
       if (activeStartController === controller) activeStartController = null;
     }
@@ -245,7 +283,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
     consecutiveRefreshErrors = 0;
     saveSession(null);
     set({ activeSession: null, isRefreshing: false, isStarting: false, error: null });
-    toast.add('info', 'DJ off, queue kept');
+    toast.add('info', 'Radio off, queue kept');
   },
 
   reset: () => {

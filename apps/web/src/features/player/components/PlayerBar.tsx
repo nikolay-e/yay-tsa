@@ -25,6 +25,7 @@ import { PLAYER_TEST_IDS } from '@/shared/testing/test-ids';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { MarqueeText } from '@/shared/ui/MarqueeText';
+import { useIsOnline } from '@/features/offline/stores/offline.store';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -42,7 +43,7 @@ import {
   useSleepTimer,
   UNSUPPORTED_FORMAT_MESSAGE,
 } from '../stores/player.store';
-import { useActiveSession, useSessionActions } from '../stores/session-store';
+import { useActiveSession, useSessionActions, useIsSessionStarting } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { useGroupSyncStore } from '../stores/group-sync-store';
@@ -146,7 +147,9 @@ export function PlayerBar() {
   const groupMode = useGroupSyncStore(s => s.mode);
   const [sleepMinutesLeft, setSleepMinutesLeft] = useState(0);
   const activeSession = useActiveSession();
-  const { sendSignal } = useSessionActions();
+  const { sendSignal, startSession } = useSessionActions();
+  const isSessionStarting = useIsSessionStarting();
+  const isOnline = useIsOnline();
   const currentTrack = useCurrentTrack();
   const isPlaying = useIsPlaying();
   const volume = useVolume();
@@ -557,6 +560,25 @@ export function PlayerBar() {
 
           <button
             type="button"
+            data-testid={PLAYER_TEST_IDS.RADIO_BUTTON}
+            onClick={() => {
+              if (currentTrack) void startSession(currentTrack.Id);
+            }}
+            disabled={isSessionStarting || !isOnline}
+            className={cn(
+              'focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+              activeSession?.isRadioMode
+                ? 'text-accent'
+                : 'text-text-secondary hover:text-text-primary'
+            )}
+            aria-label="Start radio from this song"
+            title={isOnline ? 'Start radio from this song' : 'Radio needs a connection'}
+          >
+            <Radio className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
             data-testid={PLAYER_TEST_IDS.QUEUE_BUTTON}
             onClick={() => setShowQueue(true)}
             className="text-text-secondary hover:text-text-primary focus-visible:ring-accent rounded-full p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
@@ -699,6 +721,11 @@ export function PlayerBar() {
           onSeek={handleSeek}
           onThumbsUp={handleThumbsUp}
           onThumbsDown={handleThumbsDown}
+          isRadioMode={!!activeSession?.isRadioMode}
+          canStartRadio={isOnline && !isSessionStarting}
+          onStartRadio={() => {
+            if (currentTrack) void startSession(currentTrack.Id);
+          }}
         />
       )}
     </div>

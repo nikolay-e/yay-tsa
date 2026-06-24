@@ -20,6 +20,7 @@ import {
   ListMusic,
   ThumbsUp,
   ThumbsDown,
+  Radio,
 } from 'lucide-react';
 import { type AudioItem, type RepeatMode, getIsFavorite } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
@@ -62,6 +63,9 @@ type MobileFullPlayerProps = Readonly<{
   onSeek: (seconds: number) => void;
   onThumbsUp: () => void;
   onThumbsDown: () => void;
+  isRadioMode: boolean;
+  canStartRadio: boolean;
+  onStartRadio: () => void;
 }>;
 
 type SecondaryPillControlsProps = Readonly<{
@@ -73,10 +77,13 @@ type SecondaryPillControlsProps = Readonly<{
   sleepMinutesLeft: number;
   isAudiobook: boolean;
   playbackRate: number;
+  isRadioMode: boolean;
+  canStartRadio: boolean;
   onCycleSpeed: () => void;
   onToggleKaraoke: () => void;
   onToggleLyrics: () => void;
   onOpenSleepTimer: () => void;
+  onStartRadio: () => void;
 }>;
 
 function SecondaryPillControls({
@@ -88,16 +95,35 @@ function SecondaryPillControls({
   sleepMinutesLeft,
   isAudiobook,
   playbackRate,
+  isRadioMode,
+  canStartRadio,
   onCycleSpeed,
   onToggleKaraoke,
   onToggleLyrics,
   onOpenSleepTimer,
+  onStartRadio,
 }: SecondaryPillControlsProps) {
   return (
     <div
       className="flex justify-center gap-3 px-8 pt-4"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
     >
+      <button
+        type="button"
+        data-testid="mobile-radio-button"
+        onClick={onStartRadio}
+        disabled={!canStartRadio}
+        className={cn(
+          'focus-visible:ring-accent flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+          isRadioMode
+            ? 'bg-accent/20 text-accent'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+        )}
+        aria-label="Start radio from this song"
+      >
+        <Radio className="h-4 w-4" />
+      </button>
+
       <button
         type="button"
         onClick={onToggleKaraoke}
@@ -226,6 +252,9 @@ export function MobileFullPlayer({
   onSeek,
   onThumbsUp,
   onThumbsDown,
+  isRadioMode,
+  canStartRadio,
+  onStartRadio,
 }: MobileFullPlayerProps) {
   const artistName = track.Artists?.[0] ?? 'Unknown Artist';
   const artistId = track.ArtistItems?.[0]?.Id;
@@ -484,10 +513,13 @@ export function MobileFullPlayer({
           sleepMinutesLeft={sleepMinutesLeft}
           isAudiobook={isAudiobook}
           playbackRate={playbackRate}
+          isRadioMode={isRadioMode}
+          canStartRadio={canStartRadio}
           onCycleSpeed={() => setPlaybackRate(nextAudiobookSpeed(playbackRate), 'book')}
           onToggleKaraoke={onToggleKaraoke}
           onToggleLyrics={() => setShowLyrics(v => !v)}
           onOpenSleepTimer={onOpenSleepTimer}
+          onStartRadio={onStartRadio}
         />
       </div>
     </div>,

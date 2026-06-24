@@ -10,6 +10,7 @@ export const PLAYER_TEST_IDS = {
   CURRENT_TRACK_TITLE: 'current-track-title',
   CURRENT_TRACK_ARTIST: 'current-track-artist',
   QUEUE_BUTTON: 'queue-button',
+  RADIO_BUTTON: 'radio-button',
   SLEEP_TIMER_BUTTON: 'sleep-timer-button',
 } as const;
 
@@ -26,11 +27,6 @@ export const LIBRARY_TEST_IDS = {
   ARTIST_CARD: 'artist-card',
   ARTIST_NAME: 'artist-name',
   ARTIST_DETAIL_NAME: 'artist-detail-name',
-} as const;
-
-export const RADIO_TEST_IDS = {
-  SECTION: 'radio-section',
-  SEED_CARD: 'radio-seed-card',
 } as const;
 
 export const LYRICS_TEST_IDS = {

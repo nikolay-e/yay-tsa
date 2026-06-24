@@ -55,6 +55,7 @@ class JellyfinAdaptiveController(
     private val mlQuery: MlQueryPort,
     private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
     private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
+    private val radioStationService: RadioStationService,
     private val clock: Clock,
     private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
     private val failureTranslator: HttpFailureTranslator,
@@ -94,15 +95,26 @@ class JellyfinAdaptiveController(
             )
         val ctx = ctxFactory.create(uid, AggregateVersion.INITIAL)
         return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
-            is CommandResult.Success ->
+            is CommandResult.Success -> {
+                // isRadioMode is a derived property (seed present), not a stored aggregate field —
+                // persisting it would create a second source of one truth (manifesto §6). `degraded`
+                // is an honest, additive hint so the client never silently presents a best-effort
+                // shuffle (cold/obscure seed) as if it were real similarity radio.
+                val seed = request.seed_track_id?.let { EntityId(it) }
+                val degraded = seed?.let { radioStationService.classifyDegraded(uid, it) }
+                if (seed != null && degraded == RadioStationService.DEGRADED_NO_EMBEDDING) {
+                    logger.info("{\"src\":\"radio\",\"event\":\"cold_seed\",\"trackId\":\"${seed.value}\",\"reason\":\"no_embedding\"}")
+                }
                 ResponseEntity.ok(
                     mapOf(
                         "id" to sessionId.value,
                         "userId" to uid.value,
                         "startedAt" to clock.now().toString(),
-                        "isRadioMode" to false,
+                        "isRadioMode" to (seed != null),
+                        "degraded" to degraded,
                     ),
                 )
+            }
             is CommandResult.Failed -> failureTranslator.translate(result.failure)
         }
     }
@@ -174,62 +186,69 @@ class JellyfinAdaptiveController(
         principal: Principal,
     ): ResponseEntity<Void> {
         sessionAccessFailure<Void>(sessionId, principal)?.let { return it }
-        // Empty-queue bootstrap: when a Radio seed launches a session, the LLM scheduler
-        // doesn't run for another ~30s. Fill the queue deterministically NOW with
-        // (seed + recommended tracks) so the user gets immediate playback. The LLM
-        // takes over on its next cycle.
         val sid = ListeningSessionId(sessionId)
         val aggregate = adaptiveSessionRepo.find(sid) ?: return ResponseEntity.notFound().build()
         val entries = adaptiveQuery.getQueueEntries(sid)
-        if (entries.isNotEmpty()) return ResponseEntity.noContent().build()
-
         val uid = UserId(principal.name)
         val seedTrackId = aggregate.seedTrackId
-        val similarTracks =
-            seedTrackId
-                ?.let { mlQuery.findSimilarTracks(TrackId(it.value), REFRESH_QUEUE_BOOTSTRAP_SIZE * 2) }
-                .orEmpty()
-                .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
-                .let { tracks -> musicSurfaceFilter.filter(tracks, uid) }
-                .take(REFRESH_QUEUE_BOOTSTRAP_SIZE)
-        val orderedTrackIds = mutableListOf<String>()
-        val reasonByTrack = mutableMapOf<String, String>()
-        seedTrackId?.value?.let {
-            orderedTrackIds += it
-            reasonByTrack[it] = "seed-track"
-        }
-        similarTracks.forEach { track ->
-            if (track.id.value !in orderedTrackIds) {
-                orderedTrackIds += track.id.value
-                reasonByTrack[track.id.value] = "bootstrap-similarity"
-            }
-        }
-        if (orderedTrackIds.size < REFRESH_QUEUE_BOOTSTRAP_SIZE + 1) {
-            val recommended = buildRecommendedTracks(uid, limit = REFRESH_QUEUE_BOOTSTRAP_SIZE)
-            for (rec in recommended) {
-                val rid = rec["trackId"] as? String ?: continue
-                if (rid !in orderedTrackIds) {
-                    orderedTrackIds += rid
-                    reasonByTrack[rid] = "bootstrap-affinity"
-                }
-            }
-        }
-        if (orderedTrackIds.isEmpty()) return ResponseEntity.noContent().build()
 
+        // Endless radio is client-driven: the backend has no playback position (played_at is never
+        // written), so the playing client calls this near the end of its local queue and we APPEND a
+        // fresh, diversified tail rather than no-op'ing on a non-empty queue (the old behaviour, which
+        // made radio run dry after one bootstrap whenever the LLM was off — the production default).
+        // Non-radio sessions keep the old no-op so only seeded radio auto-extends.
+        if (entries.isNotEmpty()) {
+            if (seedTrackId == null || entries.size >= MAX_RADIO_QUEUE) return ResponseEntity.noContent().build()
+            val station =
+                radioStationService.build(
+                    userId = uid,
+                    seedTrackId = seedTrackId,
+                    excludeTrackIds = entries.map { it.trackId.value }.toSet(),
+                    targetSize = RADIO_EXTEND_BATCH,
+                )
+            if (station.tracks.isEmpty()) return ResponseEntity.noContent().build()
+            val extendCmd =
+                RewriteQueueTail(
+                    sessionId = sid,
+                    baseQueueVersion = aggregate.queueVersion,
+                    keepFromPosition = entries.size,
+                    newTail = station.tracks.toQueueEntries("ml-extend"),
+                )
+            val ctx = ctxFactory.create(uid, aggregate.version)
+            return when (val result = adaptiveUseCases.execute(extendCmd, ctx)) {
+                is CommandResult.Success -> ResponseEntity.noContent().build()
+                is CommandResult.Failed -> failureTranslator.empty(result.failure)
+            }
+        }
+
+        // Empty-queue bootstrap: fill the station deterministically NOW (LLM, if ever enabled, takes
+        // over on its next cycle). The seed itself leads, then a varied, de-album-locked tail.
+        if (seedTrackId == null) return ResponseEntity.noContent().build()
+        val station =
+            radioStationService.build(
+                userId = uid,
+                seedTrackId = seedTrackId,
+                excludeTrackIds = emptySet(),
+                targetSize = RADIO_STATION_SIZE,
+            )
+        val newTail =
+            buildList {
+                add(
+                    NewQueueEntry(
+                        id = AdaptiveQueueEntryId(UUID.randomUUID().toString()),
+                        trackId = TrackId(seedTrackId.value),
+                        addedReason = "seed-track",
+                        intentLabel = "radio",
+                    ),
+                )
+                addAll(station.tracks.filter { it.trackId != seedTrackId.value }.toQueueEntries("radio"))
+            }
         val cmd =
             RewriteQueueTail(
                 sessionId = sid,
                 baseQueueVersion = aggregate.queueVersion,
                 keepFromPosition = 0,
-                newTail =
-                    orderedTrackIds.map { trackId ->
-                        NewQueueEntry(
-                            id = AdaptiveQueueEntryId(UUID.randomUUID().toString()),
-                            trackId = TrackId(trackId),
-                            addedReason = reasonByTrack[trackId] ?: "bootstrap-affinity",
-                            intentLabel = "bootstrap",
-                        )
-                    },
+                newTail = newTail,
             )
         val ctx = ctxFactory.create(uid, aggregate.version)
         return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
@@ -237,6 +256,16 @@ class JellyfinAdaptiveController(
             is CommandResult.Failed -> failureTranslator.empty(result.failure)
         }
     }
+
+    private fun List<RadioStationService.StationTrack>.toQueueEntries(intentLabel: String): List<NewQueueEntry> =
+        map {
+            NewQueueEntry(
+                id = AdaptiveQueueEntryId(UUID.randomUUID().toString()),
+                trackId = TrackId(it.trackId),
+                addedReason = it.reason,
+                intentLabel = intentLabel,
+            )
+        }
 
     @PostMapping("/sessions/{sessionId}/signals")
     fun recordSignal(
@@ -420,11 +449,6 @@ class JellyfinAdaptiveController(
         // no track carries a CLAP embedding yet — better UX than an empty result.
         return musicSurfaceFilter.filter(libraryQueries.searchText(query, limit, 0).tracks, userId).take(limit)
     }
-
-    private fun buildRecommendedTracks(
-        userId: UserId,
-        limit: Int,
-    ): List<Map<String, Any?>> = pickRecommendedTracks(userId, limit).map { trackToSeedMap(it) }
 
     /**
      * Shuffled sample of top user-track affinities (so the Daily Mix actually changes between
@@ -652,7 +676,17 @@ class JellyfinAdaptiveController(
     }
 
     companion object {
-        private const val REFRESH_QUEUE_BOOTSTRAP_SIZE = 10
+        private val logger = org.slf4j.LoggerFactory.getLogger(JellyfinAdaptiveController::class.java)
+
+        // Initial radio station length on bootstrap (seed + ~40 varied tracks).
+        private const val RADIO_STATION_SIZE = 40
+
+        // Tracks appended on each client-driven near-end extension.
+        private const val RADIO_EXTEND_BATCH = 20
+
+        // Safety cap so a very long radio session's backend queue doesn't grow without bound
+        // (the client keeps only a bounded local window; this just stops server-side accumulation).
+        private const val MAX_RADIO_QUEUE = 300
 
         // Larger pool than [limit] so .shuffled() gives the user a fresh slice on each refresh
         // instead of the deterministic top-N by affinity_score.

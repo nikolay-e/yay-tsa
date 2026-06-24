@@ -10,6 +10,8 @@ export interface ListeningSession {
   sessionSummary?: string;
   isRadioMode: boolean;
   seedTrackId?: string;
+  /** Honest degradation hint for radio: 'no_embedding' (seed unanalyzed) | 'sparse_neighbourhood' (few real neighbours) | null/undefined for normal radio. */
+  degraded?: string | null;
 }
 
 export interface RadioSeed {

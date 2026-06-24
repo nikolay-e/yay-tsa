@@ -82,4 +82,16 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
         @Param("vec") vector: String,
         @Param("lim") limit: Int,
     ): List<UUID>
+
+    @Query(value = "SELECT count(*) FROM core_v2_ml.track_features WHERE embedding_mert IS NOT NULL", nativeQuery = true)
+    fun countWithMert(): Long
+
+    @Query(value = "SELECT count(*) FROM core_v2_ml.track_features WHERE embedding_clap IS NOT NULL", nativeQuery = true)
+    fun countWithClap(): Long
+
+    @Query(value = "SELECT count(*) FROM core_v2_ml.track_features WHERE embedding_discogs IS NOT NULL", nativeQuery = true)
+    fun countWithDiscogs(): Long
+
+    @Query(value = "SELECT count(*) FROM core_v2_ml.track_features WHERE embedding_musicnn IS NOT NULL", nativeQuery = true)
+    fun countWithMusicnn(): Long
 }
