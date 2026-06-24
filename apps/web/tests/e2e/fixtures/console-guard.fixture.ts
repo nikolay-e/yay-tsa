@@ -14,6 +14,11 @@ const DEFAULT_CONSOLE_ALLOW: RegExp[] = [
   // Browser-extension / benign-quirk noise that is never the app's bug.
   /ResizeObserver loop/i,
   /(chrome|moz|safari)-extension:\/\//i,
+  // Chromium logs every 4xx/5xx response to the console at error level. The
+  // statuses in ALWAYS_ALLOWED_STATUSES are normal flow (auth probe / missing-art
+  // fallback), so allow the browser's console message about them too — keeps the
+  // console check consistent with the response check.
+  /Failed to load resource: the server responded with a status of (401|404)\b/,
 ];
 
 type ConsoleGuardOptions = {

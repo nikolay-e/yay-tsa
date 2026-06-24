@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './fixtures/console-guard.fixture';
 import { test as playbackTest } from './fixtures/playback.fixture';
 
 // Live-backend Audiobooks acceptance suite (chromium / mobile / webkit projects). Unlike the

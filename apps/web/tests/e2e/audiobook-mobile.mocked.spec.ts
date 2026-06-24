@@ -1,4 +1,5 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { test, expect } from './fixtures/console-guard.fixture';
 import { installBaseMock, login, silentWav } from './helpers/media-fixtures';
 
 // Backend-free mobile audiobook-controls suite (chromium-mocked project, mobile viewport): all

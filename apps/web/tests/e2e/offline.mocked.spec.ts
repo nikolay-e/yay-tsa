@@ -1,5 +1,6 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
-import { buildWav, TRANSPARENT_PNG } from './helpers/media-fixtures';
+import { type Page, type Route } from '@playwright/test';
+import { test, expect } from './fixtures/console-guard.fixture';
+import { buildWav, TRANSPARENT_PNG, stubSse } from './helpers/media-fixtures';
 
 // Backend-free offline-audio suite (chromium-mocked project): every /api/* call
 // is stubbed, so it runs without a live backend. It proves the behavioural
@@ -120,6 +121,7 @@ async function mockApi(page: Page): Promise<void> {
   await page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   );
+  stubSse(page);
 }
 
 async function login(page: Page): Promise<void> {

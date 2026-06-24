@@ -1,4 +1,5 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { test, expect } from './fixtures/console-guard.fixture';
 
 // Backend-free Audiobooks-tab suite (chromium-mocked project): every /api/* call is stubbed, so this
 // runs without a live backend. It exercises the real Audiobooks tab in a browser — the Continue

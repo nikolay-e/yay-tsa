@@ -35,6 +35,18 @@ export function installBaseMock(page: Page): void {
   void page.route(/\/v1\/me\/devices(\?|$)/, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   );
+  stubSse(page);
+}
+
+// SSE endpoints: the app opens an EventSource here. A JSON catch-all makes the
+// browser log an "EventSource's response has a MIME type" console.error (a
+// mocked-env artifact — prod serves text/event-stream). Serve an empty event
+// stream so the connection opens cleanly and the console-guard stays strict.
+// Specs with bespoke routing (not installBaseMock) must call this too.
+export function stubSse(page: Page): void {
+  void page.route(/\/v1\/(me\/devices|groups\/[^/]+)\/events(\?|$)/, (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' })
+  );
 }
 
 export async function login(page: Page): Promise<void> {

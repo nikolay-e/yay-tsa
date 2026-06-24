@@ -1,4 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './fixtures/console-guard.fixture';
+import { stubSse } from './helpers/media-fixtures';
 
 // Backend-free auth-persistence suite. Every /api/* call is stubbed with
 // Playwright route mocking, so these run without a live backend (and without
@@ -68,6 +70,7 @@ async function mockApi(page: Page, extraValidTokens: string[] = []): Promise<voi
       body: JSON.stringify({ status: 401, title: 'Unauthorized' }),
     });
   });
+  stubSse(page);
 }
 
 async function login(page: Page): Promise<void> {

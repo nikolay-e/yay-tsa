@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect } from './fixtures/console-guard.fixture';
 import { test as authTest } from './fixtures/auth.fixture';
 import { NAVIGATION_TEST_IDS } from './helpers/test-ids';
 

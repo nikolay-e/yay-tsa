@@ -1,4 +1,5 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { test, expect } from './fixtures/console-guard.fixture';
 import { installBaseMock, login, silentWav } from './helpers/media-fixtures';
 
 // Backend-free queue-panel suite (chromium-mocked project): every /api/* call is stubbed and audio
