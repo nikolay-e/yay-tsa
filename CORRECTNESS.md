@@ -790,3 +790,191 @@ Applied all 🔴/🟡 + the two cheap 🔵 (consistency/honesty) fixes via 6 fil
 
 - **Affinity fix (#3) landed as a signal-time cursor**, not a wall-clock watermark: new singleton `core_v2_ml.affinity_cursor(last_signal_at)` advanced to `MAX(consumed.created_at)` inside the SAME statement as the additive fold (writable CTE `consumed`→`folded`→cursor `UPDATE`), so fold and watermark share one snapshot — eliminates the two-clock mismatch the finding named. **Residual (documented, NOT yet fixed):** a signal with an EARLIER `created_at` that commits AFTER a run consumed a later-timestamped signal (true write-skew / non-monotonic clock) is still skipped by the strict `> MAX` filter. Closing it requires either a per-signal-id processed-ledger (so a safety-lookback can't double-count the additive fold) or switching affinity columns to recompute-from-history. Deferred as a deliberate, separable hardening — the reported clock-mismatch class is resolved; this residual needs a design choice, not a rushed lookback (which would double-count).
 - **Test-isolation correction (not a code regression):** `AffinityWorkerIntegrationTest` failed because the new cursor is a global singleton shared across the Testcontainer DB and the sibling `accumulates across ticks` test seeds a `base+2s` future-dated signal that contaminated the watermark for the other method (JUnit order ≠ source order). Added a `@BeforeEach` resetting `affinity_cursor` to `'epoch'` — pure isolation of shared global fixture state (same class as the prior tag-scoping fix), all assertions intact. Production `created_at` is monotonic real request-time, so this artifact is test-only.
+
+## PWA telemetry/bestEffort correctness
+
+Audit of this session's PWA telemetry/bestEffort changes (commits 63a4ad68→7f57bfdd) across packages/core, packages/platform, apps/web. Focus: logic/control-flow, not type errors.
+
+**Result: verified correct on all audited points. No logic findings.**
+
+- **`api.client.ts` post() retry behavior — UNCHANGED (verified, not a regression).** Pre-session `post()` called `request(url, {...})` with no retries arg → defaulted to `this.DEFAULT_RETRY_COUNT` (3) via `request(..., retries = this.DEFAULT_RETRY_COUNT)`. Post-session passes `this.DEFAULT_RETRY_COUNT` explicitly (api.client.ts:503, :521). Same value 3 → identical maxRetries. Crucially, `shouldRetryRequest` still gates every retry path on `isIdempotent` (api.client.ts:200 `(isGatewayError && isIdempotent) || is500AndIdempotent`, :204 `isIdempotent && !(... instanceof MediaServerError)`), and for POST `isIdempotent = method === 'GET' || method === 'DELETE'` (api.client.ts:249) is `false`. **Passing DEFAULT_RETRY_COUNT does NOT make POSTs retry** — the loop runs but every `shouldRetryRequest` returns false on a POST, so it fails fast on the first attempt. Non-idempotent semantics preserved.
+- **`api.client.ts` log downgrades + final-failure preservation (verified).** The two "retrying" logs are debug (api.client.ts:277 HTTP, :317 network) — correct, an in-progress retry is not a failure. Final-failure logs are gated by `bestEffort`: non-best-effort still logs `log.error` (api.client.ts:293 HTTP `failed`, :337 network `network error`); best-effort logs debug (:288, :333). Real (non-best-effort) errors are still surfaced to error telemetry.
+- **`api.client.ts` bestEffort does NOT suppress the throw (verified — only log level changed).** After the HTTP log branch, `await this.handleErrorResponse(response)` (api.client.ts:298) runs unconditionally and throws (MediaServerError/AuthenticationError). After the network log branch, `throw new NetworkError(...)` (api.client.ts:339) runs unconditionally. Control flow is identical with/without bestEffort — callers' `.catch` still fires. (Idempotency: `MediaServerError` is re-thrown at :328 before the bestEffort branch, so a 4xx on a best-effort call still throws the typed error, not NetworkError — correct.)
+- **`device.service.ts` heartbeat positional args (verified).** `this.client.post('/v1/me/devices/heartbeat', undefined, undefined, true)` (device.service.ts:57) → matches `post(endpoint, data, params, bestEffort)`. bestEffort lands in the 4th slot. No off-by-one.
+- **`adaptive-dj.service.ts` sendSignal / endSession positional args (verified).** `sendSignal`: `post(url, {...body}, undefined, true)` (adaptive-dj.service.ts:48-68) — bestEffort in 4th slot, params correctly `undefined`. `endSession`: `delete(url, undefined, true)` (adaptive-dj.service.ts:33) → matches `delete(endpoint, params, bestEffort)`. Both correct.
+- **`useDeviceHeartbeat.ts` consecutive-failure escalation (verified).** `consecutiveFailures` is declared INSIDE the `useEffect` body (useDeviceHeartbeat.ts:17), so it is per-effect-instance (re-created when `client` changes), not shared/stale across re-renders, and not module-global. Resets to 0 on success (:22). Warns at `=== HEARTBEAT_FAILURE_ALERT_THRESHOLD` (:26, threshold 3) — fires exactly ONCE; subsequent failures (4,5,6…) are `> 3`, so no repeat-spam. Recovery (a success) resets the counter, so a later sustained run can warn again. Intended behavior.
+- **`session-store.ts` warn→debug downgrades vs the real dead-session path (verified).** endSession's graceful-end failure is now debug (session-store.ts:241) and sendSignal's throttled-signal failure is now debug (:310) — both genuinely best-effort. The real "DJ session dead" path in `refreshQueue` is UNCHANGED: `log.player.error` per failed attempt (:272) and `log.player.error('DJ session appears dead, clearing session')` at `consecutiveRefreshErrors >= MAX_REFRESH_ERRORS` (:277-278). Still surfaces to error telemetry.
+- **`auth.store.ts` runtime serverUrl fallback (verified).** `globalThis.window?.__YAYTSA_CONFIG__?.serverUrl?.trim()` (auth.store.ts:24) — optional chaining is SSR/undefined-window safe (yields `undefined`, no crash). `runtimeServerUrl || '/api'` (auth.store.ts:25): empty-string `''` is falsy → falls back to `/api`. Load order confirmed: `index.html:45` `<script src="/config.js">` (classic, synchronous, blocking) runs before `index.html:49` `<script type="module" src="/src/main.tsx">` (modules are deferred), so `__YAYTSA_CONFIG__` (set in public/config.js) exists at auth.store module-load.
+- **`client-telemetry.ts` newSessionId CSPRNG fallback (verified — no crash, ids unique).** `buf = globalThis.crypto?.getRandomValues?.(new Uint32Array(2))` (client-telemetry.ts:254). If getRandomValues is absent, `buf` is `undefined` → `buf ? ... : Date.now().toString(36)` (:255-257) avoids indexing undefined. When present, `(buf[0] ?? 0).toString(36)` guards individual elements. Final id is always `sess-<Date.now b36>-<rand>` (:258) — `Date.now()` prefix keeps it reasonably unique even on the worst-case fallback. No throw path.
+
+## CI workflow correctness
+
+Audit of this session's CI changes (commits `c002e49d`, `7251b2e8`, `8fe8a124`, `d163300f`) in `.github/`. Every claim traced against real files.
+
+**Verified correct (no defect):**
+
+- 🟢 **sed `tag: latest` scope** — `.github/workflows/release-chart.yml:83` `sed -i "s/tag: latest/tag: ${{ steps.version.outputs.app_version }}/" charts/yay-tsa-stack/values.yaml`. `grep -rn "tag: latest" charts/yay-tsa-stack/` returns EXACTLY two hits: `values.yaml:63` (`yay-tsa-v2.backend.image.tag: latest`) and `values.yaml:100` (`yay-tsa.frontend.image.tag: latest`). No other `tag: latest` anywhere in the umbrella tree (vendored `charts/` holds only `.tgz`, not YAML). sed (global, no `g` flag needed since one per line) rewrites precisely the two intended lines. No collateral.
+
+- 🟢 **Umbrella tag override flows to image refs (not stale subchart appVersion)** — backend template `charts/yay-tsa-v2/templates/backend-deployment.yaml:46` is `{{ .Values.backend.image.tag | default .Chart.AppVersion }}`; frontend `charts/yay-tsa/templates/deployment.yaml:46` identical pattern. The umbrella `values.yaml` key `yay-tsa-v2.backend.image.tag` is merged by Helm into the subchart's `.Values.backend.image.tag`. After sed it is `main-<sha7>` (non-empty), so the `| default .Chart.AppVersion` fallback is NEVER reached — the vendored subcharts' stale committed `appVersion: '0.1.0'` (`charts/yay-tsa-v2/Chart.yaml:7`, `charts/yay-tsa/Chart.yaml:7`) is irrelevant for the published umbrella. Image refs resolve to `…/backend:main-<sha7>` and `…/frontend:main-<sha7>`. Correct.
+
+- 🟢 **`app_version` = `main-<sha7>` and both images carry that tag** — `release-chart.yml:65` `APP_VERSION="main-${SHORT_SHA}"` (`SHORT_SHA="${GITHUB_SHA:0:7}"`). `docker-build/action.yml:96` `PRIMARY_TAG="main-${SHORT_SHA}"` with identical `SHORT_SHA="${GIT_SHA:0:7}"`. Both frontend and backend `v2-ci`/`ci` legs build from the same monorepo `github.sha`, so both push `main-<sha7>` and both `latest`. A third-party `helm install` of the published umbrella at SHA X pulls `main-<X7>` for both images, which exist (built in the same push). Reproducible, pullable. Correct.
+
+- 🟢 **Standalone subchart legs get correct appVersion** — `release-chart.yml:78` rewrites `appVersion` in `charts/${{ matrix.chart }}/Chart.yaml` per leg. For the `yay-tsa`/`yay-tsa-v2` legs this sets their own `appVersion: 'main-<sha7>'`, so a standalone subchart install (tag `''` → `default .Chart.AppVersion`) resolves to `main-<sha7>`. Correct.
+
+- 🟢 **docker-build `:latest` does not leak onto PRs** — `docker-build/action.yml:104` adds `latest` only in the `elif [[ "$GIT_REF" == refs/heads/main ]]` branch; the `v*`-tag branch (`:100-103`) preserves the existing `${GIT_REF_NAME}` + `latest` + production env. PRs (`refs/pull/*`) match neither branch, so no `latest` tag is added — and regardless, `push: ${{ github.event_name != 'pull_request' }}` (`:153`) means PRs push nothing at all. Existing `v*` tag behavior preserved. Correct.
+
+- 🟢 **Bottom-up `helm dependency build` fixes missing `yay-tsa-common`** — both `release-chart.yml:87-88` (stack leg only) and `kind-acceptance-test.sh:40-42` build `yay-tsa-v2` and `yay-tsa` BEFORE the umbrella. `helm dependency build` is not recursive; the two leaf subcharts each declare `yay-tsa-common` (`charts/yay-tsa-v2/Chart.yaml`, `charts/yay-tsa/Chart.yaml` deps), so vendoring them first ensures the packaged umbrella tgz contains the shared library used by `yay-tsa-common.*` helpers. Logic is sound; CI run 28059758441 confirms empirically.
+
+- 🟢 **uninstall→reinstall with kept secret does NOT hit ownership-adoption failure** — `db-secret.yaml:47` `helm.sh/resource-policy: keep` retains the Secret across `helm uninstall`; on reinstall the same release name+namespace means the retained Secret still carries matching `meta.helm.sh/release-name`/`-namespace` ownership annotations from the prior release, so Helm 3's three-way-merge adopts it rather than erroring. The template's `lookup` (`db-secret.yaml:9,16-17`) reads the retained `POSTGRES_PASSWORD` so the regenerated manifest reuses the existing password — Postgres data dir (PVC also retained) stays unlockable. Test step `[7/7]` (`:86-100`) gates exactly this; CI pass confirms. Correct.
+
+- 🟢 **`max-parallel: 1` + serialized gh-pages push** — `release-chart.yml:23` plus the job-level `concurrency: release-chart-gh-pages` (`:31-33`) and the 3-attempt rebase-retry push loop (`:127-134`) correctly serialize the three matrix legs onto the shared `gh-pages` branch. No race. Correct.
+
+**Caveats (not defects in scope, noted for completeness):**
+
+- 🔵 **Committed defaults stay `latest` for local-clone** — `charts/yay-tsa-stack/values.yaml:63,100` `tag: latest` and `charts/yay-tsa-stack/Chart.yaml:7` `appVersion: 'latest'` are intentional: a local `helm install ./charts/yay-tsa-stack` pulls the rolling `:latest` (refreshed every main build per `docker-build/action.yml:107`), works OOTB; only the PUBLISHED gh-pages artifact is pinned to `main-<sha7>`. Consistent — no scenario found where the published chart references a non-existent tag (both images + chart originate from one push/SHA).
+
+## Backend migrations/bootstrap/CORS correctness
+
+Audited the four in-scope areas in `yay-tsa-v2/`. Mechanisms verified against real code, Flyway 11.3.1 semantics, and the actual test setup. No correctness defects that produce wrong behavior in prod; one real **test-coverage gap** where the audited mechanism is never exercised.
+
+### Findings
+
+- 🟢 **Flyway ordering `flywayShared` → `flywayAuth` is genuinely guaranteed.** `FlywayConfig.kt:29-31` annotates `flywayAuth` (and every other context bean) with `@DependsOn("flywayShared")`, and each bean uses `@Bean(initMethod = "migrate")`. Spring runs `flywayShared.migrate()` (which applies `V003__extensions.sql`) to completion before constructing/initializing `flywayAuth`. Ordering is correct.
+
+- 🟢 **`CREATE EXTENSION ... WITH SCHEMA public` makes citext resolvable from `core_v2_auth`.** Mechanism: the JDBC URL (`application.yml:15`) sets no `currentSchema`/`searchpath`, so the connection's base `search_path` is Postgres default `"$user", public`. Flyway 11 with `.defaultSchema("core_v2_auth")` sets `search_path = "core_v2_auth", <original>` (it preserves the original path, it does not clobber `public`). During `flywayAuth` V001 (`username citext`, `infra-persistence/auth/.../V001:5,8`) the effective path therefore includes `public`, so the unqualified `citext` type resolves to `public.citext`. This is why prod works. Verified correct.
+
+- 🟡 **TEST GAP (not a prod defect): the `V003__extensions.sql` → auth-V001 ordering and the `WITH SCHEMA public` resolution path are NOT exercised by any test.**
+  - Per-module persistence tests (`AbstractPersistenceTest` for auth/adaptive/ml) drive a single Spring `spring.flyway.*` per context, never `FlywayConfig.kt`'s multi-bean graph, so they never run `db/shared` before `db/auth`.
+  - All extensions are pre-created by `SharedPostgresContainer.kt:36-39` and by `init-extensions.sql` (`CREATE EXTENSION citext` with no schema → lands in default `public`) BEFORE any Flyway runs.
+  - App `@SpringBootTest` (`HttpIntegrationTestBase.kt`) sets `spring.flyway.enabled=false` + `ddl-auto=none` and uses `withInitScript("init-extensions.sql")`.
+  - Net: tests prove "citext-in-public resolves from a per-context search_path" (the part that matters), but the production migration path (real `FlywayConfig`, `V003__extensions.sql`, shared-before-auth ordering) is unverified by CI. A regression that reorders/removes `V003` or drops `@DependsOn` would pass all tests and only break on a fresh prod DB. Logic is correct today; the safety net is missing.
+
+- 🟢 **adaptive `V003__adaptive_jsonb_to_text.sql` conversion is lossless and entities match post-migration.** The five converted columns map exactly: `LlmDecisionEntity` declares `intent`/`edits`/`validationDetails` as `String?` with `columnDefinition = "TEXT"`; `PlaybackSignalEntity.context` likewise. `jsonb::text` is a lossless cast (text representation of the JSON). Post-migration `data_type` becomes `text`, matching Hibernate `ddl-auto=validate`. `SchemaDriftTest` (adaptive) asserts all five are `text`. Correct.
+
+- 🟢 **The `DO $$` guard is re-run-safe and Flyway-safe.** The `IF (data_type)='jsonb' THEN ALTER` guard makes the migration a pure no-op on databases already at `text` (prod, where V001 drifted to TEXT) — no table rewrite, no lock. Flyway runs anonymous `DO $$` blocks fine within its migration transaction (no `CREATE INDEX CONCURRENTLY`-style non-transactional statement here). Re-running against an already-text DB skips the ALTER entirely. Correct.
+
+- 🟢 **No OTHER adaptive column mismatches.** Cross-checked `LlmDecisionEntity`/`PlaybackSignalEntity` against V001: only `intent`/`edits`/`validation_details` (llm_decisions) and `context` (playback_signals) were JSONB-vs-TEXT mismatches; all four/five are covered. `intent_label` (V001:27) is `VARCHAR(100)` and is not mapped by these entities (entity has `intent`, a different column). No residual drift.
+
+- 🟢 **`AdminBootstrapRunner` runs after migrations, is idempotent, fail-closed, and race-benign.** `@EventListener(ApplicationReadyEvent)` fires only after the full context (including the `initMethod="migrate"` Flyway beans) is initialized, so the `users` table exists. Idempotency: `authQueries.listAll().any { it.isAdmin }` skips when an admin exists; runs on every pod start but is a no-op after the first seed. Fail-closed on blank/unset password (`password.isNullOrBlank()` → warn + return, no user). Uses `clock.now()` (the `Clock` port → `Instant`), not `Instant.now()`. `BCrypt.gensalt(13)`. `ProtocolId("BOOTSTRAP")` is backed by `BootstrapProtocolCapabilities` supporting `CreateUser::class`. `CommandContext.expectedVersion = AggregateVersion.INITIAL` (= `AggregateVersion(0)`, `Ids.kt:54`) is correct for a brand-new aggregate. Rolling-deploy race (two pods both pass the check) is benign: `username citext NOT NULL UNIQUE` (auth V001:5) makes the loser's insert fail → `CommandResult.Failed`, logged, no crash, no duplicate admin.
+
+- 🔵 **Minor (bootstrap): a thrown exception from `authQueries.listAll()` is not caught.** The `when` handles `CommandResult.Success/Failed`, but a raw exception (e.g., DB unavailable at `ApplicationReadyEvent`) would propagate out of the listener. Spring logs `ApplicationReadyEvent` listener exceptions without aborting the already-started app, so the pod stays up and the next restart retries — acceptable, but the failure mode is "logged stack trace at startup," not the graceful "log.error" the success path uses. Not a wrong-behavior defect.
+
+- 🟢 **CORS logic is correct; production single-origin behaves identically to before.** `SecurityConfig.kt:87-122`:
+  - `CORS_ENABLED` via `toBooleanStrictOrNull() ?: true` — honored, defaults true.
+  - `!corsEnabled` → empty `CorsConfiguration()` registered → no cross-origin headers, no crash.
+  - `CORS_ORIGINS` `.split(",").map{trim()}.filter{isNotEmpty()}` — surrounding spaces trimmed; a trailing comma / empty element is filtered out, so it can NEVER accidentally become `*` or an empty match. No off-by-one.
+  - Wildcard branch (`origins.any { it == "*" }`) → `allowedOriginPatterns=["*"]` + `allowCredentials=false` — correctly avoids the browser-forbidden `*`+credentials combo.
+  - Production case `CORS_ORIGINS=https://yay-tsa.com` (single origin, no `*`) → `allowedOriginPatterns=["https://yay-tsa.com"]`, `allowCredentials=true`. Using `allowedOriginPatterns` instead of `allowedOrigins` is functionally identical for an exact origin and is the correct API for credentialed CORS. `CorsConfigIntegrationTest` confirms exact-origin echo + `Access-Control-Allow-Credentials: true`, and rejects `https://evil.example`. Correct.
+
+### Summary
+
+Verified correct: Flyway shared→auth ordering, citext-in-public resolution, adaptive jsonb→text (lossless, idempotent, entity-aligned, no residual drift), admin bootstrap (post-migration timing, idempotency, fail-closed, race-benign), CORS (wildcard guard + production single-origin parity). One actionable item: the production Flyway migration path (`FlywayConfig` + `V003__extensions.sql` + shared-before-auth) has **zero test coverage** because every test pre-seeds extensions and bypasses the multi-bean Flyway — a future regression there would not be caught by CI.
+
+## 2026-06-24 · 7f57bfdd · Helm umbrella/DB correctness (yay-tsa-stack + postgres-pgvector + yay-tsa-v2 charts)
+
+Audit of the one-command umbrella + bundled-DB work (commits 3136df5c, 7251b2e8,
+c002e49d, 8fe8a124). Verified by rendering with `helm template` and by an empirical
+install→uninstall→reinstall→upgrade cycle on a local kind cluster (production
+`k3s-remote` context never touched).
+
+### 🟡 External-DB password change is silently ignored on `helm upgrade` (stale-password lockout)
+
+`charts/yay-tsa-stack/templates/db-secret.yaml:28-29`
+
+```
+  {{- if $existing }}
+    {{- $pw = index $existing.data "POSTGRES_PASSWORD" | b64dec }}
+```
+
+The external-DB branch reads the password from the _already-existing_ Secret whenever
+one is present, ignoring `.Values.externalDatabase.password`. Combined with
+`helm.sh/resource-policy: keep` (line 47), the connection Secret is never deleted, so
+`lookup` always finds it. EMPIRICALLY CONFIRMED on kind: install with
+`externalDatabase.password=pw1`, then `helm upgrade --set externalDatabase.password=pw2`
+→ the rendered Secret still holds **pw1**. When an operator rotates the real external
+DB password and re-runs upgrade, the backend keeps the old credential and gets
+`password authentication failed`. The lookup-wins logic is _correct_ for the bundled DB
+(you never want to rotate a password tied to a kept PVC) but _wrong_ for external mode,
+where the user explicitly supplied a new value. Fix: in the `else` (external) branch,
+prefer `.Values.externalDatabase.password` over `$existing`, OR don't put
+`resource-policy: keep` on the external connection Secret.
+
+### 🟡 `externalDatabase.existingSecret` alone leaves the backend pointing at a non-existent Secret
+
+`charts/yay-tsa-stack/values.yaml:33-34` (doc) + `charts/yay-tsa-v2/templates/backend-deployment.yaml:4`
+Setting `postgresql.enabled=false` + `externalDatabase.existingSecret=my-ext-secret`
+correctly suppresses the umbrella `db-secret.yaml`, but the backend's `$dbSecret` chain
+`existingSecret | secretName | global.yaytsaDatabase.secretName | <fullname>-backend-db`
+resolves to the umbrella default `global.yaytsaDatabase.secretName: yaytsa-db` — which
+nothing renders in this mode. EMPIRICALLY CONFIRMED via render: the _only_ Secret
+produced is the admin secret; every DB `secretKeyRef.name` is `yaytsa-db`. Result: pods
+fail with `secret "yaytsa-db" not found` (CreateContainerConfigError), not a `helm`
+error, so the failure surfaces late. The values.yaml comment documents the required
+manual step ("ALSO set global.yaytsaDatabase.secretName to that name"), but the chart
+neither wires it automatically nor fails fast. Fix: when `externalDatabase.existingSecret`
+is set, the umbrella should propagate it into `global.yaytsaDatabase.secretName` (or
+`fail` if the operator left them inconsistent).
+
+### 🔵 `yaytsa-db` Secret name is static (not release-scoped) → second release in same namespace hard-fails
+
+`charts/yay-tsa-stack/templates/_helpers.tpl:5-7` (default `yaytsa-db`)
+The DB Secret name is fixed, and with `resource-policy: keep` it carries
+`meta.helm.sh/release-name`. EMPIRICALLY CONFIRMED: installing a second release
+(`yaytsa2`) into the same namespace fails with `invalid ownership metadata ... key
+"meta.helm.sh/release-name" must equal "yaytsa2": current value is "yay-tsa"`.
+Only matters for multi-release-per-namespace, which is not the documented flow; flagged
+as a sharp edge, not a happy-path defect.
+
+### 🔵 `randAlphaNum 24` churns on every client-side `helm template` / `helm diff` / `--dry-run` (client)
+
+`charts/yay-tsa-stack/templates/db-secret.yaml:21` `{{- $pw = randAlphaNum 24 }}`
+Two back-to-back `helm template` runs produce different passwords because `lookup`
+returns empty without a live API server. This makes `helm diff upgrade` /
+`--dry-run` (client) show a spurious POSTGRES_PASSWORD rotation. It does NOT affect real
+`helm install`/`upgrade`: EMPIRICALLY CONFIRMED that a live `helm upgrade` preserves the
+existing password (lookup finds the kept Secret). Cosmetic/diff-noise only — note it so a
+future reviewer doesn't "fix" a phantom rotation.
+
+### Verified correct
+
+- **Uninstall→reinstall (same release) adopts the kept Secret with no ownership conflict
+  and preserves the password.** EMPIRICALLY CONFIRMED on kind: password
+  `OJ7uu4...` survived uninstall, was readopted on reinstall, and was unchanged after a
+  subsequent upgrade. This is the central design claim of `resource-policy: keep` and it
+  holds for the documented single-release flow.
+- **DB secret key names match exactly across writer and readers.** Umbrella writes
+  POSTGRES_HOST/PORT/USER/PASSWORD/DB; postgres-pgvector statefulset reads
+  POSTGRES_DB/USER/PASSWORD via `secretKeyRef` (`statefulset.yaml:35-49`); backend reads
+  HOST/PORT/USER/PASSWORD (`backend-deployment.yaml:69-90`). DB_NAME is a plain value
+  (`backend.database.name`), umbrella-overridden to `yaytsa` to match POSTGRES_DB=`yaytsa`.
+  No key mismatch → no silent auth failure.
+- **`pg_isready -U $(POSTGRES_USER) -d $(POSTGRES_DB)`** (`statefulset.yaml:52,59`) is
+  correct. `$(VAR)` in an exec `command` is **kubelet** env-substitution, not shell
+  expansion; both vars are present in the container `env`, so they expand without needing
+  `sh -c`. The prompt's worry conflates shell vars with k8s var-refs.
+- **Backend Service name matches the PWA `backendUrl`.** Backend Service renders as
+  `yay-tsa-yay-tsa-v2-backend` (`backend-service.yaml:5`) and the PWA configmap's
+  `YAYTSA_BACKEND_URL` tpl renders `http://yay-tsa-yay-tsa-v2-backend`
+  (`values.yaml:103`). Names align exactly — no off-by-one.
+- **postgres-pgvector resolves the same Secret as the umbrella renders** (`yaytsa-db`)
+  via `global.yaytsaDatabase.secretName` (`_helpers.tpl:30-33`). `automountServiceAccountToken:
+false`, PGDATA subpath `/var/lib/postgresql/data/pgdata` under an RWO volumeClaimTemplate
+  mounted at the parent dir — correct (PGDATA in a subdir avoids the lost+found init clash).
+- **Admin bootstrap fail-closed.** Empty `adminBootstrap.password` renders no admin
+  Secret (`backend-admin-secret.yaml:2` guards `ne password ""`); the deployment's
+  `secretKeyRef` is `optional: true` so the pod still starts and skips bootstrap.
+- **External-DB-via-fields renders correctly** (`yaytsa-db` populated from
+  host/port/user/password; backend reads it) and **`existingSecret` correctly suppresses
+  the umbrella secret** (the only real wiring gap is the `global.yaytsaDatabase.secretName`
+  propagation flagged above).
+- **media existingClaim-vs-hostPath branch** (`backend-deployment.yaml:172-182`) is
+  mutually exclusive and only emitted when `media.enabled`; default OOTB has media off.
+
+## Resolution (2026-06-24, commit b1c22f96)
+
+Both 🟡 external-DB findings FIXED in `charts/yay-tsa-stack/templates/db-secret.yaml`, verified by `helm template` across all four modes:
+
+- **External password rotation**: the external branch no longer reads the kept Secret — `externalDatabase.password` is now the source of truth and always written, so `helm upgrade --set externalDatabase.password=…` takes effect (mode 2 renders `PW=ROT123`). The bundled branch keeps lookup-or-generate (correct — tied to the retained PVC).
+- **existingSecret dead-end**: added a top-of-template `fail` guard — if `externalDatabase.existingSecret` is set but `global.yaytsaDatabase.secretName` differs, `helm install` now fails fast with the exact remedy (`--set global.yaytsaDatabase.secretName=<name>`) instead of pods hitting a late `secret not found`.
+
+Remaining items are documented-only: 🔵 static `yaytsa-db` name (2nd release/ns collision — non-default flow), 🔵 `randAlphaNum` dry-run diff-noise (harmless), 🔵 bootstrap-time DB-error surfaces as a stack trace not a graceful log (failure-mode cosmetics), and 🟡 the migration prod-path (FlywayConfig multi-bean + citext-in-public) has no gradle Testcontainers guard — it is empirically covered by the kind acceptance E2E (now in CI on `charts/**`), but a backend-only regression to `FlywayConfig`/`V003` would not trip that trigger. The OOTB bundled-DB happy path, CORS guard, migrations logic, PWA best-effort/telemetry, and CI workflows are all verified correct.
