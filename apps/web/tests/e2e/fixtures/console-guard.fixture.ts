@@ -21,9 +21,12 @@ const DEFAULT_CONSOLE_ALLOW: RegExp[] = [
   /Failed to load resource: the server responded with a status of (401|404)\b/,
 ];
 
+// Per-spec allowlists are STRING patterns (not RegExp): Playwright option-fixture
+// values set via `test.use` must be serializable, and RegExp does not survive that
+// boundary. The fixture compiles them to RegExp at use.
 type ConsoleGuardOptions = {
-  allowConsole: RegExp[];
-  allowResponses: RegExp[];
+  allowConsole: string[];
+  allowResponses: string[];
 };
 
 type ConsoleGuardFixtures = {
@@ -43,7 +46,11 @@ export const test = base.extend<ConsoleGuardOptions & ConsoleGuardFixtures>({
       const consoleErrors: string[] = [];
       const pageErrors: string[] = [];
       const badResponses: string[] = [];
-      const consoleAllow = [...DEFAULT_CONSOLE_ALLOW, ...allowConsole];
+      const consoleAllow = [
+        ...DEFAULT_CONSOLE_ALLOW,
+        ...(allowConsole ?? []).map(s => new RegExp(s)),
+      ];
+      const responseAllow = (allowResponses ?? []).map(s => new RegExp(s));
 
       const onPageError = (err: Error) => {
         pageErrors.push(err.message);
@@ -59,7 +66,7 @@ export const test = base.extend<ConsoleGuardOptions & ConsoleGuardFixtures>({
         if (status < 400) return;
         const url = response.url();
         if (ALWAYS_ALLOWED_STATUSES.has(status)) return;
-        if (isAllowed(url, allowResponses)) return;
+        if (isAllowed(url, responseAllow)) return;
         badResponses.push(`${status} ${url}`);
       };
 

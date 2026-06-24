@@ -109,16 +109,30 @@ test.describe('Favorite sync across screens (mocked backend)', () => {
     await expect(heartInRow(page, 'Aurora')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('server rejects the toggle → optimistic fill rolls back to empty', async ({ page }) => {
-    installMock(page, { failToggle: true });
-    await login(page);
+  // This test deliberately mocks a 500 on the favorite toggle to exercise rollback,
+  // so the app's correct console.error + the browser's native 5xx message are EXPECTED
+  // here — allow them (scoped to this test + endpoint) so the console-guard stays strict
+  // everywhere else.
+  test.describe('toggle 5xx rollback', () => {
+    test.use({
+      allowResponses: ['/UserFavoriteItems/'],
+      allowConsole: [
+        'Failed to load resource: the server responded with a status of 500',
+        '\\[API\\] POST /UserFavoriteItems/.* failed',
+      ],
+    });
 
-    await page.goto('/search');
-    const heart = heartInRow(page, 'Borealis');
-    await expect(heart).toHaveAttribute('aria-pressed', 'false');
+    test('server rejects the toggle → optimistic fill rolls back to empty', async ({ page }) => {
+      installMock(page, { failToggle: true });
+      await login(page);
 
-    await heart.click();
-    // It may flash filled optimistically, but once the 500 settles it must roll back to empty.
-    await expect(heart).toHaveAttribute('aria-pressed', 'false');
+      await page.goto('/search');
+      const heart = heartInRow(page, 'Borealis');
+      await expect(heart).toHaveAttribute('aria-pressed', 'false');
+
+      await heart.click();
+      // It may flash filled optimistically, but once the 500 settles it must roll back to empty.
+      await expect(heart).toHaveAttribute('aria-pressed', 'false');
+    });
   });
 });
