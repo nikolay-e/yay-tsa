@@ -94,7 +94,10 @@ export function redactSecrets(input: string): string {
     // Bare JWTs (header.payload.signature) anywhere in the text.
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]')
     // Cookie / CSRF header-ish key:value pairs.
-    .replace(/(cookie|csrf[-_]?token|x-csrf-token)\s*[:=]\s*[^\s;"']+/gi, '$1=[REDACTED]');
+    .replace(/(cookie|csrf[-_]?token|x-csrf-token)\s*[:=]\s*[^\s;"']+/gi, '$1=[REDACTED]')
+    // Email addresses — PII that leaks through thrown-error messages (matters for
+    // the health/finance apps that vendor this module).
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]');
   // Strip query strings and fragments from any URL — they routinely carry
   // reset/magic-link/signed-URL tokens. Keep scheme://host/path only.
   out = out.replace(/(https?:\/\/[^\s"'<>]+?)[?#][^\s"'<>]*/gi, '$1');
@@ -146,7 +149,7 @@ class ClientTelemetry implements ClientTelemetryHandle {
         appVersion: this.options.appVersion,
         telemetrySessionId: this.sessionId,
         fingerprint,
-        route: extra.route ?? this.route,
+        route: extra.route ?? this.route ?? currentRoute(),
         stack: rawStack ? this.scrub(truncate(rawStack, MAX_STACK_LENGTH)) : undefined,
         uaReduced: reduceUserAgent(globalThis.navigator?.userAgent),
         http: extra.http,
@@ -310,6 +313,17 @@ function matchLabel(value: string, patterns: ReadonlyArray<readonly [RegExp, str
 function reduceUserAgent(ua: string | undefined): string | undefined {
   if (!ua) return undefined;
   return `${matchLabel(ua, BROWSER_PATTERNS)} / ${matchLabel(ua, OS_PATTERNS)}`;
+}
+
+// Fallback route when the host app never calls setRoute(): the current path,
+// templatized so ids never leak (/users/42/x -> /users/:id/x). Keeps the "which
+// page broke" dimension alive in every vendoring app for free.
+function currentRoute(): string | undefined {
+  const path = globalThis.location?.pathname;
+  if (!path) return undefined;
+  return path
+    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi, '/:id')
+    .replace(/\/\d+(?=\/|$)/g, '/:id');
 }
 
 function fingerprintOf(category: string, type: string, message: string): string {
