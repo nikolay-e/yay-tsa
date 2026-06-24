@@ -284,10 +284,11 @@ export class MediaServerClient {
             continue;
           }
 
-          // 401/403 are expected auth signals (thrown as AuthenticationError and
-          // handled by the global 401 handler), not failures — keep them at debug so
-          // an expired/guest session never forwards a false "client error" to telemetry.
-          const isAuthSignal = response.status === 401 || response.status === 403;
+          // 401 is an expected auth signal (guest/expired session, thrown as
+          // AuthenticationError and handled by the global 401 handler), not a failure —
+          // keep it at debug so it never forwards a false "client error" to telemetry.
+          // 403 stays at error: an unexpected forbidden can be a real authorization bug.
+          const isAuthSignal = response.status === 401;
           if (bestEffort || isAuthSignal) {
             log.debug(
               `${method} ${endpoint} failed${isAuthSignal ? ' (auth signal)' : ' (best-effort, ignored)'}`,
