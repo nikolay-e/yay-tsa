@@ -71,6 +71,13 @@ jobs:
           restore-keys: |
             pre-commit-
 
+      # The nikolay-e/pre-commit-hooks repo is private, so a cold cache miss makes pre-commit's
+      # anonymous `git fetch origin --tags` fail ("could not read Username for github.com"), which
+      # skips every downstream job — including Build Frontend Image, so frontend changes never ship.
+      # Authorize github.com clones with an existing PAT so the hook env can be (re)built on a miss.
+      - name: Authorize private pre-commit hooks
+        run: git config --global url."https://x-access-token:${{ secrets.AUTOMERGE_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
 
