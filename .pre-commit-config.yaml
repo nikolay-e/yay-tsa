@@ -24,10 +24,13 @@ repos:
       - id: check-xml
         files: \.(xml|pom)$
 
-  - repo: https://github.com/nikolay-e/pre-commit-hooks
-    rev: v2.1.0
+  - repo: local
     hooks:
       - id: no-emoji
+        name: Remove emoji from code
+        entry: python .pre-commit-hooks/no_emoji.py
+        language: python
+        additional_dependencies: ['emoji>=2.15.0']
         files: ^(packages|apps|services)/.*\.(ts|tsx|js|jsx|py|java)$
 
   - repo: local
@@ -240,8 +243,12 @@ repos:
         files: ^apps/web/src/.*\.tsx$
         pass_filenames: false
 
-  - repo: https://github.com/nikolay-e/pre-commit-hooks
-    rev: v2.1.0
+  - repo: local
     hooks:
       - id: shift-commit-time
+        name: Shift commit time outside work hours
+        entry: python .pre-commit-hooks/shift_commit_time.py
+        language: python
         stages: [post-commit]
+        always_run: true
+        pass_filenames: false

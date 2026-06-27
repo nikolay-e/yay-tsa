@@ -29,7 +29,7 @@ class JellyfinClientErrorsController(
             return ResponseEntity.noContent().build()
         }
 
-        val parsed =
+        val rawParsed =
             try {
                 objectMapper.readValue(rawBody, object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any?>>() {})
             } catch (ex: Exception) {
@@ -41,10 +41,15 @@ class JellyfinClientErrorsController(
                 return ResponseEntity.noContent().build()
             }
 
+        val parsed = rawParsed.filterKeys { it in ALLOWED_KEYS }
+
         val fullType = sanitize(stringField(parsed["type"], TYPE_LOG_LIMIT))
         val catTag = coerceCategory(stringField(parsed["category"], CATEGORY_LIMIT))
         val typeTag = coerceType(stringField(parsed["type"], CATEGORY_LIMIT))
         val verTag = coerceVersion(stringField(parsed["appVersion"], VERSION_LIMIT))
+
+        val http = nestedObject(parsed["http"])
+        val audio = nestedObject(parsed["audio"])
 
         val line =
             linkedMapOf<String, Any?>(
@@ -53,10 +58,10 @@ class JellyfinClientErrorsController(
                 "type" to fullType,
                 "version" to verTag,
                 "route" to sanitize(stringField(parsed["route"], ROUTE_LIMIT)),
-                "status" to intField(parsed["status"]),
-                "mediaError" to intField(parsed["mediaError"]),
-                "ua" to sanitize(stringField(parsed["ua"], UA_LIMIT)),
-                "sid" to sanitize(stringField(parsed["sessionId"], CATEGORY_LIMIT)),
+                "status" to intField(http["status"]),
+                "mediaError" to intField(audio["mediaError"]),
+                "ua" to sanitize(stringField(parsed["uaReduced"], UA_LIMIT)),
+                "sid" to sanitize(stringField(parsed["telemetrySessionId"], CATEGORY_LIMIT)),
                 "fp" to sanitize(stringField(parsed["fingerprint"], CATEGORY_LIMIT)),
                 "user" to sanitize(principal?.name),
                 "msg" to sanitize(stringField(parsed["message"], MESSAGE_LIMIT)),
@@ -110,6 +115,9 @@ class JellyfinClientErrorsController(
             else -> null
         }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun nestedObject(value: Any?): Map<String, Any?> = (value as? Map<String, Any?>) ?: emptyMap()
+
     private fun coerceCategory(value: String?): String = if (value in ALLOWED_CATEGORIES) value!! else "other"
 
     private fun coerceType(value: String?): String = if (value in ALLOWED_TYPES) value!! else "other"
@@ -140,6 +148,21 @@ class JellyfinClientErrorsController(
         private const val UA_LIMIT = 200
         private const val VERSION_LIMIT = 32
         private const val CATEGORY_LIMIT = 64
+
+        private val ALLOWED_KEYS =
+            setOf(
+                "category",
+                "type",
+                "message",
+                "appVersion",
+                "telemetrySessionId",
+                "fingerprint",
+                "route",
+                "stack",
+                "uaReduced",
+                "http",
+                "audio",
+            )
 
         private val ALLOWED_CATEGORIES =
             setOf(
