@@ -1,7 +1,9 @@
 import { redactSecrets } from '@yay-tsa/core';
 import { type ClientErrorReport, type ErrorTransport } from '../error-transport.interface.js';
 
-const KEEPALIVE_BYTE_BUDGET = 60 * 1024;
+// Aligned with the server's 16 KB body cap (JellyfinClientErrorsController.MAX_BODY)
+// so a report the client sends is never silently dropped server-side as oversize.
+const KEEPALIVE_BYTE_BUDGET = 16 * 1024;
 
 export class BeaconErrorTransport implements ErrorTransport {
   constructor(private readonly endpoint: string) {}

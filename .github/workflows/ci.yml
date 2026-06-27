@@ -63,11 +63,9 @@ jobs:
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-          # Fall back to any prior cache when the config hash changes. The
-          # nikolay-e/pre-commit-hooks repo is private and cannot be cloned
-          # anonymously on the runner, so a cold cache miss makes the install
-          # step fail on `git fetch`. Restoring the previous hook environments
-          # avoids re-cloning when only hook file-filters (not revs) changed.
+          # Fall back to any prior cache when the config hash changes so hook
+          # environments are reused across runs (all hook repos are public or
+          # vendored locally, so a cold cache miss rebuilds cleanly).
           restore-keys: |
             pre-commit-
 
@@ -225,17 +223,15 @@ jobs:
 
   docker-build-frontend:
     name: Build Frontend Image
-    # pre-commit is intentionally NOT a gate here: its `no-emoji`/`shift-commit-time` hooks live in
-    # github.com/nikolay-e/pre-commit-hooks, which now 404s on the runner, so on any cold cache the
-    # whole job fails and silently blocks every frontend deploy. The real frontend quality gates
-    # (dto-drift, lighthouse, web-e2e-mocked) run independently and DO gate the image; eslint /
-    # type-check / knip run via pre-commit locally on commit. Re-add pre-commit here once its hooks
-    # repo is reachable again.
-    needs: [dto-drift-check, lighthouse, web-e2e-mocked, build-android-apk]
+    # pre-commit gates again: its previously-private no-emoji/shift-commit-time hooks are now
+    # vendored as repo: local hooks (.pre-commit-hooks/), so the job no longer depends on the
+    # deleted github.com/nikolay-e/pre-commit-hooks repo and passes on a cold runner cache.
+    needs: [pre-commit, dto-drift-check, lighthouse, web-e2e-mocked, build-android-apk]
     # All test jobs must pass before an image is pushed (it auto-deploys).
     # The APK is tolerated as skipped (PRs) but never as failed.
     if: >-
       ${{ !cancelled() &&
+          needs.pre-commit.result == 'success' &&
           needs.dto-drift-check.result == 'success' &&
           needs.lighthouse.result == 'success' &&
           needs.web-e2e-mocked.result == 'success' &&
