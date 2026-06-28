@@ -40,4 +40,21 @@ interface EntityGenreRepository : JpaRepository<EntityGenreJpa, EntityGenreId> {
         limit: Int,
         offset: Int,
     ): List<UUID>
+
+    // True when the album has at least one audiobook-genre track. Used to keep the music cover search
+    // APIs (iTunes/Deezer, media=music) away from audiobook albums, which would otherwise resolve a
+    // same-named music album's art; audiobook covers come from the dedicated per-track pass.
+    @Query(
+        value =
+            "SELECT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.audio_tracks at " +
+                "JOIN core_v2_library.entity_genres eg ON eg.entity_id = at.entity_id " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE at.album_id = :albumId AND lower(g.name) IN (:genreNames))",
+        nativeQuery = true,
+    )
+    fun albumHasAudiobookTrack(
+        albumId: UUID,
+        genreNames: Collection<String>,
+    ): Boolean
 }

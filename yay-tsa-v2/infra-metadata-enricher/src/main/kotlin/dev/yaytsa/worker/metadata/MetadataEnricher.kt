@@ -301,7 +301,11 @@ class MetadataEnricher(
         val albumName = entityRepo.findById(albumId).orElse(null)?.name
         val artistName = album.artistId?.let { entityRepo.findById(it).orElse(null)?.name }
 
-        if (!albumName.isNullOrBlank()) {
+        // Audiobook albums must never hit the music search APIs (they'd resolve a same-named music
+        // album's art); their covers come from the dedicated per-track pass (CAA-by-mbid + Open Library).
+        val isAudiobook = entityGenreRepo.albumHasAudiobookTrack(albumId, audiobookGenres)
+
+        if (!albumName.isNullOrBlank() && !isAudiobook) {
             val local =
                 LocalAlbum(
                     title = albumName,
@@ -313,10 +317,22 @@ class MetadataEnricher(
             val match = ReleaseMatcher.match(local, candidates)
             if (match != null) album.releaseGroupMbid = match.candidate.mbid
             writeAlbumCoverIfMissing(albumId, albumName, artistName, album.releaseGroupMbid)
+        } else if (isAudiobook) {
+            // Still link an existing on-disk cover.jpg so the album row exists for per-track borrowing,
+            // but do not reach out to any music source.
+            linkExistingAlbumCover(albumId)
         }
 
         album.metadataCheckedAt = now()
         albumRepo.save(album)
+    }
+
+    private fun linkExistingAlbumCover(albumId: UUID) {
+        if (imageRepo.findByEntityIdAndIsPrimaryTrue(albumId) != null) return
+        val albumDir = safeRoot?.let { root -> resolveAlbumDirectory(albumId)?.takeIf { it.startsWith(root) } } ?: return
+        val existing = findExistingCoverFile(albumDir) ?: return
+        saveImageRow(albumId, existing.toString(), runCatching { Files.size(existing) }.getOrDefault(0L))
+        log.info("Linked existing cover file for audiobook album {}: {}", albumId, existing)
     }
 
     // Acquire a cover from the ordered external chain (CAA -> iTunes -> Deezer) and persist it: the album
