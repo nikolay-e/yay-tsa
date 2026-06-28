@@ -170,19 +170,23 @@ backend:
       lrclib:
         enabled: true # keyless public lyrics provider (lrclib.net)
 
-  # Writable cache for artist images (keyless MusicBrainz->Wikidata->Commons photo, or album-cover
-  # fallback). emptyDir is sufficient: images are deterministically re-derivable on the next
-  # enrichment cycle, so losing them on pod restart is harmless. Switch to a PVC only if you want
-  # the cache to survive restarts. Must stay writable while readOnlyRootFilesystem is true.
+  # Writable store for artist images (keyless MusicBrainz->Wikidata->Commons photo, or album-cover
+  # fallback). When media is enabled these live on the SAME persistent volume as the library (under
+  # mediaSubPath), so externally-fetched artist photos survive pod restarts — the enricher marks each
+  # entity checked and does NOT re-derive, so an emptyDir silently loses them forever on restart. With
+  # media disabled it falls back to an emptyDir of sizeLimit. Must stay writable (readOnlyRootFilesystem).
   artistImages:
     mountPath: /app/artist-images
+    mediaSubPath: .yaytsa/artist-images
     sizeLimit: 1Gi
 
-  # Writable cache for materialized embedded cover art (scan time) and audiobook/Open Library covers
-  # (enricher). emptyDir is sufficient: covers are re-derivable on the next scan/enrichment cycle, so
-  # losing them on pod restart is harmless. Must stay writable while readOnlyRootFilesystem is true.
+  # Writable store for materialized embedded cover art (scan time) and audiobook/iTunes/Deezer/Open
+  # Library covers (enricher). Same rationale as artistImages: persisted under the media volume's
+  # mediaSubPath when media is enabled (re-derivation is gated by metadata_checked_at, so an emptyDir
+  # loses them on restart), else an emptyDir of sizeLimit. Must stay writable (readOnlyRootFilesystem).
   coverCache:
     mountPath: /app/cover-cache
+    mediaSubPath: .yaytsa/cover-cache
     sizeLimit: 2Gi
 
   media:
