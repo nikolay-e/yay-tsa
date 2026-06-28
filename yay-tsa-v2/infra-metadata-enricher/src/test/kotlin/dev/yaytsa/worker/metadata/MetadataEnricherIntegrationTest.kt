@@ -56,6 +56,8 @@ class MetadataEnricherIntegrationTest {
         private val coverArtHits = AtomicInteger()
         private val openLibrarySearchHits = AtomicInteger()
         private val openLibraryCoverHits = AtomicInteger()
+        private val itunesHits = AtomicInteger()
+        private val deezerHits = AtomicInteger()
 
         @JvmStatic
         val mockServer: HttpServer =
@@ -89,6 +91,46 @@ class MetadataEnricherIntegrationTest {
                 }
                 createContext("/openlibrary-covers/b/id/") { ex ->
                     openLibraryCoverHits.incrementAndGet()
+                    ex.responseHeaders.add("Content-Type", "image/jpeg")
+                    ex.sendResponseHeaders(200, jpeg.size.toLong())
+                    ex.responseBody.use { it.write(jpeg) }
+                }
+                // iTunes / Deezer free-text fallbacks: empty by default so existing coverless/parked
+                // specs are unaffected; a match is returned only for the sentinel album names below.
+                createContext("/itunes/search") { ex ->
+                    itunesHits.incrementAndGet()
+                    val q = ex.requestURI.query ?: ""
+                    val self = "http://localhost:${mockServer.address.port}"
+                    val body =
+                        if (q.contains("ItunesOnly", ignoreCase = true)) {
+                            """{"results":[{"artworkUrl100":"$self/itunes-art/100x100bb.jpg"}]}"""
+                        } else {
+                            """{"results":[]}"""
+                        }.toByteArray()
+                    ex.responseHeaders.add("Content-Type", "application/json")
+                    ex.sendResponseHeaders(200, body.size.toLong())
+                    ex.responseBody.use { it.write(body) }
+                }
+                createContext("/itunes-art/") { ex ->
+                    ex.responseHeaders.add("Content-Type", "image/jpeg")
+                    ex.sendResponseHeaders(200, jpeg.size.toLong())
+                    ex.responseBody.use { it.write(jpeg) }
+                }
+                createContext("/deezer/search/album") { ex ->
+                    deezerHits.incrementAndGet()
+                    val q = ex.requestURI.query ?: ""
+                    val self = "http://localhost:${mockServer.address.port}"
+                    val body =
+                        if (q.contains("DeezerOnly", ignoreCase = true)) {
+                            """{"data":[{"cover_xl":"$self/deezer-art/cover.jpg"}]}"""
+                        } else {
+                            """{"data":[]}"""
+                        }.toByteArray()
+                    ex.responseHeaders.add("Content-Type", "application/json")
+                    ex.sendResponseHeaders(200, body.size.toLong())
+                    ex.responseBody.use { it.write(body) }
+                }
+                createContext("/deezer-art/") { ex ->
                     ex.responseHeaders.add("Content-Type", "image/jpeg")
                     ex.sendResponseHeaders(200, jpeg.size.toLong())
                     ex.responseBody.use { it.write(jpeg) }
@@ -129,6 +171,8 @@ class MetadataEnricherIntegrationTest {
             registry.add("yaytsa.metadata.coverart-base-url") { "$baseUrl/coverart" }
             registry.add("yaytsa.metadata.openlibrary-base-url") { "$baseUrl/openlibrary" }
             registry.add("yaytsa.metadata.openlibrary-covers-base-url") { "$baseUrl/openlibrary-covers" }
+            registry.add("yaytsa.metadata.itunes-base-url") { "$baseUrl/itunes" }
+            registry.add("yaytsa.metadata.deezer-base-url") { "$baseUrl/deezer" }
         }
     }
 
@@ -139,6 +183,8 @@ class MetadataEnricherIntegrationTest {
         coverArtHits.set(0)
         openLibrarySearchHits.set(0)
         openLibraryCoverHits.set(0)
+        itunesHits.set(0)
+        deezerHits.set(0)
         // Keep the clock monotonic across tests: a per-test forward jump prevents the shared RateLimiter's
         // lastRequestAt (set in a prior test that advanced time) from forcing a multi-hour sleep.
         testClock.advance(
@@ -314,5 +360,27 @@ class MetadataEnricherIntegrationTest {
         // Second cycle: parked provider-unavailable head failures drop out, so the tail is now in the window.
         enricher.enrich()
         assertNotNull(imageRepo.findByEntityIdAndIsPrimaryTrue(tail), "tail must be reached once provider-unavailable heads are parked")
+    }
+
+    @Test
+    fun `album with no MusicBrainz match gets a cover from the iTunes fallback`() {
+        val album = seedAlbum("ItunesOnly Album", null, null)
+
+        enricher.enrich()
+
+        val cover = imageRepo.findByEntityIdAndIsPrimaryTrue(album)
+        assertNotNull(cover, "album must get a Primary image from the iTunes fallback when MusicBrainz has no match")
+        assertTrue(itunesHits.get() >= 1, "iTunes search must have been queried for the coverless album")
+    }
+
+    @Test
+    fun `album missed by MusicBrainz and iTunes still gets a cover from the Deezer fallback`() {
+        val album = seedAlbum("DeezerOnly Album", null, null)
+
+        enricher.enrich()
+
+        val cover = imageRepo.findByEntityIdAndIsPrimaryTrue(album)
+        assertNotNull(cover, "album must fall through to Deezer when MusicBrainz and iTunes both miss")
+        assertTrue(deezerHits.get() >= 1, "Deezer search must have been queried after the iTunes miss")
     }
 }
