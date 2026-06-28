@@ -350,11 +350,13 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         // a failed cover never fails the track download. Skip if already stored.
         const coverKey = coverKeyFor(track);
         try {
-          // The image endpoint resolves covers by id (ignoring the tag), so fetch by coverKey when
-          // the track advertises any Primary cover. The tag is a cache hint; a coverless track 404s
-          // and is simply not cached (handled by the response.ok check below).
-          const coverTag = track.ImageTags?.Primary ?? track.AlbumPrimaryImageTag;
-          if (coverTag && !(await store.getCover(coverKey))) {
+          // The image endpoint resolves covers by id (ignoring the tag), so always fetch by coverKey —
+          // do NOT gate on a Primary tag: the backend often omits it on track items even when the album
+          // has servable art, which would otherwise leave every offline track coverless. The tag is
+          // passed only as a cache hint when present; a genuinely coverless album 404s and is simply not
+          // cached (handled by the response.ok check). This guarantees offline artwork ships with the audio.
+          if (!(await store.getCover(coverKey))) {
+            const coverTag = track.ImageTags?.Primary ?? track.AlbumPrimaryImageTag;
             const imageUrl = client.getImageUrl(coverKey, 'Primary', {
               tag: coverTag,
               maxWidth: 256,
@@ -366,7 +368,9 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
             }
           }
         } catch (error) {
-          log.player.warn('Offline cover download failed', { coverKey, error: String(error) });
+          // Best-effort: a cover that fails to cache must never spam error telemetry (it does not
+          // break offline audio playback). Debug keeps it out of the client-error channel.
+          log.player.debug('Offline cover caching skipped', { coverKey, error: String(error) });
         }
 
         set(state => ({
