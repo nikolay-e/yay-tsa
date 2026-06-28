@@ -31,6 +31,10 @@ import java.util.concurrent.atomic.AtomicInteger
         "yaytsa.metadata.enabled=true",
         "yaytsa.metadata.rate-limit-ms=0",
         "yaytsa.metadata.openlibrary-enabled=true",
+        // This class asserts Open Library is the ONLY surviving source, so the iTunes/Deezer album
+        // fallbacks must be off (otherwise they'd resolve the parent album cover before OL is reached).
+        "yaytsa.metadata.itunes-enabled=false",
+        "yaytsa.metadata.deezer-enabled=false",
         "spring.flyway.enabled=true",
         "spring.flyway.locations=classpath:db/library",
         "spring.flyway.schemas=core_v2_library",
