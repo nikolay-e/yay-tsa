@@ -140,8 +140,14 @@ spec:
               mountPath: /app/logs
             - name: artist-images
               mountPath: {{ .Values.backend.config.metadata.artistImageDir }}
+              {{- if .Values.backend.media.enabled }}
+              subPath: {{ .Values.backend.artistImages.mediaSubPath }}
+              {{- end }}
             - name: cover-cache
               mountPath: {{ .Values.backend.config.image.coverCacheDir }}
+              {{- if .Values.backend.media.enabled }}
+              subPath: {{ .Values.backend.coverCache.mediaSubPath }}
+              {{- end }}
             {{- if .Values.backend.media.enabled }}
             - name: media
               mountPath: {{ .Values.backend.media.mountPath }}
@@ -163,12 +169,34 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 256Mi
+        # Artist images and cover cache live on the persistent media volume (via subPath) when media is
+        # enabled, so externally-fetched artwork survives pod restarts; otherwise an ephemeral emptyDir.
         - name: artist-images
+          {{- if .Values.backend.media.enabled }}
+          {{- if .Values.backend.media.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.backend.media.existingClaim }}
+          {{- else }}
+          hostPath:
+            path: {{ .Values.backend.media.hostPath }}
+          {{- end }}
+          {{- else }}
           emptyDir:
             sizeLimit: {{ .Values.backend.artistImages.sizeLimit }}
+          {{- end }}
         - name: cover-cache
+          {{- if .Values.backend.media.enabled }}
+          {{- if .Values.backend.media.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.backend.media.existingClaim }}
+          {{- else }}
+          hostPath:
+            path: {{ .Values.backend.media.hostPath }}
+          {{- end }}
+          {{- else }}
           emptyDir:
             sizeLimit: {{ .Values.backend.coverCache.sizeLimit }}
+          {{- end }}
         {{- if .Values.backend.media.enabled }}
         - name: media
           {{- if .Values.backend.media.existingClaim }}

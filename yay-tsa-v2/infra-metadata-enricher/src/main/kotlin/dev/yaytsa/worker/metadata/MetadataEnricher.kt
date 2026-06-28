@@ -46,6 +46,10 @@ class MetadataEnricher(
     @Value("\${yaytsa.metadata.openlibrary-enabled:false}") private val openLibraryEnabled: Boolean,
     @Value("\${yaytsa.metadata.openlibrary-base-url:https://openlibrary.org}") openLibraryBaseUrl: String,
     @Value("\${yaytsa.metadata.openlibrary-covers-base-url:https://covers.openlibrary.org}") openLibraryCoversBaseUrl: String,
+    @Value("\${yaytsa.metadata.itunes-enabled:true}") private val itunesEnabled: Boolean,
+    @Value("\${yaytsa.metadata.itunes-base-url:https://itunes.apple.com}") itunesBaseUrl: String,
+    @Value("\${yaytsa.metadata.deezer-enabled:true}") private val deezerEnabled: Boolean,
+    @Value("\${yaytsa.metadata.deezer-base-url:https://api.deezer.com}") deezerBaseUrl: String,
     @Value("\${yaytsa.metadata.cover-retry-cooldown-hours:168}") coverRetryCooldownHours: Long,
     @Value("\${yaytsa.metadata.cover-provider-retry-cooldown-hours:6}") coverProviderRetryCooldownHours: Long,
 ) {
@@ -92,6 +96,23 @@ class MetadataEnricher(
         ArtistImageSourceClient(userAgent, rateLimiter, musicBrainzBaseUrl, wikidataBaseUrl, commonsApiUrl)
     private val openLibrary =
         OpenLibraryCoverClient(openLibraryBaseUrl, openLibraryCoversBaseUrl, userAgent, rateLimiter)
+    private val itunes = ItunesCoverClient(itunesBaseUrl, userAgent, rateLimiter)
+    private val deezer = DeezerCoverClient(deezerBaseUrl, userAgent, rateLimiter)
+
+    // Ordered cover fallback for an album: each source is tried until one yields bytes. Cover Art Archive
+    // needs a MusicBrainz release-group match; iTunes and Deezer resolve by free-text artist+album and
+    // cover the long tail (obscure / non-Western releases) that MusicBrainz misses. Sources that throw
+    // MetadataProviderUnavailableException (transient 429/5xx) propagate so the entity is parked, not burned.
+    private fun resolveExternalAlbumCover(
+        albumName: String,
+        artistName: String?,
+        releaseGroupMbid: String?,
+    ): CoverArt? {
+        releaseGroupMbid?.let { mbid -> coverArt.fetchReleaseGroupFront(mbid)?.let { return it } }
+        if (itunesEnabled) itunes.fetchAlbumCover(artistName, albumName)?.let { return it }
+        if (deezerEnabled) deezer.fetchAlbumCover(artistName, albumName)?.let { return it }
+        return null
+    }
 
     private fun now(): OffsetDateTime = OffsetDateTime.ofInstant(clock.now(), ZoneOffset.UTC)
 
@@ -280,7 +301,11 @@ class MetadataEnricher(
         val albumName = entityRepo.findById(albumId).orElse(null)?.name
         val artistName = album.artistId?.let { entityRepo.findById(it).orElse(null)?.name }
 
-        if (!albumName.isNullOrBlank()) {
+        // Audiobook albums must never hit the music search APIs (they'd resolve a same-named music
+        // album's art); their covers come from the dedicated per-track pass (CAA-by-mbid + Open Library).
+        val isAudiobook = entityGenreRepo.albumHasAudiobookTrack(albumId, audiobookGenres)
+
+        if (!albumName.isNullOrBlank() && !isAudiobook) {
             val local =
                 LocalAlbum(
                     title = albumName,
@@ -290,53 +315,84 @@ class MetadataEnricher(
                 )
             val candidates = musicBrainz.searchReleaseGroups(albumName, artistName)
             val match = ReleaseMatcher.match(local, candidates)
-            if (match != null) {
-                album.releaseGroupMbid = match.candidate.mbid
-                downloadCoverIfMissing(albumId, match.candidate.mbid)
-            }
+            if (match != null) album.releaseGroupMbid = match.candidate.mbid
+            writeAlbumCoverIfMissing(albumId, albumName, artistName, album.releaseGroupMbid)
+        } else if (isAudiobook) {
+            // Still link an existing on-disk cover.jpg so the album row exists for per-track borrowing,
+            // but do not reach out to any music source.
+            linkExistingAlbumCover(albumId)
         }
 
         album.metadataCheckedAt = now()
         albumRepo.save(album)
     }
 
-    private fun downloadCoverIfMissing(
+    private fun linkExistingAlbumCover(albumId: UUID) {
+        if (imageRepo.findByEntityIdAndIsPrimaryTrue(albumId) != null) return
+        val albumDir = safeRoot?.let { root -> resolveAlbumDirectory(albumId)?.takeIf { it.startsWith(root) } } ?: return
+        val existing = findExistingCoverFile(albumDir) ?: return
+        saveImageRow(albumId, existing.toString(), runCatching { Files.size(existing) }.getOrDefault(0L))
+        log.info("Linked existing cover file for audiobook album {}: {}", albumId, existing)
+    }
+
+    // Acquire a cover from the ordered external chain (CAA -> iTunes -> Deezer) and persist it: the album
+    // folder when the media mount is writable, otherwise the writable cover cache. Also backfills the image
+    // row when a cover.jpg already exists on disk but no row points at it (so the fast read path is used).
+    private fun writeAlbumCoverIfMissing(
         albumId: UUID,
-        releaseGroupMbid: String,
+        albumName: String,
+        artistName: String?,
+        releaseGroupMbid: String?,
     ) {
-        if (safeRoot == null) return
         if (imageRepo.findByEntityIdAndIsPrimaryTrue(albumId) != null) return
 
-        val albumDir = resolveAlbumDirectory(albumId) ?: return
-        if (!albumDir.startsWith(safeRoot)) {
-            log.debug("Album directory {} outside music root, skipping cover write", albumDir)
+        val albumDir = safeRoot?.let { root -> resolveAlbumDirectory(albumId)?.takeIf { it.startsWith(root) } }
+        val existing = albumDir?.let { dir -> findExistingCoverFile(dir) }
+        if (existing != null) {
+            saveImageRow(albumId, existing.toString(), runCatching { Files.size(existing) }.getOrDefault(0L))
+            log.info("Linked existing cover file for album {}: {}", albumId, existing)
             return
         }
 
-        val cover = coverArt.fetchReleaseGroupFront(releaseGroupMbid) ?: return
-        val coverFile = albumDir.resolve("cover.${cover.extension}")
-        if (Files.exists(coverFile)) return
+        val cover = resolveExternalAlbumCover(albumName, artistName, releaseGroupMbid) ?: return
 
-        val written =
-            runCatching {
-                Files.write(coverFile, cover.bytes, StandardOpenOption.CREATE_NEW)
-            }.getOrElse {
-                log.warn("Failed to write cover to {}: {}", coverFile, it.message)
+        if (albumDir != null) {
+            val coverFile = albumDir.resolve("cover.${cover.extension}")
+            val written = runCatching { Files.write(coverFile, cover.bytes, StandardOpenOption.CREATE_NEW) }.getOrNull()
+            if (written != null) {
+                saveImageRow(albumId, written.toString(), cover.bytes.size.toLong())
+                log.info("Wrote album cover for {} to {}", albumId, coverFile)
                 return
             }
+            log.debug("Album folder not writable for {}, falling back to cover cache", albumId)
+        }
 
+        if (writeCachedCover(albumId, cover.bytes, cover.extension)) {
+            log.info("Cached album cover for {} (album folder unavailable)", albumId)
+        }
+    }
+
+    private fun findExistingCoverFile(albumDir: Path): Path? =
+        listOf("cover.jpg", "cover.jpeg", "cover.png", "cover.webp", "folder.jpg")
+            .map { albumDir.resolve(it) }
+            .firstOrNull { Files.isRegularFile(it) }
+
+    private fun saveImageRow(
+        entityId: UUID,
+        path: String,
+        sizeBytes: Long,
+    ) {
         imageRepo.save(
             ImageJpa(
                 id = UUID.randomUUID(),
-                entityId = albumId,
+                entityId = entityId,
                 imageType = "Primary",
-                path = written.toString(),
-                sizeBytes = cover.bytes.size.toLong(),
+                path = path,
+                sizeBytes = sizeBytes,
                 isPrimary = true,
                 createdAt = now(),
             ),
         )
-        log.info("Wrote cover art for album {} to {}", albumId, coverFile)
     }
 
     private fun resolveAlbumDirectory(albumId: UUID): Path? {
