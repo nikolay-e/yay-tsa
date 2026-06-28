@@ -278,7 +278,7 @@ class LibraryWriter(
         val filenameTitle = stripTrackNumberPrefix(file.nameWithoutExtension)
         val id3Title = audioTag?.safeGetFirst(FieldKey.TITLE)?.usableTag()
         val filenameHasTrackPrefix = Regex("^\\d{1,3}\\s*[-._]\\s*").containsMatchIn(file.nameWithoutExtension)
-        val trackName =
+        val rawTrackName =
             when {
                 id3Title == null -> filenameTitle
                 filenameHasTrackPrefix && !filenameTitle.equals(id3Title, ignoreCase = true) -> filenameTitle
@@ -307,6 +307,9 @@ class LibraryWriter(
         // falling back from the track's own directory to this path.
         val albumRootDir = if (pathSegments.size >= 3) root.resolve(pathSegments[0]).resolve(pathSegments[1]) else null
 
+        val effectiveArtist = primaryArtist(tagAlbumArtist ?: tagArtist ?: folderArtist)
+        val trackName = stripArtistPrefix(rawTrackName, effectiveArtist)
+
         val durationMs = audioHeader?.trackLength?.let { it * 1000L }
 
         // Skip unplayable files: missing duration, zero, or <2s (CD pre-gap files like
@@ -319,7 +322,7 @@ class LibraryWriter(
 
         return ProbedAudioFile(
             trackName = trackName,
-            artistName = primaryArtist(tagAlbumArtist ?: tagArtist ?: folderArtist),
+            artistName = effectiveArtist,
             albumName = tagAlbum ?: folderAlbum,
             trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.leadingInt(),
             discNumber = audioTag?.safeGetFirst(FieldKey.DISC_NO)?.leadingInt() ?: 1,
@@ -572,6 +575,24 @@ class LibraryWriter(
     // Filename-derived titles often start with a track-number prefix ("01 - Eyeless").
     // Strip it so the player shows "Eyeless" instead of leaking the filename pattern.
     private fun stripTrackNumberPrefix(filename: String): String = filename.replace(Regex("^\\d{1,3}\\s*[-._]\\s*"), "").trim().ifBlank { filename }
+
+    // Some upstream taggers prefix the TITLE with the performer ("The Hatters - Свадьба"). When the
+    // segment before " - " equals the resolved artist (case-insensitive), it is redundant duplication of
+    // the artist, never the real title, so strip it. Conservative by construction: only an exact artist
+    // match is removed (collaborations like "Рудбой, The Hatters - …" don't match the album artist and
+    // are left intact), and never to an empty remainder.
+    private fun stripArtistPrefix(
+        title: String,
+        artist: String?,
+    ): String {
+        if (artist.isNullOrBlank()) return title
+        val prefix = "$artist - "
+        if (title.length > prefix.length && title.startsWith(prefix, ignoreCase = true)) {
+            val rest = title.substring(prefix.length).trim()
+            if (rest.isNotBlank()) return rest
+        }
+        return title
+    }
 
     // Some FLAC rips carry placeholder tags like "##### ######" or "????" where the
     // ripper failed to encode Cyrillic. Treat them as missing so folder/filename

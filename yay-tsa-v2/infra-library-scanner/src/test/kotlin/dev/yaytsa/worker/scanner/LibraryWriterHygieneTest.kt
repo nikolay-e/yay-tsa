@@ -136,6 +136,40 @@ class LibraryWriterHygieneTest {
     }
 
     @Test
+    fun `redundant artist prefix in the title is stripped when it equals the album artist`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "The Hatters/Some Album/song-one.flac")
+        val af = AudioFileIO.read(file.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.TITLE, "The Hatters - Свадьба")
+        af.tag.setField(FieldKey.ALBUM_ARTIST, "The Hatters")
+        AudioFileIO.write(af)
+
+        writer.upsertTrack(root, file)
+
+        assertEquals(listOf("Свадьба"), trackNames(), "an 'Artist - Title' tag must drop the redundant artist prefix")
+    }
+
+    @Test
+    fun `collaboration prefix that is not the album artist is left intact`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val file = place(root, "silent-3s.flac", "The Hatters/Some Album/song-two.flac")
+        val af = AudioFileIO.read(file.toFile())
+        af.tagOrCreateAndSetDefault.setField(FieldKey.TITLE, "Рудбой, The Hatters - Список дел")
+        af.tag.setField(FieldKey.ALBUM_ARTIST, "The Hatters")
+        AudioFileIO.write(af)
+
+        writer.upsertTrack(root, file)
+
+        assertEquals(
+            listOf("Рудбой, The Hatters - Список дел"),
+            trackNames(),
+            "a title whose prefix is not exactly the album artist must not be stripped",
+        )
+    }
+
+    @Test
     fun `multi-disc album cover at the album root resolves from a track in a CD subfolder`(
         @org.junit.jupiter.api.io.TempDir root: Path,
     ) {
