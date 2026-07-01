@@ -372,8 +372,16 @@ class MetadataEnricher(
         }
     }
 
+    // Mirrors infra-library-scanner's LibraryWriter.coverFilenames (duplicated: cross-module private
+    // constant, no shared home). Keep the two lists in sync — a narrower list here would miss a cover
+    // the scanner already recognizes, causing a redundant duplicate cover.* write alongside it.
     private fun findExistingCoverFile(albumDir: Path): Path? =
-        listOf("cover.jpg", "cover.jpeg", "cover.png", "cover.webp", "folder.jpg")
+        listOf(
+            "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
+            "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
+            "front.jpg", "front.jpeg", "front.png", "front.webp",
+            "album.jpg", "album.jpeg", "album.png", "album.webp",
+        )
             .map { albumDir.resolve(it) }
             .firstOrNull { Files.isRegularFile(it) }
 

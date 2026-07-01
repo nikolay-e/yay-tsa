@@ -242,13 +242,38 @@ function saveVolume(volume: number): void {
 let consecutiveLoadFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
+// Playback-position reporting (start/progress/stopped) is fire-and-forget best-effort: a single
+// failed report is a transient network blip, not a bug, so it logs at debug (never spams telemetry).
+// But a SUSTAINED run of failures across these calls means the report pipeline itself is down (bad
+// token, backend outage) and must surface — mirrors useDeviceHeartbeat's consecutive-failure escalator
+// so this failure class isn't a permanent blind spot in client-error telemetry. Shared across all
+// report call sites (start/progress/stopped) since they hit the same endpoint family and root cause.
+let consecutivePlaybackReportFailures = 0;
+function recordPlaybackReportOutcome(succeeded: boolean, context: string): void {
+  if (succeeded) {
+    consecutivePlaybackReportFailures = 0;
+    return;
+  }
+  consecutivePlaybackReportFailures++;
+  if (consecutivePlaybackReportFailures === MAX_CONSECUTIVE_FAILURES) {
+    log.player.warn('Playback reporting failing repeatedly', {
+      context,
+      consecutiveFailures: consecutivePlaybackReportFailures,
+    });
+  }
+}
+
 function startPlaybackReporter(trackId: string): void {
   if (!currentClient) return;
   lastProgressReportTime = 0;
   playbackReporter = new PlaybackReporter(currentClient);
-  playbackReporter.reportStart(trackId).catch(err => {
-    log.player.debug('Failed to report start', { error: String(err) });
-  });
+  playbackReporter
+    .reportStart(trackId)
+    .then(() => recordPlaybackReportOutcome(true, 'start'))
+    .catch(err => {
+      recordPlaybackReportOutcome(false, 'start');
+      log.player.debug('Failed to report start', { error: String(err) });
+    });
 }
 
 function resolveNextItem(queue: PlaybackQueue, _repeatMode: RepeatMode): AudioItem | null {
@@ -426,9 +451,13 @@ export const usePlayerStore = create<PlayerStore>()(
             .queueProgress(prevId, prevPos)
             .catch(() => {});
         }
-        playbackReporter.reportStopped(prevId, prevPos).catch(err => {
-          log.player.debug('Failed to report stopped', { error: String(err) });
-        });
+        playbackReporter
+          .reportStopped(prevId, prevPos)
+          .then(() => recordPlaybackReportOutcome(true, 'stopped'))
+          .catch(err => {
+            recordPlaybackReportOutcome(false, 'stopped');
+            log.player.debug('Failed to report stopped', { error: String(err) });
+          });
       }
     }
 
@@ -842,9 +871,13 @@ export const usePlayerStore = create<PlayerStore>()(
         : PROGRESS_REPORT_INTERVAL_MS;
       if (playbackReporter && currentItemId && now - lastProgressReportTime >= reportInterval) {
         lastProgressReportTime = now;
-        playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
-          log.player.debug('Failed to report playback progress', { error: String(err) });
-        });
+        playbackReporter
+          .reportProgress(currentItemId, seconds, false)
+          .then(() => recordPlaybackReportOutcome(true, 'progress'))
+          .catch(err => {
+            recordPlaybackReportOutcome(false, 'progress');
+            log.player.debug('Failed to report playback progress', { error: String(err) });
+          });
       }
     });
 
@@ -880,9 +913,13 @@ export const usePlayerStore = create<PlayerStore>()(
           engine.pause();
           wakeLock.release();
           if (playbackReporter && currentItemId) {
-            playbackReporter.reportStopped(currentItemId, engine.getCurrentTime()).catch(err => {
-              log.player.debug('Failed to report stop on natural end', { error: String(err) });
-            });
+            playbackReporter
+              .reportStopped(currentItemId, engine.getCurrentTime())
+              .then(() => recordPlaybackReportOutcome(true, 'natural-end'))
+              .catch(err => {
+                recordPlaybackReportOutcome(false, 'natural-end');
+                log.player.debug('Failed to report stop on natural end', { error: String(err) });
+              });
             playbackReporter = null;
             currentItemId = null;
           }
@@ -1243,7 +1280,9 @@ export const usePlayerStore = create<PlayerStore>()(
           if (playbackReporter && currentItemId) {
             playbackReporter
               .reportProgress(currentItemId, engine.getCurrentTime(), true)
+              .then(() => recordPlaybackReportOutcome(true, 'pause'))
               .catch(err => {
+                recordPlaybackReportOutcome(false, 'pause');
                 log.player.debug('Failed to report pause', { error: String(err) });
               });
           }
@@ -1270,7 +1309,9 @@ export const usePlayerStore = create<PlayerStore>()(
             if (playbackReporter && currentItemId) {
               playbackReporter
                 .reportProgress(currentItemId, engine.getCurrentTime(), false)
+                .then(() => recordPlaybackReportOutcome(true, 'resume'))
                 .catch(err => {
+                  recordPlaybackReportOutcome(false, 'resume');
                   log.player.debug('Failed to report resume', { error: String(err) });
                 });
             }
@@ -1289,9 +1330,13 @@ export const usePlayerStore = create<PlayerStore>()(
             engine.pause();
             wakeLock.release();
             if (playbackReporter && currentItemId) {
-              playbackReporter.reportStopped(currentItemId, engine.getCurrentTime()).catch(err => {
-                log.player.debug('Failed to report stop on queue end', { error: String(err) });
-              });
+              playbackReporter
+                .reportStopped(currentItemId, engine.getCurrentTime())
+                .then(() => recordPlaybackReportOutcome(true, 'queue-end'))
+                .catch(err => {
+                  recordPlaybackReportOutcome(false, 'queue-end');
+                  log.player.debug('Failed to report stop on queue end', { error: String(err) });
+                });
               playbackReporter = null;
               currentItemId = null;
             }
@@ -1344,7 +1389,9 @@ export const usePlayerStore = create<PlayerStore>()(
           // clamped forward by the server's furthest-position-wins heartbeat rule.
           playbackReporter
             .reportProgress(currentItemId, seconds, !get().isPlaying, 'Seek')
+            .then(() => recordPlaybackReportOutcome(true, 'seek'))
             .catch(err => {
+              recordPlaybackReportOutcome(false, 'seek');
               log.player.debug('Failed to report seek', { error: String(err) });
             });
         }
@@ -1412,7 +1459,9 @@ export const usePlayerStore = create<PlayerStore>()(
           if (playbackReporter && currentItemId) {
             playbackReporter
               .reportStopped(currentItemId, stoppedPosition, lastPositionTruthAt || undefined)
+              .then(() => recordPlaybackReportOutcome(true, 'stop'))
               .catch(err => {
+                recordPlaybackReportOutcome(false, 'stop');
                 log.player.debug('Failed to report stop', { error: String(err) });
               });
             playbackReporter = null;
