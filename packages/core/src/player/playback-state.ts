@@ -24,7 +24,7 @@ export class PlaybackReporter {
       IsMuted: false,
     };
 
-    await this.client.post('/Sessions/Playing', info);
+    await this.client.post('/Sessions/Playing', info, undefined, true);
   }
 
   async reportProgress(
@@ -40,7 +40,9 @@ export class PlaybackReporter {
 
     await this.client.post(
       '/Sessions/Playing/Progress',
-      this.progressInfo(itemId, positionSeconds, isPaused, eventName, eventTimeMs)
+      this.progressInfo(itemId, positionSeconds, isPaused, eventName, eventTimeMs),
+      undefined,
+      true
     );
   }
 
@@ -59,7 +61,7 @@ export class PlaybackReporter {
       EventTime: eventTimeMs ?? Date.now(),
     };
 
-    await this.client.post('/Sessions/Playing/Stopped', info);
+    await this.client.post('/Sessions/Playing/Stopped', info, undefined, true);
   }
 
   // Best-effort durable write for page unload: a keepalive POST that outlives the tab so the resume
