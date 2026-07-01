@@ -377,12 +377,23 @@ class MetadataEnricher(
     // the scanner already recognizes, causing a redundant duplicate cover.* write alongside it.
     private fun findExistingCoverFile(albumDir: Path): Path? =
         listOf(
-            "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
-            "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
-            "front.jpg", "front.jpeg", "front.png", "front.webp",
-            "album.jpg", "album.jpeg", "album.png", "album.webp",
-        )
-            .map { albumDir.resolve(it) }
+            "cover.jpg",
+            "cover.jpeg",
+            "cover.png",
+            "cover.webp",
+            "folder.jpg",
+            "folder.jpeg",
+            "folder.png",
+            "folder.webp",
+            "front.jpg",
+            "front.jpeg",
+            "front.png",
+            "front.webp",
+            "album.jpg",
+            "album.jpeg",
+            "album.png",
+            "album.webp",
+        ).map { albumDir.resolve(it) }
             .firstOrNull { Files.isRegularFile(it) }
 
     private fun saveImageRow(
