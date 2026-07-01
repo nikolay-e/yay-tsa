@@ -76,9 +76,9 @@ export class LibraryPage {
   }
 
   async navigateToSearch(): Promise<void> {
-    const currentPath = new URL(this.page.url()).pathname;
-    if (currentPath !== '/albums') {
-      await this.navigateToAlbums();
+    // Single global search lives at /search (driven by the top bar); there is no per-tab search.
+    if (new URL(this.page.url()).pathname !== '/search') {
+      await this.page.goto('/search');
     }
     await expect(this.searchInput).toBeVisible({ timeout: 10000 });
   }
@@ -99,19 +99,16 @@ export class LibraryPage {
   }
 
   async waitForSearchResults(): Promise<void> {
-    const albumsContent = this.page.getByTestId('albums-content');
-    if (await albumsContent.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await expect(albumsContent)
-        .not.toHaveAttribute('data-pending', 'true', { timeout: 5000 })
-        .catch(() => {});
-    }
+    // Global search returns album/artist/track sections; wait until either results or the
+    // empty state settle. The tracks section is always present once the query resolves.
     const albumCard = this.page.getByTestId('album-card').first();
-    const noResults = this.page.getByText('No albums found');
-    await expect(albumCard.or(noResults)).toBeVisible({ timeout: 10000 });
+    const noResults = this.page.getByText('No matching tracks found');
+    const tracksSection = this.page.getByTestId('search-section-tracks');
+    await expect(albumCard.or(noResults).or(tracksSection).first()).toBeVisible({ timeout: 10000 });
   }
 
   async expectNoResults(): Promise<void> {
-    await expect(this.page.getByText('No albums found')).toBeVisible();
+    await expect(this.page.getByText('No matching tracks found')).toBeVisible();
   }
 
   async scrollToBottom(): Promise<void> {

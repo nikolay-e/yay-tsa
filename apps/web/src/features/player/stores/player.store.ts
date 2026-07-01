@@ -247,7 +247,7 @@ function startPlaybackReporter(trackId: string): void {
   lastProgressReportTime = 0;
   playbackReporter = new PlaybackReporter(currentClient);
   playbackReporter.reportStart(trackId).catch(err => {
-    log.player.warn('Failed to report start', { error: String(err) });
+    log.player.debug('Failed to report start', { error: String(err) });
   });
 }
 
@@ -427,7 +427,7 @@ export const usePlayerStore = create<PlayerStore>()(
             .catch(() => {});
         }
         playbackReporter.reportStopped(prevId, prevPos).catch(err => {
-          log.player.warn('Failed to report stopped', { error: String(err) });
+          log.player.debug('Failed to report stopped', { error: String(err) });
         });
       }
     }
@@ -843,7 +843,7 @@ export const usePlayerStore = create<PlayerStore>()(
       if (playbackReporter && currentItemId && now - lastProgressReportTime >= reportInterval) {
         lastProgressReportTime = now;
         playbackReporter.reportProgress(currentItemId, seconds, false).catch(err => {
-          log.player.warn('Failed to report playback progress', { error: String(err) });
+          log.player.debug('Failed to report playback progress', { error: String(err) });
         });
       }
     });
@@ -881,7 +881,7 @@ export const usePlayerStore = create<PlayerStore>()(
           wakeLock.release();
           if (playbackReporter && currentItemId) {
             playbackReporter.reportStopped(currentItemId, engine.getCurrentTime()).catch(err => {
-              log.player.warn('Failed to report stop on natural end', { error: String(err) });
+              log.player.debug('Failed to report stop on natural end', { error: String(err) });
             });
             playbackReporter = null;
             currentItemId = null;
@@ -1244,7 +1244,7 @@ export const usePlayerStore = create<PlayerStore>()(
             playbackReporter
               .reportProgress(currentItemId, engine.getCurrentTime(), true)
               .catch(err => {
-                log.player.warn('Failed to report pause', { error: String(err) });
+                log.player.debug('Failed to report pause', { error: String(err) });
               });
           }
         });
@@ -1271,7 +1271,7 @@ export const usePlayerStore = create<PlayerStore>()(
               playbackReporter
                 .reportProgress(currentItemId, engine.getCurrentTime(), false)
                 .catch(err => {
-                  log.player.warn('Failed to report resume', { error: String(err) });
+                  log.player.debug('Failed to report resume', { error: String(err) });
                 });
             }
           } catch (error) {
@@ -1290,7 +1290,7 @@ export const usePlayerStore = create<PlayerStore>()(
             wakeLock.release();
             if (playbackReporter && currentItemId) {
               playbackReporter.reportStopped(currentItemId, engine.getCurrentTime()).catch(err => {
-                log.player.warn('Failed to report stop on queue end', { error: String(err) });
+                log.player.debug('Failed to report stop on queue end', { error: String(err) });
               });
               playbackReporter = null;
               currentItemId = null;
@@ -1345,7 +1345,7 @@ export const usePlayerStore = create<PlayerStore>()(
           playbackReporter
             .reportProgress(currentItemId, seconds, !get().isPlaying, 'Seek')
             .catch(err => {
-              log.player.warn('Failed to report seek', { error: String(err) });
+              log.player.debug('Failed to report seek', { error: String(err) });
             });
         }
       },
@@ -1413,7 +1413,7 @@ export const usePlayerStore = create<PlayerStore>()(
             playbackReporter
               .reportStopped(currentItemId, stoppedPosition, lastPositionTruthAt || undefined)
               .catch(err => {
-                log.player.warn('Failed to report stop', { error: String(err) });
+                log.player.debug('Failed to report stop', { error: String(err) });
               });
             playbackReporter = null;
             currentItemId = null;

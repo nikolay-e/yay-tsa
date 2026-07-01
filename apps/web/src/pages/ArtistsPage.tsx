@@ -1,18 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useInfiniteArtists } from '@/features/library/hooks';
 import { ArtistCard } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
-import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
-import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { cn } from '@/shared/utils/cn';
 
 export function ArtistsPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebouncedValue(searchTerm);
-  const isSearchPending = searchTerm !== debouncedSearchTerm;
   const { selectedId, activeOption, select } = useSortPreference('artists');
 
   const {
@@ -27,7 +21,6 @@ export function ArtistsPage() {
     fetchNextPage,
     fetchPreviousPage,
   } = useInfiniteArtists({
-    searchTerm: debouncedSearchTerm.trim() || undefined,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
   });
@@ -46,7 +39,7 @@ export function ArtistsPage() {
   );
 
   const artistList = (
-    <div className={cn(isSearchPending && 'opacity-60 transition-opacity')}>
+    <div>
       <InfiniteScrollHeader
         hasPreviousPage={hasPreviousPage}
         isFetchingPreviousPage={isFetchingPreviousPage}
@@ -78,14 +71,7 @@ export function ArtistsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Artists</h1>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <SearchInput
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search artists..."
-          />
-          <SortMenu selectedId={selectedId} onSelect={select} />
-        </div>
+        <SortMenu selectedId={selectedId} onSelect={select} />
       </div>
 
       {error && (

@@ -9,8 +9,6 @@ import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { SortMenu, FAVORITES_SORT_OPTIONS, useSortPreference } from '@/shared/ui/SortMenu';
 import { SortableList } from '@/shared/ui/SortableList';
-import { SearchInput } from '@/shared/ui/SearchInput';
-import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import {
   usePlayerStore,
   useCurrentTrack,
@@ -32,9 +30,6 @@ const TABS: { key: FavoriteTab; label: string }[] = [
 
 export function FavoritesPage() {
   const [activeTab, setActiveTab] = useState<FavoriteTab>('tracks');
-  const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebouncedValue(searchTerm);
-  const search = debouncedSearchTerm.trim() || undefined;
 
   const trackSort = useSortPreference('songs', FAVORITES_SORT_OPTIONS, 'favorites');
   const albumSort = useSortPreference('albums', FAVORITES_SORT_OPTIONS, 'favorites');
@@ -49,11 +44,6 @@ export function FavoritesPage() {
     <div className="space-y-6 p-6" data-testid={FAVORITES_TEST_IDS.PAGE}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Favorites</h1>
-        <SearchInput
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search favorites..."
-        />
       </div>
 
       <div className="border-border flex items-end justify-between border-b">
@@ -82,17 +72,14 @@ export function FavoritesPage() {
         />
       </div>
 
-      {activeTab === 'albums' && <FavoriteAlbums sortState={albumSort} searchTerm={search} />}
-      {activeTab === 'artists' && <FavoriteArtists sortState={artistSort} searchTerm={search} />}
-      {activeTab === 'tracks' && <FavoriteTracks sortState={trackSort} searchTerm={search} />}
+      {activeTab === 'albums' && <FavoriteAlbums sortState={albumSort} />}
+      {activeTab === 'artists' && <FavoriteArtists sortState={artistSort} />}
+      {activeTab === 'tracks' && <FavoriteTracks sortState={trackSort} />}
     </div>
   );
 }
 
-function FavoriteAlbums({
-  sortState,
-  searchTerm,
-}: Readonly<{ sortState: SortState; searchTerm?: string }>) {
+function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
@@ -110,7 +97,6 @@ function FavoriteAlbums({
     fetchNextPage,
   } = useInfiniteAlbums({
     isFavorite: true,
-    searchTerm,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
   });
@@ -144,9 +130,6 @@ function FavoriteAlbums({
   }
 
   if (albums.length === 0) {
-    if (searchTerm) {
-      return <FavoritesSearchEmptyState itemLabel="albums" />;
-    }
     return (
       <FavoritesEmptyState
         message="No favorite albums yet"
@@ -191,10 +174,7 @@ function FavoriteAlbums({
   );
 }
 
-function FavoriteArtists({
-  sortState,
-  searchTerm,
-}: Readonly<{ sortState: SortState; searchTerm?: string }>) {
+function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
   const { activeOption } = sortState;
   const reorderMutation = useReorderFavorites();
   const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
@@ -211,7 +191,6 @@ function FavoriteArtists({
     fetchNextPage,
   } = useInfiniteArtists({
     isFavorite: true,
-    searchTerm,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
   });
@@ -241,9 +220,6 @@ function FavoriteArtists({
   }
 
   if (artists.length === 0) {
-    if (searchTerm) {
-      return <FavoritesSearchEmptyState itemLabel="artists" />;
-    }
     return (
       <FavoritesEmptyState
         message="No favorite artists yet"
@@ -284,10 +260,7 @@ function FavoriteArtists({
   );
 }
 
-function FavoriteTracks({
-  sortState,
-  searchTerm,
-}: Readonly<{ sortState: SortState; searchTerm?: string }>) {
+function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
   const currentTrack = useCurrentTrack();
@@ -308,7 +281,6 @@ function FavoriteTracks({
     fetchNextPage,
   } = useInfiniteTracks({
     isFavorite: true,
-    searchTerm,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
   });
@@ -342,9 +314,6 @@ function FavoriteTracks({
   }
 
   if (tracks.length === 0) {
-    if (searchTerm) {
-      return <FavoritesSearchEmptyState itemLabel="songs" />;
-    }
     return (
       <FavoritesEmptyState
         message="No favorite songs yet"
@@ -400,14 +369,6 @@ function FavoriteTracks({
         itemLabel="songs"
       />
     </>
-  );
-}
-
-function FavoritesSearchEmptyState({ itemLabel }: Readonly<{ itemLabel: string }>) {
-  return (
-    <div className="flex h-64 items-center justify-center">
-      <p className="text-text-secondary">No favorite {itemLabel} match your search</p>
-    </div>
   );
 }
 
