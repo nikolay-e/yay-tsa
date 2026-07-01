@@ -3,19 +3,21 @@ import { test, expect } from './fixtures/console-guard.fixture';
 import { installBaseMock, login } from './helpers/media-fixtures';
 
 // Backend-free search-UX suite (chromium-mocked project): /api/* is stubbed, so this runs without
-// a live backend. It proves the debounced search keeps the previous grid mounted while typing
-// (placeholderData) instead of swapping in a full-page spinner, and that keystrokes are coalesced
-// into a single trailing request.
+// a live backend. It proves the single global search (top bar -> /search) debounces: the results
+// section stays mounted while typing (placeholderData) instead of swapping in a full-page spinner,
+// and keystrokes are coalesced into a single trailing request.
 //
 //   npx playwright test --project=chromium-mocked
 
-const ALBUMS = Array.from({ length: 6 }, (_, i) => ({
-  Id: `al${i + 1}`,
-  Name: `Album ${i + 1}`,
-  Type: 'MusicAlbum',
+const TRACKS = Array.from({ length: 6 }, (_, i) => ({
+  Id: `tr${i + 1}`,
+  Name: `Song ${i + 1}`,
+  Type: 'Audio',
   Artists: ['Nova'],
   AlbumArtist: 'Nova',
-  ProductionYear: 2020,
+  Album: 'Nova Album',
+  AlbumId: 'al1',
+  RunTimeTicks: 2_000_000_000,
   ImageTags: {},
   UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false },
 }));
@@ -32,11 +34,21 @@ function installMock(page: Page, searchTermsSeen: string[]): void {
 
   void page.route(/\/Items(\?|$)/, (route: Route) => {
     const url = new URL(route.request().url());
+    const includeTypes = url.searchParams.get('IncludeItemTypes') ?? '';
+    // Only the tracks section (Audio) returns data; album/artist sections stay empty so the
+    // assertions isolate the debounced tracks request.
+    if (!includeTypes.includes('Audio')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ Items: [], TotalRecordCount: 0, StartIndex: 0 }),
+      });
+    }
     const searchTerm = url.searchParams.get('SearchTerm');
     if (searchTerm) searchTermsSeen.push(searchTerm);
     const items = searchTerm
-      ? ALBUMS.filter(a => a.Name.toLowerCase().includes(searchTerm.toLowerCase()))
-      : ALBUMS;
+      ? TRACKS.filter(t => t.Name.toLowerCase().includes(searchTerm.toLowerCase()))
+      : TRACKS;
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -45,40 +57,46 @@ function installMock(page: Page, searchTermsSeen: string[]): void {
   });
 }
 
-test.describe('Search debounce (mocked backend)', () => {
-  test('typing keeps the previous album grid mounted and coalesces requests', async ({ page }) => {
+test.describe('Global search debounce (mocked backend)', () => {
+  test('typing in the global bar keeps results mounted and coalesces requests', async ({
+    page,
+  }) => {
     const searchTermsSeen: string[] = [];
     installMock(page, searchTermsSeen);
     await login(page);
 
-    await page.goto('/albums');
-    const grid = page.getByTestId('albums-content');
-    await expect(grid).toBeVisible();
-    await expect(page.getByText('Album 1')).toBeVisible();
+    // Seed an initial populated result set so the placeholderData behaviour is observable.
+    await page.goto('/search?q=Song');
+    const section = page.getByTestId('search-section-tracks');
+    await expect(section).toBeVisible();
+    await expect(page.getByText('Song 1')).toBeVisible();
 
     await page.evaluate(() => {
-      const gridElement = document.querySelector('[data-testid="albums-content"]');
-      (window as unknown as { __gridDetached: boolean }).__gridDetached = false;
+      const el = document.querySelector('[data-testid="search-section-tracks"]');
+      (window as unknown as { __sectionDetached: boolean }).__sectionDetached = false;
       const observer = new MutationObserver(() => {
-        if (gridElement && !document.contains(gridElement)) {
-          (window as unknown as { __gridDetached: boolean }).__gridDetached = true;
+        if (el && !document.contains(el)) {
+          (window as unknown as { __sectionDetached: boolean }).__sectionDetached = true;
         }
       });
       observer.observe(document.body, { childList: true, subtree: true });
     });
 
-    await page.getByTestId('search-input').pressSequentially('Album 3', { delay: 60 });
+    const input = page.getByTestId('global-search-input');
+    await input.fill('');
+    await input.pressSequentially('Song 3', { delay: 60 });
 
-    await expect(grid).toBeVisible();
-    await expect(page.getByText('Album 3')).toBeVisible();
-    await expect(page.getByText('Album 1')).toHaveCount(0);
+    await expect(section).toBeVisible();
+    await expect(page.getByText('Song 3')).toBeVisible();
+    await expect(page.getByText('Song 1')).toHaveCount(0);
 
-    const gridDetached = await page.evaluate(
-      () => (window as unknown as { __gridDetached: boolean }).__gridDetached
+    const detached = await page.evaluate(
+      () => (window as unknown as { __sectionDetached: boolean }).__sectionDetached
     );
-    expect(gridDetached).toBe(false);
+    expect(detached).toBe(false);
 
-    expect(searchTermsSeen.length).toBeLessThan('Album 3'.length);
-    expect(searchTermsSeen[searchTermsSeen.length - 1]).toBe('Album 3');
+    // Debounced: far fewer requests than keystrokes, and the last one carries the full term.
+    expect(searchTermsSeen.length).toBeLessThan('Song 3'.length);
+    expect(searchTermsSeen[searchTermsSeen.length - 1]).toBe('Song 3');
   });
 });

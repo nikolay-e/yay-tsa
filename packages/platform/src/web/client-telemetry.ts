@@ -173,9 +173,10 @@ class ClientTelemetry implements ClientTelemetryHandle {
         if (target.tagName === 'AUDIO' || target.tagName === 'VIDEO') return;
         const el = target as Element & { src?: string; href?: string; currentSrc?: string };
         const url = [el.currentSrc, el.src, el.href].find(Boolean) ?? '';
-        // Decorative cover-art / artist images legitimately 404 (art-less albums); a broken <img>
-        // is a content 404, not an actionable client JS error, and otherwise floods telemetry.
-        if (target.tagName === 'IMG' && url.includes('/Images/')) return;
+        // Every <img> in this app is decorative art (cover / artist / offline blob: object-URL).
+        // A failed image load is a content 404 or an evicted/revoked offline blob, never an
+        // actionable client JS error — dropping all IMG resource errors keeps telemetry signal.
+        if (target.tagName === 'IMG') return;
         this.report(new Error(`Resource load failed: ${el.tagName} ${url}`), 'resource', {
           type: 'ResourceError',
         });

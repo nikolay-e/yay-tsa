@@ -1,19 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
-import { SearchInput } from '@/shared/ui/SearchInput';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
-import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { cn } from '@/shared/utils/cn';
 
 export function AlbumsPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebouncedValue(searchTerm);
-  const isSearchPending = searchTerm !== debouncedSearchTerm;
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { selectedId, activeOption, select } = useSortPreference('albums');
 
@@ -29,7 +23,6 @@ export function AlbumsPage() {
     fetchNextPage,
     fetchPreviousPage,
   } = useInfiniteAlbums({
-    searchTerm: debouncedSearchTerm.trim() || undefined,
     sortBy: activeOption.sortBy,
     sortOrder: activeOption.sortOrder,
   });
@@ -52,11 +45,7 @@ export function AlbumsPage() {
   );
 
   const albumList = (
-    <div
-      className={cn(isSearchPending && 'opacity-60 transition-opacity')}
-      data-testid="albums-content"
-      data-pending={isSearchPending}
-    >
+    <div data-testid="albums-content">
       <InfiniteScrollHeader
         hasPreviousPage={hasPreviousPage}
         isFetchingPreviousPage={isFetchingPreviousPage}
@@ -84,10 +73,7 @@ export function AlbumsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Albums</h1>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search albums..." />
-          <SortMenu selectedId={selectedId} onSelect={select} />
-        </div>
+        <SortMenu selectedId={selectedId} onSelect={select} />
       </div>
 
       {error && (

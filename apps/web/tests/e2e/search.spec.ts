@@ -18,7 +18,7 @@ test.describe('Search Functionality', () => {
     await libraryPage.navigateToSearch();
 
     await expect(libraryPage.searchInput).toBeVisible();
-    await expect(authenticatedPage).toHaveURL('/albums');
+    await expect(authenticatedPage).toHaveURL('/search');
   });
 
   test('should search for albums', async () => {

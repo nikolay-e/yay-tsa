@@ -714,8 +714,13 @@ export class MediaServerClient {
    * Fetch lyrics on demand for a track
    */
   async fetchLyrics(trackId: string): Promise<{ found: boolean; lyrics: string; source: string }> {
+    // Best-effort: a lyrics fetch that fails on a transient network error (page-hide "Load failed")
+    // is non-actionable — it must log at debug, not forward to error telemetry.
     const result = await this.post<{ found: boolean; lyrics: string; source: string }>(
-      `/Lyrics/${trackId}/fetch`
+      `/Lyrics/${trackId}/fetch`,
+      undefined,
+      undefined,
+      true
     );
     return result ?? { found: false, lyrics: '', source: '' };
   }
