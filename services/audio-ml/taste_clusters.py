@@ -35,6 +35,13 @@ TRACKS_PER_CLUSTER = int(os.getenv("TASTE_TRACKS_PER_CLUSTER", "70"))
 MIN_CLUSTER_SIZE = int(os.getenv("TASTE_MIN_CLUSTER_SIZE", "5"))
 REPRESENTATIVE_VARIANCE = float(os.getenv("TASTE_PCA_VARIANCE", "0.85"))
 USER_LIMIT = int(os.getenv("TASTE_USER_LIMIT", "0"))  # 0 = all users
+# Mirrors AFFINITY_HALF_LIFE_DAYS in JpaMlQueryPort.kt (yay-tsa-v2) — same accumulator,
+# same decay, kept in sync by convention (no shared config between the Kotlin backend and
+# this standalone Python worker). Without this, affinity_score here stays the raw lifetime
+# accumulator even after the Kotlin side started decaying it for Daily Mix, so clusters keep
+# re-forming from the same old high-score tracks every run — the same staleness disease,
+# just in a different subsystem.
+AFFINITY_HALF_LIFE_DAYS = float(os.getenv("TASTE_AFFINITY_HALF_LIFE_DAYS", "21"))
 
 
 def _load_user_embeddings(conn):
@@ -45,11 +52,15 @@ def _load_user_embeddings(conn):
     with conn.cursor("taste_stream") as cur:  # server-side cursor: don't buffer all in client
         cur.itersize = 2000
         cur.execute(
-            "SELECT a.user_id, a.track_id, a.affinity_score, f.embedding_mert "
+            "SELECT a.user_id, a.track_id, "
+            "a.affinity_score * exp(-ln(2) * extract(epoch FROM (now() - COALESCE(a.last_signal_at, a.updated_at))) "
+            "/ (86400.0 * %(half_life)s)) AS affinity_score, "
+            "f.embedding_mert "
             "FROM core_v2_ml.user_track_affinity a "
             "JOIN core_v2_ml.track_features f ON f.track_id = a.track_id "
             "WHERE f.embedding_mert IS NOT NULL AND a.affinity_score > 0 "
-            "ORDER BY a.user_id"
+            "ORDER BY a.user_id",
+            {"half_life": AFFINITY_HALF_LIFE_DAYS},
         )
         for user_id, track_id, score, emb in cur:
             v = np.asarray(json.loads(str(emb)), dtype=np.float32)

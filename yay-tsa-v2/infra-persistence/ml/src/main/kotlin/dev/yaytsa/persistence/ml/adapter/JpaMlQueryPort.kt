@@ -12,7 +12,6 @@ import dev.yaytsa.persistence.ml.jpa.UserTrackAffinityJpaRepository
 import dev.yaytsa.persistence.ml.mapper.MlMappers
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
-import org.springframework.data.domain.PageRequest
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
@@ -55,7 +54,7 @@ class JpaMlQueryPort(
     ): List<UserTrackAffinity> {
         val uid = UUID.fromString(userId.value)
         return affinityJpa
-            .findByUserIdOrderByAffinityScoreDesc(uid, PageRequest.of(0, limit.coerceIn(1, MlQueryPort.MAX_QUERY_LIMIT)))
+            .findByUserIdOrderByDecayedScoreDesc(uid, AFFINITY_HALF_LIFE_DAYS, limit.coerceIn(1, MlQueryPort.MAX_QUERY_LIMIT))
             .map { MlMappers.toDomain(it) }
     }
 
@@ -120,5 +119,6 @@ class JpaMlQueryPort(
 
     private companion object {
         const val RADIO_EF_SEARCH = 200
+        const val AFFINITY_HALF_LIFE_DAYS = 21.0
     }
 }

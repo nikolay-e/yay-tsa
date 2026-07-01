@@ -107,6 +107,25 @@ class MlQueryPortTest : AbstractPersistenceTest() {
         assertEquals(0.6, result[1].affinityScore)
     }
 
+    @Test
+    fun `getTopAffinities decays a stale high score below a fresh lower one`() {
+        val userId = UUID.randomUUID()
+        val staleTrack = UUID.randomUUID()
+        val freshTrack = UUID.randomUUID()
+        affinityJpa.saveAllAndFlush(
+            listOf(
+                affinityEntity(userId, staleTrack, score = 10.0, lastSignalAt = now.minus(120, ChronoUnit.DAYS)),
+                affinityEntity(userId, freshTrack, score = 2.0, lastSignalAt = now),
+            ),
+        )
+
+        val result = port.getTopAffinities(UserId(userId.toString()), limit = 2)
+
+        assertEquals(2, result.size)
+        assertEquals(freshTrack.toString(), result[0].trackId.value)
+        assertEquals(staleTrack.toString(), result[1].trackId.value)
+    }
+
     private fun trackFeaturesEntity(trackId: UUID) =
         TrackFeaturesEntity(
             trackId = trackId,
@@ -157,6 +176,7 @@ class MlQueryPortTest : AbstractPersistenceTest() {
         userId: UUID,
         trackId: UUID,
         score: Double,
+        lastSignalAt: Instant = now,
     ) = UserTrackAffinityEntity(
         userId = userId,
         trackId = trackId,
@@ -167,7 +187,7 @@ class MlQueryPortTest : AbstractPersistenceTest() {
         thumbsUpCount = 5,
         thumbsDownCount = 0,
         totalListenSec = 3600,
-        lastSignalAt = now,
+        lastSignalAt = lastSignalAt,
         updatedAt = now,
     )
 }
