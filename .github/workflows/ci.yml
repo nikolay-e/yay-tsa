@@ -72,27 +72,6 @@ jobs:
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
 
-  dto-drift-check:
-    name: DTO Drift Check (Kotlin <-> TS)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.11'
-
-      - name: Install pyyaml
-        run: pip install pyyaml
-
-      - name: Run DTO drift check
-        run: python3 scripts/check-dto-drift.py
-
   lighthouse:
     name: Performance Budget
     runs-on: ubuntu-latest
@@ -226,13 +205,13 @@ jobs:
     # pre-commit gates again: its previously-private no-emoji/shift-commit-time hooks are now
     # vendored as repo: local hooks (.pre-commit-hooks/), so the job no longer depends on the
     # deleted github.com/nikolay-e/pre-commit-hooks repo and passes on a cold runner cache.
-    needs: [pre-commit, dto-drift-check, lighthouse, web-e2e-mocked, build-android-apk]
+    needs: [pre-commit, lighthouse, web-e2e-mocked, build-android-apk]
     # All test jobs must pass before an image is pushed (it auto-deploys).
     # The APK is tolerated as skipped (PRs) but never as failed.
+    # DTO drift is checked by the dto-drift-check hook inside the pre-commit job.
     if: >-
       ${{ !cancelled() &&
           needs.pre-commit.result == 'success' &&
-          needs.dto-drift-check.result == 'success' &&
           needs.lighthouse.result == 'success' &&
           needs.web-e2e-mocked.result == 'success' &&
           needs.build-android-apk.result != 'failure' }}

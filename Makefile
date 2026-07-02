@@ -6,10 +6,9 @@ ci-deps:
 	npm ci
 
 ci-lint:
-	pip install pre-commit pyyaml
+	pip install pre-commit
 	npm ci
 	pre-commit run --all-files
-	python3 scripts/check-dto-drift.py
 
 ci-test:
 	npm ci

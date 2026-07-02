@@ -73,9 +73,10 @@ tsconfig.tsbuildinfo
 CURRENT.md
 
 # Runtime data (not tracked)
-services/server/logs/
-services/server/media/
 __pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Android APK builds (placed here before Docker build, not tracked in git)
 apps/web/public/downloads/*.apk

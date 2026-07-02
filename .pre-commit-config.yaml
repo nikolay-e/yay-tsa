@@ -26,6 +26,21 @@ repos:
 
   - repo: local
     hooks:
+      - id: dto-drift-check
+        name: 'DTO drift check (Kotlin <-> TS)'
+        entry: python scripts/check-dto-drift.py
+        language: python
+        additional_dependencies: ['pyyaml>=6.0']
+        files: |
+          (?x)^(
+            scripts/(check-dto-drift\.py|dto-pairs\.yaml)|
+            yay-tsa-v2/adapter-(jellyfin|shared)/src/main/kotlin/.*\.kt|
+            packages/core/src/internal/models/types\.ts
+          )$
+        pass_filenames: false
+
+  - repo: local
+    hooks:
       - id: no-emoji
         name: Remove emoji from code
         entry: python .pre-commit-hooks/no_emoji.py
@@ -189,9 +204,9 @@ repos:
 
       - id: docker-compose-check
         name: 'Docker Compose config validation'
-        entry: docker compose -f docker-compose.yml config -q
+        entry: docker compose -f docker/docker-compose.yml --env-file docker/example.env config -q
         language: system
-        files: ^docker-compose\.yml$
+        files: ^docker/(docker-compose\.yml|example\.env)$
         pass_filenames: false
 
       - id: npm-audit

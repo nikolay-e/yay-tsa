@@ -133,8 +133,8 @@ docker/                  # Docker Compose for self-hosting
 ## Development
 
 ```bash
-npm install && npm run dev    # Frontend dev server with HMR
-docker compose up             # Full stack (DB + backend + frontend)
+npm install && npm run dev                  # Frontend dev server with HMR
+docker compose -f docker/docker-compose.yml up  # Full stack (DB + backend + frontend)
 ```
 
 ## Testing
@@ -142,7 +142,8 @@ docker compose up             # Full stack (DB + backend + frontend)
 ```bash
 npm run type-check            # TypeScript checking
 npm run format                # Prettier formatting
-docker compose --profile test up  # Integration & E2E tests
+npm test                      # Vitest suites (core, platform, web)
+cd apps/web && npm run test:e2e   # Playwright E2E
 ```
 
 ## Architecture

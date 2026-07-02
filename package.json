@@ -30,6 +30,7 @@
     "gen:constants": "node scripts/gen-constants.mjs",
     "generate:splash": "node scripts/generate-splash-screens.js",
     "lint": "prettier --check .",
+    "lint:js": "eslint packages/core/src packages/platform/src apps/web/src",
     "pre-commit": "pre-commit run --all-files",
     "prepare": "command -v pre-commit >/dev/null 2>&1 && (pre-commit install && pre-commit install --hook-type commit-msg) || true",
     "profile:bundle": "node scripts/bundle-report.mjs",
@@ -37,6 +38,7 @@
     "profile:images": "node scripts/profile-images.mjs",
     "profile:web": "node scripts/profile-web.mjs",
     "sync:version": "node scripts/sync-version.js",
+    "test": "npm run test:unit --workspace=packages/core && npm run test --workspace=packages/platform && npm run test --workspace=apps/web",
     "type-check": "npm run gen:constants && tsc -b packages/core packages/platform && cd apps/web && npx tsc --noEmit",
     "postversion": "npm run sync:version"
   },
