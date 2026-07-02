@@ -133,82 +133,54 @@ Once queue is empty (`items.length = 0`), `currentIndex = -1`. Subsequent `addTo
 
 ---
 
-## Backend: Concurrency & Resource Management
+## Backend: Yay-Tsa v2 (Kotlin Hexagonal Monolith)
 
-### AsyncConfig Executors
+> The v1 Java backend was retired 2026-05-16. The sections below describe `yay-tsa-v2/`. Full manifesto: [`yay-tsa-v2/CLAUDE.md`](yay-tsa-v2/CLAUDE.md).
 
-| Executor                  | Type                             | Limit | Backpressure                      |
-| ------------------------- | -------------------------------- | ----- | --------------------------------- |
-| `applicationTaskExecutor` | SimpleAsyncTaskExecutor(virtual) | 50    | Blocks submitting thread at limit |
-| `signalAsyncExecutor`     | SimpleAsyncTaskExecutor(virtual) | 10    | Blocks submitting thread at limit |
-| `recommendationExecutor`  | SimpleAsyncTaskExecutor(virtual) | 5     | Blocks submitting thread at limit |
+### Eight Bounded Contexts, One Write-Side Each
 
-All three use `SimpleAsyncTaskExecutor` with virtual threads and `concurrencyLimit`. Spring manages lifecycle. `@Async` without qualifier uses `applicationTaskExecutor`. Injection sites use `Executor` (not `ExecutorService`) — `CompletableFuture.runAsync/supplyAsync` for fire-and-forget tasks.
+Write contexts (aggregates with OCC + idempotency): **auth** (`UserAggregate`), **playback** (`PlaybackSessionAggregate`), **adaptive** (versioned adaptive queue), **preferences** (`UserPreferencesAggregate`), **playlists** (`PlaylistAggregate`). Read-only worker-owned contexts: **library** (scanner), **ml** (embeddings/affinity), **karaoke** (stems/lyrics timing). Each context owns its PostgreSQL schema (`core_v2_*`); cross-context data flows only through application-layer ports and preloaded `deps` — never direct imports (enforced by ArchUnit).
 
-### QueueSseService
+Layering: `core-domain` (pure handlers, zero I/O/framework) → `core-application` (use cases: load snapshot, check idempotency, call handler, persist with OCC, write outbox in the same transaction) → `infra-*` (JPA, Flyway, workers) → thin protocol adapters (`adapter-jellyfin`, `adapter-opensubsonic`, `adapter-mpd`, `adapter-mcp`) with zero business logic.
 
-`ConcurrentHashMap<UUID, CopyOnWriteArrayList<SseEmitter>>`. Dead emitters removed in three places: `broadcast()` IOException catch, `sendHeartbeats()` IOException catch, `removeEmitter()` callback. Heartbeats every 15s.
+### Command Invariants (violating any is a bug)
 
-Bounded by `MAX_SESSIONS = 100`. New connections rejected with error when limit reached.
+- **OCC everywhere**: every aggregate carries a version; persistence is a conditional `UPDATE ... WHERE version = :expected`; concurrent writers get typed `Failure.Conflict`, never silent lost updates.
+- **Client-driven idempotency**: every external write carries an `idempotencyKey`. Same key + same payload → replays the stored `CommandResult`; same key + different payload → `Failure.InvariantViolation`.
+- **Single-writer device lease (playback only)**: one device at a time may mutate queue/state/position; TTL-based takeover on expiry. The adaptive context deliberately has NO lease — it is OCC + a separate `queueVersion` counter, which is what lets a background extender and the user safely write the same session.
+- **Pure domain handlers**: `(snapshot, command, context, deps) → result | Failure`. No I/O, no `Instant.now()` — time enters only via `CommandContext.requestTime`.
+- **Typed failures, not exceptions**: `Conflict / Unauthorized / NotFound / InvariantViolation / UnsupportedByProtocol / StorageConflict` are normal business results; adapters map them to protocol errors (RFC 7807 on the Jellyfin surface).
+- **Transactional outbox**: notifications are written in the same transaction as the aggregate change; a poller delivers them after commit (WebSocket fan-out). Commit ⇒ delivered, rollback ⇒ never leaves the system.
 
-### KaraokeService State Machine
+### Playback Position: Lazy Computation (Variant B)
 
-`processingJobs: Caffeine Cache<UUID, JobEntry>` (maximumSize 1000, expireAfterWrite 2h). JobEntry is immutable record — `withStatus()` returns new instance. Explicit `cleanupExpiredJobs()` runs every 5m for finer-grained TTL (1h for completed, 10m60s for stale PROCESSING).
+The aggregate stores `lastKnownPosition` + `lastKnownAt`. Current position is computed on read (`PLAYING`: add elapsed wall time; `PAUSED`/`STOPPED`: as stored). DB writes happen only on pause/seek/track-change/stop — not during continuous playback.
 
-States: NOT_STARTED -> PROCESSING -> READY | FAILED
+### Workers Populate Read-Only Schemas
 
-`getStatus()` returns `notStarted()` for FAILED — treats failure as transient for retry UX.
+Workers bypass `core-domain` and write directly to their own schemas (they must never call domain handlers): `infra-library-scanner` (filesystem walk → `library`, single writer, upsert semantics, no OCC), `infra-ml-worker` (Discogs/MusicNN/CLAP/MERT embeddings + scalar features → `ml`, HNSW indexes), `infra-karaoke-worker` (Demucs in-process or GPU HTTP sidecar → `karaoke`), `infra-llm` (adaptive queue tail rewrites via the in-cluster LiteLLM gateway, gated on `LLM_ENABLED`, graceful ML-only fallback when off).
 
-Auto-recovery: if DB shows not-ready but stems exist on disk, recovers without re-processing.
+### Streaming
 
-`separationExecutor` is fixed pool of 2 — if both slots stuck, subsequent requests queue indefinitely.
-
-### MediaScannerTransactionalService Caches
-
-Three Caffeine caches with size limits and TTL: `artistIdCache` (10k, 2h), `albumIdCache` (50k, 2h), `genreIdCache` (1k, 2h). Eviction is safe — DB fallback on cache miss.
-
-### StreamingService TOCTOU
-
-`resolveFile()` validates path safety via `NOFOLLOW_LINKS` before opening. Race window between check and open — caught by `NoSuchFileException` handler. ETag based on mtime + fileSize only.
-
----
-
-## Backend: Scrobble Logic (SessionService)
-
-Scrobble threshold (Last.fm-compatible):
-
-- `duration >= 30s` AND
-- `played >= 50% of duration` OR `played >= 240s`
-
-`play_count` increments ONLY on scrobble. `completed` = played >= 95%. `skipped` = !scrobbled && !completed.
-
-`reportPlaybackStart()` finalizes previous track BEFORE starting new one — prevents lost play state on track switch. Finalization is synchronous within transaction.
-
-Session keyed by `(userId, deviceId)`. Duplicate creation handled by `DataIntegrityViolationException` catch + retry lookup.
+Byte-range serving (RFC 9110) writes directly to the servlet response; paths are validated against the configured library root with NOFOLLOW_LINKS (TOCTOU mitigation).
 
 ---
 
 ## Security
 
-### Auth Flow
+### Auth Flow (v2)
 
-1. `EmbyAuthFilter` extracts token from header (`X-Emby-Authorization`) or query (`api_key`)
-2. `authService.validateToken()` — Caffeine-cached DB lookup
-3. Valid token: SecurityContext set. Invalid: request proceeds unauthenticated (endpoint enforces 401)
-4. Skip paths: login, public info, health, swagger, CORS preflight
-
-Token is 256-bit opaque (SecureRandom), device-bound, one per user per device.
-
-### Endpoint Security
-
-Everything requires authentication EXCEPT: `/Users/AuthenticateByName`, `/System/Info/Public`, `/manage/health`, documentation endpoints, `OPTIONS` preflight.
-
-`/manage/**` (actuator) is DENY ALL — even authenticated users cannot access metrics/env.
+1. Token extracted from any of: `Authorization: Bearer`, `X-Emby-Token`, `X-Emby-Authorization`, `?api_key=` query (load-bearing for `<audio src>`/`<img>` which can't send headers), `yay_token` cookie
+2. Validation: SHA-256 of the presented token looked up in DB, Caffeine-cached (hashed cache key)
+3. Tokens are 256-bit opaque (SecureRandom), device-bound, one per user per device; passwords BCrypt strength 13
+4. Auth endpoints rate-limited per (IP, path); `/Admin/*` requires `isAdmin`
 
 ### Frontend Token Storage
 
-- `rememberMe=false` (default): `sessionStorage` — cleared on tab close
-- `rememberMe=true`: `localStorage` — persists across browser closes
+- `rememberMe=true` (default): `localStorage` — survives reload, PWA reopen, frontend updates
+- `rememberMe=false`: `sessionStorage` — tab-scoped
+
+On startup the persisted token is re-validated against `/Users/Me`: a confirmed 401 clears auth and routes to login; transient network/5xx errors keep the user signed in (no auto-logout on backend restart).
 
 Logout clears: both storage modes, service worker caches (`yaytsa-*`), TanStack Query cache, DJ session state.
 
@@ -223,29 +195,6 @@ Stream URLs use `api_key` query param because `<audio>` and `<img>` tags don't s
 
 ---
 
-## Scan Pipeline (FileSystemMediaScanner)
+## Library Scanner (infra-library-scanner)
 
-Five phases, sequential:
-
-1. Walk filesystem, collect audio files
-2. Process each file: add/update DB (skip if mtime + size unchanged)
-3. Remove deleted items (paths not in `processedPaths`)
-4. Transcode non-native codecs to FLAC (bounded by semaphore)
-5. Scan missing artwork
-
-Single-threaded walk (intentional — disk I/O). `processedPaths` is `HashSet` (not thread-safe, but single-threaded).
-
-Tag extraction: jaudiotagger. CP1251 repair for garbled Cyrillic tags. Track number prefix stripping for filename-based titles. `search_text` denormalized column updated at scan time.
-
-Transcode order: validate output (size + ffprobe duration) BEFORE deleting original. On validation failure: delete transcode output, keep original.
-
----
-
-## Known Issues (To Fix)
-
-### Karaoke Regressions
-
-- `setKaraokeMode()` synchronous but `ensureAudioContext()` can fail silently
-- Toggle during load creates race between `loadAndPlay` and `commitPlaybackSideEffects`
-- SSE resource leak in `KaraokeController` (abandoned connections, thread pool exhaustion)
-- `karaokeFailedTrackIds` persists across user sessions
+Single-writer filesystem walk with upsert semantics into `core_v2_library` (no OCC — worker-owned schema). Skip-unchanged via mtime + size. Tag extraction via JAudioTagger with folder/filename fallbacks; placeholder tags treated as missing. Deletion reconcile is scoped by `library_root` — an empty walk must never mass-delete, and renames sever favorites/playlists/resume references (see PLAN.md technical debt).

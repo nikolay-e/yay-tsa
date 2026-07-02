@@ -116,14 +116,18 @@ Compatible with **ncmpcpp, mpc, Cantata, M.A.L.P.**
 
 ### 1.4 MCP Adapter (Model Context Protocol)
 
-LLM-callable tool surface for Claude:
+LLM-callable tool surface for Claude (14 tools):
 
 - `search_library(query)` — artists + albums + tracks (≤20 each)
 - `browse_artists(limit, offset)` — paged listing
 - `get_album(id)` — album details with tracks
 - `get_playback_state` — session state + current track
 - `play`, `pause`, `skip_next`, `skip_previous`
+- `add_to_queue`, `clear_queue` — queue management
 - `list_playlists` — user's playlists
+- `list_devices` — registered devices
+- `set_preference_contract` — hard rules / soft prefs / DJ style / red lines
+- `start_radio` — start adaptive listening session from a seed
 
 ### 1.5 Eight Bounded Contexts
 
@@ -167,11 +171,11 @@ LLM-callable tool surface for Claude:
 
 - Polls active listening sessions every 30 s
 - Reads recent playback signals (≤20), current queue, taste profile, top-affinity tracks (≤50), preference contract
-- Calls Anthropic Claude API (`claude-sonnet-4-20250514` by default), generates queue edits with intent labels + reasoning
+- Calls the in-cluster LiteLLM gateway (`http://litellm.litellm.svc.cluster.local:8080`, OpenAI-compatible `/v1/chat/completions`), model `GPT-5.4 Mini` by default; generates queue edits with intent labels + reasoning
 - Atomically appends new tail (preserves currently playing track)
 - Audit-logs each decision (prompt hash, token counts, latency, applied edits) in `core_v2_adaptive.llm_decision_log`
 - **Trigger:** `@Scheduled fixedDelay=30 s`
-- **Enable flag:** `yaytsa.llm.enabled=true` + `ANTHROPIC_API_KEY` env var
+- **Enable flag:** `yaytsa.llm.enabled=true` (`LLM_ENABLED`, default false — graceful ML-only fallback when off) + `yaytsa.llm.api-key` (`LLM_API_KEY`, LiteLLM bearer token)
 
 ### 2.4 Karaoke Worker — `infra-karaoke-worker`
 
@@ -209,17 +213,19 @@ LLM-callable tool surface for Claude:
 
 ### 3.1 Pages / routes
 
-| Route          | Purpose                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------ |
-| `/login`       | Username + password, "Remember me", music-library subtitle                                             |
-| `/`            | **Radio** seeds row (DJ cluster cards) + **Daily Mix** (personalized)                                  |
-| `/albums`      | Grid with sort (name, artist, recently played, date added, year), infinite scroll                      |
-| `/albums/:id`  | Album detail with track list, cover, year, Play / Shuffle                                              |
-| `/artists`     | Grid with sort + search, `ChildCount`-driven "N albums" label                                          |
-| `/artists/:id` | Artist overview + discography with per-album Play                                                      |
-| `/songs`       | Virtualized track list, text + AI semantic search, sort options                                        |
-| `/favorites`   | Tabs: Songs / Albums / Artists, drag-to-reorder, infinite scroll                                       |
-| `/settings`    | Library rescan, force-reload, DJ Preferences, About, user mgmt (admin), Sign out, Android APK download |
+| Route          | Purpose                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| `/login`       | Username + password, "Remember me", music-library subtitle                                              |
+| `/`            | **Daily Mix** (personalized) + **Explore New** (radio starts from any track via PlayerBar/context menu) |
+| `/albums`      | Grid with sort (name, artist, recently played, date added, year), infinite scroll                       |
+| `/albums/:id`  | Album detail with track list, cover, year, Play / Shuffle                                               |
+| `/artists`     | Grid with sort + search, `ChildCount`-driven "N albums" label                                           |
+| `/artists/:id` | Artist overview + discography with per-album Play                                                       |
+| `/search`      | Global search destination (text + AI semantic), virtualized results (`/songs` redirects here)           |
+| `/audiobooks`  | Audiobooks tab (genre=Audiobook): In Progress / Not Started / Finished, resume positions                |
+| `/offline`     | Downloaded tracks (offline library)                                                                     |
+| `/favorites`   | Tabs: Songs / Albums / Artists, drag-to-reorder, infinite scroll                                        |
+| `/settings`    | Force-reload, DJ Preferences, Offline storage, change password, About, user mgmt (admin), Sign out      |
 
 ### 3.2 Player
 
@@ -248,16 +254,16 @@ LLM-callable tool surface for Claude:
 
 ### 3.4 PWA + mobile
 
-- **Service worker** — NetworkFirst for navigation (10 s timeout → cache), StaleWhileRevalidate for artwork (500 entries / 30 d), NetworkOnly for `/api/Audio/*/stream`
+- **Service worker** — NetworkFirst for navigation (10 s timeout → cache), StaleWhileRevalidate for artwork (500 entries / 30 d); audio streams handled by a dedicated `audio-offline-sw.js` worker — IndexedDB-with-Range (206/416) for downloaded tracks, network otherwise (offline playback of downloaded tracks, auto-download favorites + listening cache, LRU eviction)
 - **Manifest** — `display: standalone`, dark theme (`#0f0f0f`), maskable icon, music category
 - **Apple support** — `apple-touch-icon`, `apple-mobile-web-app-capable`, translucent status bar
 - **Mobile UX** (412×915 Pixel-7 baseline):
-  - Bottom tab bar (Home / Favorites / Artists / Albums / Songs) below `md:` breakpoint
+  - Bottom tab bar (Home / Favorites / Artists / Albums / Audiobooks / Settings) below `md:` breakpoint
   - Sidebar on desktop; mini PlayerBar above tab bar on mobile
   - Full-screen player modal (swipe-down to dismiss)
   - 44 × 44 px minimum touch targets, momentum scrolling, safe-area insets
   - Karaoke / lyrics / queue reachable from full-player on mobile
-- **Android wrapper** (`apps/android-app/`) — WebView activity, `WAKE_LOCK` + `FOREGROUND_SERVICE` permissions, foreground service type `mediaPlayback`, native media-notification
+- **Android wrapper** (`apps/android-twa/`) — Trusted Web Activity shell around the PWA
 
 ### 3.5 Settings / admin
 
@@ -265,10 +271,10 @@ LLM-callable tool surface for Claude:
   - Hard rules: `maxArtistConsecutive`, `noRepeatHours`
   - Discovery slider 0–100 (Conservative ≤10 → Adventurous >85)
   - Red lines: blocklist of artists / genres / keywords
-- **Library** — rescan (POST `/Admin/Library/Rescan`, 409 if already running)
-- **Force Reload** — unregisters every service worker + deletes all `caches.keys()` + reloads
-- **Album upload** — batch multipart, auto-rescan
-- **About** — build SHA + production/staging chip
+- **Force Reload** — unregisters every service worker + deletes all `caches.keys()` + reloads (no web UI for library rescan — backend `POST /Admin/Library/Rescan` + `GET /Admin/Library/ScanStatus` exist, UI is on the roadmap; track upload endpoint `POST /tracks/upload` likewise has no UI)
+- **Change password** — current + new password form (`POST /Users/Password`)
+- **Offline storage** — OfflineManager: usage, byte-based cache limit, auto-download toggles
+- **About** — build SHA + production chip
 - **User management** (admin only) — list, create, delete, password-reset
 
 ---
@@ -288,7 +294,7 @@ LLM-callable tool surface for Claude:
 - `charts/yay-tsa/` — PWA + audio-separator
 - `charts/yay-tsa-v2/` — backend with `secure-headers`, `strip-api` Traefik middlewares; Subsonic ingress; ServiceMonitor; PDB; ConfigMap-driven feature flags (ML / LLM / Karaoke / MPD)
 
-**Images:** `frontend`, `yay-tsa-v2/backend`, `audio-separator`, `feature-extractor` (built, not currently deployed) — all multi-arch (amd64 + arm64), tagged `main-<sha7>`.
+**Images:** `frontend`, `yay-tsa-v2/backend`, `audio-separator`, `feature-extractor` (deployed as a CronJob — Image Updater can't track CronJobs, tag pinned manually in gitops) — all multi-arch (amd64 + arm64), tagged `main-<sha7>`.
 
 **Database:** single `yaytsa_production` DB with 8 per-context schemas + `core_v2_shared`. Extensions: pgvector (HNSW), pg_trgm, citext, pgcrypto.
 

@@ -16,6 +16,7 @@ This product has a **rich written contract** (README, project + backend `CLAUDE.
 - **Actual Y**: `adapter-mcp/.../McpTools.kt:37-147` registers 9 tools, all read-or-basic-playback: `search_library, get_playback_state, play, pause, skip_next, skip_previous, browse_artists, get_album, list_playlists`. `preferencesUseCases` and `playlistUseCases` are injected but `@Suppress("unused")` (`McpTools.kt:30-33`) — never called. No adaptive context is even a dependency. `McpProtocolCapabilities.kt:17-24` whitelists only `Play, Pause, SkipNext, SkipPrevious` — so even a hand-crafted preference/adaptive/queue command is rejected `Failure.UnsupportedByProtocol`. **Missing: preference-contract editing, adaptive-steering, AND queue-management (no add/clear/reorder tool).** Only "control playback" and "browse library" are delivered.
 - **Angle**: missing required behavior. **Adversarially verified → CONFIRMED** (no doc anywhere scopes MCP to playback-only; the core use cases already exist and are injected).
 - **Acceptance check**: `tools/list` returns a tool that calls `PreferencesUseCases.execute(UpdatePreferenceContract(...))` and a tool that calls `AdaptiveUseCases` (start session / rewrite tail); `McpProtocolCapabilities.supportedCommands` includes those commands; an MCP `tools/call` for "set preference contract" succeeds end-to-end. **Needs a product decision** (below) on build-vs-amend before fixing.
+- **Resolved (2026-07-02)**: built. `McpTools.kt` now registers 14 tools including `add_to_queue`, `clear_queue` (queue management), `set_preference_contract` (preference contract), `start_radio` (adaptive steering), and `list_devices`. The manifesto promise is delivered.
 
 ### B. Accidental behavior / under-specified / stale-doc conflicts (🟡)
 
@@ -33,6 +34,7 @@ This product has a **rich written contract** (README, project + backend `CLAUDE.
 - **Adversarially verified → DOWNGRADED from 🔴**: device _discovery + online/offline status_ DO work via heartbeat poll (`useDeviceHeartbeat.ts:5-20` POSTs every 15s; `DevicesPanel.tsx:163-167` re-fetches on open; `device.service.ts:11-12` recomputes `isOnline` from a 45s window). QA.md flow #6's "second tab appears within ~15s" is _met by the heartbeat_. Only the **live SSE push of per-device now-playing/position** is unbuilt.
 - **Angle**: missing (sub)behavior vs forward-referenced-but-never-built bridge. **Needs a product decision** (build the WS→SSE bridge + populate now-playing, or accept poll-only and amend QA.md flow #6 / line 121).
 - **Acceptance check**: session A reports `/Sessions/Playing` → session B's open DevicesPanel shows A with track name + position within ~15s.
+- **Resolved (2026-07-02)**: built. The bridge exists — `app/.../devices/DeviceSseNotificationBridge.kt` + `adapter-jellyfin/.../DeviceEventBroadcaster.kt` emit `device_state_changed` over the devices SSE stream, and remote commands flow through `RemoteCommandPort`/`JpaRemoteCommandPort` (durable, DB-backed) to `/v1/me/devices/commands`.
 
 #### 🟡 4 — Karaoke vocals toggle is specified but the frontend never built it
 
@@ -40,6 +42,7 @@ This product has a **rich written contract** (README, project + backend `CLAUDE.
 - **Actual Y**: frontend karaoke is binary instrumental on/off only. `api.client.ts:642` has `getInstrumentalStreamUrl` but no `getVocalStreamUrl`; grep for a `/vocals` stream builder across core/platform/web = 0; `player.store.ts:1335` `toggleKaraoke` flips instrumental↔normal with no third mode.
 - **Angle**: missing required behavior vs over-specified QA flow. **Needs a product decision**: build the vocals toggle (backend already serves it) or amend QA.md flow #5 to "instrumental on/off".
 - **Acceptance check**: with karaoke on, a vocals control switches the stream `/instrumental`↔`/vocals`; OR QA.md flow #5 no longer claims it.
+- **Resolved (2026-07-02)**: built, beyond the spec — a live vocal-blend slider instead of a binary toggle. `getVocalStreamUrl` exists (`api.client.ts:700`), `KaraokeBlendSlider` renders in `PlayerBar.tsx` and `MobileFullPlayer.tsx`, and `player.store.ts` `enterVocalBlend`/`setVocalBlend` co-play instrumental + vocals stems with gain blending.
 
 #### 🟡 5 — Karaoke HTTP-separator path marks `readyAt` without validating stems exist on disk
 
