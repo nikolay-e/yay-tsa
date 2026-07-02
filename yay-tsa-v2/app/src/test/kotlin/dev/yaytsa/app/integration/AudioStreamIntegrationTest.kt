@@ -207,6 +207,75 @@ class AudioStreamIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `stream request declaring supported formats without the stored one returns 415 problem detail naming it`() {
+        val trackId = seedTrack("wmav2", "wma")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/$trackId/stream")
+                        .header("Authorization", "Bearer $token")
+                        .param("container", "opus,mp3,aac,m4a|aac,flac,webma,webm,wav,ogg")
+                        .param("audioCodec", "aac"),
+                ).andReturn()
+        assertEquals(415, result.response.status)
+        assertEquals("application/problem+json", result.response.contentType)
+        val body = result.response.contentAsString
+        assertTrue(body.contains("wma"), "problem detail must name the stored container/codec: $body")
+        assertTrue(body.contains("\"status\":415") || body.contains("\"status\" : 415"), "problem detail must carry status 415: $body")
+    }
+
+    @Test
+    fun `universal request with alac inside m4a and only m4a-aac declared returns 415`() {
+        val trackId = seedTrack("alac", "m4a")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/$trackId/universal")
+                        .header("Authorization", "Bearer $token")
+                        .param("container", "m4a|aac,mp3,flac")
+                        .param("audioCodec", "aac"),
+                ).andReturn()
+        assertEquals(415, result.response.status)
+        assertEquals("application/problem+json", result.response.contentType)
+        assertTrue(result.response.contentAsString.contains("alac"))
+    }
+
+    @Test
+    fun `universal request declaring the stored container serves the raw file`() {
+        val trackId = seedTrack("flac", "flac")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/$trackId/universal")
+                        .header("Authorization", "Bearer $token")
+                        .param("container", "opus,mp3,aac,m4a|aac,flac,webma,webm,wav,ogg")
+                        .param("audioCodec", "aac"),
+                ).andReturn()
+        assertEquals(200, result.response.status)
+        assertEquals("audio/flac", result.response.contentType)
+        assertEquals(2048, result.response.contentAsByteArray.size)
+    }
+
+    @Test
+    fun `stream without capability params serves raw bytes even for a browser-hostile codec`() {
+        val trackId = seedTrack("wmav2", "wma")
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Audio/$trackId/stream")
+                        .header("Authorization", "Bearer $token"),
+                ).andReturn()
+        assertEquals(200, result.response.status)
+        assertEquals("audio/x-ms-wma", result.response.contentType)
+        assertEquals("2048", result.response.getHeader(HttpHeaders.CONTENT_LENGTH))
+        assertEquals(2048, result.response.contentAsByteArray.size)
+    }
+
+    @Test
     fun `Subsonic getCoverArt resolves a cover id to the image bytes`() {
         val albumId = UUID.randomUUID()
         jdbc.update(

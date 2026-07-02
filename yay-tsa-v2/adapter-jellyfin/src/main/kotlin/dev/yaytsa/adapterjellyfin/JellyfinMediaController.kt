@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 import java.io.IOException
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
@@ -105,10 +106,12 @@ class JellyfinMediaController(
         @PathVariable itemId: String,
         @RequestParam(name = "api_key", required = false) apiKey: String?,
         @RequestParam(required = false) deviceId: String?,
+        @RequestParam(required = false) container: String?,
+        @RequestParam(required = false) audioCodec: String?,
         @RequestHeader(HttpHeaders.RANGE, required = false) range: String?,
         response: HttpServletResponse,
     ) {
-        streamAudio(itemId, apiKey, deviceId, range, response)
+        streamAudio(itemId, apiKey, deviceId, container, audioCodec, range, response)
     }
 
     @GetMapping("/Audio/{itemId}/stream")
@@ -116,6 +119,8 @@ class JellyfinMediaController(
         @PathVariable itemId: String,
         @RequestParam(name = "api_key", required = false) apiKey: String?,
         @RequestParam(required = false) deviceId: String?,
+        @RequestParam(required = false) container: String?,
+        @RequestParam(required = false) audioCodec: String?,
         @RequestHeader(HttpHeaders.RANGE, required = false) range: String?,
         response: HttpServletResponse,
     ) {
@@ -135,6 +140,8 @@ class JellyfinMediaController(
             response.status = 404
             return
         }
+
+        rejectUndecodableAudio(container, audioCodec, track.codec, filePath)
 
         val contentType = resolveAudioContentType(track.codec, filePath)
         val fileSize = Files.size(filePath)
@@ -207,6 +214,59 @@ class JellyfinMediaController(
             log.debug("Audio full stream aborted by client for {}: {}", filePath, e.message)
         }
     }
+
+    private fun rejectUndecodableAudio(
+        declaredContainers: String?,
+        declaredCodecs: String?,
+        codec: String?,
+        filePath: Path,
+    ) {
+        if (declaredContainers.isNullOrBlank() && declaredCodecs.isNullOrBlank()) return
+        val fileContainer = normalizeFormatToken(filePath.toString().substringAfterLast('.', missingDelimiterValue = "").lowercase())
+        val fileCodec = normalizeFormatToken(codec?.lowercase().orEmpty())
+        if (clientCanPlayStoredAudio(declaredContainers, declaredCodecs, fileContainer, fileCodec)) return
+        throw ResponseStatusException(
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+            "Track is stored as container '$fileContainer' codec '$fileCodec', which the client did not declare as playable; transcoding is not supported",
+        )
+    }
+
+    private fun clientCanPlayStoredAudio(
+        declaredContainers: String?,
+        declaredCodecs: String?,
+        fileContainer: String,
+        fileCodec: String,
+    ): Boolean {
+        val containerEntries = splitFormatList(declaredContainers)
+        val containerMatch =
+            containerEntries.any { entry ->
+                val parts = entry.split('|', limit = 2).map { normalizeFormatToken(it.trim()) }
+                if (parts.size == 2) {
+                    parts[0] == fileContainer && parts[1] == fileCodec
+                } else {
+                    parts[0] == fileContainer || parts[0] == fileCodec
+                }
+            }
+        if (containerMatch) return true
+        val codecEntries = splitFormatList(declaredCodecs).map { normalizeFormatToken(it) }
+        return containerEntries.isEmpty() && fileCodec.isNotBlank() && fileCodec in codecEntries
+    }
+
+    private fun splitFormatList(raw: String?): List<String> =
+        raw
+            .orEmpty()
+            .lowercase()
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+    private fun normalizeFormatToken(token: String): String =
+        when (token) {
+            "mpeg" -> "mp3"
+            "mp4" -> "m4a"
+            "oga", "vorbis" -> "ogg"
+            else -> token
+        }
 
     private fun resolveAudioContentType(
         codec: String?,
