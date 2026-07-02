@@ -33,4 +33,8 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, UUID> {
     fun findUnpublishedByIdForUpdate(id: UUID): OutboxEntity?
 
     fun deleteByPublishedAtNotNullAndPublishedAtBefore(cutoff: Instant): Int
+
+    fun countByPublishedAtIsNull(): Long
+
+    fun findFirstByPublishedAtIsNullOrderByCreatedAtAsc(): OutboxEntity?
 }

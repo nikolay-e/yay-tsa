@@ -28,6 +28,7 @@ import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playlists.PlaylistAggregate
 import dev.yaytsa.domain.playlists.PlaylistId
 import dev.yaytsa.domain.preferences.UserPreferencesAggregate
+import dev.yaytsa.shared.Command
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.IdempotencyKey
@@ -282,6 +283,12 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun getTracksByIds(trackIds: List<EntityId>): List<dev.yaytsa.domain.library.Track> = trackIds.mapNotNull { tracks[it] }
 
+    override fun getAlbumsByIds(albumIds: List<EntityId>): List<Album> = albumIds.mapNotNull { albums[it] }
+
+    override fun getArtistsByIds(artistIds: List<EntityId>): List<Artist> = artistIds.mapNotNull { artists[it] }
+
+    override fun findArtistByName(name: String): Artist? = artists.values.sortedBy { it.sortName ?: it.name }.firstOrNull { it.name == name }
+
     override fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track> {
         if (genreNames.isEmpty()) return emptyList()
         val lowered = genreNames.map { it.lowercase() }.toSet()
@@ -449,5 +456,8 @@ class RecordingOutbox : OutboxPort {
 }
 
 class DirectTransactionalExecutor : TransactionalCommandExecutor {
-    override fun <T> execute(block: () -> CommandResult<T>) = block()
+    override fun <T> execute(
+        command: Command,
+        block: () -> CommandResult<T>,
+    ) = block()
 }

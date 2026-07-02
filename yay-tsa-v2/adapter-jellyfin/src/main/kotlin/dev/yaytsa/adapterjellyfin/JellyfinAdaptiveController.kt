@@ -437,9 +437,7 @@ class JellyfinAdaptiveController(
         val vector = embeddingPort.encodeText(query)
         val semanticTracks =
             if (vector != null) {
-                mlQuery
-                    .findTracksByClapVector(vector, limit * 2)
-                    .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+                libraryQueries.getTracksByIds(mlQuery.findTracksByClapVector(vector, limit * 2).map { EntityId(it.value) })
             } else {
                 emptyList()
             }
@@ -473,23 +471,28 @@ class JellyfinAdaptiveController(
         val targetPool = limit * 2
 
         val affinityPool = (limit * AFFINITY_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-        mlQuery.getTopAffinities(userId, affinityPool).shuffled().forEach { aff ->
+        val shuffledAffinityIds = mlQuery.getTopAffinities(userId, affinityPool).shuffled().map { it.trackId.value }
+        val affinityTracks = tracksById(shuffledAffinityIds)
+        shuffledAffinityIds.forEach { trackId ->
             if (out.size >= targetPool) return@forEach
-            val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+            val track = affinityTracks[trackId] ?: return@forEach
             if (seen.add(track.id.value)) out.add(track)
         }
 
         if (out.size < targetPool) {
-            preferencesQueries
-                .find(userId)
-                ?.favorites
-                .orEmpty()
-                .shuffled()
-                .forEach { fav ->
-                    if (out.size >= targetPool) return@forEach
-                    val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: return@forEach
-                    if (seen.add(track.id.value)) out.add(track)
-                }
+            val shuffledFavoriteIds =
+                preferencesQueries
+                    .find(userId)
+                    ?.favorites
+                    .orEmpty()
+                    .shuffled()
+                    .map { it.trackId.value }
+            val favoriteTracks = tracksById(shuffledFavoriteIds)
+            shuffledFavoriteIds.forEach { trackId ->
+                if (out.size >= targetPool) return@forEach
+                val track = favoriteTracks[trackId] ?: return@forEach
+                if (seen.add(track.id.value)) out.add(track)
+            }
         }
 
         if (out.size < targetPool) {
@@ -555,11 +558,12 @@ class JellyfinAdaptiveController(
 
         for (seed in seeds) {
             if (out.size >= targetPool) break
-            mlQuery.findSimilarTracks(seed, DISCOVERY_SIMILARITY_K).forEach { candidateId ->
+            val candidateIds = mlQuery.findSimilarTracks(seed, DISCOVERY_SIMILARITY_K).map { it.value }
+            val candidateTracks = tracksById(candidateIds.filter { it !in heard && it !in seen })
+            candidateIds.forEach { id ->
                 if (out.size >= targetPool) return@forEach
-                val id = candidateId.value
                 if (id in heard || id in seen) return@forEach
-                val track = libraryQueries.getTrack(EntityId(id)) ?: return@forEach
+                val track = candidateTracks[id] ?: return@forEach
                 if (seen.add(id)) out.add(track)
             }
         }
@@ -575,6 +579,9 @@ class JellyfinAdaptiveController(
 
         return out
     }
+
+    private fun tracksById(trackIds: List<String>): Map<String, dev.yaytsa.domain.library.Track> =
+        libraryQueries.getTracksByIds(trackIds.map { EntityId(it) }).associateBy { it.id.value }
 
     private fun trackLookups(tracks: List<dev.yaytsa.domain.library.Track>): TrackLookups {
         if (tracks.isEmpty()) return TrackLookups()
@@ -606,8 +613,10 @@ class JellyfinAdaptiveController(
         // one seed per real taste facet (metal / russian-rap / folk-metal / …), so radio
         // spans the whole taste instead of a single averaged centroid. Falls through to
         // affinity/favorites/random below when the user has no clusters yet (cold start).
-        mlQuery.getTasteClusterRepresentatives(userId).forEach { tid ->
-            val track = libraryQueries.getTrack(EntityId(tid.value)) ?: return@forEach
+        val clusterRepIds = mlQuery.getTasteClusterRepresentatives(userId).map { it.value }
+        val clusterRepTracks = tracksById(clusterRepIds)
+        clusterRepIds.forEach { tid ->
+            val track = clusterRepTracks[tid] ?: return@forEach
             if (blocked(track)) return@forEach
             val artistKey = track.albumArtistId?.value ?: track.id.value
             if (artistKey !in perArtist) perArtist[artistKey] = track
@@ -616,8 +625,10 @@ class JellyfinAdaptiveController(
 
         if (perArtist.size < limit) {
             val poolSize = (limit * SEED_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-            mlQuery.getTopAffinities(userId, poolSize).forEach { aff ->
-                val track = libraryQueries.getTrack(EntityId(aff.trackId.value)) ?: return@forEach
+            val affinityIds = mlQuery.getTopAffinities(userId, poolSize).map { it.trackId.value }
+            val affinityTracks = tracksById(affinityIds)
+            affinityIds.forEach { trackId ->
+                val track = affinityTracks[trackId] ?: return@forEach
                 if (blocked(track)) return@forEach
                 val artistKey = track.albumArtistId?.value ?: track.id.value
                 if (artistKey !in perArtist) perArtist[artistKey] = track
@@ -628,15 +639,17 @@ class JellyfinAdaptiveController(
         val picked = perArtist.values.toMutableList().also { it.shuffle() }
 
         if (picked.size < limit) {
-            val favorites =
+            val favoriteIds =
                 preferencesQueries
                     .find(userId)
                     ?.favorites
                     .orEmpty()
                     .shuffled()
-            for (fav in favorites) {
+                    .map { it.trackId.value }
+            val favoriteTracks = tracksById(favoriteIds)
+            for (favoriteId in favoriteIds) {
                 if (picked.size >= limit) break
-                val track = libraryQueries.getTrack(EntityId(fav.trackId.value)) ?: continue
+                val track = favoriteTracks[favoriteId] ?: continue
                 if (blocked(track)) continue
                 val artistKey = track.albumArtistId?.value ?: track.id.value
                 if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {

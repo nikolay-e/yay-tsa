@@ -37,7 +37,7 @@ class AuthUseCases(
         val commandType = cmd::class.qualifiedName ?: cmd::class.simpleName ?: "unknown"
         val payloadHash = PayloadFingerprint.compute(cmd)
 
-        return txExecutor.execute {
+        return txExecutor.execute(cmd) {
             // Idempotency check inside transaction to prevent TOCTOU
             val existing = idempotencyStore.find(ctx.userId, commandType, ctx.idempotencyKey)
             if (existing != null) {

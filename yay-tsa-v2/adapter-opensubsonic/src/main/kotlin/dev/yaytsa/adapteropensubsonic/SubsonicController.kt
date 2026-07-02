@@ -358,10 +358,11 @@ class SubsonicController(
         if (favorites.isEmpty()) return emptyList()
         val favoritedTracks = libraryQueries.getTracksByIds(favorites.map { EntityId(it.trackId.value) })
         val albumIds = favoritedTracks.mapNotNull { it.albumId }.distinct()
-        return albumIds
-            .drop(offset.coerceAtLeast(0))
-            .take(size.coerceIn(1, 500))
-            .mapNotNull { libraryQueries.getAlbum(it) }
+        return libraryQueries.getAlbumsByIds(
+            albumIds
+                .drop(offset.coerceAtLeast(0))
+                .take(size.coerceIn(1, 500)),
+        )
     }
 
     // --- Search ---
@@ -441,8 +442,11 @@ class SubsonicController(
         return responseWriter.write(ok(), f)
     }
 
-    private fun anyResolvesToAlbumOrArtist(ids: Set<TrackId>): Boolean =
-        ids.any { libraryQueries.getAlbum(EntityId(it.value)) != null || libraryQueries.getArtist(EntityId(it.value)) != null }
+    private fun anyResolvesToAlbumOrArtist(ids: Set<TrackId>): Boolean {
+        val entityIds = ids.map { EntityId(it.value) }
+        return libraryQueries.getAlbumsByIds(entityIds).isNotEmpty() ||
+            libraryQueries.getArtistsByIds(entityIds).isNotEmpty()
+    }
 
     private fun preferencesContext(userId: UserId): CommandContext {
         val prefs = preferencesQueries.find(userId)

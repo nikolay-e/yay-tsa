@@ -114,6 +114,33 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         limit: Int,
     ): List<UUID>
 
+    // ML retry semantics differ from karaoke: failures leave no row behind, so every
+    // still-unprocessed track is retried each cycle. Keyset pagination (id > :afterId)
+    // lets the worker walk all unprocessed tracks once per cycle in bounded batches
+    // without persistently-failing tracks pinning the batch window.
+    @Query(
+        value =
+            "SELECT e.id FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND e.id > :afterId AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_ml.track_features f WHERE f.track_id = e.id) " +
+                "ORDER BY e.id LIMIT :limit",
+        nativeQuery = true,
+    )
+    fun findMlUnprocessedTrackIds(
+        afterId: UUID,
+        limit: Int,
+    ): List<UUID>
+
+    @Query(
+        value =
+            "SELECT * FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'ARTIST' AND e.name = :name " +
+                "AND EXISTS (SELECT 1 FROM core_v2_library.artists a WHERE a.entity_id = e.id) " +
+                "ORDER BY COALESCE(e.sort_name, e.name), e.id LIMIT 1",
+        nativeQuery = true,
+    )
+    fun findFirstArtistEntityByExactName(name: String): LibraryEntityJpa?
+
     fun countByEntityType(entityType: String): Long
 
     // Page tracks whose genre set is disjoint from :excludedGenres. NOT EXISTS over entity_genres

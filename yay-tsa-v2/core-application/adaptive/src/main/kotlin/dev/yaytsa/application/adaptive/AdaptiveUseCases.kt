@@ -42,7 +42,7 @@ class AdaptiveUseCases(
         val commandType = cmd::class.qualifiedName ?: cmd::class.simpleName ?: "unknown"
         val payloadHash = PayloadFingerprint.compute(cmd)
 
-        return txExecutor.execute {
+        return txExecutor.execute(cmd) {
             val existing = idempotencyStore.find(ctx.userId, commandType, ctx.idempotencyKey)
             if (existing != null) {
                 if (existing.payloadHash != payloadHash) {

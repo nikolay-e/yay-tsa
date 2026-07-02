@@ -5,7 +5,6 @@ import dev.yaytsa.persistence.ml.jpa.TrackFeaturesJpaRepository
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.io.BufferedReader
@@ -33,6 +32,10 @@ class MlFeatureExtractor(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        private val NIL_UUID = UUID(0, 0)
+    }
+
     @Scheduled(fixedDelayString = "\${yaytsa.ml.poll-interval-ms:300000}", initialDelay = 30_000)
     fun extractFeatures() {
         if (extractorScript == null) {
@@ -42,28 +45,24 @@ class MlFeatureExtractor(
 
         log.info("ML feature extraction cycle starting")
 
-        val processedIds = trackFeaturesRepo.findAll().map { it.trackId }.toSet()
-
-        // Page through tracks to avoid loading entire library into memory
-        var page = 0
+        // Anti-join in SQL instead of materializing every processed track id in memory.
+        // Keyset pagination walks each unprocessed track exactly once per cycle, so a
+        // track that keeps failing (no features row is ever written) is retried next
+        // cycle without blocking the rest of the library this cycle.
+        var afterId = NIL_UUID
         var totalProcessed = 0
         var totalFailed = 0
 
         while (true) {
-            val trackPage =
-                libraryEntityRepo.findByEntityTypeOrderBySortNamePaged(
-                    "TRACK",
-                    PageRequest.of(page, batchSize),
-                )
-            if (trackPage.isEmpty()) break
+            val unprocessed = libraryEntityRepo.findMlUnprocessedTrackIds(afterId, batchSize)
+            if (unprocessed.isEmpty()) break
 
-            val unprocessed = trackPage.filter { it.id !in processedIds }
-            for (entity in unprocessed) {
-                val success = extractTrack(entity.id)
+            for (trackId in unprocessed) {
+                val success = extractTrack(trackId)
                 if (success) totalProcessed++ else totalFailed++
             }
 
-            page++
+            afterId = unprocessed.last()
         }
 
         log.info(

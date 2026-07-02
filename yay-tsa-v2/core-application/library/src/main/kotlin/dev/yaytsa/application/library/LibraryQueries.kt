@@ -105,6 +105,12 @@ class LibraryQueries(
 
     fun getTracksByIds(trackIds: List<EntityId>): List<Track> = if (trackIds.isEmpty()) emptyList() else libraryQuery.getTracksByIds(trackIds)
 
+    fun getAlbumsByIds(albumIds: List<EntityId>): List<Album> = if (albumIds.isEmpty()) emptyList() else libraryQuery.getAlbumsByIds(albumIds)
+
+    fun getArtistsByIds(artistIds: List<EntityId>): List<Artist> = if (artistIds.isEmpty()) emptyList() else libraryQuery.getArtistsByIds(artistIds)
+
+    fun findArtistByName(name: String): Artist? = libraryQuery.findArtistByName(name)
+
     fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track> =
         if (genreNames.isEmpty()) emptyList() else libraryQuery.browseTracksByGenreNames(genreNames)
 

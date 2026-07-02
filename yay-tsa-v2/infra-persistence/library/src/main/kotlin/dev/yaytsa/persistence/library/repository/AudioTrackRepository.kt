@@ -33,4 +33,18 @@ interface AudioTrackRepository : JpaRepository<AudioTrackJpa, UUID> {
     fun findMinYearByAlbumId(
         @Param("albumId") albumId: UUID,
     ): Int?
+
+    @Query(
+        "SELECT t.albumId AS albumId, MIN(t.year) AS minYear " +
+            "FROM AudioTrackJpa t WHERE t.albumId IN :albumIds AND t.year IS NOT NULL GROUP BY t.albumId",
+    )
+    fun findMinYearsByAlbumIds(
+        @Param("albumIds") albumIds: Collection<UUID>,
+    ): List<MinYearByAlbum>
+}
+
+interface MinYearByAlbum {
+    fun getAlbumId(): UUID
+
+    fun getMinYear(): Int
 }

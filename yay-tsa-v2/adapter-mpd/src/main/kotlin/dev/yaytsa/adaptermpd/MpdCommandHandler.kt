@@ -5,6 +5,7 @@ import dev.yaytsa.adaptershared.MpdFailureTranslator
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
+import dev.yaytsa.domain.library.Album
 import dev.yaytsa.domain.library.Artist
 import dev.yaytsa.domain.library.Track
 import dev.yaytsa.domain.playback.AcquireLease
@@ -47,7 +48,7 @@ class MpdCommandHandler(
         private val MPD_SESSION = SessionId("mpd-default")
         private val MPD_DEVICE = DeviceId("mpd")
         private val MPD_LEASE_DURATION = Duration.ofHours(6)
-        private const val ARTIST_PAGE_SIZE = 200
+        private const val BROWSE_PAGE_SIZE = 200
     }
 
     data class SubsystemSnapshot(
@@ -276,7 +277,7 @@ class MpdCommandHandler(
             libraryQueries.getTrack(EntityId(uri))?.let { return listOf(it) }
         }
         val segments = uri.split("/")
-        val artist = findArtistByName(segments[0]) ?: return emptyList()
+        val artist = libraryQueries.findArtistByName(segments[0]) ?: return emptyList()
         val albums = libraryQueries.browseAlbumsByArtist(artist.id)
         return when (segments.size) {
             1 -> albums.flatMap { libraryQueries.browseTracksByAlbum(it.id) }
@@ -293,14 +294,23 @@ class MpdCommandHandler(
         val result = mutableListOf<Artist>()
         var offset = 0
         while (true) {
-            val page = libraryQueries.browseArtists(ARTIST_PAGE_SIZE, offset)
+            val page = libraryQueries.browseArtists(BROWSE_PAGE_SIZE, offset)
             result += page
-            if (page.size < ARTIST_PAGE_SIZE) return result
-            offset += ARTIST_PAGE_SIZE
+            if (page.size < BROWSE_PAGE_SIZE) return result
+            offset += BROWSE_PAGE_SIZE
         }
     }
 
-    private fun findArtistByName(name: String): Artist? = allArtists().firstOrNull { it.name == name }
+    private fun allAlbums(): List<Album> {
+        val result = mutableListOf<Album>()
+        var offset = 0
+        while (true) {
+            val page = libraryQueries.browseAlbums(BROWSE_PAGE_SIZE, offset)
+            result += page
+            if (page.size < BROWSE_PAGE_SIZE) return result
+            offset += BROWSE_PAGE_SIZE
+        }
+    }
 
     private fun lsInfo(uri: String?): String {
         val path = uri?.trim('/')?.takeIf { it.isNotEmpty() }
@@ -311,7 +321,7 @@ class MpdCommandHandler(
             return sb.toString()
         }
         val segments = path.split("/")
-        val artist = findArtistByName(segments[0]) ?: return ack(50, "lsinfo", "No such directory")
+        val artist = libraryQueries.findArtistByName(segments[0]) ?: return ack(50, "lsinfo", "No such directory")
         when (segments.size) {
             1 ->
                 libraryQueries.browseAlbumsByArtist(artist.id).forEach {
@@ -347,15 +357,11 @@ class MpdCommandHandler(
 
     private fun list(args: List<String>): String {
         val tag = args.firstOrNull()?.lowercase() ?: return ok()
-        val artists = allArtists()
         val sb = StringBuilder()
         when (tag) {
-            "artist" -> artists.forEach { sb.appendLine("Artist: ${it.name}") }
-            "albumartist" -> artists.forEach { sb.appendLine("AlbumArtist: ${it.name}") }
-            "album" ->
-                artists
-                    .flatMap { libraryQueries.browseAlbumsByArtist(it.id) }
-                    .forEach { sb.appendLine("Album: ${it.name}") }
+            "artist" -> allArtists().forEach { sb.appendLine("Artist: ${it.name}") }
+            "albumartist" -> allArtists().forEach { sb.appendLine("AlbumArtist: ${it.name}") }
+            "album" -> allAlbums().forEach { sb.appendLine("Album: ${it.name}") }
         }
         sb.appendLine("OK")
         return sb.toString()

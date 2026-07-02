@@ -260,6 +260,44 @@ class JpaLibraryQueryPort(
         return assembleTracksInOrder(orderedJpas)
     }
 
+    override fun getAlbumsByIds(albumIds: List<EntityId>): List<Album> {
+        if (albumIds.isEmpty()) return emptyList()
+        val uuids = albumIds.map { UUID.fromString(it.value) }
+        val byEntityId = albumRepo.findAllById(uuids).associateBy { it.entityId }
+        val orderedJpas = uuids.mapNotNull { byEntityId[it] }
+        if (orderedJpas.isEmpty()) return emptyList()
+        val entityIds = orderedJpas.map { it.entityId }
+        val entities = entityRepo.findAllById(entityIds).associateBy { it.id }
+        val primaryImages = findPrimaryImages(entityIds)
+        val minYears = trackRepo.findMinYearsByAlbumIds(entityIds).associate { it.getAlbumId() to it.getMinYear() }
+        return orderedJpas.mapNotNull { album ->
+            val entity = entities[album.entityId] ?: return@mapNotNull null
+            LibraryMappers.toAlbum(entity, album, primaryImages[album.entityId], minYears[album.entityId])
+        }
+    }
+
+    override fun getArtistsByIds(artistIds: List<EntityId>): List<Artist> {
+        if (artistIds.isEmpty()) return emptyList()
+        val uuids = artistIds.map { UUID.fromString(it.value) }
+        val byEntityId = artistRepo.findAllById(uuids).associateBy { it.entityId }
+        val orderedJpas = uuids.mapNotNull { byEntityId[it] }
+        if (orderedJpas.isEmpty()) return emptyList()
+        val entityIds = orderedJpas.map { it.entityId }
+        val entities = entityRepo.findAllById(entityIds).associateBy { it.id }
+        val primaryImages = findPrimaryImages(entityIds)
+        return orderedJpas.mapNotNull { artist ->
+            val entity = entities[artist.entityId] ?: return@mapNotNull null
+            LibraryMappers.toArtist(entity, artist, primaryImages[artist.entityId])
+        }
+    }
+
+    override fun findArtistByName(name: String): Artist? {
+        val entity = entityRepo.findFirstArtistEntityByExactName(name) ?: return null
+        val artist = artistRepo.findById(entity.id).orElse(null) ?: return null
+        val imagePath = imageRepo.findByEntityIdAndIsPrimaryTrue(entity.id)?.path
+        return LibraryMappers.toArtist(entity, artist, imagePath)
+    }
+
     override fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track> {
         if (genreNames.isEmpty()) return emptyList()
         val lowered = genreNames.map { it.lowercase() }

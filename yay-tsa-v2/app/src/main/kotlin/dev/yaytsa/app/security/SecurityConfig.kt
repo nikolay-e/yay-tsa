@@ -22,8 +22,17 @@ class SecurityConfig(
     private val jellyfinAuthFilter: dev.yaytsa.adapterjellyfin.JellyfinAuthFilter,
     private val subsonicAuthFilter: dev.yaytsa.adapteropensubsonic.SubsonicAuthFilter,
     private val problemDetailSecurityHandler: ProblemDetailSecurityHandler,
+    meterRegistry: io.micrometer.core.instrument.MeterRegistry,
+    objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
+    @org.springframework.beans.factory.annotation.Value("\${yaytsa.auth.max-failures-per-minute:10}")
+    maxAuthFailuresPerMinute: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    // Deliberately not a bean: Spring Boot auto-registers Filter beans at the servlet level,
+    // which would run it outside the security chain where the post-auth SecurityContext
+    // (needed to detect failed Subsonic credentials) is already cleared.
+    private val authRateLimitFilter = AuthRateLimitFilter(meterRegistry, objectMapper, maxAuthFailuresPerMinute)
 
     @Bean
     @Order(0)
@@ -78,7 +87,8 @@ class SecurityConfig(
             }.exceptionHandling {
                 it.authenticationEntryPoint(problemDetailSecurityHandler)
                 it.accessDeniedHandler(problemDetailSecurityHandler)
-            }.addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
+            }.addFilterAfter(authRateLimitFilter, org.springframework.security.web.context.SecurityContextHolderFilter::class.java)
+            .addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(jellyfinAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(subsonicAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
         return http.build()

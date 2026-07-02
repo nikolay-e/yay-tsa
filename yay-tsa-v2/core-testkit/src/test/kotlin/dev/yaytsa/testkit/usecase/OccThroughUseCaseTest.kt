@@ -44,7 +44,10 @@ class OccThroughUseCaseTest :
         class OccSimulatingExecutor : TransactionalCommandExecutor {
             var shouldThrowOcc = false
 
-            override fun <T> execute(block: () -> CommandResult<T>): CommandResult<T> {
+            override fun <T> execute(
+                command: dev.yaytsa.shared.Command,
+                block: () -> CommandResult<T>,
+            ): CommandResult<T> {
                 if (shouldThrowOcc) {
                     return CommandResult.Failed(Failure.StorageConflict("PlaybackSession", "concurrent modification"))
                 }
@@ -100,8 +103,10 @@ class OccThroughUseCaseTest :
         }
 
         class AlwaysThrowingExecutor : TransactionalCommandExecutor {
-            override fun <T> execute(block: () -> CommandResult<T>): CommandResult<T> =
-                CommandResult.Failed(Failure.StorageConflict("PlaybackSession", "always conflict"))
+            override fun <T> execute(
+                command: dev.yaytsa.shared.Command,
+                block: () -> CommandResult<T>,
+            ): CommandResult<T> = CommandResult.Failed(Failure.StorageConflict("PlaybackSession", "always conflict"))
         }
 
         test("executor that always returns StorageConflict produces Failed result") {

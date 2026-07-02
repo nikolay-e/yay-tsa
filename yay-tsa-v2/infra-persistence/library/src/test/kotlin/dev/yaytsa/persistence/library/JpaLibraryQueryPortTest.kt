@@ -232,6 +232,55 @@ class JpaLibraryQueryPortTest : LibraryPersistenceTestBase() {
     }
 
     @Test
+    fun `getAlbumsByIds preserves input order drops unknown ids and matches getAlbum mapping`() {
+        val secondAlbumId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = secondAlbumId,
+                entityType = EntityType.ALBUM.name,
+                name = "Wish You Were Here",
+                sortName = "Wish You Were Here",
+                searchText = "wish you were here",
+            ),
+        )
+        albumRepo.save(AlbumJpa(entityId = secondAlbumId, artistId = artistId, releaseDate = LocalDate.of(1975, 9, 12)))
+
+        val albums =
+            port.getAlbumsByIds(
+                listOf(
+                    EntityId(secondAlbumId.toString()),
+                    EntityId(UUID.randomUUID().toString()),
+                    EntityId(albumId.toString()),
+                ),
+            )
+
+        assertEquals(listOf(secondAlbumId.toString(), albumId.toString()), albums.map { it.id.value })
+        assertEquals(port.getAlbum(EntityId(secondAlbumId.toString())), albums[0])
+        assertEquals(port.getAlbum(EntityId(albumId.toString())), albums[1])
+    }
+
+    @Test
+    fun `getArtistsByIds preserves input order drops unknown ids and matches getArtist mapping`() {
+        val artists =
+            port.getArtistsByIds(
+                listOf(
+                    EntityId(UUID.randomUUID().toString()),
+                    EntityId(artistId.toString()),
+                ),
+            )
+
+        assertEquals(listOf(port.getArtist(EntityId(artistId.toString()))), artists)
+    }
+
+    @Test
+    fun `findArtistByName matches exact artist name only`() {
+        assertEquals(port.getArtist(EntityId(artistId.toString())), port.findArtistByName("Pink Floyd"))
+        assertNull(port.findArtistByName("pink floyd"))
+        assertNull(port.findArtistByName("Pink"))
+        assertNull(port.findArtistByName("Speak to Me"))
+    }
+
+    @Test
     fun `getTrack returns mapped track with genre`() {
         val track = port.getTrack(EntityId(track1Id.toString()))
         assertNotNull(track)

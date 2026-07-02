@@ -78,6 +78,12 @@ interface LibraryQueryPort {
 
     fun getTracksByIds(trackIds: List<EntityId>): List<Track>
 
+    fun getAlbumsByIds(albumIds: List<EntityId>): List<Album>
+
+    fun getArtistsByIds(artistIds: List<EntityId>): List<Artist>
+
+    fun findArtistByName(name: String): Artist?
+
     fun browseTracksByGenreNames(genreNames: Collection<String>): List<Track>
 
     fun browseTracks(

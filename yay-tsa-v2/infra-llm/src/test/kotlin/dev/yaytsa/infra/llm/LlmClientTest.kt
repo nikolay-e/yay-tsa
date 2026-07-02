@@ -9,6 +9,7 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
@@ -66,6 +67,7 @@ class LlmClientTest :
             baseUrl: String,
             enabled: Boolean = true,
             apiKey: String? = "test-key",
+            meterRegistry: SimpleMeterRegistry = SimpleMeterRegistry(),
         ) = LlmClient(
             enabled = enabled,
             apiKey = apiKey,
@@ -74,6 +76,7 @@ class LlmClientTest :
             maxTokens = 1024,
             systemPrompt = null,
             objectMapper = ObjectMapper(),
+            meterRegistry = meterRegistry,
         )
 
         "calls the chat-completions API and returns the message content" {
@@ -167,5 +170,75 @@ class LlmClientTest :
             }) { baseUrl ->
                 client(baseUrl).complete("suggest tracks") shouldBe null
             }
+        }
+
+        "misconfigured gauge is 1 when enabled without an API key and completions count as skipped" {
+            val registry = SimpleMeterRegistry()
+            withStub({ exchange ->
+                exchange.respond(200, CHAT_COMPLETION_RESPONSE)
+            }) { baseUrl ->
+                val misconfigured = client(baseUrl, apiKey = " ", meterRegistry = registry)
+                misconfigured.complete("suggest tracks") shouldBe null
+            }
+            registry
+                .get("yaytsa.llm.misconfigured")
+                .gauge()
+                .value() shouldBe 1.0
+            registry
+                .get("yaytsa.llm.completions")
+                .tags("outcome", "skipped", "reason", "missing_api_key")
+                .counter()
+                .count() shouldBe 1.0
+        }
+
+        "misconfigured gauge is 0 when disabled and skips are counted with reason disabled" {
+            val registry = SimpleMeterRegistry()
+            withStub({ exchange ->
+                exchange.respond(200, CHAT_COMPLETION_RESPONSE)
+            }) { baseUrl ->
+                client(baseUrl, enabled = false, meterRegistry = registry).complete("suggest tracks") shouldBe null
+            }
+            registry
+                .get("yaytsa.llm.misconfigured")
+                .gauge()
+                .value() shouldBe 0.0
+            registry
+                .get("yaytsa.llm.completions")
+                .tags("outcome", "skipped", "reason", "disabled")
+                .counter()
+                .count() shouldBe 1.0
+        }
+
+        "successful completions are timed and counted with outcome success" {
+            val registry = SimpleMeterRegistry()
+            withStub({ exchange ->
+                exchange.respond(200, CHAT_COMPLETION_RESPONSE)
+            }) { baseUrl ->
+                client(baseUrl, meterRegistry = registry).complete("suggest tracks") shouldNotBe null
+            }
+            registry
+                .get("yaytsa.llm.completions")
+                .tags("outcome", "success")
+                .counter()
+                .count() shouldBe 1.0
+            registry
+                .get("yaytsa.llm.completion.duration")
+                .tags("outcome", "success")
+                .timer()
+                .count() shouldBe 1L
+        }
+
+        "failed completions are counted with outcome failed" {
+            val registry = SimpleMeterRegistry()
+            withStub({ exchange ->
+                exchange.respond(400, """{"error":{"message":"invalid_request"}}""")
+            }) { baseUrl ->
+                client(baseUrl, meterRegistry = registry).complete("suggest tracks") shouldBe null
+            }
+            registry
+                .get("yaytsa.llm.completions")
+                .tags("outcome", "failed")
+                .counter()
+                .count() shouldBe 1.0
         }
     })

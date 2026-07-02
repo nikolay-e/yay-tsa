@@ -48,8 +48,8 @@ class RadioStationService(
         val exclude = excludeTrackIds + seedTrackId.value
         val pool = mlQuery.findRadioPool(TrackId(seedTrackId.value), RADIO_POOL_SIZE)
         val similar =
-            pool
-                .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+            libraryQueries
+                .getTracksByIds(pool.map { EntityId(it.value) })
                 .let { musicSurfaceFilter.filter(it, userId) }
         val diversified = RadioQueueBuilder.diversify(similar, targetSize, exclude)
 
@@ -79,8 +79,8 @@ class RadioStationService(
         val pool = mlQuery.findRadioPool(TrackId(seedTrackId.value), PROBE_POOL_SIZE)
         if (pool.isEmpty()) return DEGRADED_NO_EMBEDDING
         val usable =
-            pool
-                .mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
+            libraryQueries
+                .getTracksByIds(pool.map { EntityId(it.value) })
                 .let { musicSurfaceFilter.filter(it, userId) }
         return if (distinctAlbums(usable) < SPARSE_ALBUM_THRESHOLD) DEGRADED_SPARSE_NEIGHBOURHOOD else null
     }
@@ -94,20 +94,24 @@ class RadioStationService(
         val candidates = mutableListOf<Track>()
 
         val affinityPool = (need * WIDEN_AFFINITY_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-        mlQuery.getTopAffinities(userId, affinityPool).shuffled().forEach { aff ->
-            libraryQueries.getTrack(EntityId(aff.trackId.value))?.let { candidates.add(it) }
-        }
-        mlQuery.getTasteClusterRepresentatives(userId).forEach { tid ->
-            libraryQueries.getTrack(EntityId(tid.value))?.let { candidates.add(it) }
-        }
-        preferencesQueries
-            .find(userId)
-            ?.favorites
-            .orEmpty()
-            .shuffled()
-            .forEach { fav ->
-                libraryQueries.getTrack(EntityId(fav.trackId.value))?.let { candidates.add(it) }
-            }
+        candidates.addAll(
+            libraryQueries.getTracksByIds(
+                mlQuery.getTopAffinities(userId, affinityPool).shuffled().map { EntityId(it.trackId.value) },
+            ),
+        )
+        candidates.addAll(
+            libraryQueries.getTracksByIds(mlQuery.getTasteClusterRepresentatives(userId).map { EntityId(it.value) }),
+        )
+        candidates.addAll(
+            libraryQueries.getTracksByIds(
+                preferencesQueries
+                    .find(userId)
+                    ?.favorites
+                    .orEmpty()
+                    .shuffled()
+                    .map { EntityId(it.trackId.value) },
+            ),
+        )
         if (candidates.size < need * 2) {
             candidates.addAll(libraryQueries.browseTracksRandom(need * RANDOM_WIDEN_MULTIPLIER))
         }

@@ -54,6 +54,8 @@ spring:
     timeout-per-shutdown-phase: 30s
 
 yaytsa:
+  auth:
+    max-failures-per-minute: ${AUTH_MAX_FAILURES_PER_MINUTE:10}
   admin-bootstrap:
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
     username: ${ADMIN_BOOTSTRAP_USERNAME:admin}
@@ -139,22 +141,12 @@ server:
       remote-ip-header: X-Forwarded-For
       protocol-header: X-Forwarded-Proto
 
+# Failed-login brute-force limiting for /Users/AuthenticateByName and /rest/* lives in
+# AuthRateLimitFilter (per-IP + per-username, consumes only on failed auth). The filters
+# below are coarse volumetric caps on top of it.
 bucket4j:
   enabled: true
   filters:
-    - id: jellyfin-login
-      cache-name: rate-limit-buckets
-      url: ^/Users/AuthenticateByName$
-      http-status-code: TOO_MANY_REQUESTS
-      http-content-type: application/problem+json
-      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
-      rate-limits:
-        - cache-key: getRemoteAddr() + ':' + getRequestURI()
-          bandwidths:
-            - capacity: 10
-              time: 1
-              unit: minutes
-              refill-speed: interval
     - id: subsonic-rest
       cache-name: rate-limit-buckets
       url: ^/rest/.*

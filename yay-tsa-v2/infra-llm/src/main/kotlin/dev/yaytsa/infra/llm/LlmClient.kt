@@ -2,6 +2,9 @@ package dev.yaytsa.infra.llm
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
+import io.micrometer.core.instrument.Gauge
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
@@ -10,6 +13,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 @Component
@@ -21,8 +25,19 @@ class LlmClient(
     @Value("\${yaytsa.llm.max-tokens:1024}") private val maxTokens: Int,
     @Value("\${yaytsa.llm.system-prompt:#{null}}") private val systemPrompt: String?,
     private val objectMapper: ObjectMapper,
+    private val meterRegistry: MeterRegistry,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    init {
+        Gauge
+            .builder("yaytsa.llm.misconfigured") { if (enabled && apiKey.isNullOrBlank()) 1.0 else 0.0 }
+            .strongReference(true)
+            .register(meterRegistry)
+        if (enabled && apiKey.isNullOrBlank()) {
+            log.warn("LLM enabled but no API key configured; every adaptive DJ rewrite will be skipped until LLM_API_KEY is set")
+        }
+    }
 
     private val httpClient =
         HttpClient
@@ -36,16 +51,36 @@ class LlmClient(
     ): String? {
         if (!enabled) {
             log.debug("LLM disabled; skipping completion ({} char prompt)", prompt.length)
+            countSkipped("disabled")
             return null
         }
         if (apiKey.isNullOrBlank()) {
             log.warn("LLM enabled but no API key configured; adaptive DJ rewrite skipped (queue unchanged)")
+            countSkipped("missing_api_key")
             return null
         }
 
         val body = buildRequestBody(prompt, user)
-        val response = post(body) ?: return null
-        return parseCompletion(response)
+        val startNanos = System.nanoTime()
+        val completion = post(body)?.let { parseCompletion(it) }
+        recordCompletion(if (completion != null) "success" else "failed", startNanos)
+        return completion
+    }
+
+    private fun countSkipped(reason: String) {
+        meterRegistry.counter("yaytsa.llm.completions", "outcome", "skipped", "reason", reason).increment()
+    }
+
+    private fun recordCompletion(
+        outcome: String,
+        startNanos: Long,
+    ) {
+        meterRegistry.counter("yaytsa.llm.completions", "outcome", outcome, "reason", "none").increment()
+        Timer
+            .builder("yaytsa.llm.completion.duration")
+            .tag("outcome", outcome)
+            .register(meterRegistry)
+            .record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS)
     }
 
     private fun buildRequestBody(
