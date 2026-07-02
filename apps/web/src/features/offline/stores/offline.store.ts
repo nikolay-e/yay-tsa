@@ -33,8 +33,11 @@ export interface OfflineEntry {
   lastAccessedAt: number;
 }
 
-// User-tunable offline behaviour. Auto-download of favorites and auto-caching of
-// played tracks are on by default; only the listening cache is size-bounded.
+// User-tunable offline behaviour. Auto-caching of played tracks is on by default;
+// auto-download of favorites is opt-in (a large favorites set would otherwise eat
+// storage unasked). Only the listening cache is size-bounded. Users who ever saved
+// settings keep their stored values (loadSettings spreads the persisted object over
+// these defaults).
 export interface OfflineSettings {
   autoDownloadFavorites: boolean;
   autoCachePlayed: boolean;
@@ -89,7 +92,7 @@ const coverUrls = new Map<string, string>();
 const SETTINGS_STORAGE_KEY = 'yaytsa_offline_settings';
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 const DEFAULT_SETTINGS: OfflineSettings = {
-  autoDownloadFavorites: true,
+  autoDownloadFavorites: false,
   autoCachePlayed: true,
   maxCacheBytes: 2 * BYTES_PER_GB,
   removeUnlikedDownloads: false,

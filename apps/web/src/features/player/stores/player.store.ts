@@ -126,6 +126,7 @@ interface PlayerActions {
   appendToQueue: (tracks: AudioItem[]) => void;
   insertNextInQueue: (tracks: AudioItem[]) => void;
   removeFromQueue: (trackId: string) => void;
+  moveQueueItem: (fromIndex: number, toIndex: number) => void;
   jumpToQueueTrack: (trackId: string) => Promise<void>;
   retryCurrentTrack: () => Promise<void>;
   patchTrackFavorite: (itemId: string, isFavorite: boolean) => void;
@@ -354,6 +355,7 @@ export const usePlayerStore = create<PlayerStore>()(
         appendToQueue: () => {},
         insertNextInQueue: () => {},
         removeFromQueue: () => {},
+        moveQueueItem: () => {},
         jumpToQueueTrack: async () => {},
         retryCurrentTrack: async () => {},
         patchTrackFavorite: () => {},
@@ -1678,6 +1680,16 @@ export const usePlayerStore = create<PlayerStore>()(
         const index = items.findIndex(item => item.Id === trackId);
         if (index === -1 || index === queue.getCurrentIndex()) return;
         queue.removeAt(index);
+        syncQueueState();
+        preloader.invalidate();
+        schedulePreload();
+      },
+
+      // Pure queue mutation: the engine is never touched, so the playing track keeps
+      // playing and PlaybackQueue.moveItem remaps currentIndex to follow it.
+      moveQueueItem: (fromIndex: number, toIndex: number) => {
+        const { queue } = get();
+        if (!queue.moveItem(fromIndex, toIndex)) return;
         syncQueueState();
         preloader.invalidate();
         schedulePreload();

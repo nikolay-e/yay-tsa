@@ -219,10 +219,17 @@ test.describe('Offline audio (mocked backend)', () => {
     await mockApi(page);
     await login(page);
 
+    // Auto-download of liked songs is opt-in; enable it through the real Settings toggle.
+    await page.goto('/settings');
+    const autoDownloadToggle = page.getByRole('switch', { name: 'Auto-download liked songs' });
+    await expect(autoDownloadToggle).toHaveAttribute('aria-checked', 'false');
+    await autoDownloadToggle.click();
+    await expect(autoDownloadToggle).toHaveAttribute('aria-checked', 'true');
+
     await page.goto('/albums/album-1');
     await expect(page.getByTestId('track-row')).toBeVisible({ timeout: 15000 });
 
-    // Like the track — with "auto-download liked songs" on by default this alone
+    // Like the track — with "auto-download liked songs" enabled this alone
     // must persist it offline.
     await page.getByRole('button', { name: 'Add track to favorites' }).click();
 

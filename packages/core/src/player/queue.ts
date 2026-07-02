@@ -504,6 +504,14 @@ export class PlaybackQueue {
     const [item] = this.items.splice(fromIndex, 1);
     this.items.splice(toIndex, 0, item);
 
+    // With shuffle off, items and originalOrder are identical orderings, so the
+    // same move keeps them in sync (mirrors insertAt). With shuffle on, only the
+    // live order moves; originalOrder stays the unshuffled reference.
+    if (this.shuffleMode === 'off') {
+      const [originalItem] = this.originalOrder.splice(fromIndex, 1);
+      this.originalOrder.splice(toIndex, 0, originalItem);
+    }
+
     // Update current index if affected
     if (fromIndex === this.currentIndex) {
       this.currentIndex = toIndex;

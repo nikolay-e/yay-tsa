@@ -46,6 +46,7 @@ import {
 import { useActiveSession, useSessionActions, useIsSessionStarting } from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
+import { usePlaybackHotkeys } from '../hooks/usePlaybackHotkeys';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 import { nextAudiobookSpeed } from '../playback-speed';
 import { MobileFullPlayer } from './MobileFullPlayer';
@@ -165,6 +166,7 @@ export function PlayerBar() {
   const sleepTimer = useSleepTimer();
   useAlbumColors();
   useSignalEmitter();
+  usePlaybackHotkeys();
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(
     currentTrack?.Id ?? '',
     currentTrack?.AlbumPrimaryImageTag,

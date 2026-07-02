@@ -45,9 +45,37 @@ function installMock(page: Page): void {
     });
   });
 
-  void page.route(/\/Audio\/[^/?]+\/stream/, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'audio/wav', body: silentWav() })
-  );
+  // Range-aware stream mock: without Accept-Ranges/206 support Chromium marks the
+  // media element non-seekable (el.seekable stays empty) and every seek snaps back
+  // to 0, which would falsify the arrow-key seek coverage below.
+  const wav = silentWav();
+  void page.route(/\/Audio\/[^/?]+\/stream/, (route: Route) => {
+    const range = route.request().headers()['range'];
+    const match = range ? /bytes=(\d+)-(\d*)/.exec(range) : null;
+    if (!match) {
+      return route.fulfill({
+        status: 200,
+        body: wav,
+        headers: {
+          'Content-Type': 'audio/wav',
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(wav.length),
+        },
+      });
+    }
+    const start = Number(match[1]);
+    const end = match[2] ? Math.min(Number(match[2]), wav.length - 1) : wav.length - 1;
+    return route.fulfill({
+      status: 206,
+      body: wav.subarray(start, end + 1),
+      headers: {
+        'Content-Type': 'audio/wav',
+        'Accept-Ranges': 'bytes',
+        'Content-Range': `bytes ${start}-${end}/${wav.length}`,
+        'Content-Length': String(end - start + 1),
+      },
+    });
+  });
 }
 
 async function startQueueFromSongs(page: Page): Promise<void> {
@@ -116,5 +144,111 @@ test.describe('Queue panel (mocked backend)', () => {
     await expect(page.getByTestId('queue-item')).toHaveCount(6);
     await expect(page.getByTestId('queue-item-title').nth(1)).toHaveText('Cascade');
     await expect(page.getByTestId('queue-item-title').last()).toHaveText('Drift');
+  });
+
+  test('drag handle reorders the queue without interrupting playback', async ({ page }) => {
+    installMock(page);
+    await login(page);
+    await startQueueFromSongs(page);
+
+    await page.getByTestId('queue-button').click();
+    await expect(page.getByTestId('queue-panel')).toBeVisible();
+    await expect(page.getByTestId('queue-item')).toHaveCount(4);
+
+    // exact: true skips dnd-kit's wrapper (role="button" whose accessible name
+    // contains the handle label as a substring) and matches only the handle itself.
+    const handles = page.getByRole('button', { name: 'Drag to reorder', exact: true });
+    await expect(handles).toHaveCount(4);
+    const sourceBox = await handles.nth(3).boundingBox();
+    const targetBox = await page.getByTestId('queue-item').nth(1).boundingBox();
+    if (!sourceBox || !targetBox) throw new Error('Drag geometry unavailable');
+
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, {
+      steps: 12,
+    });
+    await page.mouse.up();
+
+    await expect(page.getByTestId('queue-item-title')).toHaveText([
+      'Aurora',
+      'Drift',
+      'Borealis',
+      'Cascade',
+    ]);
+    await expect(page.getByTestId('queue-item').filter({ hasText: 'Aurora' })).toHaveAttribute(
+      'aria-current',
+      'true'
+    );
+    await expect(page.locator('[data-testid="current-track-title"]:visible')).toHaveText('Aurora');
+    const isPlaying = await page.evaluate(
+      () =>
+        (window as unknown as { __playerStore__?: { isPlaying: boolean } }).__playerStore__
+          ?.isPlaying ?? false
+    );
+    expect(isPlaying).toBe(true);
+  });
+
+  test('global hotkeys control playback without hijacking focused controls', async ({ page }) => {
+    installMock(page);
+    await login(page);
+    await startQueueFromSongs(page);
+
+    const playPause = page.locator('[data-testid="play-pause-button"]:visible');
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+    // Key presses only after the engine holds real metadata — a seek issued before
+    // the media is ready is dropped by the browser, like any pre-load UI seek.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const handle = (
+              window as unknown as {
+                __playerStore__?: { audioEngine?: { getCurrentTime?: () => number } };
+              }
+            ).__playerStore__;
+            return handle?.audioEngine?.getCurrentTime?.() ?? 0;
+          }),
+        { timeout: 10000 }
+      )
+      .toBeGreaterThan(0.2);
+
+    await page.keyboard.press('Space');
+    await expect(playPause).toHaveAttribute('aria-label', 'Play');
+    await page.keyboard.press('Space');
+    await expect(playPause).toHaveAttribute('aria-label', 'Pause');
+
+    await page.keyboard.press('ArrowRight');
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const handle = (
+              window as unknown as {
+                __playerStore__?: { audioEngine?: { getCurrentTime?: () => number } };
+              }
+            ).__playerStore__;
+            return handle?.audioEngine?.getCurrentTime?.() ?? 0;
+          }),
+        { timeout: 5000 }
+      )
+      .toBeGreaterThan(8);
+
+    await page.keyboard.press('Shift+N');
+    await expect(page.locator('[data-testid="current-track-title"]:visible')).toHaveText(
+      'Borealis',
+      { timeout: 10000 }
+    );
+
+    await page.getByTestId('queue-button').focus();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('queue-panel')).toBeVisible();
+    const stillPlaying = await page.evaluate(
+      () =>
+        (window as unknown as { __playerStore__?: { isPlaying: boolean } }).__playerStore__
+          ?.isPlaying ?? false
+    );
+    expect(stillPlaying).toBe(true);
   });
 });

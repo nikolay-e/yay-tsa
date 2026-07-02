@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useInfiniteArtists } from '@/features/library/hooks';
 import { ArtistCard } from '@/features/library/components';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
@@ -12,10 +13,12 @@ export function ArtistsPage() {
   const {
     data,
     isLoading,
+    isError,
+    error,
+    refetch,
     isFetchingNextPage,
     isFetchingPreviousPage,
     isFetchNextPageError,
-    error,
     hasNextPage,
     hasPreviousPage,
     fetchNextPage,
@@ -64,8 +67,23 @@ export function ArtistsPage() {
     </div>
   );
 
-  const loadedContent = artists.length === 0 ? emptyState : artistList;
-  const content = isLoading ? <LoadingSpinner /> : loadedContent;
+  let content;
+  if (isLoading) {
+    content = <LoadingSpinner />;
+  } else if (isError && artists.length === 0) {
+    content = (
+      <LoadErrorState
+        message={error instanceof Error ? error.message : 'Failed to load artists'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  } else if (artists.length === 0) {
+    content = emptyState;
+  } else {
+    content = artistList;
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -73,12 +91,6 @@ export function ArtistsPage() {
         <h1 className="text-2xl font-bold">Artists</h1>
         <SortMenu selectedId={selectedId} onSelect={select} />
       </div>
-
-      {error && (
-        <div className="bg-error/10 border-error/20 text-error rounded-md border p-4">
-          {error instanceof Error ? error.message : 'Failed to load artists'}
-        </div>
-      )}
 
       {content}
     </div>

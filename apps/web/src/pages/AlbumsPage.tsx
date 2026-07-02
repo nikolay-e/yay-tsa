@@ -3,6 +3,7 @@ import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
@@ -14,10 +15,12 @@ export function AlbumsPage() {
   const {
     data,
     isLoading,
+    isError,
+    error,
+    refetch,
     isFetchingNextPage,
     isFetchingPreviousPage,
     isFetchNextPageError,
-    error,
     hasNextPage,
     hasPreviousPage,
     fetchNextPage,
@@ -66,8 +69,23 @@ export function AlbumsPage() {
     </div>
   );
 
-  const loadedContent = albums.length === 0 ? emptyState : albumList;
-  const content = isLoading ? <LoadingSpinner /> : loadedContent;
+  let content;
+  if (isLoading) {
+    content = <LoadingSpinner />;
+  } else if (isError && albums.length === 0) {
+    content = (
+      <LoadErrorState
+        message={error instanceof Error ? error.message : 'Failed to load albums'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  } else if (albums.length === 0) {
+    content = emptyState;
+  } else {
+    content = albumList;
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -75,12 +93,6 @@ export function AlbumsPage() {
         <h1 className="text-2xl font-bold">Albums</h1>
         <SortMenu selectedId={selectedId} onSelect={select} />
       </div>
-
-      {error && (
-        <div className="bg-error/10 border-error/20 text-error rounded-md border p-4">
-          {error instanceof Error ? error.message : 'Failed to load albums'}
-        </div>
-      )}
 
       {content}
     </div>

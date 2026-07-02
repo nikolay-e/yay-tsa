@@ -1,14 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, ListStart, ListPlus, Radio } from 'lucide-react';
-import type { AudioItem } from '@yay-tsa/core';
+import { useNavigate } from 'react-router-dom';
+import {
+  MoreVertical,
+  ListStart,
+  ListPlus,
+  Radio,
+  Disc3,
+  User,
+  Heart,
+  Download,
+} from 'lucide-react';
+import { getIsFavorite, type AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
-import { useIsOnline } from '@/features/offline/stores/offline.store';
+import {
+  useIsOnline,
+  useOfflineEntry,
+  useOfflineStore,
+} from '@/features/offline/stores/offline.store';
+import {
+  useFavoriteToggle,
+  useFavoritePendingStore,
+  useIsFavoritePending,
+} from '@/features/library/hooks/useFavorites';
 import { usePlayerStore } from '../stores/player.store';
 import { useSessionStore } from '../stores/session-store';
 
-const ESTIMATED_MENU_HEIGHT_PX = 150;
+const ESTIMATED_MENU_HEIGHT_PX = 320;
 
 type MenuPosition = { top?: number; bottom?: number; right: number };
 
@@ -21,6 +40,13 @@ export function TrackRowMenu({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isOpen = menuPosition !== null;
   const isOnline = useIsOnline();
+  const navigate = useNavigate();
+  const { mutate: toggleFavorite } = useFavoriteToggle();
+  const isFavoritePending = useIsFavoritePending(track.Id);
+  const offlineEntry = useOfflineEntry(track.Id);
+  const isFavorite = getIsFavorite(track);
+  const artistId = track.ArtistItems?.[0]?.Id;
+  const downloadStatus = offlineEntry?.status ?? 'idle';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,6 +110,38 @@ export function TrackRowMenu({
     void useSessionStore.getState().startSession(track.Id);
   };
 
+  const handleGoToAlbum = () => {
+    setMenuPosition(null);
+    if (track.AlbumId) void navigate(`/albums/${track.AlbumId}`);
+  };
+
+  const handleGoToArtist = () => {
+    setMenuPosition(null);
+    if (artistId) void navigate(`/artists/${artistId}`);
+  };
+
+  const handleToggleFavorite = () => {
+    setMenuPosition(null);
+    const pendingStore = useFavoritePendingStore.getState();
+    if (pendingStore.pending.has(track.Id)) return;
+    pendingStore.begin(track.Id);
+    toggleFavorite({ itemId: track.Id, isFavorite });
+  };
+
+  const handleDownload = () => {
+    setMenuPosition(null);
+    const { download, remove } = useOfflineStore.getState();
+    if (downloadStatus === 'ready') {
+      remove(track.Id).catch(() => {
+        toast.add('error', `Could not remove the download for ${track.Name}. Try again.`);
+      });
+    } else if (downloadStatus !== 'downloading') {
+      download(track).catch(() => {
+        toast.add('error', `Could not download ${track.Name}. Check your connection.`);
+      });
+    }
+  };
+
   return (
     <div className={cn('shrink-0', className)}>
       <button
@@ -107,7 +165,7 @@ export function TrackRowMenu({
             ref={menuRef}
             role="menu"
             style={menuPosition}
-            className="border-border bg-bg-secondary z-modal fixed w-44 rounded-lg border py-1 shadow-xl"
+            className="border-border bg-bg-secondary z-modal fixed w-52 rounded-lg border py-1 shadow-xl"
           >
             <button
               type="button"
@@ -139,6 +197,59 @@ export function TrackRowMenu({
             >
               <Radio className="h-4 w-4" />
               Start radio
+            </button>
+            {track.AlbumId && (
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="track-menu-go-album"
+                onClick={handleGoToAlbum}
+                className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+              >
+                <Disc3 className="h-4 w-4" />
+                Go to album
+              </button>
+            )}
+            {artistId && (
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="track-menu-go-artist"
+                onClick={handleGoToArtist}
+                className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+              >
+                <User className="h-4 w-4" />
+                Go to artist
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="track-menu-favorite"
+              onClick={handleToggleFavorite}
+              disabled={isFavoritePending}
+              className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Heart className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+              {isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="track-menu-download"
+              onClick={handleDownload}
+              disabled={
+                downloadStatus === 'downloading' || (!isOnline && downloadStatus !== 'ready')
+              }
+              className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              {(() => {
+                if (downloadStatus === 'ready') return 'Remove download';
+                if (downloadStatus === 'downloading') return 'Downloading…';
+                if (downloadStatus === 'error') return 'Retry download';
+                return 'Download';
+              })()}
             </button>
           </div>,
           document.body
