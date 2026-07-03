@@ -182,7 +182,9 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
 
     // Keep an album only if it has at least one track whose genres are disjoint from :excludedGenres.
     // A purely-audiobook album (every track tagged Audiobook) has no such track and is dropped.
-    // Mirrors browseAlbums' COALESCE(sort_name, name) ordering for page stability.
+    // :byCreated picks created_at vs COALESCE(sort_name, name); :descending flips the direction.
+    // Both are constant across rows (no SQL string interpolation); id is the stable OFFSET
+    // tie-breaker, mirroring browseAlbums.
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
@@ -192,7 +194,13 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +
                 "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
                 "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres))) " +
-                "ORDER BY COALESCE(e.sort_name, e.name) " +
+                "ORDER BY " +
+                "CASE WHEN :byCreated AND :descending THEN e.created_at END DESC, " +
+                "CASE WHEN :byCreated AND NOT :descending THEN e.created_at END ASC, " +
+                "CASE WHEN NOT :byCreated AND :descending THEN COALESCE(e.sort_name, e.name) END DESC, " +
+                "CASE WHEN NOT :byCreated AND NOT :descending THEN COALESCE(e.sort_name, e.name) END ASC, " +
+                "CASE WHEN :descending THEN e.id END DESC, " +
+                "CASE WHEN NOT :descending THEN e.id END ASC " +
                 "LIMIT :limit OFFSET :offset",
         nativeQuery = true,
     )
@@ -200,6 +208,8 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         excludedGenres: Collection<String>,
         limit: Int,
         offset: Int,
+        byCreated: Boolean,
+        descending: Boolean,
     ): List<LibraryEntityJpa>
 
     @Query(
@@ -216,6 +226,7 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     fun countAlbumsExcludingGenres(excludedGenres: Collection<String>): Long
 
     // Keep an artist only if it has at least one track whose genres are disjoint from :excludedGenres.
+    // :byCreated / :descending select the sort column and direction, mirroring findAlbumsExcludingGenres.
     @Query(
         value =
             "SELECT * FROM core_v2_library.entities e " +
@@ -225,7 +236,13 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +
                 "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
                 "WHERE eg.entity_id = t.entity_id AND lower(g.name) IN (:excludedGenres))) " +
-                "ORDER BY COALESCE(e.sort_name, e.name) " +
+                "ORDER BY " +
+                "CASE WHEN :byCreated AND :descending THEN e.created_at END DESC, " +
+                "CASE WHEN :byCreated AND NOT :descending THEN e.created_at END ASC, " +
+                "CASE WHEN NOT :byCreated AND :descending THEN COALESCE(e.sort_name, e.name) END DESC, " +
+                "CASE WHEN NOT :byCreated AND NOT :descending THEN COALESCE(e.sort_name, e.name) END ASC, " +
+                "CASE WHEN :descending THEN e.id END DESC, " +
+                "CASE WHEN NOT :descending THEN e.id END ASC " +
                 "LIMIT :limit OFFSET :offset",
         nativeQuery = true,
     )
@@ -233,6 +250,8 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         excludedGenres: Collection<String>,
         limit: Int,
         offset: Int,
+        byCreated: Boolean,
+        descending: Boolean,
     ): List<LibraryEntityJpa>
 
     @Query(

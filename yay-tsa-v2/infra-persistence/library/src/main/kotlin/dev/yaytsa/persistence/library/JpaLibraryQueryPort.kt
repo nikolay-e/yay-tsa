@@ -74,17 +74,32 @@ class JpaLibraryQueryPort(
             .toMap()
     }
 
+    // Shared sort resolution for entity browsing. Mirrors browseTracks: DateCreated → created_at,
+    // anything else → sort_name; id is the stable OFFSET tie-breaker since neither column is a
+    // total order. All three entity types (TRACK/ALBUM/ARTIST) live in the same entities table,
+    // so the same Sort applies uniformly.
+    private fun browsePageable(
+        offset: Int,
+        limit: Int,
+        sortBy: String,
+        sortOrder: String,
+    ): OffsetBasedPageRequest {
+        val property = if (sortBy == "DateCreated") "createdAt" else "sortName"
+        val direction = if (sortOrder.equals("Descending", ignoreCase = true)) Sort.Direction.DESC else Sort.Direction.ASC
+        return OffsetBasedPageRequest(
+            maxOf(offset, 0).toLong(),
+            maxOf(limit, 1),
+            Sort.by(direction, property).and(Sort.by(direction, "id")),
+        )
+    }
+
     override fun browseArtists(
         limit: Int,
         offset: Int,
+        sortBy: String,
+        sortOrder: String,
     ): List<Artist> {
-        val safeLimit = maxOf(limit, 1)
-        val page = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), safeLimit)
-        val entities =
-            entityRepo.findByEntityTypeOrderBySortNamePaged(
-                EntityType.ARTIST.name,
-                page,
-            )
+        val entities = entityRepo.findByEntityType(EntityType.ARTIST.name, browsePageable(offset, limit, sortBy, sortOrder))
         val artistIds = entities.map { it.id }
         val artists = artistRepo.findAllById(artistIds).associateBy { it.entityId }
         val primaryImages = findPrimaryImages(artistIds)
@@ -97,14 +112,10 @@ class JpaLibraryQueryPort(
     override fun browseAlbums(
         limit: Int,
         offset: Int,
+        sortBy: String,
+        sortOrder: String,
     ): List<Album> {
-        val safeLimit = maxOf(limit, 1)
-        val page = OffsetBasedPageRequest(maxOf(offset, 0).toLong(), safeLimit)
-        val entities =
-            entityRepo.findByEntityTypeOrderBySortNamePaged(
-                EntityType.ALBUM.name,
-                page,
-            )
+        val entities = entityRepo.findByEntityType(EntityType.ALBUM.name, browsePageable(offset, limit, sortBy, sortOrder))
         return assembleAlbumsFromEntities(entities)
     }
 
@@ -112,10 +123,16 @@ class JpaLibraryQueryPort(
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String,
+        sortOrder: String,
     ): List<Album> {
-        if (excludedGenreNames.isEmpty()) return browseAlbums(limit, offset)
+        if (excludedGenreNames.isEmpty()) return browseAlbums(limit, offset, sortBy, sortOrder)
         val lowered = excludedGenreNames.map { it.lowercase() }
-        return assembleAlbumsFromEntities(entityRepo.findAlbumsExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0)))
+        val byCreated = sortBy == "DateCreated"
+        val descending = sortOrder.equals("Descending", ignoreCase = true)
+        return assembleAlbumsFromEntities(
+            entityRepo.findAlbumsExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0), byCreated, descending),
+        )
     }
 
     override fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int {
@@ -127,10 +144,14 @@ class JpaLibraryQueryPort(
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String,
+        sortOrder: String,
     ): List<Artist> {
-        if (excludedGenreNames.isEmpty()) return browseArtists(limit, offset)
+        if (excludedGenreNames.isEmpty()) return browseArtists(limit, offset, sortBy, sortOrder)
         val lowered = excludedGenreNames.map { it.lowercase() }
-        val entities = entityRepo.findArtistsExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0))
+        val byCreated = sortBy == "DateCreated"
+        val descending = sortOrder.equals("Descending", ignoreCase = true)
+        val entities = entityRepo.findArtistsExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0), byCreated, descending)
         val artistIds = entities.map { it.id }
         val artists = artistRepo.findAllById(artistIds).associateBy { it.entityId }
         val primaryImages = findPrimaryImages(artistIds)
@@ -325,20 +346,7 @@ class JpaLibraryQueryPort(
         sortBy: String,
         sortOrder: String,
     ): List<Track> {
-        val property = if (sortBy == "DateCreated") "createdAt" else "sortName"
-        val direction = if (sortOrder.equals("Descending", ignoreCase = true)) Sort.Direction.DESC else Sort.Direction.ASC
-        val size = maxOf(limit, 1)
-        // Add id as a stable tie-breaker: created_at (and even sort_name) are not a total order,
-        // so OFFSET pagination over them alone can skip or duplicate rows across pages when values
-        // tie. The (entity_type, created_at) / (entity_type, sort_name) indexes still drive the scan;
-        // ties resolve via a cheap incremental sort on id.
-        val pageable =
-            OffsetBasedPageRequest(
-                maxOf(offset, 0).toLong(),
-                size,
-                Sort.by(direction, property).and(Sort.by(direction, "id")),
-            )
-        val entities = entityRepo.findByEntityType(EntityType.TRACK.name, pageable)
+        val entities = entityRepo.findByEntityType(EntityType.TRACK.name, browsePageable(offset, limit, sortBy, sortOrder))
         val entityIds = entities.map { it.id }
         val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
         val primaryImages = findPrimaryImages(entityIds)

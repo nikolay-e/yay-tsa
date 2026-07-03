@@ -21,17 +21,23 @@ interface LibraryQueryPort {
     fun browseArtists(
         limit: Int,
         offset: Int,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
     ): List<Artist>
 
     fun browseAlbums(
         limit: Int,
         offset: Int,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
     ): List<Album>
 
     fun browseAlbumsExcludingGenres(
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
     ): List<Album>
 
     fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int
@@ -40,6 +46,8 @@ interface LibraryQueryPort {
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
     ): List<Artist>
 
     fun countArtistsExcludingGenres(excludedGenreNames: Collection<String>): Int

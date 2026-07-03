@@ -28,25 +28,33 @@ class LibraryQueries(
     fun browseArtists(
         limit: Int,
         offset: Int,
-    ): List<Artist> = libraryQuery.browseArtists(limit, offset)
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
+    ): List<Artist> = libraryQuery.browseArtists(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
 
     fun browseAlbums(
         limit: Int,
         offset: Int,
-    ): List<Album> = libraryQuery.browseAlbums(limit, offset)
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
+    ): List<Album> = libraryQuery.browseAlbums(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
 
     fun browseAlbumsExcludingGenres(
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
     ): List<Album> =
         if (excludedGenreNames.isEmpty()) {
-            libraryQuery.browseAlbums(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+            libraryQuery.browseAlbums(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
         } else {
             libraryQuery.browseAlbumsExcludingGenres(
                 excludedGenreNames,
                 limit.coerceIn(1, MAX_PAGE_SIZE),
                 offset.coerceAtLeast(0),
+                sortBy,
+                sortOrder,
             )
         }
 
@@ -57,14 +65,18 @@ class LibraryQueries(
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
     ): List<Artist> =
         if (excludedGenreNames.isEmpty()) {
-            libraryQuery.browseArtists(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+            libraryQuery.browseArtists(limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0), sortBy, sortOrder)
         } else {
             libraryQuery.browseArtistsExcludingGenres(
                 excludedGenreNames,
                 limit.coerceIn(1, MAX_PAGE_SIZE),
                 offset.coerceAtLeast(0),
+                sortBy,
+                sortOrder,
             )
         }
 

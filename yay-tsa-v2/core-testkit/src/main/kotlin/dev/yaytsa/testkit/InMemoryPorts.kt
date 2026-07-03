@@ -161,34 +161,45 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
                 (tracks[id]?.name ?: albums[id]?.name ?: artists[id]?.name)?.let { id to it }
             }.toMap()
 
+    // Artists carry no createdAt in the domain, so DateCreated falls back to name here; the real
+    // JPA port sorts artists on the entity table's created_at column. Descending reverses either.
+    private fun <T> applyOrder(
+        items: List<T>,
+        sortOrder: String,
+    ): List<T> = if (sortOrder.equals("Descending", ignoreCase = true)) items.reversed() else items
+
     override fun browseArtists(
         limit: Int,
         offset: Int,
-    ) = artists.values
-        .sortedBy { it.name }
-        .drop(offset)
-        .take(limit)
+        sortBy: String,
+        sortOrder: String,
+    ) = applyOrder(artists.values.sortedBy { it.name }, sortOrder)
+        .drop(maxOf(offset, 0))
+        .take(maxOf(limit, 1))
 
     override fun browseAlbums(
         limit: Int,
         offset: Int,
-    ) = albums.values
-        .sortedBy { it.name }
-        .drop(offset)
-        .take(limit)
+        sortBy: String,
+        sortOrder: String,
+    ): List<Album> {
+        val sorted =
+            if (sortBy == "DateCreated") albums.values.sortedBy { it.createdAt } else albums.values.sortedBy { it.name }
+        return applyOrder(sorted, sortOrder).drop(maxOf(offset, 0)).take(maxOf(limit, 1))
+    }
 
     override fun browseAlbumsExcludingGenres(
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String,
+        sortOrder: String,
     ): List<Album> {
-        if (excludedGenreNames.isEmpty()) return browseAlbums(limit, offset)
+        if (excludedGenreNames.isEmpty()) return browseAlbums(limit, offset, sortBy, sortOrder)
         val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
-        return albums.values
-            .filter { album -> albumHasKeptTrack(album.id, lowered) }
-            .sortedBy { it.name }
-            .drop(maxOf(offset, 0))
-            .take(maxOf(limit, 1))
+        val filtered = albums.values.filter { album -> albumHasKeptTrack(album.id, lowered) }
+        val sorted = if (sortBy == "DateCreated") filtered.sortedBy { it.createdAt } else filtered.sortedBy { it.name }
+        return applyOrder(sorted, sortOrder).drop(maxOf(offset, 0)).take(maxOf(limit, 1))
     }
 
     override fun countAlbumsExcludingGenres(excludedGenreNames: Collection<String>): Int {
@@ -201,12 +212,13 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
         excludedGenreNames: Collection<String>,
         limit: Int,
         offset: Int,
+        sortBy: String,
+        sortOrder: String,
     ): List<Artist> {
-        if (excludedGenreNames.isEmpty()) return browseArtists(limit, offset)
+        if (excludedGenreNames.isEmpty()) return browseArtists(limit, offset, sortBy, sortOrder)
         val lowered = excludedGenreNames.map { it.lowercase() }.toSet()
-        return artists.values
-            .filter { artist -> artistHasKeptTrack(artist.id, lowered) }
-            .sortedBy { it.name }
+        val filtered = artists.values.filter { artist -> artistHasKeptTrack(artist.id, lowered) }
+        return applyOrder(filtered.sortedBy { it.name }, sortOrder)
             .drop(maxOf(offset, 0))
             .take(maxOf(limit, 1))
     }

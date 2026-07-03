@@ -199,11 +199,20 @@ class JellyfinItemsController(
 
         when {
             "MusicArtist" in types -> {
+                // Frontend "Recently Played" (SortBy=DatePlayed) has no per-artist play column;
+                // approximate it from the user's top ML affinities + favorites, same as Audio. Only
+                // the first page is personalized; falls back to the deterministic browse otherwise.
+                if (uid != null && isPersonalizedSort(sortBy) && startIndex == 0 && excludedGenres.isEmpty()) {
+                    val personalized = buildPersonalizedArtists(UserId(uid), limit)
+                    if (personalized.isNotEmpty()) {
+                        return ResponseEntity.ok(ItemsResult(personalized.withAlbumCounts(), personalized.size, startIndex))
+                    }
+                }
                 val artists =
                     if (excludedGenres.isEmpty()) {
-                        libraryQueries.browseArtists(limit, startIndex)
+                        libraryQueries.browseArtists(limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending")
                     } else {
-                        libraryQueries.browseArtistsExcludingGenres(excludedGenres, limit, startIndex)
+                        libraryQueries.browseArtistsExcludingGenres(excludedGenres, limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending")
                     }
                 val total =
                     if (excludedGenres.isEmpty()) {
@@ -215,14 +224,22 @@ class JellyfinItemsController(
                 return ResponseEntity.ok(ItemsResult(items, total, startIndex))
             }
             "MusicAlbum" in types -> {
+                if (artistIds == null && uid != null && isPersonalizedSort(sortBy) && startIndex == 0 && excludedGenres.isEmpty()) {
+                    val personalized = buildPersonalizedAlbums(UserId(uid), limit)
+                    if (personalized.isNotEmpty()) {
+                        val names = albumArtistNames(personalized)
+                        val items = personalized.map { it.toBaseItem(favTrackIds, names) }
+                        return ResponseEntity.ok(ItemsResult(items, personalized.size, startIndex))
+                    }
+                }
                 val (albums, total) =
                     if (artistIds != null) {
                         val list = libraryQueries.browseAlbumsByArtist(EntityId(artistIds.split(",").first()))
                         list to list.size
                     } else if (excludedGenres.isEmpty()) {
-                        libraryQueries.browseAlbums(limit, startIndex) to libraryQueries.countAlbums()
+                        libraryQueries.browseAlbums(limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending") to libraryQueries.countAlbums()
                     } else {
-                        libraryQueries.browseAlbumsExcludingGenres(excludedGenres, limit, startIndex) to
+                        libraryQueries.browseAlbumsExcludingGenres(excludedGenres, limit, startIndex, sortBy ?: "SortName", sortOrder ?: "Ascending") to
                             libraryQueries.countAlbumsExcludingGenres(excludedGenres)
                     }
                 val albumNames = albumArtistNames(albums)
@@ -234,7 +251,7 @@ class JellyfinItemsController(
                 // Backend has no DatePlayed column on entities; instead we serve the
                 // user's top ML affinities (real "what you actually listened to"),
                 // then fold in favorites, then fill from a varied library sample.
-                val isPersonalized = uid != null && sortBy in setOf("DatePlayed", "Personalized", "PlayCount")
+                val isPersonalized = uid != null && isPersonalizedSort(sortBy)
                 if (isPersonalized && startIndex == 0 && excludedGenres.isEmpty()) {
                     val personalized = buildPersonalizedTracks(UserId(uid!!), limit)
                     if (personalized.isNotEmpty()) {
@@ -459,6 +476,55 @@ class JellyfinItemsController(
         dateCreated = createdAt?.toString(),
         productionYear = productionYear,
     )
+
+    // "Recently Played" / "Personalized" / "PlayCount" all map to the same affinity-driven ordering:
+    // the library has no per-item played-at column, so these are served from ML affinities + favorites.
+    private fun isPersonalizedSort(sortBy: String?): Boolean = sortBy in setOf("DatePlayed", "Personalized", "PlayCount")
+
+    // Track ids in personalized order (top ML affinities first, then favorites), deduped. The pool is
+    // wider than `limit` because many distinct tracks collapse into the same album/artist downstream.
+    private fun personalizedTrackIds(
+        userId: UserId,
+        limit: Int,
+    ): List<EntityId> {
+        val pool = (limit * 8).coerceIn(limit, dev.yaytsa.application.ml.port.MlQueryPort.MAX_QUERY_LIMIT)
+        val affinityIds = mlQuery.getTopAffinities(userId, pool).map { it.trackId.value }
+        val favoriteIds =
+            preferencesQueries
+                .find(userId)
+                ?.favorites
+                .orEmpty()
+                .map { it.trackId.value }
+        return (affinityIds + favoriteIds).distinct().map { EntityId(it) }
+    }
+
+    // The user's most-engaged albums, ordered by affinity. Empty when the user has no affinities or
+    // favorites yet, in which case the caller falls back to the deterministic browse.
+    private fun buildPersonalizedAlbums(
+        userId: UserId,
+        limit: Int,
+    ): List<Album> {
+        val orderedAlbumIds =
+            libraryQueries
+                .getTracksByIds(personalizedTrackIds(userId, limit))
+                .mapNotNull { it.albumId }
+                .distinct()
+                .take(limit)
+        return if (orderedAlbumIds.isEmpty()) emptyList() else libraryQueries.getAlbumsByIds(orderedAlbumIds)
+    }
+
+    private fun buildPersonalizedArtists(
+        userId: UserId,
+        limit: Int,
+    ): List<Artist> {
+        val orderedArtistIds =
+            libraryQueries
+                .getTracksByIds(personalizedTrackIds(userId, limit))
+                .mapNotNull { it.albumArtistId }
+                .distinct()
+                .take(limit)
+        return if (orderedArtistIds.isEmpty()) emptyList() else libraryQueries.getArtistsByIds(orderedArtistIds)
+    }
 
     private fun buildPersonalizedTracks(
         userId: UserId,

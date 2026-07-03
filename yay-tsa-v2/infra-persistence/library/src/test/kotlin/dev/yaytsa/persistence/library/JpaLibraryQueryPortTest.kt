@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -296,6 +297,117 @@ class JpaLibraryQueryPortTest : LibraryPersistenceTestBase() {
         val artists = port.browseArtists(limit = 10, offset = 0)
         assertEquals(1, artists.size)
         assertEquals("Pink Floyd", artists[0].name)
+    }
+
+    @Test
+    fun `browseArtists honors sort name direction`() {
+        entityRepo
+            .save(
+                LibraryEntityJpa(
+                    id = UUID.randomUUID(),
+                    entityType = EntityType.ARTIST.name,
+                    name = "Aphex Twin",
+                    sortName = "Aphex Twin",
+                    searchText = "aphex twin",
+                ),
+            ).also { artistRepo.save(ArtistJpa(entityId = it.id)) }
+
+        val asc = port.browseArtists(limit = 10, offset = 0, sortBy = "SortName", sortOrder = "Ascending").map { it.name }
+        val desc = port.browseArtists(limit = 10, offset = 0, sortBy = "SortName", sortOrder = "Descending").map { it.name }
+
+        assertEquals(listOf("Aphex Twin", "Pink Floyd"), asc)
+        assertEquals(listOf("Pink Floyd", "Aphex Twin"), desc)
+    }
+
+    @Test
+    fun `browseAlbums honors sort name direction`() {
+        entityRepo
+            .save(
+                LibraryEntityJpa(
+                    id = UUID.randomUUID(),
+                    entityType = EntityType.ALBUM.name,
+                    name = "Wish You Were Here",
+                    sortName = "Wish You Were Here",
+                    searchText = "wish you were here",
+                ),
+            ).also { albumRepo.save(AlbumJpa(entityId = it.id, artistId = artistId)) }
+
+        val asc = port.browseAlbums(limit = 10, offset = 0, sortBy = "SortName", sortOrder = "Ascending").map { it.name }
+        val desc = port.browseAlbums(limit = 10, offset = 0, sortBy = "SortName", sortOrder = "Descending").map { it.name }
+
+        assertEquals(listOf("The Dark Side of the Moon", "Wish You Were Here"), asc)
+        assertEquals(listOf("Wish You Were Here", "The Dark Side of the Moon"), desc)
+    }
+
+    @Test
+    fun `browseAlbums honors date created descending`() {
+        entityRepo
+            .save(
+                LibraryEntityJpa(
+                    id = UUID.randomUUID(),
+                    entityType = EntityType.ALBUM.name,
+                    name = "Older Album",
+                    sortName = "Older Album",
+                    searchText = "older album",
+                    createdAt = OffsetDateTime.parse("2001-01-01T00:00:00Z"),
+                ),
+            ).also { albumRepo.save(AlbumJpa(entityId = it.id, artistId = artistId)) }
+        entityRepo
+            .save(
+                LibraryEntityJpa(
+                    id = UUID.randomUUID(),
+                    entityType = EntityType.ALBUM.name,
+                    name = "Newer Album",
+                    sortName = "Newer Album",
+                    searchText = "newer album",
+                    createdAt = OffsetDateTime.parse("2020-01-01T00:00:00Z"),
+                ),
+            ).also { albumRepo.save(AlbumJpa(entityId = it.id, artistId = artistId)) }
+
+        val names = port.browseAlbums(limit = 10, offset = 0, sortBy = "DateCreated", sortOrder = "Descending").map { it.name }
+        assertTrue(names.indexOf("Newer Album") < names.indexOf("Older Album"))
+    }
+
+    @Test
+    fun `browseArtistsExcludingGenres honors sort name direction`() {
+        // Excluded-genre path exercises the native CASE-based ORDER BY. Give the second artist a
+        // track with a non-excluded genre so it survives the disjoint-genre filter.
+        val artistBId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = artistBId,
+                entityType = EntityType.ARTIST.name,
+                name = "Aphex Twin",
+                sortName = "Aphex Twin",
+                searchText = "aphex twin",
+            ),
+        )
+        artistRepo.save(ArtistJpa(entityId = artistBId))
+        val trackBId = UUID.randomUUID()
+        entityRepo.save(
+            LibraryEntityJpa(
+                id = trackBId,
+                entityType = EntityType.TRACK.name,
+                name = "Xtal",
+                sortName = "Xtal",
+                searchText = "xtal",
+            ),
+        )
+        trackRepo.save(
+            AudioTrackJpa(
+                entityId = trackBId,
+                albumArtistId = artistBId,
+                trackNumber = 1,
+                discNumber = 1,
+                durationMs = 300000,
+            ),
+        )
+
+        val desc =
+            port
+                .browseArtistsExcludingGenres(listOf("audiobook"), limit = 10, offset = 0, sortBy = "SortName", sortOrder = "Descending")
+                .map { it.name }
+        assertEquals(listOf("Pink Floyd", "Aphex Twin"), desc)
     }
 
     @Test
