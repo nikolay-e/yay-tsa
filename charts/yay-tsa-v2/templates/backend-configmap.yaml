@@ -35,4 +35,5 @@ data:
   MPD_ENABLED: {{ default false .Values.backend.config.mpd.enabled | quote }}
   MPD_PORT: {{ .Values.backend.config.mpd.port | quote }}
   LISTENBRAINZ_ENABLED: {{ default false .Values.backend.config.scrobbling.listenbrainz.enabled | quote }}
+  LISTENBRAINZ_USERNAME: {{ .Values.backend.config.scrobbling.listenbrainz.username | quote }}
 {{- end }}

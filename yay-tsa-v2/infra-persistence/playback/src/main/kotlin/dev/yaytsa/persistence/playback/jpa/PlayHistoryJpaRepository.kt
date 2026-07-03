@@ -11,7 +11,8 @@ import java.time.Instant
 import java.util.UUID
 
 interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
-    fun findByCompletedTrueAndScrobbledFalseAndRecordedAtAfterOrderByRecordedAtAsc(
+    fun findByUserIdAndCompletedTrueAndScrobbledFalseAndRecordedAtAfterOrderByRecordedAtAsc(
+        userId: String,
         cutoff: Instant,
         pageable: Pageable,
     ): List<PlayHistoryEntity>

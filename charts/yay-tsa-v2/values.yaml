@@ -169,6 +169,11 @@ backend:
     scrobbling:
       listenbrainz:
         enabled: false # submits completed plays to ListenBrainz; requires a user token
+        # Scopes submission to exactly one Jellyfin username's plays — the token belongs to
+        # one external ListenBrainz account, so on a multi-user server this MUST be set or
+        # every user's history would need to merge into a single account (it never does:
+        # submission is skipped entirely when this is blank, same as a blank token).
+        username: ''
         # BYO Secret holding the ListenBrainz user token. The env var is wired with
         # optional:true, so the Secret key may land before or after the enable flip.
         # WARNING: an enabled submitter with a WRONG (non-blank) token gets 401s and

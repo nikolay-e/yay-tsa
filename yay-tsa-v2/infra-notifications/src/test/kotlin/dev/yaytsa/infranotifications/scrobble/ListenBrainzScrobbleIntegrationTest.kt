@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
     properties = [
         "yaytsa.scrobbling.listenbrainz.enabled=true",
         "yaytsa.scrobbling.listenbrainz.token=test-token",
+        "yaytsa.scrobbling.listenbrainz.username=user-1",
         "yaytsa.scrobbling.listenbrainz.retry-cooldown-seconds=0",
         "spring.flyway.enabled=true",
         "spring.flyway.locations=classpath:db/playback",
@@ -177,11 +178,12 @@ class ListenBrainzScrobbleIntegrationTest {
         trackId: EntityId,
         startedAt: Instant = Instant.now().minusSeconds(600),
         completed: Boolean = true,
+        userId: String = "user-1",
     ): UUID =
         playHistoryJpa
             .save(
                 PlayHistoryEntity(
-                    userId = "user-1",
+                    userId = userId,
                     itemId = trackId.value,
                     startedAt = startedAt,
                     durationMs = 0,
@@ -223,6 +225,17 @@ class ListenBrainzScrobbleIntegrationTest {
         assertEquals(387_000L, metadata["additional_info"]["duration_ms"].asLong())
         assertTrue(playHistoryJpa.findById(playId).get().scrobbled)
         assertEquals(submittedBefore + 1.0, counterValue("yaytsa.scrobble.submitted", "target", "listenbrainz"))
+    }
+
+    @Test
+    fun `another user's completed play is never submitted or marked scrobbled`() {
+        val trackId = seedLibraryTrack()
+        val otherUserPlayId = insertPlay(trackId, userId = "user-2")
+
+        submitter.poll()
+
+        assertEquals(0, requests.size)
+        assertFalse(playHistoryJpa.findById(otherUserPlayId).get().scrobbled)
     }
 
     @Test

@@ -31,6 +31,7 @@ class ListenBrainzScrobbleSubmitter(
     private val clock: Clock,
     private val meterRegistry: MeterRegistry,
     @Value("\${yaytsa.scrobbling.listenbrainz.token:}") private val token: String,
+    @Value("\${yaytsa.scrobbling.listenbrainz.username:}") private val username: String,
     @Value("\${yaytsa.scrobbling.listenbrainz.api-url:https://api.listenbrainz.org}") private val apiUrl: String,
     @Value("\${yaytsa.scrobbling.listenbrainz.batch-size:50}") private val batchSize: Int,
     @Value("\${yaytsa.scrobbling.listenbrainz.max-age-days:7}") private val maxAgeDays: Long,
@@ -48,7 +49,7 @@ class ListenBrainzScrobbleSubmitter(
     private var retryNotBefore: Instant = Instant.EPOCH
 
     @Volatile
-    private var warnedMissingToken = false
+    private var warnedMisconfigured = false
 
     @Scheduled(fixedDelayString = "\${yaytsa.scrobbling.listenbrainz.poll-interval-ms:30000}")
     fun poll() {
@@ -61,10 +62,15 @@ class ListenBrainzScrobbleSubmitter(
     }
 
     private fun submitPendingScrobbles() {
-        if (token.isBlank()) {
-            if (!warnedMissingToken) {
-                warnedMissingToken = true
-                log.warn("ListenBrainz scrobbling is enabled but no token is configured; skipping submission")
+        // A single ListenBrainz token belongs to one external account. The server can host
+        // multiple Jellyfin users, so submission is scoped to exactly one configured username's
+        // plays — otherwise every user's listening history would be merged into that one account.
+        if (token.isBlank() || username.isBlank()) {
+            if (!warnedMisconfigured) {
+                warnedMisconfigured = true
+                log.warn(
+                    "ListenBrainz scrobbling is enabled but token or username is not configured; skipping submission",
+                )
             }
             return
         }
@@ -72,7 +78,8 @@ class ListenBrainzScrobbleSubmitter(
         if (now.isBefore(retryNotBefore)) return
         val cutoff = now.minus(Duration.ofDays(maxAgeDays))
         val pending =
-            playHistoryJpa.findByCompletedTrueAndScrobbledFalseAndRecordedAtAfterOrderByRecordedAtAsc(
+            playHistoryJpa.findByUserIdAndCompletedTrueAndScrobbledFalseAndRecordedAtAfterOrderByRecordedAtAsc(
+                username,
                 cutoff,
                 PageRequest.of(0, batchSize),
             )
