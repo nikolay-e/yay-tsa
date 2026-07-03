@@ -53,6 +53,11 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MULTIPART_MAX_FILE_SIZE:250MB}
+      max-request-size: ${UPLOAD_MULTIPART_MAX_REQUEST_SIZE:260MB}
+
 yaytsa:
   auth:
     max-failures-per-minute: ${AUTH_MAX_FAILURES_PER_MINUTE:10}
@@ -65,6 +70,8 @@ yaytsa:
     sha: ${GIT_SHA:unknown}
   library:
     music-path: ${MUSIC_PATH:#{null}}
+  upload:
+    max-bytes: ${UPLOAD_MAX_BYTES:209715200}
   media:
     root-path: ${MEDIA_ROOT_PATH:#{null}}
   playback:

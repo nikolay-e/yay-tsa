@@ -113,6 +113,21 @@ interface LibraryQueryPort {
 
     fun browseTracksRandom(limit: Int): List<Track>
 
+    fun browseTracksRandomFiltered(
+        genre: String?,
+        fromYear: Int?,
+        toYear: Int?,
+        limit: Int,
+    ): List<Track>
+
+    fun browseTracksByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Track>
+
+    fun listGenreStatistics(): List<GenreStatistics>
+
     fun searchText(
         query: String,
         limit: Int,
@@ -130,6 +145,8 @@ interface LibraryQueryPort {
 
     fun countTracks(): Int
 
+    fun sumTrackDurationsMs(): Long
+
     fun countAlbums(): Int
 
     fun countArtists(): Int
@@ -142,3 +159,9 @@ interface LibraryQueryPort {
 
     fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int>
 }
+
+data class GenreStatistics(
+    val name: String,
+    val songCount: Int,
+    val albumCount: Int,
+)

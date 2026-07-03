@@ -5,6 +5,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.math.BigDecimal
+import java.time.OffsetDateTime
 import java.util.UUID
 
 @Entity
@@ -42,4 +43,6 @@ class AudioTrackJpa(
     var replaygainAlbumGain: BigDecimal? = null,
     @Column(name = "replaygain_track_peak")
     var replaygainTrackPeak: BigDecimal? = null,
+    @Column(name = "replaygain_checked_at")
+    var replaygainCheckedAt: OffsetDateTime? = null,
 )

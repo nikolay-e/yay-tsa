@@ -27,6 +27,7 @@ private class ScalarsAsAttributesIntrospector : JacksonXmlAnnotationIntrospector
         ann: Annotated,
     ): Boolean? {
         super.isOutputAsAttribute(config, ann)?.let { return it }
+        if (ann.getAnnotation(com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText::class.java) != null) return false
         val type = ann.rawType ?: return null
         val isScalar =
             type.isPrimitive ||

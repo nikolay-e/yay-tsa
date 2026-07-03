@@ -1,5 +1,6 @@
 package dev.yaytsa.persistence.library
 
+import dev.yaytsa.application.library.port.GenreStatistics
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.domain.library.Album
 import dev.yaytsa.domain.library.Artist
@@ -345,8 +346,10 @@ class JpaLibraryQueryPort(
         offset: Int,
         sortBy: String,
         sortOrder: String,
-    ): List<Track> {
-        val entities = entityRepo.findByEntityType(EntityType.TRACK.name, browsePageable(offset, limit, sortBy, sortOrder))
+    ): List<Track> = assembleTracksFromEntities(entityRepo.findByEntityType(EntityType.TRACK.name, browsePageable(offset, limit, sortBy, sortOrder)))
+
+    private fun assembleTracksFromEntities(entities: List<dev.yaytsa.persistence.library.entity.LibraryEntityJpa>): List<Track> {
+        if (entities.isEmpty()) return emptyList()
         val entityIds = entities.map { it.id }
         val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
         val primaryImages = findPrimaryImages(entityIds)
@@ -367,15 +370,7 @@ class JpaLibraryQueryPort(
         if (excludedGenreNames.isEmpty()) return browseTracks(limit, offset, sortBy, sortOrder)
         val lowered = excludedGenreNames.map { it.lowercase() }
         val descending = sortOrder.equals("Descending", ignoreCase = true)
-        val entities = entityRepo.findTracksExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0), descending)
-        val entityIds = entities.map { it.id }
-        val tracksByEntityId = trackRepo.findAllById(entityIds).associateBy { it.entityId }
-        val primaryImages = findPrimaryImages(entityIds)
-        val genreNames = findPrimaryGenreNames(entityIds)
-        return entities.mapNotNull { entity ->
-            val track = tracksByEntityId[entity.id] ?: return@mapNotNull null
-            LibraryMappers.toTrack(entity, track, primaryImages[entity.id], genreNames[entity.id])
-        }
+        return assembleTracksFromEntities(entityRepo.findTracksExcludingGenres(lowered, maxOf(limit, 1), maxOf(offset, 0), descending))
     }
 
     override fun countTracksExcludingGenres(excludedGenreNames: Collection<String>): Int {
@@ -383,20 +378,26 @@ class JpaLibraryQueryPort(
         return entityRepo.countTracksExcludingGenres(excludedGenreNames.map { it.lowercase() }).toInt()
     }
 
-    override fun browseTracksRandom(limit: Int): List<Track> {
-        val entities = entityRepo.findRandomByEntityType(EntityType.TRACK.name, maxOf(limit, 1))
-        val entityIds = entities.map { it.id }
-        val tracksByEntityId =
-            trackRepo
-                .findAllById(entityIds)
-                .associateBy { it.entityId }
-        val primaryImages = findPrimaryImages(entityIds)
-        val genreNames = findPrimaryGenreNames(entityIds)
-        return entities.mapNotNull { entity ->
-            val track = tracksByEntityId[entity.id] ?: return@mapNotNull null
-            LibraryMappers.toTrack(entity, track, primaryImages[entity.id], genreNames[entity.id])
+    override fun browseTracksRandom(limit: Int): List<Track> =
+        assembleTracksFromEntities(entityRepo.findRandomByEntityType(EntityType.TRACK.name, maxOf(limit, 1)))
+
+    override fun browseTracksRandomFiltered(
+        genre: String?,
+        fromYear: Int?,
+        toYear: Int?,
+        limit: Int,
+    ): List<Track> = assembleTracksFromEntities(entityRepo.findRandomTracksFiltered(genre, fromYear, toYear, maxOf(limit, 1)))
+
+    override fun browseTracksByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Track> = assembleTracksFromEntities(entityRepo.findTracksByGenrePaged(genre, maxOf(limit, 1), maxOf(offset, 0)))
+
+    override fun listGenreStatistics(): List<GenreStatistics> =
+        genreRepo.findGenreStatistics().map {
+            GenreStatistics(name = it.getName(), songCount = it.getSongCount().toInt(), albumCount = it.getAlbumCount().toInt())
         }
-    }
 
     override fun searchText(
         query: String,
@@ -503,6 +504,8 @@ class JpaLibraryQueryPort(
     }
 
     override fun countTracks(): Int = entityRepo.countByEntityType(EntityType.TRACK.name).toInt()
+
+    override fun sumTrackDurationsMs(): Long = trackRepo.sumDurationsMs()
 
     override fun countAlbums(): Int = entityRepo.countByEntityType(EntityType.ALBUM.name).toInt()
 

@@ -1,5 +1,6 @@
 package dev.yaytsa.application.library
 
+import dev.yaytsa.application.library.port.GenreStatistics
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.domain.library.Album
 import dev.yaytsa.domain.library.Artist
@@ -157,6 +158,21 @@ class LibraryQueries(
 
     fun browseTracksRandom(limit: Int): List<Track> = libraryQuery.browseTracksRandom(limit)
 
+    fun browseTracksRandomFiltered(
+        genre: String?,
+        fromYear: Int?,
+        toYear: Int?,
+        limit: Int,
+    ): List<Track> = libraryQuery.browseTracksRandomFiltered(genre, fromYear, toYear, limit.coerceIn(1, MAX_PAGE_SIZE))
+
+    fun browseTracksByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Track> = libraryQuery.browseTracksByGenre(genre, limit.coerceIn(1, MAX_PAGE_SIZE), offset.coerceAtLeast(0))
+
+    fun listGenreStatistics(): List<GenreStatistics> = libraryQuery.listGenreStatistics()
+
     fun searchText(
         query: String,
         limit: Int,
@@ -179,6 +195,8 @@ class LibraryQueries(
     fun resolveTrackFilePath(trackId: EntityId): String? = libraryQuery.resolveTrackFilePath(trackId)
 
     fun countTracks(): Int = libraryQuery.countTracks()
+
+    fun sumTrackDurationsMs(): Long = libraryQuery.sumTrackDurationsMs()
 
     fun countAlbums(): Int = libraryQuery.countAlbums()
 

@@ -133,9 +133,13 @@ data class GenresWrapper(
 )
 
 data class GenreElement(
-    val value: String,
+    @get:com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText val value: String,
     val songCount: Int = 0,
     val albumCount: Int = 0,
+)
+
+data class SongsWrapper(
+    val song: List<ChildElement> = emptyList(),
 )
 
 data class UserDetail(

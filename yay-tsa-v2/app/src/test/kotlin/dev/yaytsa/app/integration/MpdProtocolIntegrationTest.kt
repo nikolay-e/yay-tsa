@@ -34,7 +34,6 @@ class MpdProtocolIntegrationTest : HttpIntegrationTestBase() {
         val suffix = UUID.randomUUID().toString().take(8)
         artistId = UUID.randomUUID()
         albumId = UUID.randomUUID()
-        trackId = UUID.randomUUID()
         artistName = "Mpd Artist $suffix"
         albumName = "Mpd Album $suffix"
         trackTitle = "Mpd Track $suffix"
@@ -42,19 +41,29 @@ class MpdProtocolIntegrationTest : HttpIntegrationTestBase() {
         jdbc.update("INSERT INTO core_v2_library.artists (entity_id) VALUES (?)", artistId)
         insertEntity(albumId, "ALBUM", albumName)
         jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", albumId, artistId)
-        insertEntity(trackId, "TRACK", trackTitle)
+        trackId = insertTrack(trackTitle, 7, 180_000L)
+    }
+
+    private fun insertTrack(
+        title: String,
+        trackNumber: Int,
+        durationMs: Long,
+    ): UUID {
+        val id = UUID.randomUUID()
+        insertEntity(id, "TRACK", title)
         jdbc.update(
             "INSERT INTO core_v2_library.audio_tracks " +
                 "(entity_id, album_id, album_artist_id, track_number, disc_number, duration_ms, year) " +
                 "VALUES (?,?,?,?,?,?,?)",
-            trackId,
+            id,
             albumId,
             artistId,
-            7,
+            trackNumber,
             1,
-            180_000L,
+            durationMs,
             2021,
         )
+        return id
     }
 
     private fun insertEntity(
@@ -252,6 +261,190 @@ class MpdProtocolIntegrationTest : HttpIntegrationTestBase() {
             assertEquals("OK\n", client.command("add \"$artistName/$albumName\""))
             val playlist = client.command("playlistinfo")
             assertTrue(playlist.contains("file: $trackId"), "album path add must enqueue its tracks, was:\n$playlist")
+        }
+    }
+
+    private fun titlesInOrder(response: String): List<String> =
+        response
+            .lines()
+            .filter { it.startsWith("Title: ") }
+            .map { it.removePrefix("Title: ") }
+
+    private fun elapsedSeconds(client: MpdClient): Double = statusValue(client.command("status"), "elapsed")?.toDouble() ?: error("no elapsed in status")
+
+    @Test
+    fun `seek positions playback within the addressed song and rejects bad index`() {
+        MpdClient(mpdPort).use { client ->
+            seedQueueAndPlay(client)
+            assertEquals("OK\n", client.command("seek 0 30"))
+            val elapsed = elapsedSeconds(client)
+            assertTrue(elapsed in 30.0..34.0, "elapsed must be ~30 after seek, was $elapsed")
+            val bad = client.command("seek 5 10")
+            assertTrue(bad.startsWith("ACK"), "out-of-range position must ACK, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `seekid seeks by song id and rejects unknown id`() {
+        MpdClient(mpdPort).use { client ->
+            seedQueueAndPlay(client)
+            val songId = statusValue(client.command("status"), "songid")?.toInt() ?: error("no songid in status")
+            assertEquals("OK\n", client.command("seekid $songId 45"))
+            val elapsed = elapsedSeconds(client)
+            assertTrue(elapsed in 45.0..49.0, "elapsed must be ~45 after seekid, was $elapsed")
+            val bad = client.command("seekid ${songId + 1} 10")
+            assertTrue(bad.startsWith("ACK [50@"), "unknown song id must ACK 50, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `seekcur handles absolute and relative offsets and fails without current song`() {
+        MpdClient(mpdPort).use { client ->
+            seedQueueAndPlay(client)
+            assertEquals("OK\n", client.command("seekcur 60"))
+            val absolute = elapsedSeconds(client)
+            assertTrue(absolute in 60.0..64.0, "elapsed must be ~60 after absolute seekcur, was $absolute")
+            assertEquals("OK\n", client.command("seekcur -20"))
+            val rewound = elapsedSeconds(client)
+            assertTrue(rewound in 38.0..46.0, "elapsed must be ~40 after relative seekcur, was $rewound")
+            assertEquals("OK\n", client.command("clear"))
+            val bad = client.command("seekcur 10")
+            assertTrue(bad.startsWith("ACK"), "seekcur without a current song must ACK, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `delete removes queue entries by position and by range`() {
+        MpdClient(mpdPort).use { client ->
+            assertEquals("OK\n", client.command("clear"))
+            val second = insertTrack("$trackTitle B", 8, 120_000L)
+            val third = insertTrack("$trackTitle C", 9, 90_000L)
+            listOf(trackId, second, third).forEach { assertEquals("OK\n", client.command("add $it")) }
+            assertEquals("OK\n", client.command("delete 1"))
+            val afterSingle = client.command("playlistinfo")
+            assertFalse(afterSingle.contains("file: $second"), "deleted position must be gone, was:\n$afterSingle")
+            assertTrue(afterSingle.contains("file: $trackId"))
+            assertTrue(afterSingle.contains("file: $third"))
+            assertEquals("OK\n", client.command("delete 0:2"))
+            assertEquals("0", statusValue(client.command("status"), "playlistlength"))
+            val bad = client.command("delete 5")
+            assertTrue(bad.startsWith("ACK"), "out-of-range delete must ACK, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `deleteid removes the matching entry and rejects unknown id`() {
+        MpdClient(mpdPort).use { client ->
+            assertEquals("OK\n", client.command("clear"))
+            assertEquals("OK\n", client.command("add $trackId"))
+            val entryId =
+                client
+                    .command("playlistinfo")
+                    .lines()
+                    .first { it.startsWith("Id: ") }
+                    .removePrefix("Id: ")
+                    .toInt()
+            assertEquals("OK\n", client.command("deleteid $entryId"))
+            assertEquals("0", statusValue(client.command("status"), "playlistlength"))
+            val bad = client.command("deleteid $entryId")
+            assertTrue(bad.startsWith("ACK [50@"), "unknown song id must ACK 50, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `move reorders entries by position and range and moveid by song id`() {
+        MpdClient(mpdPort).use { client ->
+            assertEquals("OK\n", client.command("clear"))
+            val second = insertTrack("$trackTitle B", 8, 120_000L)
+            val third = insertTrack("$trackTitle C", 9, 90_000L)
+            listOf(trackId, second, third).forEach { assertEquals("OK\n", client.command("add $it")) }
+            assertEquals("OK\n", client.command("move 0 2"))
+            assertEquals(
+                listOf("$trackTitle B", "$trackTitle C", trackTitle),
+                titlesInOrder(client.command("playlistinfo")),
+            )
+            assertEquals("OK\n", client.command("move 0:2 1"))
+            assertEquals(
+                listOf(trackTitle, "$trackTitle B", "$trackTitle C"),
+                titlesInOrder(client.command("playlistinfo")),
+            )
+            val lastId =
+                client
+                    .command("playlistinfo")
+                    .lines()
+                    .last { it.startsWith("Id: ") }
+                    .removePrefix("Id: ")
+                    .toInt()
+            assertEquals("OK\n", client.command("moveid $lastId 0"))
+            assertEquals(
+                listOf("$trackTitle C", trackTitle, "$trackTitle B"),
+                titlesInOrder(client.command("playlistinfo")),
+            )
+            val bad = client.command("move 0 9")
+            assertTrue(bad.startsWith("ACK"), "out-of-range move must ACK, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `stored playlists support save listplaylists listplaylistinfo load and rm`() {
+        MpdClient(mpdPort).use { client ->
+            val name = "mpdpl-${UUID.randomUUID().toString().take(8)}"
+            assertEquals("OK\n", client.command("clear"))
+            assertEquals("OK\n", client.command("add $trackId"))
+            assertEquals("OK\n", client.command("save $name"))
+            assertTrue(client.command("listplaylists").contains("playlist: $name"))
+            val info = client.command("listplaylistinfo $name")
+            assertTrue(info.contains("file: $trackId"), "playlist must carry its tracks, was:\n$info")
+            assertTrue(info.contains("Title: $trackTitle"), "playlist tracks must carry tag blocks, was:\n$info")
+            val duplicate = client.command("save $name")
+            assertTrue(duplicate.startsWith("ACK [56@"), "saving an existing name must ACK 56, was:\n$duplicate")
+            assertEquals("OK\n", client.command("clear"))
+            assertEquals("OK\n", client.command("load $name"))
+            assertTrue(client.command("playlistinfo").contains("file: $trackId"), "load must append playlist tracks to the queue")
+            assertEquals("OK\n", client.command("rm $name"))
+            assertFalse(client.command("listplaylists").contains("playlist: $name"))
+            assertTrue(client.command("load $name").startsWith("ACK [50@"), "load of a removed playlist must ACK 50")
+            assertTrue(client.command("rm $name").startsWith("ACK [50@"), "rm of a removed playlist must ACK 50")
+        }
+    }
+
+    @Test
+    fun `playlistadd and playlistdelete edit stored playlists by name`() {
+        MpdClient(mpdPort).use { client ->
+            val name = "mpdpladd-${UUID.randomUUID().toString().take(8)}"
+            assertEquals("OK\n", client.command("playlistadd $name $trackId"))
+            assertTrue(client.command("listplaylistinfo $name").contains("Title: $trackTitle"))
+            val badUri = client.command("playlistadd $name ${UUID.randomUUID()}")
+            assertTrue(badUri.startsWith("ACK [50@"), "unknown uri must ACK 50, was:\n$badUri")
+            assertEquals("OK\n", client.command("playlistdelete $name 0"))
+            assertFalse(client.command("listplaylistinfo $name").contains("file: "))
+            val badPos = client.command("playlistdelete $name 0")
+            assertTrue(badPos.startsWith("ACK [50@"), "out-of-range position must ACK 50, was:\n$badPos")
+        }
+    }
+
+    @Test
+    fun `count reports songs and playtime per artist and rejects missing arguments`() {
+        MpdClient(mpdPort).use { client ->
+            val response = client.command("count artist \"$artistName\"")
+            assertTrue(response.contains("songs: 1"), "count must report the artist's track count, was:\n$response")
+            assertTrue(response.contains("playtime: 180"), "count must report summed seconds, was:\n$response")
+            val unknown = client.command("count artist \"absent-$artistName\"")
+            assertTrue(unknown.contains("songs: 0"), "unknown artist must count zero songs, was:\n$unknown")
+            val bad = client.command("count")
+            assertTrue(bad.startsWith("ACK"), "count without arguments must ACK, was:\n$bad")
+        }
+    }
+
+    @Test
+    fun `stats reports library aggregates`() {
+        MpdClient(mpdPort).use { client ->
+            val response = client.command("stats")
+            assertTrue((statusValue(response, "songs")?.toInt() ?: -1) >= 1, "stats must count songs, was:\n$response")
+            assertTrue((statusValue(response, "artists")?.toInt() ?: -1) >= 1, "stats must count artists, was:\n$response")
+            assertTrue((statusValue(response, "albums")?.toInt() ?: -1) >= 1, "stats must count albums, was:\n$response")
+            assertTrue((statusValue(response, "db_playtime")?.toLong() ?: -1) >= 180, "stats must sum track durations, was:\n$response")
+            assertTrue(statusValue(response, "uptime") != null, "stats must report uptime, was:\n$response")
         }
     }
 }

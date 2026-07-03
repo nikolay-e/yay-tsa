@@ -51,4 +51,58 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
         @Param("recordedAt") recordedAt: Instant,
         @Param("dedupWindowSeconds") dedupWindowSeconds: Long,
     ): Int
+
+    @Query(
+        value =
+            """
+            SELECT item_id AS "itemId", count(*) AS "playCount"
+            FROM core_v2_playback.play_history
+            WHERE user_id = :userId
+            GROUP BY item_id
+            ORDER BY count(*) DESC, item_id
+            LIMIT :limit
+            """,
+        nativeQuery = true,
+    )
+    fun findMostPlayedItemCountsByUser(
+        @Param("userId") userId: String,
+        @Param("limit") limit: Int,
+    ): List<ItemPlayCount>
+
+    @Query(
+        value =
+            """
+            SELECT item_id
+            FROM core_v2_playback.play_history
+            WHERE user_id = :userId
+            GROUP BY item_id
+            ORDER BY max(recorded_at) DESC, item_id
+            LIMIT :limit
+            """,
+        nativeQuery = true,
+    )
+    fun findRecentlyPlayedItemIdsByUser(
+        @Param("userId") userId: String,
+        @Param("limit") limit: Int,
+    ): List<String>
+
+    @Query(
+        value =
+            """
+            SELECT item_id AS "itemId", count(*) AS "playCount"
+            FROM core_v2_playback.play_history
+            WHERE item_id IN (:itemIds)
+            GROUP BY item_id
+            """,
+        nativeQuery = true,
+    )
+    fun countPlaysByItemIds(
+        @Param("itemIds") itemIds: Collection<String>,
+    ): List<ItemPlayCount>
+}
+
+interface ItemPlayCount {
+    fun getItemId(): String
+
+    fun getPlayCount(): Long
 }

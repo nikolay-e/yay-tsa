@@ -39,6 +39,7 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
     private lateinit var userId: String
 
     private lateinit var artistId: String
+    private lateinit var artistName: String
     private lateinit var albumOldId: String
     private lateinit var albumNewId: String
     private lateinit var trackIds: List<String>
@@ -57,7 +58,8 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
         val seeded = authUseCases.execute(createCmd, ctx)
         check(seeded is CommandResult.Success) { "Seed user failed: $seeded" }
 
-        artistId = insertArtist("SubArtist-${UUID.randomUUID().toString().take(6)}")
+        artistName = "SubArtist-${UUID.randomUUID().toString().take(6)}"
+        artistId = insertArtist(artistName)
         albumOldId = insertAlbum("SubAlbumOld-${UUID.randomUUID().toString().take(6)}", artistId, now.plusSeconds(86_400), 1999)
         albumNewId = insertAlbum("SubAlbumNew-${UUID.randomUUID().toString().take(6)}", artistId, now.plusSeconds(172_800), 2021)
         trackIds =
@@ -113,6 +115,7 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
         albumId: String,
         artistId: String,
         trackNumber: Int,
+        year: Int? = null,
     ): String {
         val id = UUID.randomUUID()
         jdbc.update(
@@ -124,14 +127,79 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
             name.lowercase(),
         )
         jdbc.update(
-            "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, track_number, duration_ms) VALUES (?,?,?,?,?)",
+            "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, track_number, duration_ms, year) VALUES (?,?,?,?,?,?)",
             id,
             UUID.fromString(albumId),
             UUID.fromString(artistId),
             trackNumber,
             300_000L,
+            year,
         )
         return id.toString()
+    }
+
+    private fun tagTrackWithGenre(
+        trackId: String,
+        genreName: String,
+    ) {
+        jdbc.update(
+            "INSERT INTO core_v2_library.genres (id, name) VALUES (?, ?) ON CONFLICT (name) DO NOTHING",
+            UUID.randomUUID(),
+            genreName,
+        )
+        val genreId =
+            jdbc.queryForObject(
+                "SELECT id FROM core_v2_library.genres WHERE name = ?",
+                UUID::class.java,
+                genreName,
+            )
+        jdbc.update(
+            "INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?, ?)",
+            UUID.fromString(trackId),
+            genreId,
+        )
+    }
+
+    private fun insertMertEmbedding(
+        trackId: String,
+        firstComponent: Float,
+    ) {
+        val literal = FloatArray(768) { index -> if (index == 0) firstComponent else 0.01f }.joinToString(",", "[", "]")
+        jdbc.update(
+            "INSERT INTO core_v2_ml.track_features (track_id, embedding_mert, extracted_at, extractor_version) " +
+                "VALUES (?, CAST(? AS vector), now(), 'test')",
+            UUID.fromString(trackId),
+            literal,
+        )
+    }
+
+    private fun insertPlayHistory(
+        trackId: String,
+        recordedAt: Instant,
+    ) {
+        jdbc.update(
+            "INSERT INTO core_v2_playback.play_history " +
+                "(id, user_id, item_id, started_at, duration_ms, played_ms, completed, scrobbled, skipped, recorded_at) " +
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            UUID.randomUUID(),
+            userId,
+            trackId,
+            Timestamp.from(recordedAt.minusSeconds(300)),
+            300_000L,
+            300_000L,
+            true,
+            false,
+            false,
+            Timestamp.from(recordedAt),
+        )
+    }
+
+    private fun songIdsOf(
+        body: JsonNode,
+        wrapper: String,
+    ): List<String> {
+        val songs = body.get(wrapper)?.get("song") ?: return emptyList()
+        return (0 until songs.size()).map { songs.get(it).get("id").asText() }
     }
 
     private fun restGet(
@@ -432,6 +500,177 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
         assertEquals("true", albums[0].getAttribute("isDir"))
     }
 
+    // --- Genres & song lists ---
+
+    @Test
+    fun `getGenres returns genre with song and album counts`() {
+        val genreName = "Genre-${UUID.randomUUID().toString().take(8)}"
+        tagTrackWithGenre(trackIds[0], genreName)
+        tagTrackWithGenre(trackIds[1], genreName)
+        val genres = jsonBody(restGet("getGenres", "f" to "json")).get("genres").get("genre")
+        val entry = (0 until genres.size()).map { genres.get(it) }.single { it.get("value").asText() == genreName }
+        assertEquals(2, entry.get("songCount").asInt())
+        assertEquals(1, entry.get("albumCount").asInt(), "both tagged tracks share one album")
+    }
+
+    @Test
+    fun `getGenres XML carries the genre name as element text and counts as attributes`() {
+        val genreName = "Genre-${UUID.randomUUID().toString().take(8)}"
+        tagTrackWithGenre(trackIds[2], genreName)
+        val root = xmlRoot(restGet("getGenres"))
+        assertEquals("ok", root.getAttribute("status"))
+        val entry = elementsOf(root, "genre").single { it.textContent == genreName }
+        assertEquals("1", entry.getAttribute("songCount"))
+        assertEquals("1", entry.getAttribute("albumCount"))
+        assertFalse(entry.hasAttribute("value"), "genre name must be element text, not a value attribute")
+    }
+
+    @Test
+    fun `getSongsByGenre returns only tagged tracks and honors paging`() {
+        val genreName = "Genre-${UUID.randomUUID().toString().take(8)}"
+        tagTrackWithGenre(trackIds[0], genreName)
+        tagTrackWithGenre(trackIds[1], genreName)
+        val all = songIdsOf(jsonBody(restGet("getSongsByGenre", "genre" to genreName, "count" to "10", "f" to "json")), "songsByGenre")
+        assertEquals(setOf(trackIds[0], trackIds[1]), all.toSet())
+        val page1 = songIdsOf(jsonBody(restGet("getSongsByGenre", "genre" to genreName, "count" to "1", "f" to "json")), "songsByGenre")
+        val page2 =
+            songIdsOf(
+                jsonBody(restGet("getSongsByGenre", "genre" to genreName, "count" to "1", "offset" to "1", "f" to "json")),
+                "songsByGenre",
+            )
+        assertEquals(1, page1.size)
+        assertEquals(1, page2.size)
+        assertEquals(setOf(trackIds[0], trackIds[1]), (page1 + page2).toSet(), "paging must walk the genre without gaps or repeats")
+    }
+
+    @Test
+    fun `getSongsByGenre without genre returns code 10`() {
+        val result = restGet("getSongsByGenre")
+        assertEquals(10, xmlErrorCode(result))
+    }
+
+    @Test
+    fun `getRandomSongs respects size`() {
+        val songs = songIdsOf(jsonBody(restGet("getRandomSongs", "size" to "2", "f" to "json")), "randomSongs")
+        assertTrue(songs.isNotEmpty())
+        assertTrue(songs.size <= 2)
+    }
+
+    @Test
+    fun `getRandomSongs filters by genre`() {
+        val genreName = "Genre-${UUID.randomUUID().toString().take(8)}"
+        tagTrackWithGenre(trackIds[1], genreName)
+        val songs = songIdsOf(jsonBody(restGet("getRandomSongs", "genre" to genreName, "size" to "50", "f" to "json")), "randomSongs")
+        assertEquals(listOf(trackIds[1]), songs)
+    }
+
+    @Test
+    fun `getRandomSongs filters by year range`() {
+        val inRange = insertTrack("SubTrack1985-${UUID.randomUUID().toString().take(6)}", albumOldId, artistId, 5, year = 1985)
+        insertTrack("SubTrack2015-${UUID.randomUUID().toString().take(6)}", albumNewId, artistId, 6, year = 2015)
+        val body = jsonBody(restGet("getRandomSongs", "fromYear" to "1980", "toYear" to "1990", "size" to "200", "f" to "json"))
+        val songs = body.get("randomSongs").get("song")
+        val entries = (0 until songs.size()).map { songs.get(it) }
+        assertTrue(entries.any { it.get("id").asText() == inRange })
+        assertTrue(entries.all { it.get("year").asInt() in 1980..1990 })
+    }
+
+    // --- Similar songs (ML) ---
+
+    @Test
+    fun `getSimilarSongs returns embedding neighbours excluding the seed`() {
+        insertMertEmbedding(trackIds[0], 1.0f)
+        insertMertEmbedding(trackIds[1], 0.9f)
+        insertMertEmbedding(trackIds[2], 0.5f)
+        val songs = songIdsOf(jsonBody(restGet("getSimilarSongs", "id" to trackIds[0], "f" to "json")), "similarSongs")
+        assertTrue(trackIds[1] in songs, "embedded neighbour must be returned")
+        assertFalse(trackIds[0] in songs, "seed must be excluded")
+    }
+
+    @Test
+    fun `getSimilarSongs2 returns neighbours under the similarSongs2 key`() {
+        insertMertEmbedding(trackIds[0], 1.0f)
+        insertMertEmbedding(trackIds[1], 0.9f)
+        val songs = songIdsOf(jsonBody(restGet("getSimilarSongs2", "id" to trackIds[0], "f" to "json")), "similarSongs2")
+        assertTrue(trackIds[1] in songs)
+    }
+
+    @Test
+    fun `getSimilarSongs without ML coverage returns ok with empty result`() {
+        val body = jsonBody(restGet("getSimilarSongs", "id" to trackIds[0], "f" to "json"))
+        assertEquals("ok", body.get("status").asText(), "missing embeddings must degrade to empty, not error")
+        assertTrue(songIdsOf(body, "similarSongs").isEmpty())
+    }
+
+    @Test
+    fun `getSimilarSongs for unknown id returns code 70`() {
+        val result = restGet("getSimilarSongs", "id" to UUID.randomUUID().toString())
+        assertEquals(70, xmlErrorCode(result))
+    }
+
+    // --- Top songs ---
+
+    @Test
+    fun `getTopSongs orders artist tracks by play count`() {
+        val now = Instant.now()
+        repeat(3) { insertPlayHistory(trackIds[1], now.minusSeconds((it * 3600).toLong())) }
+        insertPlayHistory(trackIds[0], now.minusSeconds(7200))
+        val songs = songIdsOf(jsonBody(restGet("getTopSongs", "artist" to artistName, "f" to "json")), "topSongs")
+        assertEquals(trackIds[1], songs[0], "most played track must rank first")
+        assertEquals(trackIds[0], songs[1])
+        assertTrue(trackIds[2] in songs, "unplayed artist tracks fill the tail")
+    }
+
+    @Test
+    fun `getTopSongs for unknown artist returns code 70`() {
+        val result = restGet("getTopSongs", "artist" to "no-such-artist-${UUID.randomUUID()}")
+        assertEquals(70, xmlErrorCode(result))
+    }
+
+    // --- Album lists from play statistics ---
+
+    @Test
+    fun `getAlbumList2 type=frequent ranks albums by play counts`() {
+        val now = Instant.now()
+        repeat(3) { insertPlayHistory(trackIds[0], now.minusSeconds((it * 3600).toLong())) }
+        insertPlayHistory(trackIds[2], now.minusSeconds(60))
+        val result = restGet("getAlbumList2", "type" to "frequent", "size" to "10", "f" to "json")
+        val albums = jsonBody(result).get("albumList2").get("album")
+        val ids = (0 until albums.size()).map { albums.get(it).get("id").asText() }
+        assertEquals(listOf(albumOldId, albumNewId), ids, "3-play album must outrank 1-play album")
+    }
+
+    @Test
+    fun `getAlbumList2 type=frequent without play history is empty`() {
+        val albums = jsonBody(restGet("getAlbumList2", "type" to "frequent", "f" to "json")).get("albumList2").get("album")
+        assertTrue(albums == null || albums.size() == 0)
+    }
+
+    @Test
+    fun `getAlbumList2 type=recent returns recently played albums newest first`() {
+        val now = Instant.now()
+        insertPlayHistory(trackIds[0], now.minusSeconds(3600))
+        insertPlayHistory(trackIds[2], now.minusSeconds(60))
+        val albums = jsonBody(restGet("getAlbumList2", "type" to "recent", "f" to "json")).get("albumList2").get("album")
+        val ids = (0 until albums.size()).map { albums.get(it).get("id").asText() }
+        assertEquals(listOf(albumNewId, albumOldId), ids, "recency order must win over play counts")
+    }
+
+    @Test
+    fun `getAlbumList2 type=highest ranks albums by favorited tracks`() {
+        restGet("star", "id" to trackIds[0], "id" to trackIds[1])
+        val albums = jsonBody(restGet("getAlbumList2", "type" to "highest", "size" to "10", "f" to "json")).get("albumList2").get("album")
+        val ids = (0 until albums.size()).map { albums.get(it).get("id").asText() }
+        assertEquals(listOf(albumOldId), ids, "only albums holding favorited tracks are ranked")
+    }
+
+    @Test
+    fun `getAlbumList2 type=highest without favorites falls back to newest`() {
+        val albums = jsonBody(restGet("getAlbumList2", "type" to "highest", "size" to "500", "f" to "json")).get("albumList2").get("album")
+        val ids = (0 until albums.size()).map { albums.get(it).get("id").asText() }
+        assertTrue(albumNewId in ids && albumOldId in ids, "no-favorites fallback must keep newest listing populated")
+    }
+
     // --- Search ---
 
     @Test
@@ -511,11 +750,25 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
-    fun `star with albumId only returns ok without corrupting favorites`() {
+    fun `star with albumId returns error code 0 without corrupting favorites`() {
         val result = restGet("star", "albumId" to albumOldId)
-        assertEquals("ok", xmlRoot(result).getAttribute("status"))
+        assertEquals(0, xmlErrorCode(result), "album favorites are unsupported and must fail loudly, not no-op")
         val starred = jsonBody(restGet("getStarred2", "f" to "json")).get("starred2")
         assertTrue(starred.get("song") == null || starred.get("song").size() == 0)
+    }
+
+    @Test
+    fun `star with artistId alongside track ids fails without starring the tracks`() {
+        val result = restGet("star", "id" to trackIds[0], "artistId" to artistId)
+        assertEquals(0, xmlErrorCode(result))
+        val starred = jsonBody(restGet("getStarred2", "f" to "json")).get("starred2")
+        assertTrue(starred.get("song") == null || starred.get("song").size() == 0)
+    }
+
+    @Test
+    fun `unstar with albumId returns error code 0`() {
+        val result = restGet("unstar", "albumId" to albumOldId)
+        assertEquals(0, xmlErrorCode(result))
     }
 
     // --- Playlists ---

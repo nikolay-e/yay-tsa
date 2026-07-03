@@ -28,6 +28,7 @@ class JellyfinAdminController(
     private val authUseCases: AuthUseCases,
     private val authQueries: AuthQueries,
     private val libraryScanTrigger: dev.yaytsa.application.library.port.LibraryScanTriggerPort,
+    private val replayGainBackfillTrigger: dev.yaytsa.application.library.port.ReplayGainBackfillTriggerPort,
     private val eventPublisher: org.springframework.context.ApplicationEventPublisher,
     private val failureTranslator: HttpFailureTranslator,
     @Qualifier("jellyfinCommandContextFactory")
@@ -176,6 +177,15 @@ class JellyfinAdminController(
     fun rescan(): ResponseEntity<Any> {
         requireAdmin()?.let { return it }
         val started = libraryScanTrigger.triggerScan()
+        return ResponseEntity
+            .status(if (started) HttpStatus.ACCEPTED else HttpStatus.CONFLICT)
+            .body(mapOf("status" to if (started) "started" else "already_running"))
+    }
+
+    @PostMapping("/Library/RefreshReplayGain")
+    fun refreshReplayGain(): ResponseEntity<Any> {
+        requireAdmin()?.let { return it }
+        val started = replayGainBackfillTrigger.triggerBackfill()
         return ResponseEntity
             .status(if (started) HttpStatus.ACCEPTED else HttpStatus.CONFLICT)
             .body(mapOf("status" to if (started) "started" else "already_running"))

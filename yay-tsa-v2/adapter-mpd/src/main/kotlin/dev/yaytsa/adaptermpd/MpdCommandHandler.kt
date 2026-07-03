@@ -5,22 +5,34 @@ import dev.yaytsa.adaptershared.MpdFailureTranslator
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackUseCases
+import dev.yaytsa.application.playlists.PlaylistQueries
+import dev.yaytsa.application.playlists.PlaylistUseCases
 import dev.yaytsa.domain.library.Album
 import dev.yaytsa.domain.library.Artist
 import dev.yaytsa.domain.library.Track
 import dev.yaytsa.domain.playback.AcquireLease
 import dev.yaytsa.domain.playback.AddToQueue
 import dev.yaytsa.domain.playback.ClearQueue
+import dev.yaytsa.domain.playback.MoveQueueEntry
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.PlaybackSessionAggregate
 import dev.yaytsa.domain.playback.PlaybackState
 import dev.yaytsa.domain.playback.QueueEntry
 import dev.yaytsa.domain.playback.QueueEntryId
+import dev.yaytsa.domain.playback.RemoveFromQueue
+import dev.yaytsa.domain.playback.Seek
 import dev.yaytsa.domain.playback.SessionId
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.domain.playback.Stop
+import dev.yaytsa.domain.playlists.AddTracksToPlaylist
+import dev.yaytsa.domain.playlists.CreatePlaylist
+import dev.yaytsa.domain.playlists.DeletePlaylist
+import dev.yaytsa.domain.playlists.PlaylistAggregate
+import dev.yaytsa.domain.playlists.PlaylistCommand
+import dev.yaytsa.domain.playlists.PlaylistId
+import dev.yaytsa.domain.playlists.RemovePlaylistEntriesByPosition
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
@@ -30,6 +42,8 @@ import dev.yaytsa.shared.UserId
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 
@@ -38,6 +52,8 @@ class MpdCommandHandler(
     private val playbackQueries: PlaybackQueries,
     private val playbackUseCases: PlaybackUseCases,
     private val libraryQueries: LibraryQueries,
+    private val playlistQueries: PlaylistQueries,
+    private val playlistUseCases: PlaylistUseCases,
     private val trackFormatter: MpdTrackFormatter,
     @Qualifier("mpdCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
@@ -59,6 +75,7 @@ class MpdCommandHandler(
     private val playlistVersionLock = Any()
     private var observedQueueSignature: List<String>? = null
     private var playlistVersion = 1
+    private val startedAtMillis = System.currentTimeMillis()
 
     private fun songIdOf(entryId: QueueEntryId): Int = entryId.value.hashCode() and 0x7fffffff
 
@@ -116,6 +133,22 @@ class MpdCommandHandler(
             "plchanges" -> plChanges(args.firstOrNull()?.toIntOrNull())
             "add" -> add(args.firstOrNull())
             "clear" -> clear()
+            "delete" -> delete(args.firstOrNull())
+            "deleteid" -> deleteId(args.firstOrNull()?.toIntOrNull())
+            "move" -> move(args)
+            "moveid" -> moveId(args)
+            "seek" -> seekToPosition(args)
+            "seekid" -> seekToId(args)
+            "seekcur" -> seekCurrent(args.firstOrNull())
+            "listplaylists" -> listPlaylists()
+            "listplaylistinfo" -> listPlaylistInfo(args.firstOrNull())
+            "load" -> loadStoredPlaylist(args.firstOrNull())
+            "save" -> saveStoredPlaylist(args.firstOrNull())
+            "rm" -> removeStoredPlaylist(args.firstOrNull())
+            "playlistadd" -> playlistAdd(args)
+            "playlistdelete" -> playlistDelete(args)
+            "count" -> count(args)
+            "stats" -> stats()
             "lsinfo" -> lsInfo(args.firstOrNull())
             "search" -> search(args)
             "find" -> search(args)
@@ -123,7 +156,7 @@ class MpdCommandHandler(
             // The playback core owns volume and play-order modes; these MPD mutations are
             // not honoured, so ACK them rather than reporting a false OK that status()
             // would then contradict (repeat:0 random:0 volume:100).
-            "setvol", "repeat", "random", "single", "consume" ->
+            "setvol", "getvol", "repeat", "random", "single", "consume" ->
                 ack(5, cmd, "command not supported by this server")
             "idle" -> ok()
             "noidle" -> ok()
@@ -148,6 +181,22 @@ class MpdCommandHandler(
                     "plchanges",
                     "add",
                     "clear",
+                    "delete",
+                    "deleteid",
+                    "move",
+                    "moveid",
+                    "seek",
+                    "seekid",
+                    "seekcur",
+                    "listplaylists",
+                    "listplaylistinfo",
+                    "load",
+                    "save",
+                    "rm",
+                    "playlistadd",
+                    "playlistdelete",
+                    "count",
+                    "stats",
                     "lsinfo",
                     "search",
                     "find",
@@ -404,6 +453,278 @@ class MpdCommandHandler(
     private fun next(): String = executeCommand("next") { SkipNext(MPD_SESSION, MPD_DEVICE) }
 
     private fun previous(): String = executeCommand("previous") { SkipPrevious(MPD_SESSION, MPD_DEVICE) }
+
+    private fun currentQueue(): List<QueueEntry> = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)?.queue ?: emptyList()
+
+    private fun parseRange(
+        arg: String,
+        queueSize: Int,
+    ): IntRange? {
+        if (":" in arg) {
+            val start = arg.substringBefore(':').toIntOrNull() ?: return null
+            val endRaw = arg.substringAfter(':')
+            val end = if (endRaw.isEmpty()) queueSize else endRaw.toIntOrNull() ?: return null
+            return if (start < 0 || end > queueSize || start >= end) null else start until end
+        }
+        val pos = arg.toIntOrNull() ?: return null
+        return if (pos < 0 || pos >= queueSize) null else pos..pos
+    }
+
+    private fun parseSeconds(raw: String?): Duration? = raw?.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { Duration.ofMillis((it * 1000).toLong()) }
+
+    private fun delete(arg: String?): String {
+        if (arg == null) return ack(2, "delete", "missing position")
+        val queue = currentQueue()
+        val range = parseRange(arg, queue.size) ?: return ack(2, "delete", "Bad song index")
+        return removeEntries(range.map { queue[it].id }, "delete")
+    }
+
+    private fun deleteId(songId: Int?): String {
+        if (songId == null) return ack(2, "deleteid", "Integer expected")
+        val entry = currentQueue().firstOrNull { songIdOf(it.id) == songId } ?: return ack(50, "deleteid", "No such song")
+        return removeEntries(listOf(entry.id), "deleteid")
+    }
+
+    private fun removeEntries(
+        entryIds: List<QueueEntryId>,
+        commandName: String,
+    ): String {
+        entryIds.forEach { entryId ->
+            val response = executeCommand(commandName) { RemoveFromQueue(MPD_SESSION, MPD_DEVICE, entryId) }
+            if (response != ok()) return response
+        }
+        return ok()
+    }
+
+    private fun move(args: List<String>): String {
+        val to = args.getOrNull(1)?.toIntOrNull() ?: return ack(2, "move", "Integer expected")
+        val queue = currentQueue()
+        val range = args.getOrNull(0)?.let { parseRange(it, queue.size) } ?: return ack(2, "move", "Bad song index")
+        val entryIds = range.map { queue[it].id }
+        if (to < 0 || to + entryIds.size > queue.size) return ack(2, "move", "Bad song index")
+        return moveEntries(entryIds, range.first, to, "move")
+    }
+
+    private fun moveId(args: List<String>): String {
+        val songId = args.getOrNull(0)?.toIntOrNull() ?: return ack(2, "moveid", "Integer expected")
+        val to = args.getOrNull(1)?.toIntOrNull() ?: return ack(2, "moveid", "Integer expected")
+        val queue = currentQueue()
+        val idx = queue.indexOfFirst { songIdOf(it.id) == songId }
+        if (idx == -1) return ack(50, "moveid", "No such song")
+        if (to < 0 || to >= queue.size) return ack(2, "moveid", "Bad song index")
+        return moveEntries(listOf(queue[idx].id), idx, to, "moveid")
+    }
+
+    private fun moveEntries(
+        entryIds: List<QueueEntryId>,
+        fromIndex: Int,
+        toIndex: Int,
+        commandName: String,
+    ): String {
+        val order = if (toIndex > fromIndex) entryIds.indices.reversed() else entryIds.indices
+        for (offset in order) {
+            val response = executeCommand(commandName) { MoveQueueEntry(MPD_SESSION, MPD_DEVICE, entryIds[offset], toIndex + offset) }
+            if (response != ok()) return response
+        }
+        return ok()
+    }
+
+    private fun seekToPosition(args: List<String>): String {
+        val pos = args.getOrNull(0)?.toIntOrNull() ?: return ack(2, "seek", "Integer expected")
+        val time = parseSeconds(args.getOrNull(1)) ?: return ack(2, "seek", "Number expected")
+        if (time.isNegative) return ack(2, "seek", "Negative seek")
+        val queue = currentQueue()
+        if (pos < 0 || pos >= queue.size) return ack(2, "seek", "Bad song index")
+        return playThenSeek(queue[pos].id, time, "seek")
+    }
+
+    private fun seekToId(args: List<String>): String {
+        val songId = args.getOrNull(0)?.toIntOrNull() ?: return ack(2, "seekid", "Integer expected")
+        val time = parseSeconds(args.getOrNull(1)) ?: return ack(2, "seekid", "Number expected")
+        if (time.isNegative) return ack(2, "seekid", "Negative seek")
+        val entry = currentQueue().firstOrNull { songIdOf(it.id) == songId } ?: return ack(50, "seekid", "No such song")
+        return playThenSeek(entry.id, time, "seekid")
+    }
+
+    private fun seekCurrent(arg: String?): String {
+        if (arg == null) return ack(2, "seekcur", "Number expected")
+        val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
+        if (state?.currentEntryId == null) return ack(55, "seekcur", "Not playing")
+        val delta = parseSeconds(arg) ?: return ack(2, "seekcur", "Number expected")
+        val target =
+            when {
+                arg.startsWith("+") || arg.startsWith("-") -> {
+                    val now = ctxFactory.create(MPD_USER, AggregateVersion.INITIAL).requestTime
+                    val computed = state.computePosition(now) + delta
+                    if (computed.isNegative) Duration.ZERO else computed
+                }
+                delta.isNegative -> return ack(2, "seekcur", "Negative seek")
+                else -> delta
+            }
+        return executeCommand("seekcur") { Seek(MPD_SESSION, MPD_DEVICE, target) }
+    }
+
+    private fun playThenSeek(
+        entryId: QueueEntryId,
+        time: Duration,
+        commandName: String,
+    ): String {
+        val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)
+        if (state?.currentEntryId != entryId || state.playbackState == PlaybackState.STOPPED) {
+            val response = executeCommand(commandName) { Play(MPD_SESSION, MPD_DEVICE, entryId) }
+            if (response != ok()) return response
+        }
+        return executeCommand(commandName) { Seek(MPD_SESSION, MPD_DEVICE, time) }
+    }
+
+    private fun findStoredPlaylist(name: String): PlaylistAggregate? =
+        playlistQueries
+            .findByOwner(MPD_USER)
+            .filter { it.name == name }
+            .maxByOrNull { it.updatedAt }
+
+    private fun listPlaylists(): String =
+        buildString {
+            playlistQueries.findByOwner(MPD_USER).forEach {
+                appendLine("playlist: ${it.name}")
+                appendLine("Last-Modified: ${it.updatedAt.truncatedTo(ChronoUnit.SECONDS)}")
+            }
+            appendLine("OK")
+        }
+
+    private fun listPlaylistInfo(name: String?): String {
+        if (name == null) return ack(2, "listplaylistinfo", "missing name")
+        val playlist = findStoredPlaylist(name) ?: return ack(50, "listplaylistinfo", "No such playlist")
+        val tracksById =
+            libraryQueries
+                .getTracksByIds(playlist.tracks.map { EntityId(it.trackId.value) })
+                .associateBy { it.id.value }
+        val names = trackFormatter.namesFor(tracksById.values.toList())
+        return buildString {
+            playlist.tracks.forEach { entry ->
+                val track = tracksById[entry.trackId.value]
+                if (track != null) {
+                    append(trackFormatter.block(track, names))
+                } else {
+                    appendLine("file: ${entry.trackId.value}")
+                }
+            }
+            appendLine("OK")
+        }
+    }
+
+    private fun loadStoredPlaylist(name: String?): String {
+        if (name == null) return ack(2, "load", "missing name")
+        val playlist = findStoredPlaylist(name) ?: return ack(50, "load", "No such playlist")
+        if (playlist.tracks.isEmpty()) return ok()
+        val entries = playlist.tracks.map { QueueEntry(QueueEntryId(UUID.randomUUID().toString()), it.trackId) }
+        return executeCommand("load") { AddToQueue(MPD_SESSION, MPD_DEVICE, entries) }
+    }
+
+    private fun saveStoredPlaylist(name: String?): String {
+        if (name == null) return ack(2, "save", "missing name")
+        if (findStoredPlaylist(name) != null) return ack(56, "save", "Playlist already exists")
+        val queue = currentQueue()
+        return when (val created = createStoredPlaylist(name)) {
+            is CommandResult.Failed -> failureTranslator.translate(created.failure, "save")
+            is CommandResult.Success ->
+                if (queue.isEmpty()) {
+                    ok()
+                } else {
+                    executePlaylistCommand("save", created.newVersion) {
+                        AddTracksToPlaylist(created.value.id, queue.map { entry -> entry.trackId }, it)
+                    }
+                }
+        }
+    }
+
+    private fun removeStoredPlaylist(name: String?): String {
+        if (name == null) return ack(2, "rm", "missing name")
+        val playlist = findStoredPlaylist(name) ?: return ack(50, "rm", "No such playlist")
+        return executePlaylistCommand("rm", playlist.version) { DeletePlaylist(playlist.id) }
+    }
+
+    private fun playlistAdd(args: List<String>): String {
+        val name = args.getOrNull(0) ?: return ack(2, "playlistadd", "missing name")
+        val uri = args.getOrNull(1) ?: return ack(2, "playlistadd", "missing uri")
+        val tracks = resolveTracks(uri.trim('/'))
+        if (tracks.isEmpty()) return ack(50, "playlistadd", "No such song")
+        val playlist =
+            findStoredPlaylist(name) ?: when (val created = createStoredPlaylist(name)) {
+                is CommandResult.Failed -> return failureTranslator.translate(created.failure, "playlistadd")
+                is CommandResult.Success -> created.value
+            }
+        return executePlaylistCommand("playlistadd", playlist.version) {
+            AddTracksToPlaylist(playlist.id, tracks.map { track -> TrackId(track.id.value) }, it)
+        }
+    }
+
+    private fun playlistDelete(args: List<String>): String {
+        val name = args.getOrNull(0) ?: return ack(2, "playlistdelete", "missing name")
+        val pos = args.getOrNull(1)?.toIntOrNull() ?: return ack(2, "playlistdelete", "Integer expected")
+        val playlist = findStoredPlaylist(name) ?: return ack(50, "playlistdelete", "No such playlist")
+        return executePlaylistCommand("playlistdelete", playlist.version) {
+            RemovePlaylistEntriesByPosition(playlist.id, listOf(pos))
+        }
+    }
+
+    private fun createStoredPlaylist(name: String): CommandResult<PlaylistAggregate> {
+        val ctx = ctxFactory.create(MPD_USER, AggregateVersion.INITIAL)
+        return playlistUseCases.execute(
+            CreatePlaylist(PlaylistId(UUID.randomUUID().toString()), MPD_USER, name, null, false, ctx.requestTime),
+            ctx,
+        )
+    }
+
+    private fun executePlaylistCommand(
+        commandName: String,
+        expectedVersion: AggregateVersion,
+        factory: (Instant) -> PlaylistCommand,
+    ): String {
+        val ctx = ctxFactory.create(MPD_USER, expectedVersion)
+        return when (val result = playlistUseCases.execute(factory(ctx.requestTime), ctx)) {
+            is CommandResult.Success -> ok()
+            is CommandResult.Failed -> failureTranslator.translate(result.failure, commandName)
+        }
+    }
+
+    private fun count(args: List<String>): String {
+        val tag = args.getOrNull(0)?.lowercase() ?: return ack(2, "count", "too few arguments")
+        val needle = args.getOrNull(1) ?: return ack(2, "count", "too few arguments")
+        val tracks =
+            when (tag) {
+                "artist", "albumartist" -> tracksByArtistName(needle)
+                "album" -> allAlbums().filter { it.name == needle }.flatMap { libraryQueries.browseTracksByAlbum(it.id) }
+                else -> return ack(2, "count", "Unsupported tag: $tag")
+            }
+        return buildString {
+            appendLine("songs: ${tracks.size}")
+            appendLine("playtime: ${tracks.sumOf { it.durationMs ?: 0L } / 1000}")
+            appendLine("OK")
+        }
+    }
+
+    private fun tracksByArtistName(name: String): List<Track> {
+        val artist = libraryQueries.findArtistByName(name) ?: return emptyList()
+        val result = mutableListOf<Track>()
+        var offset = 0
+        while (true) {
+            val page = libraryQueries.browseTracksByArtist(artist.id, BROWSE_PAGE_SIZE, offset)
+            result += page
+            if (page.size < BROWSE_PAGE_SIZE) return result
+            offset += BROWSE_PAGE_SIZE
+        }
+    }
+
+    private fun stats(): String =
+        buildString {
+            appendLine("artists: ${libraryQueries.countArtists()}")
+            appendLine("albums: ${libraryQueries.countAlbums()}")
+            appendLine("songs: ${libraryQueries.countTracks()}")
+            appendLine("uptime: ${(System.currentTimeMillis() - startedAtMillis) / 1000}")
+            appendLine("db_playtime: ${libraryQueries.sumTrackDurationsMs() / 1000}")
+            appendLine("OK")
+        }
 
     private fun ensureLease(): CommandResult.Failed? {
         val state = playbackQueries.getPlaybackState(MPD_USER, MPD_SESSION)

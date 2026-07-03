@@ -170,6 +170,7 @@ class LibraryWriter(
                 replaygainTrackGain = probed.replayGain.trackGain,
                 replaygainAlbumGain = probed.replayGain.albumGain,
                 replaygainTrackPeak = probed.replayGain.trackPeak,
+                replaygainCheckedAt = now,
             ),
         )
 
@@ -376,6 +377,7 @@ class LibraryWriter(
             trackRow.replaygainTrackGain = probed.replayGain.trackGain
             trackRow.replaygainAlbumGain = probed.replayGain.albumGain
             trackRow.replaygainTrackPeak = probed.replayGain.trackPeak
+            trackRow.replaygainCheckedAt = now
             trackRepo.save(trackRow)
         }
 

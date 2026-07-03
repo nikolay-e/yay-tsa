@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.MultipartException
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.NoHandlerFoundException
@@ -160,6 +161,15 @@ class GlobalExceptionHandler {
     ): ResponseEntity<Map<String, Any>> {
         val status = HttpStatus.valueOf(ex.statusCode.value())
         return problemDetail(status, status.reasonPhrase, ex.reason ?: "Error", request)
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleMaxUploadSize(
+        ex: MaxUploadSizeExceededException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> {
+        log.debug("Upload exceeds multipart size limit: {}", ex.message)
+        return problemDetail(HttpStatus.PAYLOAD_TOO_LARGE, "Payload Too Large", "Uploaded file exceeds the allowed size", request)
     }
 
     @ExceptionHandler(MultipartException::class)

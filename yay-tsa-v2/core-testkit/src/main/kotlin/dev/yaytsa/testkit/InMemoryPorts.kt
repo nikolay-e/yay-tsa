@@ -3,6 +3,7 @@ package dev.yaytsa.testkit
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
 import dev.yaytsa.application.adaptive.port.PlaybackSignalWritePort
 import dev.yaytsa.application.auth.port.UserRepository
+import dev.yaytsa.application.library.port.GenreStatistics
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.playback.port.PlaybackSessionRepository
 import dev.yaytsa.application.playlists.port.PlaylistRepository
@@ -343,6 +344,50 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
 
     override fun browseTracksRandom(limit: Int) = tracks.values.shuffled().take(limit)
 
+    override fun browseTracksRandomFiltered(
+        genre: String?,
+        fromYear: Int?,
+        toYear: Int?,
+        limit: Int,
+    ): List<Track> =
+        tracks.values
+            .filter { track ->
+                (genre == null || trackHasAnyGenre(track, setOf(genre.lowercase()))) &&
+                    (fromYear == null || (track.year ?: Int.MIN_VALUE) >= fromYear) &&
+                    (toYear == null || (track.year ?: Int.MAX_VALUE) <= toYear)
+            }.shuffled()
+            .take(maxOf(limit, 1))
+
+    override fun browseTracksByGenre(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<Track> =
+        browseTracksByGenreNames(listOf(genre))
+            .drop(maxOf(offset, 0))
+            .take(maxOf(limit, 1))
+
+    override fun listGenreStatistics(): List<GenreStatistics> =
+        tracks.values
+            .flatMap { track -> trackGenreNames(track).map { it to track } }
+            .groupBy({ it.first }, { it.second })
+            .map { (name, tagged) ->
+                GenreStatistics(
+                    name = name,
+                    songCount = tagged.size,
+                    albumCount = tagged.mapNotNull { it.albumId }.distinct().size,
+                )
+            }.sortedBy { it.name }
+
+    private fun trackGenreNames(track: Track): Set<String> =
+        buildSet {
+            track.genre
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { add(it) }
+            (genres[track.id] ?: emptyList()).forEach { add(it.name.trim()) }
+        }
+
     override fun browseTracks(
         limit: Int,
         offset: Int,
@@ -393,6 +438,8 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
     override fun resolveTrackFilePath(trackId: EntityId): String? = trackFilePaths[trackId]
 
     override fun countTracks(): Int = tracks.size
+
+    override fun sumTrackDurationsMs(): Long = tracks.values.sumOf { it.durationMs ?: 0L }
 
     override fun countAlbums(): Int = albums.size
 

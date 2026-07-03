@@ -29,6 +29,9 @@ interface AudioTrackRepository : JpaRepository<AudioTrackJpa, UUID> {
 
     fun countByAlbumArtistId(albumArtistId: UUID): Long
 
+    @Query("SELECT COALESCE(SUM(t.durationMs), 0) FROM AudioTrackJpa t")
+    fun sumDurationsMs(): Long
+
     @Query("SELECT MIN(t.year) FROM AudioTrackJpa t WHERE t.albumId = :albumId AND t.year IS NOT NULL")
     fun findMinYearByAlbumId(
         @Param("albumId") albumId: UUID,
@@ -41,6 +44,22 @@ interface AudioTrackRepository : JpaRepository<AudioTrackJpa, UUID> {
     fun findMinYearsByAlbumIds(
         @Param("albumIds") albumIds: Collection<UUID>,
     ): List<MinYearByAlbum>
+
+    @Query(
+        value =
+            "SELECT t.entity_id, e.source_path, e.library_root " +
+                "FROM core_v2_library.audio_tracks t " +
+                "JOIN core_v2_library.entities e ON e.id = t.entity_id " +
+                "WHERE t.replaygain_track_gain IS NULL AND t.replaygain_album_gain IS NULL " +
+                "AND t.replaygain_track_peak IS NULL AND t.replaygain_checked_at IS NULL " +
+                "AND t.entity_id > :afterId " +
+                "ORDER BY t.entity_id LIMIT :limit",
+        nativeQuery = true,
+    )
+    fun findReplayGainBackfillCandidates(
+        @Param("afterId") afterId: UUID,
+        @Param("limit") limit: Int,
+    ): List<Array<Any?>>
 }
 
 interface MinYearByAlbum {

@@ -80,6 +80,43 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
 
     @Query(
         value =
+            "SELECT e.* FROM core_v2_library.entities e " +
+                "JOIN core_v2_library.entity_genres eg ON eg.entity_id = e.id " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE e.entity_type = 'TRACK' AND lower(g.name) = lower(:genre) " +
+                "ORDER BY COALESCE(e.sort_name, e.name), e.id " +
+                "LIMIT :limit OFFSET :offset",
+        nativeQuery = true,
+    )
+    fun findTracksByGenrePaged(
+        genre: String,
+        limit: Int,
+        offset: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
+            "SELECT e.* FROM core_v2_library.entities e " +
+                "JOIN core_v2_library.audio_tracks t ON t.entity_id = e.id " +
+                "WHERE e.entity_type = 'TRACK' " +
+                "AND (CAST(:fromYear AS integer) IS NULL OR t.year >= :fromYear) " +
+                "AND (CAST(:toYear AS integer) IS NULL OR t.year <= :toYear) " +
+                "AND (CAST(:genre AS text) IS NULL OR EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) = lower(CAST(:genre AS text)))) " +
+                "ORDER BY random() LIMIT :limit",
+        nativeQuery = true,
+    )
+    fun findRandomTracksFiltered(
+        genre: String?,
+        fromYear: Int?,
+        toYear: Int?,
+        limit: Int,
+    ): List<LibraryEntityJpa>
+
+    @Query(
+        value =
             "SELECT EXISTS (SELECT 1 FROM core_v2_library.entities " +
                 "WHERE entity_type = 'TRACK' AND library_root IS NULL)",
         nativeQuery = true,

@@ -87,4 +87,5 @@ dependencies {
     testImplementation(libs.konsist)
     testImplementation(libs.testcontainers.junit.jupiter)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation("net.jthink:jaudiotagger:3.0.1")
 }

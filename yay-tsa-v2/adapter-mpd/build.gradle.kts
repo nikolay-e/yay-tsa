@@ -18,9 +18,11 @@ dependencies {
     implementation(project(":core-domain:shared"))
     implementation(project(":core-domain:playback"))
     implementation(project(":core-domain:library"))
+    implementation(project(":core-domain:playlists"))
     implementation(project(":core-application:shared"))
     implementation(project(":core-application:playback"))
     implementation(project(":core-application:library"))
+    implementation(project(":core-application:playlists"))
     implementation(libs.spring.boot.starter)
 
     testImplementation(libs.spring.boot.starter.test)

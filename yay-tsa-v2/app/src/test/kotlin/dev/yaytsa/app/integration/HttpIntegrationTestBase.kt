@@ -85,6 +85,8 @@ abstract class HttpIntegrationTestBase {
             // the empty tmpdir music-path, deleting freshly-seeded entities mid-test (FK violations,
             // flaky failures). Tests seed library rows directly via JDBC; no background scan needed.
             registry.add("yaytsa.scanner.scheduled-enabled") { "false" }
+            registry.add("yaytsa.scanner.replaygain-backfill-on-startup") { "false" }
+            registry.add("yaytsa.upload.max-bytes") { "262144" }
             registry.add("yaytsa.karaoke.enabled") { "false" }
             registry.add("yaytsa.lyrics.lrclib.enabled") { "false" }
         }
