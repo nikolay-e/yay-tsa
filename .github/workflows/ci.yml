@@ -401,11 +401,13 @@ jobs:
           schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{groupId}/events,/Karaoke/{trackId}/status/stream,/Users/AuthenticateByName,/v1/groups/join,/mcp'
 
           zap-enabled: 'true'
-          # AuthRateLimitFilter answers ZAP's SQLi probes on the login endpoint
-          # with 429 after 10 failed attempts; ZAP reads that response flip as
-          # boolean-based SQLi evidence. Downgrade HIGHs confined to the throttled
-          # login path to non-blocking info (autoqa #7).
-          zap-rate-limited-paths: '/api/Users/AuthenticateByName'
+          # AuthRateLimitFilter answers ZAP's SQLi probes on the login endpoint with
+          # 429 after 10 failed attempts, and Spring Security rejects unauthenticated
+          # device requests with a consistent 401 before any handler/DB runs. Both are
+          # the same false-positive shape: ZAP reads the consistent differential as
+          # boolean-based SQLi evidence. Downgrade HIGHs confined to these auth-gated
+          # paths to non-blocking info (autoqa #7).
+          zap-rate-limited-paths: '/api/Users/AuthenticateByName,/api/v1/me/devices/heartbeat'
 
           crawler-enabled: 'true'
           crawler-username: ${{ vars.QA_USERNAME || 'test' }}
