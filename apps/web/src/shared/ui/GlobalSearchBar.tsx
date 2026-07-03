@@ -3,7 +3,13 @@ import { Search, X } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '@/shared/utils/cn';
 
-export function GlobalSearchBar() {
+type GlobalSearchBarProps = Readonly<{
+  /** Mobile-only: when true the bar slides up out of view (revealed again on scroll-up / pull-down).
+   *  Ignored at `md:` and up, where the bar is always visible. */
+  hidden?: boolean;
+}>;
+
+export function GlobalSearchBar({ hidden = false }: GlobalSearchBarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -30,7 +36,16 @@ export function GlobalSearchBar() {
   };
 
   return (
-    <div className="bg-bg-primary/80 px-safe pt-safe sticky top-0 z-30 backdrop-blur-sm">
+    <div
+      data-testid="global-search-bar"
+      className={cn(
+        'bg-bg-primary/80 px-safe pt-safe sticky top-0 z-30 backdrop-blur-sm',
+        // Hide-on-scroll is mobile-only; md:translate-y-0 pins it back on desktop. Keep it visible
+        // while the mobile field is expanded so an active search never disappears mid-typing.
+        'transition-transform duration-200 ease-out md:translate-y-0',
+        hidden && !expandedMobile ? '-translate-y-full' : 'translate-y-0'
+      )}
+    >
       <div className="flex items-center gap-2 px-4 py-2 md:px-6">
         {/* Desktop: always-visible field. Mobile: magnifier that expands to a field. */}
         <button
