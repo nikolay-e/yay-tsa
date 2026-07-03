@@ -117,6 +117,14 @@ spec:
                   name: {{ .Values.backend.config.llm.apiKeySecret }}
                   key: {{ .Values.backend.config.llm.apiKeySecretKey }}
             {{- end }}
+            {{- if .Values.backend.config.scrobbling.listenbrainz.tokenSecret }}
+            - name: LISTENBRAINZ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.config.scrobbling.listenbrainz.tokenSecret }}
+                  key: {{ .Values.backend.config.scrobbling.listenbrainz.tokenSecretKey }}
+                  optional: true
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "yay-tsa-v2.fullname" . }}-backend
