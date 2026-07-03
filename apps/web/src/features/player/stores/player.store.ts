@@ -177,6 +177,18 @@ function isRetryableTimeout(error: unknown, retryCount: number): boolean {
   return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
 }
 
+// ReplayGain rules: album gain when continuing an unshuffled same-album run (preserves
+// intentional loudness differences between an album's tracks), track gain otherwise;
+// whichever is missing falls back to the other. Values clamp to a safe window and
+// convert dB → linear inside the engine (10^(dB/20) on the shared input gain bus).
+function resolveNormalizationGainDb(track: AudioItem, isSameAlbumSequence: boolean): number | null {
+  const preferredGainDb = isSameAlbumSequence
+    ? (track.AlbumNormalizationGain ?? track.NormalizationGain)
+    : (track.NormalizationGain ?? track.AlbumNormalizationGain);
+  if (preferredGainDb == null || !Number.isFinite(preferredGainDb)) return null;
+  return Math.max(NORMALIZATION_MIN_DB, Math.min(NORMALIZATION_MAX_DB, preferredGainDb));
+}
+
 // The gapless crossfade rides an approaching-end timer plus AudioContext/element-volume ramps, all
 // of which browsers freeze or clamp once the page leaves the foreground (hidden tab, minimized, or a
 // window that lost OS focus / got occluded). Starting it there can wedge the playback controller and
@@ -677,21 +689,6 @@ export const usePlayerStore = create<PlayerStore>()(
       await withTimeout(engine.exitVocalBlend(resumeUrl, position, wasPlaying), ENGINE_TIMEOUT_MS);
       if (signal.aborted) return;
       useTimingStore.getState().updateTiming(engine.getCurrentTime(), engine.getDuration());
-    }
-
-    // ReplayGain rules: album gain when continuing an unshuffled same-album run (preserves
-    // intentional loudness differences between an album's tracks), track gain otherwise;
-    // whichever is missing falls back to the other. Values clamp to a safe window and
-    // convert dB → linear inside the engine (10^(dB/20) on the shared input gain bus).
-    function resolveNormalizationGainDb(
-      track: AudioItem,
-      isSameAlbumSequence: boolean
-    ): number | null {
-      const preferredGainDb = isSameAlbumSequence
-        ? (track.AlbumNormalizationGain ?? track.NormalizationGain)
-        : (track.NormalizationGain ?? track.AlbumNormalizationGain);
-      if (preferredGainDb == null || !Number.isFinite(preferredGainDb)) return null;
-      return Math.max(NORMALIZATION_MIN_DB, Math.min(NORMALIZATION_MAX_DB, preferredGainDb));
     }
 
     function applyNormalizationGain(track: AudioItem): void {

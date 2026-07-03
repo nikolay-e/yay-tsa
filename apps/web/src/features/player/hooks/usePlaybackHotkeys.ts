@@ -22,38 +22,33 @@ function hasNativeActivation(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && !!target.closest(NATIVE_ACTIVATION_SELECTOR);
 }
 
+function resolveHotkeyAction(event: KeyboardEvent): (() => void) | null {
+  const { isPlaying, pause, resume, skipBy, next, previous } = usePlayerStore.getState();
+
+  if (event.shiftKey) {
+    const key = event.key.toLowerCase();
+    if (key === 'n') return () => void next();
+    if (key === 'p') return () => void previous();
+    return null;
+  }
+
+  if (hasNativeActivation(event.target)) return null;
+  if (event.key === ' ') return isPlaying ? pause : () => void resume();
+  if (event.key === 'ArrowLeft') return () => skipBy(-SEEK_STEP_SECONDS);
+  if (event.key === 'ArrowRight') return () => skipBy(SEEK_STEP_SECONDS);
+  return null;
+}
+
 export function usePlaybackHotkeys(): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target) || isModalOpen()) return;
 
-      const { isPlaying, pause, resume, skipBy, next, previous } = usePlayerStore.getState();
-
-      if (event.shiftKey) {
-        if (event.key.toLowerCase() === 'n') {
-          event.preventDefault();
-          void next();
-        } else if (event.key.toLowerCase() === 'p') {
-          event.preventDefault();
-          void previous();
-        }
-        return;
-      }
-
-      if (event.key === ' ') {
-        if (hasNativeActivation(event.target)) return;
-        event.preventDefault();
-        if (isPlaying) pause();
-        else void resume();
-        return;
-      }
-
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        if (hasNativeActivation(event.target)) return;
-        event.preventDefault();
-        skipBy(event.key === 'ArrowLeft' ? -SEEK_STEP_SECONDS : SEEK_STEP_SECONDS);
-      }
+      const action = resolveHotkeyAction(event);
+      if (!action) return;
+      event.preventDefault();
+      action();
     };
 
     document.addEventListener('keydown', onKeyDown);
