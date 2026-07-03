@@ -87,6 +87,9 @@ http {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), screen-wake-lock=(self)" always;
         add_header Cross-Origin-Opener-Policy "same-origin" always;
+        # Server-level so proxied /api and /rest locations (which define no
+        # add_header of their own and skip security-headers.conf) inherit it
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         # CSP: Inline scripts allowed via hash for React app bootstrap
         # Runtime hashes computed at startup (__CSP_SCRIPT_HASHES__)
         # img-src/media-src use same domains as connect-src (backend serves images/audio)
