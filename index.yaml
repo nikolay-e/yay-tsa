@@ -2,14 +2,14 @@ apiVersion: v1
 entries:
   yay-tsa:
   - apiVersion: v2
-    appVersion: main-27645fd
-    created: "2026-07-03T15:26:03.769707368Z"
+    appVersion: main-5424e80
+    created: "2026-07-03T15:35:26.559908795Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
       version: 0.1.0
     description: A portable, minimal Jellyfin-inspired music server and client
-    digest: b93635afcaa0a85fd28f63b6164420dcc37599bcd0df17c8193f7a6fadbe2a28
+    digest: 250aa4bf996b6d0ac2039b81c0f96edeed63234f89a5e7aa7489af8f1c55b282
     home: https://github.com/nikolay-e/yay-tsa
     keywords:
     - jellyfin
@@ -23,12 +23,12 @@ entries:
     - https://github.com/nikolay-e/yay-tsa
     type: application
     urls:
-    - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.5.1-main.r0000000800-g27645fd.tgz
-    version: 0.5.1-main.r0000000800-g27645fd
+    - https://nikolay-e.github.io/yay-tsa/yay-tsa-0.5.1-main.r0000000801-g5424e80.tgz
+    version: 0.5.1-main.r0000000801-g5424e80
   yay-tsa-v2:
   - apiVersion: v2
     appVersion: v1-final-before-retirement
-    created: "2026-07-03T15:26:03.781399712Z"
+    created: "2026-07-03T15:35:26.570333406Z"
     description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
     digest: aeba0d9ca2d5404f9ac96322cc4d8eb602e5cbfeaecda5a26089786d85efcadc
     home: https://github.com/nikolay-e/yay-tsa
@@ -49,7 +49,7 @@ entries:
     version: 1-final-before-retirement
   - apiVersion: v2
     appVersion: main-27645fd
-    created: "2026-07-03T15:26:03.780920585Z"
+    created: "2026-07-03T15:35:26.569899731Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -74,7 +74,7 @@ entries:
     version: 0.1.0-main.r0000000800-g27645fd
   - apiVersion: v2
     appVersion: main-584349d
-    created: "2026-07-03T15:26:03.779947343Z"
+    created: "2026-07-03T15:35:26.568922754Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -99,7 +99,7 @@ entries:
     version: 0.1.0-main.r0000000799-g584349d
   - apiVersion: v2
     appVersion: main-ebd6dfc
-    created: "2026-07-03T15:26:03.778985563Z"
+    created: "2026-07-03T15:35:26.567950204Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -124,7 +124,7 @@ entries:
     version: 0.1.0-main.r0000000798-gebd6dfc
   - apiVersion: v2
     appVersion: main-699c720
-    created: "2026-07-03T15:26:03.778014265Z"
+    created: "2026-07-03T15:35:26.566931017Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -149,7 +149,7 @@ entries:
     version: 0.1.0-main.r0000000797-g699c720
   - apiVersion: v2
     appVersion: main-72f6730
-    created: "2026-07-03T15:26:03.777048007Z"
+    created: "2026-07-03T15:35:26.564874972Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -174,7 +174,7 @@ entries:
     version: 0.1.0-main.r0000000796-g72f6730
   - apiVersion: v2
     appVersion: main-2298a89
-    created: "2026-07-03T15:26:03.776005195Z"
+    created: "2026-07-03T15:35:26.56389866Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -199,7 +199,7 @@ entries:
     version: 0.1.0-main.r0000000795-g2298a89
   - apiVersion: v2
     appVersion: main-67cd34a
-    created: "2026-07-03T15:26:03.773814316Z"
+    created: "2026-07-03T15:35:26.562899047Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -224,7 +224,7 @@ entries:
     version: 0.1.0-main.r0000000794-g67cd34a
   - apiVersion: v2
     appVersion: main-b1a227c
-    created: "2026-07-03T15:26:03.772864588Z"
+    created: "2026-07-03T15:35:26.561935875Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -249,7 +249,7 @@ entries:
     version: 0.1.0-main.r0000000793-gb1a227c
   - apiVersion: v2
     appVersion: main-1b37ad7
-    created: "2026-07-03T15:26:03.771852503Z"
+    created: "2026-07-03T15:35:26.560931934Z"
     dependencies:
     - name: yay-tsa-common
       repository: file://../yay-tsa-common
@@ -272,29 +272,4 @@ entries:
     urls:
     - https://nikolay-e.github.io/yay-tsa/yay-tsa-v2-0.1.0-main.r0000000792-g1b37ad7.tgz
     version: 0.1.0-main.r0000000792-g1b37ad7
-  - apiVersion: v2
-    appVersion: main-732ffe9
-    created: "2026-07-03T15:26:03.77079297Z"
-    dependencies:
-    - name: yay-tsa-common
-      repository: file://../yay-tsa-common
-      version: 0.1.0
-    description: Yay-Tsa v2 backend — stateful music server core (Spring Boot, Kotlin)
-    digest: 67737f01143367a036a910c641d8c343684881f5600e0f252813a24b363514d0
-    home: https://github.com/nikolay-e/yay-tsa
-    keywords:
-    - jellyfin
-    - music
-    - server
-    - media
-    - v2
-    maintainers:
-    - name: Nikolay Eremeev
-    name: yay-tsa-v2
-    sources:
-    - https://github.com/nikolay-e/yay-tsa
-    type: application
-    urls:
-    - https://nikolay-e.github.io/yay-tsa/yay-tsa-v2-0.1.0-main.r0000000791-g732ffe9.tgz
-    version: 0.1.0-main.r0000000791-g732ffe9
-generated: "2026-07-03T15:26:03.768472627Z"
+generated: "2026-07-03T15:35:26.558176867Z"
