@@ -30,6 +30,12 @@ const OfflineLibraryPage = lazy(() =>
 const AudiobooksPage = lazy(() =>
   import('@/pages/AudiobooksPage').then(m => ({ default: m.AudiobooksPage }))
 );
+const PlaylistsPage = lazy(() =>
+  import('@/pages/PlaylistsPage').then(m => ({ default: m.PlaylistsPage }))
+);
+const PlaylistDetailPage = lazy(() =>
+  import('@/pages/PlaylistDetailPage').then(m => ({ default: m.PlaylistDetailPage }))
+);
 
 function LazyRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   return <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>;
@@ -98,6 +104,26 @@ const router = createBrowserRouter([
           <ProtectedRoute>
             <LazyRoute>
               <FavoritesPage />
+            </LazyRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'playlists',
+        element: (
+          <ProtectedRoute>
+            <LazyRoute>
+              <PlaylistsPage />
+            </LazyRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'playlists/:id',
+        element: (
+          <ProtectedRoute>
+            <LazyRoute>
+              <PlaylistDetailPage />
             </LazyRoute>
           </ProtectedRoute>
         ),

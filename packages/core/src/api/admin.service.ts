@@ -43,13 +43,13 @@ export interface CacheClearResult {
 }
 
 export interface LibraryRescanResult {
-  success: boolean;
-  message: string;
-  scanInProgress?: boolean;
+  status: 'started' | 'already_running';
 }
 
 export interface ScanStatus {
-  scanInProgress: boolean;
+  scanning: boolean;
+  lastCompletedAt?: string | null;
+  lastTrackCount?: number | null;
 }
 
 export class AdminService extends BaseService {

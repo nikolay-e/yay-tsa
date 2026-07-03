@@ -9,6 +9,7 @@ import {
   Smartphone,
   Download,
   KeyRound,
+  Library,
 } from 'lucide-react';
 import { AdminService, MediaServerError } from '@yay-tsa/core';
 import { queryClient } from '@/shared/lib/query-client';
@@ -17,6 +18,7 @@ import { VersionInfo } from '@/shared/components/VersionInfo';
 import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPanel';
 import { UsersPanel } from '@/features/auth/components/UsersPanel';
 import { OfflineManager } from '@/features/offline';
+import { useRescanLibrary, useScanStatus } from '@/features/library/hooks/useLibraryScan';
 
 function isStandaloneMode(): boolean {
   return (
@@ -45,6 +47,49 @@ async function forceReload(): Promise<void> {
     await Promise.all(registrations.map(reg => reg.unregister()));
   }
   globalThis.location.reload();
+}
+
+function describeLastScan(lastCompletedAt?: string | null, lastTrackCount?: number | null) {
+  if (!lastCompletedAt) return 'No completed scan recorded yet';
+  const completedAt = new Date(lastCompletedAt).toLocaleString();
+  if (lastTrackCount == null) return `Last scan finished ${completedAt}`;
+  return `Last scan finished ${completedAt} • ${lastTrackCount} tracks`;
+}
+
+function LibraryScanPanel() {
+  const rescan = useRescanLibrary();
+  const { data: scanStatus, isLoading } = useScanStatus();
+  const isScanning = scanStatus?.scanning ?? false;
+
+  let statusText;
+  if (isLoading) {
+    statusText = 'Checking scan status…';
+  } else if (isScanning) {
+    statusText = 'Scan in progress — new tracks appear as they are indexed';
+  } else {
+    statusText = describeLastScan(scanStatus?.lastCompletedAt, scanStatus?.lastTrackCount);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="min-w-0">
+        <div className="font-medium">Rescan library</div>
+        <div className="text-text-secondary text-sm" data-testid="library-scan-status">
+          {statusText}
+        </div>
+      </div>
+      <button
+        type="button"
+        data-testid="library-rescan-button"
+        onClick={() => rescan.mutate()}
+        disabled={rescan.isPending || isScanning}
+        className="bg-accent text-text-on-accent hover:bg-accent-hover flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+      >
+        <RefreshCw className={`h-4 w-4 ${isScanning || rescan.isPending ? 'animate-spin' : ''}`} />
+        {isScanning ? 'Scanning…' : 'Rescan'}
+      </button>
+    </div>
+  );
 }
 
 export function SettingsPage() {
@@ -184,6 +229,18 @@ export function SettingsPage() {
           <OfflineManager />
         </div>
       </section>
+
+      {isAdmin && (
+        <section className="mb-8">
+          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
+            <Library className="h-4 w-4" />
+            Library
+          </h2>
+          <div className="bg-bg-secondary border-border rounded-lg border">
+            <LibraryScanPanel />
+          </div>
+        </section>
+      )}
 
       {isAdmin && (
         <section className="mb-8">

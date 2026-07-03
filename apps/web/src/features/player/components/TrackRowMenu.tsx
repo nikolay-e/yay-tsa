@@ -5,6 +5,7 @@ import {
   MoreVertical,
   ListStart,
   ListPlus,
+  ListMusic,
   Radio,
   Disc3,
   User,
@@ -14,6 +15,7 @@ import {
 import { getIsFavorite, type AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
+import { AddToPlaylistModal } from '@/features/playlists/components/AddToPlaylistModal';
 import {
   useIsOnline,
   useOfflineEntry,
@@ -27,7 +29,7 @@ import {
 import { usePlayerStore } from '../stores/player.store';
 import { useSessionStore } from '../stores/session-store';
 
-const ESTIMATED_MENU_HEIGHT_PX = 320;
+const ESTIMATED_MENU_HEIGHT_PX = 360;
 
 type MenuPosition = { top?: number; bottom?: number; right: number };
 
@@ -36,6 +38,7 @@ export function TrackRowMenu({
   className,
 }: Readonly<{ track: AudioItem; className?: string }>) {
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isOpen = menuPosition !== null;
@@ -108,6 +111,11 @@ export function TrackRowMenu({
   const handleStartRadio = () => {
     setMenuPosition(null);
     void useSessionStore.getState().startSession(track.Id);
+  };
+
+  const handleAddToPlaylist = () => {
+    setMenuPosition(null);
+    setIsPlaylistModalOpen(true);
   };
 
   const handleGoToAlbum = () => {
@@ -190,6 +198,17 @@ export function TrackRowMenu({
             <button
               type="button"
               role="menuitem"
+              data-testid="track-menu-add-playlist"
+              onClick={handleAddToPlaylist}
+              disabled={!isOnline}
+              className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ListMusic className="h-4 w-4" />
+              Add to playlist
+            </button>
+            <button
+              type="button"
+              role="menuitem"
               data-testid="track-menu-start-radio"
               onClick={handleStartRadio}
               disabled={!isOnline}
@@ -254,6 +273,9 @@ export function TrackRowMenu({
           </div>,
           document.body
         )}
+      {isPlaylistModalOpen && (
+        <AddToPlaylistModal track={track} isOpen onClose={() => setIsPlaylistModalOpen(false)} />
+      )}
     </div>
   );
 }

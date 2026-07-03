@@ -33,7 +33,7 @@ function setBodyDragging(active: boolean) {
 
 type SortableListProps<T extends { Id: string }> = Readonly<{
   items: T[];
-  onReorder: (reorderedItems: T[]) => void;
+  onReorder: (reorderedItems: T[], fromIndex: number, toIndex: number) => void;
   renderItem: (item: T, index: number) => ReactNode;
   layout?: 'vertical' | 'grid';
   gridClassName?: string;
@@ -108,7 +108,7 @@ export function SortableList<T extends { Id: string }>({
     const newIndex = items.findIndex(item => item.Id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    onReorder(arrayMove(items, oldIndex, newIndex));
+    onReorder(arrayMove(items, oldIndex, newIndex), oldIndex, newIndex);
   };
 
   const strategy = layout === 'grid' ? rectSortingStrategy : verticalListSortingStrategy;
