@@ -1,14 +1,28 @@
 package dev.yaytsa.persistence.playback.jpa
 
 import dev.yaytsa.persistence.playback.entity.PlayHistoryEntity
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
 interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
+    fun findByCompletedTrueAndScrobbledFalseAndRecordedAtAfterOrderByRecordedAtAsc(
+        cutoff: Instant,
+        pageable: Pageable,
+    ): List<PlayHistoryEntity>
+
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query("UPDATE PlayHistoryEntity p SET p.scrobbled = true WHERE p.id IN :ids")
+    fun markScrobbled(
+        @Param("ids") ids: Collection<UUID>,
+    ): Int
+
     @Modifying
     @Query(
         value =

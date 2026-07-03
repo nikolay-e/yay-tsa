@@ -69,6 +69,15 @@ yaytsa:
     root-path: ${MEDIA_ROOT_PATH:#{null}}
   playback:
     play-history-dedup-window-seconds: ${PLAY_HISTORY_DEDUP_WINDOW_SECONDS:30}
+  scrobbling:
+    listenbrainz:
+      enabled: ${LISTENBRAINZ_ENABLED:false}
+      token: ${LISTENBRAINZ_TOKEN:}
+      api-url: ${LISTENBRAINZ_API_URL:https://api.listenbrainz.org}
+      poll-interval-ms: ${LISTENBRAINZ_POLL_INTERVAL_MS:30000}
+      batch-size: ${LISTENBRAINZ_BATCH_SIZE:50}
+      max-age-days: ${LISTENBRAINZ_MAX_AGE_DAYS:7}
+      retry-cooldown-seconds: ${LISTENBRAINZ_RETRY_COOLDOWN_SECONDS:60}
   mpd:
     port: ${MPD_PORT:6600}
     enabled: ${MPD_ENABLED:false}
