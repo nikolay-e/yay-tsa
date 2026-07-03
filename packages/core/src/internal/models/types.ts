@@ -103,6 +103,7 @@ export interface AudioItem extends BaseItem {
   PlaylistItemId?: string;
   Lyrics?: string;
   NormalizationGain?: number | null;
+  AlbumNormalizationGain?: number | null;
 }
 
 export interface MusicAlbum extends BaseItem {

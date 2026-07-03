@@ -39,6 +39,8 @@ object LibraryMappers {
             codec = track.codec,
             genre = primaryGenreName,
             coverImagePath = primaryImagePath,
+            replayGainTrackGain = track.replaygainTrackGain?.toDouble(),
+            replayGainAlbumGain = track.replaygainAlbumGain?.toDouble(),
         )
 
     fun toAlbum(

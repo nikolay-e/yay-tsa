@@ -37,9 +37,9 @@ class AudioTrackJpa(
     @Column(name = "fingerprint_sample_rate")
     val fingerprintSampleRate: Int? = null,
     @Column(name = "replaygain_track_gain")
-    val replaygainTrackGain: BigDecimal? = null,
+    var replaygainTrackGain: BigDecimal? = null,
     @Column(name = "replaygain_album_gain")
-    val replaygainAlbumGain: BigDecimal? = null,
+    var replaygainAlbumGain: BigDecimal? = null,
     @Column(name = "replaygain_track_peak")
-    val replaygainTrackPeak: BigDecimal? = null,
+    var replaygainTrackPeak: BigDecimal? = null,
 )

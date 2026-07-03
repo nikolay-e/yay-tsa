@@ -34,6 +34,8 @@ fun Track.toJellyfinBaseItem(
         genres = genre?.let { listOf(it) },
         sortName = sortName,
         parentId = albumId?.value,
+        normalizationGain = replayGainTrackGain,
+        albumNormalizationGain = replayGainAlbumGain,
     )
 }
 

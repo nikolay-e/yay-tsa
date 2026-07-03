@@ -99,6 +99,7 @@ interface PlayerState {
   sleepTimerEndTime: number | null;
   playerMode: PlayerMode;
   playbackRate: number;
+  normalizationEnabled: boolean;
 }
 
 interface PlayerActions {
@@ -130,6 +131,7 @@ interface PlayerActions {
   jumpToQueueTrack: (trackId: string) => Promise<void>;
   retryCurrentTrack: () => Promise<void>;
   patchTrackFavorite: (itemId: string, isFavorite: boolean) => void;
+  setNormalizationEnabled: (enabled: boolean) => void;
 }
 
 type PlayerStore = PlayerState & PlayerActions;
@@ -148,6 +150,9 @@ const ENGINE_TIMEOUT_MS = 10000;
 const MEDIA_ERR_NETWORK = 2;
 const MEDIA_ERR_DECODE = 3;
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+const NORMALIZATION_STORAGE_KEY = 'yaytsa_normalization_enabled';
+const NORMALIZATION_MIN_DB = -18;
+const NORMALIZATION_MAX_DB = 12;
 
 export const UNSUPPORTED_FORMAT_MESSAGE = 'This track format is not supported on this device';
 
@@ -240,6 +245,22 @@ function saveVolume(volume: number): void {
   }
 }
 
+function getSavedNormalizationEnabled(): boolean {
+  try {
+    return localStorage.getItem(NORMALIZATION_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function saveNormalizationEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(NORMALIZATION_STORAGE_KEY, String(enabled));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 let consecutiveLoadFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
@@ -319,6 +340,7 @@ const initialState: PlayerState = {
   sleepTimerEndTime: null,
   playerMode: 'music',
   playbackRate: 1,
+  normalizationEnabled: getSavedNormalizationEnabled(),
 };
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -359,6 +381,7 @@ export const usePlayerStore = create<PlayerStore>()(
         jumpToQueueTrack: async () => {},
         retryCurrentTrack: async () => {},
         patchTrackFavorite: () => {},
+        setNormalizationEnabled: () => {},
       };
     }
 
@@ -371,6 +394,8 @@ export const usePlayerStore = create<PlayerStore>()(
     // A seek issued while a controller op is in flight; item-scoped so a seek aimed at
     // one track is never applied to the track that replaces it.
     let pendingSeek: { seconds: number; itemId: string | null } | null = null;
+    let normalizationAlbumId: string | null = null;
+    let currentNormalizationGainDb: number | null = null;
     let mediaErrorRecoveryUsedForItemId: string | null = null;
     // Wall-clock instant of the last pause, used to compute audiobook smart-rewind on resume.
     let lastPauseAt: number | null = null;
@@ -654,6 +679,29 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(engine.getCurrentTime(), engine.getDuration());
     }
 
+    // ReplayGain rules: album gain when continuing an unshuffled same-album run (preserves
+    // intentional loudness differences between an album's tracks), track gain otherwise;
+    // whichever is missing falls back to the other. Values clamp to a safe window and
+    // convert dB → linear inside the engine (10^(dB/20) on the shared input gain bus).
+    function resolveNormalizationGainDb(
+      track: AudioItem,
+      isSameAlbumSequence: boolean
+    ): number | null {
+      const preferredGainDb = isSameAlbumSequence
+        ? (track.AlbumNormalizationGain ?? track.NormalizationGain)
+        : (track.NormalizationGain ?? track.AlbumNormalizationGain);
+      if (preferredGainDb == null || !Number.isFinite(preferredGainDb)) return null;
+      return Math.max(NORMALIZATION_MIN_DB, Math.min(NORMALIZATION_MAX_DB, preferredGainDb));
+    }
+
+    function applyNormalizationGain(track: AudioItem): void {
+      const isSameAlbumSequence =
+        !get().isShuffle && track.AlbumId != null && track.AlbumId === normalizationAlbumId;
+      normalizationAlbumId = track.AlbumId ?? null;
+      currentNormalizationGainDb = resolveNormalizationGainDb(track, isSameAlbumSequence);
+      engine.setNormalizationGain?.(get().normalizationEnabled ? currentNormalizationGainDb : null);
+    }
+
     // --- Core playback commands ---
 
     function commitPlaybackSideEffects(track: AudioItem, signal: AbortSignal): void {
@@ -662,7 +710,7 @@ export const usePlayerStore = create<PlayerStore>()(
       consecutiveLoadFailures = 0;
       wakeLock.acquire().catch(() => {});
 
-      engine.setNormalizationGain?.(track.NormalizationGain ?? null);
+      applyNormalizationGain(track);
       get().queue.advanceTo(track.Id);
       syncQueueState();
       updateSessionMetadata(track);
@@ -822,7 +870,7 @@ export const usePlayerStore = create<PlayerStore>()(
       useTimingStore.getState().updateTiming(0, result.duration);
 
       // --- Side effects ---
-      engine.setNormalizationGain?.(track.NormalizationGain ?? null);
+      applyNormalizationGain(track);
       get().queue.advanceTo(track.Id);
       syncQueueState();
       updateSessionMetadata(track);
@@ -1410,6 +1458,12 @@ export const usePlayerStore = create<PlayerStore>()(
         engine.setVolume(level);
         saveVolume(level);
         set({ volume: level });
+      },
+
+      setNormalizationEnabled: enabled => {
+        saveNormalizationEnabled(enabled);
+        set({ normalizationEnabled: enabled });
+        engine.setNormalizationGain?.(enabled ? currentNormalizationGainDb : null);
       },
 
       toggleShuffle: () => {

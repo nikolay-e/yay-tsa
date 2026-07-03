@@ -32,6 +32,8 @@ data class Track(
     val codec: String?,
     val genre: String?,
     val coverImagePath: String?,
+    val replayGainTrackGain: Double? = null,
+    val replayGainAlbumGain: Double? = null,
 ) : LibraryEntity
 
 data class Album(

@@ -30,6 +30,8 @@ data class BaseItem(
     @JsonProperty("MediaSources") val mediaSources: List<Any>? = null,
     @JsonProperty("CollectionType") val collectionType: String? = null,
     @JsonProperty("ServerId") val serverId: String? = null,
+    @JsonProperty("NormalizationGain") val normalizationGain: Double? = null,
+    @JsonProperty("AlbumNormalizationGain") val albumNormalizationGain: Double? = null,
 )
 
 @JsonInclude(JsonInclude.Include.NON_NULL)

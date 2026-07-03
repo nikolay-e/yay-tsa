@@ -87,6 +87,7 @@ class LibraryWriter(
         val sampleRate: Int?,
         val channels: Int?,
         val albumRootDir: Path?,
+        val replayGain: ReplayGainInfo,
     )
 
     @Transactional
@@ -166,6 +167,9 @@ class LibraryWriter(
                 channels = probed.channels,
                 year = probed.year,
                 codec = codec,
+                replaygainTrackGain = probed.replayGain.trackGain,
+                replaygainAlbumGain = probed.replayGain.albumGain,
+                replaygainTrackPeak = probed.replayGain.trackPeak,
             ),
         )
 
@@ -333,6 +337,7 @@ class LibraryWriter(
             sampleRate = audioHeader?.sampleRateAsNumber?.toInt(),
             channels = audioHeader?.channels?.toIntOrNull(),
             albumRootDir = albumRootDir,
+            replayGain = ReplayGainTags.read(audioTag),
         )
     }
 
@@ -368,6 +373,9 @@ class LibraryWriter(
             trackRow.channels = probed.channels
             trackRow.year = probed.year
             trackRow.codec = codec
+            trackRow.replaygainTrackGain = probed.replayGain.trackGain
+            trackRow.replaygainAlbumGain = probed.replayGain.albumGain
+            trackRow.replaygainTrackPeak = probed.replayGain.trackPeak
             trackRepo.save(trackRow)
         }
 
