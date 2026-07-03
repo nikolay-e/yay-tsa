@@ -11,6 +11,7 @@ import {
 } from '@/shared/utils/error-reporter';
 import { App } from './app/App';
 import { ErrorBoundary } from './app/infra/ErrorBoundary';
+import { installChunkReloadRecovery } from './app/infra/chunk-reload';
 import { ToastContainer } from './shared/ui/Toast';
 import { UpdatePrompt, useUpdatePromptStore } from './shared/components/UpdatePrompt';
 import { queryClient } from './shared/lib/query-client';
@@ -19,6 +20,7 @@ import './index.css';
 
 mark('app_start');
 installPerf();
+installChunkReloadRecovery();
 
 // Installs all global error/rejection/resource/SW handlers via the canonical
 // dependency-free @yay-tsa/platform module (the copy-out source of truth).
