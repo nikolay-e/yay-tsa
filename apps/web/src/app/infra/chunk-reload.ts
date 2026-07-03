@@ -5,10 +5,10 @@ const RELOADED_KEY = 'yaytsa_chunk_preload_reloaded';
 const GUARD_CLEAR_DELAY_MS = 5000;
 
 export function installChunkReloadRecovery(): void {
-  window.addEventListener('vite:preloadError', () => {
+  globalThis.addEventListener('vite:preloadError', () => {
     if (sessionStorage.getItem(RELOADED_KEY)) return;
     sessionStorage.setItem(RELOADED_KEY, '1');
-    window.location.reload();
+    globalThis.location.reload();
   });
   setTimeout(() => sessionStorage.removeItem(RELOADED_KEY), GUARD_CLEAR_DELAY_MS);
 }
