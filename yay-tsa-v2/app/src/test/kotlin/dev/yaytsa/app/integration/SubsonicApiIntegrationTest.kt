@@ -675,12 +675,25 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
 
     @Test
     fun `search3 with empty query returns full library listing`() {
-        val result = restGet("search3", "query" to "", "songCount" to "200", "albumCount" to "200", "artistCount" to "200", "f" to "json")
-        val body = jsonBody(result).get("searchResult3")
-        val songIds = body.get("song").let { songs -> (0 until songs.size()).map { songs.get(it).get("id").asText() } }
+        val firstPage =
+            jsonBody(
+                restGet("search3", "query" to "", "songCount" to "200", "albumCount" to "200", "artistCount" to "200", "f" to "json"),
+            ).get("searchResult3")
+        assertTrue(firstPage.get("album").size() > 0)
+        assertTrue(firstPage.get("artist").size() > 0)
+
+        val songIds = mutableSetOf<String>()
+        var offset = 0
+        do {
+            val songs =
+                jsonBody(
+                    restGet("search3", "query" to "", "songCount" to "200", "songOffset" to offset.toString(), "f" to "json"),
+                ).get("searchResult3").get("song")
+            val pageSize = songs?.size() ?: 0
+            (0 until pageSize).forEach { songIds.add(songs.get(it).get("id").asText()) }
+            offset += 200
+        } while (pageSize == 200)
         assertTrue(trackIds.all { it in songIds }, "empty query must list library songs for offline sync")
-        assertTrue(body.get("album").size() > 0)
-        assertTrue(body.get("artist").size() > 0)
     }
 
     @Test
