@@ -53,5 +53,8 @@ test.describe('Chunk-load recovery (mocked backend)', () => {
       window.dispatchEvent(new Event('vite:preloadError', { cancelable: true }));
     });
     await secondReload;
+    expect(
+      await page.evaluate(() => sessionStorage.getItem('yaytsa_chunk_preload_reloaded_at'))
+    ).not.toBeNull();
   });
 });

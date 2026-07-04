@@ -313,7 +313,10 @@ test.describe('Playlists (mocked backend)', () => {
 
     await removeButton.click();
     await expect(removeButton).toBeDisabled();
-    await removeButton.click({ force: true });
+    // force: true is deliberate — without it Playwright's own actionability check would
+    // refuse to click a disabled button, so the test would never exercise whether the app's
+    // disabled state (not just Playwright's UI gate) blocks the second mutation.
+    await removeButton.click({ force: true }); // NOSONAR(typescript:S8783)
 
     await expect(page.getByTestId('track-row')).toHaveCount(1);
     expect(deleteRequests).toBe(1);
