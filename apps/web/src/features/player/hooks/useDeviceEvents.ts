@@ -6,16 +6,20 @@ import { useDeviceStore } from '../stores/device-store';
 
 const DEGRADED_STREAM_THRESHOLD = 5;
 
+function refetchDevicesSwallowingErrors(): void {
+  useDeviceStore
+    .getState()
+    .fetchDevices()
+    .catch(() => {});
+}
+
 export function useDeviceEvents() {
   const client = useAuthStore(s => s.client);
 
   useEffect(() => {
     if (!client) return;
 
-    useDeviceStore
-      .getState()
-      .fetchDevices()
-      .catch(() => {});
+    refetchDevicesSwallowingErrors();
 
     const service = new DeviceService(client);
     let sseUrl: string;
@@ -47,7 +51,7 @@ export function useDeviceEvents() {
             isOnline: true,
           });
         } else {
-          store.fetchDevices().catch(() => {});
+          refetchDevicesSwallowingErrors();
         }
       } catch {
         log.player.debug('Discarded malformed device_state_changed event');
@@ -94,10 +98,7 @@ export function useDeviceEvents() {
         // A device_state_changed lost while the stream was down would leave a stale list;
         // refetch the authoritative snapshot on every reconnect (not the first open).
         if (sawOpen) {
-          useDeviceStore
-            .getState()
-            .fetchDevices()
-            .catch(() => {});
+          refetchDevicesSwallowingErrors();
         }
         sawOpen = true;
       };

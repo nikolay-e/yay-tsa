@@ -107,7 +107,8 @@ function reorderInfiniteItems(
   const flat = data.pages.flatMap(page => page.Items);
   if (fromIndex < 0 || fromIndex >= flat.length) return data;
   const [moved] = flat.splice(fromIndex, 1);
-  flat.splice(Math.min(toIndex, flat.length), 0, moved!);
+  if (!moved) return data;
+  flat.splice(Math.min(toIndex, flat.length), 0, moved);
   const reindexed = flat.map((item, index) => ({ ...item, PlaylistItemId: String(index) }));
   let offset = 0;
   const pages = data.pages.map(page => {

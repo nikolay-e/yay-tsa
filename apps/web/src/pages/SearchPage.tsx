@@ -147,11 +147,8 @@ export function SearchPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Search</h1>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div
-            className="border-border flex overflow-hidden rounded-md border"
-            role="group"
-            aria-label="Search mode"
-          >
+          <fieldset className="border-border m-0 flex min-w-0 overflow-hidden rounded-md border p-0">
+            <legend className="sr-only">Search mode</legend>
             <button
               onClick={() => setSearchMode('text')}
               aria-pressed={searchMode === 'text'}
@@ -177,7 +174,7 @@ export function SearchPage() {
             >
               AI
             </button>
-          </div>
+          </fieldset>
           {searchMode === 'text' && <SortMenu selectedId={selectedId} onSelect={select} />}
         </div>
       </div>

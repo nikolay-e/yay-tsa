@@ -114,7 +114,7 @@ describe('Integration: Playlists Management', () => {
       const items = await playlistsService.getPlaylistItems(created.Id);
 
       expect(items).toBeDefined();
-      expect(items.Items.length).toBe(2);
+      expect(items.Items).toHaveLength(2);
       expect(items.Items[0].Id).toBeDefined();
       expect(items.Items[1].Id).toBeDefined();
     } finally {
@@ -136,7 +136,7 @@ describe('Integration: Playlists Management', () => {
 
       expect(items).toBeDefined();
       expect(items.Items).toBeInstanceOf(Array);
-      expect(items.Items.length).toBe(2);
+      expect(items.Items).toHaveLength(2);
       expect(items.TotalRecordCount).toBe(2);
 
       const firstItem = items.Items[0];
@@ -164,7 +164,7 @@ describe('Integration: Playlists Management', () => {
       await playlistsService.addItemsToPlaylist(created.Id, [testTrackIds[2]]);
 
       const afterItems = await playlistsService.getPlaylistItems(created.Id);
-      expect(afterItems.Items.length).toBe(beforeCount + 1);
+      expect(afterItems.Items).toHaveLength(beforeCount + 1);
     } finally {
       await playlistsService.deletePlaylist(created.Id).catch(() => {});
     }
@@ -181,14 +181,14 @@ describe('Integration: Playlists Management', () => {
 
     try {
       const beforeItems = await playlistsService.getPlaylistItems(created.Id);
-      expect(beforeItems.Items.length).toBe(2);
+      expect(beforeItems.Items).toHaveLength(2);
 
       const entryIdToRemove = beforeItems.Items[0].PlaylistItemId!;
 
       await playlistsService.removeItemsFromPlaylist(created.Id, [entryIdToRemove]);
 
       const afterItems = await playlistsService.getPlaylistItems(created.Id);
-      expect(afterItems.Items.length).toBe(1);
+      expect(afterItems.Items).toHaveLength(1);
     } finally {
       await playlistsService.deletePlaylist(created.Id).catch(() => {});
     }
@@ -209,7 +209,7 @@ describe('Integration: Playlists Management', () => {
 
     // Verify items were added
     const items = await playlistsService.getPlaylistItems(playlist.Id);
-    expect(items.Items.length).toBe(2);
+    expect(items.Items).toHaveLength(2);
 
     // Clean up this playlist
     await playlistsService.deletePlaylist(playlist.Id);
@@ -226,7 +226,7 @@ describe('Integration: Playlists Management', () => {
 
     try {
       const beforeItems = await playlistsService.getPlaylistItems(created.Id);
-      expect(beforeItems.Items.length).toBe(2);
+      expect(beforeItems.Items).toHaveLength(2);
 
       const firstItemId = beforeItems.Items[0].Id;
       const firstItemPlaylistId = beforeItems.Items[0].PlaylistItemId!;

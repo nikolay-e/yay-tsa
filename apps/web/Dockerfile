@@ -35,8 +35,10 @@ RUN apk add --no-cache brotli gzip && \
     # nginx/CDN (they would leak source). The dist-maps/<GIT_SHA> dir is the
     # offline-symbolication artifact (apps/web/scripts/symbolicate.ts).
     mkdir -p /app/apps/web/dist-maps/${GIT_SHA} && \
+    export DIST_MAPS_DIR="/app/apps/web/dist-maps/${GIT_SHA}" && \
     find /app/apps/web/dist -type f -name '*.map' \
-        -exec sh -c 'dest="/app/apps/web/dist-maps/'"${GIT_SHA}"'/${1#/app/apps/web/dist/}"; mkdir -p "$(dirname "$dest")"; mv "$1" "$dest"' _ {} \; && \
+        -exec sh -c 'dest="$DIST_MAPS_DIR/${1#/app/apps/web/dist/}"; \
+            mkdir -p "$(dirname "$dest")"; mv "$1" "$dest"' _ {} \; && \
     find /app/apps/web/dist -type f \
         \( -name '*.js' -o -name '*.css' -o -name '*.html' \
         -o -name '*.json' -o -name '*.svg' -o -name '*.wasm' \) \

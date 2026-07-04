@@ -65,8 +65,8 @@ interface CaptureExtra {
   message?: string;
   route?: string;
   stack?: string;
-  http?: ClientTelemetryReport['http'];
-  audio?: ClientTelemetryReport['audio'];
+  http?: NonNullable<ClientTelemetryReport['http']>;
+  audio?: NonNullable<ClientTelemetryReport['audio']>;
 }
 
 const MAX_DISTINCT_PER_SESSION = 25;
@@ -335,7 +335,7 @@ function fingerprintOf(category: string, type: string, message: string): string 
     .toLowerCase()
     .replace(/https?:\/\/\S+/g, '<url>')
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<id>')
-    .replace(/\b(?=[0-9a-f-]*[0-9])[0-9a-f]{8,}\b/gi, '<id>')
+    .replace(/\b(?=[0-9a-f-]*\d)[0-9a-f]{8,}\b/gi, '<id>')
     .replace(/\d+/g, '<n>')
     .replace(/\s+/g, ' ')
     .trim();

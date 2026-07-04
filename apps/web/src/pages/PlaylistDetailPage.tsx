@@ -245,7 +245,7 @@ export function PlaylistDetailPage() {
         <div className="flex h-32 flex-col items-center justify-center gap-2 text-center">
           <p className="text-text-secondary">This playlist is empty</p>
           <p className="text-text-tertiary text-sm">
-            Use "Add to playlist" from any track menu to fill it.
+            Use &quot;Add to playlist&quot; from any track menu to fill it.
           </p>
         </div>
       ) : (

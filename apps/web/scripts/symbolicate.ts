@@ -103,7 +103,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(err => {
+try {
+  await main();
+} catch (err) {
   process.stderr.write(`${err instanceof Error ? err.stack : String(err)}\n`);
   process.exit(1);
-});
+}

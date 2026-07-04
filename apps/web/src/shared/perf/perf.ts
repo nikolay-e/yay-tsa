@@ -37,7 +37,10 @@ type PerfMarkName =
   | 'items_render_end'
   | 'first_cover_loaded';
 
-export function mark(name: PerfMarkName | string): void {
+// `string & {}` (not plain `string`) keeps IDE autocomplete for PerfMarkName's literals while
+// still accepting any string; plain `PerfMarkName | string` collapses to `string` and is flagged
+// as a redundant union member.
+export function mark(name: PerfMarkName | (string & {})): void {
   if (!enabled || typeof performance === 'undefined') return;
   try {
     performance.mark(`${PREFIX}:${name}`);
@@ -48,7 +51,7 @@ export function mark(name: PerfMarkName | string): void {
 
 /** Mark a name only the first time it's seen (e.g. first_route_render across many renders). */
 const onceSeen = new Set<string>();
-export function markOnce(name: PerfMarkName | string): void {
+export function markOnce(name: PerfMarkName | (string & {})): void {
   if (!enabled || onceSeen.has(name)) return;
   onceSeen.add(name);
   mark(name);

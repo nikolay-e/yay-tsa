@@ -33,9 +33,9 @@ async function measurePage(browser, path, scenario) {
   const samples = [];
   for (let i = 0; i < RUNS; i++) {
     // cold = fresh context (no cache/storage); warm/pwa = reuse storageState
-    const context = await browser.newContext(
-      scenario === 'cold' ? {} : STORAGE_STATE ? { storageState: STORAGE_STATE } : {}
-    );
+    const contextOptions =
+      scenario !== 'cold' && STORAGE_STATE ? { storageState: STORAGE_STATE } : {};
+    const context = await browser.newContext(contextOptions);
     const page = await context.newPage();
     let requests = 0;
     let bytes = 0;
@@ -73,13 +73,13 @@ async function measurePage(browser, path, scenario) {
         const r = im.getBoundingClientRect();
         return r.top < vh && r.bottom > 0 && r.width > 0;
       }).length;
-      const lcpEl = lcp && lcp.element ? lcp.element : null;
+      const lcpEl = lcp?.element ?? null;
       return {
         TTFB: nav ? Math.round(nav.responseStart) : null,
         FCP: Math.round(get('paint', 'first-contentful-paint') ?? 0) || null,
         LCP: lcp ? Math.round(lcp.startTime) : null,
         LCP_isImage: lcpEl ? lcpEl.tagName === 'IMG' : null,
-        LCP_url: lcp && lcp.url ? lcp.url : lcpEl ? lcpEl.tagName : null,
+        LCP_url: lcp?.url || (lcpEl ? lcpEl.tagName : null),
         DCL: nav ? Math.round(nav.domContentLoadedEventEnd) : null,
         Load: nav ? Math.round(nav.loadEventEnd) : null,
         app_start: markAt('app_start'),
@@ -100,17 +100,18 @@ async function measurePage(browser, path, scenario) {
     const xs = col(k);
     return xs.length ? `${Math.min(...xs)}/${median(xs)}/${Math.max(...xs)}` : '-';
   };
-  const lastLcpIsImage = samples
-    .map(s => s.LCP_isImage)
-    .filter(v => v != null)
-    .pop();
+  const lastLcpIsImage = samples.map(s => s.LCP_isImage).findLast(v => v != null);
+  const lcpImageLabel = () => {
+    if (lastLcpIsImage == null) return '-';
+    return lastLcpIsImage ? 'IMG' : 'text/other';
+  };
   return {
     page: path,
     scenario,
     'TTFB min/med/max': stat('TTFB'),
     'FCP min/med/max': stat('FCP'),
     'LCP min/med/max': stat('LCP'),
-    'LCP=img?': lastLcpIsImage == null ? '-' : lastLcpIsImage ? 'IMG' : 'text/other',
+    'LCP=img?': lcpImageLabel(),
     'first_route min/med/max': stat('first_route_render'),
     'imgs med': median(col('img_count')) ?? '-',
     'img KB med': median(col('img_KB')) ?? '-',

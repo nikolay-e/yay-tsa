@@ -45,7 +45,7 @@ const isCritical = f =>
     : /^index-.*\.js$/.test(f) ||
       /^vendor-.*\.js$/.test(f) ||
       /^cn-.*\.js$/.test(f) ||
-      /\.css$/.test(f);
+      f.endsWith('.css');
 
 const fmt = n => `${(n / 1024).toFixed(1)}kB`;
 console.log('\n=== chunk sizes (gzipped, descending) ===');

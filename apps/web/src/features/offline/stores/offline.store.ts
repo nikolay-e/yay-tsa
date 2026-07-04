@@ -214,7 +214,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
 
   return {
     initialized: false,
-    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
     persisted: false,
     usageBytes: 0,
     quotaBytes: 0,
@@ -264,9 +264,9 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         }
       })();
 
-      if (typeof window !== 'undefined' && !listenersAttached) {
+      if (typeof globalThis.window !== 'undefined' && !listenersAttached) {
         listenersAttached = true;
-        window.addEventListener('online', () => {
+        globalThis.addEventListener('online', () => {
           set({ isOnline: true });
           get()
             .flushOutbox()
@@ -275,7 +275,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
             .reconcileFavorites()
             .catch(() => {});
         });
-        window.addEventListener('offline', () => set({ isOnline: false }));
+        globalThis.addEventListener('offline', () => set({ isOnline: false }));
       }
 
       await initPromise;

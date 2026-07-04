@@ -56,7 +56,7 @@ export function AddToPlaylistModal({ track, isOpen, onClose }: AddToPlaylistModa
     content = <LoadingSpinner />;
   } else if (isError) {
     content = (
-      <p className="text-text-secondary py-4 text-center text-sm">Couldn't load playlists</p>
+      <p className="text-text-secondary py-4 text-center text-sm">Couldn’t load playlists</p>
     );
   } else if (playlists.length === 0) {
     content = (

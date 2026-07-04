@@ -65,9 +65,8 @@ console.log(
 console.log('\n  variant                                                   bytes      vs source');
 for (const [label, , , len] of targets) {
   const pct = ((1 - len / srcLen) * 100).toFixed(1);
-  console.log(
-    `  ${label.padEnd(54)} ${bytes(len).padStart(9)}   ${len === srcLen ? '—' : `-${pct}%`}`
-  );
+  const pctLabel = len === srcLen ? '—' : `-${pct}%`;
+  console.log(`  ${label.padEnd(54)} ${bytes(len).padStart(9)}   ${pctLabel}`);
 }
 
 const home = 38;

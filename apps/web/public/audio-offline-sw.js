@@ -42,9 +42,9 @@ async function getCachedAudio(trackId) {
   const db = await openOfflineDb();
   try {
     const blobRec = await idbGet(db, OFFLINE_STORE_BLOBS, trackId);
-    if (!blobRec || !blobRec.blob || blobRec.blob.size === 0) return null;
+    if (!blobRec?.blob || blobRec.blob.size === 0) return null;
     const trackRec = await idbGet(db, OFFLINE_STORE_TRACKS, trackId);
-    const contentType = (trackRec && trackRec.contentType) || blobRec.blob.type || 'audio/mpeg';
+    const contentType = trackRec?.contentType || blobRec.blob.type || 'audio/mpeg';
     return { blob: blobRec.blob, contentType };
   } finally {
     db.close();
@@ -67,8 +67,8 @@ function buildResponse(blob, contentType, rangeHeader) {
   }
 
   const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
-  let start = match && match[1] ? parseInt(match[1], 10) : 0;
-  let end = match && match[2] ? parseInt(match[2], 10) : size - 1;
+  let start = match?.[1] ? Number.parseInt(match[1], 10) : 0;
+  let end = match?.[2] ? Number.parseInt(match[2], 10) : size - 1;
   if (!Number.isFinite(start) || start < 0) start = 0;
   if (!Number.isFinite(end) || end >= size) end = size - 1;
 
@@ -89,7 +89,7 @@ function buildResponse(blob, contentType, rangeHeader) {
   });
 }
 
-self.addEventListener('fetch', event => {
+globalThis.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   let pathname;

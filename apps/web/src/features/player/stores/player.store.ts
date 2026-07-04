@@ -173,6 +173,19 @@ const wakeLock = new WakeLockManager();
 let sleepTimerId: ReturnType<typeof setTimeout> | null = null;
 const karaokeFailedTrackIds = new Set<string>();
 
+// A stem URL handed straight to the audio engine turns a 404 (stems not
+// generated yet) into a scary MEDIA_ELEMENT_ERROR. Probe availability first
+// so the normal "no stems yet" case stays a quiet, expected outcome.
+async function isKaraokeStemAvailable(url: string, signal: AbortSignal): Promise<boolean> {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Range: 'bytes=0-0' },
+    credentials: 'same-origin',
+    signal,
+  });
+  return response.ok;
+}
+
 function isRetryableTimeout(error: unknown, retryCount: number): boolean {
   return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
 }
@@ -589,19 +602,6 @@ export const usePlayerStore = create<PlayerStore>()(
       } else {
         preloader.invalidate();
       }
-    }
-
-    // A stem URL handed straight to the audio engine turns a 404 (stems not
-    // generated yet) into a scary MEDIA_ELEMENT_ERROR. Probe availability first
-    // so the normal "no stems yet" case stays a quiet, expected outcome.
-    async function isKaraokeStemAvailable(url: string, signal: AbortSignal): Promise<boolean> {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { Range: 'bytes=0-0' },
-        credentials: 'same-origin',
-        signal,
-      });
-      return response.ok;
     }
 
     function markKaraokeUnavailable(reason: string): void {
