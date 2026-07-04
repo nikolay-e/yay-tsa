@@ -79,6 +79,9 @@ export function RootLayout() {
     if (!main) return;
     const onScroll = () => {
       const top = main.scrollTop;
+      // Map iteration order only reflects insertion order, not last-write order — re-inserting the
+      // key (delete then set) moves it to the end so eviction below is genuinely LRU rather than FIFO.
+      scrollPositions.delete(locationKeyRef.current);
       scrollPositions.set(locationKeyRef.current, top);
       if (scrollPositions.size > MAX_SCROLL_ENTRIES) {
         scrollPositions.delete(scrollPositions.keys().next().value!);
@@ -255,7 +258,9 @@ function Sidebar({ hasPlayer }: SidebarProps) {
   );
 }
 
-const BOTTOM_TAB_ITEMS = NAV_ITEMS.filter(item => item.href !== '/playlists');
+// Icon-only tabs stay comfortably tappable even at 7 items on a 375-412px viewport (no labels to
+// wrap), so the bottom bar mirrors NAV_ITEMS in full — Playlists must be reachable on mobile too.
+const BOTTOM_TAB_ITEMS = NAV_ITEMS;
 
 function BottomTabBar() {
   const location = useLocation();

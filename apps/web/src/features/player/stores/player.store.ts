@@ -414,13 +414,20 @@ export const usePlayerStore = create<PlayerStore>()(
 
     // --- Helpers ---
 
+    // Fails CLOSED, not open: the only call site's other staleness check (signal.aborted +
+    // currentTrack mismatch, below) is not a full backstop on its own — an interrupting op can
+    // do async setup (queue fetch, dynamic import) before it ever touches currentTrack, so a
+    // superseded load's engine.load() can resolve inside that window with currentTrack still
+    // unchanged and slip past it. When we can't verify which stream the engine holds, refusing
+    // to claim state is safer than risking currentItemId/currentTrack getting clobbered by a
+    // load that's no longer current.
     function engineHoldsStream(streamUrl: string): boolean {
       const element = engine.getAudioElement?.();
-      if (!element) return true;
+      if (!element) return false;
       try {
         return element.src === new URL(streamUrl, globalThis.location.href).href;
       } catch {
-        return true;
+        return false;
       }
     }
 

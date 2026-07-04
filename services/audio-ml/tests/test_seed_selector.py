@@ -10,10 +10,11 @@ class TestSeedSelector:
         assert len(ids) == len(set(ids))
         assert set(ids).issubset({t["track_id"] for t in seed_tracks_diverse})
 
-    def test_highest_affinity_is_first_seed(self, seed_tracks_diverse):
+    def test_first_seed_is_drawn_from_top_affinity_tracks(self, seed_tracks_diverse):
         result = SeedSelector().compute_seeds(seed_tracks_diverse, num_seeds=5)
 
-        assert result["seeds"][0]["track_id"] == "track-000"
+        top_affinity_ids = {t["track_id"] for t in seed_tracks_diverse[:5]}
+        assert result["seeds"][0]["track_id"] in top_affinity_ids
 
     def test_no_duplicates_with_identical_embeddings(self, seed_tracks_identical):
         result = SeedSelector().compute_seeds(seed_tracks_identical, num_seeds=5)

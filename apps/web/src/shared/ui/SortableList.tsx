@@ -37,19 +37,26 @@ type SortableListProps<T extends { Id: string }> = Readonly<{
   renderItem: (item: T, index: number) => ReactNode;
   layout?: 'vertical' | 'grid';
   gridClassName?: string;
+  // While true, dragging is inert (no listeners attached, handle visually disabled).
+  // Callers set this during a pending reorder mutation or an in-flight refetch, so a
+  // second drag can never fire against positions the server hasn't confirmed yet.
+  disabled?: boolean;
 }>;
 
 function SortableItem({
   id,
   children,
   layout,
+  disabled,
 }: Readonly<{
   id: string;
   children: ReactNode;
   layout: 'vertical' | 'grid';
+  disabled: boolean;
 }>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled,
   });
 
   const style = {
@@ -66,14 +73,16 @@ function SortableItem({
     >
       <button
         type="button"
+        disabled={disabled}
         className={cn(
           'absolute z-10 cursor-grab touch-none active:cursor-grabbing',
           'text-text-secondary hover:text-text-primary',
           'rounded-sm p-1 transition-opacity',
           'opacity-50 group-hover/sortable:opacity-100 focus:opacity-100',
+          'disabled:hover:text-text-secondary disabled:cursor-not-allowed disabled:opacity-30',
           layout === 'vertical' ? 'top-1/2 left-1 -translate-y-1/2' : 'top-1 left-1'
         )}
-        {...listeners}
+        {...(disabled ? {} : listeners)}
         aria-label="Drag to reorder"
       >
         <GripVertical className="h-4 w-4" />
@@ -89,6 +98,7 @@ export function SortableList<T extends { Id: string }>({
   renderItem,
   layout = 'vertical',
   gridClassName,
+  disabled = false,
 }: SortableListProps<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -101,6 +111,7 @@ export function SortableList<T extends { Id: string }>({
 
   const handleDragEnd = (event: DragEndEvent) => {
     setBodyDragging(false);
+    if (disabled) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -117,14 +128,17 @@ export function SortableList<T extends { Id: string }>({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={() => setBodyDragging(true)}
+      onDragStart={() => {
+        if (disabled) return;
+        setBodyDragging(true);
+      }}
       onDragEnd={handleDragEnd}
       onDragCancel={() => setBodyDragging(false)}
     >
       <SortableContext items={items.map(item => item.Id)} strategy={strategy}>
         <div className={layout === 'grid' ? gridClassName : 'space-y-1'}>
           {items.map((item, index) => (
-            <SortableItem key={item.Id} id={item.Id} layout={layout}>
+            <SortableItem key={item.Id} id={item.Id} layout={layout} disabled={disabled}>
               {renderItem(item, index)}
             </SortableItem>
           ))}

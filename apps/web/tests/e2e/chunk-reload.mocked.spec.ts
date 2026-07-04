@@ -28,4 +28,30 @@ test.describe('Chunk-load recovery (mocked backend)', () => {
     await page.waitForTimeout(500);
     expect(reloadedAgain).toBe(false);
   });
+
+  test('a third preloadError after the guard window elapses triggers another reload', async ({
+    page,
+  }) => {
+    installBaseMock(page);
+    await login(page);
+
+    const firstReload = page.waitForEvent('load');
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('vite:preloadError', { cancelable: true }));
+    });
+    await firstReload;
+
+    // Backdate the stored reload timestamp past the guard window instead of
+    // waiting 5 real seconds — proves the guard self-expires by elapsed time,
+    // not by a boot-anchored timer.
+    await page.evaluate(() => {
+      sessionStorage.setItem('yaytsa_chunk_preload_reloaded_at', String(Date.now() - 6000));
+    });
+
+    const secondReload = page.waitForEvent('load');
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('vite:preloadError', { cancelable: true }));
+    });
+    await secondReload;
+  });
 });

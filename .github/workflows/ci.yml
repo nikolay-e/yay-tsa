@@ -246,9 +246,39 @@ jobs:
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
 
+  audio-ml-test:
+    name: Audio ML Test Suite
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: services/audio-ml/requirements/test.txt
+
+      - name: Install test dependencies
+        working-directory: services/audio-ml
+        run: pip install -r requirements/test.txt
+
+      - name: Run pytest
+        working-directory: services/audio-ml
+        run: pytest tests/
+
   docker-build-audio-separator:
     name: Build Audio Separator Image
-    needs: [pre-commit]
+    needs: [pre-commit, audio-ml-test]
+    # This image auto-deploys (ArgoCD Image Updater tracks audio-separator in
+    # yay-tsa-production, same as the frontend image), so its own test suite
+    # must pass before an image is pushed — same invariant as
+    # docker-build-frontend above, just scoped to this image's own tests.
+    if: ${{ !cancelled() && needs.pre-commit.result == 'success' && needs.audio-ml-test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

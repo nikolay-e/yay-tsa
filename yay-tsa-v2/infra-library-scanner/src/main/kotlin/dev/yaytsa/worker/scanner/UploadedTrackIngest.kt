@@ -25,6 +25,7 @@ class UploadedTrackIngest(
     ): UploadIngestResult {
         val root = musicPath?.takeIf { it.isNotBlank() }?.let { Path.of(it) }
         if (root == null || !Files.isDirectory(root)) return UploadIngestResult.LibraryRootUnavailable
+        val realRoot = root.toRealPath()
 
         val extension = originalFilename.substringAfterLast('.', "").lowercase()
         val tag = runCatching { AudioFileIO.read(sourceFile.toFile()).tag }.getOrNull()
@@ -36,9 +37,20 @@ class UploadedTrackIngest(
             } else {
                 root.resolve(UPLOADS_FOLDER)
             }
-        Files.createDirectories(targetDir)
-        if (!targetDir.toRealPath().startsWith(root.toRealPath())) {
+        // toRealPath() throws NoSuchFileException on a path that doesn't exist yet, so containment
+        // can only be checked lexically before creation happens. That rejects a "../"-style escape
+        // without ever touching disk. It cannot see a symlink planted at an intermediate segment
+        // (normalize() is purely syntactic) - that case is only detectable after Files.createDirectories
+        // has already materialized something on disk, so we re-verify with toRealPath() below and fail
+        // closed, deleting whatever got created, if the escape only shows up post-creation.
+        if (!targetDir.normalize().startsWith(root.normalize())) {
             log.warn("Rejecting upload whose target directory escapes the library root: {}", targetDir)
+            return UploadIngestResult.NotIngestable
+        }
+        Files.createDirectories(targetDir)
+        if (!targetDir.toRealPath().startsWith(realRoot)) {
+            log.warn("Rejecting upload whose target directory escapes the library root: {}", targetDir)
+            Files.deleteIfExists(targetDir)
             return UploadIngestResult.NotIngestable
         }
 

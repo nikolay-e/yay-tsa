@@ -48,6 +48,7 @@ export function PlaylistDetailPage() {
     data: itemsData,
     isLoading: itemsLoading,
     isError: itemsError,
+    isFetching: itemsFetching,
     refetch: refetchItems,
     isFetchingNextPage,
     isFetchNextPageError,
@@ -58,6 +59,14 @@ export function PlaylistDetailPage() {
   const deletePlaylist = useDeletePlaylist();
   const removeFromPlaylist = useRemoveFromPlaylist();
   const movePlaylistItem = useMovePlaylistItem(id);
+
+  // Entry `Id` is a raw array position echoed back by the backend (see
+  // JellyfinPlaylistsController), not a stable per-track identity. Any positional action
+  // is unsafe the moment the displayed list can be stale relative to the server, so every
+  // such action stays blocked until both the mutation settles AND the refetch it triggers
+  // has actually landed — not just the mutation's own in-flight window.
+  const positionalActionsLocked =
+    removeFromPlaylist.isPending || movePlaylistItem.isPending || itemsFetching;
 
   const tracks = useMemo(() => itemsData?.pages.flatMap(page => page.Items) ?? [], [itemsData]);
   const totalCount = itemsData?.pages[0]?.TotalRecordCount ?? 0;
@@ -239,6 +248,7 @@ export function PlaylistDetailPage() {
           <SortableList
             items={entries}
             onReorder={handleReorder}
+            disabled={positionalActionsLocked}
             renderItem={(entry, index) => (
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
@@ -260,7 +270,7 @@ export function PlaylistDetailPage() {
                   type="button"
                   data-testid="playlist-remove-track"
                   onClick={() => handleRemoveEntry(entry, index)}
-                  disabled={removeFromPlaylist.isPending}
+                  disabled={positionalActionsLocked}
                   aria-label={`Remove ${entry.track.Name} from playlist`}
                   className="text-text-secondary hover:text-error shrink-0 rounded-full p-2 transition-colors disabled:opacity-50"
                 >

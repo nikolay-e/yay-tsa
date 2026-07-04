@@ -49,12 +49,17 @@ export function useRescanLibrary() {
 }
 
 export function useLibraryTotalCount() {
+  const isAdmin = useIsAdmin();
   return useAuthenticatedQuery(
     [...LIBRARY_TOTAL_COUNT_QUERY_KEY],
     async client => new ItemsService(client).getTracks({ limit: 1 }),
     {
       staleTime: 60 * 1000,
-      refetchInterval: query => (query.state.data?.TotalRecordCount === 0 ? 10_000 : false),
+      // Non-admins still need the resolved count once (HomePage/EmptyLibraryGuidance
+      // branch on it for everyone), but only admins can act on a live-updating count
+      // (via the rescan button), so only admins get the indefinite 10s poll.
+      refetchInterval: query =>
+        isAdmin && query.state.data?.TotalRecordCount === 0 ? 10_000 : false,
     }
   );
 }

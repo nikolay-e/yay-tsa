@@ -137,7 +137,10 @@ test.describe('Playlists (mocked backend)', () => {
     installPlaylistsMock(page);
     await login(page);
 
-    await page.getByTestId('nav-playlists').click();
+    // Playlists now lives in both the (CSS-hidden-on-desktop) bottom tab bar and the sidebar, so
+    // the bare test id is ambiguous — scope to the sidebar, which is what this desktop-viewport
+    // test actually exercises.
+    await page.getByTestId('sidebar').getByTestId('nav-playlists').click();
     await expect(page).toHaveURL('/playlists');
 
     await expect(page.getByTestId('playlist-card')).toHaveCount(2);
@@ -241,10 +244,117 @@ test.describe('Playlists (mocked backend)', () => {
     await page.getByTestId('add-to-playlist-create-new').click();
     await page.getByTestId('playlist-name-input').fill('Fresh Finds');
     await page.getByTestId('playlist-create-submit').click();
-    await expect(page.getByText('Created playlist "Fresh Finds"')).toBeVisible();
+
+    // Only the "add track to new playlist" toast should show — not also the generic
+    // "Created playlist" one, otherwise one user action reads as two confirmations.
+    await expect(page.getByText('Added "Cascade" to the new playlist')).toBeVisible();
+    await expect(page.getByText('Created playlist "Fresh Finds"')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(1);
 
     await page.goto('/playlists');
     const newCard = page.getByTestId('playlist-card').filter({ hasText: 'Fresh Finds' });
     await expect(newCard).toContainText('1 track');
+  });
+
+  test('a bare "create playlist" (no track) still shows its own toast', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.goto('/playlists');
+    await page.getByTestId('playlist-create-button').click();
+    await page.getByTestId('playlist-name-input').fill('Solo Create');
+    await page.getByTestId('playlist-create-submit').click();
+
+    await expect(page.getByText('Created playlist "Solo Create"')).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(1);
+  });
+
+  test('blocks a second remove click during the gap between mutation success and refetch', async ({
+    page,
+  }) => {
+    const state = installPlaylistsMock(page);
+    await login(page);
+
+    // The DELETE itself resolves fast — the bug is the window AFTER that, while the
+    // invalidated items query is still refetching with the stale (pre-removal) positions
+    // on screen. Only the refetch (2nd+ GET for this playlist's items) is delayed here so
+    // the test actually exercises that gap rather than the mutation's own isPending window.
+    let deleteRequests = 0;
+    let itemsGetCount = 0;
+    await page.route(/\/Playlists\/[^/]+\/Items(\?|$)/, async (route: Route) => {
+      const request = route.request();
+      if (request.method() === 'DELETE') {
+        deleteRequests += 1;
+        const url = new URL(request.url());
+        const playlistId = url.pathname.split('/Playlists/')[1]!.split('/')[0]!;
+        const playlist = state.playlists.find(p => p.Id === playlistId);
+        if (playlist) {
+          const removed = new Set(
+            (url.searchParams.get('EntryIds')?.split(',') ?? []).map(entry => Number(entry))
+          );
+          playlist.itemIds = playlist.itemIds.filter((_, index) => !removed.has(index));
+        }
+        return fulfillJson(route, '{}');
+      }
+      if (request.method() === 'GET') {
+        itemsGetCount += 1;
+        if (itemsGetCount > 1) {
+          await new Promise(resolve => setTimeout(resolve, 600));
+        }
+      }
+      return route.fallback();
+    });
+
+    await page.goto('/playlists/pl1');
+    const removeButton = page.getByRole('button', {
+      name: 'Remove Borealis from playlist',
+      exact: true,
+    });
+
+    await removeButton.click();
+    await expect(removeButton).toBeDisabled();
+    await removeButton.click({ force: true });
+
+    await expect(page.getByTestId('track-row')).toHaveCount(1);
+    expect(deleteRequests).toBe(1);
+  });
+
+  test('disables the drag handle while a reorder mutation is pending', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.route(/\/Playlists\/[^/]+\/Items\/[^/]+\/Move\/\d+/, async (route: Route) => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return route.fallback();
+    });
+
+    await page.goto('/playlists/pl1');
+    const firstHandle = page.getByRole('button', { name: 'Drag to reorder', exact: true }).first();
+    await firstHandle.focus();
+    await page.keyboard.press('Space');
+    await expect(page.locator('body')).toHaveClass(/dragging/);
+    await page.waitForTimeout(200);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Space');
+
+    await expect(firstHandle).toBeDisabled();
+  });
+});
+
+// Regression for the bug where BOTTOM_TAB_ITEMS filtered out /playlists, leaving mobile users
+// (sidebar hidden below md:) with no way to reach a fully built, working feature.
+test.describe('Playlists (mocked backend) — mobile bottom nav', () => {
+  test.use({ viewport: { width: 412, height: 915 }, hasTouch: true });
+
+  test('playlists is reachable via the bottom tab bar on a mobile viewport', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await expect(page.getByTestId('sidebar')).toBeHidden();
+    await page.getByTestId('bottom-tab-bar').getByTestId('nav-playlists').click();
+
+    await expect(page).toHaveURL('/playlists');
+    await expect(page.getByTestId('playlist-card')).toHaveCount(2);
   });
 });

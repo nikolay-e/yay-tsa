@@ -35,8 +35,14 @@ export function CreatePlaylistModal({
       { name: trimmedName, itemIds },
       {
         onSuccess: playlist => {
-          toast.add('success', `Created playlist "${trimmedName}"`);
-          onCreated?.(playlist);
+          // When the caller supplies `onCreated`, it's composing this modal into a larger
+          // flow (e.g. "add track to a new playlist") and owns the resulting toast/messaging
+          // itself — showing our own generic toast on top would double up on one user action.
+          if (onCreated) {
+            onCreated(playlist);
+          } else {
+            toast.add('success', `Created playlist "${trimmedName}"`);
+          }
           handleClose();
         },
         onError: () => {
