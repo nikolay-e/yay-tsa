@@ -568,17 +568,34 @@ class JellyfinItemsController(
         }
         val seen = out.mapTo(mutableSetOf()) { it.id.value }
 
-        if (out.size < limit) {
-            // Random sample for users with empty affinity+favorites.
-            // Anything is better than the alphabetical SortName fallback —
-            // a homepage opening with "#1, '(515)", '(D)eath'..." reads as a bug.
-            libraryQueries.browseTracksRandom(limit - out.size).forEach { track ->
-                if (out.size >= limit) return@forEach
-                if (seen.add(track.id.value)) out.add(track)
-            }
+        // Random sample for users with empty affinity+favorites — anything is better than the
+        // alphabetical SortName fallback (a homepage opening with "#1, '(515)", '(D)eath'..."
+        // reads as a bug). musicSurfaceFilter (audiobooks/red-lines) runs AFTER this, so a random
+        // draw can come back under `limit` post-filter; retry with fresh draws until the filtered
+        // count catches up, the library is exhausted, or the attempt cap is hit — otherwise a
+        // library with enough non-music genres mixed in silently short-pages every request.
+        var filtered = musicSurfaceFilter.filter(out, userId)
+        var attempt = 0
+        while (filtered.size < limit && attempt < MAX_RANDOM_FILL_ATTEMPTS) {
+            val needed = limit - out.size
+            if (needed <= 0) break
+            val drawn = libraryQueries.browseTracksRandom(needed)
+            if (drawn.isEmpty()) break
+            val addedAny =
+                drawn.fold(false) { added, track ->
+                    if (seen.add(track.id.value)) {
+                        out.add(track)
+                        true
+                    } else {
+                        added
+                    }
+                }
+            filtered = musicSurfaceFilter.filter(out, userId)
+            attempt++
+            if (!addedAny) break
         }
 
-        return musicSurfaceFilter.filter(out, userId).take(limit)
+        return filtered.take(limit)
     }
 
     private fun Artist.toBaseItem(albumCount: Int? = null) =
@@ -595,5 +612,9 @@ class JellyfinItemsController(
         if (isEmpty()) return emptyList()
         val counts = libraryQueries.countAlbumsByArtistIds(map { it.id }.toSet())
         return map { it.toBaseItem(albumCount = counts[it.id] ?: 0) }
+    }
+
+    private companion object {
+        private const val MAX_RANDOM_FILL_ATTEMPTS = 5
     }
 }
