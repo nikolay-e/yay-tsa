@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { type AudioItem, type MusicAlbum, type MusicArtist } from '@yay-tsa/core';
+import { type AudioItem } from '@yay-tsa/core';
 import { useInfiniteAlbums, useInfiniteArtists, useInfiniteTracks } from '@/features/library/hooks';
 import { AlbumGrid, ArtistCard, TrackList, TrackListRow } from '@/features/library/components';
 import { useReorderFavorites } from '@/features/library/hooks/useReorderFavorites';
@@ -16,7 +16,6 @@ import {
   useIsPlaying,
 } from '@/features/player/stores/player.store';
 import { cn } from '@/shared/utils/cn';
-import { AlbumCard } from '@/features/library/components/AlbumCard';
 import { FAVORITES_TEST_IDS } from '@/shared/testing/test-ids';
 
 type FavoriteTab = 'albums' | 'artists' | 'tracks';
@@ -84,8 +83,6 @@ export function FavoritesPage() {
 function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { activeOption } = sortState;
-  const reorderMutation = useReorderFavorites();
-  const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
   const {
     data,
@@ -105,10 +102,6 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
 
   const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
-
-  const handleReorder = (reordered: MusicAlbum[]) => {
-    reorderMutation.mutate(reordered.map(a => a.Id));
-  };
 
   const handlePlayAlbum = (album: { Id: string }) => {
     playAlbum(album.Id);
@@ -144,25 +137,7 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
 
   return (
     <>
-      {isCustomOrder ? (
-        <SortableList
-          items={albums}
-          onReorder={handleReorder}
-          layout="grid"
-          gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-          renderItem={album => (
-            <AlbumCard
-              album={album}
-              isPlaying={false}
-              onPlay={() => {
-                playAlbum(album.Id);
-              }}
-            />
-          )}
-        />
-      ) : (
-        <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
-      )}
+      <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
@@ -178,8 +153,6 @@ function FavoriteAlbums({ sortState }: Readonly<{ sortState: SortState }>) {
 
 function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
   const { activeOption } = sortState;
-  const reorderMutation = useReorderFavorites();
-  const isCustomOrder = activeOption.sortBy === 'FavoritePosition';
 
   const {
     data,
@@ -199,10 +172,6 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
 
   const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
-
-  const handleReorder = (reordered: MusicArtist[]) => {
-    reorderMutation.mutate(reordered.map(a => a.Id));
-  };
 
   const handleLoadMore = () => {
     fetchNextPage();
@@ -234,21 +203,11 @@ function FavoriteArtists({ sortState }: Readonly<{ sortState: SortState }>) {
 
   return (
     <>
-      {isCustomOrder ? (
-        <SortableList
-          items={artists}
-          onReorder={handleReorder}
-          layout="grid"
-          gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-          renderItem={artist => <ArtistCard artist={artist} />}
-        />
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {artists.map(artist => (
-            <ArtistCard key={artist.Id} artist={artist} />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {artists.map(artist => (
+          <ArtistCard key={artist.Id} artist={artist} />
+        ))}
+      </div>
       <InfiniteScrollFooter
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}

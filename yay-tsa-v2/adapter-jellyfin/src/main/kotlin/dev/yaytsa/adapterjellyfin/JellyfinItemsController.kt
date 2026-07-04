@@ -132,8 +132,14 @@ class JellyfinItemsController(
             return ResponseEntity.ok(ItemsResult(withResume(items, uid), total, startIndex))
         }
 
-        // Handle favorites. Favorites live in the in-memory preferences aggregate, so sort there
-        // and batch-load only the requested page's tracks — never one getTrack() per favorite.
+        // Type-based browsing selector, needed here because the favorites branch below collapses to
+        // albums/artists depending on the requested type.
+        val types = includeItemTypes?.split(",")?.map { it.trim() } ?: emptyList()
+
+        // Handle favorites. Favorites are tracks; sort them in the in-memory preferences aggregate.
+        // When the client asks for MusicAlbum / MusicArtist (Favorites → Albums/Artists tabs), collapse
+        // the favorite tracks to their distinct albums / album-artists — a favorited song implies its
+        // album and artist — instead of returning the songs themselves.
         if (isFavorite == true && uid != null) {
             val favorites = preferencesQueries.find(UserId(uid))?.favorites ?: emptyList()
             // Drop favorites whose track has vanished (deleted/renamed) via a single existence
@@ -151,15 +157,37 @@ class JellyfinItemsController(
                     }
                     else -> resolvable.sortedBy { it.position }
                 }.let { if (ascending) it else it.reversed() }
-            val pageFavs = ordered.drop(startIndex.coerceAtLeast(0)).take(limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE))
+            val pageStart = startIndex.coerceAtLeast(0)
+            val pageSize = limit.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
+
+            if ("MusicAlbum" in types || "MusicArtist" in types) {
+                val wantAlbums = "MusicAlbum" in types
+                val favTracks = libraryQueries.getTracksByIds(ordered.map { EntityId(it.trackId.value) })
+                var ids = favTracks.mapNotNull { if (wantAlbums) it.albumId else it.albumArtistId }.distinct()
+                // "Name" sorts by the album/artist's own name; every other option keeps the order the
+                // favorite tracks were collapsed in (position / date-liked).
+                if (sortBy == "SortName") {
+                    val names = libraryQueries.getEntityNamesByIds(ids.toSet())
+                    ids = ids.sortedBy { (names[it] ?: "").lowercase() }.let { if (ascending) it else it.reversed() }
+                }
+                val pageIds = ids.drop(pageStart).take(pageSize)
+                val items =
+                    if (wantAlbums) {
+                        val albums = libraryQueries.getAlbumsByIds(pageIds)
+                        val albumNames = albumArtistNames(albums)
+                        albums.map { it.toBaseItem(favTrackIds, albumNames) }
+                    } else {
+                        libraryQueries.getArtistsByIds(pageIds).withAlbumCounts()
+                    }
+                return ResponseEntity.ok(ItemsResult(items, ids.size, startIndex))
+            }
+
+            val pageFavs = ordered.drop(pageStart).take(pageSize)
             val pageTracks = libraryQueries.getTracksByIds(pageFavs.map { EntityId(it.trackId.value) })
             val trackLookups = tracksLookups(pageTracks)
             val items = withResume(pageTracks.map { it.toBaseItem(favTrackIds, trackLookups) }, uid)
             return ResponseEntity.ok(ItemsResult(items, resolvable.size, startIndex))
         }
-
-        // Handle type-based browsing
-        val types = includeItemTypes?.split(",")?.map { it.trim() } ?: emptyList()
 
         if (parentId != null) {
             val parentEntity = EntityId(parentId)
