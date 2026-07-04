@@ -2,6 +2,7 @@ import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import {
   Home,
+  Search,
   Disc3,
   Users,
   Heart,
@@ -36,6 +37,7 @@ type NavItem = Readonly<{
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home, testId: 'nav-home' },
+  { href: '/search', label: 'Search', icon: Search, testId: 'nav-search' },
   { href: '/favorites', label: 'Favorites', icon: Heart, testId: 'nav-favorites' },
   { href: '/artists', label: 'Artists', icon: Users, testId: 'nav-artists' },
   { href: '/albums', label: 'Albums', icon: Disc3, testId: 'nav-albums' },
