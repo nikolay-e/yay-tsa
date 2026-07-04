@@ -118,6 +118,14 @@ class JellyfinPlaylistsController(
         val playlist =
             playlistQueries.find(PlaylistId(playlistId))
                 ?: return ResponseEntity.notFound().build()
+        // BOLA guard (OWASP API1:2023): this is a query, so it never goes through
+        // PlaylistHandler's `snapshot.owner != ctx.userId` check that every mutating
+        // command gets. Without this, any authenticated user could read any other
+        // user's private playlist tracks just by knowing/guessing the playlist UUID.
+        // 404 (not 403) so a private playlist's existence isn't confirmed to non-owners.
+        if (!playlist.isPublic && playlist.owner.value != principal?.name) {
+            return ResponseEntity.notFound().build()
+        }
 
         val uid = principal?.name
         val favTrackIds =

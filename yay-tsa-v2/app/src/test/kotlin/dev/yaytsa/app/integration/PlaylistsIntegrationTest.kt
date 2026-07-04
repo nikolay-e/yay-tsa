@@ -146,4 +146,67 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(200, list.response.status)
         assertTrue(list.response.contentAsString.contains(name), "created playlist must appear in the Playlist listing")
     }
+
+    private fun seedSecondUser(): String {
+        val otherUserId = UUID.randomUUID().toString()
+        val otherToken = UUID.randomUUID().toString()
+        val uid = UserId(otherUserId)
+        val now = Instant.now()
+        authUseCases.execute(
+            CreateUser(uid, "pl2-${otherUserId.take(8)}", "testpassword", "Test2", null, false),
+            CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL),
+        )
+        authUseCases.execute(
+            CreateApiToken(uid, ApiTokenId(UUID.randomUUID().toString()), otherToken, DeviceId("test2"), "Test2", null),
+            CommandContext(uid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion(1)),
+        )
+        return otherToken
+    }
+
+    // Regression (BOLA / OWASP API1:2023): getPlaylistItems is a query, so it never went
+    // through PlaylistHandler's `snapshot.owner != ctx.userId` check that every mutating
+    // command gets — any authenticated user could read any other user's private playlist
+    // tracks just by knowing the playlist UUID. Confirmed live in production before the fix.
+    @Test
+    fun `a private playlist's tracks are not readable by a different authenticated user`() {
+        val otherToken = seedSecondUser()
+        val create = post("/Playlists", mapOf("Name" to "Private Mix", "UserId" to userId, "IsPublic" to false), token)
+        assertEquals(200, create.response.status)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val ownerRead = get("/Playlists/$playlistId/Items", token)
+        assertEquals(200, ownerRead.response.status, "owner must still be able to read their own private playlist")
+
+        val strangerRead = get("/Playlists/$playlistId/Items", otherToken)
+        assertEquals(404, strangerRead.response.status, "a different user must not see a private playlist's tracks")
+    }
+
+    @Test
+    fun `a public playlist's tracks ARE readable by a different authenticated user`() {
+        val otherToken = seedSecondUser()
+        val create = post("/Playlists", mapOf("Name" to "Public Mix", "UserId" to userId, "IsPublic" to true), token)
+        assertEquals(200, create.response.status)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val strangerRead = get("/Playlists/$playlistId/Items", otherToken)
+        assertEquals(200, strangerRead.response.status, "a public playlist must remain readable by other users")
+    }
+
+    // Regression (BOLA / OWASP API1:2023): the /Items/{id} playlist fallback branch in
+    // JellyfinItemsController.getItem returned name/childCount for ANY playlist id with no
+    // owner/isPublic check — metadata-only leak (no track list), but still a genuine
+    // unauthorized disclosure of a private resource's existence and name.
+    @Test
+    fun `GET Items by id does not leak a private playlist's metadata to a different user`() {
+        val otherToken = seedSecondUser()
+        val create = post("/Playlists", mapOf("Name" to "Secret Metadata Mix", "UserId" to userId, "IsPublic" to false), token)
+        assertEquals(200, create.response.status)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val ownerRead = get("/Items/$playlistId", token)
+        assertEquals(200, ownerRead.response.status, "owner must still resolve their own private playlist")
+
+        val strangerRead = get("/Items/$playlistId", otherToken)
+        assertEquals(404, strangerRead.response.status, "a different user must not learn a private playlist's name/metadata")
+    }
 }

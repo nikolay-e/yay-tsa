@@ -718,12 +718,24 @@ class SubsonicController(
         )
     }
 
+    // BOLA guard (OWASP API1:2023): playlistQueries.find(id) is a bare read that never goes
+    // through PlaylistHandler's `snapshot.owner != ctx.userId` check (that check only fires
+    // for mutating commands). Every read path that can return a playlist's name/track-list/
+    // metadata to the wire must call this first, or any authenticated user can read any other
+    // user's private playlist by guessing/enumerating its UUID.
+    private fun visibleTo(
+        playlist: PlaylistAggregate,
+        principal: Principal,
+    ): Boolean = playlist.isPublic || playlist.owner.value == principal.name
+
     @GetMapping("/getPlaylist", "/getPlaylist.view")
     fun getPlaylist(
         @RequestParam id: String,
         @RequestParam(required = false) f: String?,
+        principal: Principal,
     ): ResponseEntity<String> {
         val playlist = playlistQueries.find(PlaylistId(id)) ?: return notFound("Playlist", id, f)
+        if (!visibleTo(playlist, principal)) return notFound("Playlist", id, f)
         return responseWriter.write(ok { copy(playlist = playlistDetail(playlist)) }, f)
     }
 
@@ -743,6 +755,7 @@ class SubsonicController(
                 createNewPlaylist(userId, name, songId.orEmpty())
             }
         val created = playlistQueries.find(targetId) ?: return notFound("Playlist", targetId.value, f)
+        if (!visibleTo(created, principal)) return notFound("Playlist", targetId.value, f)
         return responseWriter.write(ok { copy(playlist = playlistDetail(created)) }, f)
     }
 

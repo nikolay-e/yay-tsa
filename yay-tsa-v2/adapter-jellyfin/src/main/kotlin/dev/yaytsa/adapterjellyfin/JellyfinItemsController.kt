@@ -432,7 +432,14 @@ class JellyfinItemsController(
             track?.toBaseItem(favTrackIds, tracksLookups(listOf(track)))
                 ?: libraryQueries.getAlbum(EntityId(itemId))?.let { it.toBaseItem(favTrackIds, albumArtistNames(listOf(it))) }
                 ?: libraryQueries.getArtist(EntityId(itemId))?.toBaseItem()
-                ?: runCatching { playlistQueries.find(PlaylistId(itemId)) }.getOrNull()?.toBaseItem()
+                // BOLA guard (OWASP API1:2023): this is a query, so it never goes through
+                // PlaylistHandler's `snapshot.owner != ctx.userId` check — without the
+                // isPublic/owner filter, any authenticated user could learn the name and
+                // track count of any other user's private playlist just by its UUID.
+                ?: runCatching { playlistQueries.find(PlaylistId(itemId)) }
+                    .getOrNull()
+                    ?.takeIf { it.isPublic || it.owner.value == uid }
+                    ?.toBaseItem()
                 ?: return ResponseEntity.notFound().build()
 
         return ResponseEntity.ok(withResume(listOf(item), uid).first())

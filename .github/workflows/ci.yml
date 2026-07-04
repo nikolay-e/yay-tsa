@@ -466,3 +466,33 @@ jobs:
           # defaults true). The previous standalone "Gate on ZAP HIGH findings" step
           # duplicated that gate and ignored zap-rate-limited-paths, defeating autoqa
           # #7; removed so a rate-limited-endpoint HIGH FP can be tuned in one place.
+
+          # Zero-FP by construction (M1-M6 checks: mojibake, tofu glyphs, adjacent
+          # duplicates, filename-leak titles, placeholder text, degenerate rows) —
+          # promote from advisory to a real gate instead of leaving every P0 finding
+          # silently informational.
+          mechanical-fail-on-violations: 'true'
+
+          # Scores existing security headers (CSP, HSTS, X-Frame-Options, etc.) —
+          # already hardened in nginx.conf.template, so this should pass at B+ or
+          # better; catches header regressions the crawler/ZAP don't check for.
+          observatory-enabled: 'true'
+          observatory-fail-grade: 'B'
+
+          # Chaos/random-interaction testing hunting crashes, uncaught JS errors and
+          # 5xx that scripted crawling won't stumble into. Advisory only (default
+          # monkey-fail-on-violations: false) — exploration is inherently variable,
+          # so this surfaces findings without blocking on run-to-run noise.
+          monkey-enabled: 'true'
+          monkey-duration-ms: '180000'
+
+          # BOLA / OWASP API1:2023 two-token matrix. This is what surfaced a real
+          # production vulnerability (getPlaylistItems leaked any private playlist's
+          # tracks to any authenticated user, fixed alongside this change) — verifies
+          # the fix holds and catches any future regression on any owned resource
+          # added to authz-resource-paths. user2/user3 are dedicated QA-only accounts
+          # (never real user data); the resource is a private playlist owned by user2.
+          authz-enabled: 'true'
+          authz-user-a-body: '{"Username":"${{ vars.QA_USERNAME_2 }}","Pw":"${{ secrets.QA_PASSWORD_2 }}"}'
+          authz-user-b-body: '{"Username":"${{ vars.QA_USERNAME_3 }}","Pw":"${{ secrets.QA_PASSWORD_3 }}"}'
+          authz-resource-paths: '/api/Playlists/ae8ca971-52c7-471c-952d-14d3516ec209/Items'

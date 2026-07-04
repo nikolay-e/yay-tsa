@@ -805,6 +805,62 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
         return body.get("playlist").get("id").asText()
     }
 
+    private fun seedSecondSubsonicUser(): Pair<String, String> {
+        val otherUsername = "subsonic2-${UUID.randomUUID().toString().take(8)}"
+        val otherPassword = "testpass456"
+        val otherUid = UserId(UUID.randomUUID().toString())
+        val now = Instant.now()
+        val passwordHash = BCrypt.hashpw(otherPassword, BCrypt.gensalt(4))
+        val createCmd = CreateUser(otherUid, otherUsername, passwordHash, null, null, false)
+        val ctx = CommandContext(otherUid, ProtocolId("JELLYFIN"), now, IdempotencyKey(UUID.randomUUID().toString()), AggregateVersion.INITIAL)
+        val seeded = authUseCases.execute(createCmd, ctx)
+        check(seeded is CommandResult.Success) { "Seed second user failed: $seeded" }
+        return otherUsername to otherPassword
+    }
+
+    private fun restGetAs(
+        user: String,
+        pass: String,
+        path: String,
+        vararg params: Pair<String, String>,
+    ): MvcResult {
+        val builder = MockMvcRequestBuilders.get("/rest/$path")
+        builder
+            .param("u", user)
+            .param("p", pass)
+            .param("v", "1.16.1")
+            .param("c", "test")
+        params.forEach { (key, value) -> builder.param(key, value) }
+        return mockMvc.perform(builder).andReturn()
+    }
+
+    // Regression (BOLA / OWASP API1:2023): getPlaylist called playlistQueries.find(id)
+    // directly with no principal at all -- any authenticated user could read any other
+    // user's private playlist's full track list by guessing/enumerating its UUID.
+    @Test
+    fun `getPlaylist does not leak a private playlist to a different user`() {
+        val playlistId = createPlaylistWithSongs("pl-private-${UUID.randomUUID().toString().take(6)}", listOf(trackIds[0]))
+        val (otherUser, otherPass) = seedSecondSubsonicUser()
+
+        val ownerRead = restGetAs(username, password, "getPlaylist", "id" to playlistId)
+        assertEquals("ok", xmlRoot(ownerRead).getAttribute("status"), "owner must still read their own playlist")
+
+        val strangerRead = restGetAs(otherUser, otherPass, "getPlaylist", "id" to playlistId)
+        assertEquals(70, xmlErrorCode(strangerRead), "a different user must not read a private playlist")
+    }
+
+    // Regression: createPlaylist's redefine-content path skips both mutating commands (which
+    // carry the domain-level owner check) when the target playlist is already empty and no
+    // songId is passed, falling through to the same unguarded read as getPlaylist.
+    @Test
+    fun `createPlaylist redefine path does not leak an empty private playlist to a different user`() {
+        val playlistId = createPlaylistWithSongs("pl-empty-private-${UUID.randomUUID().toString().take(6)}", emptyList())
+        val (otherUser, otherPass) = seedSecondSubsonicUser()
+
+        val strangerRedefine = restGetAs(otherUser, otherPass, "createPlaylist", "playlistId" to playlistId)
+        assertEquals(70, xmlErrorCode(strangerRedefine), "redefining someone else's empty playlist must not disclose it")
+    }
+
     @Test
     fun `createPlaylist returns playlist detail with entries`() {
         val playlistId = createPlaylistWithSongs("pl-create-${UUID.randomUUID().toString().take(6)}", listOf(trackIds[0], trackIds[1]))
