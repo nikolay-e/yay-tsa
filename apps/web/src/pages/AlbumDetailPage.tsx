@@ -66,7 +66,12 @@ export function AlbumDetailPage() {
   const isLoading = albumLoading || tracksLoading;
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <>
+        <h1 className="sr-only">Album</h1>
+        <LoadingSpinner />
+      </>
+    );
   }
 
   if (albumError || tracksError) {

@@ -77,7 +77,12 @@ export function PlaylistDetailPage() {
   );
 
   if (playlistLoading || itemsLoading) {
-    return <LoadingSpinner />;
+    return (
+      <>
+        <h1 className="sr-only">Playlist</h1>
+        <LoadingSpinner />
+      </>
+    );
   }
 
   if (playlistError || itemsError) {

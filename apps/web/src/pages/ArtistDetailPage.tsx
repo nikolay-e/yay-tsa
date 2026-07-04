@@ -40,7 +40,12 @@ export function ArtistDetailPage() {
   const isLoading = artistLoading || albumsLoading;
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <>
+        <h1 className="sr-only">Artist</h1>
+        <LoadingSpinner />
+      </>
+    );
   }
 
   if (artistError || albumsError) {
