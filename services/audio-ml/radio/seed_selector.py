@@ -31,19 +31,21 @@ class SeedSelector:
         min_distances[first_idx] = -np.inf
 
         for _ in range(1, num_seeds):
-            scores = min_distances.copy()
-            scores[scores < 0] = -np.inf
+            # Only an explicit -inf (set below for already-picked indices) means "excluded".
+            # A finite negative value on an UNPICKED index is floating-point noise (normalized
+            # identical/near-identical embeddings can push cosine similarity fractionally above
+            # 1.0), not a real exclusion signal - clamp it to 0 instead of treating it as -inf,
+            # or every remaining candidate can get wrongly excluded and either crash (nothing
+            # left to take np.max over) or silently return fewer than num_seeds.
+            excluded = np.isneginf(min_distances)
+            if excluded.all():
+                break
+            scores = np.where(excluded, -np.inf, np.maximum(min_distances, 0.0))
 
             scaled = scores / max(temperature, 1e-6)
-            finite = scaled[scaled > -np.inf]
-            # Identical (or floating-point-indistinguishable) embeddings can push every
-            # remaining candidate's self-similarity fractionally above 1.0, making every
-            # "distance" negative and thus -inf above — no candidate is left to sample.
-            if finite.size == 0:
-                break
-            scaled = scaled - np.max(finite)
+            scaled = scaled - np.max(scaled[~excluded])
             exp_scores = np.exp(np.clip(scaled, -50, 50))
-            exp_scores[min_distances < 0] = 0.0
+            exp_scores[excluded] = 0.0
 
             total = exp_scores.sum()
             if total < 1e-12:
