@@ -2,11 +2,13 @@ package dev.yaytsa.infranotifications.scrobble
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import dev.yaytsa.application.auth.AuthQueries
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.persistence.playback.entity.PlayHistoryEntity
 import dev.yaytsa.persistence.playback.jpa.PlayHistoryJpaRepository
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.UserId
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -28,6 +30,7 @@ import java.util.UUID
 class ListenBrainzScrobbleSubmitter(
     private val playHistoryJpa: PlayHistoryJpaRepository,
     private val libraryQuery: LibraryQueryPort,
+    private val authQueries: AuthQueries,
     private val clock: Clock,
     private val meterRegistry: MeterRegistry,
     @Value("\${yaytsa.scrobbling.listenbrainz.token:}") private val token: String,
@@ -51,6 +54,16 @@ class ListenBrainzScrobbleSubmitter(
     @Volatile
     private var warnedMisconfigured = false
 
+    @Volatile
+    private var warnedUserNotFound = false
+
+    // play_history.user_id stores the internal UserId (a UUID minted at account creation), not
+    // the Jellyfin login name — so the configured username must be resolved to that UserId before
+    // it can be used to query play_history. Usernames aren't renamed at runtime in this system, so
+    // caching the first successful resolution for the process lifetime is safe.
+    @Volatile
+    private var resolvedUserId: UserId? = null
+
     @Scheduled(fixedDelayString = "\${yaytsa.scrobbling.listenbrainz.poll-interval-ms:30000}")
     fun poll() {
         try {
@@ -59,6 +72,24 @@ class ListenBrainzScrobbleSubmitter(
             countFailed("error")
             log.warn("ListenBrainz scrobble cycle failed, will retry next tick", ex)
         }
+    }
+
+    private fun resolveConfiguredUserId(): UserId? {
+        resolvedUserId?.let { return it }
+        val user = authQueries.findByUsername(username)
+        if (user == null) {
+            if (!warnedUserNotFound) {
+                warnedUserNotFound = true
+                log.warn(
+                    "ListenBrainz scrobbling configured username '{}' does not match any known user; skipping submission",
+                    username,
+                )
+            }
+            return null
+        }
+        warnedUserNotFound = false
+        resolvedUserId = user.id
+        return user.id
     }
 
     private fun submitPendingScrobbles() {
@@ -74,12 +105,13 @@ class ListenBrainzScrobbleSubmitter(
             }
             return
         }
+        val userId = resolveConfiguredUserId() ?: return
         val now = clock.now()
         if (now.isBefore(retryNotBefore)) return
         val cutoff = now.minus(Duration.ofDays(maxAgeDays))
         val pending =
             playHistoryJpa.findByUserIdAndCompletedTrueAndScrobbledFalseAndRecordedAtAfterOrderByRecordedAtAsc(
-                username,
+                userId.value,
                 cutoff,
                 PageRequest.of(0, batchSize),
             )

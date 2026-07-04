@@ -1,8 +1,11 @@
 package dev.yaytsa.infranotifications.scrobble
 
+import dev.yaytsa.application.auth.AuthQueries
+import dev.yaytsa.application.auth.port.UserRepository
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.testkit.InMemoryLibraryQueryPort
+import dev.yaytsa.testkit.InMemoryUserRepository
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -26,4 +29,10 @@ class ScrobbleTestApplication {
 
     @Bean
     fun libraryQueryPort(): LibraryQueryPort = InMemoryLibraryQueryPort()
+
+    @Bean
+    fun userRepository(): UserRepository = InMemoryUserRepository()
+
+    @Bean
+    fun authQueries(userRepository: UserRepository): AuthQueries = AuthQueries(userRepository)
 }

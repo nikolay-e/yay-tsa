@@ -2,13 +2,17 @@ package dev.yaytsa.infranotifications.scrobble
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.sun.net.httpserver.HttpServer
+import dev.yaytsa.application.auth.port.UserRepository
 import dev.yaytsa.application.library.port.LibraryQueryPort
+import dev.yaytsa.domain.auth.UserAggregate
 import dev.yaytsa.domain.library.Album
 import dev.yaytsa.domain.library.Artist
 import dev.yaytsa.domain.library.Track
 import dev.yaytsa.persistence.playback.entity.PlayHistoryEntity
 import dev.yaytsa.persistence.playback.jpa.PlayHistoryJpaRepository
+import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.UserId
 import dev.yaytsa.testkit.InMemoryLibraryQueryPort
 import io.micrometer.core.instrument.MeterRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -51,6 +55,8 @@ class ListenBrainzScrobbleIntegrationTest {
 
     @Autowired lateinit var libraryQueryPort: LibraryQueryPort
 
+    @Autowired lateinit var userRepository: UserRepository
+
     @Autowired lateinit var jdbc: JdbcTemplate
 
     @Autowired lateinit var meterRegistry: MeterRegistry
@@ -65,6 +71,12 @@ class ListenBrainzScrobbleIntegrationTest {
     )
 
     companion object {
+        // The configured "username" property is a Jellyfin login name; play_history.user_id
+        // stores the internal UserId (a UUID). These two constants are deliberately unrelated
+        // strings so tests fail if the submitter ever regresses to comparing them directly.
+        const val USER_1_ID = "11111111-1111-1111-1111-111111111111"
+        const val USER_2_ID = "22222222-2222-2222-2222-222222222222"
+
         private val requests = ConcurrentLinkedQueue<RecordedRequest>()
         private val nextStatus = AtomicInteger(200)
 
@@ -118,6 +130,24 @@ class ListenBrainzScrobbleIntegrationTest {
         library.artists.clear()
         requests.clear()
         nextStatus.set(200)
+        // Configured property is "yaytsa.scrobbling.listenbrainz.username=user-1" (see
+        // @TestPropertySource) — seed the user the submitter must resolve that name to.
+        userRepository.save(
+            UserAggregate(
+                id = UserId(USER_1_ID),
+                username = "user-1",
+                passwordHash = "unused",
+                displayName = null,
+                email = null,
+                isAdmin = false,
+                isActive = true,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now(),
+                lastLoginAt = null,
+                apiTokens = emptyList(),
+                version = AggregateVersion.INITIAL,
+            ),
+        )
     }
 
     private fun seedLibraryTrack(
@@ -178,7 +208,7 @@ class ListenBrainzScrobbleIntegrationTest {
         trackId: EntityId,
         startedAt: Instant = Instant.now().minusSeconds(600),
         completed: Boolean = true,
-        userId: String = "user-1",
+        userId: String = USER_1_ID,
     ): UUID =
         playHistoryJpa
             .save(
@@ -230,12 +260,27 @@ class ListenBrainzScrobbleIntegrationTest {
     @Test
     fun `another user's completed play is never submitted or marked scrobbled`() {
         val trackId = seedLibraryTrack()
-        val otherUserPlayId = insertPlay(trackId, userId = "user-2")
+        val otherUserPlayId = insertPlay(trackId, userId = USER_2_ID)
 
         submitter.poll()
 
         assertEquals(0, requests.size)
         assertFalse(playHistoryJpa.findById(otherUserPlayId).get().scrobbled)
+    }
+
+    @Test
+    fun `configured username is resolved to its UserId, not compared literally against play_history rows`() {
+        // Regression for the bug where the submitter queried play_history.user_id directly by
+        // the configured username string. USER_1_ID and "user-1" are deliberately different
+        // values (see companion object) — a literal-string-match implementation would find
+        // nothing here, exactly as it silently found nothing in production.
+        val trackId = seedLibraryTrack()
+        val playId = insertPlay(trackId, userId = USER_1_ID)
+
+        submitter.poll()
+
+        assertEquals(1, requests.size)
+        assertTrue(playHistoryJpa.findById(playId).get().scrobbled)
     }
 
     @Test

@@ -251,13 +251,19 @@ class JellyfinItemsController(
                 // Backend has no DatePlayed column on entities; instead we serve the
                 // user's top ML affinities (real "what you actually listened to"),
                 // then fold in favorites, then fill from a varied library sample.
+                // This is a bounded top-N approximation with no offset/cursor concept, so
+                // TotalRecordCount must equal the personalized page's own size (matching the
+                // MusicAlbum/MusicArtist branches below) — reporting the full library count
+                // here would make infinite-scroll request a page 1 that falls back to a
+                // deterministic browse query with no "DatePlayed" column to continue from,
+                // reproducing/skipping tracks already shown on page 0.
                 val isPersonalized = uid != null && isPersonalizedSort(sortBy)
                 if (isPersonalized && startIndex == 0 && excludedGenres.isEmpty()) {
                     val personalized = buildPersonalizedTracks(UserId(uid!!), limit)
                     if (personalized.isNotEmpty()) {
                         val lookups = tracksLookups(personalized)
                         val items = withResume(personalized.map { it.toBaseItem(favTrackIds, lookups) }, uid)
-                        return ResponseEntity.ok(ItemsResult(items, libraryQueries.countTracks(), startIndex))
+                        return ResponseEntity.ok(ItemsResult(items, personalized.size, startIndex))
                     }
                 }
                 val browsed =
