@@ -226,7 +226,17 @@ class ClientTelemetry implements ClientTelemetryHandle {
 
   private send(report: ClientTelemetryReport): void {
     try {
-      const body = this.scrub(JSON.stringify(report));
+      // message/stack are already scrubbed field-by-field in report() before this object
+      // was built. Scrubbing again here, AFTER JSON.stringify, would run the same regexes
+      // over JSON syntax instead of plain text -- a secret-shaped match ending right at an
+      // escaped quote (`\"`, e.g. a message that quotes a failed URL) can consume the
+      // escaping backslash, turning it into a bare `"` that prematurely closes the JSON
+      // string and corrupts everything after it. route is the one field that reaches here
+      // unscrubbed, so scrub it individually instead of re-scrubbing the whole payload.
+      const body = JSON.stringify({
+        ...report,
+        route: report.route ? this.scrub(report.route) : report.route,
+      });
       if (new TextEncoder().encode(body).length > KEEPALIVE_BYTE_BUDGET) return;
 
       const nav = globalThis.navigator;
