@@ -577,22 +577,19 @@ class JellyfinItemsController(
         var filtered = musicSurfaceFilter.filter(out, userId)
         var attempt = 0
         while (filtered.size < limit && attempt < MAX_RANDOM_FILL_ATTEMPTS) {
-            val needed = limit - out.size
-            if (needed <= 0) break
+            // Based on the post-filter shortfall, not out.size — out keeps growing with
+            // filtered-out candidates too, so out.size alone would hit `limit` and stop the
+            // loop before filtered.size ever catches up.
+            val needed = limit - filtered.size
             val drawn = libraryQueries.browseTracksRandom(needed)
+            // Only a genuinely empty result proves the pool is exhausted. A draw that comes back
+            // non-empty but entirely duplicates of what's already `seen` is just bad luck on a
+            // small `needed` request, not proof there's nothing left — keep retrying up to the
+            // attempt cap instead of giving up on one unlucky draw.
             if (drawn.isEmpty()) break
-            val addedAny =
-                drawn.fold(false) { added, track ->
-                    if (seen.add(track.id.value)) {
-                        out.add(track)
-                        true
-                    } else {
-                        added
-                    }
-                }
+            drawn.forEach { track -> if (seen.add(track.id.value)) out.add(track) }
             filtered = musicSurfaceFilter.filter(out, userId)
             attempt++
-            if (!addedAny) break
         }
 
         return filtered.take(limit)

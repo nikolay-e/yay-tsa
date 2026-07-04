@@ -33,6 +33,7 @@ class PersonalizedTracksPaginationIntegrationTest : HttpIntegrationTestBase() {
     lateinit var jdbc: JdbcTemplate
 
     private lateinit var token: String
+    private lateinit var seededTrackIds: List<UUID>
 
     private val trackLimit = 3
     private val totalTracksInLibrary = 10
@@ -60,20 +61,22 @@ class PersonalizedTracksPaginationIntegrationTest : HttpIntegrationTestBase() {
         jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", albumId, artistId)
 
         // More tracks than trackLimit — proves the total isn't silently the full library count.
-        repeat(totalTracksInLibrary) { idx ->
-            val trackId = UUID.randomUUID()
-            insertEntity(trackId, "TRACK", "Track $idx", "track $idx")
-            jdbc.update(
-                "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, track_number, disc_number, duration_ms) " +
-                    "VALUES (?,?,?,?,?,?)",
-                trackId,
-                albumId,
-                artistId,
-                idx + 1,
-                1,
-                120000L,
-            )
-        }
+        seededTrackIds =
+            (0 until totalTracksInLibrary).map { idx ->
+                val trackId = UUID.randomUUID()
+                insertEntity(trackId, "TRACK", "Track $idx", "track $idx")
+                jdbc.update(
+                    "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, track_number, disc_number, duration_ms) " +
+                        "VALUES (?,?,?,?,?,?)",
+                    trackId,
+                    albumId,
+                    artistId,
+                    idx + 1,
+                    1,
+                    120000L,
+                )
+                trackId
+            }
     }
 
     private fun insertEntity(
@@ -112,5 +115,42 @@ class PersonalizedTracksPaginationIntegrationTest : HttpIntegrationTestBase() {
         val total = body.get("TotalRecordCount").asInt()
         val itemsLoaded = body.get("Items").size()
         assertTrue(itemsLoaded >= total, "hasNextPage (itemsLoaded < total) must be false after the one personalized page")
+    }
+
+    // Regression: musicSurfaceFilter (audiobooks/red-lines) runs AFTER the random-fill draws
+    // candidates, so a draw landing on audiobook-genre tracks used to silently under-fill the
+    // page below Limit. Most of the library here is tagged Audiobook, leaving exactly
+    // `trackLimit` real music tracks — the random-fill must retry until it surfaces all of them.
+    @Test
+    fun `random-fill retries past audiobook-genre tracks until the page is actually full`() {
+        // Other test classes share this Testcontainers Postgres instance and may have already
+        // created an "Audiobook" genre row (genres.name is UNIQUE) — upsert instead of a bare
+        // insert so this test is independent of suite-wide execution order.
+        val genreId =
+            jdbc.queryForObject(
+                "INSERT INTO core_v2_library.genres (id, name) VALUES (?, ?) " +
+                    "ON CONFLICT (name) DO UPDATE SET name = excluded.name RETURNING id",
+                UUID::class.java,
+                UUID.randomUUID(),
+                "Audiobook",
+            )
+        // Tag only this test's own seeded tracks, never rows another test class might own.
+        val audiobookTrackCount = totalTracksInLibrary - trackLimit
+        seededTrackIds.take(audiobookTrackCount).forEach { trackId ->
+            jdbc.update(
+                "INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?, ?)",
+                trackId,
+                genreId,
+            )
+        }
+
+        val result = get("/Items?IncludeItemTypes=Audio&SortBy=DatePlayed&StartIndex=0&Limit=$trackLimit", token)
+        assertEquals(200, result.response.status)
+        val body = objectMapper.readTree(result.response.contentAsString)
+        assertEquals(
+            trackLimit,
+            body.get("Items").size(),
+            "page must still hold exactly Limit non-audiobook tracks despite most of the library being filtered",
+        )
     }
 }
