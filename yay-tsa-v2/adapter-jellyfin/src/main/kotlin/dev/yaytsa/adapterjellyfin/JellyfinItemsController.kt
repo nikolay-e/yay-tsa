@@ -199,9 +199,15 @@ class JellyfinItemsController(
 
         when {
             "MusicArtist" in types -> {
-                // Frontend "Recently Played" (SortBy=DatePlayed) has no per-artist play column;
-                // approximate it from the user's top ML affinities + favorites, same as Audio. Only
-                // the first page is personalized; falls back to the deterministic browse otherwise.
+                // Frontend "Recently Played" sort (SortBy=DatePlayed, from the library sort menu —
+                // NOT the Home Daily Mix widget, which calls the dedicated /v1/recommend/daily-mix
+                // endpoint instead) has no per-artist play column; approximate it from the user's
+                // top ML affinities + favorites, same as Audio. Only the first page is personalized;
+                // falls back to the deterministic browse otherwise. NOTE: the frontend's Albums/
+                // Artists/Songs views always send ExcludeGenres=audiobook,audiobooks, so
+                // excludedGenres.isEmpty() is never true in practice — this branch currently never
+                // fires from any real client. See #266 (genre-aware personalization) before
+                // removing this guard.
                 if (uid != null && isPersonalizedSort(sortBy) && startIndex == 0 && excludedGenres.isEmpty()) {
                     val personalized = buildPersonalizedArtists(UserId(uid), limit)
                     if (personalized.isNotEmpty()) {
@@ -247,10 +253,13 @@ class JellyfinItemsController(
                 return ResponseEntity.ok(ItemsResult(items, total, startIndex))
             }
             "Audio" in types -> {
-                // Personalized order — used by frontend Daily Mix (SortBy=DatePlayed).
-                // Backend has no DatePlayed column on entities; instead we serve the
-                // user's top ML affinities (real "what you actually listened to"),
-                // then fold in favorites, then fill from a varied library sample.
+                // Personalized order — reachable only via the library "Recently Played" sort
+                // menu (SortBy=DatePlayed), NOT the Home Daily Mix widget (that calls the
+                // dedicated /v1/recommend/daily-mix endpoint instead). Backend has no DatePlayed
+                // column on entities; instead we serve the user's top ML affinities (real "what
+                // you actually listened to"), then fold in favorites, then fill from a varied
+                // library sample. Same excludedGenres reachability gap as MusicArtist/MusicAlbum
+                // above — see #266.
                 // This is a bounded top-N approximation with no offset/cursor concept, so
                 // TotalRecordCount must equal the personalized page's own size (matching the
                 // MusicAlbum/MusicArtist branches below) — reporting the full library count
