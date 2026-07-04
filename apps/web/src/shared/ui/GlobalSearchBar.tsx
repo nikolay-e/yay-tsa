@@ -39,14 +39,16 @@ export function GlobalSearchBar({ hidden = false }: GlobalSearchBarProps) {
     <div
       data-testid="global-search-bar"
       className={cn(
-        'bg-bg-primary/80 px-safe pt-safe sticky top-0 z-30 backdrop-blur-sm',
-        // Hide-on-scroll is mobile-only; md:translate-y-0 pins it back on desktop. Keep it visible
-        // while the mobile field is expanded so an active search never disappears mid-typing.
+        'px-safe pt-safe sticky top-0 z-30',
+        // A hairline bottom border + blur reads as a deliberate top toolbar rather than a floating
+        // strip. Hide-on-scroll is mobile-only; md:translate-y-0 pins it back on desktop. Stays
+        // visible while the mobile field is expanded so an active search never disappears mid-typing.
+        'border-border/60 bg-bg-primary/85 border-b backdrop-blur-md',
         'transition-transform duration-200 ease-out md:translate-y-0',
         hidden && !expandedMobile ? '-translate-y-full' : 'translate-y-0'
       )}
     >
-      <div className="flex items-center gap-2 px-4 py-2 md:px-6">
+      <div className="flex h-14 items-center gap-2 px-4 md:px-6">
         {/* Desktop: always-visible field. Mobile: magnifier that expands to a field. */}
         <button
           type="button"
@@ -67,11 +69,11 @@ export function GlobalSearchBar({ hidden = false }: GlobalSearchBarProps) {
             submit(value);
           }}
           className={cn(
-            'relative w-full md:block md:max-w-md',
+            'relative w-full md:max-w-lg',
             expandedMobile ? 'block' : 'hidden md:block'
           )}
         >
-          <Search className="text-text-tertiary pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+          <Search className="text-text-tertiary pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
           <input
             ref={inputRef}
             type="search"
@@ -81,7 +83,7 @@ export function GlobalSearchBar({ hidden = false }: GlobalSearchBarProps) {
             aria-label="Search music"
             data-testid="global-search-input"
             maxLength={200}
-            className="border-border bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:border-accent focus-visible:ring-accent w-full rounded-lg border py-2 pr-9 pl-9 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="border-border/70 bg-bg-secondary/60 text-text-primary placeholder:text-text-tertiary hover:border-border focus:border-accent focus-visible:ring-accent/50 h-10 w-full rounded-full border py-2 pr-10 pl-10 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
           />
           {expandedMobile && (
             <button
