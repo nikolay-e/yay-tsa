@@ -6,6 +6,7 @@ import { usePlaylists } from '@/features/playlists/hooks/usePlaylists';
 import { CreatePlaylistModal } from '@/features/playlists/components/CreatePlaylistModal';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { LoadErrorState } from '@/shared/ui/LoadErrorState';
+import { SearchButton } from '@/shared/ui/SearchButton';
 
 export function PlaylistsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -57,15 +58,18 @@ export function PlaylistsPage() {
     <div className="space-y-6 p-6" data-testid="playlists-page">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Playlists</h1>
-        <button
-          type="button"
-          data-testid="playlist-create-button"
-          onClick={() => setIsCreateOpen(true)}
-          className="bg-accent text-text-on-accent hover:bg-accent-hover flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          New playlist
-        </button>
+        <div className="flex items-center gap-2">
+          <SearchButton />
+          <button
+            type="button"
+            data-testid="playlist-create-button"
+            onClick={() => setIsCreateOpen(true)}
+            className="bg-accent text-text-on-accent hover:bg-accent-hover flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            New playlist
+          </button>
+        </div>
       </div>
 
       {content}

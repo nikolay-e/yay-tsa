@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { SortMenu, FAVORITES_SORT_OPTIONS, useSortPreference } from '@/shared/ui/SortMenu';
+import { SearchButton } from '@/shared/ui/SearchButton';
 import { SortableList } from '@/shared/ui/SortableList';
 import {
   usePlayerStore,
@@ -44,6 +45,7 @@ export function FavoritesPage() {
     <div className="space-y-6 p-6" data-testid={FAVORITES_TEST_IDS.PAGE}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Favorites</h1>
+        <SearchButton />
       </div>
 
       <div className="border-border flex items-end justify-between border-b">

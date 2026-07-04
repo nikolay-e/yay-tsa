@@ -56,10 +56,6 @@ export function RootLayout() {
   const hasCurrentTrack = usePlayerStore(state => state.currentTrack !== null);
   const mainRef = useRef<HTMLElement>(null);
   const locationKeyRef = useRef(location.key);
-  // Mobile-only reveal state for the search bar: hidden while scrolling down, shown at the top or
-  // when scrolling up (pull-down). Desktop keeps it visible via CSS regardless of this flag.
-  const [searchHidden, setSearchHidden] = useState(false);
-  const lastScrollTopRef = useRef(0);
 
   const isLoginPage = location.pathname === '/login';
 
@@ -78,26 +74,13 @@ export function RootLayout() {
     const main = mainRef.current;
     if (!main) return;
     const onScroll = () => {
-      const top = main.scrollTop;
       // Map iteration order only reflects insertion order, not last-write order — re-inserting the
       // key (delete then set) moves it to the end so eviction below is genuinely LRU rather than FIFO.
       scrollPositions.delete(locationKeyRef.current);
-      scrollPositions.set(locationKeyRef.current, top);
+      scrollPositions.set(locationKeyRef.current, main.scrollTop);
       if (scrollPositions.size > MAX_SCROLL_ENTRIES) {
         scrollPositions.delete(scrollPositions.keys().next().value!);
       }
-      // Reveal near the top, hide when scrolling down, reveal when scrolling up. The small delta
-      // ignores sub-pixel jitter and rubber-band overscroll. setState bails out when unchanged, so
-      // this stays cheap despite firing on every scroll frame.
-      const last = lastScrollTopRef.current;
-      if (top <= 8) {
-        setSearchHidden(false);
-      } else if (top - last > 4) {
-        setSearchHidden(true);
-      } else if (last - top > 4) {
-        setSearchHidden(false);
-      }
-      lastScrollTopRef.current = top;
     };
     main.addEventListener('scroll', onScroll, { passive: true });
     return () => main.removeEventListener('scroll', onScroll);
@@ -108,10 +91,6 @@ export function RootLayout() {
     const main = mainRef.current;
     if (!main) return;
     const saved = scrollPositions.get(location.key);
-    // A new route starts with its search bar visible; sync the direction baseline to the restored
-    // offset so the first scroll on the new page computes the right direction.
-    lastScrollTopRef.current = saved ?? 0;
-    setSearchHidden(false);
     requestAnimationFrame(() => {
       main.scrollTop = saved ?? 0;
     });
@@ -191,7 +170,7 @@ export function RootLayout() {
           showNavigation && (showPlayer ? 'md:pb-20' : 'md:pb-0')
         )}
       >
-        {showNavigation && <GlobalSearchBar hidden={searchHidden} />}
+        {showNavigation && <GlobalSearchBar />}
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>

@@ -7,6 +7,7 @@ import { LoadErrorState } from '@/shared/ui/LoadErrorState';
 import { InfiniteScrollFooter } from '@/shared/ui/InfiniteScrollFooter';
 import { InfiniteScrollHeader } from '@/shared/ui/InfiniteScrollHeader';
 import { SortMenu, useSortPreference } from '@/shared/ui/SortMenu';
+import { SearchButton } from '@/shared/ui/SearchButton';
 
 export function AlbumsPage() {
   const playAlbum = usePlayerStore(state => state.playAlbum);
@@ -91,7 +92,10 @@ export function AlbumsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Albums</h1>
-        <SortMenu selectedId={selectedId} onSelect={select} />
+        <div className="flex items-center gap-2">
+          <SearchButton />
+          <SortMenu selectedId={selectedId} onSelect={select} />
+        </div>
       </div>
 
       {content}

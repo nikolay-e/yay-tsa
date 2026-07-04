@@ -17,6 +17,7 @@ import {
 import { usePlayerStore, useCurrentTrack } from '@/features/player/stores/player.store';
 import { MediaCard } from '@/features/library/components/MediaCard';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
+import { SearchButton } from '@/shared/ui/SearchButton';
 
 function chapterCount(n: number): string {
   return n === 1 ? '1 chapter' : `${n} chapters`;
@@ -286,7 +287,10 @@ export function AudiobooksPage() {
 
   return (
     <div className="space-y-8 p-6" data-testid="audiobooks-page">
-      <h1 className="text-text-primary text-2xl font-bold">Audiobooks</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-text-primary text-2xl font-bold">Audiobooks</h1>
+        <SearchButton />
+      </div>
 
       {error && (
         <div className="bg-error/10 text-error flex items-center justify-between gap-3 rounded-md p-4 text-sm">
