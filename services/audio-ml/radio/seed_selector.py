@@ -35,7 +35,13 @@ class SeedSelector:
             scores[scores < 0] = -np.inf
 
             scaled = scores / max(temperature, 1e-6)
-            scaled = scaled - np.max(scaled[scaled > -np.inf])
+            finite = scaled[scaled > -np.inf]
+            # Identical (or floating-point-indistinguishable) embeddings can push every
+            # remaining candidate's self-similarity fractionally above 1.0, making every
+            # "distance" negative and thus -inf above — no candidate is left to sample.
+            if finite.size == 0:
+                break
+            scaled = scaled - np.max(finite)
             exp_scores = np.exp(np.clip(scaled, -50, 50))
             exp_scores[min_distances < 0] = 0.0
 
