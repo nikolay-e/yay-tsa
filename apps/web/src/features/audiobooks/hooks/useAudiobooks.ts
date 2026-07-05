@@ -138,12 +138,17 @@ function buildBook(albumId: string, entries: AudiobookEntry[]): AudiobookBook {
   );
 
   const first = chapters[0]?.item;
+  // Chapter tracks carry no primary image of their own — the cover lives on the album entity.
+  // Request it by AlbumId (as album/track lists do) and, when no real image tag is available,
+  // fall back to the album id as a stable cache key so MediaCard still emits the request instead
+  // of degrading straight to the placeholder.
+  const coverItemId = first?.AlbumId ?? first?.Id ?? albumId;
   return {
     albumId,
     title: first?.Album ?? first?.Name ?? 'Unknown',
     author: (first?.Artists ?? []).join(', '),
-    coverItemId: first?.Id ?? albumId,
-    coverImageTag: first?.AlbumPrimaryImageTag ?? first?.ImageTags?.Primary,
+    coverItemId,
+    coverImageTag: first?.AlbumPrimaryImageTag ?? first?.ImageTags?.Primary ?? coverItemId,
     chapters,
     totalChapters: total,
     finishedChapters: finished,
@@ -214,22 +219,25 @@ export function useAudiobookActions() {
 
   // Book-level actions fan out across every chapter so a whole book can be marked
   // finished or reset in one click.
+  // A book fans the action out over every chapter. allSettled (not all) means one failing
+  // chapter can't abandon the rest, and onSettled always refetches so the shelf reflects whatever
+  // actually persisted rather than silently doing nothing.
   const markFinished = useMutation({
     mutationFn: async (itemIds: string[]) => {
       if (!client) throw new Error('Not authenticated');
       const service = new AudiobooksService(client);
-      await Promise.all(itemIds.map(async id => service.markFinished(id)));
+      await Promise.allSettled(itemIds.map(async id => service.markFinished(id)));
     },
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 
   const restart = useMutation({
     mutationFn: async (itemIds: string[]) => {
       if (!client) throw new Error('Not authenticated');
       const service = new AudiobooksService(client);
-      await Promise.all(itemIds.map(async id => service.restart(id)));
+      await Promise.allSettled(itemIds.map(async id => service.restart(id)));
     },
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 
   return { markFinished, restart };

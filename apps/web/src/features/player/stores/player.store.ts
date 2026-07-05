@@ -1079,6 +1079,11 @@ export const usePlayerStore = create<PlayerStore>()(
 
     if (typeof document !== 'undefined') {
       const recoverStalledAdvance = () => {
+        // A cooperative advance (onEnded) or crossfade may already be in flight — it moves the
+        // queue index synchronously before awaiting the load. Preempting it here would re-read the
+        // already-advanced index and advance a second time, skipping every other chapter. Only
+        // recover when nothing is running (i.e. iOS deferred 'ended' never fired).
+        if (controller.isActive) return;
         const { currentTrack, isPlaying } = get();
         if (!currentTrack) return;
 

@@ -83,7 +83,7 @@ class YaytsaAudiobooksController(
         @PathVariable itemId: String,
         principal: Principal,
     ): ResponseEntity<ResumeDto> {
-        val resume = resumePositionService.markFinished(UserId(principal.name), itemId, clock.now()) ?: return ResponseEntity.notFound().build()
+        val resume = resumePositionService.markFinished(UserId(principal.name), itemId, clock.now())
         return ResponseEntity.ok(resume.toDto())
     }
 

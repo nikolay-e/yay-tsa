@@ -206,6 +206,17 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `mark finished on a never-started chapter creates a finished row instead of 404`() {
+        val trackId = seedTrack(audiobook = true)
+
+        assertEquals("finished", postJson("/v1/me/audiobooks/$trackId/finished").get("status").asText())
+
+        val entry = getJson("/v1/me/audiobooks").first { it.get("item").get("Id").asText() == trackId }
+        assertEquals("finished", entry.get("resume").get("status").asText())
+        assertTrue(entry.get("item").get("UserData").get("Played").asBoolean())
+    }
+
+    @Test
     fun `mark finished then restart flips status to relistening and resets position`() {
         val trackId = seedTrack(audiobook = true)
         reportProgress(trackId, positionTicks = 300_000_000)

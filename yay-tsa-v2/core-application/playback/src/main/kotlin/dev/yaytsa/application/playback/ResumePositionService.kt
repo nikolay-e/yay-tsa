@@ -35,8 +35,18 @@ class ResumePositionService(
         userId: UserId,
         itemId: String,
         requestTime: Instant,
-    ): ResumePosition? {
-        val existing = repository.find(userId, itemId) ?: return null
+    ): ResumePosition {
+        val existing =
+            repository.find(userId, itemId)
+                ?: ResumePosition(
+                    userId = userId.value,
+                    itemId = itemId,
+                    positionMs = 0,
+                    runTimeMs = 0,
+                    status = ResumeStatus.FINISHED,
+                    sourceEvent = ResumeSource.STOPPED,
+                    updatedAt = requestTime,
+                )
         val finished =
             existing.copy(
                 status = ResumeStatus.FINISHED,

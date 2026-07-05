@@ -16,6 +16,7 @@ import {
 } from '@/features/audiobooks/hooks/useAudiobooks';
 import { usePlayerStore, useCurrentTrack } from '@/features/player/stores/player.store';
 import { MediaCard } from '@/features/library/components/MediaCard';
+import { DownloadTracksButton } from '@/features/offline/components/DownloadTracksButton';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { SearchButton } from '@/shared/ui/SearchButton';
 
@@ -134,6 +135,7 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
   const { markFinished, restart } = useAudiobookActions();
 
   const chapterIds = book.chapters.map(c => c.item.Id);
+  const chapterItems = book.chapters.map(c => c.item);
   const play = () =>
     void playTracks(
       book.chapters.map(c => c.item),
@@ -220,6 +222,12 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
               <CheckCircle2 size={16} /> Mark finished
             </button>
           )}
+          <DownloadTracksButton
+            tracks={chapterItems}
+            label="Download"
+            reason="manual"
+            className="rounded-full px-4 py-1.5"
+          />
         </div>
 
         {book.totalChapters > 1 && <ChapterList book={book} />}
