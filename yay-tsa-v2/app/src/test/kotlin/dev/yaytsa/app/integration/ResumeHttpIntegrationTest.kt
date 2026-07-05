@@ -213,7 +213,13 @@ class ResumeHttpIntegrationTest : HttpIntegrationTestBase() {
 
         val entry = getJson("/v1/me/audiobooks").first { it.get("item").get("Id").asText() == trackId }
         assertEquals("finished", entry.get("resume").get("status").asText())
-        assertTrue(entry.get("item").get("UserData").get("Played").asBoolean())
+        assertTrue(
+            entry
+                .get("item")
+                .get("UserData")
+                .get("Played")
+                .asBoolean(),
+        )
     }
 
     @Test
