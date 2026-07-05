@@ -11,7 +11,10 @@ type DownloadButtonProps = Readonly<{
   className?: string;
 }>;
 
-function DownloadProgressRing({ percent, iconSize }: { percent: number; iconSize: string }) {
+function DownloadProgressRing({
+  percent,
+  iconSize,
+}: Readonly<{ percent: number; iconSize: string }>) {
   return (
     <span className={cn('relative inline-flex items-center justify-center', iconSize)}>
       <svg viewBox="0 0 36 36" className={iconSize} aria-hidden="true">
@@ -42,12 +45,12 @@ function DownloadIcon({
   progress,
   percent,
   iconSize,
-}: {
+}: Readonly<{
   status: string;
   progress: number;
   percent: number;
   iconSize: string;
-}) {
+}>) {
   switch (status) {
     case 'downloading':
       return progress > 0 ? (

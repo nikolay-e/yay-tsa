@@ -62,6 +62,15 @@ export function GlobalSearchBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, onSearchRoute]);
 
+  const overlayTransform = open ? 'translate-y-0' : 'pointer-events-none -translate-y-full';
+  const positionClass = pinned
+    ? 'sticky top-0 z-30'
+    : cn(
+        'z-modal md:left-sidebar fixed top-0 right-0 left-0',
+        'transition-transform duration-200 ease-out',
+        overlayTransform
+      );
+
   return (
     <>
       {/* Dim + click-to-dismiss when opened as an overlay (never on the pinned /search route). */}
@@ -76,13 +85,7 @@ export function GlobalSearchBar() {
         data-testid="global-search-bar"
         className={cn(
           'px-safe pt-safe border-border/60 bg-bg-primary/95 border-b backdrop-blur-md',
-          pinned
-            ? 'sticky top-0 z-30'
-            : cn(
-                'z-modal md:left-sidebar fixed top-0 right-0 left-0',
-                'transition-transform duration-200 ease-out',
-                open ? 'translate-y-0' : 'pointer-events-none -translate-y-full'
-              )
+          positionClass
         )}
       >
         <div className="flex h-14 items-center gap-3 px-4 md:px-6">

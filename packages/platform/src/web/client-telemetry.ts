@@ -345,7 +345,7 @@ function fingerprintOf(category: string, type: string, message: string): string 
     .toLowerCase()
     .replace(/https?:\/\/\S+/g, '<url>')
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<id>')
-    .replace(/\b(?=[0-9a-f-]*\d)[0-9a-f]{8,}\b/gi, '<id>')
+    .replace(/\b[0-9a-f]{8,}\b/gi, m => (/\d/.test(m) ? '<id>' : m))
     .replace(/\d+/g, '<n>')
     .replace(/\s+/g, ' ')
     .trim();

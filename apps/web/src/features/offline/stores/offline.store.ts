@@ -264,7 +264,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         }
       })();
 
-      if (typeof globalThis.window !== 'undefined' && !listenersAttached) {
+      if (globalThis.window !== undefined && !listenersAttached) {
         listenersAttached = true;
         globalThis.addEventListener('online', () => {
           set({ isOnline: true });
