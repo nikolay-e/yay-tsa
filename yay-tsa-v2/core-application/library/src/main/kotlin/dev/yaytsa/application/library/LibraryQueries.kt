@@ -173,6 +173,13 @@ class LibraryQueries(
 
     fun listGenreStatistics(): List<GenreStatistics> = libraryQuery.listGenreStatistics()
 
+    // Strip NUL bytes before any user search term reaches SQL. pg_trgm/ILIKE binds the term as a
+    // parameter, and PostgreSQL rejects 0x00 with SQLState 22021 ("invalid byte sequence for encoding
+    // UTF8") — a fuzzed or pasted NUL then throws a DB exception (logged at ERROR by Hibernate) even
+    // though the client correctly gets a 400. Scrubbing at this single application-layer entry covers
+    // every protocol adapter (Jellyfin, Subsonic, MCP, Adaptive) so the query runs cleanly instead.
+    private fun scrubQuery(query: String): String = query.filter { it.code != 0 }
+
     fun searchText(
         query: String,
         limit: Int,
@@ -180,7 +187,7 @@ class LibraryQueries(
         excludedGenres: Collection<String> = emptyList(),
     ): SearchResults =
         libraryQuery.searchText(
-            query,
+            scrubQuery(query),
             limit.coerceIn(1, MAX_PAGE_SIZE),
             offset.coerceAtLeast(0),
             excludedGenres.map { it.lowercase() },
@@ -202,11 +209,11 @@ class LibraryQueries(
 
     fun countArtists(): Int = libraryQuery.countArtists()
 
-    fun countTextSearchTracks(query: String): Int = libraryQuery.countTextSearchTracks(query)
+    fun countTextSearchTracks(query: String): Int = libraryQuery.countTextSearchTracks(scrubQuery(query))
 
-    fun countTextSearchArtists(query: String): Int = libraryQuery.countTextSearchArtists(query)
+    fun countTextSearchArtists(query: String): Int = libraryQuery.countTextSearchArtists(scrubQuery(query))
 
-    fun countTextSearchAlbums(query: String): Int = libraryQuery.countTextSearchAlbums(query)
+    fun countTextSearchAlbums(query: String): Int = libraryQuery.countTextSearchAlbums(scrubQuery(query))
 
     fun countAlbumsByArtistIds(artistIds: Set<EntityId>): Map<EntityId, Int> =
         if (artistIds.isEmpty()) emptyMap() else libraryQuery.countAlbumsByArtistIds(artistIds)

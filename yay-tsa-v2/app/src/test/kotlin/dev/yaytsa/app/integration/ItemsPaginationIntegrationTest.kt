@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import java.time.Instant
 import java.util.UUID
 
@@ -81,6 +82,27 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
         val body = objectMapper.readTree(result.response.contentAsString)
         assertTrue(body.get("TotalRecordCount").asInt() >= 3, "search count must sum all matching artists")
         assertTrue(body.get("Items").size() <= 1, "page must respect Limit=1")
+    }
+
+    @Test
+    fun `search term with a NUL byte is scrubbed, not sent to SQL`() {
+        // A fuzzed or pasted NUL (0x00) in the search term reaches pg_trgm/ILIKE as a bind parameter,
+        // which PostgreSQL rejects with SQLState 22021 ("invalid byte sequence for encoding UTF8") and
+        // Hibernate logs at ERROR. After scrubbing it behaves as "PageArtist" and still matches the
+        // seeded artists — returning a clean 200 instead of a DB exception. 0.toChar() is a real NUL.
+        val nulTerm = "Page" + 0.toChar() + "Artist"
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .get("/Items")
+                        .param("SearchTerm", nulTerm)
+                        .param("Limit", "1")
+                        .header("Authorization", "Bearer $token"),
+                ).andReturn()
+        assertEquals(200, result.response.status, "NUL in search must not 500")
+        val body = objectMapper.readTree(result.response.contentAsString)
+        assertTrue(body.get("TotalRecordCount").asInt() >= 3, "scrubbed search still matches seeded artists")
     }
 
     @Test
