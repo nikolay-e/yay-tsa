@@ -411,7 +411,7 @@ jobs:
           commit-sha: ${{ steps.backend-sha.outputs.sha }}
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@9e4a3831de2a6170c0466efde2ccc5f321408649 # main (fix: crawler verify session persisted; retry OpenAPI download; StandardFinding report)
+        uses: nikolay-e/autoqa@8cfe66ebb863e5e5feb107c849df3b3aaabc356c # main (fix: gate distinguishes ZAP skipped vs ZAP crashed, #23)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
