@@ -81,7 +81,7 @@ export function GlobalSearchBar() {
             : cn(
                 'z-modal md:left-sidebar fixed top-0 right-0 left-0',
                 'transition-transform duration-200 ease-out',
-                open ? 'translate-y-0' : '-translate-y-full pointer-events-none'
+                open ? 'translate-y-0' : 'pointer-events-none -translate-y-full'
               )
         )}
       >
