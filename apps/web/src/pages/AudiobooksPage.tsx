@@ -253,7 +253,7 @@ export function AudiobooksPage() {
         {grouped.inProgress.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">In Progress</h2>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="space-y-3">
               {grouped.inProgress.map(book => (
                 <BookCard key={book.albumId} book={book} />
               ))}
@@ -264,7 +264,7 @@ export function AudiobooksPage() {
         {grouped.finished.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">Finished</h2>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="space-y-3">
               {grouped.finished.map(book => (
                 <BookCard key={book.albumId} book={book} />
               ))}
@@ -275,7 +275,7 @@ export function AudiobooksPage() {
         {grouped.notStarted.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-text-primary text-lg font-semibold">Library</h2>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="space-y-3">
               {grouped.notStarted.map(book => (
                 <BookCard key={book.albumId} book={book} />
               ))}
