@@ -60,6 +60,12 @@ export function RootLayout() {
   const locationKeyRef = useRef(location.key);
 
   const isLoginPage = location.pathname === '/login';
+  // /search pins its own search bar in-flow at the top and that bar already applies pt-safe, so
+  // adding it to <main> too would double the inset there. Every other authenticated page has no
+  // top bar on mobile (the sidebar is desktop-only), so <main> must carry the top safe-area itself
+  // or the page header renders under the iPhone Dynamic Island / notch. env(safe-area-inset-top)
+  // is 0 on desktop, so this is a no-op there.
+  const isSearchRoute = location.pathname === '/search';
 
   useDeviceHeartbeat();
   useRemoteCommands();
@@ -166,7 +172,7 @@ export function RootLayout() {
         ref={mainRef}
         className={cn(
           'h-full min-h-screen flex-1 overflow-y-auto',
-          showNavigation ? '' : 'pt-safe',
+          showNavigation && isSearchRoute ? '' : 'pt-safe',
           showNavigation && 'md:ml-sidebar',
           showNavigation && (showPlayer ? 'pb-mobile-nav-player' : 'pb-mobile-nav'),
           showNavigation && (showPlayer ? 'md:pb-20' : 'md:pb-0')
