@@ -76,4 +76,18 @@ class FavoritesConsistencyIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(2, after.get("TotalRecordCount").asInt(), "count must drop the vanished favorite so infinite scroll terminates")
         assertEquals(2, after.get("Items").size(), "items and count must agree")
     }
+
+    @Test
+    fun `re-favoriting an already-favorite track is idempotent, not a 409 conflict`() {
+        val id = trackIds.first()
+        // The track is already a favorite (seeded in @BeforeEach). A second POST is a handler no-op
+        // (returns the aggregate unchanged, no version bump), so the use case must skip the OCC write
+        // rather than run UPDATE ... WHERE version = newVersion - 1 — which matched zero rows on a
+        // no-op and surfaced as a 409 on every idempotent re-favorite / re-star.
+        assertEquals(200, post("/UserFavoriteItems/$id", emptyMap<String, Any>(), token).response.status)
+        assertEquals(200, post("/UserFavoriteItems/$id", emptyMap<String, Any>(), token).response.status)
+
+        val body = objectMapper.readTree(get("/Items?IsFavorite=true&Limit=50", token).response.contentAsString)
+        assertEquals(3, body.get("TotalRecordCount").asInt(), "re-favoriting must neither duplicate nor drop the favorite")
+    }
 }

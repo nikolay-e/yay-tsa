@@ -53,9 +53,16 @@ class PreferencesUseCases(
             val result = PreferencesHandler.handle(snapshot, cmd, ctx, deps)
             when (result) {
                 is CommandResult.Success -> {
-                    prefsRepo.save(result.value)
-                    idempotencyStore.store(ctx.userId, commandType, ctx.idempotencyKey, payloadHash, result.newVersion.value)
-                    outbox.enqueue(DomainNotification.PreferencesChanged(ctx.userId.value))
+                    // A handler no-op (e.g. favoriting an already-favorite track) returns Success with
+                    // the version unchanged. prefsRepo.save() runs OCC as UPDATE ... WHERE version =
+                    // newVersion - 1, which assumes every Success bumped the version by one — a no-op
+                    // then matches zero rows and throws OptimisticLockException (surfacing as a 409 on
+                    // every idempotent re-favorite / re-star). Persist only when state actually changed.
+                    if (result.newVersion.value != snapshot.version.value) {
+                        prefsRepo.save(result.value)
+                        idempotencyStore.store(ctx.userId, commandType, ctx.idempotencyKey, payloadHash, result.newVersion.value)
+                        outbox.enqueue(DomainNotification.PreferencesChanged(ctx.userId.value))
+                    }
                 }
                 is CommandResult.Failed -> {}
             }
