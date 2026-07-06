@@ -342,6 +342,7 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
+      packages: read
 
     steps:
       # The local wait-backend-rollout composite action below needs the repo on
@@ -388,15 +389,29 @@ jobs:
       # three consecutive healthy reads so the backend is settled before fuzzing.
       #
       # The backend image is rebuilt ONLY when v2-ci.yml's path filter matches
-      # (yay-tsa-v2/**, charts/yay-tsa-v2/**, the v2-ci workflow). A frontend- or
-      # docs-only push never produces a main-<this-sha> backend image, so waiting
-      # for the current SHA would time out forever. Resolve the SHA of the last
-      # commit that actually rebuilt the backend and wait for THAT instead.
+      # (yay-tsa-v2/**, charts/yay-tsa-v2/**, the v2-ci workflow), and docker-build
+      # tags it main-<push-HEAD-sha7> (github.sha), NOT the last backend-touching
+      # commit's own sha. So a push that bundles a backend change with trailing
+      # docs/frontend commits publishes main-<HEAD>, while `git log -1 -- <paths>`
+      # returns the inner backend commit's sha — they diverge and the wait times
+      # out forever (post-deploy-qa then goes red on every later non-backend push).
+      # Resolve from the registry: the newest main-<sha7> backend tag IS exactly
+      # what v2-ci published and Image Updater is rolling out. Fall back to git
+      # history, then HEAD, only if the registry read fails.
       - name: Resolve expected backend SHA
         id: backend-sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BACKEND_SHA=$(git log -1 --format=%H -- \
-            yay-tsa-v2 charts/yay-tsa-v2 .github/workflows/v2-ci.yml)
+          PKG='yay-tsa%2Fyay-tsa-v2%2Fbackend'
+          TAG=$(gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/${PKG}/versions" \
+            --jq '[.[].metadata.container.tags[]? | select(test("^main-[0-9a-f]{7}$"))][0]' 2>/dev/null || true)
+          BACKEND_SHA="${TAG#main-}"
+          if [ -z "$BACKEND_SHA" ]; then
+            echo "::warning::Registry read returned no main-<sha7> backend tag; falling back to git history"
+            BACKEND_SHA=$(git log -1 --format=%H -- \
+              yay-tsa-v2 charts/yay-tsa-v2 .github/workflows/v2-ci.yml)
+          fi
           if [ -z "$BACKEND_SHA" ]; then
             echo "::warning::No backend-touching commit found in history; falling back to ${GITHUB_SHA}"
             BACKEND_SHA="$GITHUB_SHA"
@@ -411,7 +426,7 @@ jobs:
           commit-sha: ${{ steps.backend-sha.outputs.sha }}
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
-        uses: nikolay-e/autoqa@2edf39ffde7a379b2ff912dc7427c9fd8c9a7949 # main (fix: gate distinguishes ZAP skipped vs ZAP crashed, #23)
+        uses: nikolay-e/autoqa@c1cece6c8dc7ed7e82c161e0d5990e5c2461a1b3 # main (fix(schemathesis): send Origin header so CSRF gate doesn't mask auth checks)
         with:
           url: https://yay-tsa.com
           auth-url: /api/Users/AuthenticateByName
