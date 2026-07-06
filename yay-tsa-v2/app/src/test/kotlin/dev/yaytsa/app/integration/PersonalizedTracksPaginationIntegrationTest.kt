@@ -153,4 +153,28 @@ class PersonalizedTracksPaginationIntegrationTest : HttpIntegrationTestBase() {
             "page must still hold exactly Limit non-audiobook tracks despite most of the library being filtered",
         )
     }
+
+    // #266: the personalized (SortBy=DatePlayed) tracks branch used to bail whenever ExcludeGenres
+    // was present, and the PWA ALWAYS sends ExcludeGenres=audiobook,audiobooks — so "Recently Played"
+    // on Songs silently degraded to the deterministic full-library browse for every real user (the
+    // album/artist branches were already fixed; the tracks leg was still dead). The branch must now
+    // fire with ExcludeGenres set (exclusion happens inside buildPersonalizedTracks), reporting the
+    // bounded personalized page size, not the full-library deterministic-fallback count.
+    @Test
+    fun `personalized tracks branch fires even when ExcludeGenres is set`() {
+        val result =
+            get(
+                "/Items?IncludeItemTypes=Audio&SortBy=DatePlayed&StartIndex=0&Limit=$trackLimit&ExcludeGenres=audiobook,audiobooks",
+                token,
+            )
+        assertEquals(200, result.response.status)
+        val body = objectMapper.readTree(result.response.contentAsString)
+        assertEquals(trackLimit, body.get("Items").size(), "personalized page must hold exactly Limit items with ExcludeGenres set")
+        assertEquals(
+            trackLimit,
+            body.get("TotalRecordCount").asInt(),
+            "TotalRecordCount must be the bounded personalized size, not the $totalTracksInLibrary-track deterministic " +
+                "fallback — proving the branch fired despite a non-empty ExcludeGenres",
+        )
+    }
 }

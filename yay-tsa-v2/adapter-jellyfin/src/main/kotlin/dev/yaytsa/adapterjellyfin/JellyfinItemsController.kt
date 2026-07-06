@@ -286,8 +286,11 @@ class JellyfinItemsController(
                 // dedicated /v1/recommend/daily-mix endpoint instead). Backend has no DatePlayed
                 // column on entities; instead we serve the user's top ML affinities (real "what
                 // you actually listened to"), then fold in favorites, then fill from a varied
-                // library sample. Same excludedGenres reachability gap as MusicArtist/MusicAlbum
-                // above — see #266.
+                // library sample. Fires even with ExcludeGenres set (the PWA always sends
+                // ExcludeGenres=audiobook,audiobooks) — excluded-genre tracks are filtered out
+                // inside buildPersonalizedTracks, matching the MusicArtist/MusicAlbum branches
+                // above. Dropping the old excludedGenres.isEmpty() guard closes the last leg of
+                // #266 (the tracks path was still unreachable after the album/artist fix).
                 // This is a bounded top-N approximation with no offset/cursor concept, so
                 // TotalRecordCount must equal the personalized page's own size (matching the
                 // MusicAlbum/MusicArtist branches below) — reporting the full library count
@@ -295,8 +298,8 @@ class JellyfinItemsController(
                 // deterministic browse query with no "DatePlayed" column to continue from,
                 // reproducing/skipping tracks already shown on page 0.
                 val isPersonalized = uid != null && isPersonalizedSort(sortBy)
-                if (isPersonalized && startIndex == 0 && excludedGenres.isEmpty()) {
-                    val personalized = buildPersonalizedTracks(UserId(uid!!), limit)
+                if (isPersonalized && startIndex == 0) {
+                    val personalized = buildPersonalizedTracks(UserId(uid!!), limit, excludedGenres)
                     if (personalized.isNotEmpty()) {
                         val lookups = tracksLookups(personalized)
                         val items = withResume(personalized.map { it.toBaseItem(favTrackIds, lookups) }, uid)
@@ -572,8 +575,19 @@ class JellyfinItemsController(
     private fun buildPersonalizedTracks(
         userId: UserId,
         limit: Int,
+        excludedGenres: Collection<String>,
     ): List<dev.yaytsa.domain.library.Track> {
         val out = mutableListOf<dev.yaytsa.domain.library.Track>()
+
+        // musicSurfaceFilter already drops audiobooks + red-lines; layer the caller's ExcludeGenres
+        // (a per-track primary-genre match, same approximation as recentlyPlayedTracks) on top so an
+        // arbitrary client exclusion is honored, not just the built-in audiobook surface rule.
+        val excluded = excludedGenres.map { it.lowercase() }.toSet()
+
+        fun surfaceFilter(tracks: List<dev.yaytsa.domain.library.Track>): List<dev.yaytsa.domain.library.Track> =
+            musicSurfaceFilter.filter(tracks, userId).let { filtered ->
+                if (excluded.isEmpty()) filtered else filtered.filter { it.genre?.lowercase() !in excluded }
+            }
 
         // Affinities first, then favorites — batch-loaded in one query instead of one getTrack()
         // per id. Order is preserved by re-indexing against the requested id sequence; vanished
@@ -602,7 +616,7 @@ class JellyfinItemsController(
         // draw can come back under `limit` post-filter; retry with fresh draws until the filtered
         // count catches up, the library is exhausted, or the attempt cap is hit — otherwise a
         // library with enough non-music genres mixed in silently short-pages every request.
-        var filtered = musicSurfaceFilter.filter(out, userId)
+        var filtered = surfaceFilter(out)
         var attempt = 0
         while (filtered.size < limit && attempt < MAX_RANDOM_FILL_ATTEMPTS) {
             // Based on the post-filter shortfall, not out.size — out keeps growing with
@@ -616,7 +630,7 @@ class JellyfinItemsController(
             // attempt cap instead of giving up on one unlucky draw.
             if (drawn.isEmpty()) break
             drawn.forEach { track -> if (seen.add(track.id.value)) out.add(track) }
-            filtered = musicSurfaceFilter.filter(out, userId)
+            filtered = surfaceFilter(out)
             attempt++
         }
 
