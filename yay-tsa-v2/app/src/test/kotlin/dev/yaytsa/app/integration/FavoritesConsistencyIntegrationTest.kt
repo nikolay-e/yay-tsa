@@ -52,7 +52,10 @@ class FavoritesConsistencyIntegrationTest : HttpIntegrationTestBase() {
                 "TRACK",
                 "Fav Track $idx",
                 "fav track $idx",
-                "Fav/Album/$idx.flac",
+                // source_path has a UNIQUE constraint and this shared-context suite commits without
+                // rollback, so a hardcoded path collides the moment a second test method re-runs
+                // @BeforeEach. Key it on the per-track UUID so every seed invocation is isolated.
+                "Fav/$id.flac",
             )
             jdbc.update("INSERT INTO core_v2_library.audio_tracks (entity_id, duration_ms) VALUES (?,?)", id, 120000L)
             trackIds.add(id)
