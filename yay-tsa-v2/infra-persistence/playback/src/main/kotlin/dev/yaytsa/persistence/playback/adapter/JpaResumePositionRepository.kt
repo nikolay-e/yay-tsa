@@ -31,16 +31,14 @@ class JpaResumePositionRepository(
     override fun findAll(userId: UserId): List<ResumePosition> = jpa.findByUserId(userId.value).map { it.toDomain() }
 
     override fun save(resume: ResumePosition) {
-        jpa.save(
-            ResumePositionEntity(
-                userId = resume.userId,
-                itemId = resume.itemId,
-                positionMs = resume.positionMs,
-                runTimeMs = resume.runTimeMs,
-                status = resume.status.wireValue(),
-                sourceEvent = resume.sourceEvent,
-                updatedAt = resume.updatedAt,
-            ),
+        jpa.upsert(
+            userId = resume.userId,
+            itemId = resume.itemId,
+            positionMs = resume.positionMs,
+            runTimeMs = resume.runTimeMs,
+            status = resume.status.wireValue(),
+            sourceEvent = resume.sourceEvent,
+            updatedAt = resume.updatedAt,
         )
     }
 
