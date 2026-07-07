@@ -35,14 +35,14 @@ test.describe('Audiobooks — durable resume (live backend)', () => {
 
     await page.getByTestId('audiobook-resume').first().click();
     await expect(page.getByTestId('play-pause-button')).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(5000);
+    await expect.poll(() => audioCurrentTime(page), { timeout: 15000 }).toBeGreaterThan(2);
     await page.getByTestId('play-pause-button').click(); // pause
     const before = await audioCurrentTime(page);
     expect(before).toBeGreaterThan(2);
 
     await page.reload();
     await page.getByTestId('audiobook-resume').first().click();
-    await page.waitForTimeout(3000);
+    await expect.poll(() => audioCurrentTime(page), { timeout: 15000 }).toBeGreaterThan(0);
     const after = await audioCurrentTime(page);
     expect(Math.abs(after - before)).toBeLessThan(20);
   });

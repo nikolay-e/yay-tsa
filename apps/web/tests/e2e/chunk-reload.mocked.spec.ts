@@ -17,16 +17,16 @@ test.describe('Chunk-load recovery (mocked backend)', () => {
     await reloadedOnce;
 
     // A second preloadError right after the reload must NOT trigger another
-    // reload within the same guard window — assert the page stays put.
-    let reloadedAgain = false;
-    page.once('load', () => {
-      reloadedAgain = true;
-    });
+    // reload within the same guard window — the load event must never fire, so
+    // waiting for it must time out (timeout = pass for this negative assertion).
+    const reloadedAgain = page.waitForEvent('load', { timeout: 500 }).then(
+      () => true,
+      () => false
+    );
     await page.evaluate(() => {
       window.dispatchEvent(new Event('vite:preloadError', { cancelable: true }));
     });
-    await page.waitForTimeout(500);
-    expect(reloadedAgain).toBe(false);
+    expect(await reloadedAgain).toBe(false);
   });
 
   test('a third preloadError after the guard window elapses triggers another reload', async ({
