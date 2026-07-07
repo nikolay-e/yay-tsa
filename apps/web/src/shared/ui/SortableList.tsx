@@ -69,8 +69,10 @@ function SortableItem({
       ref={setNodeRef}
       style={style}
       className={cn('group/sortable relative select-none', isDragging && 'z-50 opacity-75')}
-      {...attributes}
     >
+      {/* Sortable attributes (role, tabIndex, aria-*) live on the drag handle, not the
+          wrapper — a role="button" wrapper around the row's own buttons is a
+          nested-interactive accessibility violation on every row. */}
       <button
         type="button"
         disabled={disabled}
@@ -82,6 +84,7 @@ function SortableItem({
           'disabled:hover:text-text-secondary disabled:cursor-not-allowed disabled:opacity-30',
           layout === 'vertical' ? 'top-1/2 left-1 -translate-y-1/2' : 'top-1 left-1'
         )}
+        {...attributes}
         {...(disabled ? {} : listeners)}
         aria-label="Drag to reorder"
       >
