@@ -449,7 +449,12 @@ jobs:
           # (429 is not in its expected-rejection set). Their input validation is
           # covered by backend integration tests instead. SSE/event streams are
           # excluded because they never return a fuzzable JSON body.
-          schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{groupId}/events,/Karaoke/{trackId}/status/stream,/Users/AuthenticateByName,/v1/groups/join,/mcp'
+          # /Sessions/Logout is excluded because fuzzing it with the run's live
+          # Bearer token revokes that token mid-run and every later operation
+          # 401s (self-DoS); /Users/Password for the same reason plus the risk
+          # of locking the shared QA account. Both are covered by integration
+          # tests and the crawler's real login flow.
+          schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{groupId}/events,/Karaoke/{trackId}/status/stream,/Users/AuthenticateByName,/v1/groups/join,/mcp,/Sessions/Logout,/Users/Password'
 
           zap-enabled: 'true'
           # AuthRateLimitFilter answers ZAP's SQLi probes on the login endpoint with
