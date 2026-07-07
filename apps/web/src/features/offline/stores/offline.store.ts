@@ -393,7 +393,15 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         await get().refreshUsage();
         if (reason === 'listening-cache') await get().enforceCacheLimit();
       } catch (error) {
-        log.player.warn('Offline download failed', { trackId: track.Id, error: String(error) });
+        // Background auto-downloads (listening-cache, favorites reconcile) fail transiently all
+        // the time (navigation aborts the stream fetch, rollout blips) and retry on the next
+        // play — debug keeps them out of client-error telemetry. A user-initiated download
+        // stays warn: the person is waiting for it and the entry shows status 'error'.
+        const isBackgroundDownload = reason === 'listening-cache' || reason === 'favorite';
+        log.player[isBackgroundDownload ? 'debug' : 'warn']('Offline download failed', {
+          trackId: track.Id,
+          error: String(error),
+        });
         set(state => ({
           entries: {
             ...state.entries,
