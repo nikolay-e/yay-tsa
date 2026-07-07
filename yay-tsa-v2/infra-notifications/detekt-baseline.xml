@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>NestedBlockDepth:ListenBrainzScrobbleSubmitter.kt$ListenBrainzScrobbleSubmitter$private fun submitListens( listens: List&lt;Pair&lt;UUID, Map&lt;String, Any&gt;&gt;&gt;, now: Instant, splitOnRejection: Boolean, )</ID>
+  </CurrentIssues>
+</SmellBaseline>

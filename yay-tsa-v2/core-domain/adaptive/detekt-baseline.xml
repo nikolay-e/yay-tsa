@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ReturnCount:AdaptiveHandler.kt$AdaptiveHandler$private fun rewriteQueueTail( s: AdaptiveSessionAggregate, cmd: RewriteQueueTail, ctx: CommandContext, deps: AdaptiveDeps, ): CommandResult&lt;AdaptiveSessionAggregate&gt;</ID>
+    <ID>UnusedParameter:AdaptiveHandler.kt$AdaptiveHandler$cmd: RecordPlaybackSignal</ID>
+  </CurrentIssues>
+</SmellBaseline>

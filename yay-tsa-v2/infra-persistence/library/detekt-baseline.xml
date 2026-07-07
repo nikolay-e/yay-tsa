@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LongMethod:JpaLibraryQueryPortTest.kt$JpaLibraryQueryPortTest$@BeforeEach fun setUp()</ID>
+    <ID>LongParameterList:AudioTrackJpa.kt$AudioTrackJpa$( @Id @Column(name = "entity_id") val entityId: UUID = UUID.randomUUID(), @Column(name = "album_id") var albumId: UUID? = null, @Column(name = "album_artist_id") var albumArtistId: UUID? = null, @Column(name = "track_number") var trackNumber: Int? = null, @Column(name = "disc_number") var discNumber: Int = 1, @Column(name = "duration_ms") var durationMs: Long? = null, var bitrate: Int? = null, @Column(name = "sample_rate") var sampleRate: Int? = null, var channels: Int? = null, var year: Int? = null, var codec: String? = null, val comment: String? = null, val lyrics: String? = null, val fingerprint: String? = null, @Column(name = "fingerprint_duration") val fingerprintDuration: Double? = null, @Column(name = "fingerprint_sample_rate") val fingerprintSampleRate: Int? = null, @Column(name = "replaygain_track_gain") var replaygainTrackGain: BigDecimal? = null, @Column(name = "replaygain_album_gain") var replaygainAlbumGain: BigDecimal? = null, @Column(name = "replaygain_track_peak") var replaygainTrackPeak: BigDecimal? = null, @Column(name = "replaygain_checked_at") var replaygainCheckedAt: OffsetDateTime? = null, )</ID>
+    <ID>LongParameterList:LibraryEntityJpa.kt$LibraryEntityJpa$( @Id val id: UUID = UUID.randomUUID(), @Column(name = "entity_type", nullable = false, length = 20) val entityType: String = "", @Column(length = 500) var name: String? = null, @Column(name = "sort_name", length = 500) var sortName: String? = null, @Column(name = "parent_id") var parentId: UUID? = null, @Column(name = "source_path", unique = true) var sourcePath: String? = null, @Column(length = 50) var container: String? = null, @Column(name = "size_bytes") var sizeBytes: Long? = null, var mtime: OffsetDateTime? = null, @Column(name = "library_root") var libraryRoot: String? = null, val overview: String? = null, @Column(name = "search_text") var searchText: String? = null, @Column(name = "created_at") val createdAt: OffsetDateTime? = null, @Column(name = "updated_at") var updatedAt: OffsetDateTime? = null, )</ID>
+    <ID>ReturnCount:JpaLibraryQueryPort.kt$JpaLibraryQueryPort$override fun resolveTrackFilePath(trackId: EntityId): String?</ID>
+    <ID>SerialVersionUIDInSerializableClass:EntityGenreJpa.kt$EntityGenreId : Serializable</ID>
+    <ID>TooManyFunctions:JpaLibraryQueryPort.kt$JpaLibraryQueryPort : LibraryQueryPort</ID>
+    <ID>TooManyFunctions:LibraryEntityRepository.kt$LibraryEntityRepository : JpaRepository</ID>
+  </CurrentIssues>
+</SmellBaseline>

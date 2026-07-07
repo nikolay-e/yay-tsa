@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LongParameterList:LibraryWriter.kt$LibraryWriter$( existing: LibraryEntityJpa, root: Path, codec: String, sizeBytes: Long, mtime: OffsetDateTime, searchText: String, probed: ProbedAudioFile, albumId: UUID?, artistId: UUID?, now: OffsetDateTime, )</ID>
+    <ID>ReturnCount:EmbeddedCoverExtractor.kt$EmbeddedCoverExtractor$fun extractToCache(audioFile: Path): ExtractedCover?</ID>
+    <ID>TooManyFunctions:LibraryWriter.kt$LibraryWriter</ID>
+  </CurrentIssues>
+</SmellBaseline>

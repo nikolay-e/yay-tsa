@@ -38,6 +38,24 @@ subprojects {
     configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
         config.setFrom(rootProject.files("detekt.yml"))
         buildUponDefaultConfig = true
+        // Pre-existing findings are frozen per module (generate with `./gradlew detektBaseline`);
+        // the gate fails only on NEW findings. Shrink the baselines over time, never grow them.
+        baseline = file("detekt-baseline.xml")
+    }
+
+    // Spring's dependency-management BOM downgrades kotlin-compiler-embeddable on detekt's
+    // classpath ("detekt was compiled with Kotlin 2.0.x but is currently running with 1.9.x",
+    // detekt/detekt#7384). Pin detekt's own configuration to the version it supports. Registered
+    // in afterEvaluate so the rule lands AFTER the dependency-management plugin's own rule —
+    // eachDependency rules run in registration order and the last useVersion wins.
+    afterEvaluate {
+        configurations.matching { it.name == "detekt" }.all {
+            resolutionStrategy.eachDependency {
+                if (requested.group == "org.jetbrains.kotlin") {
+                    useVersion(io.gitlab.arturbosch.detekt.getSupportedKotlinVersion())
+                }
+            }
+        }
     }
 
     configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
@@ -57,11 +75,6 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
-    }
-
-    // Detekt 1.x is incompatible with Kotlin 2.1 — exclude from build lifecycle
-    tasks.named("check") {
-        setDependsOn(dependsOn.filterNot { it.toString().contains("detekt") })
     }
 }
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:MpdCommandHandler.kt$MpdCommandHandler$private fun dispatch(line: String): String</ID>
+    <ID>FunctionOnlyReturningConstant:MpdCommandHandler.kt$MpdCommandHandler$private fun ok()</ID>
+    <ID>LargeClass:MpdCommandHandler.kt$MpdCommandHandler</ID>
+    <ID>LongMethod:MpdCommandHandler.kt$MpdCommandHandler$private fun dispatch(line: String): String</ID>
+    <ID>LoopWithTooManyJumpStatements:MpdCommandHandler.kt$MpdCommandHandler$while</ID>
+    <ID>LoopWithTooManyJumpStatements:MpdTcpServer.kt$MpdTcpServer$while</ID>
+    <ID>MaxLineLength:MpdCommandHandler.kt$MpdCommandHandler$private fun parseSeconds(raw: String?): Duration?</ID>
+    <ID>NestedBlockDepth:MpdTcpServer.kt$MpdTcpServer$private fun handleClient(socket: Socket)</ID>
+    <ID>TooManyFunctions:MpdCommandHandler.kt$MpdCommandHandler</ID>
+  </CurrentIssues>
+</SmellBaseline>

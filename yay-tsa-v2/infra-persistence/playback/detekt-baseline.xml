@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LongParameterList:PlayHistoryJpaRepository.kt$PlayHistoryJpaRepository$( @Param("id") id: UUID, @Param("userId") userId: String, @Param("itemId") itemId: String, @Param("startedAt") startedAt: Instant, @Param("durationMs") durationMs: Long, @Param("playedMs") playedMs: Long, @Param("completed") completed: Boolean, @Param("skipped") skipped: Boolean, @Param("recordedAt") recordedAt: Instant, @Param("dedupWindowSeconds") dedupWindowSeconds: Long, )</ID>
+    <ID>MaxLineLength:JpaPlaybackSessionRepository.kt$JpaPlaybackSessionRepository$"PlaybackSession ${aggregate.userId.value}/${aggregate.sessionId.value} was modified concurrently (expected version ${aggregate.version.value - 1})"</ID>
+    <ID>SerialVersionUIDInSerializableClass:PlaybackSessionEntity.kt$PlaybackSessionEntityId : Serializable</ID>
+    <ID>SerialVersionUIDInSerializableClass:QueueEntryEntity.kt$QueueEntryEntityId : Serializable</ID>
+    <ID>SerialVersionUIDInSerializableClass:ResumePositionEntity.kt$ResumePositionEntityId : Serializable</ID>
+  </CurrentIssues>
+</SmellBaseline>

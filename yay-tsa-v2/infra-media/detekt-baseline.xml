@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>NestedBlockDepth:MediaStreamController.kt$MediaStreamController$private fun streamFile( response: HttpServletResponse, filePath: Path, contentType: String, rangeHeader: String?, )</ID>
+  </CurrentIssues>
+</SmellBaseline>

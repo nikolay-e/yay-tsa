@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:RadioQueueBuilder.kt$RadioQueueBuilder$fun diversify( orderedCandidates: List&lt;Track&gt;, targetSize: Int, excludeTrackIds: Set&lt;String&gt; = emptySet(), perArtistCap: Int = DEFAULT_PER_ARTIST_CAP, perAlbumCap: Int = DEFAULT_PER_ALBUM_CAP, ): List&lt;Track&gt;</ID>
+    <ID>LoopWithTooManyJumpStatements:RadioQueueBuilder.kt$RadioQueueBuilder$for</ID>
+  </CurrentIssues>
+</SmellBaseline>

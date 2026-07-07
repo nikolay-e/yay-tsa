@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LoopWithTooManyJumpStatements:PreferencesPropertyTest.kt$PreferencesPropertyTest$for</ID>
+    <ID>LoopWithTooManyJumpStatements:QueuePropertyTest.kt$QueuePropertyTest$for</ID>
+    <ID>MatchingDeclarationName:TestCapabilities.kt$JellyfinCapabilities : ProtocolCapabilities</ID>
+    <ID>MaxLineLength:InMemoryPorts.kt$InMemoryAdaptiveSessionRepository$override fun findActiveByUser(userId: UserId)</ID>
+    <ID>MaxLineLength:QueuePropertyTest.kt$QueuePropertyTest$AddToQueue(sessionId, deviceId, listOf(QueueEntry(QueueEntryId(eId), trackPool[indices.getOrElse(i) { 0 } % trackPool.size])))</ID>
+    <ID>TooManyFunctions:InMemoryPorts.kt$InMemoryLibraryQueryPort : LibraryQueryPort</ID>
+    <ID>UtilityClassWithPublicConstructor:AbstractPersistenceTest.kt$AbstractPersistenceTest</ID>
+  </CurrentIssues>
+</SmellBaseline>

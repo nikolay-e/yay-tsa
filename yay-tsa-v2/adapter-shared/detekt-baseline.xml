@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>MatchingDeclarationName:TrackProjection.kt$TrackLookups</ID>
+    <ID>ReturnCount:HttpEmbeddingClient.kt$HttpEmbeddingClient$override fun encodeText(query: String): FloatArray?</ID>
+    <ID>ReturnCount:LyricsResolver.kt$LyricsResolver$fun resolve(trackId: String): ResolvedLyrics</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LongParameterList:LlmOrchestrator.kt$LlmOrchestrator$( private val adaptiveQuery: AdaptiveQueryPort, private val adaptiveSessionRepo: AdaptiveSessionRepository, private val adaptiveUseCases: AdaptiveUseCases, private val libraryQueries: LibraryQueries, private val mlQuery: MlQueryPort, private val preferencesQuery: PreferencesQueryPort, private val llmClient: LlmClient, private val clock: Clock, private val objectMapper: ObjectMapper, private val decisionRepo: LlmDecisionJpaRepository, @Value("\${yaytsa.llm.enabled:false}") private val enabled: Boolean, @Value("\${yaytsa.llm.model}") private val modelId: String, )</ID>
+    <ID>ReturnCount:LlmOrchestrator.kt$LlmOrchestrator$fun processSession( userId: UserId, sessionId: ListeningSessionId, )</ID>
+  </CurrentIssues>
+</SmellBaseline>

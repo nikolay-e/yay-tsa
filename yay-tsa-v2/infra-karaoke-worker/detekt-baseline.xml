@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LongMethod:KaraokeProcessor.kt$KaraokeProcessor$fun processTrack(trackId: UUID)</ID>
+    <ID>ReturnCount:KaraokeProcessor.kt$KaraokeProcessor$fun processTrack(trackId: UUID)</ID>
+  </CurrentIssues>
+</SmellBaseline>

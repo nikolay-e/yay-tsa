@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>TooManyFunctions:LibraryQueries.kt$LibraryQueries</ID>
+    <ID>TooManyFunctions:LibraryQueryPort.kt$LibraryQueryPort</ID>
+  </CurrentIssues>
+</SmellBaseline>

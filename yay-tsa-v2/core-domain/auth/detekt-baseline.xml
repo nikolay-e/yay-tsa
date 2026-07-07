@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ReturnCount:AuthHandler.kt$AuthHandler$fun handle( snapshot: UserAggregate?, cmd: AuthCommand, ctx: CommandContext, ): CommandResult&lt;UserAggregate&gt;</ID>
+  </CurrentIssues>
+</SmellBaseline>

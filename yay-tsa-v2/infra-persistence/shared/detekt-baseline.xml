@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>NestedBlockDepth:StringListAttributeConverter.kt$StringListAttributeConverter$private fun parseTextArrayString(raw: String): List&lt;String&gt;</ID>
+    <ID>SerialVersionUIDInSerializableClass:IdempotencyRecordEntity.kt$IdempotencyRecordEntityId : Serializable</ID>
+  </CurrentIssues>
+</SmellBaseline>
