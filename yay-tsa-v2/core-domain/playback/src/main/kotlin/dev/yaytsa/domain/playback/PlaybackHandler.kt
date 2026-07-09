@@ -37,6 +37,7 @@ object PlaybackHandler {
             is SkipNext -> withLease(snapshot, cmd.deviceId, ctx) { skipNext(it, ctx) }
             is SkipPrevious -> withLease(snapshot, cmd.deviceId, ctx) { skipPrevious(it, ctx) }
             is StartPlaybackWithTracks -> startPlayback(snapshot, cmd, ctx, deps)
+            is ReflectExternalPlayback -> reflectExternalPlayback(snapshot, cmd, ctx, deps)
         }
     }
 
@@ -354,6 +355,32 @@ object PlaybackHandler {
                 currentEntryId = cmd.entries.first().id,
                 playbackState = PlaybackState.PLAYING,
                 lastKnownPosition = Duration.ZERO,
+                lastKnownAt = ctx.requestTime,
+                version = v,
+            ).asSuccess(v)
+    }
+
+    private fun reflectExternalPlayback(
+        s: PlaybackSessionAggregate,
+        cmd: ReflectExternalPlayback,
+        ctx: CommandContext,
+        deps: PlaybackDeps,
+    ): CommandResult<PlaybackSessionAggregate> {
+        val existing = s.lease
+        if (existing != null && existing.owner != cmd.deviceId && ctx.requestTime < existing.expiresAt) {
+            return Failure.Unauthorized("Lease held by another device").asCommandFailure()
+        }
+        checkTracks(listOf(cmd.trackId), deps)?.let { return it }
+        if (cmd.position.isNegative) return Failure.InvariantViolation("Negative position").asCommandFailure()
+        val entryInQueue = s.queue.firstOrNull { it.trackId == cmd.trackId }
+        val v = s.version.next()
+        return s
+            .copy(
+                lease = PlaybackLease(cmd.deviceId, ctx.requestTime + cmd.leaseDuration),
+                queue = if (entryInQueue != null) s.queue else listOf(QueueEntry(cmd.entryId, cmd.trackId)),
+                currentEntryId = entryInQueue?.id ?: cmd.entryId,
+                playbackState = cmd.state,
+                lastKnownPosition = cmd.position,
                 lastKnownAt = ctx.requestTime,
                 version = v,
             ).asSuccess(v)

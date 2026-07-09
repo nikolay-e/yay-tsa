@@ -12,6 +12,7 @@ import dev.yaytsa.domain.playback.PlaybackCommand
 import dev.yaytsa.domain.playback.PlaybackDeps
 import dev.yaytsa.domain.playback.PlaybackHandler
 import dev.yaytsa.domain.playback.PlaybackSessionAggregate
+import dev.yaytsa.domain.playback.ReflectExternalPlayback
 import dev.yaytsa.domain.playback.ReplaceQueue
 import dev.yaytsa.domain.playback.Seek
 import dev.yaytsa.domain.playback.SessionId
@@ -90,6 +91,7 @@ class PlaybackUseCases(
             is AddToQueue -> trackIdsToValidate.addAll(cmd.entries.map { it.trackId })
             is ReplaceQueue -> trackIdsToValidate.addAll(cmd.entries.map { it.trackId })
             is StartPlaybackWithTracks -> trackIdsToValidate.addAll(cmd.entries.map { it.trackId })
+            is ReflectExternalPlayback -> trackIdsToValidate.add(cmd.trackId)
             else -> {}
         }
         val knownTrackIds = if (trackIdsToValidate.isNotEmpty()) trackValidator(trackIdsToValidate) else emptySet()

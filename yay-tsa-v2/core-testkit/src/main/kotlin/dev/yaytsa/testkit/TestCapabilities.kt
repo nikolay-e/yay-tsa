@@ -22,6 +22,7 @@ import dev.yaytsa.domain.playback.ClearQueue
 import dev.yaytsa.domain.playback.MoveQueueEntry
 import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
+import dev.yaytsa.domain.playback.ReflectExternalPlayback
 import dev.yaytsa.domain.playback.RefreshLease
 import dev.yaytsa.domain.playback.ReleaseLease
 import dev.yaytsa.domain.playback.RemoveFromQueue
@@ -81,6 +82,7 @@ object JellyfinCapabilities : ProtocolCapabilities {
             Seek::class,
             SkipNext::class,
             SkipPrevious::class,
+            ReflectExternalPlayback::class,
             StartPlaybackWithTracks::class,
             // Playlists
             CreatePlaylist::class,

@@ -2,6 +2,7 @@ package dev.yaytsa.domain.playback
 
 import dev.yaytsa.shared.Command
 import dev.yaytsa.shared.DeviceId
+import dev.yaytsa.shared.TrackId
 import java.time.Duration
 
 sealed interface PlaybackCommand : Command {
@@ -95,6 +96,21 @@ data class SkipNext(
 data class SkipPrevious(
     override val sessionId: SessionId,
     val deviceId: DeviceId,
+) : PlaybackCommand
+
+// External playback reflection — an adapter mirrors device-local playback (e.g. the
+// PWA's Jellyfin progress reports) into the authoritative session so every protocol
+// surface (MCP, /Sessions, devices SSE, MPD) sees the same now-playing state. The
+// reporting device becomes the lease owner; a session actively leased by a different
+// device rejects the reflection instead of fighting over authority.
+data class ReflectExternalPlayback(
+    override val sessionId: SessionId,
+    val deviceId: DeviceId,
+    val trackId: TrackId,
+    val entryId: QueueEntryId,
+    val position: Duration,
+    val state: PlaybackState,
+    val leaseDuration: Duration,
 ) : PlaybackCommand
 
 // Atomic composite

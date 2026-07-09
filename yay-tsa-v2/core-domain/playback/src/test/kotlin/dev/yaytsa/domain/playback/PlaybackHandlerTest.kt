@@ -410,4 +410,76 @@ class PlaybackHandlerTest :
             r.shouldBeInstanceOf<CommandResult.Success<PlaybackSessionAggregate>>()
             r.value.lastKnownPosition shouldBe Duration.ofSeconds(30)
         }
+
+        test("ReflectExternalPlayback creates session with reflected track and lease") {
+            val cmd =
+                ReflectExternalPlayback(
+                    sessionId,
+                    devA,
+                    t1,
+                    QueueEntryId("reflected-t1"),
+                    Duration.ofSeconds(42),
+                    PlaybackState.PLAYING,
+                    Duration.ofMinutes(5),
+                )
+            val r = PlaybackHandler.handle(empty(), cmd, ctx(), deps(setOf(t1)))
+            r.shouldBeInstanceOf<CommandResult.Success<PlaybackSessionAggregate>>()
+            r.value.lease!!.owner shouldBe devA
+            r.value.currentEntryId shouldBe QueueEntryId("reflected-t1")
+            r.value.playbackState shouldBe PlaybackState.PLAYING
+            r.value.lastKnownPosition shouldBe Duration.ofSeconds(42)
+        }
+
+        test("ReflectExternalPlayback rejected while another device holds an active lease") {
+            val s = withLease(devB)
+            val cmd =
+                ReflectExternalPlayback(
+                    sessionId,
+                    devA,
+                    t1,
+                    QueueEntryId("reflected-t1"),
+                    Duration.ZERO,
+                    PlaybackState.PLAYING,
+                    Duration.ofMinutes(5),
+                )
+            val r = PlaybackHandler.handle(s, cmd, ctx(s.version), deps(setOf(t1)))
+            r.shouldBeInstanceOf<CommandResult.Failed>()
+            r.failure.shouldBeInstanceOf<Failure.Unauthorized>()
+        }
+
+        test("ReflectExternalPlayback points at the existing queue entry for the same track") {
+            val entry = QueueEntry(QueueEntryId("e1"), t1)
+            val s = withLease(devA).copy(queue = listOf(entry))
+            val cmd =
+                ReflectExternalPlayback(
+                    sessionId,
+                    devA,
+                    t1,
+                    QueueEntryId("reflected-t1"),
+                    Duration.ofSeconds(5),
+                    PlaybackState.PAUSED,
+                    Duration.ofMinutes(5),
+                )
+            val r = PlaybackHandler.handle(s, cmd, ctx(s.version), deps(setOf(t1)))
+            r.shouldBeInstanceOf<CommandResult.Success<PlaybackSessionAggregate>>()
+            r.value.queue shouldBe listOf(entry)
+            r.value.currentEntryId shouldBe entry.id
+            r.value.playbackState shouldBe PlaybackState.PAUSED
+        }
+
+        test("ReflectExternalPlayback with unknown track fails") {
+            val cmd =
+                ReflectExternalPlayback(
+                    sessionId,
+                    devA,
+                    t1,
+                    QueueEntryId("reflected-t1"),
+                    Duration.ZERO,
+                    PlaybackState.PLAYING,
+                    Duration.ofMinutes(5),
+                )
+            val r = PlaybackHandler.handle(empty(), cmd, ctx(), deps(emptySet()))
+            r.shouldBeInstanceOf<CommandResult.Failed>()
+            r.failure.shouldBeInstanceOf<Failure.InvariantViolation>()
+        }
     })

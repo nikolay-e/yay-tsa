@@ -42,10 +42,17 @@ class JellyfinSessionsController(
     private val libraryQueries: LibraryQueries,
     private val deviceSessionProjection: dev.yaytsa.application.playback.DeviceSessionProjection,
     private val nowPlayingResolver: DeviceNowPlayingResolver,
+    private val playbackUseCases: dev.yaytsa.application.playback.PlaybackUseCases,
     private val clock: Clock,
     @Qualifier("jellyfinCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
+    companion object {
+        private val REFLECT_LEASE_DURATION: Duration = Duration.ofMinutes(5)
+        private val REFLECT_LEASE_RENEW_THRESHOLD: Duration = Duration.ofMinutes(2)
+        private const val REFLECT_POSITION_TOLERANCE_MS = 5_000L
+    }
+
     private val playbackStarts: Cache<String, Instant> =
         Caffeine
             .newBuilder()
@@ -136,6 +143,7 @@ class JellyfinSessionsController(
         playbackStarts.put("${principal.name}:${info.itemId}", clock.now())
         recordSignal(principal, info.itemId, SignalType.PLAY_START)
         recordResume(principal, info.itemId, info.positionTicks, ResumeSource.START, info.eventTime)
+        reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.PLAYING)
         return ResponseEntity.noContent().build()
     }
 
@@ -154,6 +162,12 @@ class JellyfinSessionsController(
                 else -> ResumeSource.PROGRESS
             }
         recordResume(principal, info.itemId, info.positionTicks, source, info.eventTime)
+        reflectDevicePlayback(
+            principal,
+            info.itemId,
+            info.positionTicks,
+            if (info.isPaused) dev.yaytsa.domain.playback.PlaybackState.PAUSED else dev.yaytsa.domain.playback.PlaybackState.PLAYING,
+        )
         return ResponseEntity.noContent().build()
     }
 
@@ -188,7 +202,83 @@ class JellyfinSessionsController(
             runTimeMs = runTimeMs,
         )
 
+        reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.STOPPED)
         return ResponseEntity.noContent().build()
+    }
+
+    // Mirrors device-local playback into the authoritative playback session (keyed by the
+    // reporting device's session id) so MCP/Sessions/devices views see what the PWA plays.
+    // Best-effort: a failure must never break the 204 report contract. Reflection is gated
+    // to material changes so steady playback stays near the Variant B write budget instead
+    // of writing on every heartbeat.
+    private fun reflectDevicePlayback(
+        principal: Principal,
+        itemId: String,
+        positionTicks: Long,
+        state: dev.yaytsa.domain.playback.PlaybackState,
+    ) {
+        val auth =
+            org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .authentication as? DeviceBoundAuthentication ?: return
+        val deviceIdValue = auth.deviceId?.takeIf { it.isNotBlank() } ?: return
+        val uid = UserId(principal.name)
+        val deviceId = dev.yaytsa.shared.DeviceId(deviceIdValue)
+        val sid =
+            dev.yaytsa.domain.playback
+                .SessionId(deviceIdValue)
+        val positionMs = positionTicks / TICKS_PER_MS
+        repeat(2) {
+            val now = clock.now()
+            val current = playbackUseCases.getPlaybackState(uid, sid)
+            if (!shouldReflect(current, itemId, positionMs, state, deviceId, now)) return
+            val cmd =
+                dev.yaytsa.domain.playback.ReflectExternalPlayback(
+                    sessionId = sid,
+                    deviceId = deviceId,
+                    trackId = TrackId(itemId),
+                    // queue_entries/current_entry_id columns are UUID-sized (varchar 36):
+                    // the track id doubles as the reflected entry id.
+                    entryId =
+                        dev.yaytsa.domain.playback
+                            .QueueEntryId(itemId),
+                    position = Duration.ofMillis(positionMs),
+                    state = state,
+                    leaseDuration = REFLECT_LEASE_DURATION,
+                )
+            val ctx = ctxFactory.create(uid, current?.version ?: AggregateVersion.INITIAL)
+            when (val result = playbackUseCases.execute(cmd, ctx)) {
+                is dev.yaytsa.shared.CommandResult.Success -> return
+                is dev.yaytsa.shared.CommandResult.Failed -> {
+                    if (result.failure is dev.yaytsa.shared.Failure.Unauthorized) return
+                    log.warn("ReflectExternalPlayback failed for user {} device {}: {}", uid.value, deviceIdValue, result.failure)
+                }
+            }
+        }
+    }
+
+    private fun shouldReflect(
+        current: dev.yaytsa.domain.playback.PlaybackSessionAggregate?,
+        itemId: String,
+        positionMs: Long,
+        state: dev.yaytsa.domain.playback.PlaybackState,
+        deviceId: dev.yaytsa.shared.DeviceId,
+        now: Instant,
+    ): Boolean {
+        if (current == null) return true
+        val currentTrackId =
+            current.currentEntryId?.let { entryId ->
+                current.queue
+                    .firstOrNull { it.id == entryId }
+                    ?.trackId
+                    ?.value
+            }
+        if (currentTrackId != itemId) return true
+        if (current.playbackState != state) return true
+        val lease = current.lease
+        if (lease == null || lease.owner != deviceId || Duration.between(now, lease.expiresAt) < REFLECT_LEASE_RENEW_THRESHOLD) return true
+        val driftMs = current.computePosition(now).toMillis() - positionMs
+        return driftMs > REFLECT_POSITION_TOLERANCE_MS || driftMs < -REFLECT_POSITION_TOLERANCE_MS
     }
 
     private fun recordResume(
