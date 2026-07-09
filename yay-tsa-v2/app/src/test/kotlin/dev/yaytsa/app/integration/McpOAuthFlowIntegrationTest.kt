@@ -115,6 +115,7 @@ class McpOAuthFlowIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(200, formPage.response.status)
         assertTrue(formPage.response.contentType!!.startsWith(MediaType.TEXT_HTML_VALUE))
         assertTrue(formPage.response.contentAsString.contains("name=\"code_challenge\""))
+        assertEquals("DENY", formPage.response.getHeader("X-Frame-Options"))
 
         val location = authorizeAndGetLocation(clientId, challenge, username, password, state = "st-123")
         assertTrue(location.startsWith("$callbackUri?"), "location=$location")

@@ -14,6 +14,15 @@ data class LoginFormModel(
 )
 
 object OAuthHtmlPages {
+    fun securityHeaders(): org.springframework.http.HttpHeaders {
+        val headers = org.springframework.http.HttpHeaders()
+        headers.add("X-Frame-Options", "DENY")
+        headers.add("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+        headers.add("X-Content-Type-Options", "nosniff")
+        headers.add("Referrer-Policy", "no-referrer")
+        return headers
+    }
+
     fun invalidClient(): String =
         shell(
             "Authorization failed",

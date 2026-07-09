@@ -184,6 +184,7 @@ class McpOAuthController(
         ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .contentType(MediaType.TEXT_HTML)
+            .headers { it.addAll(OAuthHtmlPages.securityHeaders()) }
             .body(OAuthHtmlPages.invalidClient())
 
     private fun loginPage(
@@ -194,6 +195,7 @@ class McpOAuthController(
         ResponseEntity
             .status(if (errorMessage == null) HttpStatus.OK else HttpStatus.UNAUTHORIZED)
             .contentType(MediaType.TEXT_HTML)
+            .headers { it.addAll(OAuthHtmlPages.securityHeaders()) }
             .cacheControl(CacheControl.noStore())
             .body(
                 OAuthHtmlPages.loginForm(

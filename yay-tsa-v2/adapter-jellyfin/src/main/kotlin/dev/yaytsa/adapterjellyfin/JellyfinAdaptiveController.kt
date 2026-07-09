@@ -420,7 +420,7 @@ class JellyfinAdaptiveController(
         @RequestParam("q") query: String,
         @RequestParam(defaultValue = "20") limit: Int,
         principal: Principal?,
-    ): ResponseEntity<Any> {
+    ): ResponseEntity<List<Map<String, Any?>>> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
         val cappedLimit = limit.coerceIn(1, 100)

@@ -74,10 +74,45 @@ class OpenApiConfig {
                 ?.forEach { param ->
                     val schema = param.schema
                     if (schema?.type == "string" && schema.pattern == null && schema.format == null) {
-                        schema.pattern = PATH_ID_PATTERN
+                        if (param.name in UUID_PATH_PARAMS) {
+                            schema.format = "uuid"
+                        } else {
+                            schema.pattern = PATH_ID_PATTERN
+                        }
                     }
                 }
             operation
+        }
+
+    // Paging params (StartIndex, Limit, limit, …) are non-negative int32s. Without declared
+    // bounds, positive fuzzing legitimately sends values like -1.3e22 or 4.4e9; the resulting
+    // 400 (type mismatch / negative index) is then reported as "API rejected schema-compliant
+    // request". Declaring the real domain keeps huge/negative integers in the negative-test bucket.
+    @Bean
+    fun integerQueryParamBoundsCustomizer(): OperationCustomizer =
+        OperationCustomizer { operation, _ ->
+            operation.parameters
+                ?.filter { it.`in` == "query" }
+                ?.forEach { param ->
+                    val schema = param.schema
+                    if (schema?.type == "integer") {
+                        if (schema.minimum == null) schema.minimum = java.math.BigDecimal.ZERO
+                        if (schema.maximum == null) schema.maximum = java.math.BigDecimal(Int.MAX_VALUE)
+                    }
+                }
+            operation
+        }
+
+    // The OAuth flow endpoints (DCR registration, HTML login form, token exchange) are
+    // browser/RFC-6749 surfaces covered by McpOAuthFlowIntegrationTest, not API-consumer
+    // endpoints. Fuzzing them would pollute the oauth_clients registry through the
+    // unauthenticated registration endpoint and flood the login form with 401 HTML that
+    // trips content-type conformance. Hiding them from the spec keeps schemathesis/ZAP
+    // scoped to the real API surface.
+    @Bean
+    fun oauthPathsHiddenCustomizer(): org.springdoc.core.customizers.OpenApiCustomizer =
+        org.springdoc.core.customizers.OpenApiCustomizer { openApi ->
+            openApi.paths?.keys?.removeIf { it.startsWith("/oauth/") || it.startsWith("/.well-known/") }
         }
 
     private fun problemDetailResponse(description: String): ApiResponse =
@@ -87,6 +122,10 @@ class OpenApiConfig {
 
     companion object {
         private const val PATH_ID_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._@:-]{0,127}$"
+
+        // Path params whose handlers reject non-UUID values with 400 (isValidUuid guards);
+        // declaring format: uuid keeps positive fuzzing inside the servable id space.
+        private val UUID_PATH_PARAMS = setOf("playlistId")
 
         private val STANDARD_ERROR_RESPONSES =
             linkedMapOf(

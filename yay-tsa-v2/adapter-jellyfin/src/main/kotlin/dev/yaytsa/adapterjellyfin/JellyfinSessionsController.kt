@@ -100,7 +100,7 @@ class JellyfinSessionsController(
     )
 
     @GetMapping
-    fun getSessions(principal: Principal): ResponseEntity<Any> {
+    fun getSessions(principal: Principal): ResponseEntity<List<Map<String, Any?>>> {
         val uid = UserId(principal.name)
         val sessions =
             deviceSessionProjection.getByUser(uid).map { s ->

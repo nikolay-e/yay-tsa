@@ -455,6 +455,10 @@ jobs:
           # of locking the shared QA account. Both are covered by integration
           # tests and the crawler's real login flow.
           schemathesis-exclude-paths: '/Items/{itemId}/Images/{imageType},/v1/me/devices/events,/v1/me/devices/commands,/v1/groups/{groupId}/events,/Karaoke/{trackId}/status/stream,/Users/AuthenticateByName,/v1/groups/join,/mcp,/Sessions/Logout,/Users/Password'
+          # Unknown query params are ignored by design (standard REST behavior),
+          # so negative_data_rejection only reports noise (x-schemathesis-unknown-property
+          # accepted with 200). Keep the action's own defaults when overriding.
+          schemathesis-exclude-checks: 'ignored_auth,unsupported_method,negative_data_rejection'
 
           zap-enabled: 'true'
           # AuthRateLimitFilter answers ZAP's SQLi probes on the login endpoint with
