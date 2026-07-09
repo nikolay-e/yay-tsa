@@ -1,0 +1,42 @@
+{{- if and .Values.ingress.enabled .Values.backend.enabled .Values.ingress.wellKnown.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "yay-tsa-v2.fullname" . }}-wellknown
+  labels:
+    {{- include "yay-tsa-v2.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.className }}
+    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.priority: "30"
+    {{- if .Values.ingress.secureHeaders.enabled }}
+    {{- $namespace := .Release.Namespace }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-secure-headers@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .) }}
+    {{- end }}
+    {{- with .Values.ingress.wellKnown.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  {{- include "yay-tsa-common.ingress.tls" (dict "tls" .Values.ingress.tls) | nindent 2 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range $.Values.ingress.wellKnown.paths }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "yay-tsa-v2.fullname" $ }}-backend
+                port:
+                  number: {{ $.Values.backend.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

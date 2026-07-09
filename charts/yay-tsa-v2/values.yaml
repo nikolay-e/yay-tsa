@@ -272,3 +272,10 @@ ingress:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     paths:
       - /rest
+  wellKnown:
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    paths:
+      - /.well-known/oauth-authorization-server
+      - /.well-known/oauth-protected-resource

@@ -61,6 +61,9 @@ spring:
 yaytsa:
   auth:
     max-failures-per-minute: ${AUTH_MAX_FAILURES_PER_MINUTE:10}
+  oauth:
+    public-base-url: ${OAUTH_PUBLIC_BASE_URL:https://yay-tsa.com}
+    public-api-prefix: ${OAUTH_PUBLIC_API_PREFIX:/api}
   admin-bootstrap:
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
     username: ${ADMIN_BOOTSTRAP_USERNAME:admin}
@@ -200,6 +203,19 @@ bucket4j:
         - cache-key: getRemoteAddr()
           bandwidths:
             - capacity: 60
+              time: 1
+              unit: minutes
+              refill-speed: interval
+    - id: oauth
+      cache-name: rate-limit-buckets
+      url: ^/oauth/.*
+      http-status-code: TOO_MANY_REQUESTS
+      http-content-type: application/problem+json
+      http-response-body: '{"title":"Too Many Requests","status":429,"detail":"Too many requests. Try again later."}'
+      rate-limits:
+        - cache-key: getRemoteAddr()
+          bandwidths:
+            - capacity: 30
               time: 1
               unit: minutes
               refill-speed: interval

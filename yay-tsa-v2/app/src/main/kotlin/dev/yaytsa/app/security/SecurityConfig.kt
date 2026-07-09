@@ -75,6 +75,10 @@ class SecurityConfig(
                     .permitAll()
                     .requestMatchers("/v1/client-errors")
                     .permitAll()
+                    .requestMatchers("/.well-known/**")
+                    .permitAll()
+                    .requestMatchers("/oauth/authorize", "/oauth/token", "/oauth/register")
+                    .permitAll()
                     .requestMatchers("/v3/api-docs/**", "/v3/api-docs")
                     .permitAll()
                     .requestMatchers(

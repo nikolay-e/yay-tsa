@@ -16,6 +16,7 @@ dependencyManagement {
 dependencies {
     implementation(project(":adapter-shared"))
     implementation(project(":core-domain:shared"))
+    implementation(project(":core-domain:auth"))
     implementation(project(":core-domain:playback"))
     implementation(project(":core-domain:playlists"))
     implementation(project(":core-domain:preferences"))
@@ -31,6 +32,8 @@ dependencies {
     implementation(project(":core-application:ml"))
     implementation(project(":core-application:recommendation"))
     implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.security)
+    implementation("org.springframework:spring-jdbc")
     implementation(libs.jackson.module.kotlin)
 
     testImplementation(libs.spring.boot.starter.test)

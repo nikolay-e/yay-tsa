@@ -14,13 +14,23 @@ import org.springframework.stereotype.Component
 @Component
 class ProblemDetailSecurityHandler(
     private val objectMapper: ObjectMapper,
+    @org.springframework.beans.factory.annotation.Value("\${yaytsa.oauth.public-base-url:https://yay-tsa.com}")
+    private val oauthPublicBaseUrl: String,
 ) : AuthenticationEntryPoint,
     AccessDeniedHandler {
     override fun commence(
         request: HttpServletRequest,
         response: HttpServletResponse,
         authException: AuthenticationException,
-    ) = write(request, response, HttpStatus.UNAUTHORIZED, "Unauthorized", "Authentication required")
+    ) {
+        if (request.requestURI == "/mcp" && !response.isCommitted) {
+            response.setHeader(
+                "WWW-Authenticate",
+                "Bearer resource_metadata=\"$oauthPublicBaseUrl/.well-known/oauth-protected-resource/api/mcp\"",
+            )
+        }
+        write(request, response, HttpStatus.UNAUTHORIZED, "Unauthorized", "Authentication required")
+    }
 
     override fun handle(
         request: HttpServletRequest,

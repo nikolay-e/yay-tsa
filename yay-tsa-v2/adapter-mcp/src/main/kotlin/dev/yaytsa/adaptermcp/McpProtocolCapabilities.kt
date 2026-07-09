@@ -2,6 +2,7 @@ package dev.yaytsa.adaptermcp
 
 import dev.yaytsa.application.shared.ProtocolCapabilities
 import dev.yaytsa.domain.adaptive.StartListeningSession
+import dev.yaytsa.domain.auth.CreateApiToken
 import dev.yaytsa.domain.playback.AddToQueue
 import dev.yaytsa.domain.playback.ClearQueue
 import dev.yaytsa.domain.playback.Pause
@@ -20,6 +21,8 @@ class McpProtocolCapabilities : ProtocolCapabilities {
     override val protocol = ProtocolId("MCP")
     override val supportedCommands: Set<KClass<out Command>> =
         setOf(
+            // Mint device tokens during the OAuth authorization-code flow
+            CreateApiToken::class,
             // Control playback
             Play::class,
             Pause::class,
