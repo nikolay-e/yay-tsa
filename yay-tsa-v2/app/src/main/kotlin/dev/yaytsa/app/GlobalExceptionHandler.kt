@@ -8,7 +8,9 @@ import org.springframework.dao.InvalidDataAccessApiUsageException
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageConversionException
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.http.converter.HttpMessageNotWritableException
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.HttpMediaTypeNotAcceptableException
 import org.springframework.web.HttpMediaTypeNotSupportedException
@@ -87,6 +89,22 @@ class GlobalExceptionHandler {
         ex: HttpMessageNotReadableException,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid request body", request)
+
+    // Jackson wraps InvalidDefinitionException (e.g. a null element sent for a non-nullable
+    // Kotlin List<String> field) in the PARENT HttpMessageConversionException, not
+    // HttpMessageNotReadableException — without this handler such client input falls through
+    // to handleGeneric as a 500. HttpMessageNotWritableException stays a real server bug.
+    @ExceptionHandler(HttpMessageConversionException::class)
+    fun handleMessageConversion(
+        ex: HttpMessageConversionException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> {
+        if (ex is HttpMessageNotWritableException) {
+            log.error("Response serialization failed", ex)
+            return problemDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "Response serialization failed", request)
+        }
+        return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid request body", request)
+    }
 
     @ExceptionHandler(MissingServletRequestParameterException::class)
     fun handleMissingParam(

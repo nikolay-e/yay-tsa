@@ -74,6 +74,24 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `create playlist with null element in Ids returns 400 problem json not 500`() {
+        val result =
+            mockMvc
+                .perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/Playlists")
+                        .header("Authorization", "Bearer $token")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""{"Name":"Null Ids","UserId":"$userId","Ids":["a",null]}"""),
+                ).andReturn()
+        assertEquals(400, result.response.status)
+        assertTrue(
+            result.response.contentType!!.startsWith("application/problem+json"),
+            "expected problem+json, was ${result.response.contentType}",
+        )
+    }
+
+    @Test
     fun `removing one slot of a duplicated track keeps the other slot`() {
         val trackId = seedTrack()
         val create = post("/Playlists", mapOf("Name" to "Dup Mix", "UserId" to userId), token)
