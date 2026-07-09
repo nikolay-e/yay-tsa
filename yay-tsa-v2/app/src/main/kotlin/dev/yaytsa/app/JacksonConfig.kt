@@ -11,12 +11,12 @@ class JacksonConfig {
     // non-nullable List<String> field; the first element access then dies with a
     // Kotlin intrinsics NPE inside the controller (observed as a 500 on
     // POST /Playlists {"Ids":["a",null]}). With the feature enabled Jackson throws
-    // MismatchedInputException at parse time, which the existing
-    // HttpMessageNotReadableException handler maps to a 400.
+    // at parse time, which the message-conversion handlers map to a 400.
+    // (NewStrictNullChecks needs jackson-module-kotlin 2.19+; catalog pins 2.18.)
     @Bean
     fun kotlinModule(): KotlinModule =
         KotlinModule
             .Builder()
-            .enable(KotlinFeature.NewStrictNullChecks)
+            .enable(KotlinFeature.StrictNullChecks)
             .build()
 }
