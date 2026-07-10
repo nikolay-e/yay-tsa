@@ -94,9 +94,14 @@ class ListeningStatsService(
             skipRate = if (n > 0) skips.toDouble() / n else 0.0,
             skipRateCiLow = ciLow,
             skipRateCiHigh = ciHigh,
-            playedMinutes = Duration.ofMillis(events.sumOf { it.playedMs ?: 0L }).toMinutes(),
+            playedMinutes = Duration.ofMillis(events.sumOf { clampedPlayedMs(it) }).toMinutes(),
             lowSupport = n < LOW_SUPPORT_THRESHOLD,
         )
+    }
+
+    private fun clampedPlayedMs(event: PlayHistoryEvent): Long {
+        val cap = event.durationMs?.takeIf { it > 0 } ?: MAX_EVENT_PLAYED_MS
+        return (event.playedMs ?: 0L).coerceIn(0L, minOf(cap, MAX_EVENT_PLAYED_MS))
     }
 
     // Wilson score interval at 95%: honest uncertainty on small per-group samples, so the
@@ -118,6 +123,7 @@ class ListeningStatsService(
 
     companion object {
         const val LOW_SUPPORT_THRESHOLD = 20
+        const val MAX_EVENT_PLAYED_MS: Long = 86_400_000
         const val UNKNOWN_GROUP = "Unknown"
     }
 }

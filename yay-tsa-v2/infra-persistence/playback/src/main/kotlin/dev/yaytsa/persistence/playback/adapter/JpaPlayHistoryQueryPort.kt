@@ -40,7 +40,7 @@ class JpaPlayHistoryQueryPort(
         userId: UserId,
         since: Instant,
         until: Instant,
-    ): List<PlayHistoryEvent> = jpa.findEventsInWindow(userId.value, since, until).map { it.toEvent() }
+    ): List<PlayHistoryEvent> = jpa.findEventsInWindow(userId.value, since, until, UUID_PATTERN).map { it.toEvent() }
 
     override fun historyPage(
         userId: UserId,
@@ -51,7 +51,7 @@ class JpaPlayHistoryQueryPort(
         offset: Int,
     ): List<PlayHistoryEvent> =
         jpa
-            .findHistoryPage(userId.value, since, until, source, maxOf(limit, 1), maxOf(offset, 0))
+            .findHistoryPage(userId.value, since, until, source, UUID_PATTERN, maxOf(limit, 1), maxOf(offset, 0))
             .map { it.toEvent() }
 
     override fun historyCount(
@@ -59,7 +59,7 @@ class JpaPlayHistoryQueryPort(
         since: Instant?,
         until: Instant?,
         source: String?,
-    ): Long = jpa.countHistory(userId.value, since, until, source)
+    ): Long = jpa.countHistory(userId.value, since, until, source, UUID_PATTERN)
 
     private fun PlayHistoryEntity.toEvent(): PlayHistoryEvent =
         PlayHistoryEvent(
@@ -72,4 +72,10 @@ class JpaPlayHistoryQueryPort(
             source = source,
             deviceId = deviceId,
         )
+
+    private companion object {
+        // The 2026-06-14 legacy import carried rows with blank/garbage item_id; analytics
+        // queries must never feed those into library lookups (UUID cast -> 404 for the tool).
+        const val UUID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    }
 }

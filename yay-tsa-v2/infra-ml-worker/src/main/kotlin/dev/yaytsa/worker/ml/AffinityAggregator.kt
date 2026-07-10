@@ -106,10 +106,10 @@ class AffinityAggregator(
                     COALESCE(SUM(
                         CASE
                             WHEN c.signal_type IN ('PLAY_COMPLETE','SKIP_LATE','SKIP_MID','SKIP_EARLY')
-                            THEN COALESCE(
-                                     substring(c.context::text from '"positionMs"[[:space:]]*:[[:space:]]*([0-9]+)')::bigint,
+                            THEN LEAST(COALESCE(
+                                     substring(c.context::text from '"positionMs"[[:space:]]*:[[:space:]]*([0-9]{1,9})')::bigint,
                                      0
-                                 ) / 1000
+                                 ), 86400000) / 1000
                             ELSE 0
                         END
                     ), 0),

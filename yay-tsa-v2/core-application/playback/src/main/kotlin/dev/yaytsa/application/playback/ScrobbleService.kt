@@ -32,20 +32,24 @@ class ScrobbleService(
         source: String? = null,
         deviceId: String? = null,
     ) {
+        // Fuzzed/garbage reports can carry astronomic positions; clamp so a single bad
+        // wire value can never poison duration sums or overflow downstream aggregates.
+        val positionCapMs = if (runTimeMs > 0) minOf(runTimeMs, MAX_POSITION_MS) else MAX_POSITION_MS
+        val position = positionMs.coerceIn(0, positionCapMs)
         val completed =
             if (runTimeMs > 0) {
-                positionMs >= runTimeMs / 2
+                position >= runTimeMs / 2
             } else {
                 Duration.between(startedAt, stoppedAt).toMillis() > COMPLETED_THRESHOLD_MS
             }
-        val skipped = !completed && positionMs >= SKIP_NOISE_FLOOR_MS
+        val skipped = !completed && position >= SKIP_NOISE_FLOOR_MS
 
         playHistoryWriter.record(
             userId = userId,
             trackId = trackId,
             startedAt = startedAt,
             durationMs = runTimeMs.takeIf { it > 0 },
-            playedMs = positionMs,
+            playedMs = position,
             completed = completed,
             skipped = skipped,
             source = source,
@@ -56,5 +60,6 @@ class ScrobbleService(
     companion object {
         const val COMPLETED_THRESHOLD_MS: Long = 240_000
         const val SKIP_NOISE_FLOOR_MS: Long = 3_000
+        const val MAX_POSITION_MS: Long = 86_400_000
     }
 }

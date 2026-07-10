@@ -57,14 +57,19 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
     ): Int
 
     @Query(
-        "SELECT p FROM PlayHistoryEntity p " +
-            "WHERE p.userId = :userId AND p.startedAt >= :since AND p.startedAt < :until " +
-            "ORDER BY p.startedAt",
+        value = """
+            SELECT * FROM core_v2_playback.play_history
+            WHERE user_id = :userId AND started_at >= :since AND started_at < :until
+              AND item_id ~ :uuidPattern
+            ORDER BY started_at
+        """,
+        nativeQuery = true,
     )
     fun findEventsInWindow(
         @Param("userId") userId: String,
         @Param("since") since: Instant,
         @Param("until") until: Instant,
+        @Param("uuidPattern") uuidPattern: String,
     ): List<PlayHistoryEntity>
 
     @Query(
@@ -75,6 +80,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (CAST(:since AS timestamptz) IS NULL OR started_at >= CAST(:since AS timestamptz))
               AND (CAST(:until AS timestamptz) IS NULL OR started_at < CAST(:until AS timestamptz))
               AND (CAST(:source AS text) IS NULL OR source = CAST(:source AS text))
+              AND item_id ~ :uuidPattern
             ORDER BY started_at DESC, id
             LIMIT :limit OFFSET :offset
             """,
@@ -85,6 +91,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
         @Param("since") since: Instant?,
         @Param("until") until: Instant?,
         @Param("source") source: String?,
+        @Param("uuidPattern") uuidPattern: String,
         @Param("limit") limit: Int,
         @Param("offset") offset: Int,
     ): List<PlayHistoryEntity>
@@ -97,6 +104,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (CAST(:since AS timestamptz) IS NULL OR started_at >= CAST(:since AS timestamptz))
               AND (CAST(:until AS timestamptz) IS NULL OR started_at < CAST(:until AS timestamptz))
               AND (CAST(:source AS text) IS NULL OR source = CAST(:source AS text))
+              AND item_id ~ :uuidPattern
             """,
         nativeQuery = true,
     )
@@ -105,6 +113,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
         @Param("since") since: Instant?,
         @Param("until") until: Instant?,
         @Param("source") source: String?,
+        @Param("uuidPattern") uuidPattern: String,
     ): Long
 
     @Query(
