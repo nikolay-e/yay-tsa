@@ -11,4 +11,7 @@ spec:
     stsIncludeSubdomains: {{ .Values.ingress.secureHeaders.stsIncludeSubdomains }}
     stsPreload: {{ .Values.ingress.secureHeaders.stsPreload }}
     forceSTSHeader: true
+    {{- with .Values.ingress.secureHeaders.contentSecurityPolicy }}
+    contentSecurityPolicy: {{ . | quote }}
+    {{- end }}
 {{- end }}

@@ -270,6 +270,20 @@ ingress:
     stsSeconds: 63072000
     stsIncludeSubdomains: true
     stsPreload: true
+    # The /oauth/authorize consent POST 302s the browser to the MCP client's registered
+    # redirect_uri (Claude hosted = https://claude.ai/..., Claude Code = loopback), and
+    # browsers (Chrome ~v120+) enforce form-action against the whole redirect chain — a bare
+    # 'self' silently blocks connecting the MCP server. Traefik sets this CSP at the origin and
+    # Cloudflare passes it through. Applies to all v2 routes (/api, /rest, /.well-known); it is
+    # inert on the JSON/XML API responses and only governs the OAuth HTML pages.
+    contentSecurityPolicy: >-
+      default-src 'self';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data:;
+      frame-ancestors 'none';
+      base-uri 'self';
+      form-action 'self' https://claude.ai http://127.0.0.1:* http://localhost:*;
+      upgrade-insecure-requests
   subsonic:
     enabled: true
     annotations:
