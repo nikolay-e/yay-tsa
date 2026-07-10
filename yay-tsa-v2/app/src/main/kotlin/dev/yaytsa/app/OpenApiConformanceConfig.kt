@@ -43,6 +43,21 @@ class OpenApiConformanceConfig {
                 val properties = schemas[schemaName]?.properties ?: return@forEach
                 fields.forEach { field -> properties[field]?.format = "uuid" }
             }
+            NON_NEGATIVE_INT_BODY_FIELDS.forEach { (schemaName, fields) ->
+                val properties = schemas[schemaName]?.properties ?: return@forEach
+                fields.forEach { field ->
+                    properties[field]?.let { schema ->
+                        if (schema.minimum == null) schema.minimum = BigDecimal.ZERO
+                        if (schema.maximum == null && schema.format == "int32") {
+                            schema.maximum = BigDecimal(Int.MAX_VALUE)
+                        }
+                    }
+                }
+            }
+            NON_BLANK_ARRAY_ITEM_FIELDS.forEach { (schemaName, fields) ->
+                val properties = schemas[schemaName]?.properties ?: return@forEach
+                fields.forEach { field -> properties[field]?.items?.minLength = 1 }
+            }
         }
 
     // Multipart uploads without a body can only ever 415/400; a required request body keeps
@@ -70,6 +85,21 @@ class OpenApiConformanceConfig {
                 "PlaybackStartInfo" to setOf("ItemId"),
                 "PlaybackProgressInfo" to setOf("ItemId"),
                 "PlaybackStopInfo" to setOf("ItemId"),
+            )
+
+        private val PLAYBACK_REPORT_INT_FIELDS =
+            setOf("PositionTicks", "AudioStreamIndex", "SubtitleStreamIndex", "VolumeLevel", "EventTime")
+
+        private val NON_NEGATIVE_INT_BODY_FIELDS =
+            mapOf(
+                "PlaybackStartInfo" to PLAYBACK_REPORT_INT_FIELDS,
+                "PlaybackProgressInfo" to PLAYBACK_REPORT_INT_FIELDS,
+                "PlaybackStopInfo" to setOf("PositionTicks", "EventTime"),
+            )
+
+        private val NON_BLANK_ARRAY_ITEM_FIELDS =
+            mapOf(
+                "FavoriteOrderRequest" to setOf("ItemIds"),
             )
     }
 }

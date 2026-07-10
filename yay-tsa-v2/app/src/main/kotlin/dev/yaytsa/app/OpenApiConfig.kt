@@ -125,7 +125,7 @@ class OpenApiConfig {
 
         // Path params whose handlers reject non-UUID values with 400 (isValidUuid guards);
         // declaring format: uuid keeps positive fuzzing inside the servable id space.
-        private val UUID_PATH_PARAMS = setOf("playlistId")
+        private val UUID_PATH_PARAMS = setOf("playlistId", "itemId", "trackId")
 
         private val STANDARD_ERROR_RESPONSES =
             linkedMapOf(
