@@ -1,0 +1,32 @@
+{{- if and .Values.backend.enabled .Values.backend.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "yay-tsa-v2.fullname" . }}-backend
+  labels:
+    {{- include "yay-tsa-v2.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+    {{- with .Values.backend.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: yay-tsa-v2-backend
+      rules:
+        - alert: YaytsaOutboxPublishingStalled
+          expr: yaytsa_outbox_oldest_unpublished_age_seconds > 300
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Outbox publishing stalled — SSE notifications and remote commands are not being delivered"
+            description: "Oldest unpublished outbox row is {{ "{{ $value | humanizeDuration }}" }} old. HTTP stays green while every SSE event (device state, remote commands) silently queues. Check the scheduler threads (a long @Scheduled job starves the poller) and the outbox poller logs."
+        - alert: YaytsaKaraokeFailureBurst
+          expr: increase(yaytsa_karaoke_failures_total[30m]) > 20
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Karaoke separation failing in bulk"
+            description: "More than 20 separation failures in 30m — the audio-separator sidecar is likely unhealthy. Failed tracks stop retrying after 3 attempts and go silently dead for users (2026-05-31 incident class)."
+{{- end }}

@@ -150,3 +150,52 @@ jobs:
             echo "::error::Expected 206 Partial Content, got ${STATUS}"
             exit 1
           fi
+
+      # SSE command round-trip: proves the whole delivery loop — heartbeat identity echo,
+      # lease resolution, RemoteCommandPort -> outbox -> poller -> SSE bridge -> fan-out.
+      # Catches both "command never published" bugs and a starved outbox poller, which
+      # keep every HTTP check green while remote control is silently dead (2026-07-10).
+      - name: SSE command round-trip
+        run: |
+          DEVICE_ID=$(curl -fsS --max-time 15 -X POST \
+            -H "Authorization: Bearer ${QA_TOKEN}" -H 'Content-Type: application/json' \
+            -d '{}' "${BASE_URL}/api/v1/me/devices/heartbeat" | jq -re '.deviceId')
+          echo "Registered device: ${DEVICE_ID}"
+          ITEM_ID=$(curl -fsS --max-time 15 \
+            -H "Authorization: Bearer ${QA_TOKEN}" \
+            "${BASE_URL}/api/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1" \
+            | jq -r '.Items[0].Id // empty')
+          if [ -z "$ITEM_ID" ]; then
+            echo "::warning::Library returned no audio items; skipping SSE round-trip"
+            exit 0
+          fi
+          curl -fsS --max-time 15 -X POST \
+            -H "Authorization: Bearer ${QA_TOKEN}" -H 'Content-Type: application/json' \
+            -d "{\"ItemId\":\"${ITEM_ID}\",\"PositionTicks\":0}" \
+            "${BASE_URL}/api/Sessions/Playing" > /dev/null
+          SSE_FILE=$(mktemp)
+          curl -sN --max-time 25 \
+            "${BASE_URL}/api/v1/me/devices/events?api_key=${QA_TOKEN}" > "$SSE_FILE" &
+          SSE_PID=$!
+          sleep 2
+          curl -fsS --max-time 15 -X POST \
+            -H "Authorization: Bearer ${QA_TOKEN}" -H 'Content-Type: application/json' \
+            -d '{"command":"pause"}' \
+            "${BASE_URL}/api/v1/me/devices/${DEVICE_ID}/command" > /dev/null
+          DEADLINE=$((SECONDS + 20))
+          while [ $SECONDS -lt $DEADLINE ]; do
+            if grep -q '"type":"PAUSE"' "$SSE_FILE" && grep -q "\"targetDeviceId\":\"${DEVICE_ID}\"" "$SSE_FILE"; then
+              echo "SSE round-trip passed: PAUSE delivered to ${DEVICE_ID}"
+              kill $SSE_PID 2>/dev/null || true
+              curl -fsS --max-time 15 -X POST \
+                -H "Authorization: Bearer ${QA_TOKEN}" -H 'Content-Type: application/json' \
+                -d "{\"ItemId\":\"${ITEM_ID}\",\"PositionTicks\":0}" \
+                "${BASE_URL}/api/Sessions/Playing/Stopped" > /dev/null || true
+              exit 0
+            fi
+            sleep 1
+          done
+          kill $SSE_PID 2>/dev/null || true
+          echo "::error::PAUSE command was not delivered over SSE within 20s (published-but-undelivered or outbox stalled)"
+          echo "--- SSE stream received ---"; cat "$SSE_FILE"
+          exit 1

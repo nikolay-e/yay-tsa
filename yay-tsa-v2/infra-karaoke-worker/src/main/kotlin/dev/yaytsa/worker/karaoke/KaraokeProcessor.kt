@@ -27,7 +27,14 @@ class KaraokeProcessor(
     @Value("\${yaytsa.karaoke.output-path:#{null}}") private val outputPath: String?,
     @Value("\${yaytsa.karaoke.demucs-command:demucs}") private val demucsCommand: String,
     @Value("\${yaytsa.karaoke.separator-url:#{null}}") private val separatorUrl: String?,
+    meterRegistry: io.micrometer.core.instrument.MeterRegistry,
 ) {
+    private val failureCounter =
+        io.micrometer.core.instrument.Counter
+            .builder("yaytsa.karaoke.failures")
+            .description("Karaoke separation failures; a burst means the separator sidecar is unhealthy")
+            .register(meterRegistry)
+
     private val log = LoggerFactory.getLogger(javaClass)
 
     // Separation blocks for minutes per track (sidecar HTTP call / demucs subprocess).
@@ -208,6 +215,7 @@ class KaraokeProcessor(
         existing: KaraokeAssetEntity?,
         message: String?,
     ) {
+        failureCounter.increment()
         karaokeRepo.save(
             KaraokeAssetEntity(
                 trackId = trackId,

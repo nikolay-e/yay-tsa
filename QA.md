@@ -463,3 +463,9 @@ Adapters have no springdoc/swagger/jakarta-validation deps by design — add spe
 - **MCP tools are E2E-testable via plain `POST /api/mcp`** (JSON-RPC `tools/call`) with the QA account's Bearer token — no claude.ai connector needed, keeps the no-admin rule intact.
 - **Transient 502s in schemathesis output (≈2/6500 requests, Cloudflare HTML body)** are CF↔origin blips — reproduce with the log's curl before chasing; a clean 405/400 problem+json on replay closes them.
 - **`docker buildx` "failed to fetch oauth token … auth.docker.io … 502"** in image-build jobs is Docker Hub flake — `gh run rerun <id> --failed`.
+
+## A long @Scheduled job silently freezes SSE delivery (outbox poller starvation)
+
+Spring Boot's default TaskScheduler is ONE thread. `KaraokeProcessor` used to run multi-minute separations inline in its @Scheduled tick — a 50-track batch occupied `scheduling-1` for hours, and the outbox poller (1s tick) simply never ran: remote commands and device-state events piled up in `core_v2_shared.outbox` with `published_at IS NULL` while every HTTP surface stayed green. Diagnose in one query: `SELECT context, published_at IS NULL, count(*) FROM core_v2_shared.outbox GROUP BY 1,2` — unpublished `device-command` rows with a healthy pod = a starved scheduler, not an SSE problem. Fixed 39a84d84: separation moved to a dedicated `karaoke-separation` thread with an in-flight guard, plus `spring.task.scheduling.pool.size: 4` as defense. Any future long-running @Scheduled work must follow the same dispatch-to-own-executor pattern.
+
+- **Bulk karaoke requeue is a load event**: 723-track backlog keeps the GPU sidecar at ~1 CPU for hours; Post-Deploy QA runs in that window can catch transient CF 502/520s that don't reproduce on replay. Requeue in bulk only after confirming the batch runs off-scheduler, and expect the first QA run after to be noisy.

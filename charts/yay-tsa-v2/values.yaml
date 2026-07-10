@@ -29,6 +29,10 @@ backend:
     scrapeTimeout: 10s
     labels: {}
 
+  prometheusRule:
+    enabled: false
+    labels: {}
+
   podDisruptionBudget:
     enabled: false
     maxUnavailable: 1
