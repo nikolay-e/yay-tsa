@@ -121,12 +121,8 @@ class McpTools(
             ),
             McpToolDefinition(
                 "list_playlists",
-                "List user's playlists",
-                mapOf(
-                    "type" to "object",
-                    "properties" to mapOf("user_id" to mapOf("type" to "string")),
-                    "required" to listOf("user_id"),
-                ),
+                "List the caller's playlists",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "set_preference_contract",
