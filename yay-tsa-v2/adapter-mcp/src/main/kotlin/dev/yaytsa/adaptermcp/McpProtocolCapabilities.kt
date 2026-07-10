@@ -9,6 +9,10 @@ import dev.yaytsa.domain.playback.Pause
 import dev.yaytsa.domain.playback.Play
 import dev.yaytsa.domain.playback.SkipNext
 import dev.yaytsa.domain.playback.SkipPrevious
+import dev.yaytsa.domain.playlists.AddTracksToPlaylist
+import dev.yaytsa.domain.playlists.CreatePlaylist
+import dev.yaytsa.domain.playlists.RemoveTracksFromPlaylist
+import dev.yaytsa.domain.playlists.RenamePlaylist
 import dev.yaytsa.domain.preferences.UpdatePreferenceContract
 import dev.yaytsa.shared.Command
 import dev.yaytsa.shared.ProtocolId
@@ -31,6 +35,12 @@ class McpProtocolCapabilities : ProtocolCapabilities {
             // Manage the queue
             AddToQueue::class,
             ClearQueue::class,
+            // Curate playlists (deliberately NOT DeletePlaylist — destructive-op guardrail,
+            // and removal-to-empty is gated by confirm_empty at the tool layer)
+            CreatePlaylist::class,
+            AddTracksToPlaylist::class,
+            RemoveTracksFromPlaylist::class,
+            RenamePlaylist::class,
             // Modify the preference contract
             UpdatePreferenceContract::class,
             // Steer adaptive behavior

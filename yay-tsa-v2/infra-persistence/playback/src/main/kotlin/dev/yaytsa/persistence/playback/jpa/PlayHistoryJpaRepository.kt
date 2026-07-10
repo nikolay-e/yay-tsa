@@ -29,8 +29,8 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
         value =
             """
             INSERT INTO core_v2_playback.play_history
-                (id, user_id, item_id, started_at, duration_ms, played_ms, completed, scrobbled, skipped, recorded_at)
-            SELECT :id, :userId, :itemId, :startedAt, :durationMs, :playedMs, :completed, FALSE, :skipped, :recordedAt
+                (id, user_id, item_id, started_at, duration_ms, played_ms, completed, scrobbled, skipped, recorded_at, source, device_id)
+            SELECT :id, :userId, :itemId, :startedAt, :durationMs, :playedMs, :completed, FALSE, :skipped, :recordedAt, :source, :deviceId
             WHERE NOT EXISTS (
                 SELECT 1 FROM core_v2_playback.play_history existing
                 WHERE existing.user_id = :userId
@@ -40,6 +40,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
             """,
         nativeQuery = true,
     )
+    @Suppress("LongParameterList")
     fun insertUnlessRecentDuplicate(
         @Param("id") id: UUID,
         @Param("userId") userId: String,
@@ -51,7 +52,60 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
         @Param("skipped") skipped: Boolean,
         @Param("recordedAt") recordedAt: Instant,
         @Param("dedupWindowSeconds") dedupWindowSeconds: Long,
+        @Param("source") source: String?,
+        @Param("deviceId") deviceId: String?,
     ): Int
+
+    @Query(
+        "SELECT p FROM PlayHistoryEntity p " +
+            "WHERE p.userId = :userId AND p.startedAt >= :since AND p.startedAt < :until " +
+            "ORDER BY p.startedAt",
+    )
+    fun findEventsInWindow(
+        @Param("userId") userId: String,
+        @Param("since") since: Instant,
+        @Param("until") until: Instant,
+    ): List<PlayHistoryEntity>
+
+    @Query(
+        value =
+            """
+            SELECT * FROM core_v2_playback.play_history
+            WHERE user_id = :userId
+              AND (CAST(:since AS timestamptz) IS NULL OR started_at >= CAST(:since AS timestamptz))
+              AND (CAST(:until AS timestamptz) IS NULL OR started_at < CAST(:until AS timestamptz))
+              AND (CAST(:source AS text) IS NULL OR source = CAST(:source AS text))
+            ORDER BY started_at DESC, id
+            LIMIT :limit OFFSET :offset
+            """,
+        nativeQuery = true,
+    )
+    fun findHistoryPage(
+        @Param("userId") userId: String,
+        @Param("since") since: Instant?,
+        @Param("until") until: Instant?,
+        @Param("source") source: String?,
+        @Param("limit") limit: Int,
+        @Param("offset") offset: Int,
+    ): List<PlayHistoryEntity>
+
+    @Query(
+        value =
+            """
+            SELECT count(*) FROM core_v2_playback.play_history
+            WHERE user_id = :userId
+              AND (CAST(:since AS timestamptz) IS NULL OR started_at >= CAST(:since AS timestamptz))
+              AND (CAST(:until AS timestamptz) IS NULL OR started_at < CAST(:until AS timestamptz))
+              AND (CAST(:source AS text) IS NULL OR source = CAST(:source AS text))
+            """,
+        nativeQuery = true,
+    )
+    fun countHistory(
+        @Param("userId") userId: String,
+        @Param("since") since: Instant?,
+        @Param("until") until: Instant?,
+        @Param("source") source: String?,
+    ): Long
 
     @Query(
         value =

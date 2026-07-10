@@ -5,6 +5,7 @@ import dev.yaytsa.shared.UserId
 import java.time.Instant
 
 interface PlayHistoryWritePort {
+    @Suppress("LongParameterList")
     fun record(
         userId: UserId,
         trackId: TrackId,
@@ -13,5 +14,7 @@ interface PlayHistoryWritePort {
         playedMs: Long?,
         completed: Boolean,
         skipped: Boolean,
+        source: String? = null,
+        deviceId: String? = null,
     )
 }

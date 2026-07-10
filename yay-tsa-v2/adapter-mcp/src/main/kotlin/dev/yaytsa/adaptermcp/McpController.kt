@@ -12,6 +12,7 @@ import java.security.Principal
 @RequestMapping("/mcp")
 class McpController(
     private val tools: McpTools,
+    private val toolProviders: List<McpToolProvider>,
 ) {
     data class JsonRpcRequest(
         val jsonrpc: String = "2.0",
@@ -59,7 +60,7 @@ class McpController(
                         result =
                             mapOf(
                                 "tools" to
-                                    tools.listTools().map {
+                                    (tools.listTools() + toolProviders.flatMap { it.definitions() }).map {
                                         mapOf(
                                             "name" to it.name,
                                             "description" to it.description,
@@ -77,7 +78,9 @@ class McpController(
 
                     @Suppress("UNCHECKED_CAST")
                     val toolArgs = request.params["arguments"] as? Map<String, Any?> ?: emptyMap()
-                    val result = tools.executeTool(toolName, toolArgs, principal.name)
+                    val result =
+                        toolProviders.firstOrNull { it.handles(toolName) }?.execute(toolName, toolArgs, principal.name)
+                            ?: tools.executeTool(toolName, toolArgs, principal.name)
                     JsonRpcResponse(
                         id = request.id,
                         result = mapOf("content" to result.content, "isError" to result.isError),

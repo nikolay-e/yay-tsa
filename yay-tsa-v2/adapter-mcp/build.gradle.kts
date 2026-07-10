@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":core-domain:preferences"))
     implementation(project(":core-domain:adaptive"))
     implementation(project(":core-domain:library"))
+    implementation(project(":core-domain:ml"))
     implementation(project(":core-application:shared"))
     implementation(project(":core-application:auth"))
     implementation(project(":core-application:library"))

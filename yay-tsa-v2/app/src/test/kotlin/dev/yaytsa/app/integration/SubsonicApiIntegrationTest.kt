@@ -946,6 +946,15 @@ class SubsonicApiIntegrationTest : HttpIntegrationTestBase() {
                 userId,
             ) ?: 0
         assertEquals(before + 1, after, "scrobble must persist a play history row")
+        val source =
+            jdbc.queryForObject(
+                "SELECT source FROM core_v2_playback.play_history " +
+                    "WHERE user_id = ? AND item_id = ? ORDER BY recorded_at DESC LIMIT 1",
+                String::class.java,
+                userId,
+                trackIds[0],
+            )
+        assertEquals("subsonic", source, "subsonic scrobbles must carry their protocol source")
     }
 
     @Test

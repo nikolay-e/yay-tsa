@@ -10,13 +10,18 @@ import java.time.Instant
  * Evaluates raw playback data and records scrobble (play history) entries.
  *
  * Threshold logic:
- * - **completed**: in-track position reached >= 50 % of the track duration,
- *   OR wall-clock elapsed > 240 s (coarse backstop when duration is unknown)
- * - **skipped**: not completed AND elapsed < 30 s (only when position is known)
+ * - **completed**: in-track position reached >= 50 % of the known track duration;
+ *   the wall-clock 240 s backstop applies ONLY when the duration is unknown, so a
+ *   long-paused partial listen of a known track is never stamped completed.
+ * - **skipped**: not completed AND position >= 3 s. Sub-3-s stops are queue-surfing
+ *   noise and get neither flag. Wall-clock elapsed is deliberately excluded: the
+ *   playbackStarts cache misses on restart/eviction, collapsing elapsed to ~0 and
+ *   stamping minutes of real listening as skips (49 % skip inflation in prod).
  */
 class ScrobbleService(
     private val playHistoryWriter: PlayHistoryWritePort,
 ) {
+    @Suppress("LongParameterList")
     fun recordScrobble(
         userId: UserId,
         trackId: TrackId,
@@ -24,26 +29,32 @@ class ScrobbleService(
         stoppedAt: Instant,
         positionMs: Long,
         runTimeMs: Long,
+        source: String? = null,
+        deviceId: String? = null,
     ) {
-        val elapsedMs = Duration.between(startedAt, stoppedAt).toMillis()
         val completed =
-            elapsedMs > COMPLETED_THRESHOLD_MS ||
-                (runTimeMs > 0 && positionMs > runTimeMs / 2)
-        val skipped = positionMs > 0 && !completed && elapsedMs < SKIPPED_THRESHOLD_MS
+            if (runTimeMs > 0) {
+                positionMs >= runTimeMs / 2
+            } else {
+                Duration.between(startedAt, stoppedAt).toMillis() > COMPLETED_THRESHOLD_MS
+            }
+        val skipped = !completed && positionMs >= SKIP_NOISE_FLOOR_MS
 
         playHistoryWriter.record(
             userId = userId,
             trackId = trackId,
             startedAt = startedAt,
-            durationMs = null,
+            durationMs = runTimeMs.takeIf { it > 0 },
             playedMs = positionMs,
             completed = completed,
             skipped = skipped,
+            source = source,
+            deviceId = deviceId,
         )
     }
 
     companion object {
         const val COMPLETED_THRESHOLD_MS: Long = 240_000
-        const val SKIPPED_THRESHOLD_MS: Long = 30_000
+        const val SKIP_NOISE_FLOOR_MS: Long = 3_000
     }
 }

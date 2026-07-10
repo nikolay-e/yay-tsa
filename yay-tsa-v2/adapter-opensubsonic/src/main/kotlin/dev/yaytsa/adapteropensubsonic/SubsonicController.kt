@@ -85,6 +85,7 @@ class SubsonicController(
     private companion object {
         const val PLAY_HISTORY_SCAN_LIMIT = 1000
         const val TOP_SONGS_CANDIDATE_LIMIT = 1000
+        const val SOURCE_SUBSONIC = "subsonic"
     }
 
     private fun errorFrom(failure: Failure): SubsonicResponse {
@@ -874,6 +875,7 @@ class SubsonicController(
                 stoppedAt = startedAt.plusMillis(durationMs),
                 positionMs = durationMs,
                 runTimeMs = durationMs,
+                source = SOURCE_SUBSONIC,
             )
         }
         return responseWriter.write(ok(), f)

@@ -8,12 +8,15 @@ import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.application.auth.port.UserRepository
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.library.port.LibraryQueryPort
+import dev.yaytsa.application.playback.ListeningStatsGroupBy
+import dev.yaytsa.application.playback.ListeningStatsService
 import dev.yaytsa.application.playback.PlaybackQueries
 import dev.yaytsa.application.playback.PlaybackRemoteControl
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.playback.ResumePositionService
 import dev.yaytsa.application.playback.SavedPlayQueueService
 import dev.yaytsa.application.playback.ScrobbleService
+import dev.yaytsa.application.playback.port.PlayHistoryQueryPort
 import dev.yaytsa.application.playback.port.PlayHistoryWritePort
 import dev.yaytsa.application.playback.port.PlaybackSessionRepository
 import dev.yaytsa.application.playback.port.ResumePositionRepository
@@ -32,6 +35,7 @@ import dev.yaytsa.application.shared.port.OutboxPort
 import dev.yaytsa.application.shared.port.RemoteCommandPort
 import dev.yaytsa.application.shared.port.TransactionalCommandExecutor
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.TrackId
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Duration
@@ -96,6 +100,27 @@ class CoreBeansConfiguration {
 
     @Bean
     fun resumePositionService(resumeRepo: ResumePositionRepository): ResumePositionService = ResumePositionService(resumeRepo)
+
+    @Bean
+    fun listeningStatsService(
+        playHistoryQuery: PlayHistoryQueryPort,
+        libraryQueries: LibraryQueries,
+    ): ListeningStatsService =
+        ListeningStatsService(playHistoryQuery) { trackIds, groupBy ->
+            val tracks = libraryQueries.getTracksByIds(trackIds.map { EntityId(it.value) })
+            when (groupBy) {
+                ListeningStatsGroupBy.ARTIST -> {
+                    val artistNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumArtistId }.toSet())
+                    tracks
+                        .mapNotNull { track ->
+                            track.albumArtistId?.let { artistNames[it] }?.let { TrackId(track.id.value) to it }
+                        }.toMap()
+                }
+                ListeningStatsGroupBy.GENRE ->
+                    tracks.mapNotNull { track -> track.genre?.let { TrackId(track.id.value) to it } }.toMap()
+                else -> emptyMap()
+            }
+        }
 
     @Bean
     fun savedPlayQueueService(savedQueueRepo: SavedPlayQueueRepository): SavedPlayQueueService = SavedPlayQueueService(savedQueueRepo)

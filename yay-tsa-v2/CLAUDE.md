@@ -296,6 +296,8 @@ These are fundamentally different write patterns that must not be conflated in a
 
 The LLM-DJ adaptive path (`infra-llm`) is wired but gated off by default (`LLM_ENABLED=false` in production) and degrades gracefully to ML-only seeding/similarity. A null LLM completion or a disabled orchestrator is the expected steady state, not a bug.
 
+`core_v2_playback.play_statistics` is a dead read model: its writer was the retired v1 backend (rows stale since 2026-05-09) and nothing in v2 reads or writes it. It is kept in place for historical data only — `play_history` + `PlayHistoryQueryPort` are the replacement. Do not build on it. `core_v2_ml.taste_profiles` went stale for the same reason (2026-05-15) and is now rebuilt by `infra-ml-worker` `TasteProfileAggregator` from `user_track_affinity`.
+
 ---
 
 ## Module Layout

@@ -9,6 +9,7 @@ import java.util.UUID
 
 @Entity
 @Table(name = "play_history", schema = "core_v2_playback")
+@Suppress("LongParameterList")
 class PlayHistoryEntity(
     @Id
     val id: UUID = UUID.randomUUID(),
@@ -30,4 +31,8 @@ class PlayHistoryEntity(
     val skipped: Boolean = false,
     @Column(name = "recorded_at", nullable = false)
     val recordedAt: Instant = Instant.now(),
+    @Column(name = "source")
+    val source: String? = null,
+    @Column(name = "device_id")
+    val deviceId: String? = null,
 )

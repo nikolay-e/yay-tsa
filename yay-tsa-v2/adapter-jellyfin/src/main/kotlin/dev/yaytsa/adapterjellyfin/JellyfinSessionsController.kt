@@ -51,6 +51,7 @@ class JellyfinSessionsController(
         private val REFLECT_LEASE_DURATION: Duration = Duration.ofMinutes(5)
         private val REFLECT_LEASE_RENEW_THRESHOLD: Duration = Duration.ofMinutes(2)
         private const val REFLECT_POSITION_TOLERANCE_MS = 5_000L
+        private const val SOURCE_ADAPTIVE = "adaptive"
     }
 
     private val playbackStarts: Cache<String, Instant> =
@@ -232,6 +233,8 @@ class JellyfinSessionsController(
             stoppedAt = now,
             positionMs = positionMs,
             runTimeMs = runTimeMs,
+            source = if (adaptiveQuery.findActiveSession(uid) != null) SOURCE_ADAPTIVE else null,
+            deviceId = authenticatedDeviceId(),
         )
 
         reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.STOPPED, info.eventTime)
@@ -250,12 +253,7 @@ class JellyfinSessionsController(
         state: dev.yaytsa.domain.playback.PlaybackState,
         clientEventTime: Long? = null,
     ) {
-        val deviceIdValue =
-            (
-                org.springframework.security.core.context.SecurityContextHolder
-                    .getContext()
-                    .authentication as? DeviceBoundAuthentication
-            )?.deviceId?.takeIf { it.isNotBlank() } ?: return
+        val deviceIdValue = authenticatedDeviceId() ?: return
         val uid = UserId(principal.name)
         val eventTimeKey = "${principal.name}:$deviceIdValue"
         if (clientEventTime != null) {

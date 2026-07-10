@@ -17,6 +17,7 @@ class JpaPlayHistoryWritePort(
     private val dedupWindowSeconds: Long,
 ) : PlayHistoryWritePort {
     @Transactional
+    @Suppress("LongParameterList")
     override fun record(
         userId: UserId,
         trackId: TrackId,
@@ -25,6 +26,8 @@ class JpaPlayHistoryWritePort(
         playedMs: Long?,
         completed: Boolean,
         skipped: Boolean,
+        source: String?,
+        deviceId: String?,
     ) {
         jpa.insertUnlessRecentDuplicate(
             id = UUID.randomUUID(),
@@ -37,6 +40,13 @@ class JpaPlayHistoryWritePort(
             skipped = skipped,
             recordedAt = Instant.now(),
             dedupWindowSeconds = dedupWindowSeconds,
+            source = source?.take(SOURCE_MAX_LENGTH),
+            deviceId = deviceId?.take(DEVICE_ID_MAX_LENGTH),
         )
+    }
+
+    companion object {
+        private const val SOURCE_MAX_LENGTH = 16
+        private const val DEVICE_ID_MAX_LENGTH = 64
     }
 }

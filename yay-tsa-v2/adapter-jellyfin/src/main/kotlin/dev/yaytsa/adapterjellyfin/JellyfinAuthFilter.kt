@@ -87,6 +87,13 @@ interface DeviceBoundAuthentication {
     val deviceName: String?
 }
 
+fun authenticatedDeviceId(): String? =
+    (
+        org.springframework.security.core.context.SecurityContextHolder
+            .getContext()
+            .authentication as? DeviceBoundAuthentication
+    )?.deviceId?.takeIf { it.isNotBlank() }
+
 class JellyfinAuthentication(
     val userId: UserId,
     val isAdmin: Boolean,
