@@ -116,6 +116,10 @@ class McpOAuthFlowIntegrationTest : HttpIntegrationTestBase() {
         assertTrue(formPage.response.contentType!!.startsWith(MediaType.TEXT_HTML_VALUE))
         assertTrue(formPage.response.contentAsString.contains("name=\"code_challenge\""))
         assertEquals("DENY", formPage.response.getHeader("X-Frame-Options"))
+        // The consent POST 302s to the registered redirect origin; Chrome enforces form-action
+        // against the redirect, so the origin must be whitelisted or the whole flow is blocked.
+        val csp = formPage.response.getHeader("Content-Security-Policy")!!
+        assertTrue(csp.contains("form-action 'self' https://claude.ai"), "csp=$csp")
 
         val location = authorizeAndGetLocation(clientId, challenge, username, password, state = "st-123")
         assertTrue(location.startsWith("$callbackUri?"), "location=$location")

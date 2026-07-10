@@ -14,13 +14,34 @@ data class LoginFormModel(
 )
 
 object OAuthHtmlPages {
-    fun securityHeaders(): org.springframework.http.HttpHeaders {
+    // The consent form POSTs to /oauth/authorize ('self'), which then 302s the browser to the
+    // client's registered redirect_uri (e.g. claude.ai). Chrome enforces form-action against the
+    // redirect target too (since ~v120), so 'self' alone silently blocks the whole OAuth flow.
+    // Allow exactly the registered redirect origin — nothing wider — so approval can land.
+    fun securityHeaders(formRedirectUri: String? = null): org.springframework.http.HttpHeaders {
         val headers = org.springframework.http.HttpHeaders()
         headers.add("X-Frame-Options", "DENY")
-        headers.add("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+        val formAction =
+            listOfNotNull("'self'", redirectOrigin(formRedirectUri)).joinToString(" ")
+        headers.add(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; form-action $formAction; frame-ancestors 'none'",
+        )
         headers.add("X-Content-Type-Options", "nosniff")
         headers.add("Referrer-Policy", "no-referrer")
         return headers
+    }
+
+    private fun redirectOrigin(redirectUri: String?): String? {
+        val uri = redirectUri?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching {
+            val parsed = java.net.URI(uri)
+            val scheme = parsed.scheme?.lowercase() ?: return null
+            if (scheme != "https" && scheme != "http") return null
+            val host = parsed.host ?: return null
+            val portPart = if (parsed.port > 0) ":${parsed.port}" else ""
+            "$scheme://$host$portPart"
+        }.getOrNull()
     }
 
     fun invalidClient(): String =

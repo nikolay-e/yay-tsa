@@ -195,7 +195,7 @@ class McpOAuthController(
         ResponseEntity
             .status(if (errorMessage == null) HttpStatus.OK else HttpStatus.UNAUTHORIZED)
             .contentType(MediaType.TEXT_HTML)
-            .headers { it.addAll(OAuthHtmlPages.securityHeaders()) }
+            .headers { it.addAll(OAuthHtmlPages.securityHeaders(params["redirect_uri"])) }
             .cacheControl(CacheControl.noStore())
             .body(
                 OAuthHtmlPages.loginForm(
