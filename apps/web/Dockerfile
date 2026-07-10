@@ -50,7 +50,7 @@ RUN apk add --no-cache brotli gzip && \
 FROM scratch AS sourcemaps
 COPY --from=builder /app/apps/web/dist-maps /
 
-FROM mcr.microsoft.com/playwright:v1.58.0-noble AS test
+FROM mcr.microsoft.com/playwright:v1.61.1-noble AS test
 
 WORKDIR /app
 
@@ -59,7 +59,8 @@ COPY packages/core/package.json ./packages/core/
 COPY packages/platform/package.json ./packages/platform/
 COPY apps/web/package.json ./apps/web/
 
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci
 
 COPY packages/ ./packages/
 COPY apps/ ./apps/
@@ -67,8 +68,6 @@ COPY scripts/ ./scripts/
 COPY shared-constants.yaml ./
 
 RUN npm run build:core && npm run build:platform
-
-RUN npx playwright install chromium
 
 ENV NO_COLOR=1
 

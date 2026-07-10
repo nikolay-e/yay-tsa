@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 ARG VARIANT=gpu
 ARG TARGETARCH
 
@@ -19,9 +20,12 @@ FROM base-${VARIANT}-${TARGETARCH} AS final
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
+# python:3.13-slim bases already ship python3/pip3; only the CUDA base needs them
+RUN apt-get update \
+    && if ! command -v python3 >/dev/null; then \
+         apt-get install -y --no-install-recommends python3 python3-pip; \
+       fi \
+    && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     wget \
@@ -31,27 +35,30 @@ ARG VARIANT=gpu
 ARG TARGETARCH
 
 COPY requirements/ requirements/
-RUN apt-get update && apt-get install -y --no-install-recommends python3-dev gcc \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    apt-get update && apt-get install -y --no-install-recommends python3-dev gcc \
     && set -ex; \
     if [ "$VARIANT" = "gpu" ] && [ "$TARGETARCH" = "arm64" ]; then \
-      pip3 install --no-cache-dir --break-system-packages -r requirements/cpu.txt; \
+      pip3 install --break-system-packages -r requirements/cpu.txt; \
     elif [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" = "arm64" ]; then \
-      pip3 install --no-cache-dir --break-system-packages -r requirements/essentia-base.txt; \
+      pip3 install --break-system-packages -r requirements/essentia-base.txt; \
     else \
-      pip3 install --no-cache-dir --break-system-packages -r requirements/${VARIANT}.txt; \
+      pip3 install --break-system-packages -r requirements/${VARIANT}.txt; \
     fi \
     && apt-get purge -y python3-dev gcc \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-COPY patches/ patches/
-RUN python3 patches/patch_audio_separator.py
-
-COPY scripts/ scripts/
+COPY scripts/download_models.sh scripts/download_models.sh
 RUN if [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" != "arm64" ]; then \
       bash scripts/download_models.sh /app/models || \
         echo "WARNING: Model download failed. Models must be volume-mounted at runtime."; \
     fi
+
+COPY patches/ patches/
+RUN python3 patches/patch_audio_separator.py
+
+COPY scripts/ scripts/
 
 COPY extractor/ extractor/
 COPY radio/ radio/
