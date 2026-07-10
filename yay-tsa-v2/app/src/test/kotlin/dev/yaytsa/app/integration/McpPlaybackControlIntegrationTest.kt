@@ -202,7 +202,7 @@ class McpPlaybackControlIntegrationTest : HttpIntegrationTestBase() {
     }
 
     private fun mintReflectedSession(trackId: String) {
-        assertEquals(204, post("/v1/me/devices/heartbeat", emptyMap<String, Any>(), token).response.status)
+        assertEquals(200, post("/v1/me/devices/heartbeat", emptyMap<String, Any>(), token).response.status)
         val playing =
             post(
                 "/Sessions/Playing",

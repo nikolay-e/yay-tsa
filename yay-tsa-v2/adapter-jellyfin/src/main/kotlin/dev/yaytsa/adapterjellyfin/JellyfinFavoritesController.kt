@@ -1,5 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
+import com.fasterxml.jackson.annotation.JsonAlias
+import com.fasterxml.jackson.annotation.JsonProperty
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.application.preferences.PreferencesQueries
@@ -64,8 +66,8 @@ class JellyfinFavoritesController(
     }
 
     data class FavoriteOrderRequest(
-        val UserId: String? = null,
-        val ItemIds: List<String>,
+        @JsonProperty("UserId") @JsonAlias("userId") val userId: String? = null,
+        @JsonProperty("ItemIds") @JsonAlias("itemIds") val itemIds: List<String> = emptyList(),
     )
 
     @PostMapping("/Items/FavoriteOrder")
@@ -73,13 +75,14 @@ class JellyfinFavoritesController(
         @RequestBody request: FavoriteOrderRequest,
         principal: Principal,
     ): ResponseEntity<Void> {
-        if (request.UserId != null && request.UserId != principal.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
-        request.ItemIds.forEach { require(it.isNotBlank()) { "ItemIds must not contain blank values" } }
+        if (request.userId != null && request.userId != principal.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        request.itemIds.forEach { require(it.isNotBlank()) { "ItemIds must not contain blank values" } }
+        if (request.itemIds.isEmpty()) return ResponseEntity.noContent().build()
         val uid = UserId(principal.name)
         val prefs =
             preferencesQueries.find(uid) ?: dev.yaytsa.domain.preferences.UserPreferencesAggregate
                 .empty(uid)
-        val cmd = ReorderFavorites(uid, request.ItemIds.map { TrackId(it) })
+        val cmd = ReorderFavorites(uid, request.itemIds.map { TrackId(it) })
         val ctx = ctxFactory.create(uid, prefs.version)
         return toResponse(preferencesUseCases.execute(cmd, ctx))
     }

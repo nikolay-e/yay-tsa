@@ -43,6 +43,14 @@ export interface TransferLeaseResult {
 // rather than inside it.
 export type RemoteCommandWireType = RemoteCommandType | 'STOP';
 
+// Echo of the identity the server registered for this heartbeat. Remote commands target
+// the token-bound deviceId, which can drift from the locally generated one (legacy
+// persisted sessions) — clients must adopt this id for command targeting.
+export interface DeviceHeartbeatAck {
+  deviceId: string;
+  sessionId: string;
+}
+
 export interface RemoteCommand {
   type: RemoteCommandWireType;
   // Set by the backend when a command targets one specific device on the SSE fan-out;

@@ -14,10 +14,11 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { DeviceInfo } from '@yay-tsa/core';
-import { getOrCreateDeviceId, TransferUnavailableError } from '@yay-tsa/core';
+import { TransferUnavailableError } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { Modal } from '@/shared/ui/Modal';
+import { getEffectiveDeviceId } from '../device-identity';
 import { useDeviceStore } from '../stores/device-store';
 
 function deviceIcon(clientName: string | null | undefined) {
@@ -158,7 +159,7 @@ export function DevicesPanel({
   const sendCommand = useDeviceStore(s => s.sendCommand);
   const transferHere = useDeviceStore(s => s.transferHere);
 
-  const currentDeviceId = getOrCreateDeviceId();
+  const currentDeviceId = getEffectiveDeviceId();
 
   useEffect(() => {
     if (isOpen) {

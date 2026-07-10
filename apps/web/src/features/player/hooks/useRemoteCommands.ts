@@ -1,13 +1,8 @@
 import { useEffect } from 'react';
-import {
-  DeviceService,
-  ItemsService,
-  getOrCreateDeviceId,
-  type AudioItem,
-  type RemoteCommand,
-} from '@yay-tsa/core';
+import { DeviceService, ItemsService, type AudioItem, type RemoteCommand } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { getEffectiveDeviceId } from '../device-identity';
 import { usePlayerStore } from '../stores/player.store';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 
@@ -21,7 +16,6 @@ export function useRemoteCommands() {
 
     const service = new DeviceService(client);
     const itemsService = new ItemsService(client);
-    const ownDeviceId = getOrCreateDeviceId();
     let sseUrl: string;
     try {
       // Remote commands ride the same SSE channel as device-state events; the backend
@@ -178,8 +172,8 @@ export function useRemoteCommands() {
         if (engineCommands.has(cmd.type)) {
           // Lease/remote-control commands are always device-targeted by the backend.
           // Fail closed: act only on an exact match, never on an untargeted broadcast.
-          if (cmd.targetDeviceId !== ownDeviceId) return;
-        } else if (cmd.targetDeviceId && cmd.targetDeviceId !== ownDeviceId) {
+          if (cmd.targetDeviceId !== getEffectiveDeviceId()) return;
+        } else if (cmd.targetDeviceId && cmd.targetDeviceId !== getEffectiveDeviceId()) {
           return;
         }
 

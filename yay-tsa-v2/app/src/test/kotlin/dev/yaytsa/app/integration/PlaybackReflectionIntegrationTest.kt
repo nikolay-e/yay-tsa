@@ -48,7 +48,7 @@ class PlaybackReflectionIntegrationTest : HttpIntegrationTestBase() {
     }
 
     private fun registerDevice() {
-        assertEquals(204, post("/v1/me/devices/heartbeat", emptyMap<String, Any>(), token).response.status)
+        assertEquals(200, post("/v1/me/devices/heartbeat", emptyMap<String, Any>(), token).response.status)
     }
 
     @Test

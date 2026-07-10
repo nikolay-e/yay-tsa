@@ -420,12 +420,12 @@ class JellyfinAdaptiveController(
         @RequestParam("q") query: String,
         @RequestParam(defaultValue = "20") limit: Int,
         principal: Principal?,
-    ): ResponseEntity<List<Map<String, Any?>>> {
+    ): ResponseEntity<List<RecommendedTrackDto>> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
         val cappedLimit = limit.coerceIn(1, 100)
         val tracks = semanticOrLexicalSearch(userId, query, cappedLimit)
-        val results = tracks.map { trackToSeedMap(it) + mapOf("source" to "semantic", "score" to 0.0) }
+        val results = tracks.map { trackToSeedDto(it).copy(source = "semantic", score = 0.0) }
         return ResponseEntity.ok(results)
     }
 
@@ -602,7 +602,7 @@ class JellyfinAdaptiveController(
     private fun buildRecommendedSeeds(
         userId: UserId,
         limit: Int,
-    ): List<Map<String, Any?>> {
+    ): List<RecommendedTrackDto> {
         val redLineTerms = musicSurfaceFilter.loadRedLineTerms(userId)
         val perArtist = LinkedHashMap<String, dev.yaytsa.domain.library.Track>()
         val seenTracks = mutableSetOf<String>()
@@ -669,22 +669,34 @@ class JellyfinAdaptiveController(
             }
         }
 
-        return picked.take(limit).map { trackToSeedMap(it) }
+        return picked.take(limit).map { trackToSeedDto(it) }
     }
 
-    private fun trackToSeedMap(track: dev.yaytsa.domain.library.Track): Map<String, Any?> {
+    data class RecommendedTrackDto(
+        val trackId: String,
+        val name: String,
+        val artistId: String?,
+        val artistName: String?,
+        val albumId: String?,
+        val albumName: String?,
+        val imageTag: String?,
+        val source: String? = null,
+        val score: Double? = null,
+    )
+
+    private fun trackToSeedDto(track: dev.yaytsa.domain.library.Track): RecommendedTrackDto {
         val albumName =
             track.albumId?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
         val artistName =
             track.albumArtistId?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
-        return mapOf(
-            "trackId" to track.id.value,
-            "name" to track.name,
-            "artistId" to track.albumArtistId?.value,
-            "artistName" to artistName,
-            "albumId" to track.albumId?.value,
-            "albumName" to albumName,
-            "imageTag" to track.albumId?.value,
+        return RecommendedTrackDto(
+            trackId = track.id.value,
+            name = track.name,
+            artistId = track.albumArtistId?.value,
+            artistName = artistName,
+            albumId = track.albumId?.value,
+            albumName = albumName,
+            imageTag = track.albumId?.value,
         )
     }
 

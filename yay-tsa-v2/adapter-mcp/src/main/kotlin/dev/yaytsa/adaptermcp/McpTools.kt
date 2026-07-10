@@ -68,15 +68,14 @@ class McpTools(
             ),
             McpToolDefinition(
                 "get_playback_state",
-                "Get current playback state for a session",
+                "Get current playback state (defaults to the most recently seen device session)",
                 mapOf(
                     "type" to "object",
                     "properties" to
                         mapOf(
-                            "user_id" to mapOf("type" to "string"),
-                            "session_id" to mapOf("type" to "string"),
+                            "session_id" to
+                                mapOf("type" to "string", "description" to "Optional session id from list_devices"),
                         ),
-                    "required" to listOf("user_id", "session_id"),
                 ),
             ),
             McpToolDefinition(
@@ -280,11 +279,18 @@ class McpTools(
     }
 
     private fun getPlaybackState(args: Map<String, Any?>): McpToolResult {
-        val uid = args["user_id"] as? String ?: return errorResult("user_id is required")
-        val sid = args["session_id"] as? String ?: return errorResult("session_id is required")
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val requestedSessionId = args["session_id"] as? String
+        val candidateSessionIds =
+            requestedSessionId?.let { listOf(SessionId(it)) }
+                ?: deviceSessionProjection
+                    .getByUser(uid)
+                    .sortedByDescending { it.lastSeenAt }
+                    .map { it.sessionId }
+                    .distinct()
         val state =
-            playbackQueries.getPlaybackState(UserId(uid), SessionId(sid))
-                ?: return textResult("No active session found.")
+            candidateSessionIds.firstNotNullOfOrNull { playbackQueries.getPlaybackState(uid, it) }
+                ?: return textResult("No active session found — open the web player, or check list_devices.")
         return textResult(
             "State: ${state.playbackState}, Queue: ${state.queue.size} tracks, Current: ${state.currentEntryId?.value ?: "none"}",
         )

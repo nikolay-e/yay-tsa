@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { DeviceService } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { adoptServerDeviceId } from '../device-identity';
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 // Single transient failures are expected (deploy windows, brief network blips) and stay silent.
@@ -18,8 +19,9 @@ export function useDeviceHeartbeat() {
     const send = () => {
       new DeviceService(client)
         .heartbeat()
-        .then(() => {
+        .then(ack => {
           consecutiveFailures = 0;
+          if (ack?.deviceId) adoptServerDeviceId(ack.deviceId);
         })
         .catch(() => {
           consecutiveFailures += 1;

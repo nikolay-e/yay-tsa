@@ -3,11 +3,11 @@ import {
   DeviceService,
   ItemsService,
   TransferUnavailableError,
-  getOrCreateDeviceId,
   type DeviceInfo,
 } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { getEffectiveDeviceId } from '../device-identity';
 
 interface DeviceStoreState {
   devices: DeviceInfo[];
@@ -71,7 +71,7 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
     const service = getService();
     if (!service) throw new Error('Not authenticated');
     try {
-      const result = await service.transferLease(sourceSessionId, getOrCreateDeviceId());
+      const result = await service.transferLease(sourceSessionId, getEffectiveDeviceId());
       const { useSessionStore } = await import('./session-store');
       const { usePlayerStore } = await import('./player.store');
       // Repopulate the adaptive/DJ queue tail if the transferred session had one

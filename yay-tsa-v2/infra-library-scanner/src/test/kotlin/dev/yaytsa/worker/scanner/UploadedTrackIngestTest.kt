@@ -70,7 +70,21 @@ class UploadedTrackIngestTest {
 
     @BeforeEach
     fun clean() {
-        jdbc.execute("TRUNCATE TABLE core_v2_library.entities CASCADE")
+        // TRUNCATE needs ACCESS EXCLUSIVE; a scanner connection from a sibling test that has
+        // not yet released its lock makes the first attempt fail with a lock timeout on slow
+        // CI runners. Retry instead of flaking.
+        var lastFailure: Exception? = null
+        repeat(5) {
+            try {
+                jdbc.execute("SET lock_timeout = '5s'")
+                jdbc.execute("TRUNCATE TABLE core_v2_library.entities CASCADE")
+                return
+            } catch (e: org.springframework.dao.PessimisticLockingFailureException) {
+                lastFailure = e
+                Thread.sleep(2_000)
+            }
+        }
+        throw requireNotNull(lastFailure)
     }
 
     private fun taggedFlac(

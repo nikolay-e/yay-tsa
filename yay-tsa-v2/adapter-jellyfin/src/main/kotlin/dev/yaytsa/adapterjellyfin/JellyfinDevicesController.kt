@@ -117,8 +117,16 @@ class JellyfinDevicesController(
             request?.sessionId?.takeIf { it.isNotBlank() }
                 ?: deviceIdValue
         deviceSessionProjection.register(uid, SessionId(sessionIdValue), DeviceId(deviceIdValue), now, auth?.deviceName)
-        return ResponseEntity.noContent().build()
+        // Echo the registered identity: remote commands target THIS device id (the token-bound
+        // one), which can drift from the id the client generated locally. The client must adopt
+        // the echoed id for its command-targeting check or it silently drops every command.
+        return ResponseEntity.ok(HeartbeatResponse(deviceId = deviceIdValue, sessionId = sessionIdValue))
     }
+
+    data class HeartbeatResponse(
+        val deviceId: String,
+        val sessionId: String,
+    )
 
     @PostMapping("/{sessionId}/command")
     fun sendCommand(

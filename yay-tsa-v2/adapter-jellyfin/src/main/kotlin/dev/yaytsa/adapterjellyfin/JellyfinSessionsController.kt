@@ -117,28 +117,48 @@ class JellyfinSessionsController(
         @JsonProperty("EventTime") val eventTime: Long? = null,
     )
 
+    data class SessionNowPlayingItemDto(
+        @get:JsonProperty("Id") val id: String,
+        @get:JsonProperty("Name") val name: String?,
+        @get:JsonProperty("Type") val type: String = "Audio",
+    )
+
+    data class SessionPlayStateDto(
+        @get:JsonProperty("PositionTicks") val positionTicks: Long,
+        @get:JsonProperty("IsPaused") val isPaused: Boolean,
+        @get:JsonProperty("CanSeek") val canSeek: Boolean = true,
+    )
+
+    data class SessionInfoDto(
+        @get:JsonProperty("Id") val id: String,
+        @get:JsonProperty("UserId") val userId: String,
+        @get:JsonProperty("DeviceId") val deviceId: String,
+        @get:JsonProperty("DeviceName") val deviceName: String,
+        @get:JsonProperty("LastActivityDate") val lastActivityDate: String,
+        @get:JsonProperty("NowPlayingItem") val nowPlayingItem: SessionNowPlayingItemDto?,
+        @get:JsonProperty("PlayState") val playState: SessionPlayStateDto,
+    )
+
     @GetMapping
-    fun getSessions(principal: Principal): ResponseEntity<List<Map<String, Any?>>> {
+    fun getSessions(principal: Principal): ResponseEntity<List<SessionInfoDto>> {
         val uid = UserId(principal.name)
         val sessions =
             deviceSessionProjection.getByUser(uid).map { s ->
                 val nowPlaying = nowPlayingResolver.resolve(uid, s.sessionId)
-                val nowPlayingItem =
-                    nowPlaying.nowPlayingItemId?.let { itemId ->
-                        mapOf("Id" to itemId, "Name" to nowPlaying.nowPlayingItemName, "Type" to "Audio")
-                    }
-                mapOf(
-                    "Id" to s.sessionId.value,
-                    "UserId" to uid.value,
-                    "DeviceId" to s.deviceId.value,
-                    "DeviceName" to (s.deviceName ?: "Unknown Device"),
-                    "LastActivityDate" to s.lastSeenAt.toString(),
-                    "NowPlayingItem" to nowPlayingItem,
-                    "PlayState" to
-                        mapOf(
-                            "PositionTicks" to nowPlaying.positionMs * TICKS_PER_MS,
-                            "IsPaused" to (nowPlaying.playbackState != "PLAYING"),
-                            "CanSeek" to true,
+                SessionInfoDto(
+                    id = s.sessionId.value,
+                    userId = uid.value,
+                    deviceId = s.deviceId.value,
+                    deviceName = s.deviceName ?: "Unknown Device",
+                    lastActivityDate = s.lastSeenAt.toString(),
+                    nowPlayingItem =
+                        nowPlaying.nowPlayingItemId?.let { itemId ->
+                            SessionNowPlayingItemDto(id = itemId, name = nowPlaying.nowPlayingItemName)
+                        },
+                    playState =
+                        SessionPlayStateDto(
+                            positionTicks = nowPlaying.positionMs * TICKS_PER_MS,
+                            isPaused = nowPlaying.playbackState != "PLAYING",
                         ),
                 )
             }

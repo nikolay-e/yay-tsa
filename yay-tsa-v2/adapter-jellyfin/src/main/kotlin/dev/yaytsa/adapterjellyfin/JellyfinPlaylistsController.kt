@@ -1,5 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
+import com.fasterxml.jackson.annotation.JsonAlias
+import com.fasterxml.jackson.annotation.JsonProperty
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.BaseItem
 import dev.yaytsa.adaptershared.HttpFailureTranslator
@@ -59,22 +61,26 @@ class JellyfinPlaylistsController(
         }
 
     data class CreatePlaylistRequest(
-        val Name: String,
-        val UserId: String,
-        val Ids: List<String>? = null,
-        val IsPublic: Boolean? = null,
+        @JsonProperty("Name") @JsonAlias("name") val name: String,
+        @JsonProperty("UserId") @JsonAlias("userId") val userId: String? = null,
+        @JsonProperty("Ids") @JsonAlias("ids") val ids: List<String>? = null,
+        @JsonProperty("IsPublic") @JsonAlias("isPublic") val isPublic: Boolean? = null,
     )
 
     @PostMapping("/Playlists")
     fun createPlaylist(
         @RequestBody request: CreatePlaylistRequest,
+        principal: Principal,
     ): ResponseEntity<Any> {
-        require(request.UserId.isNotBlank()) { "UserId is required" }
-        require(request.Name.isNotBlank()) { "Name is required" }
-        val uid = UserId(request.UserId)
+        val requestedOwner = request.userId?.takeIf { it.isNotBlank() }
+        if (requestedOwner != null && requestedOwner != principal.name) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build()
+        }
+        require(request.name.isNotBlank()) { "Name is required" }
+        val uid = UserId(principal.name)
         val pid = PlaylistId(UUID.randomUUID().toString())
         val now = clock.now()
-        val createCmd = CreatePlaylist(pid, uid, request.Name, null, request.IsPublic ?: false, now)
+        val createCmd = CreatePlaylist(pid, uid, request.name, null, request.isPublic ?: false, now)
         val createCtx = ctxFactory.create(uid, AggregateVersion.INITIAL)
         val createResult = playlistUseCases.execute(createCmd, createCtx)
         if (createResult is CommandResult.Failed) {
@@ -84,7 +90,7 @@ class JellyfinPlaylistsController(
         createResult as CommandResult.Success
 
         val initialIds =
-            request.Ids
+            request.ids
                 ?.filter { it.isNotBlank() }
                 ?.map { TrackId(it.trim()) }
                 .orEmpty()

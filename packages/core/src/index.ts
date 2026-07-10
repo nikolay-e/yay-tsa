@@ -30,6 +30,7 @@ export {
 export { AdaptiveDjService } from './api/adaptive-dj.service.js';
 export { DeviceService, TransferUnavailableError } from './api/device.service.js';
 export type {
+  DeviceHeartbeatAck,
   DeviceInfo,
   DeviceStateEvent,
   TransferLeaseResult,

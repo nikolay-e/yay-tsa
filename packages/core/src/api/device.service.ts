@@ -1,5 +1,5 @@
 import { MediaServerError } from '../internal/models/types.js';
-import type { DeviceInfo, TransferLeaseResult } from './device.types.js';
+import type { DeviceHeartbeatAck, DeviceInfo, TransferLeaseResult } from './device.types.js';
 import { BaseService } from './base-api.service.js';
 
 // A web device never owns a server-side PlaybackSessionAggregate, so transferring playback to it
@@ -50,11 +50,16 @@ export class DeviceService extends BaseService {
     });
   }
 
-  async heartbeat(): Promise<void> {
+  async heartbeat(): Promise<DeviceHeartbeatAck | undefined> {
     // Best-effort: a 15s background heartbeat whose failures the caller ignores. A transient
     // "Failed to fetch" (page navigating, network blip) must not be logged as an error and
     // forwarded to telemetry — it is expected noise, not a client bug.
-    await this.client.post('/v1/me/devices/heartbeat', undefined, undefined, true);
+    return this.client.post<DeviceHeartbeatAck>(
+      '/v1/me/devices/heartbeat',
+      undefined,
+      undefined,
+      true
+    );
   }
 
   async sendCommand(
