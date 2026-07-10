@@ -100,8 +100,8 @@ class KaraokeProcessor(
                 )
                 log.info("Karaoke assets ready via separator for track {} in {} ms", trackId, result.processingTimeMs)
             } catch (e: Exception) {
-                log.warn("Separator failed for track {}: {}", trackId, e.message)
-                recordFailure(trackId, existing, e.message)
+                log.warn("Separator failed for track {}: {}", trackId, e.message, e)
+                recordFailure(trackId, existing, e.message ?: e.javaClass.simpleName)
             }
             return
         }
@@ -139,7 +139,7 @@ class KaraokeProcessor(
             }
         } catch (e: Exception) {
             log.warn("Demucs not available for track {}: {}", trackId, e.message)
-            recordFailure(trackId, existing, e.message)
+            recordFailure(trackId, existing, e.message ?: e.javaClass.simpleName)
             return
         }
 

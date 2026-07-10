@@ -1191,8 +1191,15 @@ export const usePlayerStore = create<PlayerStore>()(
           return;
         }
 
-        // FAILED
-        karaokeFailedTrackIds.add(currentTrack.Id);
+        // FAILED: an explicit user toggle gets one re-processing attempt per session —
+        // the backend resets the fail counter (requeueFailed), so a track that failed
+        // during a past separator outage self-heals instead of staying dead forever.
+        if (!karaokeFailedTrackIds.has(currentTrack.Id)) {
+          karaokeFailedTrackIds.add(currentTrack.Id);
+          await currentClient.requestKaraokeProcessing(currentTrack.Id);
+          set({ karaokeStatus: { state: 'PROCESSING', message: null } });
+          return;
+        }
         set({ karaokeEnabled: false, karaokeStatus: status });
       } finally {
         set({ isKaraokeTransitioning: false });
