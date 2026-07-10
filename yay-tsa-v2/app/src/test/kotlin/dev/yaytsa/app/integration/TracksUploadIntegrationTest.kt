@@ -170,6 +170,20 @@ class TracksUploadIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `a multipart body missing the file part is a 400 not a 500`() {
+        val admin = seedUser("upload-admin", isAdmin = true)
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .multipart("/tracks/upload")
+                        .file(MockMultipartFile("wrongname", "x.flac", "audio/flac", fixtureBytes()))
+                        .header("Authorization", "Bearer ${admin.token}"),
+                ).andReturn()
+        assertEquals(400, result.response.status, result.response.contentAsString)
+    }
+
+    @Test
     fun `disallowed extensions are rejected with 415`() {
         val admin = seedUser("upload-admin", isAdmin = true)
         assertEquals(415, upload(admin.token, "malware.exe", fixtureBytes()).response.status)

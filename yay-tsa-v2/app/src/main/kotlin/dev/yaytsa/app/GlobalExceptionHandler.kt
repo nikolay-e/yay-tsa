@@ -22,6 +22,7 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.MultipartException
+import org.springframework.web.multipart.support.MissingServletRequestPartException
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.NoHandlerFoundException
 import org.springframework.web.servlet.resource.NoResourceFoundException
@@ -111,6 +112,15 @@ class GlobalExceptionHandler {
         ex: MissingServletRequestParameterException,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Missing required parameter: ${ex.parameterName}", request)
+
+    // A malformed multipart body (mismatched boundary, empty part name) parses to zero parts,
+    // so the required @RequestPart is absent — that is a bad request, not a 500. Both this and
+    // MissingServletRequestParameterException share the client-error contract.
+    @ExceptionHandler(MissingServletRequestPartException::class)
+    fun handleMissingPart(
+        ex: MissingServletRequestPartException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> = problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Missing required part: ${ex.requestPartName}", request)
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
     fun handleMethodNotAllowed(
