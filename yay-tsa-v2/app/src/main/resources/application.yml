@@ -2,6 +2,13 @@ spring:
   application:
     name: yaytsa
 
+  # One thread is the Boot default; a single long-running @Scheduled job would then
+  # starve the outbox poller (SSE command/state delivery) and every other worker.
+  task:
+    scheduling:
+      pool:
+        size: 4
+
   cache:
     jcache:
       provider: com.github.benmanes.caffeine.jcache.spi.CaffeineCachingProvider

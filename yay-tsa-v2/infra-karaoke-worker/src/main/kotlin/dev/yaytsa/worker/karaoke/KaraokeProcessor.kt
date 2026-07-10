@@ -30,6 +30,19 @@ class KaraokeProcessor(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    // Separation blocks for minutes per track (sidecar HTTP call / demucs subprocess).
+    // Spring's shared TaskScheduler is a single thread by default — running the batch
+    // there starves EVERY other @Scheduled job (outbox poller → SSE delivery, workers)
+    // for the whole batch. A dedicated thread plus an in-flight guard keeps the
+    // scheduler tick instant and prevents overlapping batches.
+    private val separationExecutor =
+        java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "karaoke-separation").apply { isDaemon = true }
+        }
+    private val batchInFlight =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
+
     companion object {
         private const val DEMUCS_TIMEOUT_MINUTES = 30L
         private const val MAX_FAILURES = 3
@@ -38,6 +51,22 @@ class KaraokeProcessor(
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 60_000)
     fun processUnready() {
+        if (!batchInFlight.compareAndSet(false, true)) return
+        try {
+            separationExecutor.execute {
+                try {
+                    runBatch()
+                } finally {
+                    batchInFlight.set(false)
+                }
+            }
+        } catch (e: Exception) {
+            batchInFlight.set(false)
+            throw e
+        }
+    }
+
+    private fun runBatch() {
         // Production delegates to the audio-separator HTTP sidecar (BS-Roformer on GPU)
         // via separatorUrl; the in-process Demucs path is the local/dev fallback. Bail
         // only when neither separation backend is available.
