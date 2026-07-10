@@ -4,19 +4,17 @@ import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.adaptershared.problemDetail
 import dev.yaytsa.application.playback.DeviceSessionProjection
+import dev.yaytsa.application.playback.PlaybackRemoteControl
 import dev.yaytsa.application.playback.PlaybackUseCases
+import dev.yaytsa.application.playback.RemoteControlOutcome
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.application.shared.port.RemoteCommandPort
-import dev.yaytsa.domain.playback.Pause
-import dev.yaytsa.domain.playback.Play
-import dev.yaytsa.domain.playback.Seek
 import dev.yaytsa.domain.playback.SessionId
-import dev.yaytsa.domain.playback.SkipNext
-import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.domain.playback.TransferLease
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.UserId
+import dev.yaytsa.shared.generated.RemoteCommandType
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -34,6 +32,7 @@ import java.time.Duration
 class JellyfinDevicesController(
     private val deviceSessionProjection: DeviceSessionProjection,
     private val playbackUseCases: PlaybackUseCases,
+    private val playbackRemoteControl: PlaybackRemoteControl,
     private val deviceEventBroadcaster: DeviceEventBroadcaster,
     private val nowPlayingResolver: DeviceNowPlayingResolver,
     private val remoteCommandPort: RemoteCommandPort,
@@ -129,57 +128,41 @@ class JellyfinDevicesController(
     ): ResponseEntity<Any> {
         val uid = UserId(principal.name)
         val sid = SessionId(sessionId)
-        val current =
-            playbackUseCases.getPlaybackState(uid, sid)
-                ?: return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Session not found")
-        val leaseOwner =
-            current.lease?.owner
-                ?: return problemDetail(HttpStatus.CONFLICT, "Conflict", "No active lease on session")
-
-        val cmd =
+        val commandType =
             when (request.command.lowercase()) {
-                "play" -> Play(sessionId = sid, deviceId = leaseOwner)
-                "pause" -> Pause(sessionId = sid, deviceId = leaseOwner)
-                "skip_next" -> SkipNext(sessionId = sid, deviceId = leaseOwner)
-                "skip_previous" -> SkipPrevious(sessionId = sid, deviceId = leaseOwner)
-                "seek" -> {
-                    val positionMs = (request.params["positionMs"] as? Number)?.toLong() ?: 0L
-                    Seek(sessionId = sid, deviceId = leaseOwner, position = Duration.ofMillis(positionMs))
-                }
+                "play" -> RemoteCommandType.PLAY
+                "pause" -> RemoteCommandType.PAUSE
+                "skip_next" -> RemoteCommandType.NEXT
+                "skip_previous" -> RemoteCommandType.PREV
+                "seek" -> RemoteCommandType.SEEK
                 else ->
                     return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Unknown command: ${request.command}")
             }
 
-        val ctx = commandContextFactory.create(uid, current.version)
-        return when (val result = playbackUseCases.execute(cmd, ctx)) {
-            is CommandResult.Success -> {
-                remoteCommandPort.publish(
-                    userId = uid.value,
-                    targetDeviceId = leaseOwner.value,
-                    command = remoteCommandType(request.command),
-                    params = request.params,
-                )
+        val outcome =
+            playbackRemoteControl.sendTransportCommand(
+                userId = uid,
+                command = commandType,
+                sessionId = sid,
+                params = request.params,
+                awaitConfirmation = false,
+            )
+        return when (outcome) {
+            is RemoteControlOutcome.SentUnconfirmed, is RemoteControlOutcome.Confirmed ->
                 ResponseEntity.ok(
                     mapOf(
                         "sessionId" to sid.value,
-                        "version" to result.newVersion.value,
                         "command" to request.command,
                     ),
                 )
-            }
-            is CommandResult.Failed -> failureTranslator.translate(result.failure)
+            is RemoteControlOutcome.NoActiveSession ->
+                problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Session not found")
+            is RemoteControlOutcome.NoReachableDevice ->
+                problemDetail(HttpStatus.CONFLICT, "Conflict", "No reachable device holds the playback lease")
+            is RemoteControlOutcome.InvalidTracks ->
+                problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Unknown tracks: ${outcome.trackIds.joinToString()}")
         }
     }
-
-    private fun remoteCommandType(command: String): String =
-        when (command.lowercase()) {
-            "play" -> "PLAY"
-            "pause" -> "PAUSE"
-            "skip_next" -> "NEXT"
-            "skip_previous" -> "PREV"
-            "seek" -> "SEEK"
-            else -> command.uppercase()
-        }
 
     @PostMapping("/{sessionId}/transfer")
     fun transferLease(

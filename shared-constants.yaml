@@ -31,6 +31,9 @@ enums:
     - SET_VOLUME
     - TOGGLE_SHUFFLE
     - TOGGLE_REPEAT
+    - CLEAR_QUEUE
+    - ENQUEUE
+    - SET_QUEUE
 
   KaraokeState:
     - NOT_STARTED

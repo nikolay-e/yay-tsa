@@ -1,5 +1,11 @@
 import { useEffect } from 'react';
-import { DeviceService, getOrCreateDeviceId, type RemoteCommand } from '@yay-tsa/core';
+import {
+  DeviceService,
+  ItemsService,
+  getOrCreateDeviceId,
+  type AudioItem,
+  type RemoteCommand,
+} from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
 import { usePlayerStore } from '../stores/player.store';
@@ -14,6 +20,7 @@ export function useRemoteCommands() {
     if (!client) return;
 
     const service = new DeviceService(client);
+    const itemsService = new ItemsService(client);
     const ownDeviceId = getOrCreateDeviceId();
     let sseUrl: string;
     try {
@@ -49,6 +56,24 @@ export function useRemoteCommands() {
       groupSync
         .sendAction(cmd.type as GroupAction, undefined, posMs, groupSync.schedule?.isPaused)
         .catch(() => {});
+    };
+
+    const resolveQueueTracks = async (payload: RemoteCommand['payload']): Promise<AudioItem[]> => {
+      const rawIds = payload?.trackIds;
+      if (!Array.isArray(rawIds)) return [];
+      const trackIds = rawIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+      if (trackIds.length === 0) return [];
+      const items = await itemsService.getItemsByIds(trackIds);
+      const itemsById = new Map(items.map(item => [item.Id, item]));
+      const missingIds = trackIds.filter(id => !itemsById.has(id));
+      if (missingIds.length > 0) {
+        log.player.warn('Remote queue command skipped unresolved tracks', {
+          missing: missingIds,
+        });
+      }
+      return trackIds
+        .map(id => itemsById.get(id))
+        .filter((item): item is AudioItem => item !== undefined);
     };
 
     const handleSoloCommand = (
@@ -89,12 +114,46 @@ export function useRemoteCommands() {
         case 'TOGGLE_REPEAT':
           store.toggleRepeat();
           break;
+        case 'CLEAR_QUEUE':
+          // stop() empties the local queue and reports Stopped, so server-side
+          // reflection converges to STOPPED instead of resurrecting the queue.
+          store.stop();
+          break;
+        case 'ENQUEUE':
+          resolveQueueTracks(cmd.payload)
+            .then(tracks => {
+              if (tracks.length > 0) usePlayerStore.getState().appendToQueue(tracks);
+            })
+            .catch((err: unknown) => {
+              log.player.warn('Remote ENQUEUE failed', { error: String(err) });
+            });
+          break;
+        case 'SET_QUEUE':
+          resolveQueueTracks(cmd.payload)
+            .then(async tracks => {
+              if (tracks.length > 0) await usePlayerStore.getState().playTracks(tracks, 0);
+            })
+            .catch((err: unknown) => {
+              log.player.warn('Remote SET_QUEUE failed', { error: String(err) });
+            });
+          break;
         default:
           log.player.debug('Unknown remote command', { type: cmd.type });
       }
     };
 
-    const engineCommands = new Set(['PAUSE', 'PLAY', 'NEXT', 'PREV', 'SEEK', 'STOP', 'SET_VOLUME']);
+    const engineCommands = new Set([
+      'PAUSE',
+      'PLAY',
+      'NEXT',
+      'PREV',
+      'SEEK',
+      'STOP',
+      'SET_VOLUME',
+      'CLEAR_QUEUE',
+      'ENQUEUE',
+      'SET_QUEUE',
+    ]);
 
     // Outbox delivery is at-least-once: a crash between the SSE emit and the publishedAt
     // commit re-delivers the same command on the next poll. NEXT/PREV are not idempotent,

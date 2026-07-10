@@ -6,29 +6,23 @@ import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.playback.DeviceSessionProjection
 import dev.yaytsa.application.playback.PlaybackQueries
-import dev.yaytsa.application.playback.PlaybackUseCases
+import dev.yaytsa.application.playback.PlaybackRemoteControl
+import dev.yaytsa.application.playback.RemoteControlOutcome
 import dev.yaytsa.application.playlists.PlaylistQueries
-import dev.yaytsa.application.playlists.PlaylistUseCases
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.domain.adaptive.ListeningSessionId
 import dev.yaytsa.domain.adaptive.StartListeningSession
-import dev.yaytsa.domain.playback.AddToQueue
-import dev.yaytsa.domain.playback.ClearQueue
-import dev.yaytsa.domain.playback.Pause
-import dev.yaytsa.domain.playback.Play
-import dev.yaytsa.domain.playback.QueueEntry
-import dev.yaytsa.domain.playback.QueueEntryId
+import dev.yaytsa.domain.library.Track
 import dev.yaytsa.domain.playback.SessionId
-import dev.yaytsa.domain.playback.SkipNext
-import dev.yaytsa.domain.playback.SkipPrevious
 import dev.yaytsa.domain.preferences.UpdatePreferenceContract
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandResult
-import dev.yaytsa.shared.DeviceId
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.Failure
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
+import dev.yaytsa.shared.generated.RemoteCommandType
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -37,10 +31,8 @@ import java.util.UUID
 class McpTools(
     private val libraryQueries: LibraryQueries,
     private val playbackQueries: PlaybackQueries,
-    private val playbackUseCases: PlaybackUseCases,
+    private val playbackRemoteControl: PlaybackRemoteControl,
     private val playlistQueries: PlaylistQueries,
-    @Suppress("unused")
-    private val playlistUseCases: PlaylistUseCases,
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val adaptiveUseCases: AdaptiveUseCases,
@@ -70,7 +62,8 @@ class McpTools(
             ),
             McpToolDefinition(
                 "list_devices",
-                "List the caller's active player devices with their session_id and device_id (use these to drive play/pause/queue)",
+                "List the caller's active player devices with their session_id, playback state and queue size " +
+                    "(playback commands target the active device automatically)",
                 mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
@@ -88,59 +81,23 @@ class McpTools(
             ),
             McpToolDefinition(
                 "play",
-                "Start or resume playback",
-                mapOf(
-                    "type" to "object",
-                    "properties" to
-                        mapOf(
-                            "user_id" to mapOf("type" to "string"),
-                            "session_id" to mapOf("type" to "string"),
-                            "device_id" to mapOf("type" to "string"),
-                        ),
-                    "required" to listOf("user_id", "session_id", "device_id"),
-                ),
+                "Start or resume playback on the user's active player device (resolved server-side)",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "pause",
-                "Pause playback",
-                mapOf(
-                    "type" to "object",
-                    "properties" to
-                        mapOf(
-                            "user_id" to mapOf("type" to "string"),
-                            "session_id" to mapOf("type" to "string"),
-                            "device_id" to mapOf("type" to "string"),
-                        ),
-                    "required" to listOf("user_id", "session_id", "device_id"),
-                ),
+                "Pause playback on the user's active player device (resolved server-side)",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "skip_next",
-                "Skip to next track",
-                mapOf(
-                    "type" to "object",
-                    "properties" to
-                        mapOf(
-                            "user_id" to mapOf("type" to "string"),
-                            "session_id" to mapOf("type" to "string"),
-                            "device_id" to mapOf("type" to "string"),
-                        ),
-                    "required" to listOf("user_id", "session_id", "device_id"),
-                ),
+                "Skip to the next track on the user's active player device",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "skip_previous",
-                "Skip to previous track",
-                mapOf(
-                    "type" to "object",
-                    "properties" to
-                        mapOf(
-                            "user_id" to mapOf("type" to "string"),
-                            "session_id" to mapOf("type" to "string"),
-                            "device_id" to mapOf("type" to "string"),
-                        ),
-                    "required" to listOf("user_id", "session_id", "device_id"),
-                ),
+                "Skip to the previous track on the user's active player device",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "browse_artists",
@@ -187,35 +144,31 @@ class McpTools(
                 ),
             ),
             McpToolDefinition(
+                "get_preference_contract",
+                "Read the user's current preference contract for the adaptive DJ",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
+            ),
+            McpToolDefinition(
                 "add_to_queue",
-                "Add tracks to the end of the playback queue (requires the device to hold the playback lease)",
+                "Send tracks to the end of the active player device's queue (the device applies them to its local queue)",
                 mapOf(
                     "type" to "object",
                     "properties" to
                         mapOf(
-                            "session_id" to mapOf("type" to "string"),
-                            "device_id" to mapOf("type" to "string"),
                             "track_ids" to mapOf("type" to "array", "items" to mapOf("type" to "string")),
                         ),
-                    "required" to listOf("session_id", "device_id", "track_ids"),
+                    "required" to listOf("track_ids"),
                 ),
             ),
             McpToolDefinition(
                 "clear_queue",
-                "Clear the playback queue (requires the device to hold the playback lease)",
-                mapOf(
-                    "type" to "object",
-                    "properties" to
-                        mapOf(
-                            "session_id" to mapOf("type" to "string"),
-                            "device_id" to mapOf("type" to "string"),
-                        ),
-                    "required" to listOf("session_id", "device_id"),
-                ),
+                "Clear the active player device's queue (the device empties its local queue and stops)",
+                mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
                 "start_radio",
-                "Steer adaptive behavior: start a radio/adaptive listening session, optionally seeded by a track. Returns the new session id.",
+                "Start a radio: seeds an adaptive DJ session and replaces the active player device's queue with seed tracks " +
+                    "(similar to seed_track_id, or by seed_genres, or random). Requires a reachable player device.",
                 mapOf(
                     "type" to "object",
                     "properties" to
@@ -248,14 +201,15 @@ class McpTools(
                 )
             "list_devices" -> listDevices(args)
             "get_playback_state" -> getPlaybackState(args)
-            "play" -> playbackCommand(args) { _, sid, did -> Play(sid, did, null) }
-            "pause" -> playbackCommand(args) { _, sid, did -> Pause(sid, did) }
-            "skip_next" -> playbackCommand(args) { _, sid, did -> SkipNext(sid, did) }
-            "skip_previous" -> playbackCommand(args) { _, sid, did -> SkipPrevious(sid, did) }
+            "play" -> transportCommand(args, RemoteCommandType.PLAY)
+            "pause" -> transportCommand(args, RemoteCommandType.PAUSE)
+            "skip_next" -> transportCommand(args, RemoteCommandType.NEXT)
+            "skip_previous" -> transportCommand(args, RemoteCommandType.PREV)
             "browse_artists" -> browseArtists(args)
             "get_album" -> getAlbum(args)
             "list_playlists" -> listPlaylists(args)
             "set_preference_contract" -> setPreferenceContract(args)
+            "get_preference_contract" -> getPreferenceContract(args)
             "add_to_queue" -> addToQueue(args)
             "clear_queue" -> clearQueue(args)
             "start_radio" -> startRadio(args)
@@ -336,25 +290,59 @@ class McpTools(
         )
     }
 
-    private fun playbackCommand(
+    private fun transportCommand(
         args: Map<String, Any?>,
-        cmdFactory: (UserId, SessionId, DeviceId) -> dev.yaytsa.domain.playback.PlaybackCommand,
+        command: RemoteCommandType,
     ): McpToolResult {
-        val uidStr = args["user_id"] as? String ?: return errorResult("user_id is required")
-        val sidStr = args["session_id"] as? String ?: return errorResult("session_id is required")
-        val didStr = args["device_id"] as? String ?: return errorResult("device_id is required")
-        val uid = UserId(uidStr)
-        val sid = SessionId(sidStr)
-        val did = DeviceId(didStr)
-        val currentState = playbackQueries.getPlaybackState(uid, sid)
-        val version = currentState?.version ?: AggregateVersion.INITIAL
-        val ctx = ctxFactory.create(uid, version)
-        val result = playbackUseCases.execute(cmdFactory(uid, sid, did), ctx)
-        return when (result) {
-            is CommandResult.Success -> textResult("OK")
-            is CommandResult.Failed -> errorResult(result.failure.toString())
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        return when (val outcome = playbackRemoteControl.sendTransportCommand(uid, command)) {
+            is RemoteControlOutcome.Confirmed -> textResult(confirmedText(command, outcome))
+            is RemoteControlOutcome.SentUnconfirmed ->
+                textResult(
+                    "${command.name} sent to device '${outcome.deviceName ?: "unknown"}' but not yet confirmed — " +
+                        "re-check with get_playback_state in a few seconds.",
+                )
+            else -> unreachableResult(outcome)
         }
     }
+
+    private fun confirmedText(
+        command: RemoteCommandType,
+        outcome: RemoteControlOutcome.Confirmed,
+    ): String =
+        when (command) {
+            RemoteCommandType.PAUSE -> "Pause confirmed — playback is ${outcome.state}."
+            RemoteCommandType.PLAY -> "Play confirmed — playback is ${outcome.state}."
+            RemoteCommandType.NEXT, RemoteCommandType.PREV ->
+                "Skip confirmed — now playing ${trackLabel(outcome.currentTrackId)}."
+            else -> "${command.name} confirmed — playback is ${outcome.state}."
+        }
+
+    private fun trackLabel(trackId: TrackId?): String {
+        if (trackId == null) return "unknown track"
+        return libraryQueries.getTrack(EntityId(trackId.value))?.name ?: trackId.value
+    }
+
+    private fun unreachableResult(outcome: RemoteControlOutcome): McpToolResult =
+        when (outcome) {
+            is RemoteControlOutcome.NoReachableDevice ->
+                errorResult(
+                    buildString {
+                        append("No reachable player device")
+                        outcome.deviceName?.let { name ->
+                            append(" — device '$name'")
+                            outcome.lastSeenAt?.let { append(" last seen $it") }
+                        }
+                        append(". Open the web player or check list_devices.")
+                    },
+                )
+            is RemoteControlOutcome.NoActiveSession ->
+                errorResult("No active playback session — open the web player and start playback, or check list_devices.")
+            is RemoteControlOutcome.InvalidTracks ->
+                errorResult("Unknown track ids: ${outcome.trackIds.joinToString()}. Use search_library or get_album to find valid ids.")
+            is RemoteControlOutcome.Confirmed, is RemoteControlOutcome.SentUnconfirmed ->
+                textResult("Command sent.")
+        }
 
     private fun browseArtists(args: Map<String, Any?>): McpToolResult {
         val limit = (args["limit"] as? Number)?.toInt() ?: 50
@@ -409,42 +397,114 @@ class McpTools(
 
     private fun addToQueue(args: Map<String, Any?>): McpToolResult {
         val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
-        val sid = SessionId(args["session_id"] as? String ?: return errorResult("session_id is required"))
-        val did = DeviceId(args["device_id"] as? String ?: return errorResult("device_id is required"))
         val trackIds = (args["track_ids"] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
         if (trackIds.isEmpty()) return errorResult("track_ids must contain at least one track id")
-        val entries = trackIds.map { QueueEntry(QueueEntryId(UUID.randomUUID().toString()), TrackId(it)) }
-        val version = playbackQueries.getPlaybackState(uid, sid)?.version ?: AggregateVersion.INITIAL
-        return when (val result = playbackUseCases.execute(AddToQueue(sid, did, entries), ctxFactory.create(uid, version))) {
-            is CommandResult.Success -> textResult("Added ${entries.size} track(s) to the queue.")
-            is CommandResult.Failed -> errorResult(result.failure.toString())
+        return when (val outcome = playbackRemoteControl.sendQueueCommand(uid, RemoteCommandType.ENQUEUE, trackIds)) {
+            is RemoteControlOutcome.SentUnconfirmed ->
+                textResult(
+                    "Enqueue of ${trackIds.size} track(s) sent to device '${outcome.deviceName ?: "unknown"}' — " +
+                        "the device appends them to its local queue.",
+                )
+            else -> unreachableResult(outcome)
         }
     }
 
     private fun clearQueue(args: Map<String, Any?>): McpToolResult {
         val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
-        val sid = SessionId(args["session_id"] as? String ?: return errorResult("session_id is required"))
-        val did = DeviceId(args["device_id"] as? String ?: return errorResult("device_id is required"))
-        val version = playbackQueries.getPlaybackState(uid, sid)?.version ?: AggregateVersion.INITIAL
-        return when (val result = playbackUseCases.execute(ClearQueue(sid, did), ctxFactory.create(uid, version))) {
-            is CommandResult.Success -> textResult("Queue cleared.")
-            is CommandResult.Failed -> errorResult(result.failure.toString())
+        return when (val outcome = playbackRemoteControl.sendQueueCommand(uid, RemoteCommandType.CLEAR_QUEUE)) {
+            is RemoteControlOutcome.SentUnconfirmed ->
+                textResult(
+                    "Clear-queue sent to device '${outcome.deviceName ?: "unknown"}' — " +
+                        "the device empties its local queue and stops.",
+                )
+            else -> unreachableResult(outcome)
         }
     }
 
     private fun startRadio(args: Map<String, Any?>): McpToolResult {
         val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
         val sessionId = ListeningSessionId(UUID.randomUUID().toString())
+        val seedTrackId = args["seed_track_id"] as? String
+        val seedGenres = (args["seed_genres"] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
         val cmd =
             StartListeningSession(
                 sessionId = sessionId,
                 attentionMode = args["attention_mode"] as? String ?: "active",
-                seedTrackId = (args["seed_track_id"] as? String)?.let { EntityId(it) },
-                seedGenres = (args["seed_genres"] as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
+                seedTrackId = seedTrackId?.let { EntityId(it) },
+                seedGenres = seedGenres,
             )
-        return when (val result = adaptiveUseCases.execute(cmd, ctxFactory.create(uid, AggregateVersion.INITIAL))) {
-            is CommandResult.Success -> textResult("Radio session started (id: ${sessionId.value}).")
-            is CommandResult.Failed -> errorResult(result.failure.toString())
+        when (val result = adaptiveUseCases.execute(cmd, ctxFactory.create(uid, AggregateVersion.INITIAL))) {
+            is CommandResult.Success -> {}
+            is CommandResult.Failed ->
+                return if (result.failure is Failure.InvariantViolation) {
+                    textResult("Radio session could not be started (${result.failure}) — retry start_radio once.")
+                } else {
+                    errorResult(result.failure.toString())
+                }
         }
+        val seedTracks = resolveRadioTracks(uid, seedTrackId, seedGenres)
+        if (seedTracks.isEmpty()) {
+            return textResult(
+                "Radio session started (id: ${sessionId.value}), but no seed tracks could be resolved — " +
+                    "the adaptive DJ will fill the queue as listening signals arrive.",
+            )
+        }
+        val outcome = playbackRemoteControl.sendQueueCommand(uid, RemoteCommandType.SET_QUEUE, seedTracks.map { it.id.value })
+        return when (outcome) {
+            is RemoteControlOutcome.SentUnconfirmed ->
+                textResult(
+                    buildString {
+                        appendLine(
+                            "Radio started (adaptive session id: ${sessionId.value}) — " +
+                                "queue of ${seedTracks.size} track(s) sent to device '${outcome.deviceName ?: "unknown"}':",
+                        )
+                        seedTracks.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
+                    },
+                )
+            is RemoteControlOutcome.NoReachableDevice, is RemoteControlOutcome.NoActiveSession ->
+                errorResult(
+                    "Radio session seeded (id: ${sessionId.value}) but there is no reachable player device to receive the queue — " +
+                        "open the web player or check list_devices, then retry.",
+                )
+            else -> unreachableResult(outcome)
+        }
+    }
+
+    private fun resolveRadioTracks(
+        userId: UserId,
+        seedTrackId: String?,
+        seedGenres: List<String>,
+    ): List<Track> {
+        val candidates =
+            when {
+                seedTrackId != null -> {
+                    val similarIds = mlQuery.findSimilarTracks(TrackId(seedTrackId), RADIO_QUEUE_SIZE)
+                    listOfNotNull(libraryQueries.getTrack(EntityId(seedTrackId))) +
+                        libraryQueries.getTracksByIds(similarIds.map { EntityId(it.value) })
+                }
+                seedGenres.isNotEmpty() -> libraryQueries.browseTracksByGenreNames(seedGenres).shuffled()
+                else -> libraryQueries.browseTracksRandom(RADIO_QUEUE_SIZE)
+            }
+        return musicSurfaceFilter.filter(candidates.distinctBy { it.id }, userId).take(RADIO_QUEUE_SIZE)
+    }
+
+    private fun getPreferenceContract(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val contract =
+            preferencesQueries.find(uid)?.preferenceContract
+                ?: return textResult("No preference contract set — use set_preference_contract to create one.")
+        return textResult(
+            buildString {
+                appendLine("Hard rules: ${contract.hardRules.ifBlank { "(none)" }}")
+                appendLine("Soft preferences: ${contract.softPrefs.ifBlank { "(none)" }}")
+                appendLine("DJ style: ${contract.djStyle.ifBlank { "(none)" }}")
+                appendLine("Red lines: ${contract.redLines.ifBlank { "(none)" }}")
+                append("Updated at: ${contract.updatedAt}")
+            },
+        )
+    }
+
+    private companion object {
+        const val RADIO_QUEUE_SIZE = 20
     }
 }

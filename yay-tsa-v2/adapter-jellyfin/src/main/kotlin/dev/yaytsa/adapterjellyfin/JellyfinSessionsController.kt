@@ -59,6 +59,17 @@ class JellyfinSessionsController(
             .expireAfterWrite(Duration.ofHours(6))
             .maximumSize(10_000)
             .build()
+
+    // Last reflected client EventTime per user:device. Comparing client-stamped times against
+    // each other (same clock) rejects a reordered stale IsPaused=false report that would
+    // otherwise resurrect PLAYING after a newer pause; comparing against server lastKnownAt
+    // would be cross-clock and defeated by any client clock skew.
+    private val lastReflectedEventTimes: Cache<String, Long> =
+        Caffeine
+            .newBuilder()
+            .expireAfterWrite(Duration.ofMinutes(10))
+            .maximumSize(10_000)
+            .build()
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
     private fun isValidUuid(value: String): Boolean =
@@ -143,7 +154,7 @@ class JellyfinSessionsController(
         playbackStarts.put("${principal.name}:${info.itemId}", clock.now())
         recordSignal(principal, info.itemId, SignalType.PLAY_START)
         recordResume(principal, info.itemId, info.positionTicks, ResumeSource.START, info.eventTime)
-        reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.PLAYING)
+        reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.PLAYING, info.eventTime)
         return ResponseEntity.noContent().build()
     }
 
@@ -167,6 +178,7 @@ class JellyfinSessionsController(
             info.itemId,
             info.positionTicks,
             if (info.isPaused) dev.yaytsa.domain.playback.PlaybackState.PAUSED else dev.yaytsa.domain.playback.PlaybackState.PLAYING,
+            info.eventTime,
         )
         return ResponseEntity.noContent().build()
     }
@@ -202,7 +214,7 @@ class JellyfinSessionsController(
             runTimeMs = runTimeMs,
         )
 
-        reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.STOPPED)
+        reflectDevicePlayback(principal, info.itemId, info.positionTicks, dev.yaytsa.domain.playback.PlaybackState.STOPPED, info.eventTime)
         return ResponseEntity.noContent().build()
     }
 
@@ -216,13 +228,20 @@ class JellyfinSessionsController(
         itemId: String,
         positionTicks: Long,
         state: dev.yaytsa.domain.playback.PlaybackState,
+        clientEventTime: Long? = null,
     ) {
-        val auth =
-            org.springframework.security.core.context.SecurityContextHolder
-                .getContext()
-                .authentication as? DeviceBoundAuthentication ?: return
-        val deviceIdValue = auth.deviceId?.takeIf { it.isNotBlank() } ?: return
+        val deviceIdValue =
+            (
+                org.springframework.security.core.context.SecurityContextHolder
+                    .getContext()
+                    .authentication as? DeviceBoundAuthentication
+            )?.deviceId?.takeIf { it.isNotBlank() } ?: return
         val uid = UserId(principal.name)
+        val eventTimeKey = "${principal.name}:$deviceIdValue"
+        if (clientEventTime != null) {
+            val lastReflected = lastReflectedEventTimes.getIfPresent(eventTimeKey)
+            if (lastReflected != null && clientEventTime < lastReflected) return
+        }
         val deviceId = dev.yaytsa.shared.DeviceId(deviceIdValue)
         val sid =
             dev.yaytsa.domain.playback
@@ -248,7 +267,10 @@ class JellyfinSessionsController(
                 )
             val ctx = ctxFactory.create(uid, current?.version ?: AggregateVersion.INITIAL)
             when (val result = playbackUseCases.execute(cmd, ctx)) {
-                is dev.yaytsa.shared.CommandResult.Success -> return
+                is dev.yaytsa.shared.CommandResult.Success -> {
+                    if (clientEventTime != null) lastReflectedEventTimes.put(eventTimeKey, clientEventTime)
+                    return
+                }
                 is dev.yaytsa.shared.CommandResult.Failed -> {
                     if (result.failure is dev.yaytsa.shared.Failure.Unauthorized) return
                     log.warn("ReflectExternalPlayback failed for user {} device {}: {}", uid.value, deviceIdValue, result.failure)

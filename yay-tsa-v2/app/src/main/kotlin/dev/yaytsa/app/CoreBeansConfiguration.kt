@@ -9,6 +9,7 @@ import dev.yaytsa.application.auth.port.UserRepository
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.playback.PlaybackQueries
+import dev.yaytsa.application.playback.PlaybackRemoteControl
 import dev.yaytsa.application.playback.PlaybackUseCases
 import dev.yaytsa.application.playback.ResumePositionService
 import dev.yaytsa.application.playback.SavedPlayQueueService
@@ -25,8 +26,10 @@ import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.application.preferences.port.UserPreferencesRepository
 import dev.yaytsa.application.shared.ProtocolCapabilities
 import dev.yaytsa.application.shared.ProtocolCapabilitiesRegistry
+import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.application.shared.port.IdempotencyStore
 import dev.yaytsa.application.shared.port.OutboxPort
+import dev.yaytsa.application.shared.port.RemoteCommandPort
 import dev.yaytsa.application.shared.port.TransactionalCommandExecutor
 import dev.yaytsa.shared.EntityId
 import org.springframework.context.annotation.Bean
@@ -120,6 +123,22 @@ class CoreBeansConfiguration {
 
     @Bean
     fun playbackQueries(sessionRepo: PlaybackSessionRepository): PlaybackQueries = PlaybackQueries(sessionRepo)
+
+    @Bean
+    fun playbackRemoteControl(
+        playbackQueries: PlaybackQueries,
+        deviceSessionProjection: dev.yaytsa.application.playback.DeviceSessionProjection,
+        remoteCommandPort: RemoteCommandPort,
+        libraryQuery: LibraryQueryPort,
+        clock: Clock,
+    ): PlaybackRemoteControl =
+        PlaybackRemoteControl(
+            playbackQueries = playbackQueries,
+            deviceSessionProjection = deviceSessionProjection,
+            remoteCommandPort = remoteCommandPort,
+            trackValidator = { trackIds -> libraryQuery.trackIdsExist(trackIds) },
+            clock = clock,
+        )
 
     @Bean
     fun playlistQueries(playlistRepo: PlaylistRepository): PlaylistQueries = PlaylistQueries(playlistRepo)
