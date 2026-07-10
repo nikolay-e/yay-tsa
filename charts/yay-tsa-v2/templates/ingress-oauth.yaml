@@ -1,0 +1,43 @@
+{{- if and .Values.ingress.enabled .Values.backend.enabled .Values.ingress.stripApiPrefix .Values.ingress.secureHeaders.enabled }}
+{{- /*
+  The MCP OAuth consent flow needs the secure-headers CSP (form-action allows the client's
+  redirect_uri) to reach the browser. The generic /api ingress runs at priority 10, which
+  LOSES to the frontend catch-all router — so /api/* is served through the frontend nginx and
+  picks up the shared kube-system CSP (form-action 'self'), which blocks the OAuth redirect.
+  This dedicated high-priority ingress routes ONLY the OAuth paths straight to the backend so
+  the v2 secure-headers CSP governs them. Other /api paths keep flowing through nginx as before.
+*/}}
+{{- $namespace := .Release.Namespace }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "yay-tsa-v2.fullname" . }}-oauth
+  labels:
+    {{- include "yay-tsa-v2.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.className }}
+    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.priority: "100"
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-strip-api@kubernetescrd,%s-%s-secure-headers@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .) $namespace (include "yay-tsa-v2.fullname" .) }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  {{- include "yay-tsa-common.ingress.tls" (dict "tls" .Values.ingress.tls) | nindent 2 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          - path: /api/oauth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "yay-tsa-v2.fullname" $ }}-backend
+                port:
+                  number: {{ $.Values.backend.service.port }}
+    {{- end }}
+{{- end }}
