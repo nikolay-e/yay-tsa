@@ -15,7 +15,7 @@ import java.time.Duration
 @Component
 class HttpEmbeddingClient(
     @Value("\${yaytsa.embedding.enabled:false}") private val enabled: Boolean,
-    @Value("\${yaytsa.embedding.base-url:http://audio-separator.yay-tsa-production.svc.cluster.local:8000}")
+    @Value("\${yaytsa.embedding.base-url:http://yay-tsa-production-embedding-server.yay-tsa.svc.cluster.local:8000}")
     private val baseUrl: String,
 ) : EmbeddingPort {
     private val log = LoggerFactory.getLogger(javaClass)

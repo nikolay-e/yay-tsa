@@ -110,7 +110,7 @@ yaytsa:
     extractor-script: ${ML_EXTRACTOR_SCRIPT:#{null}}
   embedding:
     enabled: ${EMBEDDING_ENABLED:false}
-    base-url: ${EMBEDDING_BASE_URL:http://audio-separator.yay-tsa-production.svc.cluster.local:8000}
+    base-url: ${EMBEDDING_BASE_URL:http://yay-tsa-production-embedding-server.yay-tsa.svc.cluster.local:8000}
   karaoke:
     enabled: ${KARAOKE_ENABLED:false}
     output-path: ${KARAOKE_OUTPUT_PATH:#{null}}

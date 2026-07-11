@@ -1,0 +1,115 @@
+{{- if .Values.embeddingServer.enabled }}
+# Always-on text-embedding server for semantic ("vibe") search. Reuses the essentia
+# feature-extractor image, whose default CMD is `uvicorn app:app`, serving
+# POST /api/v1/embed/text — the CLAP text tower that turns a mood query into a 512-d
+# vector the backend kNN-searches against core_v2_ml.track_features. CPU-only: text
+# encoding is light and must not compete for the shared GPU. The karaoke audio-separator
+# cannot host this (it OOMs on `import torch`), hence a dedicated pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding-server
+  name: {{ include "yay-tsa.fullname" . }}-embedding-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: embedding-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "yay-tsa.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: embedding-server
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: embedding-server
+          image: "{{ .Values.embeddingServer.image.repository }}:{{ .Values.embeddingServer.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.embeddingServer.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.embeddingServer.service.port }}
+              name: http
+              protocol: TCP
+          env:
+            - name: DEVICE
+              value: "cpu"
+            - name: HF_HOME
+              value: /tmp/hf
+            - name: HOME
+              value: /tmp
+            - name: NUMBA_CACHE_DIR
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp
+          lifecycle:
+            # CLAP loads lazily on the first /embed/text call and downloads ~2 GB from
+            # HuggingFace, which would blow the backend's 10 s request timeout. Warm the
+            # model into this pod's memory before it takes user traffic; best-effort, a
+            # failure never blocks startup (an early query just degrades to lexical).
+            postStart:
+              exec:
+                command:
+                  - python3
+                  - -c
+                  - |
+                    import json, time, urllib.request
+                    for _ in range(120):
+                        try:
+                            urllib.request.urlopen("http://localhost:8000/health", timeout=2); break
+                        except Exception:
+                            time.sleep(1)
+                    req = urllib.request.Request(
+                        "http://localhost:8000/api/v1/embed/text",
+                        data=json.dumps({"text": "warm up the clap text tower"}).encode(),
+                        headers={"Content-Type": "application/json"})
+                    try:
+                        urllib.request.urlopen(req, timeout=600)
+                    except Exception:
+                        pass
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          resources:
+            {{- toYaml .Values.embeddingServer.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+      restartPolicy: Always
+      volumes:
+        - name: tmp-volume
+          emptyDir:
+            sizeLimit: {{ .Values.embeddingServer.hfCacheSize }}
+{{- end }}

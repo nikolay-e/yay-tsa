@@ -198,6 +198,28 @@ lyricsSync:
       memory: '1Gi'
       cpu: '1'
 
+# Always-on CLAP text-embedding server for semantic ("vibe") search. Reuses the essentia
+# feature-extractor image (default CMD `uvicorn app:app`) on CPU. Disabled by default;
+# enabled in prod values. The backend's yaytsa.embedding.enabled + base-url must point here.
+embeddingServer:
+  enabled: false
+  image:
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/feature-extractor
+    pullPolicy: IfNotPresent
+    tag: ''
+  service:
+    type: ClusterIP
+    port: 8000
+  # CLAP htsat-fused on CPU needs ~2.5 GB resident; the emptyDir holds the ~2 GB HF download.
+  hfCacheSize: '4Gi'
+  resources:
+    requests:
+      memory: '3Gi'
+      cpu: '250m'
+    limits:
+      memory: '6Gi'
+      cpu: '2'
+
 audioSeparator:
   enabled: false
   image:

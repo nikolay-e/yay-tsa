@@ -32,6 +32,8 @@ data:
   LLM_ENABLED: {{ default false .Values.backend.config.llm.enabled | quote }}
   LLM_MODEL: {{ .Values.backend.config.llm.model | quote }}
   LLM_BASE_URL: {{ .Values.backend.config.llm.baseUrl | quote }}
+  EMBEDDING_ENABLED: {{ default false .Values.backend.config.embedding.enabled | quote }}
+  EMBEDDING_BASE_URL: {{ .Values.backend.config.embedding.baseUrl | quote }}
   MPD_ENABLED: {{ default false .Values.backend.config.mpd.enabled | quote }}
   MPD_PORT: {{ .Values.backend.config.mpd.port | quote }}
   LISTENBRAINZ_ENABLED: {{ default false .Values.backend.config.scrobbling.listenbrainz.enabled | quote }}

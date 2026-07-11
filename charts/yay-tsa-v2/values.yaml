@@ -167,6 +167,9 @@ backend:
       apiKeySecret: 'yay-tsa-production-secrets'
       apiKeySecretKey: 'LLM_API_KEY'
       gatewayPort: 8080
+    embedding:
+      enabled: false # CLAP text-embedding for semantic search; needs the embedding-server (charts/yay-tsa)
+      baseUrl: 'http://yay-tsa-production-embedding-server.yay-tsa.svc.cluster.local:8000'
     mpd:
       enabled: false
       port: 6600

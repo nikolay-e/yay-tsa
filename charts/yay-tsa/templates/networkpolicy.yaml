@@ -107,4 +107,60 @@ spec:
     - protocol: TCP
       port: 443
 {{- end }}
+{{- if .Values.embeddingServer.enabled }}
+---
+# =============================================================================
+# EMBEDDING-SERVER NETWORK POLICY
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "yay-tsa.fullname" . }}-embedding-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "yay-tsa.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding-server
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "yay-tsa.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: embedding-server
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Only the v2 backend queries the text-embedding endpoint.
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: yay-tsa-v2-production
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: backend
+    ports:
+    - protocol: TCP
+      port: {{ .Values.embeddingServer.service.port }}
+  egress:
+  # DNS for the HuggingFace model download.
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # HTTPS to HuggingFace to fetch the CLAP weights on first warm-up (external only).
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
 {{- end }}
