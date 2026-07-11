@@ -8,11 +8,9 @@ inputs:
   commit-sha:
     description: >-
       Commit SHA whose backend image we expect the live backend to serve
-      (as main-<sha7>). Defaults to the workflow commit, which is correct when
-      the workflow only runs on backend changes (v2-ci.yml). The frontend CI
-      runs post-deploy-qa on every push, including commits that do not rebuild
-      the backend; it must pass the SHA of the last backend-touching commit
-      instead, otherwise this poll waits for an image tag that is never built.
+      (as main-<sha7>). Defaults to the workflow commit, which is always
+      correct: the internal CI (Argo Workflows -> Forgejo registry) builds
+      and deploys the backend on every push to main, with no path filtering.
     default: ${{ github.sha }}
 
 runs:

@@ -9,13 +9,10 @@ on:
     branches: [main]
 
 # Cancel superseded PR runs, but queue pushes to main: cancelling a main run
-# after the image push but before post-deploy QA would deploy unverified code.
+# mid post-deploy QA would leave the deployed commit unverified.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  REGISTRY: ghcr.io
 
 jobs:
   pre-commit:
@@ -200,52 +197,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  docker-build-frontend:
-    name: Build Frontend Image
-    # pre-commit gates again: its previously-private no-emoji/shift-commit-time hooks are now
-    # vendored as repo: local hooks (.pre-commit-hooks/), so the job no longer depends on the
-    # deleted github.com/nikolay-e/pre-commit-hooks repo and passes on a cold runner cache.
-    needs: [pre-commit, lighthouse, web-e2e-mocked, build-android-apk]
-    # All test jobs must pass before an image is pushed (it auto-deploys).
-    # The APK is tolerated as skipped (PRs) but never as failed.
-    # DTO drift is checked by the dto-drift-check hook inside the pre-commit job.
-    if: >-
-      ${{ !cancelled() &&
-          needs.pre-commit.result == 'success' &&
-          needs.lighthouse.result == 'success' &&
-          needs.web-e2e-mocked.result == 'success' &&
-          needs.build-android-apk.result != 'failure' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Download Android APK
-        if: needs.build-android-apk.result == 'success'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: android-apk
-          path: apps/web/public/downloads
-
-      - name: Rename APK
-        if: needs.build-android-apk.result == 'success'
-        run: mv apps/web/public/downloads/app-release.apk apps/web/public/downloads/yay-tsa.apk
-
-      - name: Build and push
-        uses: ./.github/actions/docker-build
-        with:
-          image-name: frontend
-          context: .
-          dockerfile: apps/web/Dockerfile
-          target: production
-          build-args: APP_ENVIRONMENT=production
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
-
   audio-ml-test:
     name: Audio ML Test Suite
     runs-on: ubuntu-latest
@@ -271,75 +222,13 @@ jobs:
         working-directory: services/audio-ml
         run: pytest tests/
 
-  docker-build-audio-separator:
-    name: Build Audio Separator Image
-    needs: [pre-commit, audio-ml-test]
-    # This image auto-deploys (ArgoCD Image Updater tracks audio-separator in
-    # yay-tsa-production, same as the frontend image), so its own test suite
-    # must pass before an image is pushed — same invariant as
-    # docker-build-frontend above, just scoped to this image's own tests.
-    if: ${{ !cancelled() && needs.pre-commit.result == 'success' && needs.audio-ml-test.result == 'success' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Build and push
-        uses: ./.github/actions/docker-build
-        with:
-          image-name: audio-separator
-          context: ./services/audio-ml
-          build-args: VARIANT=gpu
-          # amd64-only: the CUDA base is --platform=linux/amd64 pinned and the GPU node is
-          # amd64. The arm64 emulated build exists only to hit binfmt races; no consumer runs
-          # these ML images on arm64.
-          platforms: linux/amd64
-          include-git-sha: 'false'
-          free-disk-space: 'true'
-          cache-from: |
-            type=registry,ref=ghcr.io/${{ github.repository }}/audio-separator:buildcache-gpu
-            type=gha,scope=audio-separator
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/audio-separator:buildcache-gpu,mode=max,image-manifest=true
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
-
-  docker-build-feature-extractor:
-    name: Build Feature Extractor Image
-    needs: [pre-commit]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Build and push
-        uses: ./.github/actions/docker-build
-        with:
-          image-name: feature-extractor
-          context: ./services/audio-ml
-          build-args: VARIANT=essentia
-          # amd64-only: essentia-tensorflow publishes no arm64 wheel and the ML cron runs on
-          # the amd64 GPU node. Building arm64 under QEMU only introduced binfmt-race flakes.
-          platforms: linux/amd64
-          include-git-sha: 'false'
-          free-disk-space: 'true'
-          cache-from: |
-            type=registry,ref=ghcr.io/${{ github.repository }}/feature-extractor:buildcache-essentia
-            type=gha,scope=feature-extractor
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/feature-extractor:buildcache-essentia,mode=max,image-manifest=true
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
-
   post-deploy-qa:
     name: Post-Deploy QA
-    needs: [docker-build-frontend]
+    # Images build and deploy from the internal CI (Argo Workflows -> Forgejo
+    # registry -> ArgoCD Image Updater) on EVERY push to main, independent of
+    # this workflow — this job only verifies the live deployment. The GitHub
+    # mirror lags Forgejo by up to ~5min, so by the time this runs the internal
+    # build+deploy is usually done; the rollout-wait retry loops absorb the rest.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Schemathesis --checks all (Coverage + Fuzzing + Stateful) alone runs ~60min
@@ -349,23 +238,17 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
-      packages: read
 
     steps:
-      # The local wait-backend-rollout composite action below needs the repo on
-      # disk; fetch-depth:0 also lets the step below walk history to find the
-      # last commit that rebuilt the backend.
+      # The local wait-backend-rollout composite action below needs the repo on disk.
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
 
-      # The frontend image pushed above auto-deploys via Argo CD Image Updater
-      # (Strategy 1). The build bakes VITE_APP_VERSION=main-<sha7> into the
-      # eager JS chunks, so the live version is detectable by grepping the
-      # assets referenced from index.html. QA must not start until the site
-      # serves THIS commit, otherwise it validates the previous deploy.
-      # (Backend rolls out from v2-ci.yml, which has its own post-deploy job.)
+      # The internal CI builds the frontend for every push and bakes
+      # VITE_APP_VERSION=main-<sha7> into the eager JS chunks, so the live
+      # version is detectable by grepping the assets referenced from index.html.
+      # QA must not start until the site serves THIS commit, otherwise it
+      # validates the previous deploy.
       - name: Wait for frontend rollout
         env:
           BASE_URL: https://yay-tsa.com
@@ -388,49 +271,18 @@ jobs:
           echo "::error::Rollout never happened: ${BASE_URL} still does not serve ${EXPECTED} after 25 minutes (Image Updater lag or ArgoCD sync failure). QA was not reached, so this is a deploy failure, not a QA failure."
           exit 1
 
-      # Schemathesis fuzzes /api/* (the backend). When a push also changes the
-      # Kotlin backend, its image rolls out independently of the frontend, so QA
-      # that starts on the frontend signal alone can hit the backend mid-rollout
-      # and report transient 502s (Cloudflare HTML) as conformance failures.
-      # /System/Info/Public echoes BuildSha (=main-<sha7>); wait for it AND
-      # three consecutive healthy reads so the backend is settled before fuzzing.
-      #
-      # The backend image is rebuilt ONLY when v2-ci.yml's path filter matches
-      # (yay-tsa-v2/**, charts/yay-tsa-v2/**, the v2-ci workflow), and docker-build
-      # tags it main-<push-HEAD-sha7> (github.sha), NOT the last backend-touching
-      # commit's own sha. So a push that bundles a backend change with trailing
-      # docs/frontend commits publishes main-<HEAD>, while `git log -1 -- <paths>`
-      # returns the inner backend commit's sha — they diverge and the wait times
-      # out forever (post-deploy-qa then goes red on every later non-backend push).
-      # Resolve from the registry: the newest main-<sha7> backend tag IS exactly
-      # what v2-ci published and Image Updater is rolling out. Fall back to git
-      # history, then HEAD, only if the registry read fails.
-      - name: Resolve expected backend SHA
-        id: backend-sha
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PKG='yay-tsa%2Fyay-tsa-v2%2Fbackend'
-          TAG=$(gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/${PKG}/versions" \
-            --jq '[.[].metadata.container.tags[]? | select(test("^main-[0-9a-f]{7}$"))][0]' 2>/dev/null || true)
-          BACKEND_SHA="${TAG#main-}"
-          if [ -z "$BACKEND_SHA" ]; then
-            echo "::warning::Registry read returned no main-<sha7> backend tag; falling back to git history"
-            BACKEND_SHA=$(git log -1 --format=%H -- \
-              yay-tsa-v2 charts/yay-tsa-v2 .github/workflows/v2-ci.yml)
-          fi
-          if [ -z "$BACKEND_SHA" ]; then
-            echo "::warning::No backend-touching commit found in history; falling back to ${GITHUB_SHA}"
-            BACKEND_SHA="$GITHUB_SHA"
-          fi
-          echo "Expected backend rollout: main-${BACKEND_SHA:0:7} (from ${BACKEND_SHA})"
-          echo "sha=${BACKEND_SHA}" >> "$GITHUB_OUTPUT"
-
+      # Schemathesis fuzzes /api/* (the backend). The backend image rolls out
+      # independently of the frontend, so QA that starts on the frontend signal
+      # alone can hit the backend mid-rollout and report transient 502s
+      # (Cloudflare HTML) as conformance failures. The internal CI builds the
+      # backend on every push too (no path filtering), so the expected BuildSha
+      # is simply main-<sha7> of THIS commit — /System/Info/Public echoes it;
+      # wait for it AND three consecutive healthy reads so the backend is
+      # settled before fuzzing.
       - name: Wait for backend rollout
         uses: ./.github/actions/wait-backend-rollout
         with:
           base-url: https://yay-tsa.com
-          commit-sha: ${{ steps.backend-sha.outputs.sha }}
 
       - name: Run AutoQA (Schemathesis + ZAP + crawler + axe)
         uses: nikolay-e/autoqa@0f560a5c1be47eb735960fc2753a95b5096ba8b1 # main (fix(schemathesis): send Origin header so CSRF gate doesn't mask auth checks)
