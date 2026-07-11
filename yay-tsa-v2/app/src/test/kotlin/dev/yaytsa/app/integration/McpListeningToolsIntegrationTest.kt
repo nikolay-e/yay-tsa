@@ -112,7 +112,7 @@ class McpListeningToolsIntegrationTest : HttpIntegrationTestBase() {
         val detailedText = toolText(detailed)
         assertTrue(detailedText.contains("Play stats (play_history"), detailedText)
         assertTrue(detailedText.contains("1 plays"), detailedText)
-        assertTrue(detailedText.contains("(adaptive-signals only"), detailedText)
+        assertTrue(detailedText.contains("Affinity"), detailedText)
     }
 
     @Test
