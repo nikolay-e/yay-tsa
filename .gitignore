@@ -103,3 +103,5 @@ login-page.png
 login-error.png
 qa-*.jpeg
 qa-*.png
+.claude/commands
+.claude/settings.json
