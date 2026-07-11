@@ -134,6 +134,51 @@ class McpPlaybackControlIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `mcp add_to_queue with many track ids succeeds (outbox payload not truncated at 255)`() {
+        // Regression for the varchar(255) outbox.payload bug: a batch enqueue serializes to a JSON
+        // payload well over 255 chars, which failed the insert with SQLState 22001 and made every
+        // multi-track enqueue error out while a single-track one worked.
+        val seedForSession = seedTrack()
+        val batch = (1..12).map { seedTrack() }
+        mintReflectedSession(seedForSession)
+        val sse = subscribeSse()
+
+        val result = mcpToolCall("add_to_queue", mapOf("track_ids" to batch))
+        assertFalse(result.get("isError").asBoolean(), result.toString())
+
+        val content = awaitSseContent(sse) { it.contains("\"type\":\"ENQUEUE\"") }
+        batch.forEach { id -> assertTrue(content.contains(id), "enqueued id $id missing from published command: $content") }
+    }
+
+    @Test
+    fun `mcp play_track replaces the queue with the one track and starts it`() {
+        val current = seedTrack()
+        val target = seedTrack()
+        mintReflectedSession(current)
+        val sse = subscribeSse()
+
+        val result = mcpToolCall("play_track", mapOf("track_id" to target))
+        assertFalse(result.get("isError").asBoolean(), result.toString())
+        assertTrue(toolText(result).contains("Playing"), toolText(result))
+
+        val content = awaitSseContent(sse) { it.contains("\"type\":\"SET_QUEUE\"") }
+        assertTrue(content.contains("\"type\":\"SET_QUEUE\""), content)
+        assertTrue(content.contains("\"trackIds\":[\"$target\"]"), content)
+        assertTrue(content.contains("\"targetDeviceId\":\"$deviceId\""), content)
+    }
+
+    @Test
+    fun `mcp play_track with an unknown track id is a clean error`() {
+        val current = seedTrack()
+        mintReflectedSession(current)
+        val unknownId = UUID.randomUUID().toString()
+
+        val result = mcpToolCall("play_track", mapOf("track_id" to unknownId))
+        assertTrue(result.get("isError").asBoolean(), result.toString())
+        assertTrue(toolText(result).contains("not found", ignoreCase = true), toolText(result))
+    }
+
+    @Test
     fun `mcp add_to_queue with an unknown track id lists it as invalid`() {
         val trackId = seedTrack()
         mintReflectedSession(trackId)

@@ -14,7 +14,7 @@ class OutboxEntity(
     val id: UUID = UUID.randomUUID(),
     @Column(name = "context", nullable = false)
     var context: String = "",
-    @Column(name = "payload", nullable = false)
+    @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
     var payload: String = "",
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

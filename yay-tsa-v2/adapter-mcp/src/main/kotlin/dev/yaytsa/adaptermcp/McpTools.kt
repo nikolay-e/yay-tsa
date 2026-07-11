@@ -156,6 +156,17 @@ class McpTools(
                 ),
             ),
             McpToolDefinition(
+                "play_track",
+                "Play a specific track right now: replaces the active player device's queue with this one " +
+                    "track and starts it. Use this for 'play this song' — skip_next only walks forward, it " +
+                    "cannot jump to an arbitrary track.",
+                mapOf(
+                    "type" to "object",
+                    "properties" to mapOf("track_id" to mapOf("type" to "string")),
+                    "required" to listOf("track_id"),
+                ),
+            ),
+            McpToolDefinition(
                 "clear_queue",
                 "Clear the active player device's queue (the device empties its local queue and stops)",
                 mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
@@ -187,6 +198,7 @@ class McpTools(
         authenticatedUserId: String,
     ): McpToolResult {
         val args = clientArgs + mapOf("user_id" to authenticatedUserId)
+        TRANSPORT_COMMANDS[name]?.let { return transportCommand(args, it) }
         return when (name) {
             "search_library" ->
                 searchLibrary(
@@ -196,16 +208,13 @@ class McpTools(
                 )
             "list_devices" -> listDevices(args)
             "get_playback_state" -> getPlaybackState(args)
-            "play" -> transportCommand(args, RemoteCommandType.PLAY)
-            "pause" -> transportCommand(args, RemoteCommandType.PAUSE)
-            "skip_next" -> transportCommand(args, RemoteCommandType.NEXT)
-            "skip_previous" -> transportCommand(args, RemoteCommandType.PREV)
             "browse_artists" -> browseArtists(args)
             "get_album" -> getAlbum(args)
             "list_playlists" -> listPlaylists(args)
             "set_preference_contract" -> setPreferenceContract(args)
             "get_preference_contract" -> getPreferenceContract(args)
             "add_to_queue" -> addToQueue(args)
+            "play_track" -> playTrack(args)
             "clear_queue" -> clearQueue(args)
             "start_radio" -> startRadio(args)
             else -> errorResult("Unknown tool: $name")
@@ -235,11 +244,28 @@ class McpTools(
                 }
                 if (tracks.isNotEmpty()) {
                     appendLine("Tracks:")
-                    tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
+                    appendTrackLines(tracks)
                 }
                 if (isEmpty()) append("No results found.")
             }
         return textResult(text)
+    }
+
+    // Multiple tracks often share a title (five "Believer", eight "Demons"), so a bare name+id line
+    // is ambiguous and risks queueing the wrong song. Resolve album-artist and album names in one
+    // batch and render "Title — Artist · Album (id)" so results are distinguishable without a
+    // per-track get_track round-trip.
+    private fun StringBuilder.appendTrackLines(tracks: List<Track>) {
+        val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
+        val albumIds = tracks.mapNotNull { it.albumId }.toSet()
+        val names = libraryQueries.getEntityNamesByIds(artistIds + albumIds)
+        tracks.forEach { track ->
+            val artist = track.albumArtistId?.let { names[it] }
+            val album = track.albumId?.let { names[it] }
+            val suffix =
+                listOfNotNull(artist, album).joinToString(" · ").let { if (it.isEmpty()) "" else " — $it" }
+            appendLine("  - ${track.name}$suffix (id: ${track.id.value})")
+        }
     }
 
     private fun semanticSearch(
@@ -253,7 +279,7 @@ class McpTools(
         val text =
             buildString {
                 appendLine("Tracks (vibe match):")
-                tracks.map { it.toMcpJson() }.forEach { appendLine("  - ${it["name"]} (id: ${it["trackId"]})") }
+                appendTrackLines(tracks)
             }
         return textResult(text)
     }
@@ -411,6 +437,20 @@ class McpTools(
         }
     }
 
+    private fun playTrack(args: Map<String, Any?>): McpToolResult {
+        val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
+        val trackId = args["track_id"] as? String ?: return errorResult("track_id is required")
+        val track = libraryQueries.getTrack(EntityId(trackId)) ?: return errorResult("Track not found: $trackId")
+        return when (val outcome = playbackRemoteControl.sendQueueCommand(uid, RemoteCommandType.SET_QUEUE, listOf(trackId))) {
+            is RemoteControlOutcome.SentUnconfirmed ->
+                textResult(
+                    "Playing '${track.name}' now on device '${outcome.deviceName ?: "unknown"}' — " +
+                        "its queue was replaced with this track.",
+                )
+            else -> unreachableResult(outcome)
+        }
+    }
+
     private fun clearQueue(args: Map<String, Any?>): McpToolResult {
         val uid = UserId(args["user_id"] as? String ?: return errorResult("user_id is required"))
         return when (val outcome = playbackRemoteControl.sendQueueCommand(uid, RemoteCommandType.CLEAR_QUEUE)) {
@@ -508,5 +548,12 @@ class McpTools(
 
     private companion object {
         const val RADIO_QUEUE_SIZE = 20
+        val TRANSPORT_COMMANDS =
+            mapOf(
+                "play" to RemoteCommandType.PLAY,
+                "pause" to RemoteCommandType.PAUSE,
+                "skip_next" to RemoteCommandType.NEXT,
+                "skip_previous" to RemoteCommandType.PREV,
+            )
     }
 }
