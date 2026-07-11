@@ -26,16 +26,20 @@ CMD ["npm", "run", "dev"]
 FROM base AS builder
 
 ARG GIT_SHA=dev
+# The in-cluster multi-image-ci pipeline passes the image tag as APP_VERSION
+# (it does not know the GIT_SHA arg name); GIT_SHA remains the local/manual path.
+ARG APP_VERSION=
 ARG APP_ENVIRONMENT=development
 
 RUN apk add --no-cache brotli gzip && \
-    VITE_APP_VERSION=${GIT_SHA} VITE_APP_ENVIRONMENT=${APP_ENVIRONMENT} npm run build && \
-    # Move hidden sourcemaps out of the served tree, keyed by GIT_SHA, BEFORE
-    # compression and BEFORE the nginx stage copies dist/. Maps must never reach
-    # nginx/CDN (they would leak source). The dist-maps/<GIT_SHA> dir is the
+    export BUILD_VERSION="${APP_VERSION:-${GIT_SHA}}" && \
+    VITE_APP_VERSION="${BUILD_VERSION}" VITE_APP_ENVIRONMENT="${APP_ENVIRONMENT}" npm run build && \
+    # Move hidden sourcemaps out of the served tree, keyed by the build version,
+    # BEFORE compression and BEFORE the nginx stage copies dist/. Maps must never
+    # reach nginx/CDN (they would leak source). The dist-maps/<version> dir is the
     # offline-symbolication artifact (apps/web/scripts/symbolicate.ts).
-    mkdir -p /app/apps/web/dist-maps/${GIT_SHA} && \
-    export DIST_MAPS_DIR="/app/apps/web/dist-maps/${GIT_SHA}" && \
+    mkdir -p "/app/apps/web/dist-maps/${BUILD_VERSION}" && \
+    export DIST_MAPS_DIR="/app/apps/web/dist-maps/${BUILD_VERSION}" && \
     find /app/apps/web/dist -type f -name '*.map' \
         -exec sh -c 'dest="$DIST_MAPS_DIR/${1#/app/apps/web/dist/}"; \
             mkdir -p "$(dirname "$dest")"; mv "$1" "$dest"' _ {} \; && \
