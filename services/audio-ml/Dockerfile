@@ -1,10 +1,6 @@
 # syntax=docker/dockerfile:1.7
 ARG VARIANT=gpu
-# buildx populates TARGETARCH only for platform-aware builds; a single-arch build (or a
-# binfmt/cache race that skips platform setup) can leave it empty, making the final-stage
-# reference `base-gpu-` and failing with "invalid reference format". Default to amd64 (the
-# only arch prod builds — GPU is amd64); a multi-arch buildx run overrides it per platform.
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 # --- Base image selection per variant + architecture ---
 # GPU: CUDA on amd64, CPU-only fallback on arm64
@@ -36,7 +32,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 ARG VARIANT=gpu
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 COPY requirements/ requirements/
 RUN --mount=type=cache,target=/root/.cache/pip \
