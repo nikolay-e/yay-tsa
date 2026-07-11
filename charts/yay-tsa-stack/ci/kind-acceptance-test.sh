@@ -13,13 +13,22 @@ NS="${NS:-yay-tsa}"
 RELEASE="${RELEASE:-yay-tsa}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PW="${ADMIN_PW:-Acceptance123!}"
-# Override image tags to pin a known-good build (defaults to the chart's :latest).
-BACKEND_TAG="${BACKEND_TAG:-}"
-FRONTEND_TAG="${FRONTEND_TAG:-}"
+# Chart defaults point at the self-hosted Forgejo registry, which is WARP-only
+# and unreachable from public CI runners. This test proves CHART mechanics
+# (fresh install, admin bootstrap, reinstall survival), not image freshness, so
+# it pins the last images published to ghcr before the 2026-07-11 migration to
+# internal CI — frozen fixtures, overridable via *_REPO/*_TAG.
+BACKEND_REPO="${BACKEND_REPO:-ghcr.io/nikolay-e/yay-tsa/yay-tsa-v2/backend}"
+FRONTEND_REPO="${FRONTEND_REPO:-ghcr.io/nikolay-e/yay-tsa/frontend}"
+BACKEND_TAG="${BACKEND_TAG:-latest}"
+FRONTEND_TAG="${FRONTEND_TAG:-latest}"
 CHART_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PF_PID=""
 
-TAG_ARGS=()
+TAG_ARGS=(
+  --set "yay-tsa-v2.backend.image.repository=${BACKEND_REPO}"
+  --set "yay-tsa.frontend.image.repository=${FRONTEND_REPO}"
+)
 [[ -n "$BACKEND_TAG" ]] && TAG_ARGS+=(--set "yay-tsa-v2.backend.image.tag=${BACKEND_TAG}")
 [[ -n "$FRONTEND_TAG" ]] && TAG_ARGS+=(--set "yay-tsa.frontend.image.tag=${FRONTEND_TAG}")
 

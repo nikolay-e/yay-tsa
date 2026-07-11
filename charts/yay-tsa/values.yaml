@@ -11,7 +11,7 @@ networkPolicy:
 
 frontend:
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa/frontend
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/frontend
     pullPolicy: IfNotPresent
     tag: ''
 
@@ -114,7 +114,7 @@ affinity: {}
 featureExtractor:
   enabled: false
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/feature-extractor
     pullPolicy: IfNotPresent
     tag: ''
   schedule: '0 3 * * *' # daily at 03:00
@@ -154,7 +154,7 @@ featureExtractor:
 tasteClusters:
   enabled: false
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/feature-extractor
     pullPolicy: IfNotPresent
     tag: ''
   schedule: '0 5 * * *' # daily at 05:00 (after lyrics-sync at 04:00)
@@ -177,7 +177,7 @@ tasteClusters:
 lyricsSync:
   enabled: false
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa/feature-extractor
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/feature-extractor
     pullPolicy: IfNotPresent
     tag: ''
   schedule: '0 4 * * *' # daily at 04:00 (after the feature-extractor at 03:00)
@@ -201,7 +201,7 @@ lyricsSync:
 audioSeparator:
   enabled: false
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa/audio-separator
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/audio-separator
     pullPolicy: IfNotPresent
     tag: ''
   service:

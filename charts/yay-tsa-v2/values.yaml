@@ -9,7 +9,7 @@ affinity: {}
 backend:
   enabled: true
   image:
-    repository: ghcr.io/nikolay-e/yay-tsa/yay-tsa-v2/backend
+    repository: git.nikolay-eremeev.com/nikolay-e/yay-tsa/v2-backend
     pullPolicy: IfNotPresent
     tag: ''
   # HARD INVARIANT: keep at 1. The backend holds per-JVM state — device-presence projection
