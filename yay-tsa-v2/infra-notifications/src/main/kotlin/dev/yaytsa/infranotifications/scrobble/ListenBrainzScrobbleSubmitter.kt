@@ -116,7 +116,17 @@ class ListenBrainzScrobbleSubmitter(
                 PageRequest.of(0, batchSize),
             )
         if (pending.isEmpty()) return
-        val (resolved, unresolvable) = pending.map { it to resolveListen(it) }.partition { it.second != null }
+        // Audiobook chapters are plays, not music listens — submitting them pollutes the
+        // ListenBrainz history. Mark them scrobbled so they never resurface in the queue.
+        val (audiobooks, musical) = pending.partition { isAudiobook(it) }
+        if (audiobooks.isNotEmpty()) {
+            playHistoryJpa.markScrobbled(audiobooks.map { it.id })
+            meterRegistry
+                .counter("yaytsa.scrobble.skipped", "target", "listenbrainz", "reason", "audiobook")
+                .increment(audiobooks.size.toDouble())
+        }
+        if (musical.isEmpty()) return
+        val (resolved, unresolvable) = musical.map { it to resolveListen(it) }.partition { it.second != null }
         if (unresolvable.isNotEmpty()) {
             playHistoryJpa.markScrobbled(unresolvable.map { it.first.id })
             countFailed("unresolvable", unresolvable.size)
@@ -201,6 +211,12 @@ class ListenBrainzScrobbleSubmitter(
             .firstValue("Retry-After")
             .map { it.toLongOrNull() }
             .orElse(null) ?: retryCooldownSeconds
+
+    private fun isAudiobook(entry: PlayHistoryEntity): Boolean {
+        val track = libraryQuery.getTrack(EntityId(entry.itemId)) ?: return false
+        return dev.yaytsa.application.recommendation.MusicSurfaceFilter
+            .isAudiobookTrack(track)
+    }
 
     private fun resolveListen(entry: PlayHistoryEntity): Map<String, Any>? {
         val track = libraryQuery.getTrack(EntityId(entry.itemId)) ?: return null

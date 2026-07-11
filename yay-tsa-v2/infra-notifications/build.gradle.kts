@@ -16,6 +16,7 @@ dependencyManagement {
 dependencies {
     implementation(project(":core-application:shared"))
     implementation(project(":core-application:library"))
+    implementation(project(":core-application:recommendation"))
     implementation(project(":core-application:auth"))
     implementation(project(":core-domain:shared"))
     implementation(project(":infra-persistence:shared"))

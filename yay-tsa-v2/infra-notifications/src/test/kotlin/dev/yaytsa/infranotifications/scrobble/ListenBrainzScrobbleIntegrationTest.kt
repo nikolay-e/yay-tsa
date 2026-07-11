@@ -155,6 +155,7 @@ class ListenBrainzScrobbleIntegrationTest {
         artistName: String = "Radiohead",
         albumName: String = "OK Computer",
         durationMs: Long = 387_000,
+        genre: String? = null,
     ): EntityId {
         val artistId = EntityId(UUID.randomUUID().toString())
         val albumId = EntityId(UUID.randomUUID().toString())
@@ -198,7 +199,7 @@ class ListenBrainzScrobbleIntegrationTest {
                 channels = null,
                 year = null,
                 codec = null,
-                genre = null,
+                genre = genre,
                 coverImagePath = null,
             )
         return trackId
@@ -255,6 +256,22 @@ class ListenBrainzScrobbleIntegrationTest {
         assertEquals(387_000L, metadata["additional_info"]["duration_ms"].asLong())
         assertTrue(playHistoryJpa.findById(playId).get().scrobbled)
         assertEquals(submittedBefore + 1.0, counterValue("yaytsa.scrobble.submitted", "target", "listenbrainz"))
+    }
+
+    @Test
+    fun `completed audiobook play is marked scrobbled without ever being submitted`() {
+        val trackId = seedLibraryTrack(trackName = "Chapter 12", genre = "Audiobook")
+        val playId = insertPlay(trackId)
+        val skippedBefore = counterValue("yaytsa.scrobble.skipped", "target", "listenbrainz", "reason", "audiobook")
+
+        submitter.poll()
+
+        assertEquals(0, requests.size)
+        assertTrue(playHistoryJpa.findById(playId).get().scrobbled)
+        assertEquals(
+            skippedBefore + 1.0,
+            counterValue("yaytsa.scrobble.skipped", "target", "listenbrainz", "reason", "audiobook"),
+        )
     }
 
     @Test

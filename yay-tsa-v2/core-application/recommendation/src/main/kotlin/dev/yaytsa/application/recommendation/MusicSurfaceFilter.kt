@@ -15,10 +15,7 @@ class MusicSurfaceFilter(
         userId: UserId,
     ): List<Track> = filterRedLines(tracks.filterNot { isAudiobookTrack(it) }, userId)
 
-    fun isAudiobookTrack(track: Track): Boolean {
-        val genre = track.genre?.trim()?.lowercase() ?: return false
-        return genre in AUDIOBOOK_GENRES
-    }
+    fun isAudiobookTrack(track: Track): Boolean = Companion.isAudiobookTrack(track)
 
     fun filterRedLines(
         tracks: List<Track>,
@@ -82,5 +79,10 @@ class MusicSurfaceFilter(
 
     companion object {
         private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
+
+        fun isAudiobookTrack(track: Track): Boolean {
+            val genre = track.genre?.trim()?.lowercase() ?: return false
+            return genre in AUDIOBOOK_GENRES
+        }
     }
 }
