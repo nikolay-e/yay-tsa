@@ -62,8 +62,9 @@ class McpTools(
             ),
             McpToolDefinition(
                 "list_devices",
-                "List the caller's active player devices with their session_id, playback state and queue size " +
-                    "(playback commands target the active device automatically)",
+                "List the caller's active player devices with their session_id, playback state and current track " +
+                    "(playback commands target the active device automatically). The device's full local queue is " +
+                    "not visible server-side — only the currently playing track is reflected.",
                 mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
             McpToolDefinition(
@@ -229,26 +230,40 @@ class McpTools(
         if (semantic) {
             val semanticResult = semanticSearch(query, userId)
             if (semanticResult != null) return semanticResult
+            if (!embeddingPort.isAvailable()) {
+                // Requested a vibe search but the audio-embedding service is disabled/unreachable.
+                // Say so plainly — a lexical name match can never satisfy a mood query, so returning
+                // its (usually empty) result silently reads as "nothing in the library matches".
+                return textResult(
+                    "Vibe/semantic search is currently unavailable (the audio-embedding service is not enabled). " +
+                        "Showing a name match instead:\n" + lexicalSearch(query, userId),
+                )
+            }
         }
+        return textResult(lexicalSearch(query, userId))
+    }
+
+    private fun lexicalSearch(
+        query: String,
+        userId: UserId,
+    ): String {
         val results = libraryQueries.searchText(query, 20, 0)
         val tracks = musicSurfaceFilter.filter(results.tracks, userId)
-        val text =
-            buildString {
-                if (results.artists.isNotEmpty()) {
-                    appendLine("Artists:")
-                    results.artists.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
-                }
-                if (results.albums.isNotEmpty()) {
-                    appendLine("Albums:")
-                    results.albums.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
-                }
-                if (tracks.isNotEmpty()) {
-                    appendLine("Tracks:")
-                    appendTrackLines(tracks)
-                }
-                if (isEmpty()) append("No results found.")
+        return buildString {
+            if (results.artists.isNotEmpty()) {
+                appendLine("Artists:")
+                results.artists.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
             }
-        return textResult(text)
+            if (results.albums.isNotEmpty()) {
+                appendLine("Albums:")
+                results.albums.forEach { appendLine("  - ${it.name} (id: ${it.id.value})") }
+            }
+            if (tracks.isNotEmpty()) {
+                appendLine("Tracks:")
+                appendTrackLines(tracks)
+            }
+            if (isEmpty()) append("No results found.")
+        }
     }
 
     // Multiple tracks often share a title (five "Believer", eight "Demons"), so a bare name+id line
@@ -290,12 +305,15 @@ class McpTools(
         if (sessions.isEmpty()) {
             return textResult("No active player devices. Open the Yaytsa app on a device, then retry.")
         }
+        // "current" is the server's reflected track for the device; the device's full local queue is
+        // not mirrored server-side, so no queue count is reported here (it would always be the
+        // single reflected entry).
         val text =
             sessions.joinToString("\n") { s ->
                 val state = playbackQueries.getPlaybackState(uid, s.sessionId)
+                val current = state?.currentEntryId?.let { trackLabel(TrackId(it.value)) } ?: "none"
                 "- device_id: ${s.deviceId.value}, session_id: ${s.sessionId.value}, " +
-                    "state: ${state?.playbackState ?: "unknown"}, queue: ${state?.queue?.size ?: 0}, " +
-                    "current: ${state?.currentEntryId?.value ?: "none"}, lastSeen: ${s.lastSeenAt}"
+                    "state: ${state?.playbackState ?: "unknown"}, current: $current, lastSeen: ${s.lastSeenAt}"
             }
         return textResult(text)
     }
@@ -313,8 +331,15 @@ class McpTools(
         val state =
             candidateSessionIds.firstNotNullOfOrNull { playbackQueries.getPlaybackState(uid, it) }
                 ?: return textResult("No active session found — open the web player, or check list_devices.")
+        // The server reflects only the current track (via ReflectExternalPlayback); the device owns
+        // and advances its own local queue, which the server does not receive. Reporting a "Queue: N"
+        // count here would be misleading (it is always the 1-entry reflection), so name the current
+        // track and say so.
+        val current = state.currentEntryId?.let { trackLabel(TrackId(it.value)) } ?: "nothing"
         return textResult(
-            "State: ${state.playbackState}, Queue: ${state.queue.size} tracks, Current: ${state.currentEntryId?.value ?: "none"}",
+            "State: ${state.playbackState}, Current: $current. " +
+                "(The player device manages its own queue locally; the server sees only the current track, not the full queue — " +
+                "use skip_next/skip_previous to move through the device's queue, or play_track to jump to a specific track.)",
         )
     }
 

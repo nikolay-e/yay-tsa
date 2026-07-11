@@ -28,6 +28,8 @@ class HttpEmbeddingClient(
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
+    override fun isAvailable(): Boolean = enabled
+
     override fun encodeText(query: String): FloatArray? {
         if (!enabled) {
             log.debug("Text embedding disabled; semantic search returns empty")

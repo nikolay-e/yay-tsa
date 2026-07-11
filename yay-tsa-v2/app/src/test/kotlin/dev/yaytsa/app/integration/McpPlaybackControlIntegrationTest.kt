@@ -190,6 +190,16 @@ class McpPlaybackControlIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `mcp semantic search says it is unavailable instead of silently returning nothing`() {
+        // Embedding is disabled by default in tests (yaytsa.embedding.enabled=false), so a vibe query
+        // cannot run. The tool must tell the user that rather than returning an empty name match that
+        // reads as "your library has nothing like this".
+        val result = mcpToolCall("search_library", mapOf("query" to "dreamy synth at sunset", "semantic" to true))
+        assertFalse(result.get("isError").asBoolean(), result.toString())
+        assertTrue(toolText(result).contains("unavailable", ignoreCase = true), toolText(result))
+    }
+
+    @Test
     fun `get_preference_contract round trips set_preference_contract`() {
         val set =
             mcpToolCall(
