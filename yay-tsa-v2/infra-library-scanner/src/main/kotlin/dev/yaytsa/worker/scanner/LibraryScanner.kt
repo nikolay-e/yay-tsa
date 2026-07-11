@@ -175,5 +175,11 @@ class LibraryScanner(
         } catch (e: Exception) {
             log.error("Failed to clean up orphan artists", e)
         }
+
+        try {
+            libraryWriter.rebuildGenreRelations()
+        } catch (e: Exception) {
+            log.error("Failed to rebuild genre relations", e)
+        }
     }
 }

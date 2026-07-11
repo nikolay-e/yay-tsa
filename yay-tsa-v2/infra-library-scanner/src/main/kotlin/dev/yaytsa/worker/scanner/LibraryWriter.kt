@@ -180,7 +180,7 @@ class LibraryWriter(
         return entityId
     }
 
-    private fun isAudiobook(genre: String?): Boolean = genre?.lowercase() in audiobookGenres
+    private fun isAudiobook(genre: String?): Boolean = normalizeGenres(genre).any { it.lowercase() in audiobookGenres }
 
     // Each /audiobooks item is a Track (genre=Audiobook), not an album, so the read path
     // (TrackProjection imageTags / getPrimaryImage) keys on the track's OWN entity id. Materialize
@@ -387,16 +387,34 @@ class LibraryWriter(
         linkGenre(existing.id, probed.genre)
     }
 
+    // Genres are overlapping/nested sets, not one-per-track buckets: a "symphonic metal, heavy metal,
+    // power metal" tag is three memberships. Split the raw multi-value tag into atomic genres and
+    // case-normalize (initcap) each so a track tagged "power metal" and one tagged inside a combo share
+    // the same "Power Metal". Subset relationships between the atomic genres are derived separately in
+    // core_v2_library.genre_relations (see migration).
     private fun linkGenre(
         entityId: UUID,
         genre: String?,
     ) {
-        if (genre == null) return
-        val candidateId = UUID.randomUUID()
-        genreRepo.upsertByName(id = candidateId, name = genre)
-        val genreId = genreRepo.findByName(genre)?.id ?: candidateId
-        entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
+        for (atomic in normalizeGenres(genre)) {
+            val candidateId = UUID.randomUUID()
+            genreRepo.upsertByName(id = candidateId, name = atomic)
+            val genreId = genreRepo.findByName(atomic)?.id ?: candidateId
+            entityGenreRepo.save(EntityGenreJpa(entityId = entityId, genreId = genreId))
+        }
     }
+
+    private fun normalizeGenres(raw: String?): List<String> =
+        raw
+            ?.split(GENRE_DELIMITERS)
+            ?.map { titleCaseGenre(it.trim().replace(WHITESPACE, " ")) }
+            ?.filter { it.isNotEmpty() }
+            ?.distinct()
+            .orEmpty()
+
+    // Mirror Postgres initcap so scanner-written names match the migration's normalization exactly:
+    // the first letter of each alphanumeric run is uppercased, the rest lowercased.
+    private fun titleCaseGenre(s: String): String = GENRE_WORD.replace(s) { m -> m.value.lowercase().replaceFirstChar { it.uppercaseChar() } }
 
     private fun ensureArtist(
         artistName: String,
@@ -679,6 +697,9 @@ class LibraryWriter(
 
     fun deleteOrphanArtists(): Int = entityRepo.deleteOrphanArtists()
 
+    // Refresh the derived genre subset/nesting edges after a scan may have introduced new genres.
+    fun rebuildGenreRelations() = genreRepo.rebuildGenreRelations()
+
     private fun Tag.safeGetFirst(field: FieldKey): String? =
         try {
             this.getFirst(field)
@@ -693,5 +714,11 @@ class LibraryWriter(
         // placeholder 1s LENGTH headers, or junk the scanner couldn't decode properly.
         private const val MIN_PLAYABLE_DURATION_MS = 2000L
         private const val DELETE_BATCH_SIZE = 500
+
+        // Multi-value genre-tag separators. Hyphen is intentionally excluded (it lives inside genres
+        // like "Nu-Metal" / "Trip-Hop"); " - " combos are rare enough to leave alone.
+        private val GENRE_DELIMITERS = Regex("[,;|/]")
+        private val WHITESPACE = Regex("\\s+")
+        private val GENRE_WORD = Regex("[\\p{L}\\p{N}]+")
     }
 }
