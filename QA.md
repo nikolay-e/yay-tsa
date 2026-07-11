@@ -495,3 +495,12 @@ A malformed multipart upload (mismatched boundary between Content-Type and body,
 ## Poison signal rows crash AffinityAggregator with "integer out of range"
 
 A `playback_signals` row whose `context` JSON carries an absurd `positionMs` (e.g. `2036265434362` ≈ 64000 years — a fuzzer artifact or a timestamp mistaken for a position) makes `AffinityAggregator`'s `SUM(positionMs/1000)` overflow the int4 `total_listen_sec` column every 60s tick — the whole affinity pipeline stops updating (LLM-DJ taste degrades) while HTTP stays green. Guard both ends: clamp `positionMs` at ingestion (`ScrobbleService`) AND in the aggregate SQL (`LEAST(…, 86400000)` + bounded regex `[0-9]{1,9}`) AND in `ListeningStatsService`. Live repair without waiting for deploy: `UPDATE core_v2_adaptive.playback_signals SET context = regexp_replace(context::text, '("positionMs"\s*:\s*)[0-9]{13,}', '\1' || '86400000') WHERE length(substring(context::text from '"positionMs"\s*:\s*([0-9]+)')) > 12;` — the aggregator recovers on its next tick.
+
+## Residual schemathesis conformance findings (post fixes)
+
+After the body-field / path-param / int-bound customizers, the recurring post-deploy-qa schemathesis failures reduce to a small tail. Fixable classes and their fixes (all in `app/OpenApiConfig`/`OpenApiConformanceConfig`):
+
+- **Undocumented 206 on Range GETs** (`/Audio/{id}/stream`, `/Karaoke/{id}/instrumental|vocals`): a `Range` request answers 206, which spring-doc never infers. `partialContentResponseCustomizer` declares 206 on all GET operations (harmless on non-Range GETs — a documented-but-unused status is not a failure).
+- **int64 body overflow** (`PositionTicks` etc.): the int-body customizer only capped `format: int32`; int64 fields had no maximum, so a huge fuzz value overflowed Long → 400. Now capped at `Long.MAX_VALUE` for non-int32 integer fields.
+
+Genuinely-not-worth-fixing tail (documented, left as-is): a fuzzer sending a **whitespace-only** string to a field whose backend does `isBlank()` rejection (`name: "\t"` on POST /v1/groups; `command: ""` on the device command) — the JSON-schema `minLength: 1` passes a single whitespace char but the handler requires non-blank. Expressible only via a `\S` pattern per field; low value, high annotation churn. These are the expected "API rejected schema-compliant request" residue, not server bugs (clean 400 problem+json). Do NOT chase them into per-field regex patterns.

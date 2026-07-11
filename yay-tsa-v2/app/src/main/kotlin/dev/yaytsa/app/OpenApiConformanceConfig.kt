@@ -1,5 +1,7 @@
 package dev.yaytsa.app
 
+import io.swagger.v3.oas.models.responses.ApiResponse
+import io.swagger.v3.oas.models.responses.ApiResponses
 import org.springdoc.core.customizers.OpenApiCustomizer
 import org.springdoc.core.customizers.OperationCustomizer
 import org.springframework.context.annotation.Bean
@@ -48,8 +50,11 @@ class OpenApiConformanceConfig {
                 fields.forEach { field ->
                     properties[field]?.let { schema ->
                         if (schema.minimum == null) schema.minimum = BigDecimal.ZERO
-                        if (schema.maximum == null && schema.format == "int32") {
-                            schema.maximum = BigDecimal(Int.MAX_VALUE)
+                        if (schema.maximum == null) {
+                            // int64 (PositionTicks etc.) overflows Long on huge fuzz values and 400s;
+                            // cap at the format's real max so those land in the negative-test bucket.
+                            schema.maximum =
+                                if (schema.format == "int32") BigDecimal(Int.MAX_VALUE) else BigDecimal(Long.MAX_VALUE)
                         }
                     }
                 }
@@ -58,6 +63,24 @@ class OpenApiConformanceConfig {
                 val properties = schemas[schemaName]?.properties ?: return@forEach
                 fields.forEach { field -> properties[field]?.items?.minLength = 1 }
             }
+        }
+
+    // Range-capable GET endpoints (audio stream, karaoke stems) answer a `Range` header with
+    // 206 Partial Content — a valid success spring-doc never infers. Declaring 206 on GETs keeps
+    // schemathesis from reporting it as an "Undocumented HTTP status code". Harmless on GETs that
+    // never serve ranges (a documented-but-unused status is not a conformance failure).
+    @Bean
+    fun partialContentResponseCustomizer(): OperationCustomizer =
+        OperationCustomizer { operation, handlerMethod ->
+            if (handlerMethod.method.isAnnotationPresent(org.springframework.web.bind.annotation.GetMapping::class.java) ||
+                handlerMethod.hasMethodAnnotation(org.springframework.web.bind.annotation.RequestMapping::class.java)
+            ) {
+                val responses = operation.responses ?: ApiResponses().also { operation.responses = it }
+                if (!responses.containsKey("206")) {
+                    responses.addApiResponse("206", ApiResponse().description("Partial content (range request)"))
+                }
+            }
+            operation
         }
 
     // Multipart uploads without a body can only ever 415/400; a required request body keeps
