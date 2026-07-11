@@ -82,6 +82,31 @@ class AffinityWorkerIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `history fold survives fuzz-polluted play_history rows (empty non-uuid ids)`() {
+        val userId = UUID.randomUUID()
+        val goodTrack = UUID.randomUUID()
+        // A fuzz/garbage row with a non-UUID item_id must not abort the whole fold (SQLState 22P02).
+        jdbc.update(
+            "INSERT INTO core_v2_playback.play_history " +
+                "(id, user_id, item_id, started_at, duration_ms, played_ms, completed, skipped) " +
+                "VALUES (?,?,?,?,?,?,?,?)",
+            UUID.randomUUID(),
+            userId.toString(),
+            "",
+            Timestamp.from(Instant.now()),
+            240_000L,
+            120_000L,
+            true,
+            false,
+        )
+        seedHistory(userId, goodTrack, completed = true, skipped = false, source = null)
+
+        aggregator.aggregate()
+
+        assertNotNull(affinityScore(userId, goodTrack), "valid rows must still fold despite a garbage row in the batch")
+    }
+
+    @Test
     fun `adaptive-source play_history is skipped by the history fold (no double count with signals)`() {
         val userId = UUID.randomUUID()
         val track = UUID.randomUUID()

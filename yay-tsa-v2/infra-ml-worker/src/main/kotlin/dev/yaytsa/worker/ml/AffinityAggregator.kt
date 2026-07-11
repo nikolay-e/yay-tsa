@@ -159,16 +159,25 @@ class AffinityAggregator(
         // Same writable-CTE-plus-cursor-advance shape as the signals fold: one snapshot, no
         // double-count on `>`, no drop.
         private const val HISTORY_UPSERT_SQL = """
-            WITH consumed AS (
-                SELECT ph.user_id::uuid AS user_id, ph.item_id::uuid AS track_id,
-                       ph.completed, ph.skipped, ph.played_ms, ph.started_at
+            WITH valid AS MATERIALIZED (
+                -- play_history.user_id/item_id are VARCHAR and can hold fuzz/garbage ("" and worse);
+                -- filter to well-formed UUIDs and MATERIALIZE so the ::uuid casts below never run on a
+                -- bad value (a single invalid cast aborts the whole fold with SQLState 22P02).
+                SELECT ph.user_id, ph.item_id, ph.completed, ph.skipped, ph.played_ms, ph.started_at
                 FROM core_v2_playback.play_history ph
                 WHERE ph.started_at > ?
                   AND ph.source IS DISTINCT FROM 'adaptive'
-                  AND NOT EXISTS (
+                  AND ph.user_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                  AND ph.item_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+            ),
+            consumed AS (
+                SELECT v.user_id::uuid AS user_id, v.item_id::uuid AS track_id,
+                       v.completed, v.skipped, v.played_ms, v.started_at
+                FROM valid v
+                WHERE NOT EXISTS (
                     SELECT 1 FROM core_v2_library.entity_genres eg
                     JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id = ph.item_id::uuid AND lower(g.name) IN ('audiobook','audiobooks'))
+                    WHERE eg.entity_id = v.item_id::uuid AND lower(g.name) IN ('audiobook','audiobooks'))
             ),
             folded AS (
                 INSERT INTO core_v2_ml.user_track_affinity AS uta (
