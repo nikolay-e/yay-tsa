@@ -36,28 +36,37 @@ class AffinityAggregator(
     @Scheduled(fixedDelayString = "\${yaytsa.affinity.poll-interval-ms:60000}", initialDelay = 30_000)
     @Transactional
     fun aggregate() {
-        val watermark =
-            jdbc.queryForObject(WATERMARK_SQL, Timestamp::class.java)?.toInstant() ?: Instant.EPOCH
-        val watermarkTs = Timestamp.from(watermark)
+        val signalWatermark =
+            jdbc.queryForObject(SIGNAL_WATERMARK_SQL, Timestamp::class.java)?.toInstant() ?: Instant.EPOCH
+        val foldedFromSignals =
+            jdbc.query(SIGNAL_UPSERT_SQL, { rs, _ -> rs.getInt(1) }, Timestamp.from(signalWatermark)).firstOrNull() ?: 0
 
-        val foldedPairs =
-            jdbc
-                .query(UPSERT_SQL, { rs, _ -> rs.getInt(1) }, watermarkTs)
-                .firstOrNull() ?: 0
+        // Non-adaptive listening (self-picked queues, other protocols, legacy pre-source rows) lives
+        // only in play_history and would otherwise never reach affinity. Folded on its own watermark;
+        // source = 'adaptive' rows are skipped because the signals fold above already owns them.
+        val historyWatermark =
+            jdbc.queryForObject(HISTORY_WATERMARK_SQL, Timestamp::class.java)?.toInstant() ?: Instant.EPOCH
+        val foldedFromHistory =
+            jdbc.query(HISTORY_UPSERT_SQL, { rs, _ -> rs.getInt(1) }, Timestamp.from(historyWatermark)).firstOrNull() ?: 0
 
-        if (foldedPairs > 0) {
+        if (foldedFromSignals > 0 || foldedFromHistory > 0) {
             log.info(
-                "Aggregated affinity deltas for {} (user, track) pairs after watermark {} (poll {}ms)",
-                foldedPairs,
-                watermark,
+                "Aggregated affinity deltas: {} pairs from signals (after {}), {} pairs from play_history (after {}) (poll {}ms)",
+                foldedFromSignals,
+                signalWatermark,
+                foldedFromHistory,
+                historyWatermark,
                 pollIntervalMs,
             )
         }
     }
 
     companion object {
-        private const val WATERMARK_SQL =
+        private const val SIGNAL_WATERMARK_SQL =
             "SELECT last_signal_at FROM core_v2_ml.affinity_cursor WHERE id = TRUE"
+
+        private const val HISTORY_WATERMARK_SQL =
+            "SELECT last_history_at FROM core_v2_ml.affinity_cursor WHERE id = TRUE"
 
         // Score weights:
         //   PLAY_COMPLETE        +1.0  — listened to the end
@@ -72,7 +81,7 @@ class AffinityAggregator(
         // the writable CTE `folded` consumes exactly the rows in `consumed`, and the cursor is
         // advanced to MAX(consumed.created_at) over that same scan. No row can be folded but
         // left behind the cursor (double-count), nor advanced past without folding (drop).
-        private const val UPSERT_SQL = """
+        private const val SIGNAL_UPSERT_SQL = """
             WITH consumed AS (
                 SELECT ls.user_id, ps.track_id, ps.signal_type, ps.context, ps.created_at
                 FROM core_v2_adaptive.playback_signals ps
@@ -135,6 +144,67 @@ class AffinityAggregator(
             )
             UPDATE core_v2_ml.affinity_cursor
             SET last_signal_at = GREATEST(last_signal_at, (SELECT MAX(created_at) FROM consumed)),
+                updated_at = now()
+            WHERE id = TRUE
+              AND EXISTS (SELECT 1 FROM consumed)
+            RETURNING (SELECT count(*) FROM folded)::int
+        """
+
+        // play_history is the authoritative record of ALL listening. Fold the non-adaptive rows
+        // (source <> 'adaptive'; legacy NULL-source rows are treated as non-adaptive normal listening)
+        // so passive listening feeds affinity without double-counting the adaptive plays the signals
+        // fold already owns. Counts and listen-time come from history; thumbs stay signal-only.
+        //   completed  +1.0   — listened to the end
+        //   skipped    -0.5   — skipped a self-picked track (a real downgrade, not radio exploration)
+        // Same writable-CTE-plus-cursor-advance shape as the signals fold: one snapshot, no
+        // double-count on `>`, no drop.
+        private const val HISTORY_UPSERT_SQL = """
+            WITH consumed AS (
+                SELECT ph.user_id::uuid AS user_id, ph.item_id::uuid AS track_id,
+                       ph.completed, ph.skipped, ph.played_ms, ph.started_at
+                FROM core_v2_playback.play_history ph
+                WHERE ph.started_at > ?
+                  AND ph.source IS DISTINCT FROM 'adaptive'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM core_v2_library.entity_genres eg
+                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
+                    WHERE eg.entity_id = ph.item_id::uuid AND lower(g.name) IN ('audiobook','audiobooks'))
+            ),
+            folded AS (
+                INSERT INTO core_v2_ml.user_track_affinity AS uta (
+                    user_id, track_id, affinity_score,
+                    play_count, completion_count, skip_count, thumbs_up_count, thumbs_down_count,
+                    total_listen_sec, last_signal_at, updated_at
+                )
+                SELECT
+                    c.user_id,
+                    c.track_id,
+                    COALESCE(SUM(
+                        (CASE WHEN c.completed THEN 1.0 ELSE 0 END) +
+                        (CASE WHEN c.skipped   THEN -0.5 ELSE 0 END)
+                    ), 0),
+                    COUNT(*)::int,
+                    SUM(CASE WHEN c.completed THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN c.skipped   THEN 1 ELSE 0 END),
+                    0,
+                    0,
+                    COALESCE(SUM(LEAST(GREATEST(c.played_ms, 0), 86400000)) / 1000, 0),
+                    MAX(c.started_at),
+                    now()
+                FROM consumed c
+                GROUP BY c.user_id, c.track_id
+                ON CONFLICT (user_id, track_id) DO UPDATE SET
+                    affinity_score     = uta.affinity_score     + EXCLUDED.affinity_score,
+                    play_count         = uta.play_count         + EXCLUDED.play_count,
+                    completion_count   = uta.completion_count   + EXCLUDED.completion_count,
+                    skip_count         = uta.skip_count         + EXCLUDED.skip_count,
+                    total_listen_sec   = uta.total_listen_sec   + EXCLUDED.total_listen_sec,
+                    last_signal_at     = GREATEST(uta.last_signal_at, EXCLUDED.last_signal_at),
+                    updated_at         = now()
+                RETURNING 1
+            )
+            UPDATE core_v2_ml.affinity_cursor
+            SET last_history_at = GREATEST(last_history_at, (SELECT MAX(started_at) FROM consumed)),
                 updated_at = now()
             WHERE id = TRUE
               AND EXISTS (SELECT 1 FROM consumed)

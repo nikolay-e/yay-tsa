@@ -83,7 +83,7 @@ class McpListeningTools(
             McpToolDefinition(
                 "get_track",
                 "Look up one track by id: name, artist, album, genre, duration. " +
-                    "response_format=detailed adds play stats and the adaptive-signal affinity block.",
+                    "response_format=detailed adds play stats and the affinity block (all listening — DJ signals + play history).",
                 mapOf(
                     "type" to "object",
                     "properties" to
@@ -257,10 +257,10 @@ class McpListeningTools(
         val affinity = mlQuery.getUserTrackAffinity(uid, trackId)
         val affinityLine =
             affinity?.let {
-                "Affinity (adaptive-signals only — excludes non-DJ listening): score=${rate(it.affinityScore)}, " +
+                "Affinity (all listening — DJ signals + play history): score=${rate(it.affinityScore)}, " +
                     "plays=${it.playCount}, completions=${it.completionCount}, skips=${it.skipCount}, " +
                     "thumbs +${it.thumbsUpCount}/-${it.thumbsDownCount}"
-            } ?: "Affinity (adaptive-signals only): none recorded — track has not been played in a DJ session yet."
+            } ?: "Affinity: none recorded yet for this track."
         return "Play stats (play_history, all listeners): $plays plays\n$affinityLine"
     }
 

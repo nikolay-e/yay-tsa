@@ -2,6 +2,7 @@ package dev.yaytsa.app.integration
 
 import dev.yaytsa.worker.ml.AffinityAggregator
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -20,7 +21,76 @@ class AffinityWorkerIntegrationTest : HttpIntegrationTestBase() {
 
     @BeforeEach
     fun resetWatermark() {
-        jdbc.update("UPDATE core_v2_ml.affinity_cursor SET last_signal_at = 'epoch' WHERE id = TRUE")
+        jdbc.update("UPDATE core_v2_ml.affinity_cursor SET last_signal_at = 'epoch', last_history_at = 'epoch' WHERE id = TRUE")
+    }
+
+    private fun seedHistory(
+        userId: UUID,
+        trackId: UUID,
+        completed: Boolean,
+        skipped: Boolean,
+        source: String?,
+        playedMs: Long = 120_000,
+        at: Instant = Instant.now(),
+    ) {
+        jdbc.update(
+            "INSERT INTO core_v2_playback.play_history " +
+                "(id, user_id, item_id, started_at, duration_ms, played_ms, completed, skipped, source) " +
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+            UUID.randomUUID(),
+            userId.toString(),
+            trackId.toString(),
+            Timestamp.from(at),
+            240_000L,
+            playedMs,
+            completed,
+            skipped,
+            source,
+        )
+    }
+
+    private fun playCount(
+        userId: UUID,
+        trackId: UUID,
+    ): Int? =
+        jdbc
+            .query(
+                "SELECT play_count FROM core_v2_ml.user_track_affinity WHERE user_id=? AND track_id=?",
+                { rs, _ -> rs.getInt("play_count") },
+                userId,
+                trackId,
+            ).firstOrNull()
+
+    @Test
+    fun `aggregator folds non-adaptive play_history into affinity (fixes non-DJ listening blindness)`() {
+        val userId = UUID.randomUUID()
+        val finishedTrack = UUID.randomUUID()
+        val bailedTrack = UUID.randomUUID()
+        // Plain listening: no adaptive session, no signals — only play_history rows.
+        seedHistory(userId, finishedTrack, completed = true, skipped = false, source = null)
+        seedHistory(userId, bailedTrack, completed = false, skipped = true, source = "subsonic")
+
+        aggregator.aggregate()
+
+        val finished = affinityScore(userId, finishedTrack)
+        val bailed = affinityScore(userId, bailedTrack)
+        assertNotNull(finished, "completed non-adaptive play must produce an affinity row — history fold is dead")
+        assertNotNull(bailed, "skipped non-adaptive play must produce an affinity row")
+        assertTrue(finished!! > 0, "completed listen must raise affinity, was $finished")
+        assertTrue(bailed!! < 0, "skipped self-picked track must lower affinity, was $bailed")
+        assertTrue((playCount(userId, finishedTrack) ?: 0) >= 1, "play_count must reflect the history play")
+    }
+
+    @Test
+    fun `adaptive-source play_history is skipped by the history fold (no double count with signals)`() {
+        val userId = UUID.randomUUID()
+        val track = UUID.randomUUID()
+        // An adaptive play is already owned by the signals fold; the history fold must ignore it.
+        seedHistory(userId, track, completed = true, skipped = false, source = "adaptive")
+
+        aggregator.aggregate()
+
+        assertNull(affinityScore(userId, track), "source='adaptive' history rows must not be folded twice")
     }
 
     private fun seedSession(userId: UUID): UUID {
