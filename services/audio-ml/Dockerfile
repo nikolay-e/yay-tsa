@@ -86,6 +86,13 @@ ENV OUTPUT_BITRATE=192k
 ENV DEVICE=cpu
 ENV ESSENTIA_MODELS_DIR=/app/models
 
+# Anonymity hardening for HuggingFace model downloads (MERT/CLAP): drop the usage-telemetry pings and
+# never attach a cached token to anonymous public reads. The download UA carries only library versions,
+# no identity — these disable the separate phone-home. DO_NOT_TRACK covers the wider HF ecosystem.
+ENV HF_HUB_DISABLE_TELEMETRY=1
+ENV HF_HUB_DISABLE_IMPLICIT_TOKEN=1
+ENV DO_NOT_TRACK=1
+
 USER 1000
 
 EXPOSE 8000

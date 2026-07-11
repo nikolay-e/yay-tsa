@@ -125,7 +125,11 @@ yaytsa:
     cover-cache-dir: ${IMAGE_COVER_CACHE_DIR:/app/cover-cache}
   metadata:
     enabled: ${METADATA_ENABLED:false}
-    user-agent: ${METADATA_USER_AGENT:Yaytsa/1.0 ( https://yay-tsa.com )}
+    # Generic, non-identifying by default (anonymity): reveals no domain/owner to MusicBrainz,
+    # Cover Art Archive, Wikimedia, iTunes, Deezer, OpenLibrary. Override METADATA_USER_AGENT with a
+    # descriptive UA + contact if you need Wikimedia (403s a generic UA) or MusicBrainz's per-IP rate
+    # budget (a contactless UA is throttled into their shared anonymous pool).
+    user-agent: ${METADATA_USER_AGENT:Music-Metadata-Client/1.0}
     poll-interval-ms: ${METADATA_POLL_INTERVAL_MS:300000}
     batch-size: ${METADATA_BATCH_SIZE:50}
     musicbrainz-base-url: ${METADATA_MUSICBRAINZ_BASE_URL:https://musicbrainz.org/ws/2}

@@ -34,7 +34,7 @@ BATCH_LIMIT = int(os.getenv("LYRICS_BATCH_LIMIT", "0"))  # 0 = all tracks
 # firing alerts) instead of making partial progress. Stop cleanly under the
 # deadline and exit 0; the next run picks up where lrclib has new matches.
 BUDGET_SECONDS = int(os.getenv("LYRICS_SYNC_BUDGET_SECONDS", "3000"))
-USER_AGENT = "yay-tsa (https://github.com/nikolay-e/yay-tsa)"
+USER_AGENT = "Lyrics-Client/1.0"
 SYNC_RE = re.compile(r"\[\d{1,2}:\d{2}")
 NUM_PREFIX_RE = re.compile(r"^(\d{1,3})\s*[-._]\s*")
 

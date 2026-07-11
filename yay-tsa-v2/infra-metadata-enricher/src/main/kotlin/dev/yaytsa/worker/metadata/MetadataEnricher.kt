@@ -33,7 +33,7 @@ class MetadataEnricher(
     private val entityRepo: LibraryEntityRepository,
     private val entityGenreRepo: EntityGenreRepository,
     private val clock: Clock,
-    @Value("\${yaytsa.metadata.user-agent:Yaytsa/1.0 ( https://yay-tsa.com )}") private val userAgent: String,
+    @Value("\${yaytsa.metadata.user-agent:Music-Metadata-Client/1.0}") private val userAgent: String,
     @Value("\${yaytsa.library.music-path:#{null}}") musicPath: String?,
     @Value("\${yaytsa.image.cover-cache-dir:#{null}}") coverCacheDir: String?,
     @Value("\${yaytsa.metadata.batch-size:50}") private val batchSize: Int,

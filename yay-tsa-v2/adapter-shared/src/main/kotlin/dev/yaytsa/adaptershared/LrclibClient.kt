@@ -93,6 +93,9 @@ class LrclibClient(
 
     companion object {
         private val log = LoggerFactory.getLogger(LrclibClient::class.java)
-        private const val USER_AGENT = "yay-tsa (https://github.com/nikolay-e/yay-tsa)"
+
+        // Generic, non-identifying (anonymity): no domain/GitHub handle on the wire. LRCLIB needs no
+        // contact and actively rejects some recognizable server UAs, so a neutral token is also safest.
+        private const val USER_AGENT = "Lyrics-Client/1.0"
     }
 }

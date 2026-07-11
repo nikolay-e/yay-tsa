@@ -149,7 +149,9 @@ backend:
       coverCacheDir: '/app/cover-cache'
     metadata:
       enabled: false # MusicBrainz ID + Cover Art Archive enrichment; writes cover.jpg into album folders
-      userAgent: 'Yaytsa/1.0 ( https://yay-tsa.com )'
+      # Generic by default — no domain/owner leaked to third-party metadata APIs. Set a descriptive
+      # UA + contact here only if you need Wikimedia (403s generic UAs) or MusicBrainz per-IP limits.
+      userAgent: 'Music-Metadata-Client/1.0'
       pollIntervalMs: 300000
       batchSize: 50
       # Artists are not filesystem folders, so fetched/derived artist images are cached here instead
