@@ -118,14 +118,7 @@ class ListenBrainzScrobbleSubmitter(
         if (pending.isEmpty()) return
         // Audiobook chapters are plays, not music listens — submitting them pollutes the
         // ListenBrainz history. Mark them scrobbled so they never resurface in the queue.
-        val (audiobooks, musical) = pending.partition { isAudiobook(it) }
-        if (audiobooks.isNotEmpty()) {
-            playHistoryJpa.markScrobbled(audiobooks.map { it.id })
-            meterRegistry
-                .counter("yaytsa.scrobble.skipped", "target", "listenbrainz", "reason", "audiobook")
-                .increment(audiobooks.size.toDouble())
-        }
-        if (musical.isEmpty()) return
+        val musical = dropAudiobooks(pending)
         val (resolved, unresolvable) = musical.map { it to resolveListen(it) }.partition { it.second != null }
         if (unresolvable.isNotEmpty()) {
             playHistoryJpa.markScrobbled(unresolvable.map { it.first.id })
@@ -134,6 +127,17 @@ class ListenBrainzScrobbleSubmitter(
         }
         if (resolved.isEmpty()) return
         submitListens(resolved.map { it.first.id to it.second!! }, now, splitOnRejection = true)
+    }
+
+    private fun dropAudiobooks(pending: List<PlayHistoryEntity>): List<PlayHistoryEntity> {
+        val (audiobooks, musical) = pending.partition { isAudiobook(it) }
+        if (audiobooks.isNotEmpty()) {
+            playHistoryJpa.markScrobbled(audiobooks.map { it.id })
+            meterRegistry
+                .counter("yaytsa.scrobble.skipped", "target", "listenbrainz", "reason", "audiobook")
+                .increment(audiobooks.size.toDouble())
+        }
+        return musical
     }
 
     private fun submitListens(
