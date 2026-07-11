@@ -504,3 +504,19 @@ After the body-field / path-param / int-bound customizers, the recurring post-de
 - **int64 body overflow** (`PositionTicks` etc.): the int-body customizer only capped `format: int32`; int64 fields had no maximum, so a huge fuzz value overflowed Long → 400. Now capped at `Long.MAX_VALUE` for non-int32 integer fields.
 
 Genuinely-not-worth-fixing tail (documented, left as-is): a fuzzer sending a **whitespace-only** string to a field whose backend does `isBlank()` rejection (`name: "\t"` on POST /v1/groups; `command: ""` on the device command) — the JSON-schema `minLength: 1` passes a single whitespace char but the handler requires non-blank. Expressible only via a `\S` pattern per field; low value, high annotation churn. These are the expected "API rejected schema-compliant request" residue, not server bugs (clean 400 problem+json). Do NOT chase them into per-field regex patterns.
+
+## Internal autoqa races the single-replica rollout → transient CF 502s (post GHA-migration)
+
+Since image builds + post-deploy QA moved off GitHub Actions onto the in-cluster Argo pipeline (2026-07-11), the autoqa Sensor fires **immediately** on the Forgejo push webhook — it no longer inherits the ~5min GitHub reverse-sync head-start the old GHA `post-deploy-qa` had. The backend is `replicas: 1` (HARD INVARIANT — per-JVM state), so every rollout has an unavoidable window where the old pod is gone and the new Spring Boot pod is still starting (Flyway + Tomcat, ~40s), during which Cloudflare's edge returns its own `502: Bad gateway` HTML page for every request. If an autoqa run overlaps that window (especially under rapid back-to-back pushes, each triggering its own build+deploy+autoqa), it records the 502s as failures:
+
+- **schemathesis** → "Undocumented HTTP status code: Received 502" on many operations (the 502 body is Cloudflare HTML, `server: cloudflare`, not a backend response).
+- **zap** → "zap-report.json missing — ZAP step failed to produce report" (its OpenAPI import fetch got a 502, so no scan ran).
+- **monkey** → dozens of non-blocking "failed request" findings (same 502s).
+
+**These are NOT backend bugs.** Confirm the transient nature before chasing any of them: re-hit the flagged endpoints against the settled backend — they return documented statuses (e.g. DELETE `/Admin/Users/{id}` → 403, DELETE `/Items/{id}` → 404), and `kubectl get pods -n yay-tsa` shows the backend with **0 restarts** (no OOM/crash — the transient is the rollout, not the app). The decisive re-verify is a fresh autoqa run submitted only when no rollout is in flight (`kubectl get deploy -n yay-tsa` image tags all == target SHA, pods stable ≥1min).
+
+Distinguish from the _load_-induced CF 502/520 already documented under the karaoke-requeue note: that one is GPU-saturation during a bulk backlog; this one is the deploy window itself. Both share the Cloudflare-edge-502 symptom and the same "verify on replay" remedy. A durable fix belongs upstream in `nikolay-e/autoqa` (tolerate/retry edge 502s whose body is the Cloudflare challenge/error page, distinguishable by `server: cloudflare` + the `502: Bad gateway` title) rather than per-app config — tracked as a GH issue, not worked around by excluding routes.
+
+## QA test account password is shared with the internal autoqa secret
+
+The `test` user's password (Keychain `yay-tsa-qa-password`, used by browser QA) is now the SAME value as the in-cluster `autoqa-crawler-login` secret (namespace `argo-workflows`, key `password`) that the internal autoqa injects into its `auth-body` — aligned 2026-07-11 so both the browser-driven QA and the pipeline authenticate as `test`. If either is rotated, rotate BOTH and re-hash the DB row: `UPDATE core_v2_auth.users SET password_hash='<bcrypt-cost-13>' WHERE username='test' AND is_admin=false` (backend uses BCrypt cost 13). Never point QA at `master` (admin).
