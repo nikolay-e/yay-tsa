@@ -43,7 +43,12 @@ import {
   useSleepTimer,
   UNSUPPORTED_FORMAT_MESSAGE,
 } from '../stores/player.store';
-import { useActiveSession, useSessionActions, useIsSessionStarting } from '../stores/session-store';
+import {
+  useActiveSession,
+  useSessionActions,
+  useIsSessionStarting,
+  useSessionStore,
+} from '../stores/session-store';
 import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { usePlaybackHotkeys } from '../hooks/usePlaybackHotkeys';
@@ -205,8 +210,9 @@ export function PlayerBar() {
   const handleToggleKaraoke = toggleKaraoke;
   const handleSetSleepTimer = setSleepTimer;
   const handleClearSleepTimer = clearSleepTimer;
-  const handleThumbsUp = () => {
+  const handleThumbsUp = async () => {
     if (!currentTrack) return;
+    await useSessionStore.getState().ensureActiveSession();
     sendSignal({
       signalType: 'THUMBS_UP',
       trackId: currentTrack.Id,
@@ -220,8 +226,9 @@ export function PlayerBar() {
     });
     toast.add('success', 'Liked');
   };
-  const handleThumbsDown = () => {
+  const handleThumbsDown = async () => {
     if (!currentTrack) return;
+    await useSessionStore.getState().ensureActiveSession();
     sendSignal({
       signalType: 'THUMBS_DOWN',
       trackId: currentTrack.Id,
@@ -537,7 +544,7 @@ export function PlayerBar() {
         <div className="hidden shrink-0 items-center justify-end gap-1 sm:flex md:flex-1 md:gap-2">
           <TimeDisplay />
 
-          {activeSession && (
+          {currentTrack && (
             <>
               <button
                 type="button"
@@ -708,7 +715,7 @@ export function PlayerBar() {
           vocalBlend={vocalBlend}
           hasSleepTimer={!!sleepTimer.endTime}
           sleepMinutesLeft={sleepMinutesLeft}
-          showThumbs={!!activeSession}
+          showThumbs
           onClose={closeFullPlayer}
           onNavigate={dismissFullPlayerForNavigation}
           onPlayPause={handlePlayPause}

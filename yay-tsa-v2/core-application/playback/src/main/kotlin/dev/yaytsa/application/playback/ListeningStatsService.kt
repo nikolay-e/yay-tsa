@@ -41,8 +41,9 @@ class ListeningStatsService(
         until: Instant,
         groupBy: ListeningStatsGroupBy,
         zone: ZoneId,
+        includeAudiobooks: Boolean = false,
     ): ListeningStatsResult {
-        val events = playHistoryQuery.eventsInWindow(userId, since, until)
+        val events = playHistoryQuery.eventsInWindow(userId, since, until, includeAudiobooks)
         val trackGroups =
             when (groupBy) {
                 ListeningStatsGroupBy.ARTIST, ListeningStatsGroupBy.GENRE ->

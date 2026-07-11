@@ -27,6 +27,7 @@ interface SessionStoreState {
 
 interface SessionStoreActions {
   startSession: (seedTrackId?: string) => Promise<void>;
+  ensureActiveSession: () => Promise<void>;
   endSession: () => Promise<void>;
   reset: () => void;
   restoreSession: () => Promise<void>;
@@ -329,6 +330,22 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       });
     } finally {
       refreshDebounce = false;
+    }
+  },
+
+  // A lightweight session for explicit reactions (thumbs) outside radio mode: the signals
+  // API is per-session, but a reaction must never touch the user's queue the way
+  // startSession's DJ population does. Creates the session and nothing else.
+  ensureActiveSession: async () => {
+    if (get().activeSession || get().isStarting) return;
+    const service = getDjService();
+    if (!service) return;
+    try {
+      const session = await service.startSession(buildSessionState(), undefined);
+      set({ activeSession: session });
+      saveSession(session.id);
+    } catch {
+      // Reaction stays best-effort; sendSignal will no-op without a session.
     }
   },
 

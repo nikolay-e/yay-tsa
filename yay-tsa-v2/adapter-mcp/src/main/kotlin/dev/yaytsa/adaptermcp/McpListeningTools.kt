@@ -48,6 +48,12 @@ class McpListeningTools(
                                     "type" to "string",
                                     "description" to "IANA timezone for hour/weekday buckets (e.g. Europe/Berlin); default UTC",
                                 ),
+                            "include_audiobooks" to
+                                mapOf(
+                                    "type" to "boolean",
+                                    "default" to false,
+                                    "description" to "Audiobook plays are excluded from music analytics unless true",
+                                ),
                         ),
                     "required" to listOf("group_by"),
                 ),
@@ -65,6 +71,12 @@ class McpListeningTools(
                                 mapOf("type" to "string", "description" to "Optional source filter (e.g. queue, adaptive, subsonic)"),
                             "limit" to mapOf("type" to "integer", "default" to 50, "minimum" to 1, "maximum" to 200),
                             "offset" to mapOf("type" to "integer", "default" to 0),
+                            "include_audiobooks" to
+                                mapOf(
+                                    "type" to "boolean",
+                                    "default" to false,
+                                    "description" to "Audiobook plays are excluded unless true",
+                                ),
                         ),
                 ),
             ),
@@ -120,7 +132,8 @@ class McpListeningTools(
             }
         val until = clock.now()
         val since = until.minus(Duration.ofDays(windowDays.toLong()))
-        val result = listeningStatsService.stats(uid, since, until, groupBy, zone)
+        val includeAudiobooks = args["include_audiobooks"] as? Boolean ?: false
+        val result = listeningStatsService.stats(uid, since, until, groupBy, zone, includeAudiobooks)
         return textResult(statsText(result, zone))
     }
 
@@ -160,11 +173,12 @@ class McpListeningTools(
         val until = clock.now()
         val since = until.minus(Duration.ofDays(windowDays.toLong()))
         val sourceSuffix = source?.let { " for source=$it" } ?: ""
-        val total = playHistoryQuery.historyCount(uid, since, until, source)
+        val includeAudiobooks = args["include_audiobooks"] as? Boolean ?: false
+        val total = playHistoryQuery.historyCount(uid, since, until, source, includeAudiobooks)
         if (total == 0L) {
             return textResult("source: play_history — no listening events in the last $windowDays days$sourceSuffix.")
         }
-        val events = playHistoryQuery.historyPage(uid, since, until, source, limit, offset)
+        val events = playHistoryQuery.historyPage(uid, since, until, source, limit, offset, includeAudiobooks)
         if (events.isEmpty()) {
             return textResult(
                 "source: play_history, $total events in the last $windowDays days$sourceSuffix — " +

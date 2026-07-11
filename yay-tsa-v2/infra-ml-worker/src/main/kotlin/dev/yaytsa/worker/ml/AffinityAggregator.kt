@@ -78,6 +78,10 @@ class AffinityAggregator(
                 FROM core_v2_adaptive.playback_signals ps
                 JOIN core_v2_adaptive.listening_sessions ls ON ls.id = ps.session_id
                 WHERE ps.created_at > ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM core_v2_library.entity_genres eg
+                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
+                    WHERE eg.entity_id = ps.track_id AND lower(g.name) IN ('audiobook','audiobooks'))
             ),
             folded AS (
                 INSERT INTO core_v2_ml.user_track_affinity AS uta (

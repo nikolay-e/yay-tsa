@@ -40,7 +40,8 @@ class JpaPlayHistoryQueryPort(
         userId: UserId,
         since: Instant,
         until: Instant,
-    ): List<PlayHistoryEvent> = jpa.findEventsInWindow(userId.value, since, until, UUID_PATTERN).map { it.toEvent() }
+        includeAudiobooks: Boolean,
+    ): List<PlayHistoryEvent> = jpa.findEventsInWindow(userId.value, since, until, UUID_PATTERN, includeAudiobooks).map { it.toEvent() }
 
     override fun historyPage(
         userId: UserId,
@@ -49,9 +50,10 @@ class JpaPlayHistoryQueryPort(
         source: String?,
         limit: Int,
         offset: Int,
+        includeAudiobooks: Boolean,
     ): List<PlayHistoryEvent> =
         jpa
-            .findHistoryPage(userId.value, since, until, source, UUID_PATTERN, maxOf(limit, 1), maxOf(offset, 0))
+            .findHistoryPage(userId.value, since, until, source, UUID_PATTERN, includeAudiobooks, maxOf(limit, 1), maxOf(offset, 0))
             .map { it.toEvent() }
 
     override fun historyCount(
@@ -59,7 +61,8 @@ class JpaPlayHistoryQueryPort(
         since: Instant?,
         until: Instant?,
         source: String?,
-    ): Long = jpa.countHistory(userId.value, since, until, source, UUID_PATTERN)
+        includeAudiobooks: Boolean,
+    ): Long = jpa.countHistory(userId.value, since, until, source, UUID_PATTERN, includeAudiobooks)
 
     private fun PlayHistoryEntity.toEvent(): PlayHistoryEvent =
         PlayHistoryEvent(

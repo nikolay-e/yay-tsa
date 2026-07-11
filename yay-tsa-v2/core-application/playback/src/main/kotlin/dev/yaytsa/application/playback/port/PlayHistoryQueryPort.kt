@@ -21,6 +21,7 @@ interface PlayHistoryQueryPort {
         userId: UserId,
         since: Instant,
         until: Instant,
+        includeAudiobooks: Boolean = false,
     ): List<PlayHistoryEvent>
 
     fun historyPage(
@@ -30,6 +31,7 @@ interface PlayHistoryQueryPort {
         source: String?,
         limit: Int,
         offset: Int,
+        includeAudiobooks: Boolean = false,
     ): List<PlayHistoryEvent>
 
     fun historyCount(
@@ -37,6 +39,7 @@ interface PlayHistoryQueryPort {
         since: Instant?,
         until: Instant?,
         source: String?,
+        includeAudiobooks: Boolean = false,
     ): Long
 }
 
