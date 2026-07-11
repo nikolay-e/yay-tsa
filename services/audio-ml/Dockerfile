@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1.7
 ARG VARIANT=gpu
-ARG TARGETARCH
+# buildx does NOT auto-populate TARGETARCH in the GLOBAL scope (before the first FROM), only
+# inside build stages — so the `FROM base-${VARIANT}-${TARGETARCH}` selector below would resolve
+# to `base-gpu-` and fail with "invalid reference format". CI builds these images amd64-only
+# (see ci.yml: essentia-tensorflow / CUDA are amd64-only), so default the global copy to amd64.
+# The per-stage `ARG TARGETARCH` inside `final` stays dynamic (buildx sets it there) for the
+# arch-conditional pip install.
+ARG TARGETARCH=amd64
 
 # --- Base image selection per variant + architecture ---
 # GPU: CUDA on amd64, CPU-only fallback on arm64
