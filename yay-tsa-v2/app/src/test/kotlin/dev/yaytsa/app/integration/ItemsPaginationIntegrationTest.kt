@@ -85,6 +85,77 @@ class ItemsPaginationIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `typed search returns only the requested item type, untyped search returns all`() {
+        val tag = "aer-${UUID.randomUUID().toString().take(6)}"
+        val artistId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, search_text) VALUES (?,?,?,?,?)",
+            artistId,
+            "ARTIST",
+            "$tag Artist",
+            "$tag artist",
+            tag,
+        )
+        jdbc.update("INSERT INTO core_v2_library.artists (entity_id) VALUES (?)", artistId)
+        val albumId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, parent_id, search_text) VALUES (?,?,?,?,?,?)",
+            albumId,
+            "ALBUM",
+            "$tag Album",
+            "$tag album",
+            artistId,
+            tag,
+        )
+        jdbc.update("INSERT INTO core_v2_library.albums (entity_id, artist_id) VALUES (?,?)", albumId, artistId)
+        val trackId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO core_v2_library.entities (id, entity_type, name, sort_name, parent_id, source_path, search_text) VALUES (?,?,?,?,?,?,?)",
+            trackId,
+            "TRACK",
+            "$tag Song",
+            "$tag song",
+            albumId,
+            "/typedsearch/$trackId.flac",
+            tag,
+        )
+        jdbc.update(
+            "INSERT INTO core_v2_library.audio_tracks (entity_id, album_id, album_artist_id, duration_ms) VALUES (?,?,?,?)",
+            trackId,
+            albumId,
+            artistId,
+            100000L,
+        )
+
+        fun searchItems(query: String): Pair<List<JsonNode>, Int> {
+            val body = objectMapper.readTree(get(query, token).response.contentAsString)
+            return body.get("Items").filter { it.get("Name").asText().startsWith(tag) } to body.get("TotalRecordCount").asInt()
+        }
+
+        listOf("Audio", "MusicAlbum", "MusicArtist").forEach { type ->
+            val (items, total) = searchItems("/Items?SearchTerm=$tag&IncludeItemTypes=$type&Limit=50")
+            assertEquals(1, items.size, "typed search for $type must return exactly the one seeded $type")
+            assertEquals(type, items[0].get("Type").asText(), "typed search must not leak other kinds into $type results")
+            assertEquals(1, total, "typed search count must cover only $type matches")
+        }
+
+        val (artistItems, _) = searchItems("/Items?SearchTerm=$tag&IncludeItemTypes=MusicArtist&Limit=50")
+        assertEquals(1, artistItems[0].get("ChildCount").asInt(), "search artists must carry their album count")
+
+        val (untyped, untypedTotal) = searchItems("/Items?SearchTerm=$tag&Limit=50")
+        assertEquals(
+            setOf("MusicArtist", "MusicAlbum", "Audio"),
+            untyped.map { it.get("Type").asText() }.toSet(),
+            "untyped search must keep returning all kinds at once",
+        )
+        assertEquals(3, untypedTotal, "untyped search count must sum all kinds")
+
+        val (camel, _) = searchItems("/Items?searchTerm=$tag&IncludeItemTypes=Audio&Limit=50")
+        assertEquals(1, camel.size, "camelCase searchTerm must filter like PascalCase, not return the whole library")
+        assertEquals("Audio", camel[0].get("Type").asText())
+    }
+
+    @Test
     fun `search term with a NUL byte is scrubbed, not sent to SQL`() {
         // A fuzzed or pasted NUL (0x00) in the search term reaches pg_trgm/ILIKE as a bind parameter,
         // which PostgreSQL rejects with SQLState 22021 ("invalid byte sequence for encoding UTF8") and

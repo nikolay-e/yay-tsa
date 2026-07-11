@@ -66,7 +66,10 @@ export function SearchPage() {
     sortOrder: activeOption.sortOrder,
   });
 
-  const textTracks = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const textTracks = useMemo(
+    () => data?.pages.flatMap(page => page.Items).filter(item => item.Type === 'Audio') ?? [],
+    [data]
+  );
   const totalCount = data?.pages[0]?.TotalRecordCount ?? 0;
   const tracks = isSemanticActive ? (semanticResults ?? []) : textTracks;
   const showLoading = isSemanticActive ? isSemanticLoading : isLoading;
@@ -215,7 +218,10 @@ function SearchSection({ title, children }: SearchSectionProps) {
 function SearchAlbums({ query }: Readonly<{ query: string }>) {
   const playAlbum = usePlayerStore(state => state.playAlbum);
   const { data, isLoading } = useInfiniteAlbums({ searchTerm: query, limit: 12 });
-  const albums = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const albums = useMemo(
+    () => data?.pages.flatMap(page => page.Items).filter(item => item.Type === 'MusicAlbum') ?? [],
+    [data]
+  );
 
   if (isLoading) {
     return (
@@ -235,7 +241,10 @@ function SearchAlbums({ query }: Readonly<{ query: string }>) {
 
 function SearchArtists({ query }: Readonly<{ query: string }>) {
   const { data, isLoading } = useInfiniteArtists({ searchTerm: query, limit: 12 });
-  const artists = useMemo(() => data?.pages.flatMap(page => page.Items) ?? [], [data]);
+  const artists = useMemo(
+    () => data?.pages.flatMap(page => page.Items).filter(item => item.Type === 'MusicArtist') ?? [],
+    [data]
+  );
 
   if (isLoading) {
     return (

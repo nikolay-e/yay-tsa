@@ -74,7 +74,8 @@ class JellyfinItemsController(
         @RequestParam(name = "SortOrder", required = false) sortOrder: String?,
         @RequestParam(name = "StartIndex", required = false, defaultValue = "0") startIndex: Int,
         @RequestParam(name = "Limit", required = false, defaultValue = "50") limitParam: Int,
-        @RequestParam(name = "SearchTerm", required = false) searchTerm: String?,
+        @RequestParam(name = "SearchTerm", required = false) searchTermPascal: String?,
+        @RequestParam(name = "searchTerm", required = false) searchTermCamel: String?,
         @RequestParam(name = "ArtistIds", required = false) artistIds: String?,
         @RequestParam(name = "AlbumIds", required = false) albumIds: String?,
         @RequestParam(name = "IsFavorite", required = false) isFavorite: Boolean?,
@@ -84,6 +85,7 @@ class JellyfinItemsController(
     ): ResponseEntity<Any> {
         if (userId != null && userId != principal?.name) return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         val uid = principal?.name
+        val searchTerm = searchTermPascal ?: searchTermCamel
         val limit = limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
         val excludedGenres =
             excludeGenres
@@ -116,25 +118,33 @@ class JellyfinItemsController(
             return ResponseEntity.ok(ItemsResult(withResume(items, uid), items.size, startIndex))
         }
 
+        // Type-based browsing selector. Parsed before the search branch: a typed search
+        // (SearchTerm + IncludeItemTypes) must return only the requested kinds, otherwise a track
+        // matching the term leaks into the client's album/artist search sections.
+        val types = includeItemTypes?.split(",")?.map { it.trim() } ?: emptyList()
+
         // Handle search
         if (!searchTerm.isNullOrBlank()) {
+            val wantArtists = types.isEmpty() || "MusicArtist" in types
+            val wantAlbums = types.isEmpty() || "MusicAlbum" in types
+            val wantTracks = types.isEmpty() || "Audio" in types
             val results = libraryQueries.searchText(searchTerm, limit, startIndex, excludedGenres)
-            val trackLookups = tracksLookups(results.tracks)
-            val albumNames = albumArtistNames(results.albums)
             val items = mutableListOf<BaseItem>()
-            results.artists.forEach { items.add(it.toBaseItem()) }
-            results.albums.forEach { items.add(it.toBaseItem(favTrackIds, albumNames)) }
-            results.tracks.forEach { items.add(it.toBaseItem(favTrackIds, trackLookups)) }
+            if (wantArtists) items.addAll(results.artists.withAlbumCounts())
+            if (wantAlbums) {
+                val albumNames = albumArtistNames(results.albums)
+                results.albums.forEach { items.add(it.toBaseItem(favTrackIds, albumNames)) }
+            }
+            if (wantTracks) {
+                val trackLookups = tracksLookups(results.tracks)
+                results.tracks.forEach { items.add(it.toBaseItem(favTrackIds, trackLookups)) }
+            }
             val total =
-                libraryQueries.countTextSearchArtists(searchTerm) +
-                    libraryQueries.countTextSearchAlbums(searchTerm) +
-                    libraryQueries.countTextSearchTracks(searchTerm)
+                (if (wantArtists) libraryQueries.countTextSearchArtists(searchTerm) else 0) +
+                    (if (wantAlbums) libraryQueries.countTextSearchAlbums(searchTerm) else 0) +
+                    (if (wantTracks) libraryQueries.countTextSearchTracks(searchTerm) else 0)
             return ResponseEntity.ok(ItemsResult(withResume(items, uid), total, startIndex))
         }
-
-        // Type-based browsing selector, needed here because the favorites branch below collapses to
-        // albums/artists depending on the requested type.
-        val types = includeItemTypes?.split(",")?.map { it.trim() } ?: emptyList()
 
         // Handle favorites. Favorites are tracks; sort them in the in-memory preferences aggregate.
         // When the client asks for MusicAlbum / MusicArtist (Favorites → Albums/Artists tabs), collapse
@@ -360,9 +370,11 @@ class JellyfinItemsController(
     fun getArtists(
         @RequestParam(name = "StartIndex", required = false, defaultValue = "0") startIndex: Int,
         @RequestParam(name = "Limit", required = false, defaultValue = "50") limitParam: Int,
-        @RequestParam(name = "SearchTerm", required = false) searchTerm: String?,
+        @RequestParam(name = "SearchTerm", required = false) searchTermPascal: String?,
+        @RequestParam(name = "searchTerm", required = false) searchTermCamel: String?,
         principal: Principal?,
     ): ResponseEntity<Any> {
+        val searchTerm = searchTermPascal ?: searchTermCamel
         val limit = limitParam.coerceIn(1, LibraryQueries.MAX_PAGE_SIZE)
         val artists =
             if (!searchTerm.isNullOrBlank()) {
@@ -393,10 +405,12 @@ class JellyfinItemsController(
 
     @GetMapping("/Search/Hints")
     fun searchHints(
-        @RequestParam(name = "searchTerm", required = false) searchTerm: String?,
+        @RequestParam(name = "searchTerm", required = false) searchTermCamel: String?,
+        @RequestParam(name = "SearchTerm", required = false) searchTermPascal: String?,
         @RequestParam(name = "Limit", required = false, defaultValue = "20") limitParam: Int,
         principal: Principal?,
     ): ResponseEntity<Any> {
+        val searchTerm = searchTermPascal ?: searchTermCamel
         if (searchTerm.isNullOrBlank()) {
             return ResponseEntity.ok(mapOf("SearchHints" to emptyList<Any>(), "TotalRecordCount" to 0))
         }
