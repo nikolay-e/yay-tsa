@@ -185,6 +185,78 @@ class RadioStationIntegrationTest : HttpIntegrationTestBase() {
         assertTrue(degraded == null || degraded.isNull, "a seed with a rich neighbourhood must not be flagged degraded")
     }
 
+    @Test
+    fun `radio surfaces an unheard track by a loved artist that pure similarity would bury`() {
+        // Two users in disjoint embedding subspaces (own anchor dim) so their radio neighbourhoods
+        // never cross. Identical geometry: a seed, 45 neutral tracks all strictly closer to the seed
+        // than one "discovery" track by artistLoved, which pure kNN ranks just past the 40-track
+        // station window. Only the first user has listening history — and on a *different* track by
+        // the same artist. The artist-level affinity nudge must pull the unheard discovery track into
+        // that user's station, while the control user (no history) never sees it.
+        val loved = seedRadioWithBuriedArtistTrack(anchorDim = 450, withHistory = true)
+        val control = seedRadioWithBuriedArtistTrack(anchorDim = 650, withHistory = false)
+
+        assertTrue(
+            stationContains(loved.sessionId, loved.discoveryTrackId),
+            "affinity for the artist must surface their otherwise-buried acoustic neighbour",
+        )
+        assertTrue(
+            !stationContains(control.sessionId, control.discoveryTrackId),
+            "without history the same buried track stays out of the station (pure similarity)",
+        )
+    }
+
+    private data class RadioCase(
+        val sessionId: String,
+        val discoveryTrackId: UUID,
+    )
+
+    private fun seedRadioWithBuriedArtistTrack(
+        anchorDim: Int,
+        withHistory: Boolean,
+    ): RadioCase {
+        val user = seedUser(if (withHistory) "loved" else "control")
+        // A high, test-private anchor dim keeps this user's seed orthogonal to every other test's
+        // tracks (which cluster around dim 0) in the Testcontainers-shared DB, so the pool is this
+        // user's own 46 tracks and the discovery track sits at a known depth (index ~45), not buried
+        // under cross-test neighbours.
+        val seed = seedTrack(UUID.randomUUID(), UUID.randomUUID(), vec(anchorDim to 1f))
+        repeat(45) { i -> seedTrack(UUID.randomUUID(), UUID.randomUUID(), vec(anchorDim to 0.7f, anchorDim + 10 + i to 0.5f)) }
+        val artistLoved = UUID.randomUUID()
+        val discovery = seedTrack(UUID.randomUUID(), artistLoved, vec(anchorDim to 0.4f, anchorDim + 5 to 0.5f))
+        if (withHistory) {
+            val alreadyHeard = seedTrack(UUID.randomUUID(), artistLoved, null)
+            seedAffinity(user.id, alreadyHeard, 50.0)
+        }
+        val sessionId = startRadio(seed, user.token)
+        assertEquals(204, post("/v1/sessions/$sessionId/queue/refresh", emptyMap<String, Any>(), user.token).response.status)
+        return RadioCase(sessionId, discovery)
+    }
+
+    private fun seedAffinity(
+        userId: String,
+        trackId: UUID,
+        score: Double,
+    ) {
+        val now = java.sql.Timestamp.from(Instant.now())
+        jdbc.update(
+            "INSERT INTO core_v2_ml.user_track_affinity (user_id, track_id, affinity_score, last_signal_at, updated_at) VALUES (?,?,?,?,?)",
+            UUID.fromString(userId),
+            trackId,
+            score,
+            now,
+            now,
+        )
+    }
+
+    private fun stationContains(
+        sessionId: String,
+        trackId: UUID,
+    ): Boolean =
+        adaptiveQuery
+            .getQueueEntries(ListeningSessionId(sessionId))
+            .any { UUID.fromString(it.trackId.value) == trackId }
+
     private fun albumByTrack(): Map<UUID, UUID?> =
         jdbc
             .query("SELECT entity_id, album_id FROM core_v2_library.audio_tracks") { rs, _ ->

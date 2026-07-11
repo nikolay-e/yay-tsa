@@ -233,7 +233,15 @@ class JellyfinSessionsController(
             stoppedAt = now,
             positionMs = positionMs,
             runTimeMs = runTimeMs,
-            source = if (adaptiveQuery.findActiveSession(uid) != null) SOURCE_ADAPTIVE else null,
+            // Provenance, not mere co-existence: a scrobble is "adaptive" only when the stopped track
+            // was actually served from the active radio/adaptive queue, not whenever a session happens
+            // to be open. Tagging by session-existence let hand-picked tracks pollute the adaptive skip
+            // metric, making it un-actionable.
+            source =
+                adaptiveQuery
+                    .findActiveSession(uid)
+                    ?.takeIf { session -> adaptiveQuery.getQueueEntries(session.id).any { it.trackId == trackId } }
+                    ?.let { SOURCE_ADAPTIVE },
             deviceId = authenticatedDeviceId(),
         )
 

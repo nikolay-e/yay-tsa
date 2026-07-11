@@ -3,6 +3,7 @@ package dev.yaytsa.adapterjellyfin
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.preferences.PreferencesQueries
+import dev.yaytsa.application.recommendation.AffinityReranker
 import dev.yaytsa.application.recommendation.MusicSurfaceFilter
 import dev.yaytsa.application.recommendation.RadioQueueBuilder
 import dev.yaytsa.domain.library.Track
@@ -51,7 +52,15 @@ class RadioStationService(
             libraryQueries
                 .getTracksByIds(pool.map { EntityId(it.value) })
                 .let { musicSurfaceFilter.filter(it, userId) }
-        val diversified = RadioQueueBuilder.diversify(similar, targetSize, exclude)
+        val preference = preferenceMaps(userId)
+        val ranked =
+            AffinityReranker.rerank(
+                similar,
+                artistAffinity = preference.artist,
+                genreAffinity = preference.genre,
+                trackAffinity = preference.track,
+            )
+        val diversified = RadioQueueBuilder.diversify(ranked, targetSize, exclude)
 
         val ordered = LinkedHashMap<String, String>()
         diversified.forEach { ordered[it.id.value] = REASON_SIMILAR }
@@ -83,6 +92,42 @@ class RadioStationService(
                 .getTracksByIds(pool.map { EntityId(it.value) })
                 .let { musicSurfaceFilter.filter(it, userId) }
         return if (distinctAlbums(usable) < SPARSE_ALBUM_THRESHOLD) DEGRADED_SPARSE_NEIGHBOURHOOD else null
+    }
+
+    /**
+     * Aggregates the user's per-track affinity up to artist and genre level so the discovery pool —
+     * mostly tracks never played individually — can still be ranked by taste. Uses only the top
+     * affinities already surfaced by [MlQueryPort.getTopAffinities] (one bounded query + one batch
+     * track fetch); a loved artist/genre thus promotes its acoustic neighbours, an unengaged one stays
+     * neutral. Empty until the user has any listening history.
+     */
+    private fun preferenceMaps(userId: UserId): PreferenceMaps {
+        val affinities = mlQuery.getTopAffinities(userId, AFFINITY_SAMPLE)
+        if (affinities.isEmpty()) return PreferenceMaps.EMPTY
+        val tracksById =
+            libraryQueries
+                .getTracksByIds(affinities.map { EntityId(it.trackId.value) })
+                .associateBy { it.id.value }
+        val artist = HashMap<String, Double>()
+        val genre = HashMap<String, Double>()
+        val track = HashMap<String, Double>()
+        affinities.forEach { affinity ->
+            track[affinity.trackId.value] = affinity.affinityScore
+            val resolved = tracksById[affinity.trackId.value] ?: return@forEach
+            resolved.albumArtistId?.value?.let { artist.merge(it, affinity.affinityScore, Double::plus) }
+            resolved.genre?.let { genre.merge(it, affinity.affinityScore, Double::plus) }
+        }
+        return PreferenceMaps(artist, genre, track)
+    }
+
+    private data class PreferenceMaps(
+        val artist: Map<String, Double>,
+        val genre: Map<String, Double>,
+        val track: Map<String, Double>,
+    ) {
+        companion object {
+            val EMPTY = PreferenceMaps(emptyMap(), emptyMap(), emptyMap())
+        }
     }
 
     private fun widen(
@@ -136,6 +181,7 @@ class RadioStationService(
 
         private const val RADIO_POOL_SIZE = 200
         private const val PROBE_POOL_SIZE = 60
+        private const val AFFINITY_SAMPLE = 500
         private const val SPARSE_ALBUM_THRESHOLD = 3
         private const val WIDEN_AFFINITY_MULTIPLIER = 5
         private const val RANDOM_WIDEN_MULTIPLIER = 4

@@ -159,23 +159,53 @@ class ScrobbleIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
-    fun `active adaptive session tags the scrobble source as adaptive`() {
-        val trackId = seedTrack()
+    fun `a track served from the adaptive queue is tagged adaptive, a hand-picked one is not`() {
+        val sessionId = seedActiveSession()
+        val fromRadio = seedTrack()
+        val handPicked = seedTrack()
+        // Only the radio track is actually in the adaptive queue; the hand-picked one is played while
+        // the same session happens to be open. Provenance, not session-existence, decides the tag —
+        // otherwise manual listening pollutes the adaptive skip metric and makes it un-actionable.
+        enqueueAdaptive(sessionId, fromRadio, position = 0)
+
+        reportPlayThenStop(fromRadio, positionMs = 60_000)
+        reportPlayThenStop(handPicked, positionMs = 60_000)
+
+        assertEquals("adaptive", historyRow(fromRadio)["source"], "a track from the radio queue is adaptive")
+        assertNull(historyRow(handPicked)["source"], "a hand-picked track during a session is not adaptive")
+    }
+
+    private fun seedActiveSession(): UUID {
+        val id = UUID.randomUUID()
         val ts = Timestamp.from(Instant.now())
         jdbc.update(
             "INSERT INTO core_v2_adaptive.listening_sessions " +
                 "(id, user_id, state, started_at, last_activity_at, attention_mode, mood_tags, seed_genres) " +
                 "VALUES (?,?,?,?,?,?,'{}','{}')",
-            UUID.randomUUID(),
+            id,
             UUID.fromString(userId),
             "ACTIVE",
             ts,
             ts,
             "focus",
         )
+        return id
+    }
 
-        reportPlayThenStop(trackId, positionMs = 60_000)
-
-        assertEquals("adaptive", historyRow(trackId)["source"])
+    private fun enqueueAdaptive(
+        sessionId: UUID,
+        trackId: String,
+        position: Int,
+    ) {
+        jdbc.update(
+            "INSERT INTO core_v2_adaptive.adaptive_queue (id, session_id, track_id, position, intent_label, added_at) " +
+                "VALUES (?,?,?,?,?,?)",
+            UUID.randomUUID(),
+            sessionId,
+            UUID.fromString(trackId),
+            position,
+            "radio",
+            Timestamp.from(Instant.now()),
+        )
     }
 }
