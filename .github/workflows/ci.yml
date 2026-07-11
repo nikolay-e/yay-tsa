@@ -294,6 +294,10 @@ jobs:
           image-name: audio-separator
           context: ./services/audio-ml
           build-args: VARIANT=gpu
+          # amd64-only: the CUDA base is --platform=linux/amd64 pinned and the GPU node is
+          # amd64. The arm64 emulated build exists only to hit binfmt races; no consumer runs
+          # these ML images on arm64.
+          platforms: linux/amd64
           include-git-sha: 'false'
           free-disk-space: 'true'
           cache-from: |
@@ -321,6 +325,9 @@ jobs:
           image-name: feature-extractor
           context: ./services/audio-ml
           build-args: VARIANT=essentia
+          # amd64-only: essentia-tensorflow publishes no arm64 wheel and the ML cron runs on
+          # the amd64 GPU node. Building arm64 under QEMU only introduced binfmt-race flakes.
+          platforms: linux/amd64
           include-git-sha: 'false'
           free-disk-space: 'true'
           cache-from: |
