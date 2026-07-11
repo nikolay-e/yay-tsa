@@ -168,6 +168,28 @@ class McpPlaybackControlIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `mcp add_to_queue with a malformed (non-uuid) id is a clean validation error, not a 500`() {
+        val trackId = seedTrack()
+        mintReflectedSession(trackId)
+
+        val result = mcpToolCall("add_to_queue", mapOf("track_ids" to listOf("not-a-valid-uuid")))
+        assertTrue(result.get("isError").asBoolean(), result.toString())
+        val text = toolText(result)
+        assertTrue(text.contains("Unknown track", ignoreCase = true), text)
+        assertFalse(text.contains("server-side error", ignoreCase = true), "malformed id must not surface as a server error: $text")
+    }
+
+    @Test
+    fun `mcp play_track with a malformed (non-uuid) id is a clean not-found, not a 500`() {
+        val trackId = seedTrack()
+        mintReflectedSession(trackId)
+
+        val result = mcpToolCall("play_track", mapOf("track_id" to "not-a-valid-uuid"))
+        assertTrue(result.get("isError").asBoolean(), result.toString())
+        assertTrue(toolText(result).contains("not found", ignoreCase = true), toolText(result))
+    }
+
+    @Test
     fun `mcp play_track with an unknown track id is a clean error`() {
         val current = seedTrack()
         mintReflectedSession(current)

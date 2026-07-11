@@ -41,8 +41,18 @@ class JpaLibraryQueryPort(
     private val entityGenreRepo: EntityGenreRepository,
     private val imageRepo: ImageRepository,
 ) : LibraryQueryPort {
+    // A malformed track id (e.g. an MCP client passing "not-a-valid-uuid") is a not-found, not a
+    // server error: parse leniently so callers see a clean "unknown track" instead of an
+    // IllegalArgumentException surfacing as a generic 500 / opaque tool failure.
+    private fun parseUuidOrNull(value: String): UUID? =
+        try {
+            UUID.fromString(value)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
     override fun getTrack(trackId: EntityId): Track? {
-        val id = UUID.fromString(trackId.value)
+        val id = parseUuidOrNull(trackId.value) ?: return null
         val entity = entityRepo.findById(id).orElse(null) ?: return null
         val track = trackRepo.findById(id).orElse(null) ?: return null
         val imagePath = imageRepo.findByEntityIdAndIsPrimaryTrue(id)?.path
@@ -275,7 +285,8 @@ class JpaLibraryQueryPort(
 
     override fun getTracksByIds(trackIds: List<EntityId>): List<Track> {
         if (trackIds.isEmpty()) return emptyList()
-        val uuids = trackIds.map { UUID.fromString(it.value) }
+        val uuids = trackIds.mapNotNull { parseUuidOrNull(it.value) }
+        if (uuids.isEmpty()) return emptyList()
         val byEntityId = trackRepo.findAllByEntityIdIn(uuids).associateBy { it.entityId }
         // Preserve caller-supplied order (favorites/playlist ordering matters).
         val orderedJpas = uuids.mapNotNull { byEntityId[it] }
@@ -470,7 +481,10 @@ class JpaLibraryQueryPort(
     }
 
     override fun trackIdsExist(trackIds: Set<TrackId>): Set<TrackId> {
-        val uuids = trackIds.map { UUID.fromString(it.value) }
+        // Malformed ids can't exist — drop them here so they surface to the caller as "unknown
+        // tracks" rather than throwing on the UUID parse.
+        val uuids = trackIds.mapNotNull { parseUuidOrNull(it.value) }
+        if (uuids.isEmpty()) return emptySet()
         val found = entityRepo.findAllByIdIn(uuids).filter { it.entityType == EntityType.TRACK.name }
         return found.map { TrackId(it.id.toString()) }.toSet()
     }
