@@ -28,7 +28,11 @@ object OAuthHtmlPages {
             "default-src 'none'; style-src 'unsafe-inline'; form-action $formAction; frame-ancestors 'none'",
         )
         headers.add("X-Content-Type-Options", "nosniff")
-        headers.add("Referrer-Policy", "no-referrer")
+        // NOT no-referrer: per the Fetch spec, a no-referrer referrer policy serializes the
+        // request's Origin header as `null` on the consent form POST, which Spring's CORS
+        // check then rejects with 403 "Invalid CORS request" — silently breaking the whole
+        // OAuth flow. strict-origin-when-cross-origin keeps Origin intact and leaks no path.
+        headers.add("Referrer-Policy", "strict-origin-when-cross-origin")
         return headers
     }
 
