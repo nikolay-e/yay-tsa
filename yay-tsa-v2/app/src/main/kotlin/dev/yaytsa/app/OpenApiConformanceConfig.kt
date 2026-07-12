@@ -59,9 +59,9 @@ class OpenApiConformanceConfig {
                     }
                 }
             }
-            NON_BLANK_ARRAY_ITEM_FIELDS.forEach { (schemaName, fields) ->
+            UUID_ARRAY_ITEM_FIELDS.forEach { (schemaName, fields) ->
                 val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { field -> properties[field]?.items?.minLength = 1 }
+                fields.forEach { field -> properties[field]?.items?.format = "uuid" }
             }
         }
 
@@ -120,7 +120,12 @@ class OpenApiConformanceConfig {
                 "PlaybackStopInfo" to setOf("PositionTicks", "EventTime"),
             )
 
-        private val NON_BLANK_ARRAY_ITEM_FIELDS =
+        // Id-array body fields the handlers treat as track ids: constraining the items to
+        // format uuid keeps positive fuzzing from generating whitespace/control-char strings
+        // that the isNotBlank / TrackId path rejects with a 400 (a schema-compliant-but-invalid
+        // "API rejected valid data" false positive). reorderFavorites ignores unknown ids, so a
+        // valid-uuid array is a clean 200. Mirrors OpenApiConfig's path-id pattern for bodies.
+        private val UUID_ARRAY_ITEM_FIELDS =
             mapOf(
                 "FavoriteOrderRequest" to setOf("ItemIds"),
             )
