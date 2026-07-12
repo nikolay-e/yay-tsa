@@ -298,8 +298,23 @@ class JellyfinSessionsController(
                     return
                 }
                 is dev.yaytsa.shared.CommandResult.Failed -> {
-                    if (result.failure is dev.yaytsa.shared.Failure.Unauthorized) return
-                    log.warn("ReflectExternalPlayback failed for user {} device {}: {}", uid.value, deviceIdValue, result.failure)
+                    val failure = result.failure
+                    val isConflict =
+                        failure is dev.yaytsa.shared.Failure.Conflict ||
+                            failure is dev.yaytsa.shared.Failure.StorageConflict
+                    if (!isConflict) {
+                        // Retry only helps a version race; any other failure (incl. Unauthorized) is
+                        // terminal. Unauthorized is an expected lease outcome (silent); anything else is
+                        // unexpected on best-effort reflection and worth a WARN.
+                        if (failure !is dev.yaytsa.shared.Failure.Unauthorized) {
+                            log.warn("ReflectExternalPlayback failed for user {} device {}: {}", uid.value, deviceIdValue, failure)
+                        }
+                        return
+                    }
+                    // A conflict is a benign lost race on best-effort reflection: retry once with
+                    // a fresh version, and if the retry is also lost the next progress report
+                    // re-reflects fresh state, so it self-corrects and never warrants a WARN.
+                    log.debug("ReflectExternalPlayback conflict for user {} device {}, retrying: {}", uid.value, deviceIdValue, failure)
                 }
             }
         }
