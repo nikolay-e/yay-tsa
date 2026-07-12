@@ -319,7 +319,7 @@ class LibraryWriter(
         val albumRootDir = if (pathSegments.size >= 3) root.resolve(pathSegments[0]).resolve(pathSegments[1]) else null
 
         val effectiveArtist = primaryArtist(tagAlbumArtist ?: tagArtist ?: folderArtist)
-        val trackName = stripArtistPrefix(rawTrackName, effectiveArtist)
+        val trackName = stripTrailingAudioExtension(stripArtistPrefix(rawTrackName, effectiveArtist))
 
         val durationMs = audioHeader?.trackLength?.let { it * 1000L }
 
@@ -633,6 +633,11 @@ class LibraryWriter(
     // Filename-derived titles often start with a track-number prefix ("01 - Eyeless").
     // Strip it so the player shows "Eyeless" instead of leaking the filename pattern.
     private fun stripTrackNumberPrefix(filename: String): String = filename.replace(Regex("^\\d{1,3}\\s*[-._]\\s*"), "").trim().ifBlank { filename }
+
+    // A real title never ends in an audio-file extension; when it does, the source's TITLE tag was set
+    // to the filename (e.g. "Lament.flac") and the leak surfaces verbatim in the library UI. Strip it.
+    private fun stripTrailingAudioExtension(title: String): String =
+        title.replace(Regex("\\.(flac|mp3|wav|ogg|m4a|aac|wma|opus)$", RegexOption.IGNORE_CASE), "").trim().ifBlank { title }
 
     // Some upstream taggers prefix the TITLE with the performer ("The Hatters - Свадьба"). When the
     // segment before " - " equals the resolved artist (case-insensitive), it is redundant duplication of
