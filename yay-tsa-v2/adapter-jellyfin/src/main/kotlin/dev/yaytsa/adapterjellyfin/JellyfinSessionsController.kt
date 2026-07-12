@@ -299,22 +299,17 @@ class JellyfinSessionsController(
                 }
                 is dev.yaytsa.shared.CommandResult.Failed -> {
                     val failure = result.failure
+                    // Reflection is best-effort: every typed failure just means "couldn't mirror this
+                    // report" — a version race, a lost lease, or a track the client reports that isn't in
+                    // the library (deleted/external, or a fuzzer's fake id). None is operator-actionable
+                    // and the next progress report re-reflects, so log at debug, never warn.
+                    log.debug("ReflectExternalPlayback did not apply for user {} device {}: {}", uid.value, deviceIdValue, failure)
+                    // Only a version race is worth retrying (re-read the fresh version); every other
+                    // failure would just repeat on the next loop iteration.
                     val isConflict =
                         failure is dev.yaytsa.shared.Failure.Conflict ||
                             failure is dev.yaytsa.shared.Failure.StorageConflict
-                    if (!isConflict) {
-                        // Retry only helps a version race; any other failure (incl. Unauthorized) is
-                        // terminal. Unauthorized is an expected lease outcome (silent); anything else is
-                        // unexpected on best-effort reflection and worth a WARN.
-                        if (failure !is dev.yaytsa.shared.Failure.Unauthorized) {
-                            log.warn("ReflectExternalPlayback failed for user {} device {}: {}", uid.value, deviceIdValue, failure)
-                        }
-                        return
-                    }
-                    // A conflict is a benign lost race on best-effort reflection: retry once with
-                    // a fresh version, and if the retry is also lost the next progress report
-                    // re-reflects fresh state, so it self-corrects and never warrants a WARN.
-                    log.debug("ReflectExternalPlayback conflict for user {} device {}, retrying: {}", uid.value, deviceIdValue, failure)
+                    if (!isConflict) return
                 }
             }
         }
