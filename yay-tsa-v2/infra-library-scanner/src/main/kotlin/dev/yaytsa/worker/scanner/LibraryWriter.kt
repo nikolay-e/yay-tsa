@@ -197,7 +197,13 @@ class LibraryWriter(
         val existing = imageRepo.findByEntityIdAndIsPrimaryTrue(trackId)
         if (existing != null && Files.isRegularFile(Path.of(existing.path))) return
         val extracted = embeddedCovers.extractToCache(file) ?: return
-        if (existing != null) imageRepo.delete(existing)
+        // Flush the delete before the insert: Hibernate orders inserts before deletes within a
+        // batch, so a bare delete+save of the same entity's Primary row inserts the new one first
+        // and trips the idx_images_one_primary unique index, aborting the whole upsertTrack tx.
+        if (existing != null) {
+            imageRepo.delete(existing)
+            imageRepo.flush()
+        }
         imageRepo.save(
             ImageJpa(
                 id = UUID.randomUUID(),
@@ -574,7 +580,13 @@ class LibraryWriter(
                 ?.let { it to runCatching { Files.size(it) }.getOrNull() }
                 ?: embeddedCovers.extractToCache(trackFile)?.let { it.path.toAbsolutePath() to it.sizeBytes }
                 ?: return
-        if (existing != null) imageRepo.delete(existing)
+        // Flush the delete before the insert (see ensureAudiobookTrackCover): Hibernate's
+        // insert-before-delete batch ordering otherwise trips idx_images_one_primary and aborts
+        // the whole upsertTrack tx, so the track's row is never persisted and its stale path 404s.
+        if (existing != null) {
+            imageRepo.delete(existing)
+            imageRepo.flush()
+        }
         imageRepo.save(
             ImageJpa(
                 id = UUID.randomUUID(),

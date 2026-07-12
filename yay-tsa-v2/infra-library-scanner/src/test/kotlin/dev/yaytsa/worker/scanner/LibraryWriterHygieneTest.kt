@@ -284,6 +284,31 @@ class LibraryWriterHygieneTest {
     }
 
     @Test
+    fun `scanning a track whose album has a stale-path Primary image replaces it without aborting the track`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte())
+        val first = place(root, "silent-3s.flac", "Gojira/Fortitude/01 - Born for One Thing.flac")
+        Files.write(first.parent.resolve("cover.jpg"), jpeg)
+        writer.upsertTrack(root, first)
+
+        val album = entityRepo.findByEntityTypeOrderBySortName("ALBUM").first()
+        // Simulate a v1-ETL / moved-cover row: the album's Primary image points at a file that no
+        // longer exists, so the next scan takes the delete-existing + insert-new cover path.
+        jdbc.update("UPDATE core_v2_library.images SET path = ? WHERE entity_id = ? AND is_primary = true", "/nonexistent/gone.jpg", album.id)
+
+        val second = place(root, "silent-3s.flac", "Gojira/Fortitude/02 - Amazonia.flac")
+        val secondId = writer.upsertTrack(root, second)
+
+        assertTrue(secondId != null, "the second track must persist despite the album's stale Primary image row")
+        assertEquals(1, imageRepo.findByEntityId(album.id).count { it.isPrimary }, "album must end with exactly one Primary image")
+        assertTrue(
+            imageRepo.findByEntityIdAndIsPrimaryTrue(album.id)!!.path.endsWith("Fortitude/cover.jpg"),
+            "the stale Primary must be replaced by the real on-disk cover",
+        )
+    }
+
+    @Test
     fun `vanished NULL-library_root ghost rows are swept, present NULL-root rows are kept`(
         @org.junit.jupiter.api.io.TempDir root: Path,
     ) {
