@@ -268,7 +268,7 @@ class JpaLibraryQueryPort(
             .mapNotNull { track ->
                 val entity = entities[track.entityId] ?: return@mapNotNull null
                 LibraryMappers.toTrack(entity, track, primaryImages[track.entityId], genreNames[track.entityId])
-            }.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
+            }.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }, { it.name.lowercase() }, { it.id.value }))
     }
 
     override fun browseTracksByArtist(

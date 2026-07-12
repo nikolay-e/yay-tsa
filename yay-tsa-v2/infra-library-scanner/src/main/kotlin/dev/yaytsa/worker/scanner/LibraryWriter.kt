@@ -330,7 +330,10 @@ class LibraryWriter(
             artistName = effectiveArtist,
             albumName = tagAlbum ?: folderAlbum,
             trackNumber = audioTag?.safeGetFirst(FieldKey.TRACK)?.leadingInt(),
-            discNumber = audioTag?.safeGetFirst(FieldKey.DISC_NO)?.leadingInt() ?: 1,
+            discNumber =
+                audioTag?.safeGetFirst(FieldKey.DISC_NO)?.leadingInt()
+                    ?: discNumberFromPath(pathSegments.dropLast(1))
+                    ?: 1,
             year = audioTag?.safeGetFirst(FieldKey.YEAR)?.leadingInt(),
             genre = audioTag?.safeGetFirst(FieldKey.GENRE)?.takeIf { it.isNotBlank() },
             durationMs = durationMs,
@@ -600,6 +603,21 @@ class LibraryWriter(
 
     private fun stripLeadingYear(folder: String): String = folder.replace(Regex("^\\d{4}\\s*-\\s*"), "").trim().ifBlank { folder }
 
+    // Many multi-disc rips carry the disc number only in the "CD2"/"Disc 2"/"Disk 2" folder name,
+    // not in a DISC_NO/TPOS tag. Without this, every disc defaults to 1, so CD1-track-1 and
+    // CD2-track-1 collide and the album's track order becomes nondeterministic. Directory segments
+    // only (never the filename); the highest match wins so a stray "CD" in an artist/album name
+    // higher up the path can't override the real disc folder nearer the track.
+    private fun discNumberFromPath(directorySegments: List<String>): Int? =
+        directorySegments
+            .mapNotNull { seg ->
+                DISC_FOLDER_PATTERN
+                    .find(seg.trim())
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toIntOrNull()
+            }.lastOrNull()
+
     // Filename-derived titles often start with a track-number prefix ("01 - Eyeless").
     // Strip it so the player shows "Eyeless" instead of leaking the filename pattern.
     private fun stripTrackNumberPrefix(filename: String): String = filename.replace(Regex("^\\d{1,3}\\s*[-._]\\s*"), "").trim().ifBlank { filename }
@@ -720,5 +738,8 @@ class LibraryWriter(
         private val GENRE_DELIMITERS = Regex("[,;|/]")
         private val WHITESPACE = Regex("\\s+")
         private val GENRE_WORD = Regex("[\\p{L}\\p{N}]+")
+
+        // Matches disc-folder names: "CD2", "CD 2", "Disc 2", "Disk_2" (case-insensitive), whole segment.
+        private val DISC_FOLDER_PATTERN = Regex("(?i)^(?:cd|disc|disk)\\s*[-_]?\\s*(\\d{1,2})$")
     }
 }

@@ -187,6 +187,26 @@ class LibraryWriterHygieneTest {
         assertTrue(cover!!.path.endsWith("2020 - Pansarfolk/cover.jpg"), "cover must resolve to the album-root file, was ${cover.path}")
     }
 
+    @Test
+    fun `multi-disc rip without DISC_NO tag infers disc number from CD folder and folds into one album`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        val cd1 = place(root, "silent-3s.flac", "Boards of Canada/Geogaddi/CD1/01 - Alpha.flac")
+        val cd2 = place(root, "silent-3s.flac", "Boards of Canada/Geogaddi/CD2/01 - Beta.flac")
+        writer.upsertTrack(root, cd1)
+        writer.upsertTrack(root, cd2)
+
+        val albums = entityRepo.findByEntityTypeOrderBySortName("ALBUM")
+        assertEquals(1, albums.size, "both CD folders must fold into a single album")
+
+        val discByName =
+            trackRepo.findAll().associate { track ->
+                (entityRepo.findById(track.entityId).get().name ?: "") to track.discNumber
+            }
+        assertEquals(1, discByName["Alpha"], "CD1 track must resolve to disc 1")
+        assertEquals(2, discByName["Beta"], "CD2 track must resolve to disc 2 from the folder name")
+    }
+
     private val onePixelPng: ByteArray =
         java.util.Base64
             .getDecoder()
