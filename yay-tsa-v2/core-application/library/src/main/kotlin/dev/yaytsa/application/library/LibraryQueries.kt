@@ -195,6 +195,16 @@ class LibraryQueries(
 
     fun trackIdsExist(trackIds: Set<TrackId>): Set<TrackId> = libraryQuery.trackIdsExist(trackIds)
 
+    fun filterTrackIdsExcludingGenres(
+        trackIds: Set<TrackId>,
+        excludedGenreNames: Collection<String>,
+    ): Set<TrackId> =
+        if (excludedGenreNames.isEmpty()) {
+            libraryQuery.trackIdsExist(trackIds)
+        } else {
+            libraryQuery.filterTrackIdsExcludingGenres(trackIds, excludedGenreNames)
+        }
+
     fun getGenres(entityId: EntityId): List<Genre> = libraryQuery.getGenres(entityId)
 
     fun getPrimaryImage(entityId: EntityId): Image? = libraryQuery.getPrimaryImage(entityId)

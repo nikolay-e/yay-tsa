@@ -102,6 +102,30 @@ class MlUnprocessedTrackQueryTest {
         assertEquals(setOf(unprocessedA, unprocessedB), unprocessed.toSet())
     }
 
+    private fun tagGenre(
+        entityId: UUID,
+        genreName: String,
+    ) {
+        val genreId = UUID.randomUUID()
+        jdbc.update("INSERT INTO core_v2_library.genres (id, name) VALUES (?, ?) ON CONFLICT (name) DO NOTHING", genreId, genreName)
+        val resolvedGenreId = jdbc.queryForObject("SELECT id FROM core_v2_library.genres WHERE name = ?", UUID::class.java, genreName)
+        jdbc.update("INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?, ?)", entityId, resolvedGenreId)
+    }
+
+    @Test
+    fun `audiobook tracks are excluded from ml extraction`() {
+        val song = seedEntity("TRACK", "A Song")
+        val audiobook = seedEntity("TRACK", "A Chapter")
+        tagGenre(audiobook, "Audiobook")
+        val multiGenreAudiobook = seedEntity("TRACK", "Chapter With Extra Genre")
+        tagGenre(multiGenreAudiobook, "Audiobooks")
+        tagGenre(multiGenreAudiobook, "Spoken Word")
+
+        val unprocessed = entityRepo.findMlUnprocessedTrackIds(NIL_UUID, 50)
+
+        assertEquals(setOf(song), unprocessed.toSet())
+    }
+
     @Test
     fun `limit bounds the batch and keyset pagination walks all unprocessed tracks exactly once`() {
         val trackIds = (1..3).map { seedEntity("TRACK", "Track $it") }.toSet()

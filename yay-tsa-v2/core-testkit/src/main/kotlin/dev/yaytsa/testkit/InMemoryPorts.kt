@@ -431,6 +431,18 @@ class InMemoryLibraryQueryPort : LibraryQueryPort {
         return trackIds.filter { it in knownIds }.toSet()
     }
 
+    override fun filterTrackIdsExcludingGenres(
+        trackIds: Set<TrackId>,
+        excludedGenreNames: Collection<String>,
+    ): Set<TrackId> {
+        val lowered = excludedGenreNames.map { it.trim().lowercase() }.toSet()
+        return trackIds
+            .mapNotNull { id -> tracks.values.firstOrNull { it.id.value == id.value } }
+            .filter { lowered.isEmpty() || !trackHasAnyGenre(it, lowered) }
+            .map { TrackId(it.id.value) }
+            .toSet()
+    }
+
     override fun getGenres(entityId: EntityId) = genres[entityId] ?: emptyList()
 
     override fun getPrimaryImage(entityId: EntityId): Image? = images[entityId]

@@ -489,6 +489,20 @@ class JpaLibraryQueryPort(
         return found.map { TrackId(it.id.toString()) }.toSet()
     }
 
+    override fun filterTrackIdsExcludingGenres(
+        trackIds: Set<TrackId>,
+        excludedGenreNames: Collection<String>,
+    ): Set<TrackId> {
+        val uuids = trackIds.mapNotNull { parseUuidOrNull(it.value) }
+        if (uuids.isEmpty()) return emptySet()
+        val excluded = excludedGenreNames.map { it.lowercase() }
+        if (excluded.isEmpty()) return trackIdsExist(trackIds)
+        return entityRepo
+            .findTrackIdsInExcludingGenres(uuids, excluded)
+            .map { TrackId(it.toString()) }
+            .toSet()
+    }
+
     override fun getGenres(entityId: EntityId): List<Genre> {
         val id = UUID.fromString(entityId.value)
         val entityGenres = entityGenreRepo.findByEntityId(id)

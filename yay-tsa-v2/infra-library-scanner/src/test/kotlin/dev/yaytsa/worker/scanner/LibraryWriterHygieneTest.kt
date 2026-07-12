@@ -507,4 +507,34 @@ class LibraryWriterHygieneTest {
         assertEquals(setOf(fresh, retryable), unprocessed.toSet(), "ready and retry-exhausted tracks must be excluded")
         assertEquals(1, entityRepo.findKaraokeUnprocessedTrackIds(3, 1).size, "limit must bound the batch")
     }
+
+    @Test
+    fun `karaoke unprocessed query excludes audiobooks`(
+        @org.junit.jupiter.api.io.TempDir root: Path,
+    ) {
+        jdbc.execute("CREATE SCHEMA IF NOT EXISTS core_v2_karaoke")
+        jdbc.execute(
+            "CREATE TABLE IF NOT EXISTS core_v2_karaoke.assets (" +
+                "track_id UUID PRIMARY KEY, instrumental_path TEXT, vocal_path TEXT, lyrics_timing TEXT, " +
+                "ready_at TIMESTAMPTZ, fail_count INTEGER NOT NULL DEFAULT 0, last_failed_at TIMESTAMPTZ, last_error TEXT)",
+        )
+        jdbc.execute("TRUNCATE core_v2_karaoke.assets")
+        val song = seedTrack("A/song.flac", root.toString())
+        val audiobook = seedTrack("A/chapter.flac", root.toString())
+        tagGenre(audiobook, "Audiobook")
+
+        val unprocessed = entityRepo.findKaraokeUnprocessedTrackIds(3, 50)
+
+        assertEquals(setOf(song), unprocessed.toSet(), "audiobooks must never enter vocal separation")
+    }
+
+    private fun tagGenre(
+        entityId: java.util.UUID,
+        genreName: String,
+    ) {
+        val genreId = java.util.UUID.randomUUID()
+        jdbc.update("INSERT INTO core_v2_library.genres (id, name) VALUES (?, ?) ON CONFLICT (name) DO NOTHING", genreId, genreName)
+        val resolved = jdbc.queryForObject("SELECT id FROM core_v2_library.genres WHERE name = ?", java.util.UUID::class.java, genreName)
+        jdbc.update("INSERT INTO core_v2_library.entity_genres (entity_id, genre_id) VALUES (?, ?)", entityId, resolved)
+    }
 }

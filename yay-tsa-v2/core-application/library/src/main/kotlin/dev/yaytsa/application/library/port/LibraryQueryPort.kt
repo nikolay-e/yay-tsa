@@ -137,6 +137,11 @@ interface LibraryQueryPort {
 
     fun trackIdsExist(trackIds: Set<TrackId>): Set<TrackId>
 
+    fun filterTrackIdsExcludingGenres(
+        trackIds: Set<TrackId>,
+        excludedGenreNames: Collection<String>,
+    ): Set<TrackId>
+
     fun getGenres(entityId: EntityId): List<Genre>
 
     fun getPrimaryImage(entityId: EntityId): Image?

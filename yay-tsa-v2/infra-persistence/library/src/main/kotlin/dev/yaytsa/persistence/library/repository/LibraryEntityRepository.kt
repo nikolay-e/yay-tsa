@@ -137,10 +137,17 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
         mtimeHigh: java.time.OffsetDateTime,
     ): List<LibraryEntityJpa>
 
+    // Audiobooks (genre=Audiobook) are excluded: vocal/instrumental separation of spoken word
+    // is pointless and separation is the most expensive per-track job in the system. The
+    // entity_genres anti-join matches ALL of a track's genres, mirroring findTracksExcludingGenres.
     @Query(
         value =
             "SELECT e.id FROM core_v2_library.entities e " +
                 "WHERE e.entity_type = 'TRACK' AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN ('audiobook', 'audiobooks')) " +
+                "AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_karaoke.assets a WHERE a.track_id = e.id " +
                 "AND (a.ready_at IS NOT NULL OR a.fail_count >= :maxFailures)) " +
                 "ORDER BY e.created_at, e.id LIMIT :limit",
@@ -155,10 +162,18 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     // still-unprocessed track is retried each cycle. Keyset pagination (id > :afterId)
     // lets the worker walk all unprocessed tracks once per cycle in bounded batches
     // without persistently-failing tracks pinning the batch window.
+    // Audiobooks (genre=Audiobook) are excluded: CLAP/MERT/MusicNN/Discogs embeddings of
+    // spoken-word chapters have no music value (affinity, taste profile, and every
+    // recommendation surface already drop audiobooks), and skipping them at the source keeps
+    // audiobook tracks out of the embedding-similarity pools that seed radio and the LLM-DJ.
     @Query(
         value =
             "SELECT e.id FROM core_v2_library.entities e " +
                 "WHERE e.entity_type = 'TRACK' AND e.id > :afterId AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN ('audiobook', 'audiobooks')) " +
+                "AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_ml.track_features f WHERE f.track_id = e.id) " +
                 "ORDER BY e.id LIMIT :limit",
         nativeQuery = true,
@@ -166,6 +181,24 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
     fun findMlUnprocessedTrackIds(
         afterId: UUID,
         limit: Int,
+    ): List<UUID>
+
+    // Subset of :ids that are TRACKs not tagged with any of :excludedGenres. The entity_genres
+    // anti-join matches ALL of a track's genres, so a track tagged Audiobook is dropped even when
+    // it also carries another genre — mirroring findTracksExcludingGenres. Scoped to :ids so the
+    // caller (LLM-DJ seed/suggestion guard) pays only for the handful of ids it is checking.
+    @Query(
+        value =
+            "SELECT e.id FROM core_v2_library.entities e " +
+                "WHERE e.entity_type = 'TRACK' AND e.id IN (:ids) AND NOT EXISTS (" +
+                "SELECT 1 FROM core_v2_library.entity_genres eg " +
+                "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN (:excludedGenres))",
+        nativeQuery = true,
+    )
+    fun findTrackIdsInExcludingGenres(
+        ids: Collection<UUID>,
+        excludedGenres: Collection<String>,
     ): List<UUID>
 
     @Query(
