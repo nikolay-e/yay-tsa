@@ -66,11 +66,12 @@ setLogSink(entry => {
   });
 });
 
-const SW_UPDATE_POLL_INTERVAL_MS = 60 * 60 * 1000;
+const SW_UPDATE_POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 // Prompt-driven updates: the new SW stays waiting until the user accepts the
-// in-app prompt, so playback is never interrupted by a silent reload. Periodic
-// registration.update() keeps long-lived installed PWAs polling for new builds.
+// in-app prompt, so playback is never interrupted by a silent reload. The
+// browser never surfaces an "update this app" affordance for a PWA — the app
+// must detect the waiting SW itself and show the prompt.
 const updateServiceWorker = registerSW({
   immediate: true,
   onNeedRefresh: () => {
@@ -80,9 +81,17 @@ const updateServiceWorker = registerSW({
   },
   onRegisteredSW: (_swUrl, registration) => {
     if (!registration) return;
-    setInterval(() => {
+    const checkForUpdate = () => {
       registration.update().catch(() => {});
-    }, SW_UPDATE_POLL_INTERVAL_MS);
+    };
+    // Poll on a fixed cadence for a long-lived open tab, AND check immediately
+    // whenever the user returns to the tab — otherwise the "Update available"
+    // prompt only surfaces up to a full poll interval after a new build ships,
+    // which reads as "the update button never appears".
+    setInterval(checkForUpdate, SW_UPDATE_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkForUpdate();
+    });
   },
 });
 
