@@ -728,6 +728,7 @@ class LibraryWriter(
     fun deleteOrphanArtists(): Int = entityRepo.deleteOrphanArtists()
 
     // Refresh the derived genre subset/nesting edges after a scan may have introduced new genres.
+    @Transactional
     fun rebuildGenreRelations() = genreRepo.rebuildGenreRelations()
 
     private fun Tag.safeGetFirst(field: FieldKey): String? =
