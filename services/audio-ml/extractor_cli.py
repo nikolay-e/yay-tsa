@@ -44,11 +44,20 @@ def _pending_tracks(single_id):
                     (single_id,),
                 )
             else:
+                # Audiobooks (genre=Audiobook) are excluded: spoken-word embeddings have no music
+                # value (every recommendation surface already drops audiobooks) and would only leak
+                # into the similarity pools that seed radio and the LLM-DJ. Matches the exclusion in
+                # the Kotlin MlFeatureExtractor / findMlUnprocessedTrackIds.
                 sql = (
                     "SELECT e.id, e.source_path FROM core_v2_library.entities e "
                     "LEFT JOIN core_v2_ml.track_features f ON f.track_id = e.id "
                     "WHERE e.entity_type = 'TRACK' AND e.source_path IS NOT NULL "
-                    "AND f.track_id IS NULL ORDER BY e.created_at"
+                    "AND f.track_id IS NULL "
+                    "AND NOT EXISTS ("
+                    "SELECT 1 FROM core_v2_library.entity_genres eg "
+                    "JOIN core_v2_library.genres g ON g.id = eg.genre_id "
+                    "WHERE eg.entity_id = e.id AND lower(g.name) IN ('audiobook', 'audiobooks')) "
+                    "ORDER BY e.created_at"
                 )
                 if BATCH_LIMIT > 0:
                     sql += f" LIMIT {BATCH_LIMIT}"
