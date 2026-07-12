@@ -11,6 +11,7 @@ import dev.yaytsa.shared.IdempotencyKey
 import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.UserId
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -89,6 +90,20 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
             result.response.contentType!!.startsWith("application/problem+json"),
             "expected problem+json, was ${result.response.contentType}",
         )
+    }
+
+    @Test
+    fun `a DB constraint violation on create returns a generic message, never the raw SQL`() {
+        // A NUL byte passes the domain blank-check but Postgres rejects it (invalid UTF8 0x00), raising
+        // a DataIntegrityViolationException. The RFC7807 detail must NOT echo the failing INSERT (schema,
+        // table, column list, bound values) — that leaks the DB structure to the client. Build the NUL
+        // via 0.toChar(); never as a source string escape, which some editors write as a real NUL byte.
+        val nulName = "qa${0.toChar()}name"
+        val result = post("/Playlists", mapOf("Name" to nulName, "UserId" to userId), token)
+        assertEquals(400, result.response.status)
+        val detail = objectMapper.readTree(result.response.contentAsString).get("detail").asText()
+        assertFalse(detail.contains("insert into", ignoreCase = true), "detail must not leak the failing SQL")
+        assertFalse(detail.contains("core_v2_", ignoreCase = true), "detail must not leak schema/table names")
     }
 
     @Test
