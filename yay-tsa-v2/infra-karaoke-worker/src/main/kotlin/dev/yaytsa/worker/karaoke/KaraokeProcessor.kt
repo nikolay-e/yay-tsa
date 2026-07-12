@@ -74,6 +74,10 @@ class KaraokeProcessor(
     }
 
     private fun runBatch() {
+        // Independent of the separation backend: reclaim stems + rows for audiobooks that were
+        // separated before the worker started excluding them (self-healing, no-op once drained).
+        purgeAudiobookAssets()
+
         // Production delegates to the audio-separator HTTP sidecar (BS-Roformer on GPU)
         // via separatorUrl; the in-process Demucs path is the local/dev fallback. Bail
         // only when neither separation backend is available.
@@ -224,5 +228,31 @@ class KaraokeProcessor(
                 lastError = message?.take(1000),
             ),
         )
+    }
+
+    internal fun purgeAudiobookAssets() {
+        val stale = runCatching { karaokeRepo.findAudiobookAssets() }.getOrElse { emptyList() }
+        if (stale.isEmpty()) return
+        log.info("Purging {} stale audiobook karaoke assets", stale.size)
+        stale.forEach { asset ->
+            deleteStemFiles(asset)
+            runCatching { karaokeRepo.deleteById(asset.trackId) }
+                .onFailure { log.warn("Failed to delete karaoke asset row for {}: {}", asset.trackId, it.message) }
+        }
+    }
+
+    // Best-effort disk reclaim: delete both stem files, then the per-track output directory if the
+    // removal left it empty (the local-demucs layout writes both stems under <output>/<trackId>/).
+    // Every step is guarded so a missing file or shared directory never aborts the purge.
+    private fun deleteStemFiles(asset: KaraokeAssetEntity) {
+        val stemPaths = listOfNotNull(asset.instrumentalPath, asset.vocalPath).map { Path.of(it) }
+        stemPaths.forEach { p -> runCatching { Files.deleteIfExists(p) } }
+        stemPaths.mapNotNull { it.parent }.distinct().forEach { dir ->
+            runCatching {
+                if (Files.isDirectory(dir) && Files.newDirectoryStream(dir).use { !it.iterator().hasNext() }) {
+                    Files.delete(dir)
+                }
+            }
+        }
     }
 }

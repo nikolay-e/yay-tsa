@@ -45,6 +45,9 @@ class MlFeatureExtractor(
 
         log.info("ML feature extraction cycle starting")
 
+        val purged = trackFeaturesRepo.deleteAudiobookFeatures()
+        if (purged > 0) log.info("Purged {} stale audiobook feature rows", purged)
+
         // Anti-join in SQL instead of materializing every processed track id in memory.
         // Keyset pagination walks each unprocessed track exactly once per cycle, so a
         // track that keeps failing (no features row is ever written) is retried next

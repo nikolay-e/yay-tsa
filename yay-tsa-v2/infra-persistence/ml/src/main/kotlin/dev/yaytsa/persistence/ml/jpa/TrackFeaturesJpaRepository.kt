@@ -2,11 +2,30 @@ package dev.yaytsa.persistence.ml.jpa
 
 import dev.yaytsa.persistence.ml.entity.TrackFeaturesEntity
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> {
+    // One-shot self-healing cleanup: removes embeddings computed for audiobooks before the worker
+    // started excluding them. Runs at the start of each extraction cycle; a no-op once drained.
+    @Transactional
+    @Modifying
+    @Query(
+        value =
+            """
+            DELETE FROM core_v2_ml.track_features tf
+            WHERE EXISTS (
+                SELECT 1 FROM core_v2_library.entity_genres eg
+                JOIN core_v2_library.genres g ON g.id = eg.genre_id
+                WHERE eg.entity_id = tf.track_id AND lower(g.name) IN ('audiobook', 'audiobooks'))
+            """,
+        nativeQuery = true,
+    )
+    fun deleteAudiobookFeatures(): Int
+
     @Query(
         value =
             """
