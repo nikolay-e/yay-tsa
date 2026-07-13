@@ -128,7 +128,7 @@ node --experimental-strip-types apps/web/scripts/symbolicate.ts \
 - **Frontend**: React 19, Zustand, TanStack Query, Tailwind CSS 4, React Router 7, Vite
 - **Backend (v2)**: Kotlin 2.1, JDK 21, Spring Boot 3.4 (kotlin DSL Gradle), Spring Data JPA + Hibernate 6, PostgreSQL 17 (pgvector, pg_trgm, CITEXT, pgcrypto), Flyway (per-context schemas)
 - **Auth**: Opaque device-bound tokens (256-bit SecureRandom, SHA-256 at rest, Caffeine-cached validation)
-- **ML/Audio**: BS-Roformer / Demucs / Spleeter (karaoke), MERT / CLAP / Discogs / MusicNN embeddings, GPT-5.4 Mini via in-cluster LiteLLM gateway (adaptive queue / DJ, gated on `LLM_ENABLED`)
+- **ML/Audio**: BS-Roformer / Demucs (karaoke), MERT / CLAP / Discogs / MusicNN embeddings, GPT-5.4 Mini via in-cluster LiteLLM gateway (adaptive queue / DJ, gated on `LLM_ENABLED`)
 
 ### API: Jellyfin-Compatible Plus Yaytsa Extensions
 
@@ -158,8 +158,9 @@ Dark mode only — intentional design choice for a music player typically used i
 
 **Production**: Self-hosted K3s cluster.
 
-- `yay-tsa-production` namespace (`charts/yay-tsa`): PWA frontend (nginx), audio-separator sidecar.
-- `yay-tsa-v2-production` namespace (`charts/yay-tsa-v2`): Kotlin backend; serves `/api` on `yay-tsa.com` via Traefik IngressClass + strip-prefix middleware. ServiceMonitor scrapes `/manage/prometheus`.
+- `yay-tsa` namespace holds both applications (deployment names keep their historical suffixes):
+  - `yay-tsa-production` deployment (`charts/yay-tsa`): PWA frontend (nginx), audio-separator sidecar.
+  - `yay-tsa-v2-production-backend` deployment (`charts/yay-tsa-v2`): Kotlin backend; serves `/api` on `yay-tsa.com` via Traefik IngressClass + strip-prefix middleware. ServiceMonitor scrapes `/manage/prometheus`.
 - `shared-database` namespace: CNPG `shared-postgres` cluster with daily Barman backups to S3 (Minio). Schema list: `core_v2_auth/library/playback/adaptive/preferences/playlists/ml/karaoke/shared`. The `public` schema holds only shared extensions (pgvector, pg_trgm, citext, uuid-ossp).
 
 **Production image flow**: Push to main → CI builds `main-<sha7>` image for the changed component → Argo CD Image Updater detects → writes back to gitops `values.images.yaml` → ArgoCD syncs.

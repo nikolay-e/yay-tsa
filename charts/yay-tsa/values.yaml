@@ -1,8 +1,5 @@
 replicaCount: 1
 
-autoscaling:
-  enabled: false
-
 # Off by default for portability: the policy hardcodes the author's cluster topology
 # (Traefik in kube-system, the v2 backend namespace). Enable on a policy-enforcing CNI
 # whose layout matches, or leave disabled.
@@ -28,11 +25,6 @@ config:
   deviceName: 'Yay-Tsa Web'
   logLevel: 'error'
   androidCertSha256: ''
-
-serviceAccount:
-  create: false
-  annotations: {}
-  name: ''
 
 podAnnotations: {}
 

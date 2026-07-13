@@ -2,8 +2,6 @@ worker_processes auto;
 error_log stderr warn;
 pid /var/cache/nginx/nginx.pid;
 
-thread_pool media_pool threads=32 max_queue=65536;
-
 events {
     worker_connections 4096;
     use epoll;
@@ -161,14 +159,6 @@ http {
             include /var/cache/nginx/security-headers.conf;
         }
 
-        # APK downloads - force download with proper headers
-        location = /downloads/yay-tsa.apk {
-            add_header Content-Disposition 'attachment; filename="yay-tsa.apk"';
-            expires 7d;
-            add_header Cache-Control "public, max-age=604800";
-            include /var/cache/nginx/security-headers.conf;
-        }
-
         # Digital Asset Links for Android TWA verification
         # Served from writable volume (/var/cache/nginx) since root filesystem is read-only
         location = /.well-known/assetlinks.json {
@@ -224,28 +214,6 @@ http {
             log_not_found off;
             deny all;
             return 404;
-        }
-
-        # X-Accel-Redirect internal location for media streaming
-        # Backend returns X-Accel-Redirect header, nginx serves the file directly
-        location /_internal/media/ {
-            internal;
-            alias __MEDIA_PATH__/;
-
-            aio threads=media_pool;
-            directio 8m;
-            sendfile on;
-            sendfile_max_chunk 1m;
-            tcp_nopush on;
-            tcp_nodelay on;
-
-            output_buffers 2 1m;
-
-            add_header Accept-Ranges bytes always;
-            add_header Cache-Control "private, no-store" always;
-            add_header X-Content-Type-Options "nosniff" always;
-
-            max_ranges 100;
         }
 
         # Auth endpoints - strict rate limiting

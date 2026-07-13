@@ -11,6 +11,6 @@ Access via port-forward:
   Then open http://localhost:8080
 {{- end }}
 
-The backend lives in the yay-tsa-v2 chart (yay-tsa-v2-production namespace) and serves /api on the same host.
+The backend lives in the yay-tsa-v2 chart (deployed to the same namespace) and serves /api on the same host.
 
 For more information, visit: https://github.com/nikolay-e/yay-tsa

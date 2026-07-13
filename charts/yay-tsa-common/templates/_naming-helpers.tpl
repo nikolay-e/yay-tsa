@@ -1,0 +1,42 @@
+{{/*
+yay-tsa-common naming + label helper templates.
+
+All helpers take the caller's root context (`.`), so .Chart/.Release/.Values
+resolve against the consuming chart. Per-chart _helpers.tpl files keep their
+"<chart>.name"-style defines as thin delegations to these.
+*/}}
+
+{{- define "yay-tsa-common.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "yay-tsa-common.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "yay-tsa-common.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "yay-tsa-common.labels" -}}
+helm.sh/chart: {{ include "yay-tsa-common.chart" . }}
+{{ include "yay-tsa-common.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{- define "yay-tsa-common.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "yay-tsa-common.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

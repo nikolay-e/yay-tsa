@@ -5,9 +5,7 @@ metadata:
   labels:
     {{- include "yay-tsa.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   # Zero-downtime rollout: surge a new pod and wait for it to pass readiness before
   # terminating the old one, so nginx is always serving during a deploy (no 502 window).
   strategy:
@@ -36,11 +34,7 @@ spec:
       {{- end }}
       automountServiceAccountToken: false
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 101  # nginx user
-        fsGroup: 101
-        seccompProfile:
-          type: RuntimeDefault
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag | default .Chart.AppVersion }}"
@@ -81,13 +75,7 @@ spec:
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 101
+          {{- toYaml .Values.securityContext | nindent 10 }}
         volumeMounts:
         - name: cache-volume
           mountPath: /var/cache/nginx

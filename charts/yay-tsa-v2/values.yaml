@@ -166,12 +166,14 @@ backend:
       enabled: false # adaptive LLM-DJ; routes through the in-cluster LiteLLM gateway
       model: 'GPT-5.4 Mini' # LiteLLM model_name alias (maps to openai/gpt-5.4-mini)
       baseUrl: 'http://litellm.litellm.svc.cluster.local:8080'
-      apiKeySecret: 'yay-tsa-production-secrets'
+      # BYO Secret holding the gateway API key; REQUIRED when llm.enabled=true.
+      apiKeySecret: ''
       apiKeySecretKey: 'LLM_API_KEY'
       gatewayPort: 8080
     embedding:
       enabled: false # CLAP text-embedding for semantic search; needs the embedding-server (charts/yay-tsa)
-      baseUrl: 'http://yay-tsa-production-embedding-server.yay-tsa.svc.cluster.local:8000'
+      # In-cluster URL of the embedding-server Service; REQUIRED when embedding.enabled=true.
+      baseUrl: ''
     mpd:
       enabled: false
       port: 6600
@@ -223,10 +225,9 @@ backend:
     # cover.jpg into album folders (the only writes it performs; never audio).
     readOnly: true
 
-  # Read-only mount of the audio-separator stems directory (separator writes
-  # in `yay-tsa-production`, backend reads from the SAME host path in
-  # `yay-tsa-v2-production`). Cross-namespace PVC sharing is impossible —
-  # both pods mount the same hostPath directly.
+  # Read-only mount of the audio-separator stems directory. Both pods now run
+  # in the same namespace, so a shared PVC is possible; production still mounts
+  # the same hostPath from both pods (node-local library, single-node cluster).
   stems:
     enabled: false
     hostPath: ''

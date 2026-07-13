@@ -33,7 +33,11 @@ data:
   LLM_MODEL: {{ .Values.backend.config.llm.model | quote }}
   LLM_BASE_URL: {{ .Values.backend.config.llm.baseUrl | quote }}
   EMBEDDING_ENABLED: {{ default false .Values.backend.config.embedding.enabled | quote }}
+  {{- if .Values.backend.config.embedding.enabled }}
+  EMBEDDING_BASE_URL: {{ required "backend.config.embedding.baseUrl is required when backend.config.embedding.enabled=true" .Values.backend.config.embedding.baseUrl | quote }}
+  {{- else }}
   EMBEDDING_BASE_URL: {{ .Values.backend.config.embedding.baseUrl | quote }}
+  {{- end }}
   MPD_ENABLED: {{ default false .Values.backend.config.mpd.enabled | quote }}
   MPD_PORT: {{ .Values.backend.config.mpd.port | quote }}
   LISTENBRAINZ_ENABLED: {{ default false .Values.backend.config.scrobbling.listenbrainz.enabled | quote }}

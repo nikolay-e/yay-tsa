@@ -2,7 +2,7 @@
 
 A self-hosted music streaming system: multi-protocol Kotlin server (Spring Boot 3.4 / JDK 21) paired with a React 19 PWA. Speaks four protocols simultaneously over a single state engine.
 
-> Test acceptance criteria (AC-IDs referenced by Playwright/integration tests) live in [`FEATURES.md`](FEATURES.md). This document is a **capability inventory** — what the product does, end-user perspective.
+> This document is a **capability inventory** — what the product does, end-user perspective.
 
 ---
 
