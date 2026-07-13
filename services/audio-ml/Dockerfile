@@ -10,7 +10,7 @@ ARG TARGETARCH=amd64
 
 # --- Base image selection per variant + architecture ---
 # GPU: CUDA on amd64, CPU-only fallback on arm64
-FROM --platform=linux/amd64 nvidia/cuda:12.8.0-runtime-ubuntu24.04 AS base-gpu-amd64
+FROM --platform=linux/amd64 nvidia/cuda:13.3.0-runtime-ubuntu24.04 AS base-gpu-amd64
 FROM python:3.13-slim AS base-gpu-arm64
 
 # CPU: plain Python on both architectures
