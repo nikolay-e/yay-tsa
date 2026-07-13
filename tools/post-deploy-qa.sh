@@ -2,8 +2,8 @@
 set -euo pipefail
 
 PROD_URL="${PROD_URL:-https://yay-tsa.com}"
-NAMESPACE="${NAMESPACE:-yay-tsa-production}"
-BACKEND_DEPLOY="${BACKEND_DEPLOY:-yay-tsa-production-backend}"
+NAMESPACE="${NAMESPACE:-yay-tsa}"
+BACKEND_DEPLOY="${BACKEND_DEPLOY:-yay-tsa-v2-production-backend}"
 FRONTEND_DEPLOY="${FRONTEND_DEPLOY:-yay-tsa-production}"
 MAX_WAIT="${MAX_WAIT:-300}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
@@ -58,8 +58,8 @@ log "Waiting for pods ready..."
 kubectl rollout status deployment "$BACKEND_DEPLOY" -n "$NAMESPACE" --timeout=120s
 kubectl rollout status deployment "$FRONTEND_DEPLOY" -n "$NAMESPACE" --timeout=120s
 
-# Health check
-health=$(curl -sf "${PROD_URL}/api/manage/health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','UNKNOWN'))" 2>/dev/null || echo "DOWN")
+# Health check (actuator is not exposed publicly; System/Info/Public is)
+health=$(curl -sf "${PROD_URL}/api/System/Info/Public" | python3 -c "import sys,json; print('UP' if json.load(sys.stdin) else 'DOWN')" 2>/dev/null || echo "DOWN")
 if [[ "$health" != "UP" ]]; then
   fail "Health check failed: ${health}"
 fi

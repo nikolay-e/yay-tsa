@@ -69,6 +69,8 @@ class SubsonicController(
     private val playlistUseCases: PlaylistUseCases,
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
+    private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
+    private val playHistoryFunnel: dev.yaytsa.application.recommendation.PlayHistoryFunnelService,
     private val scrobbleService: ScrobbleService,
     private val savedPlayQueueService: SavedPlayQueueService,
     private val deviceSessionProjection: dev.yaytsa.application.playback.DeviceSessionProjection,
@@ -83,7 +85,6 @@ class SubsonicController(
     private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
 
     private companion object {
-        const val PLAY_HISTORY_SCAN_LIMIT = 1000
         const val TOP_SONGS_CANDIDATE_LIMIT = 1000
         const val SOURCE_SUBSONIC = "subsonic"
     }
@@ -289,11 +290,7 @@ class SubsonicController(
         return responseWriter.write(ok { copy(lyricsList = LyricsListWrapper(structuredLyrics = structured)) }, f)
     }
 
-    private fun tracksLookups(tracks: List<Track>): TrackLookups =
-        TrackLookups(
-            albumNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumId }.toSet()),
-            artistNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumArtistId }.toSet()),
-        )
+    private fun tracksLookups(tracks: List<Track>): TrackLookups = TrackLookups.load(tracks, libraryQueries)
 
     private fun List<Track>.toSubsonicChildren() = tracksLookups(this).let { lookups -> map { it.toSubsonicChild(lookups) } }
 
@@ -343,8 +340,8 @@ class SubsonicController(
         when (type.trim()) {
             "random" -> libraryQueries.browseAlbumsRandom(size)
             "newest" -> libraryQueries.browseAlbumsByCreatedDesc(size, offset)
-            "recent" -> recentlyPlayedAlbums(userId, size, offset)
-            "frequent" -> mostPlayedAlbums(userId, size, offset)
+            "recent" -> playHistoryFunnel.recentlyPlayedAlbums(userId, size, offset)
+            "frequent" -> playHistoryFunnel.mostPlayedAlbums(userId, size, offset)
             "highest" -> mostFavoritedAlbums(userId, size, offset)
             "byYear" -> {
                 if (fromYear == null || toYear == null) {
@@ -359,41 +356,6 @@ class SubsonicController(
             "starred" -> starredAlbums(userId, size, offset)
             else -> libraryQueries.browseAlbums(size.coerceIn(1, 500), offset.coerceAtLeast(0))
         }
-
-    private fun recentlyPlayedAlbums(
-        userId: UserId,
-        size: Int,
-        offset: Int,
-    ): List<Album> {
-        val playedTrackIds = playHistoryQueries.recentlyPlayedTrackIds(userId, PLAY_HISTORY_SCAN_LIMIT)
-        if (playedTrackIds.isEmpty()) return emptyList()
-        val albumIds =
-            libraryQueries
-                .getTracksByIds(playedTrackIds.map { EntityId(it.value) })
-                .mapNotNull { it.albumId }
-                .distinct()
-        return libraryQueries.getAlbumsByIds(pageOf(albumIds, size, offset))
-    }
-
-    private fun mostPlayedAlbums(
-        userId: UserId,
-        size: Int,
-        offset: Int,
-    ): List<Album> {
-        val playCounts = playHistoryQueries.mostPlayedTrackCounts(userId, PLAY_HISTORY_SCAN_LIMIT)
-        if (playCounts.isEmpty()) return emptyList()
-        val playCountByTrackId = playCounts.associate { it.trackId.value to it.playCount }
-        val albumIds =
-            libraryQueries
-                .getTracksByIds(playCounts.map { EntityId(it.trackId.value) })
-                .mapNotNull { track -> track.albumId?.let { it to (playCountByTrackId[track.id.value] ?: 0L) } }
-                .groupBy({ it.first }, { it.second })
-                .mapValues { (_, counts) -> counts.sum() }
-                .entries
-                .sortedWith(compareByDescending<Map.Entry<EntityId, Long>> { it.value }.thenBy { it.key.value })
-                .map { it.key }
-        return libraryQueries.getAlbumsByIds(pageOf(albumIds, size, offset))
-    }
 
     private fun mostFavoritedAlbums(
         userId: UserId,
@@ -482,8 +444,9 @@ class SubsonicController(
         @RequestParam id: String,
         @RequestParam(defaultValue = "50") count: Int,
         @RequestParam(required = false) f: String?,
+        principal: Principal,
     ): ResponseEntity<String> {
-        val children = similarSongChildren(id, count) ?: return notFound("Item", id, f)
+        val children = similarSongChildren(id, count, UserId(principal.name)) ?: return notFound("Item", id, f)
         return responseWriter.write(ok { copy(similarSongs = SongsWrapper(children)) }, f)
     }
 
@@ -492,14 +455,16 @@ class SubsonicController(
         @RequestParam id: String,
         @RequestParam(defaultValue = "50") count: Int,
         @RequestParam(required = false) f: String?,
+        principal: Principal,
     ): ResponseEntity<String> {
-        val children = similarSongChildren(id, count) ?: return notFound("Item", id, f)
+        val children = similarSongChildren(id, count, UserId(principal.name)) ?: return notFound("Item", id, f)
         return responseWriter.write(ok { copy(similarSongs2 = SongsWrapper(children)) }, f)
     }
 
     private fun similarSongChildren(
         id: String,
         count: Int,
+        userId: UserId,
     ): List<ChildElement>? {
         val entityId = safeEntityId(id) ?: return null
         val seedTrackId =
@@ -513,7 +478,8 @@ class SubsonicController(
             }
         val similarIds = mlQueries.findSimilarTracks(TrackId(seedTrackId.value), count.coerceIn(1, 500))
         if (similarIds.isEmpty()) return emptyList()
-        return libraryQueries.getTracksByIds(similarIds.map { EntityId(it.value) }).toSubsonicChildren()
+        val similarTracks = libraryQueries.getTracksByIds(similarIds.map { EntityId(it.value) })
+        return musicSurfaceFilter.filter(similarTracks, userId).toSubsonicChildren()
     }
 
     @GetMapping("/getTopSongs", "/getTopSongs.view")
@@ -521,9 +487,14 @@ class SubsonicController(
         @RequestParam artist: String,
         @RequestParam(defaultValue = "50") count: Int,
         @RequestParam(required = false) f: String?,
+        principal: Principal,
     ): ResponseEntity<String> {
         val artistEntity = libraryQueries.findArtistByName(artist) ?: return notFound("Artist", artist, f)
-        val artistTracks = libraryQueries.browseTracksByArtist(artistEntity.id, TOP_SONGS_CANDIDATE_LIMIT, 0)
+        val artistTracks =
+            musicSurfaceFilter.filter(
+                libraryQueries.browseTracksByArtist(artistEntity.id, TOP_SONGS_CANDIDATE_LIMIT, 0),
+                UserId(principal.name),
+            )
         val playCounts = playHistoryQueries.playCountsByTrackIds(artistTracks.map { TrackId(it.id.value) })
         val ranked = artistTracks.sortedByDescending { playCounts[TrackId(it.id.value)] ?: 0L }
         return responseWriter.write(

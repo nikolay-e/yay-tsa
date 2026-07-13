@@ -1,8 +1,8 @@
 package dev.yaytsa.adaptermpd
 
+import dev.yaytsa.adaptershared.TrackLookups
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.domain.library.Track
-import dev.yaytsa.shared.EntityId
 import org.springframework.stereotype.Component
 import java.util.Locale
 
@@ -10,25 +10,22 @@ import java.util.Locale
 class MpdTrackFormatter(
     private val libraryQueries: LibraryQueries,
 ) {
-    fun namesFor(tracks: List<Track>): Map<EntityId, String> {
-        val ids = (tracks.mapNotNull { it.albumArtistId } + tracks.mapNotNull { it.albumId }).toSet()
-        return libraryQueries.getEntityNamesByIds(ids)
-    }
+    fun namesFor(tracks: List<Track>): TrackLookups = TrackLookups.load(tracks, libraryQueries)
 
     fun block(track: Track): String = block(track, namesFor(listOf(track)))
 
     fun block(
         track: Track,
-        names: Map<EntityId, String>,
+        names: TrackLookups,
     ): String =
         buildString {
             appendLine("file: ${track.id.value}")
-            val artistName = track.albumArtistId?.let { names[it] }
+            val artistName = track.albumArtistId?.let { names.artistNames[it] }
             if (artistName != null) {
                 appendLine("Artist: $artistName")
                 appendLine("AlbumArtist: $artistName")
             }
-            track.albumId?.let { names[it] }?.let { appendLine("Album: $it") }
+            track.albumId?.let { names.albumNames[it] }?.let { appendLine("Album: $it") }
             appendLine("Title: ${track.name}")
             track.trackNumber?.let { appendLine("Track: $it") }
             track.year?.let { appendLine("Date: $it") }

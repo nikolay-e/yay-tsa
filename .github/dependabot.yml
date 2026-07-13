@@ -1,0 +1,78 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    ignore:
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+    groups:
+      npm-dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'gradle'
+    directory: '/yay-tsa-v2'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    groups:
+      gradle-dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'pip'
+    directory: '/services/audio-ml/requirements'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    groups:
+      pip-dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'docker'
+    directories:
+      - '/apps/web'
+      - '/services/audio-ml'
+      - '/yay-tsa-v2'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+      - 'docker'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+    groups:
+      github-actions:
+        patterns:
+          - '*'

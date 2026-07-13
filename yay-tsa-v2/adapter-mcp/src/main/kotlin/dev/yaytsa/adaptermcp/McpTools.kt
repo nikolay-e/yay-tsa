@@ -37,9 +37,10 @@ class McpTools(
     private val preferencesUseCases: PreferencesUseCases,
     private val adaptiveUseCases: AdaptiveUseCases,
     private val deviceSessionProjection: DeviceSessionProjection,
-    private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
     private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
     private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
+    private val semanticTrackSearch: dev.yaytsa.application.recommendation.SemanticTrackSearchService,
+    private val radioStationService: dev.yaytsa.application.recommendation.RadioStationService,
     @Qualifier("mcpCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
 ) {
@@ -228,8 +229,15 @@ class McpTools(
         userId: UserId,
     ): McpToolResult {
         if (semantic) {
-            val semanticResult = semanticSearch(query, userId)
-            if (semanticResult != null) return semanticResult
+            val tracks = semanticTrackSearch.semanticSearch(userId, query, SEARCH_RESULT_LIMIT)
+            if (tracks.isNotEmpty()) {
+                return textResult(
+                    buildString {
+                        appendLine("Tracks (vibe match):")
+                        appendTrackLines(tracks)
+                    },
+                )
+            }
             if (!embeddingPort.isAvailable()) {
                 // Requested a vibe search but the audio-embedding service is disabled/unreachable.
                 // Say so plainly — a lexical name match can never satisfy a mood query, so returning
@@ -247,7 +255,7 @@ class McpTools(
         query: String,
         userId: UserId,
     ): String {
-        val results = libraryQueries.searchText(query, 20, 0)
+        val results = libraryQueries.searchText(query, SEARCH_RESULT_LIMIT, 0)
         val tracks = musicSurfaceFilter.filter(results.tracks, userId)
         return buildString {
             if (results.artists.isNotEmpty()) {
@@ -281,22 +289,6 @@ class McpTools(
                 listOfNotNull(artist, album).joinToString(" · ").let { if (it.isEmpty()) "" else " — $it" }
             appendLine("  - ${track.name}$suffix (id: ${track.id.value})")
         }
-    }
-
-    private fun semanticSearch(
-        query: String,
-        userId: UserId,
-    ): McpToolResult? {
-        val vector = embeddingPort.encodeText(query) ?: return null
-        val matches = mlQuery.findTracksByClapVector(vector, 20).mapNotNull { libraryQueries.getTrack(EntityId(it.value)) }
-        val tracks = musicSurfaceFilter.filter(matches, userId)
-        if (tracks.isEmpty()) return null
-        val text =
-            buildString {
-                appendLine("Tracks (vibe match):")
-                appendTrackLines(tracks)
-            }
-        return textResult(text)
     }
 
     private fun listDevices(args: Map<String, Any?>): McpToolResult {
@@ -544,15 +536,22 @@ class McpTools(
     ): List<Track> {
         val candidates =
             when {
-                seedTrackId != null -> {
-                    val similarIds = mlQuery.findSimilarTracks(TrackId(seedTrackId), RADIO_QUEUE_SIZE)
-                    listOfNotNull(libraryQueries.getTrack(EntityId(seedTrackId))) +
-                        libraryQueries.getTracksByIds(similarIds.map { EntityId(it.value) })
-                }
+                seedTrackId != null -> seedStationTracks(userId, seedTrackId)
                 seedGenres.isNotEmpty() -> libraryQueries.browseTracksByGenreNames(seedGenres).shuffled()
                 else -> libraryQueries.browseTracksRandom(RADIO_QUEUE_SIZE)
             }
         return musicSurfaceFilter.filter(candidates.distinctBy { it.id }, userId).take(RADIO_QUEUE_SIZE)
+    }
+
+    // Same funnel as PWA radio (similarity pool → surface filter → diversification → widen), so
+    // there is exactly one radio algorithm across protocols. The seed itself leads the queue.
+    private fun seedStationTracks(
+        userId: UserId,
+        seedTrackId: String,
+    ): List<Track> {
+        val station = radioStationService.build(userId, EntityId(seedTrackId), emptySet(), RADIO_QUEUE_SIZE)
+        val stationTracks = libraryQueries.getTracksByIds(station.tracks.map { EntityId(it.trackId) })
+        return listOfNotNull(libraryQueries.getTrack(EntityId(seedTrackId))) + stationTracks
     }
 
     private fun getPreferenceContract(args: Map<String, Any?>): McpToolResult {
@@ -573,6 +572,7 @@ class McpTools(
 
     private companion object {
         const val RADIO_QUEUE_SIZE = 20
+        const val SEARCH_RESULT_LIMIT = 20
         val TRANSPORT_COMMANDS =
             mapOf(
                 "play" to RemoteCommandType.PLAY,

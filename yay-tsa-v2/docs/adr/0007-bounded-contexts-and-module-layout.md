@@ -19,7 +19,7 @@ We define eight bounded contexts, each owning its data and command surface:
 | 5   | `preferences` | Write CQRS           | Favorites, preference contract (hard rules, soft prefs, DJ style, red lines)                     |
 | 6   | `playlists`   | Write CQRS           | Ordered track list, metadata, public flag                                                        |
 | 7   | `ml`          | Read-only collection | track_features (embeddings), taste_profile, user_track_affinity. Written by ML worker.           |
-| 8   | `karaoke`     | Read-only collection | karaoke_assets. Written by Demucs / Spleeter worker.                                             |
+| 8   | `karaoke`     | Read-only collection | karaoke_assets. Written by the separation worker (BS-Roformer / Demucs).                         |
 
 ### Module layout
 

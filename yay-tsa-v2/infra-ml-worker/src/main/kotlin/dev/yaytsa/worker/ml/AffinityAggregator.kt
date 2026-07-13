@@ -1,7 +1,7 @@
 package dev.yaytsa.worker.ml
 
+import dev.yaytsa.shared.AudiobookGenres
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.scheduling.annotation.Scheduled
@@ -29,7 +29,6 @@ import java.time.Instant
 @ConditionalOnProperty(name = ["yaytsa.affinity.enabled"], havingValue = "true", matchIfMissing = true)
 class AffinityAggregator(
     private val jdbc: JdbcTemplate,
-    @Value("\${yaytsa.affinity.poll-interval-ms:60000}") private val pollIntervalMs: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -51,12 +50,11 @@ class AffinityAggregator(
 
         if (foldedFromSignals > 0 || foldedFromHistory > 0) {
             log.info(
-                "Aggregated affinity deltas: {} pairs from signals (after {}), {} pairs from play_history (after {}) (poll {}ms)",
+                "Aggregated affinity deltas: {} pairs from signals (after {}), {} pairs from play_history (after {})",
                 foldedFromSignals,
                 signalWatermark,
                 foldedFromHistory,
                 historyWatermark,
-                pollIntervalMs,
             )
         }
     }
@@ -90,7 +88,7 @@ class AffinityAggregator(
                   AND NOT EXISTS (
                     SELECT 1 FROM core_v2_library.entity_genres eg
                     JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id = ps.track_id AND lower(g.name) IN ('audiobook','audiobooks'))
+                    WHERE eg.entity_id = ps.track_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST}))
             ),
             folded AS (
                 INSERT INTO core_v2_ml.user_track_affinity AS uta (
@@ -177,7 +175,7 @@ class AffinityAggregator(
                 WHERE NOT EXISTS (
                     SELECT 1 FROM core_v2_library.entity_genres eg
                     JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id = v.item_id::uuid AND lower(g.name) IN ('audiobook','audiobooks'))
+                    WHERE eg.entity_id = v.item_id::uuid AND lower(g.name) IN (${AudiobookGenres.SQL_LIST}))
             ),
             folded AS (
                 INSERT INTO core_v2_ml.user_track_affinity AS uta (

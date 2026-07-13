@@ -1,5 +1,5 @@
 kotlin_files:
-  - yay-tsa-v2/adapter-jellyfin/src/main/kotlin/dev/yaytsa/adapterjellyfin/JellyfinDtos.kt
+  - yay-tsa-v2/adapter-jellyfin/src/main/kotlin/dev/yaytsa/adapterjellyfin/JellyfinAuthDtos.kt
   - yay-tsa-v2/adapter-jellyfin/src/main/kotlin/dev/yaytsa/adapterjellyfin/JellyfinSessionsController.kt
   - yay-tsa-v2/adapter-shared/src/main/kotlin/dev/yaytsa/adaptershared/JellyfinDtos.kt
 

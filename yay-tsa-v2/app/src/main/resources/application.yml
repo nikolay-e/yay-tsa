@@ -82,8 +82,6 @@ yaytsa:
     music-path: ${MUSIC_PATH:#{null}}
   upload:
     max-bytes: ${UPLOAD_MAX_BYTES:209715200}
-  media:
-    root-path: ${MEDIA_ROOT_PATH:#{null}}
   playback:
     play-history-dedup-window-seconds: ${PLAY_HISTORY_DEDUP_WINDOW_SECONDS:30}
   scrobbling:
@@ -138,6 +136,10 @@ yaytsa:
     wikidata-base-url: ${METADATA_WIKIDATA_BASE_URL:https://www.wikidata.org/wiki}
     commons-api-url: ${METADATA_COMMONS_API_URL:https://commons.wikimedia.org/w/api.php}
     rate-limit-ms: ${METADATA_RATE_LIMIT_MS:1000}
+    itunes-enabled: ${METADATA_ITUNES_ENABLED:true}
+    deezer-enabled: ${METADATA_DEEZER_ENABLED:true}
+    cover-retry-cooldown-hours: ${METADATA_COVER_RETRY_COOLDOWN_HOURS:168}
+    cover-provider-retry-cooldown-hours: ${METADATA_COVER_PROVIDER_RETRY_COOLDOWN_HOURS:6}
     openlibrary-enabled: ${METADATA_OPENLIBRARY_ENABLED:false}
     openlibrary-base-url: ${METADATA_OPENLIBRARY_BASE_URL:https://openlibrary.org}
     openlibrary-covers-base-url: ${METADATA_OPENLIBRARY_COVERS_BASE_URL:https://covers.openlibrary.org}

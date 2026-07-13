@@ -70,7 +70,9 @@ Workers are background processes that populate read-only data stores. They are n
 
 **ML Worker** (`infra-ml-worker`) — Runs Essentia, Discogs, MusicNN, CLAP, and MERT extractors against audio files. Writes embeddings and scalar features to the ML schema.
 
-**Karaoke Worker** (`infra-karaoke-worker`) — Runs Demucs/Spleeter for vocal/instrumental separation. Writes stems and lyrics timing to the karaoke schema.
+**Karaoke Worker** (`infra-karaoke-worker`) — Runs BS-Roformer (GPU sidecar, default) or Demucs for vocal/instrumental separation. Writes stems and lyrics timing to the karaoke schema.
+
+**Metadata Enricher** (`infra-metadata-enricher`) — Resolves MusicBrainz IDs, fetches album covers from the Cover Art Archive (writes `cover.jpg` into the album folder), and fetches artist images (Wikidata/Commons with album-cover fallback). Gated on the `yaytsa.metadata.enabled` feature flag.
 
 **LLM Orchestrator** (`infra-llm`) — Connects to the LLM API, receives playback signals, generates queue edits, writes decisions to the adaptive context.
 
@@ -170,7 +172,7 @@ Written by the ML worker. HNSW indexes on vector columns enable sub-linear simil
 
 #### 8. Karaoke
 
-Vocal/instrumental separation artifacts (Demucs/Spleeter), lyrics timing for synchronized display, readiness state per track.
+Vocal/instrumental separation artifacts (BS-Roformer/Demucs), lyrics timing for synchronized display, readiness state per track.
 
 Written by the karaoke worker pipeline. This is a first-class subsystem: the PWA can offer karaoke mode for ready tracks, and the LLM-DJ can factor "I want to sing" into its queue decisions.
 
@@ -339,7 +341,8 @@ infra-persistence/
 
 infra-library-scanner/    Filesystem walker, tag reader, library write-side
 infra-ml-worker/          Audio feature extraction, embedding generation
-infra-karaoke-worker/     Demucs/Spleeter pipeline, stem storage
+infra-karaoke-worker/     BS-Roformer/Demucs pipeline, stem storage
+infra-metadata-enricher/  MusicBrainz IDs, Cover Art Archive covers, artist images
 infra-llm/                LLM API client, signal processing, queue edit generation
 infra-media/              Audio transcoding, stream serving
 infra-notifications/      WebSocket fan-out, outbox poller
@@ -371,7 +374,7 @@ app/                      Spring Boot composition root, ArchUnit tests
 | Language    | Kotlin (domain, application), Java (infrastructure where needed)                      |
 | Runtime     | JVM 21                                                                                |
 | Framework   | Spring Boot 3.4                                                                       |
-| Persistence | PostgreSQL 16, Spring Data JPA, Hibernate 6                                           |
+| Persistence | PostgreSQL 17, Spring Data JPA, Hibernate 6                                           |
 | Migrations  | Flyway (per-schema, per-context)                                                      |
 | Extensions  | pgvector (HNSW similarity search), pg_trgm (fuzzy text search), citext                |
 | Build       | Gradle 8.12 with Kotlin DSL, version catalog                                          |

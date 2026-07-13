@@ -8,6 +8,8 @@ import dev.yaytsa.application.auth.AuthUseCases
 import dev.yaytsa.application.auth.port.UserRepository
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.library.port.LibraryQueryPort
+import dev.yaytsa.application.ml.port.EmbeddingPort
+import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.playback.ListeningStatsGroupBy
 import dev.yaytsa.application.playback.ListeningStatsService
 import dev.yaytsa.application.playback.PlaybackQueries
@@ -27,6 +29,11 @@ import dev.yaytsa.application.playlists.port.PlaylistRepository
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
 import dev.yaytsa.application.preferences.port.UserPreferencesRepository
+import dev.yaytsa.application.recommendation.MusicSurfaceFilter
+import dev.yaytsa.application.recommendation.PlayHistoryFunnelService
+import dev.yaytsa.application.recommendation.RadioStationService
+import dev.yaytsa.application.recommendation.RecommendationService
+import dev.yaytsa.application.recommendation.SemanticTrackSearchService
 import dev.yaytsa.application.shared.ProtocolCapabilities
 import dev.yaytsa.application.shared.ProtocolCapabilitiesRegistry
 import dev.yaytsa.application.shared.port.Clock
@@ -181,6 +188,36 @@ class CoreBeansConfiguration {
     ): dev.yaytsa.application.recommendation.MusicSurfaceFilter =
         dev.yaytsa.application.recommendation
             .MusicSurfaceFilter(libraryQueries, preferencesQueries)
+
+    @Bean
+    fun radioStationService(
+        mlQuery: MlQueryPort,
+        libraryQueries: LibraryQueries,
+        preferencesQueries: PreferencesQueries,
+        musicSurfaceFilter: MusicSurfaceFilter,
+    ): RadioStationService = RadioStationService(mlQuery, libraryQueries, preferencesQueries, musicSurfaceFilter)
+
+    @Bean
+    fun recommendationService(
+        mlQuery: MlQueryPort,
+        libraryQueries: LibraryQueries,
+        preferencesQueries: PreferencesQueries,
+        musicSurfaceFilter: MusicSurfaceFilter,
+    ): RecommendationService = RecommendationService(mlQuery, libraryQueries, preferencesQueries, musicSurfaceFilter)
+
+    @Bean
+    fun semanticTrackSearchService(
+        embeddingPort: EmbeddingPort,
+        mlQuery: MlQueryPort,
+        libraryQueries: LibraryQueries,
+        musicSurfaceFilter: MusicSurfaceFilter,
+    ): SemanticTrackSearchService = SemanticTrackSearchService(embeddingPort, mlQuery, libraryQueries, musicSurfaceFilter)
+
+    @Bean
+    fun playHistoryFunnelService(
+        playHistoryQuery: PlayHistoryQueryPort,
+        libraryQueries: LibraryQueries,
+    ): PlayHistoryFunnelService = PlayHistoryFunnelService(playHistoryQuery, libraryQueries)
 
     @Bean
     fun deviceSessionProjection(): dev.yaytsa.application.playback.DeviceSessionProjection =

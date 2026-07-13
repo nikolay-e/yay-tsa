@@ -1,6 +1,7 @@
 package dev.yaytsa.persistence.library.repository
 
 import dev.yaytsa.persistence.library.entity.LibraryEntityJpa
+import dev.yaytsa.shared.AudiobookGenres
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
@@ -146,7 +147,7 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
                 "WHERE e.entity_type = 'TRACK' AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +
                 "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
-                "WHERE eg.entity_id = e.id AND lower(g.name) IN ('audiobook', 'audiobooks')) " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})) " +
                 "AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_karaoke.assets a WHERE a.track_id = e.id " +
                 "AND (a.ready_at IS NOT NULL OR a.fail_count >= :maxFailures)) " +
@@ -172,7 +173,7 @@ interface LibraryEntityRepository : JpaRepository<LibraryEntityJpa, UUID> {
                 "WHERE e.entity_type = 'TRACK' AND e.id > :afterId AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_library.entity_genres eg " +
                 "JOIN core_v2_library.genres g ON g.id = eg.genre_id " +
-                "WHERE eg.entity_id = e.id AND lower(g.name) IN ('audiobook', 'audiobooks')) " +
+                "WHERE eg.entity_id = e.id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})) " +
                 "AND NOT EXISTS (" +
                 "SELECT 1 FROM core_v2_ml.track_features f WHERE f.track_id = e.id) " +
                 "ORDER BY e.id LIMIT :limit",

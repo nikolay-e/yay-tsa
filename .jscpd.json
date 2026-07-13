@@ -5,13 +5,11 @@
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",
-    "**/.svelte-kit/**",
     "**/tests/**",
     "**/*.md",
-    "**/package-lock.json",
-    "**/jellyfin-api-spec.json"
+    "**/package-lock.json"
   ],
   "minLines": 6,
   "minTokens": 50,
-  "format": ["typescript", "javascript", "svelte", "css"]
+  "format": ["typescript", "javascript", "css"]
 }

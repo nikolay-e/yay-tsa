@@ -7,9 +7,6 @@ dist
 build
 .svelte-kit
 
-# API spec (too large)
-jellyfin-api-spec.json
-
 # Test directories
 tests
 test

@@ -59,6 +59,7 @@ class KaraokeAudiobookCleanupTest {
             outputPath = null,
             demucsCommand = "unsupported",
             separatorUrl = null,
+            failThreshold = 3,
             meterRegistry = SimpleMeterRegistry(),
         )
     }
@@ -176,5 +177,55 @@ class KaraokeAudiobookCleanupTest {
         processor.purgeAudiobookAssets()
 
         assertTrue(karaokeRepo.existsById(song), "no music asset may be touched when no audiobooks exist")
+    }
+
+    // The sidecar legitimately returns an empty vocal_path for cached instrumental-only results;
+    // that must be a READY asset with a null vocal stem, never a failure that burns the retry budget.
+    @Test
+    fun `separator instrumental-only result is stored as ready with null vocal path`(
+        @TempDir root: Path,
+    ) {
+        val song = seedTrack("A Song")
+        val instrumental = root.resolve("instrumental.wav")
+        Files.write(instrumental, byteArrayOf(1))
+
+        val responseBody =
+            """{"instrumental_path":"$instrumental","vocal_path":"","processing_time_ms":7}"""
+                .toByteArray()
+        val server =
+            com.sun.net.httpserver.HttpServer
+                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/api/separate") { exchange ->
+            exchange.sendResponseHeaders(200, responseBody.size.toLong())
+            exchange.responseBody.use { it.write(responseBody) }
+        }
+        server.start()
+        try {
+            val libraryQuery = InMemoryLibraryQueryPort()
+            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+            val separatorProcessor =
+                KaraokeProcessor(
+                    libraryEntityRepo = libraryEntityRepo,
+                    libraryQuery = libraryQuery,
+                    karaokeRepo = karaokeRepo,
+                    clock = FixedClock(),
+                    separatorClient = SeparatorClient(),
+                    outputPath = null,
+                    demucsCommand = "unsupported",
+                    separatorUrl = "http://127.0.0.1:${server.address.port}",
+                    failThreshold = 3,
+                    meterRegistry = SimpleMeterRegistry(),
+                )
+
+            separatorProcessor.processTrack(song)
+
+            val asset = karaokeRepo.findById(song).orElseThrow()
+            assertTrue(asset.readyAt != null, "instrumental-only result must be READY")
+            assertTrue(asset.vocalPath == null, "vocal path must stay null for an instrumental-only result")
+            assertTrue(asset.instrumentalPath == instrumental.toString(), "instrumental path must be stored")
+            assertTrue(asset.failCount == 0, "instrumental-only result must not consume the retry budget")
+        } finally {
+            server.stop(0)
+        }
     }
 }

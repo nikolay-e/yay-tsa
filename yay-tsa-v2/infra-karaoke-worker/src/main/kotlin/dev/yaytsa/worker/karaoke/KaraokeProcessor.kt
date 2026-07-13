@@ -27,6 +27,7 @@ class KaraokeProcessor(
     @Value("\${yaytsa.karaoke.output-path:#{null}}") private val outputPath: String?,
     @Value("\${yaytsa.karaoke.demucs-command:demucs}") private val demucsCommand: String,
     @Value("\${yaytsa.karaoke.separator-url:#{null}}") private val separatorUrl: String?,
+    @Value("\${yaytsa.karaoke.fail-threshold:3}") private val failThreshold: Int,
     meterRegistry: io.micrometer.core.instrument.MeterRegistry,
 ) {
     private val failureCounter =
@@ -52,7 +53,6 @@ class KaraokeProcessor(
 
     companion object {
         private const val DEMUCS_TIMEOUT_MINUTES = 30L
-        private const val MAX_FAILURES = 3
         private const val BATCH_LIMIT = 50
     }
 
@@ -92,7 +92,7 @@ class KaraokeProcessor(
         // retry budget; the anti-join excludes exactly those, so a bare failure row
         // does not permanently skip the track. LIMIT keeps each cycle bounded instead
         // of materializing every track and karaoke row on every run.
-        val unprocessed = libraryEntityRepo.findKaraokeUnprocessedTrackIds(MAX_FAILURES, BATCH_LIMIT)
+        val unprocessed = libraryEntityRepo.findKaraokeUnprocessedTrackIds(failThreshold, BATCH_LIMIT)
 
         if (unprocessed.isEmpty()) {
             log.info("No unprocessed tracks for karaoke separation")
@@ -115,7 +115,7 @@ class KaraokeProcessor(
     fun processTrack(trackId: UUID) {
         val existing = karaokeRepo.findById(trackId).orElse(null)
         if (existing?.readyAt != null) return
-        if ((existing?.failCount ?: 0) >= MAX_FAILURES) return
+        if ((existing?.failCount ?: 0) >= failThreshold) return
 
         // resolveTrackFilePath reconstructs the absolute path (libraryRoot + sourcePath),
         // matching how streaming and lyrics resolve files. The separator validates the
@@ -125,7 +125,11 @@ class KaraokeProcessor(
         if (!separatorUrl.isNullOrBlank()) {
             try {
                 val result = separatorClient.separate(separatorUrl, filePath, trackId.toString())
-                if (!Files.exists(Path.of(result.instrumentalPath)) || !Files.exists(Path.of(result.vocalPath))) {
+                // A null vocalPath is a legitimate instrumental-only result (the sidecar caches
+                // instrumental-only separations); only a reported-but-missing stem is a failure.
+                val instrumentalMissing = !Files.exists(Path.of(result.instrumentalPath))
+                val vocalMissing = result.vocalPath != null && !Files.exists(Path.of(result.vocalPath))
+                if (instrumentalMissing || vocalMissing) {
                     log.warn("Separator reported success but stems missing on disk for track {}", trackId)
                     recordFailure(trackId, existing, "separator stems missing on disk")
                     return
@@ -213,7 +217,7 @@ class KaraokeProcessor(
     }
 
     // Persist the failure with an incremented counter instead of a terminal null-stem row,
-    // so the scheduler retries up to MAX_FAILURES before giving up.
+    // so the scheduler retries up to the fail threshold before giving up.
     private fun recordFailure(
         trackId: UUID,
         existing: KaraokeAssetEntity?,

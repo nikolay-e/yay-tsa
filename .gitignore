@@ -11,9 +11,6 @@ playwright-report
 # Build outputs
 dist/
 build/
-.svelte-kit/
-
-target
 
 # Environment
 .env
@@ -105,3 +102,9 @@ qa-*.jpeg
 qa-*.png
 .claude/commands
 .claude/settings.json
+
+# diffctx working directory
+.diffctx/
+
+# Extracted hidden sourcemaps (docker build --target sourcemaps output)
+sourcemaps-out/

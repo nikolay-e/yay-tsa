@@ -38,7 +38,7 @@ private/
 .sh_history
 
 # Dependencies
-node_modules/
+**/node_modules
 npm-debug.log
 yarn-error.log
 yarn.lock
@@ -54,6 +54,9 @@ yay-tsa-v2/**/build/
 # Testing
 coverage/
 .nyc_output/
+test-results/
+apps/web/playwright-report/
+tools/
 
 # IDE and editors
 .vscode/
@@ -72,23 +75,14 @@ Thumbs.db
 # Documentation
 *.md
 !packages/*/README.md
-docs/
 
 # CI/CD
 .pre-commit-config.yaml
-.travis.yml
-.gitlab-ci.yml
 .circleci/
-renovate.json
 
 # Docker (prevent recursive inclusion)
-Dockerfile.dev
 .dockerignore
 docker-compose*.yml
-
-# Kubernetes
-helm/
-k8s/
 
 # Logs
 *.log
@@ -99,15 +93,6 @@ k8s/
 tmp/
 .temp/
 .cache/
-
-# Test media
-test-media/
-
-# Integration test scripts
-run-integration-tests.sh
-
-# Maven/Java build artifacts
-server/target/
 
 # Linter configs
 .bundlewatchrc.json

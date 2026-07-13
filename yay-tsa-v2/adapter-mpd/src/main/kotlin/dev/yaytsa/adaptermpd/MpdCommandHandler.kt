@@ -65,6 +65,7 @@ class MpdCommandHandler(
         private val MPD_DEVICE = DeviceId("mpd")
         private val MPD_LEASE_DURATION = Duration.ofHours(6)
         private const val BROWSE_PAGE_SIZE = 200
+        private val UNSUPPORTED_COMMANDS = setOf("setvol", "getvol", "repeat", "random", "single", "consume")
     }
 
     data class SubsystemSnapshot(
@@ -115,104 +116,70 @@ class MpdCommandHandler(
         }
     }
 
+    // Single source of truth for the protocol surface: this map drives both dispatch and the
+    // `commands` listing, so the two can never drift apart.
+    private val commandHandlers: Map<String, (List<String>) -> String> =
+        mapOf(
+            "ping" to { _ -> ok() },
+            "status" to { _ -> status() },
+            "currentsong" to { _ -> currentSong() },
+            "play" to { args -> playPos(args.firstOrNull()?.toIntOrNull()) },
+            "playid" to { args -> playId(args.firstOrNull()?.toIntOrNull()) },
+            "pause" to { args -> pause(args.firstOrNull()) },
+            "stop" to { _ -> stop() },
+            "next" to { _ -> next() },
+            "previous" to { _ -> previous() },
+            "playlistinfo" to { _ -> playlistInfo() },
+            "plchanges" to { args -> plChanges(args.firstOrNull()?.toIntOrNull()) },
+            "add" to { args -> add(args.firstOrNull()) },
+            "clear" to { _ -> clear() },
+            "delete" to { args -> delete(args.firstOrNull()) },
+            "deleteid" to { args -> deleteId(args.firstOrNull()?.toIntOrNull()) },
+            "move" to ::move,
+            "moveid" to ::moveId,
+            "seek" to ::seekToPosition,
+            "seekid" to ::seekToId,
+            "seekcur" to { args -> seekCurrent(args.firstOrNull()) },
+            "listplaylists" to { _ -> listPlaylists() },
+            "listplaylistinfo" to { args -> listPlaylistInfo(args.firstOrNull()) },
+            "load" to { args -> loadStoredPlaylist(args.firstOrNull()) },
+            "save" to { args -> saveStoredPlaylist(args.firstOrNull()) },
+            "rm" to { args -> removeStoredPlaylist(args.firstOrNull()) },
+            "playlistadd" to ::playlistAdd,
+            "playlistdelete" to ::playlistDelete,
+            "count" to ::count,
+            "stats" to { _ -> stats() },
+            "lsinfo" to { args -> lsInfo(args.firstOrNull()) },
+            "search" to ::search,
+            "find" to ::search,
+            "list" to ::list,
+            "idle" to { _ -> ok() },
+            "noidle" to { _ -> ok() },
+            "close" to { _ -> "" },
+            "outputs" to { _ -> "outputid: 0\noutputname: Yaytsa\noutputenabled: 1\nplugin: httpd\nOK\n" },
+            "decoders" to { _ -> ok() },
+            "tagtypes" to { _ ->
+                "tagtype: Artist\ntagtype: AlbumArtist\ntagtype: Album\ntagtype: Title\n" +
+                    "tagtype: Track\ntagtype: Genre\ntagtype: Date\nOK\n"
+            },
+            "commands" to { _ -> supportedCommands() },
+            "command_list_begin" to { _ -> ok() },
+            "command_list_ok_begin" to { _ -> ok() },
+            "command_list_end" to { _ -> ok() },
+        )
+
+    private fun supportedCommands(): String = commandHandlers.keys.joinToString("\n") { "command: $it" } + "\nOK\n"
+
     private fun dispatch(line: String): String {
         val parts = parseLine(line)
         val cmd = parts.firstOrNull()?.lowercase() ?: return ack(5, "", "empty command")
         val args = parts.drop(1)
-        return when (cmd) {
-            "ping" -> ok()
-            "status" -> status()
-            "currentsong" -> currentSong()
-            "play" -> playPos(args.firstOrNull()?.toIntOrNull())
-            "playid" -> playId(args.firstOrNull()?.toIntOrNull())
-            "pause" -> pause(args.firstOrNull())
-            "stop" -> stop()
-            "next" -> next()
-            "previous" -> previous()
-            "playlistinfo" -> playlistInfo()
-            "plchanges" -> plChanges(args.firstOrNull()?.toIntOrNull())
-            "add" -> add(args.firstOrNull())
-            "clear" -> clear()
-            "delete" -> delete(args.firstOrNull())
-            "deleteid" -> deleteId(args.firstOrNull()?.toIntOrNull())
-            "move" -> move(args)
-            "moveid" -> moveId(args)
-            "seek" -> seekToPosition(args)
-            "seekid" -> seekToId(args)
-            "seekcur" -> seekCurrent(args.firstOrNull())
-            "listplaylists" -> listPlaylists()
-            "listplaylistinfo" -> listPlaylistInfo(args.firstOrNull())
-            "load" -> loadStoredPlaylist(args.firstOrNull())
-            "save" -> saveStoredPlaylist(args.firstOrNull())
-            "rm" -> removeStoredPlaylist(args.firstOrNull())
-            "playlistadd" -> playlistAdd(args)
-            "playlistdelete" -> playlistDelete(args)
-            "count" -> count(args)
-            "stats" -> stats()
-            "lsinfo" -> lsInfo(args.firstOrNull())
-            "search" -> search(args)
-            "find" -> search(args)
-            "list" -> list(args)
-            // The playback core owns volume and play-order modes; these MPD mutations are
-            // not honoured, so ACK them rather than reporting a false OK that status()
-            // would then contradict (repeat:0 random:0 volume:100).
-            "setvol", "getvol", "repeat", "random", "single", "consume" ->
-                ack(5, cmd, "command not supported by this server")
-            "idle" -> ok()
-            "noidle" -> ok()
-            "close" -> ""
-            "outputs" -> "outputid: 0\noutputname: Yaytsa\noutputenabled: 1\nplugin: httpd\nOK\n"
-            "decoders" -> ok()
-            "tagtypes" ->
-                "tagtype: Artist\ntagtype: AlbumArtist\ntagtype: Album\ntagtype: Title\n" +
-                    "tagtype: Track\ntagtype: Genre\ntagtype: Date\nOK\n"
-            "commands" ->
-                listOf(
-                    "ping",
-                    "status",
-                    "currentsong",
-                    "play",
-                    "playid",
-                    "pause",
-                    "stop",
-                    "next",
-                    "previous",
-                    "playlistinfo",
-                    "plchanges",
-                    "add",
-                    "clear",
-                    "delete",
-                    "deleteid",
-                    "move",
-                    "moveid",
-                    "seek",
-                    "seekid",
-                    "seekcur",
-                    "listplaylists",
-                    "listplaylistinfo",
-                    "load",
-                    "save",
-                    "rm",
-                    "playlistadd",
-                    "playlistdelete",
-                    "count",
-                    "stats",
-                    "lsinfo",
-                    "search",
-                    "find",
-                    "list",
-                    "idle",
-                    "close",
-                    "outputs",
-                    "tagtypes",
-                    "commands",
-                ).joinToString("\n") {
-                    "command: $it"
-                } +
-                    "\nOK\n"
-            "command_list_begin", "command_list_ok_begin", "command_list_end" -> ok()
-            else -> ack(5, cmd, "unknown command")
-        }
+        // The playback core owns volume and play-order modes; these MPD mutations are
+        // not honoured, so ACK them rather than reporting a false OK that status()
+        // would then contradict (repeat:0 random:0 volume:100).
+        if (cmd in UNSUPPORTED_COMMANDS) return ack(5, cmd, "command not supported by this server")
+        val handler = commandHandlers[cmd] ?: return ack(5, cmd, "unknown command")
+        return handler(args)
     }
 
     private fun status(): String {

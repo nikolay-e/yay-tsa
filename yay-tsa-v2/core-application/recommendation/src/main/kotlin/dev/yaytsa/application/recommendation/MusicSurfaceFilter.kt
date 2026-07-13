@@ -3,6 +3,7 @@ package dev.yaytsa.application.recommendation
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.domain.library.Track
+import dev.yaytsa.shared.AudiobookGenres
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.UserId
 
@@ -78,11 +79,9 @@ class MusicSurfaceFilter(
     )
 
     companion object {
-        private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
-
         fun isAudiobookTrack(track: Track): Boolean {
             val genre = track.genre?.trim()?.lowercase() ?: return false
-            return genre in AUDIOBOOK_GENRES
+            return genre in AudiobookGenres.names
         }
     }
 }

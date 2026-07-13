@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":core-domain:shared"))
     implementation(project(":core-domain:playback"))
     implementation(project(":core-application:playback"))
     implementation(project(":core-application:shared"))

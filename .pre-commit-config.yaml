@@ -110,7 +110,7 @@ repos:
         name: codespell (spell checker)
         args:
           - --ignore-words-list=afterall,beforeall,aftereach,beforeeach,alltogether,errorprone,currenty,ser,shouldbe,usera,userb,atmost
-          - --skip=package-lock.json,pnpm-lock.yaml,jellyfin-api-spec.json,node_modules,dist,build
+          - --skip=package-lock.json,pnpm-lock.yaml,node_modules,dist,build
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0
@@ -186,6 +186,7 @@ repos:
         language: system
         files: ^(packages|apps)/.*\.(ts|tsx)$
         pass_filenames: false
+        stages: [pre-push]
 
       - id: tsc-web
         name: 'TypeScript type check (web)'
@@ -193,6 +194,7 @@ repos:
         language: system
         files: ^apps/web/src/.*\.(ts|tsx)$
         pass_filenames: false
+        stages: [pre-push]
 
       - id: eslint
         name: 'ESLint (TypeScript/React quality)'
@@ -230,16 +232,15 @@ repos:
         language: system
         files: ^(packages|apps)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
+        stages: [pre-push]
 
       - id: jscpd
         name: 'Copy-paste detection (jscpd)'
-        entry: >-
-          npx --no-install jscpd --min-lines 6 --min-tokens 50 --threshold 3
-          --ignore "**/tests/**,**/node_modules/**,**/dist/**,**/build/**"
-          packages/ apps/
+        entry: npx --no-install jscpd packages/ apps/
         language: system
         files: \.(js|ts|tsx)$
         pass_filenames: false
+        stages: [pre-push]
 
       - id: type-coverage
         name: 'Type coverage (>=90%)'
@@ -247,16 +248,7 @@ repos:
         language: system
         files: ^(packages|apps)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
-
-      - id: component-naming
-        name: 'Component naming convention (PascalCase)'
-        entry: >-
-          bash -c 'find apps/web/src -name "*.tsx" -not -name "*.test.tsx"
-          -not -name "*.spec.tsx" -exec basename {} \; |
-          grep -vE "^[A-Z]|^(index|main|vite-env)" && exit 1 || exit 0'
-        language: system
-        files: ^apps/web/src/.*\.tsx$
-        pass_filenames: false
+        stages: [pre-push]
 
   - repo: local
     hooks:

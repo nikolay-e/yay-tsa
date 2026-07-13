@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":core-application:playback"))
     implementation(project(":core-application:playlists"))
     implementation(project(":core-application:preferences"))
+    implementation(project(":core-application:recommendation"))
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.jackson.module.kotlin)

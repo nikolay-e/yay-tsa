@@ -8,9 +8,11 @@ import dev.yaytsa.application.adaptive.AdaptiveUseCases
 import dev.yaytsa.application.adaptive.port.AdaptiveQueryPort
 import dev.yaytsa.application.adaptive.port.AdaptiveSessionRepository
 import dev.yaytsa.application.library.LibraryQueries
-import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.preferences.PreferencesUseCases
+import dev.yaytsa.application.recommendation.RadioStationService
+import dev.yaytsa.application.recommendation.RecommendationService
+import dev.yaytsa.application.recommendation.SemanticTrackSearchService
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.adaptive.AdaptiveQueueEntryId
 import dev.yaytsa.domain.adaptive.EndListeningSession
@@ -52,9 +54,8 @@ class JellyfinAdaptiveController(
     private val preferencesQueries: PreferencesQueries,
     private val preferencesUseCases: PreferencesUseCases,
     private val libraryQueries: LibraryQueries,
-    private val mlQuery: MlQueryPort,
-    private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort,
-    private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
+    private val recommendationService: RecommendationService,
+    private val semanticTrackSearch: SemanticTrackSearchService,
     private val radioStationService: RadioStationService,
     private val clock: Clock,
     private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
@@ -373,7 +374,7 @@ class JellyfinAdaptiveController(
     @GetMapping("/recommend/radio/seeds")
     fun getRadioSeeds(principal: Principal?): ResponseEntity<Any> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
-        val seeds = buildRecommendedSeeds(UserId(uid), limit = 8)
+        val seeds = toSeedDtos(recommendationService.radioSeedTracks(UserId(uid), limit = 8))
         return ResponseEntity.ok(mapOf("seeds" to seeds, "available" to seeds.isNotEmpty()))
     }
 
@@ -384,7 +385,7 @@ class JellyfinAdaptiveController(
     ): ResponseEntity<Any> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
-        val tracks = pickRecommendedTracks(userId, limit.coerceIn(1, 100))
+        val tracks = recommendationService.dailyMixTracks(userId, limit.coerceIn(1, 100))
         return recommendationResponse(userId, tracks)
     }
 
@@ -395,7 +396,7 @@ class JellyfinAdaptiveController(
     ): ResponseEntity<Any> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
-        val tracks = pickDiscoveryTracks(userId, limit.coerceIn(1, 100))
+        val tracks = recommendationService.discoveryTracks(userId, limit.coerceIn(1, 100))
         return recommendationResponse(userId, tracks)
     }
 
@@ -410,7 +411,7 @@ class JellyfinAdaptiveController(
                 .orEmpty()
                 .map { it.trackId.value }
                 .toSet()
-        val lookups = trackLookups(tracks)
+        val lookups = TrackLookups.load(tracks, libraryQueries)
         val items = tracks.map { it.toJellyfinBaseItem(favTrackIds, lookups) }
         return ResponseEntity.ok(mapOf("Items" to items, "TotalRecordCount" to items.size))
     }
@@ -423,253 +424,9 @@ class JellyfinAdaptiveController(
     ): ResponseEntity<List<RecommendedTrackDto>> {
         val uid = principal?.name ?: return ResponseEntity.status(401).build()
         val userId = UserId(uid)
-        val cappedLimit = limit.coerceIn(1, 100)
-        val tracks = semanticOrLexicalSearch(userId, query, cappedLimit)
-        val results = tracks.map { trackToSeedDto(it).copy(source = "semantic", score = 0.0) }
+        val tracks = semanticTrackSearch.searchWithLexicalFallback(userId, query, limit.coerceIn(1, 100))
+        val results = toSeedDtos(tracks).map { it.copy(source = "semantic", score = 0.0) }
         return ResponseEntity.ok(results)
-    }
-
-    private fun semanticOrLexicalSearch(
-        userId: UserId,
-        query: String,
-        limit: Int,
-    ): List<dev.yaytsa.domain.library.Track> {
-        val vector = embeddingPort.encodeText(query)
-        val semanticTracks =
-            if (vector != null) {
-                libraryQueries.getTracksByIds(mlQuery.findTracksByClapVector(vector, limit * 2).map { EntityId(it.value) })
-            } else {
-                emptyList()
-            }
-        val filtered = musicSurfaceFilter.filter(semanticTracks, userId).take(limit)
-        if (filtered.isNotEmpty()) return filtered
-        // Degrade to lexical search when the embedding service is disabled/unreachable or
-        // no track carries a CLAP embedding yet — better UX than an empty result.
-        return musicSurfaceFilter.filter(libraryQueries.searchText(query, limit, 0).tracks, userId).take(limit)
-    }
-
-    /**
-     * Shuffled sample of top user-track affinities (so the Daily Mix actually changes between
-     * refreshes), then favorites (cold-start for new users), then a varied sample across the
-     * library. Result is deduped by trackId.
-     */
-    private fun pickRecommendedTracks(
-        userId: UserId,
-        limit: Int,
-    ): List<dev.yaytsa.domain.library.Track> {
-        val candidates = collectRecommendationCandidates(userId, limit)
-        return musicSurfaceFilter.filter(candidates, userId).take(limit)
-    }
-
-    private fun collectRecommendationCandidates(
-        userId: UserId,
-        limit: Int,
-    ): List<dev.yaytsa.domain.library.Track> {
-        val seen = mutableSetOf<String>()
-        val out = mutableListOf<dev.yaytsa.domain.library.Track>()
-        // Over-pull so the red-line filter has slack before we take(limit).
-        val targetPool = limit * 2
-
-        val affinityPool = (limit * AFFINITY_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-        val shuffledAffinityIds = mlQuery.getTopAffinities(userId, affinityPool).shuffled().map { it.trackId.value }
-        val affinityTracks = tracksById(shuffledAffinityIds)
-        shuffledAffinityIds.forEach { trackId ->
-            if (out.size >= targetPool) return@forEach
-            val track = affinityTracks[trackId] ?: return@forEach
-            if (seen.add(track.id.value)) out.add(track)
-        }
-
-        if (out.size < targetPool) {
-            val shuffledFavoriteIds =
-                preferencesQueries
-                    .find(userId)
-                    ?.favorites
-                    .orEmpty()
-                    .shuffled()
-                    .map { it.trackId.value }
-            val favoriteTracks = tracksById(shuffledFavoriteIds)
-            shuffledFavoriteIds.forEach { trackId ->
-                if (out.size >= targetPool) return@forEach
-                val track = favoriteTracks[trackId] ?: return@forEach
-                if (seen.add(track.id.value)) out.add(track)
-            }
-        }
-
-        if (out.size < targetPool) {
-            libraryQueries.browseTracksRandom(targetPool - out.size).forEach { track ->
-                if (out.size >= targetPool) return@forEach
-                if (seen.add(track.id.value)) out.add(track)
-            }
-        }
-
-        return out
-    }
-
-    /**
-     * Discovery is the inverse of Daily Mix: instead of resurfacing tracks the user already likes,
-     * it surfaces tracks *adjacent* to their taste that they have not heard. We build a "heard" set
-     * (top affinities + favorites), seed kNN search from the user's taste-cluster medoids (the real
-     * facets of their taste), collect similar tracks, drop anything in the heard set, then apply the
-     * same red-line + audiobook filtering as Daily Mix. Cold start falls back to a random library
-     * sample minus heard tracks. Shuffled so each refresh surfaces a fresh slice.
-     */
-    private fun pickDiscoveryTracks(
-        userId: UserId,
-        limit: Int,
-    ): List<dev.yaytsa.domain.library.Track> {
-        val heard = collectHeardTrackIds(userId, limit)
-        val candidates = collectDiscoveryCandidates(userId, limit, heard)
-        return musicSurfaceFilter
-            .filter(candidates, userId)
-            .shuffled()
-            .take(limit)
-    }
-
-    private fun collectHeardTrackIds(
-        userId: UserId,
-        limit: Int,
-    ): Set<String> {
-        val heardPool = (limit * HEARD_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-        val heard = mutableSetOf<String>()
-        mlQuery.getTopAffinities(userId, heardPool).forEach { heard.add(it.trackId.value) }
-        preferencesQueries
-            .find(userId)
-            ?.favorites
-            .orEmpty()
-            .forEach { heard.add(it.trackId.value) }
-        return heard
-    }
-
-    private fun collectDiscoveryCandidates(
-        userId: UserId,
-        limit: Int,
-        heard: Set<String>,
-    ): List<dev.yaytsa.domain.library.Track> {
-        val seen = mutableSetOf<String>()
-        val out = mutableListOf<dev.yaytsa.domain.library.Track>()
-        val targetPool = limit * 2
-
-        val seeds =
-            mlQuery
-                .getTasteClusterRepresentatives(userId)
-                .ifEmpty {
-                    mlQuery.getTopAffinities(userId, DISCOVERY_SEED_FALLBACK_POOL).map { it.trackId }
-                }
-
-        for (seed in seeds) {
-            if (out.size >= targetPool) break
-            val candidateIds = mlQuery.findSimilarTracks(seed, DISCOVERY_SIMILARITY_K).map { it.value }
-            val candidateTracks = tracksById(candidateIds.filter { it !in heard && it !in seen })
-            candidateIds.forEach { id ->
-                if (out.size >= targetPool) return@forEach
-                if (id in heard || id in seen) return@forEach
-                val track = candidateTracks[id] ?: return@forEach
-                if (seen.add(id)) out.add(track)
-            }
-        }
-
-        if (out.size < targetPool) {
-            libraryQueries.browseTracksRandom((targetPool - out.size) * 2).forEach { track ->
-                if (out.size >= targetPool) return@forEach
-                val id = track.id.value
-                if (id in heard || id in seen) return@forEach
-                if (seen.add(id)) out.add(track)
-            }
-        }
-
-        return out
-    }
-
-    private fun tracksById(trackIds: List<String>): Map<String, dev.yaytsa.domain.library.Track> =
-        libraryQueries.getTracksByIds(trackIds.map { EntityId(it) }).associateBy { it.id.value }
-
-    private fun trackLookups(tracks: List<dev.yaytsa.domain.library.Track>): TrackLookups {
-        if (tracks.isEmpty()) return TrackLookups()
-        val albumIds = tracks.mapNotNull { it.albumId }.toSet()
-        val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
-        return TrackLookups(
-            albumNames = libraryQueries.getEntityNamesByIds(albumIds),
-            artistNames = libraryQueries.getEntityNamesByIds(artistIds),
-        )
-    }
-
-    /**
-     * Radio seeds = one station per artist. We pull a wide pool of top affinities,
-     * collapse to the highest-affinity track per albumArtistId, shuffle the resulting
-     * artists, and take [limit]. Fallback to favorites and random library so the row
-     * isn't empty for cold-start users.
-     */
-    private fun buildRecommendedSeeds(
-        userId: UserId,
-        limit: Int,
-    ): List<RecommendedTrackDto> {
-        val redLineTerms = musicSurfaceFilter.loadRedLineTerms(userId)
-        val perArtist = LinkedHashMap<String, dev.yaytsa.domain.library.Track>()
-        val seenTracks = mutableSetOf<String>()
-
-        fun blocked(track: dev.yaytsa.domain.library.Track): Boolean = musicSurfaceFilter.isBlocked(track, redLineTerms)
-
-        // Primary: the representative track (medoid) of each of the user's taste clusters —
-        // one seed per real taste facet (metal / russian-rap / folk-metal / …), so radio
-        // spans the whole taste instead of a single averaged centroid. Falls through to
-        // affinity/favorites/random below when the user has no clusters yet (cold start).
-        val clusterRepIds = mlQuery.getTasteClusterRepresentatives(userId).map { it.value }
-        val clusterRepTracks = tracksById(clusterRepIds)
-        clusterRepIds.forEach { tid ->
-            val track = clusterRepTracks[tid] ?: return@forEach
-            if (blocked(track)) return@forEach
-            val artistKey = track.albumArtistId?.value ?: track.id.value
-            if (artistKey !in perArtist) perArtist[artistKey] = track
-            seenTracks.add(track.id.value)
-        }
-
-        if (perArtist.size < limit) {
-            val poolSize = (limit * SEED_POOL_MULTIPLIER).coerceAtMost(MlQueryPort.MAX_QUERY_LIMIT)
-            val affinityIds = mlQuery.getTopAffinities(userId, poolSize).map { it.trackId.value }
-            val affinityTracks = tracksById(affinityIds)
-            affinityIds.forEach { trackId ->
-                val track = affinityTracks[trackId] ?: return@forEach
-                if (blocked(track)) return@forEach
-                val artistKey = track.albumArtistId?.value ?: track.id.value
-                if (artistKey !in perArtist) perArtist[artistKey] = track
-                seenTracks.add(track.id.value)
-            }
-        }
-
-        val picked = perArtist.values.toMutableList().also { it.shuffle() }
-
-        if (picked.size < limit) {
-            val favoriteIds =
-                preferencesQueries
-                    .find(userId)
-                    ?.favorites
-                    .orEmpty()
-                    .shuffled()
-                    .map { it.trackId.value }
-            val favoriteTracks = tracksById(favoriteIds)
-            for (favoriteId in favoriteIds) {
-                if (picked.size >= limit) break
-                val track = favoriteTracks[favoriteId] ?: continue
-                if (blocked(track)) continue
-                val artistKey = track.albumArtistId?.value ?: track.id.value
-                if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {
-                    picked.add(track)
-                }
-            }
-        }
-
-        if (picked.size < limit) {
-            libraryQueries.browseTracksRandom((limit - picked.size) * 2).forEach { track ->
-                if (picked.size >= limit) return@forEach
-                if (blocked(track)) return@forEach
-                val artistKey = track.albumArtistId?.value ?: track.id.value
-                if (perArtist.put(artistKey, track) == null && seenTracks.add(track.id.value)) {
-                    picked.add(track)
-                }
-            }
-        }
-
-        return picked.take(limit).map { trackToSeedDto(it) }
     }
 
     data class RecommendedTrackDto(
@@ -684,20 +441,19 @@ class JellyfinAdaptiveController(
         val score: Double? = null,
     )
 
-    private fun trackToSeedDto(track: dev.yaytsa.domain.library.Track): RecommendedTrackDto {
-        val albumName =
-            track.albumId?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
-        val artistName =
-            track.albumArtistId?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
-        return RecommendedTrackDto(
-            trackId = track.id.value,
-            name = track.name,
-            artistId = track.albumArtistId?.value,
-            artistName = artistName,
-            albumId = track.albumId?.value,
-            albumName = albumName,
-            imageTag = track.albumId?.value,
-        )
+    private fun toSeedDtos(tracks: List<dev.yaytsa.domain.library.Track>): List<RecommendedTrackDto> {
+        val lookups = TrackLookups.load(tracks, libraryQueries)
+        return tracks.map { track ->
+            RecommendedTrackDto(
+                trackId = track.id.value,
+                name = track.name,
+                artistId = track.albumArtistId?.value,
+                artistName = track.albumArtistId?.let { lookups.artistNames[it] },
+                albumId = track.albumId?.value,
+                albumName = track.albumId?.let { lookups.albumNames[it] },
+                imageTag = track.albumId?.value,
+            )
+        }
     }
 
     companion object {
@@ -712,23 +468,5 @@ class JellyfinAdaptiveController(
         // Safety cap so a very long radio session's backend queue doesn't grow without bound
         // (the client keeps only a bounded local window; this just stops server-side accumulation).
         private const val MAX_RADIO_QUEUE = 300
-
-        // Larger pool than [limit] so .shuffled() gives the user a fresh slice on each refresh
-        // instead of the deterministic top-N by affinity_score.
-        private const val AFFINITY_POOL_MULTIPLIER = 5
-
-        // Radio seeds collapse to one-per-artist, so we need a wider pool than [limit] to find
-        // [limit] distinct artists even when a user's affinities cluster around a few favorites.
-        private const val SEED_POOL_MULTIPLIER = 20
-
-        // Discovery excludes everything the user already knows. Pull a deep affinity history so the
-        // "heard" set is wide enough that kNN neighbours are genuinely new, not recently-played.
-        private const val HEARD_POOL_MULTIPLIER = 20
-
-        // When the user has no taste clusters yet, seed discovery from their strongest affinities.
-        private const val DISCOVERY_SEED_FALLBACK_POOL = 25
-
-        // Neighbours pulled per seed; over-pulled so the heard/red-line/audiobook filters have slack.
-        private const val DISCOVERY_SIMILARITY_K = 25
     }
 }

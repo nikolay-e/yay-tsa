@@ -1,6 +1,7 @@
 package dev.yaytsa.worker.scanner
 
 import dev.yaytsa.application.shared.port.Clock
+import dev.yaytsa.persistence.library.AlbumCoverFilenames
 import dev.yaytsa.persistence.library.entity.AlbumJpa
 import dev.yaytsa.persistence.library.entity.ArtistJpa
 import dev.yaytsa.persistence.library.entity.AudioTrackJpa
@@ -14,6 +15,7 @@ import dev.yaytsa.persistence.library.repository.EntityGenreRepository
 import dev.yaytsa.persistence.library.repository.GenreRepository
 import dev.yaytsa.persistence.library.repository.ImageRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
+import dev.yaytsa.shared.AudiobookGenres
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.Tag
@@ -42,28 +44,6 @@ class LibraryWriter(
     private val embeddedCovers: EmbeddedCoverExtractor,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-
-    private val audiobookGenres = setOf("audiobook", "audiobooks")
-
-    private val coverFilenames =
-        listOf(
-            "cover.jpg",
-            "cover.jpeg",
-            "cover.png",
-            "cover.webp",
-            "folder.jpg",
-            "folder.jpeg",
-            "folder.png",
-            "folder.webp",
-            "front.jpg",
-            "front.jpeg",
-            "front.png",
-            "front.webp",
-            "album.jpg",
-            "album.jpeg",
-            "album.png",
-            "album.webp",
-        )
 
     class ScanSession internal constructor() {
         internal val artistIdsByKey = HashMap<String, UUID>()
@@ -180,7 +160,7 @@ class LibraryWriter(
         return entityId
     }
 
-    private fun isAudiobook(genre: String?): Boolean = normalizeGenres(genre).any { it.lowercase() in audiobookGenres }
+    private fun isAudiobook(genre: String?): Boolean = normalizeGenres(genre).any { it.lowercase() in AudiobookGenres.names }
 
     // Each /audiobooks item is a Track (genre=Audiobook), not an album, so the read path
     // (TrackProjection imageTags / getPrimaryImage) keys on the track's OWN entity id. Materialize
@@ -603,7 +583,7 @@ class LibraryWriter(
 
     private fun findCoverFile(dir: Path): Path? {
         if (!Files.isDirectory(dir)) return null
-        val coverNamesLower = coverFilenames.toSet()
+        val coverNamesLower = AlbumCoverFilenames.all.toSet()
         return runCatching {
             Files.newDirectoryStream(dir).use { stream ->
                 stream.firstOrNull { p ->

@@ -26,7 +26,6 @@ services:
       DB_USERNAME: yaytsa
       DB_PASSWORD: yaytsa
       MUSIC_PATH: /music
-      MEDIA_ROOT_PATH: /music
     volumes:
       - ./music:/music
     depends_on:

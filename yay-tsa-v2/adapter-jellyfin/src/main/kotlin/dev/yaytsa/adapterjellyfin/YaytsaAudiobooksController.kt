@@ -13,6 +13,7 @@ import dev.yaytsa.application.playback.ResumeStatus
 import dev.yaytsa.application.preferences.PreferencesQueries
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.domain.library.Track
+import dev.yaytsa.shared.AudiobookGenres
 import dev.yaytsa.shared.UserId
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -48,7 +49,7 @@ class YaytsaAudiobooksController(
     @GetMapping
     fun list(principal: Principal): ResponseEntity<List<AudiobookDto>> {
         val uid = UserId(principal.name)
-        val tracks = libraryQueries.browseTracksByGenreNames(AUDIOBOOK_GENRES)
+        val tracks = libraryQueries.browseTracksByGenreNames(AudiobookGenres.names)
         if (tracks.isEmpty()) return ResponseEntity.ok(emptyList())
 
         val favTrackIds =
@@ -57,7 +58,7 @@ class YaytsaAudiobooksController(
                 .toSet()
 
         val resumeByItem = resumePositionService.findByItemIds(uid, tracks.map { it.id.value }.toSet())
-        val lookups = trackLookups(tracks)
+        val lookups = TrackLookups.load(tracks, libraryQueries)
 
         val dtos =
             tracks
@@ -138,17 +139,4 @@ class YaytsaAudiobooksController(
             sourceEvent = ResumeSource.START,
             updatedAt = Instant.EPOCH,
         )
-
-    private fun trackLookups(tracks: List<Track>): TrackLookups {
-        val albumIds = tracks.mapNotNull { it.albumId }.toSet()
-        val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
-        return TrackLookups(
-            albumNames = libraryQueries.getEntityNamesByIds(albumIds),
-            artistNames = libraryQueries.getEntityNamesByIds(artistIds),
-        )
-    }
-
-    companion object {
-        private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
-    }
 }

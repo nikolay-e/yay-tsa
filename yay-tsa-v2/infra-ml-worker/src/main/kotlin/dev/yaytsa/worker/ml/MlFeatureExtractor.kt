@@ -11,16 +11,6 @@ import java.io.BufferedReader
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-/**
- * Background worker that delegates audio feature extraction to an external Python script.
- *
- * Architectural note: this is a **worker**, not a core command path. It bypasses core-domain
- * entirely and writes directly to the `core_v2_ml` schema via infra-persistence. It has no
- * dependency on core-domain or core-application — only on infra-persistence modules.
- *
- * The external script is responsible for computing features and writing them to the database.
- * This class orchestrates scheduling, discovery of unprocessed tracks, and error handling.
- */
 @Component
 @ConditionalOnProperty(name = ["yaytsa.ml.enabled"], havingValue = "true")
 class MlFeatureExtractor(
@@ -75,12 +65,6 @@ class MlFeatureExtractor(
         )
     }
 
-    /**
-     * Invokes the external extractor script for a single track.
-     *
-     * The script is expected to write features directly to the `core_v2_ml.track_features` table.
-     * Returns true if the script exited successfully, false otherwise.
-     */
     private fun extractTrack(trackId: UUID): Boolean {
         // Double-check in case another instance processed it concurrently
         if (trackFeaturesRepo.existsById(trackId)) return true

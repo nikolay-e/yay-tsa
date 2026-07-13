@@ -21,6 +21,7 @@ import dev.yaytsa.domain.ml.UserTrackAffinity
 import dev.yaytsa.domain.preferences.PreferenceContract
 import dev.yaytsa.persistence.adaptive.entity.LlmDecisionEntity
 import dev.yaytsa.persistence.adaptive.jpa.LlmDecisionJpaRepository
+import dev.yaytsa.shared.AudiobookGenres
 import dev.yaytsa.shared.CommandContext
 import dev.yaytsa.shared.CommandResult
 import dev.yaytsa.shared.Hashing
@@ -55,12 +56,6 @@ class LlmOrchestrator(
     companion object {
         private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
         private const val SIMILARITY_CANDIDATES = 20
-
-        // Embedding kNN pools can still surface audiobook tracks whose ML features were computed
-        // before the worker started excluding them, so the DJ guards both the seed candidates it
-        // shows the model and the suggestions it accepts back. Radio/discovery already post-filter
-        // via MusicSurfaceFilter; this is the same hard exclusion for the one path that did not.
-        private val AUDIOBOOK_GENRES = setOf("audiobook", "audiobooks")
 
         // The prompt asks for 5; cap defensively so a model returning a long list cannot
         // append an unbounded tail to the queue on a single tick (RewriteQueueTail only appends).
@@ -113,7 +108,11 @@ class LlmOrchestrator(
             session.seedTrackId?.let {
                 mlQuery.findSimilarTracks(TrackId(it.value), SIMILARITY_CANDIDATES)
             } ?: emptyList()
-        val nonAudiobookSeeds = libraryQueries.filterTrackIdsExcludingGenres(rawSeedCandidates.toSet(), AUDIOBOOK_GENRES)
+        // Embedding kNN pools can still surface audiobook tracks whose ML features were computed
+        // before the worker started excluding them, so the DJ guards both the seed candidates it
+        // shows the model and the suggestions it accepts back. Radio/discovery already post-filter
+        // via MusicSurfaceFilter; this is the same hard exclusion for the one path that did not.
+        val nonAudiobookSeeds = libraryQueries.filterTrackIdsExcludingGenres(rawSeedCandidates.toSet(), AudiobookGenres.names)
         val seedCandidates = rawSeedCandidates.filter { it in nonAudiobookSeeds }
         val prompt =
             buildPrompt(
@@ -134,7 +133,7 @@ class LlmOrchestrator(
 
         // Verify tracks exist AND are not audiobooks (the model could echo an audiobook id from
         // context or hallucinate one that happens to exist).
-        val eligibleIds = libraryQueries.filterTrackIdsExcludingGenres(trackSuggestions.map { it.first }.toSet(), AUDIOBOOK_GENRES)
+        val eligibleIds = libraryQueries.filterTrackIdsExcludingGenres(trackSuggestions.map { it.first }.toSet(), AudiobookGenres.names)
         val validSuggestions = trackSuggestions.filter { it.first in eligibleIds }
         if (validSuggestions.isEmpty()) return
 

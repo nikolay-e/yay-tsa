@@ -1,6 +1,7 @@
 package dev.yaytsa.persistence.playback.jpa
 
 import dev.yaytsa.persistence.playback.entity.PlayHistoryEntity
+import dev.yaytsa.shared.AudiobookGenres
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
@@ -64,7 +65,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (:includeAudiobooks = true OR NOT EXISTS (
                     SELECT 1 FROM core_v2_library.entity_genres eg
                     JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN ('audiobook','audiobooks')))
+                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})))
             ORDER BY started_at
         """,
         nativeQuery = true,
@@ -89,7 +90,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (:includeAudiobooks = true OR NOT EXISTS (
                     SELECT 1 FROM core_v2_library.entity_genres eg
                     JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN ('audiobook','audiobooks')))
+                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})))
             ORDER BY started_at DESC, id
             LIMIT :limit OFFSET :offset
             """,
@@ -119,7 +120,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (:includeAudiobooks = true OR NOT EXISTS (
                     SELECT 1 FROM core_v2_library.entity_genres eg
                     JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN ('audiobook','audiobooks')))
+                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})))
             """,
         nativeQuery = true,
     )

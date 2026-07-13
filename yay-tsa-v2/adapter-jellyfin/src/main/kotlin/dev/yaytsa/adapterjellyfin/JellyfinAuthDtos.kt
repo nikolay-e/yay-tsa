@@ -2,7 +2,6 @@ package dev.yaytsa.adapterjellyfin
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import dev.yaytsa.shared.generated.Constants
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class ItemsResult<T>(
@@ -47,9 +46,3 @@ data class ServerInfo(
     @JsonProperty("StartupWizardCompleted") val startupWizardCompleted: Boolean = true,
     @JsonProperty("BuildSha") val buildSha: String = "unknown",
 )
-
-val TICKS_PER_MS: Long = Constants.TICKS_PER_MS
-
-fun msToTicks(ms: Long?): Long? = ms?.let { it * TICKS_PER_MS }
-
-fun ticksToMs(ticks: Long?): Long? = ticks?.let { it / TICKS_PER_MS }

@@ -14,8 +14,9 @@ dependencyManagement {
 }
 
 dependencies {
-    // Worker writes directly to its schema — no core-domain or core-application dependencies.
-    // It only needs infra-persistence for DB access.
+    // Worker writes directly to its schema via infra-persistence; core-domain:shared is
+    // constants-only (AudiobookGenres), not a command-path dependency.
+    implementation(project(":core-domain:shared"))
     implementation(project(":infra-persistence:ml"))
     implementation(project(":infra-persistence:library"))
     implementation(libs.spring.boot.starter.data.jpa)

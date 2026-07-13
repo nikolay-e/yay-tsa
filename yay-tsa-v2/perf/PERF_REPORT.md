@@ -1,5 +1,7 @@
 # /Items performance report
 
+> **Measured: 2026-06-04.** Numbers below are frozen as of that date; re-run `bash perf/run.sh` for current figures.
+
 Reproduce with `bash perf/run.sh` (PostgreSQL 16 + pg_trgm, no Docker). Numbers below are
 PostgreSQL **server-side execution time**, warm cache, `fsync=off`, `max_parallel_workers=0`, on the
 CI/sandbox host. They capture **plan shape and relative cost**, not absolute production latency

@@ -1,12 +1,26 @@
 package dev.yaytsa.adaptershared
 
+import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.domain.library.Track
 import dev.yaytsa.shared.EntityId
 
 data class TrackLookups(
     val albumNames: Map<EntityId, String> = emptyMap(),
     val artistNames: Map<EntityId, String> = emptyMap(),
-)
+) {
+    companion object {
+        fun load(
+            tracks: List<Track>,
+            libraryQueries: LibraryQueries,
+        ): TrackLookups {
+            if (tracks.isEmpty()) return TrackLookups()
+            return TrackLookups(
+                albumNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumId }.toSet()),
+                artistNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumArtistId }.toSet()),
+            )
+        }
+    }
+}
 
 fun Track.toJellyfinBaseItem(
     favTrackIds: Set<String> = emptySet(),

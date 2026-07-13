@@ -1,16 +1,12 @@
-package dev.yaytsa.adapterjellyfin
+package dev.yaytsa.application.recommendation
 
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.application.ml.port.MlQueryPort
 import dev.yaytsa.application.preferences.PreferencesQueries
-import dev.yaytsa.application.recommendation.AffinityReranker
-import dev.yaytsa.application.recommendation.MusicSurfaceFilter
-import dev.yaytsa.application.recommendation.RadioQueueBuilder
 import dev.yaytsa.domain.library.Track
 import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
-import org.springframework.stereotype.Component
 
 /**
  * Builds a varied radio station from a single seed track, reusing the same funnel for the empty-queue
@@ -23,7 +19,6 @@ import org.springframework.stereotype.Component
  * reports `no_embedding` (seed unanalyzed) and `sparse_neighbourhood` (analyzed but few real neighbours)
  * so the caller can be honest to the user and the operator.
  */
-@Component
 class RadioStationService(
     private val mlQuery: MlQueryPort,
     private val libraryQueries: LibraryQueries,

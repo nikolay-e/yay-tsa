@@ -1,6 +1,7 @@
 package dev.yaytsa.worker.metadata
 
 import dev.yaytsa.application.shared.port.Clock
+import dev.yaytsa.persistence.library.AlbumCoverFilenames
 import dev.yaytsa.persistence.library.entity.ImageJpa
 import dev.yaytsa.persistence.library.repository.AlbumRepository
 import dev.yaytsa.persistence.library.repository.ArtistRepository
@@ -8,6 +9,7 @@ import dev.yaytsa.persistence.library.repository.AudioTrackRepository
 import dev.yaytsa.persistence.library.repository.EntityGenreRepository
 import dev.yaytsa.persistence.library.repository.ImageRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
+import dev.yaytsa.shared.AudiobookGenres
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -54,8 +56,6 @@ class MetadataEnricher(
     @Value("\${yaytsa.metadata.cover-provider-retry-cooldown-hours:6}") coverProviderRetryCooldownHours: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-
-    private val audiobookGenres = listOf("audiobook", "audiobooks")
 
     // Negative-result memo for the image-driven backfill: an entity whose cover lookup yields nothing
     // (no MusicBrainz match, CAA/Open Library 404) is parked here until nextEligibleInstant so it is not
@@ -303,7 +303,7 @@ class MetadataEnricher(
 
         // Audiobook albums must never hit the music search APIs (they'd resolve a same-named music
         // album's art); their covers come from the dedicated per-track pass (CAA-by-mbid + Open Library).
-        val isAudiobook = entityGenreRepo.albumHasAudiobookTrack(albumId, audiobookGenres)
+        val isAudiobook = entityGenreRepo.albumHasAudiobookTrack(albumId, AudiobookGenres.names)
 
         if (!albumName.isNullOrBlank() && !isAudiobook) {
             val local =
@@ -372,28 +372,9 @@ class MetadataEnricher(
         }
     }
 
-    // Mirrors infra-library-scanner's LibraryWriter.coverFilenames (duplicated: cross-module private
-    // constant, no shared home). Keep the two lists in sync — a narrower list here would miss a cover
-    // the scanner already recognizes, causing a redundant duplicate cover.* write alongside it.
     private fun findExistingCoverFile(albumDir: Path): Path? =
-        listOf(
-            "cover.jpg",
-            "cover.jpeg",
-            "cover.png",
-            "cover.webp",
-            "folder.jpg",
-            "folder.jpeg",
-            "folder.png",
-            "folder.webp",
-            "front.jpg",
-            "front.jpeg",
-            "front.png",
-            "front.webp",
-            "album.jpg",
-            "album.jpeg",
-            "album.png",
-            "album.webp",
-        ).map { albumDir.resolve(it) }
+        AlbumCoverFilenames.all
+            .map { albumDir.resolve(it) }
             .firstOrNull { Files.isRegularFile(it) }
 
     private fun saveImageRow(
@@ -437,7 +418,7 @@ class MetadataEnricher(
         if (coverCacheRoot == null) return 0
         val pending =
             selectFreshCandidates({ it }) { limit, offset ->
-                entityGenreRepo.findAudiobookTrackIdsWithoutPrimaryImage(audiobookGenres, limit, offset)
+                entityGenreRepo.findAudiobookTrackIdsWithoutPrimaryImage(AudiobookGenres.names, limit, offset)
             }
         var processed = 0
         for (trackId in pending) {

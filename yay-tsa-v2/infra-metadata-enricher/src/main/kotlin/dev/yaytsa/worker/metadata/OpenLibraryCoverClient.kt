@@ -5,11 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
-import java.net.URI
 import java.net.URLEncoder
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 
@@ -30,17 +26,12 @@ data class OpenLibraryDoc(
 class OpenLibraryCoverClient(
     private val searchBaseUrl: String,
     private val coversBaseUrl: String,
-    private val userAgent: String,
-    private val rateLimiter: RateLimiter,
+    userAgent: String,
+    rateLimiter: RateLimiter,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val httpClient: HttpClient =
-        HttpClient
-            .newBuilder()
-            .followRedirects(HttpClient.Redirect.ALWAYS)
-            .connectTimeout(Duration.ofSeconds(10))
-            .build()
+    private val http = ProviderHttp("Open Library", userAgent, rateLimiter, ProviderHttp.TransientFailurePolicy.RETURN_NULL)
 
     private val mapper =
         jacksonObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -65,7 +56,7 @@ class OpenLibraryCoverClient(
                 append("&fields=cover_i&limit=1")
             }
         val body =
-            runCatching { get("$searchBaseUrl/search.json?$query") }
+            runCatching { http.getString("$searchBaseUrl/search.json?$query", Duration.ofSeconds(10), accept = "application/json") }
                 .getOrElse {
                     log.warn("Open Library search failed for '{}': {}", title, it.message)
                     return null
@@ -79,51 +70,12 @@ class OpenLibraryCoverClient(
         return parsed.docs.firstNotNullOfOrNull { it.cover_i }?.takeIf { it > 0 }
     }
 
-    private fun fetchCoverById(coverId: Long): CoverArt? {
-        val uri = URI.create("$coversBaseUrl/b/id/$coverId-L.jpg?default=false")
-        rateLimiter.acquire()
-        val request =
-            HttpRequest
-                .newBuilder(uri)
-                .header("User-Agent", userAgent)
-                .timeout(Duration.ofSeconds(15))
-                .GET()
-                .build()
-        val response =
-            runCatching { httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray()) }
-                .getOrElse {
-                    log.warn("Open Library cover fetch failed for id {}: {}", coverId, it.message)
-                    return null
-                }
-        return when (val code = response.statusCode()) {
-            in 200..299 -> {
-                val bytes = response.body()
-                if (bytes.isEmpty()) null else CoverArt(bytes, "jpg")
-            }
-            else -> {
-                log.debug("Open Library returned {} for cover id {}", code, coverId)
+    private fun fetchCoverById(coverId: Long): CoverArt? =
+        runCatching { http.getImage("$coversBaseUrl/b/id/$coverId-L.jpg?default=false", Duration.ofSeconds(15)) }
+            .getOrElse {
+                log.warn("Open Library cover fetch failed for id {}: {}", coverId, it.message)
                 null
             }
-        }
-    }
-
-    private fun get(url: String): String? {
-        val uri = URI.create(url)
-        rateLimiter.acquire()
-        val request =
-            HttpRequest
-                .newBuilder(uri)
-                .header("User-Agent", userAgent)
-                .header("Accept", "application/json")
-                .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build()
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        return when (response.statusCode()) {
-            in 200..299 -> response.body()
-            else -> null
-        }
-    }
 
     private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
 

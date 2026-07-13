@@ -1,6 +1,7 @@
 package dev.yaytsa.persistence.ml.jpa
 
 import dev.yaytsa.persistence.ml.entity.TrackFeaturesEntity
+import dev.yaytsa.shared.AudiobookGenres
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
@@ -20,7 +21,7 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
             WHERE EXISTS (
                 SELECT 1 FROM core_v2_library.entity_genres eg
                 JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                WHERE eg.entity_id = tf.track_id AND lower(g.name) IN ('audiobook', 'audiobooks'))
+                WHERE eg.entity_id = tf.track_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST}))
             """,
         nativeQuery = true,
     )

@@ -34,7 +34,7 @@ class JellyfinItemsController(
     private val mlQuery: dev.yaytsa.application.ml.port.MlQueryPort,
     private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter,
     private val resumePositionService: ResumePositionService,
-    private val playHistoryQuery: dev.yaytsa.application.playback.port.PlayHistoryQueryPort,
+    private val playHistoryFunnel: dev.yaytsa.application.recommendation.PlayHistoryFunnelService,
 ) {
     // Hydrate per-(user,item) resume into UserData.PlaybackPositionTicks so clients seek-on-load.
     // No-op for non-Audio items. Finished books report ticks=0 so playing them restarts cleanly.
@@ -247,7 +247,7 @@ class JellyfinItemsController(
                 // which is why the old excludedGenres.isEmpty() guard is gone (this addresses #266).
                 // First page only; falls back to the deterministic browse when there is no history.
                 if (uid != null && isPersonalizedSort(sortBy) && startIndex == 0) {
-                    val recent = buildRecentlyPlayedArtists(UserId(uid), limit, excludedGenres)
+                    val recent = playHistoryFunnel.recentlyPlayedArtists(UserId(uid), limit, excludedGenres)
                     if (recent.isNotEmpty()) {
                         return ResponseEntity.ok(ItemsResult(recent.withAlbumCounts(), recent.size, startIndex))
                     }
@@ -269,7 +269,7 @@ class JellyfinItemsController(
             }
             "MusicAlbum" in types -> {
                 if (artistIds == null && uid != null && isPersonalizedSort(sortBy) && startIndex == 0) {
-                    val recent = buildRecentlyPlayedAlbums(UserId(uid), limit, excludedGenres)
+                    val recent = playHistoryFunnel.recentlyPlayedAlbums(UserId(uid), limit, excludedGenres = excludedGenres)
                     if (recent.isNotEmpty()) {
                         val names = albumArtistNames(recent)
                         val items = recent.map { it.toBaseItem(favTrackIds, names) }
@@ -500,14 +500,7 @@ class JellyfinItemsController(
 
     // --- Mappers ---
 
-    private fun tracksLookups(tracks: List<Track>): TrackLookups {
-        val albumIds = tracks.mapNotNull { it.albumId }.toSet()
-        val artistIds = tracks.mapNotNull { it.albumArtistId }.toSet()
-        return TrackLookups(
-            albumNames = libraryQueries.getEntityNamesByIds(albumIds),
-            artistNames = libraryQueries.getEntityNamesByIds(artistIds),
-        )
-    }
+    private fun tracksLookups(tracks: List<Track>): TrackLookups = TrackLookups.load(tracks, libraryQueries)
 
     private fun Track.toBaseItem(
         favTrackIds: Set<String> = emptySet(),
@@ -547,44 +540,6 @@ class JellyfinItemsController(
     // "Recently Played" / "Personalized" / "PlayCount" all map to the same affinity-driven ordering:
     // the library has no per-item played-at column, so these are served from ML affinities + favorites.
     private fun isPersonalizedSort(sortBy: String?): Boolean = sortBy in setOf("DatePlayed", "Personalized", "PlayCount")
-
-    // Tracks the user most recently played (most-recent-first), from play history. getTracksByIds
-    // preserves the recency order and drops vanished tracks. Tracks whose primary genre is excluded
-    // are filtered out (the PWA always excludes audiobooks) — a per-track primary-genre approximation
-    // of the browse genre-exclusion, adequate here since audiobook tracks carry an audiobook genre.
-    private fun recentlyPlayedTracks(
-        userId: UserId,
-        excludedGenres: Collection<String>,
-    ): List<Track> {
-        val ids = playHistoryQuery.recentlyPlayedTrackIds(userId, RECENT_PLAY_TRACK_POOL).map { EntityId(it.value) }
-        val tracks = libraryQueries.getTracksByIds(ids)
-        if (excludedGenres.isEmpty()) return tracks
-        val excluded = excludedGenres.map { it.lowercase() }.toSet()
-        return tracks.filter { it.genre?.lowercase() !in excluded }
-    }
-
-    // Albums ordered by the most recent play of any of their tracks. Because recentlyPlayedTracks is
-    // already recency-ordered, an album's first appearance is its most recent play, so distinct()
-    // preserves that ordering. Empty when there is no (non-excluded) play history, so the caller
-    // falls back to the deterministic browse.
-    private fun buildRecentlyPlayedAlbums(
-        userId: UserId,
-        limit: Int,
-        excludedGenres: Collection<String>,
-    ): List<Album> {
-        val orderedAlbumIds = recentlyPlayedTracks(userId, excludedGenres).mapNotNull { it.albumId }.distinct().take(limit)
-        return if (orderedAlbumIds.isEmpty()) emptyList() else libraryQueries.getAlbumsByIds(orderedAlbumIds)
-    }
-
-    // Artists ordered by the most recent play of any of their tracks (album artist), same principle.
-    private fun buildRecentlyPlayedArtists(
-        userId: UserId,
-        limit: Int,
-        excludedGenres: Collection<String>,
-    ): List<Artist> {
-        val orderedArtistIds = recentlyPlayedTracks(userId, excludedGenres).mapNotNull { it.albumArtistId }.distinct().take(limit)
-        return if (orderedArtistIds.isEmpty()) emptyList() else libraryQueries.getArtistsByIds(orderedArtistIds)
-    }
 
     private fun buildPersonalizedTracks(
         userId: UserId,
@@ -669,10 +624,5 @@ class JellyfinItemsController(
 
     private companion object {
         private const val MAX_RANDOM_FILL_ATTEMPTS = 5
-
-        // How many distinct recently-played tracks to fold into album/artist "Recently Played".
-        // Bounds the play-history scan while covering enough history to fill a page after collapsing
-        // to albums/artists and dropping excluded-genre tracks (many tracks map to one album/artist).
-        private const val RECENT_PLAY_TRACK_POOL = 500
     }
 }
