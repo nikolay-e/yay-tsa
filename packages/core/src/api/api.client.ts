@@ -11,6 +11,7 @@ import {
   AuthenticationError,
 } from '../internal/models/types.js';
 import { createLogger } from '../internal/utils/logger.js';
+import { generateUuid } from '../internal/config/env.js';
 import type { KaraokeState } from '../generated/constants.js';
 
 const log = createLogger('API');
@@ -361,13 +362,7 @@ export class MediaServerClient {
    * Generate a stable idempotency key reused across retries of one logical request
    */
   private generateIdempotencyKey(): string {
-    const cryptoRef = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-    if (cryptoRef?.randomUUID) {
-      return cryptoRef.randomUUID();
-    }
-    return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random()
-      .toString(16)
-      .slice(2)}`;
+    return generateUuid();
   }
 
   private createAttemptTimeout(): { signal: AbortSignal; clear: () => void } {

@@ -6,7 +6,6 @@ import {
   LogOut,
   Sparkles,
   Users,
-  Smartphone,
   Download,
   KeyRound,
   Library,
@@ -19,13 +18,6 @@ import { DjPreferencesPanel } from '@/features/player/components/DjPreferencesPa
 import { UsersPanel } from '@/features/auth/components/UsersPanel';
 import { OfflineManager } from '@/features/offline';
 import { useRescanLibrary, useScanStatus } from '@/features/library/hooks/useLibraryScan';
-
-function isStandaloneMode(): boolean {
-  return (
-    globalThis.matchMedia?.('(display-mode: standalone)').matches ||
-    (globalThis.navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
 
 async function clearServiceWorkerCaches(): Promise<number> {
   if (!('caches' in globalThis)) return 0;
@@ -266,29 +258,6 @@ export function SettingsPage() {
           <DjPreferencesPanel />
         </div>
       </section>
-
-      {!isStandaloneMode() && (
-        <section className="mb-8">
-          <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">
-            <Smartphone className="h-4 w-4" />
-            Android App
-          </h2>
-
-          <a
-            href="/downloads/yay-tsa.apk"
-            download
-            className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
-          >
-            <Smartphone className="text-accent h-5 w-5 shrink-0" />
-            <div>
-              <div className="font-medium">Download Android App</div>
-              <div className="text-text-secondary text-sm">
-                Install the native Android wrapper for a full-screen experience
-              </div>
-            </div>
-          </a>
-        </section>
-      )}
 
       <section className="mb-8">
         <h2 className="text-text-secondary mb-4 flex items-center gap-2 text-sm font-medium tracking-wide uppercase">

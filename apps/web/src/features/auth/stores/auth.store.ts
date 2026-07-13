@@ -18,11 +18,12 @@ import {
 } from '@/shared/utils/session-manager';
 import { queryClient } from '@/shared/lib/query-client';
 import { log } from '@/shared/utils/logger';
+import { toError } from '@/shared/utils/to-error';
 
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
 
 const runtimeServerUrl = globalThis.window?.__YAYTSA_CONFIG__?.serverUrl?.trim();
-const API_BASE_PATH = runtimeServerUrl || '/api';
+const API_BASE_PATH = runtimeServerUrl?.length ? runtimeServerUrl : '/api';
 
 export const SESSION_EXPIRED_FLAG = 'yaytsa_session_expired';
 
@@ -173,7 +174,7 @@ export const useAuthStore = create<AuthStore>()(
           log.auth.error('Login failed', error, { username });
           set({
             isLoading: false,
-            error: error instanceof Error ? error : new Error(String(error)),
+            error: toError(error),
           });
           throw error;
         }
@@ -327,8 +328,5 @@ export const useAuthStore = create<AuthStore>()(
   })
 );
 
-export const useIsAuthenticated = () => useAuthStore(state => state.isAuthenticated);
 export const useClient = () => useAuthStore(state => state.client);
-export const useIsLoading = () => useAuthStore(state => state.isLoading);
-export const useAuthError = () => useAuthStore(state => state.error);
 export const useIsAdmin = () => useAuthStore(state => state.isAdmin);

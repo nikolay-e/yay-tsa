@@ -25,4 +25,4 @@ Canonical key: **`CN=Yay-Tsa`**, SHA-256 `47:41:65:82:97:9C:B6:A6:F2:C7:B7:42:CF
 
 It pulls the keystore from Keychain, builds a release APK byte-for-byte signature-compatible with production, and installs in place. If a device still has a _legacy_ install signed with a different key (an old debug build, or one from before the keystore was standardized), the script uninstalls it once and reinstalls — the only situation that ever needs an uninstall.
 
-CI builds the identical APK in the `Build Android APK` job and publishes it to `https://yay-tsa.com/downloads/yay-tsa.apk`.
+CI builds the identical APK in the `Build Android APK` job and uploads it as a workflow artifact — it is not published on the website.

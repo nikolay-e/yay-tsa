@@ -30,6 +30,7 @@ import {
   bumpResumeVersion,
 } from '@/features/audiobooks/stores/local-resume';
 import { log } from '@/shared/utils/logger';
+import { toError } from '@/shared/utils/to-error';
 import { queryClient } from '@/shared/lib/query-client';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
@@ -588,17 +589,7 @@ export const usePlayerStore = create<PlayerStore>()(
       }
       const next = resolveNextItem(queue, repeatMode);
       if (next) {
-        const networkUrl = new ItemsService(currentClient).getStreamUrl(next.Id);
-        // Prefer a downloaded blob; resolution is async, so re-check the queue
-        // hasn't moved on before arming the preloader for a now-stale track.
-        void useOfflineStore
-          .getState()
-          .getPlaybackUrl(next.Id, networkUrl)
-          .then(url => {
-            if (resolveNextItem(get().queue, get().repeatMode)?.Id === next.Id) {
-              preloader.prepare(next.Id, url);
-            }
-          });
+        preloader.prepare(next.Id, new ItemsService(currentClient).getStreamUrl(next.Id));
       } else {
         preloader.invalidate();
       }
@@ -754,7 +745,7 @@ export const usePlayerStore = create<PlayerStore>()(
         trackName: track.Name,
       });
       set({
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
         isPlaying: false,
         isLoading: false,
       });
@@ -800,8 +791,11 @@ export const usePlayerStore = create<PlayerStore>()(
       reportStopped();
 
       try {
-        const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
-        const streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
+        // The engine is always handed the same-origin stream URL — never a blob: URL, which a
+        // strict `media-src 'self'` CSP rejects ("Media load rejected by URL safety check").
+        // When the track is downloaded, audio-offline-sw.js intercepts this exact URL and serves
+        // the bytes from IndexedDB (Range-aware), so offline playback needs no blob: exception.
+        const streamUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
 
         await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
 
@@ -1060,8 +1054,7 @@ export const usePlayerStore = create<PlayerStore>()(
             set({ error: null, isPlaying: wasPlaying, isLoading: false });
             return;
           }
-          const networkUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
-          const streamUrl = await useOfflineStore.getState().getPlaybackUrl(track.Id, networkUrl);
+          const streamUrl = new ItemsService(currentClient).getStreamUrl(track.Id);
           await withTimeout(engine.load(streamUrl), ENGINE_TIMEOUT_MS);
           if (signal.aborted) return;
           engine.setPlaybackRate?.(get().playbackRate);
@@ -1214,10 +1207,7 @@ export const usePlayerStore = create<PlayerStore>()(
         karaokeEnabled: false,
       });
       try {
-        const networkUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
-        const streamUrl = await useOfflineStore
-          .getState()
-          .getPlaybackUrl(currentTrack.Id, networkUrl);
+        const streamUrl = new ItemsService(currentClient).getStreamUrl(currentTrack.Id);
         await exitVocalBlend(streamUrl, signal);
         if (!signal.aborted) {
           preloader.invalidate();
@@ -2044,9 +2034,6 @@ export const useVolume = () => usePlayerStore(state => state.volume);
 export const useIsShuffle = () => usePlayerStore(state => state.isShuffle);
 export const useRepeatMode = () => usePlayerStore(state => state.repeatMode);
 export const usePlayerError = () => usePlayerStore(state => state.error);
-export const usePlayerMode = () => usePlayerStore(state => state.playerMode);
-export const useIsAudiobookMode = () => usePlayerStore(state => state.playerMode === 'audiobook');
-export const usePlaybackRate = () => usePlayerStore(state => state.playbackRate);
 export const useIsKaraokeMode = () => usePlayerStore(state => state.isKaraokeMode);
 export const useIsKaraokeTransitioning = () =>
   usePlayerStore(state => state.isKaraokeTransitioning);

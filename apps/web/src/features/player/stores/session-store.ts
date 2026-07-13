@@ -11,6 +11,7 @@ import {
 } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { toError } from '@/shared/utils/to-error';
 import { toast } from '@/shared/ui/Toast';
 import { usePlayerStore } from './player.store';
 
@@ -212,7 +213,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       log.player.error('Failed to start radio session', error);
       set({
         isStarting: false,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       });
       toast.add('error', 'Could not start radio');
     } finally {
@@ -260,7 +261,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
       saveSession(null);
       set({
         isStarting: false,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       });
     } finally {
       clearTimeout(safetyTimer);
@@ -326,7 +327,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 
       set({
         isRefreshing: false,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       });
     } finally {
       refreshDebounce = false;

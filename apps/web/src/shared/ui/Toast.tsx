@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { generateUuid } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 
 export type ToastType = 'error' | 'success' | 'info' | 'warning';
@@ -35,12 +36,7 @@ export const toast: ToastStore = {
     return toasts;
   },
   add(type: ToastType, message: string, duration = 5000, action?: ToastAction) {
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : Array.from(crypto.getRandomValues(new Uint8Array(16)), b =>
-            b.toString(16).padStart(2, '0')
-          ).join('');
+    const id = generateUuid();
     toasts = [...toasts, { id, type, message, duration, action }];
     notifyListeners();
 

@@ -8,7 +8,8 @@ import {
   CircleDot,
   Circle,
 } from 'lucide-react';
-import { ticksToSeconds, type AudiobookEntry } from '@yay-tsa/core';
+import { type AudiobookEntry } from '@yay-tsa/core';
+import { formatTicks } from '@/shared/utils/time';
 import {
   useAudiobooks,
   useAudiobookActions,
@@ -22,16 +23,6 @@ import { SearchButton } from '@/shared/ui/SearchButton';
 
 function chapterCount(n: number): string {
   return n === 1 ? '1 chapter' : `${n} chapters`;
-}
-
-function formatDuration(runTimeTicks: number | undefined): string {
-  if (!runTimeTicks || runTimeTicks <= 0) return '';
-  const total = Math.round(ticksToSeconds(runTimeTicks));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
-  return h > 0 ? `${h}:${mm}:${String(s).padStart(2, '0')}` : `${mm}:${String(s).padStart(2, '0')}`;
 }
 
 function chapterStatusIcon(finished: boolean, started: boolean) {
@@ -75,7 +66,7 @@ function ChapterRow({
       <span className="text-text-tertiary w-6 shrink-0 text-right tabular-nums">{index + 1}</span>
       <span className="min-w-0 flex-1 truncate">{entry.item.Name}</span>
       <span className="text-text-tertiary shrink-0 tabular-nums">
-        {formatDuration(entry.item.RunTimeTicks)}
+        {entry.item.RunTimeTicks ? formatTicks(entry.item.RunTimeTicks) : ''}
       </span>
     </button>
   );

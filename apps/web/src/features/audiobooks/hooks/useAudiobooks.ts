@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AudiobooksService, type AudiobookEntry } from '@yay-tsa/core';
+import { AudiobooksService, TICKS_PER_MS, type AudiobookEntry } from '@yay-tsa/core';
 import { useClient } from '@/features/auth/stores/auth.store';
-import { readLocalResume, useResumeVersion } from '@/features/audiobooks/stores/local-resume';
+import {
+  clearLocalResume,
+  readLocalResume,
+  useResumeVersion,
+} from '@/features/audiobooks/stores/local-resume';
 
 const AUDIOBOOKS_QUERY_KEY = ['audiobooks'] as const;
-const TICKS_PER_MS = 10_000;
 
 export type BookStatus = 'not_started' | 'in_progress' | 'finished';
 
@@ -227,6 +230,9 @@ export function useAudiobookActions() {
       if (!client) throw new Error('Not authenticated');
       const service = new AudiobooksService(client);
       await Promise.allSettled(itemIds.map(async id => service.markFinished(id)));
+      // The user explicitly discarded their place; a stale local record must not
+      // out-timestamp the server's reset on the next merge.
+      itemIds.forEach(clearLocalResume);
     },
     onSettled: invalidate,
   });
@@ -236,6 +242,7 @@ export function useAudiobookActions() {
       if (!client) throw new Error('Not authenticated');
       const service = new AudiobooksService(client);
       await Promise.allSettled(itemIds.map(async id => service.restart(id)));
+      itemIds.forEach(clearLocalResume);
     },
     onSettled: invalidate,
   });

@@ -3,9 +3,6 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import {
   ChevronDown,
-  Play,
-  Pause,
-  Loader2,
   SkipBack,
   SkipForward,
   Shuffle,
@@ -33,6 +30,7 @@ import { nextAudiobookSpeed } from '../playback-speed';
 import { SeekBar } from './SeekBar';
 import { InlineLyricsPanel } from './InlineLyricsPanel';
 import { KaraokeBlendSlider } from './KaraokeBlendSlider';
+import { PlayPauseIcon } from './PlaybackControls';
 
 type MobileFullPlayerProps = Readonly<{
   track: AudioItem;
@@ -441,11 +439,7 @@ export function MobileFullPlayer({
             aria-label={isPlaying ? 'Pause' : 'Play'}
             aria-busy={isLoading}
           >
-            {(() => {
-              if (isLoading) return <Loader2 className="h-7 w-7 animate-spin" />;
-              if (isPlaying) return <Pause className="h-7 w-7" fill="currentColor" />;
-              return <Play className="ml-0.5 h-7 w-7" fill="currentColor" />;
-            })()}
+            <PlayPauseIcon isLoading={isLoading} isPlaying={isPlaying} className="h-7 w-7" />
           </button>
 
           <button

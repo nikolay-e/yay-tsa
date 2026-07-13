@@ -12,6 +12,7 @@ import {
 } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { toError } from '@/shared/utils/to-error';
 import { usePlayerStore, getPlayerEngineForSync } from './player.store';
 
 const DRIFT_CHECK_MS = 500;
@@ -265,7 +266,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
       log.player.info('Created group', { groupId: result.id, joinCode: result.joinCode });
     } catch (error) {
       log.player.error('Failed to create group', error);
-      throw error instanceof Error ? error : new Error(String(error));
+      throw toError(error);
     }
   },
 
@@ -298,7 +299,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
       log.player.info('Joined group', { groupId: snapshot.id });
     } catch (error) {
       log.player.error('Failed to join group', error);
-      throw error instanceof Error ? error : new Error(String(error));
+      throw toError(error);
     }
   },
 

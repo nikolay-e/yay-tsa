@@ -52,6 +52,3 @@ export const useTimingStore = create<TimingStore>(set => {
     },
   };
 });
-
-export const useCurrentTime = () => useTimingStore(state => state.currentTime);
-export const useDuration = () => useTimingStore(state => state.duration);

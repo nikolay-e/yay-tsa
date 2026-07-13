@@ -1,6 +1,6 @@
 # E2E Tests - Yay-Tsa Music Client
 
-Playwright E2E тесты для веб-приложения Yay-Tsa.
+Playwright E2E tests for the Yay-Tsa web application.
 
 ## Setup
 
@@ -10,15 +10,16 @@ Playwright E2E тесты для веб-приложения Yay-Tsa.
 npm install
 ```
 
-1. Install Playwright browsers:
+1. Install Playwright browsers. A full local run (chromium + mobile + webkit projects) needs all browsers; CI installs chromium only (`npx playwright install --with-deps chromium`):
 
 ```bash
 npx playwright install
 ```
 
-1. Create `.env` file from template:
+1. Create the `.env` file from the template (both live in `apps/web/`, where Playwright reads `.env` from):
 
 ```bash
+cd apps/web
 cp .env.example .env
 ```
 

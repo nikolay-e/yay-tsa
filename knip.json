@@ -1,20 +1,15 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
-    ".": {
-      "ignore": ["lighthouserc.js"]
-    },
     "packages/core": {
       "entry": ["tests/**/*.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/env.d.ts"]
+      "project": ["src/**/*.ts", "tests/**/*.ts"]
     },
     "packages/platform": {
       "project": ["src/**/*.ts"]
     },
     "apps/web": {
       "entry": [
-        "src/main.tsx",
         "src/app/App.tsx",
         "src/pages/**/*.tsx",
         "src/**/*.test.{ts,tsx}",
@@ -31,20 +26,10 @@
     "@axe-core/playwright",
     "@playwright/test",
     "@commitlint/cli",
-    "jsdom",
-    "sharp",
-    "vitest",
-    "yaml",
-    "@vitest/coverage-v8",
-    "vite",
     "dotenv",
     "prettier-plugin-tailwindcss"
   ],
-  "ignoreBinaries": ["pre-commit", "tsc", "playwright"],
+  "ignoreBinaries": ["pre-commit", "tsc"],
   "ignoreExportsUsedInFile": true,
-  "ignore": [
-    "apps/web/src/features/**/stores/*.ts",
-    "apps/web/src/features/**/hooks/*.ts",
-    "tools/**"
-  ]
+  "ignore": ["tools/**"]
 }

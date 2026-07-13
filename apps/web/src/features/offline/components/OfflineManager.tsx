@@ -11,6 +11,7 @@ import {
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
+import { isEvictableCacheEntry } from '../stores/cache-eviction';
 
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 
@@ -81,11 +82,7 @@ export function OfflineManager() {
   const downloaded = Object.entries(entries)
     .filter(([, entry]) => entry.status === 'ready')
     .sort(([, a], [, b]) => b.size - a.size);
-  const cacheCount = downloaded.filter(
-    ([, entry]) =>
-      entry.reasons.includes('listening-cache') &&
-      !entry.reasons.some(reason => reason !== 'listening-cache')
-  ).length;
+  const cacheCount = downloaded.filter(([, entry]) => isEvictableCacheEntry(entry.reasons)).length;
 
   return (
     <div className="p-4">

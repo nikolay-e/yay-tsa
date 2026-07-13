@@ -65,7 +65,6 @@ interface OfflineActions {
   remove: (trackId: string) => Promise<void>;
   clearAll: () => Promise<void>;
   clearListeningCache: () => Promise<void>;
-  getPlaybackUrl: (trackId: string, fallbackUrl: string) => Promise<string>;
   getCoverUrl: (track: AudioItem, fallbackUrl: string) => Promise<string>;
   cachePlayed: (track: AudioItem) => Promise<void>;
   autoFavorite: (itemId: string) => Promise<void>;
@@ -464,15 +463,6 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
           await setReasons(trackId, remaining);
         }
       }
-    },
-
-    // eslint-disable-next-line @typescript-eslint/require-await
-    getPlaybackUrl: async (_trackId, fallbackUrl) => {
-      // Always hand the player the same-origin stream URL — never a blob: URL, which a strict
-      // `media-src 'self'` CSP rejects ("Media load rejected by URL safety check"). When the
-      // track is downloaded, audio-offline-sw.js intercepts this exact URL and serves the bytes
-      // from IndexedDB (Range-aware), so playback works offline without a CSP blob: exception.
-      return fallbackUrl;
     },
 
     getCoverUrl: async (track, fallbackUrl) => {

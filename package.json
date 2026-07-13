@@ -28,7 +28,6 @@
     "dev": "npm run gen:constants && tsc -b packages/core packages/platform && cd apps/web && npm run dev",
     "format": "prettier --write .",
     "gen:constants": "node scripts/gen-constants.mjs",
-    "generate:splash": "node scripts/generate-splash-screens.js",
     "lint": "prettier --check .",
     "lint:js": "eslint packages/core/src packages/platform/src apps/web/src",
     "pre-commit": "pre-commit run --all-files",
@@ -37,10 +36,8 @@
     "profile:bundle:build": "npm run build && node scripts/bundle-report.mjs",
     "profile:images": "node scripts/profile-images.mjs",
     "profile:web": "node scripts/profile-web.mjs",
-    "sync:version": "node scripts/sync-version.js",
     "test": "npm run test:unit --workspace=packages/core && npm run test --workspace=packages/platform && npm run test --workspace=apps/web",
-    "type-check": "npm run gen:constants && tsc -b packages/core packages/platform && cd apps/web && npx tsc --noEmit",
-    "postversion": "npm run sync:version"
+    "type-check": "npm run gen:constants && tsc -b packages/core packages/platform && cd apps/web && npx tsc --noEmit"
   },
   "overrides": {
     "@babel/core": ">=7.29.6",
@@ -68,12 +65,10 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "jscpd": "^5.0.11",
-    "jsdom": "^29.1.1",
     "knip": "^6.21.0",
     "prettier": "^3.8.5",
     "sharp": "^0.35.2",
     "type-coverage": "^2.29.7",
-    "vitest": "^4.1.9",
     "yaml": "2.9.0"
   },
   "engines": {

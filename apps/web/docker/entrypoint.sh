@@ -207,30 +207,12 @@ else
   exit 1
 fi
 
-# Media path for X-Accel-Redirect (must match volume mount in deployment)
-YAYTSA_MEDIA_PATH="${YAYTSA_MEDIA_PATH:-/media}"
-echo "INFO: Media path for X-Accel-Redirect: $YAYTSA_MEDIA_PATH"
-
 # Backend URL for nginx proxying (MUST be absolute http/https URL)
-# In docker-compose: defaults to http://backend:8096 (yay-tsa-backend service)
-# In Kubernetes: use internal service discovery URL
 # NEVER falls back to YAYTSA_SERVER_URL (which can be relative /api)
 if [[ -z "$YAYTSA_BACKEND_URL" ]]; then
-  case "$ENVIRONMENT" in
-  "docker-compose")
-    YAYTSA_BACKEND_URL="http://backend:8096"
-    echo "INFO: Using default docker-compose backend URL: $YAYTSA_BACKEND_URL"
-    ;;
-  "kubernetes")
-    K8S_NAMESPACE="${KUBERNETES_NAMESPACE:-yay-tsa-production}"
-    YAYTSA_BACKEND_URL="http://yay-tsa-backend.${K8S_NAMESPACE}.svc.cluster.local:8096"
-    echo "INFO: Using default Kubernetes backend URL: $YAYTSA_BACKEND_URL"
-    ;;
-  *)
-    echo "ERROR: YAYTSA_BACKEND_URL is required for nginx proxy configuration" >&2
-    exit 1
-    ;;
-  esac
+  echo "ERROR: YAYTSA_BACKEND_URL is required for nginx proxy configuration" >&2
+  echo "Set the YAYTSA_BACKEND_URL environment variable (Helm value: config.backendUrl) to the backend's absolute http(s):// URL, e.g. http://backend:8080" >&2
+  exit 1
 fi
 
 BACKEND_URL="$YAYTSA_BACKEND_URL"
@@ -260,17 +242,16 @@ if [[ -f "$ASSETLINKS_SRC" ]]; then
   fi
 fi
 
-# Generate nginx.conf from template with CSP hash, domain, backend URL, and media path substitution
+# Generate nginx.conf from template with CSP hash, domain, and backend URL substitution
 # Use '#' as delimiter instead of '/' to avoid conflicts with slashes in base64 hashes and URLs
 sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
   -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
   -e "s#__BACKEND_URL__#$BACKEND_URL#g" \
-  -e "s#__MEDIA_PATH__#$YAYTSA_MEDIA_PATH#g" \
   /etc/nginx/nginx.conf.template >/var/cache/nginx/nginx.conf
 sed -e "s#__CSP_SCRIPT_HASHES__#$CSP_SCRIPT_HASHES#g" \
   -e "s#__CSP_CONNECT_SRC_DOMAINS__#$CSP_CONNECT_SRC_DOMAINS#g" \
   /etc/nginx/security-headers.conf >/var/cache/nginx/security-headers.conf
-echo "Generated nginx.conf with runtime CSP hashes, domains, backend URL, and media path"
+echo "Generated nginx.conf with runtime CSP hashes, domains, and backend URL"
 
 # Execute the main command (nginx) with generated config
 exec nginx -c /var/cache/nginx/nginx.conf -g "daemon off;"

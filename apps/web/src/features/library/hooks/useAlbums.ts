@@ -2,28 +2,6 @@ import { AUDIOBOOK_GENRES, ItemsService, type MusicAlbum } from '@yay-tsa/core';
 import { useAuthenticatedQuery } from '@/features/auth/hooks/useAuthenticatedQuery';
 import { useInfiniteLibraryQuery } from './useInfiniteLibraryQuery';
 
-interface UseAlbumsOptions {
-  startIndex?: number;
-  limit?: number;
-  searchTerm?: string;
-  sortBy?: string;
-  sortOrder?: 'Ascending' | 'Descending';
-  artistId?: string;
-  isFavorite?: boolean;
-  excludeGenres?: string[];
-  enabled?: boolean;
-}
-
-export function useAlbums(options: UseAlbumsOptions = {}) {
-  const { enabled = true, excludeGenres = AUDIOBOOK_GENRES, ...queryOptions } = options;
-
-  return useAuthenticatedQuery(
-    ['albums', { ...queryOptions, excludeGenres }],
-    async client => new ItemsService(client).getAlbums({ ...queryOptions, excludeGenres }),
-    { enabled }
-  );
-}
-
 interface UseInfiniteAlbumsOptions {
   limit?: number;
   searchTerm?: string;
@@ -45,17 +23,6 @@ export function useInfiniteAlbums(options: UseInfiniteAlbumsOptions = {}) {
       return itemsService.getAlbums(params);
     },
   });
-}
-
-export function useRecentAlbums(limit = 20) {
-  return useAuthenticatedQuery(['albums', 'recent', limit], async client =>
-    new ItemsService(client).getAlbums({
-      sortBy: 'DateCreated',
-      sortOrder: 'Descending',
-      limit,
-      excludeGenres: AUDIOBOOK_GENRES,
-    })
-  );
 }
 
 export function useAlbumTracks(albumId: string | undefined) {

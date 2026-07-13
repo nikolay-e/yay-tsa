@@ -15,8 +15,7 @@ import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { PlayerBar, RemotePlaybackBanner } from '@/features/player/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
 import { useDeviceHeartbeat } from '@/features/player/hooks/useDeviceHeartbeat';
-import { useRemoteCommands } from '@/features/player/hooks/useRemoteCommands';
-import { useDeviceEvents } from '@/features/player/hooks/useDeviceEvents';
+import { useDeviceEventsChannel } from '@/features/player/hooks/useDeviceEventsChannel';
 import { OfflineIndicator } from '@/features/offline';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import { GlobalSearchBar } from '@/shared/ui/GlobalSearchBar';
@@ -68,8 +67,7 @@ export function RootLayout() {
   const isSearchRoute = location.pathname === '/search';
 
   useDeviceHeartbeat();
-  useRemoteCommands();
-  useDeviceEvents();
+  useDeviceEventsChannel();
 
   useEffect(() => {
     useOfflineStore

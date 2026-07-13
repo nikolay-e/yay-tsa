@@ -1,7 +1,5 @@
 FROM --platform=$BUILDPLATFORM node:22-alpine AS base
 
-RUN apk add --no-cache bash git curl wget
-
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -16,12 +14,6 @@ COPY packages/ ./packages/
 COPY apps/ ./apps/
 COPY scripts/ ./scripts/
 COPY shared-constants.yaml ./
-
-FROM base AS development
-
-EXPOSE 5173
-
-CMD ["npm", "run", "dev"]
 
 FROM base AS builder
 
@@ -54,29 +46,6 @@ RUN apk add --no-cache brotli gzip && \
 FROM scratch AS sourcemaps
 COPY --from=builder /app/apps/web/dist-maps /
 
-FROM mcr.microsoft.com/playwright:v1.61.1-noble AS test
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-COPY packages/core/package.json ./packages/core/
-COPY packages/platform/package.json ./packages/platform/
-COPY apps/web/package.json ./apps/web/
-
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm ci
-
-COPY packages/ ./packages/
-COPY apps/ ./apps/
-COPY scripts/ ./scripts/
-COPY shared-constants.yaml ./
-
-RUN npm run build:core && npm run build:platform
-
-ENV NO_COLOR=1
-
-CMD ["sh", "-c", "cd packages/core && npm run test:integration && cd ../../apps/web && npm run test:e2e"]
-
 FROM nginx:1.29-alpine AS production
 
 COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
@@ -87,12 +56,11 @@ COPY apps/web/docker/entrypoint.sh /docker-entrypoint.sh
 RUN apk add --no-cache \
         bash \
         wget \
-        jq \
-        openssl && \
+        jq && \
     rm -rf /etc/nginx/nginx.conf.default /usr/share/nginx/html/.gitkeep && \
     chmod +x /docker-entrypoint.sh && \
-    mkdir -p /var/cache/nginx /var/run /media && \
-    chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html /media && \
+    mkdir -p /var/cache/nginx /var/run && \
+    chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /var/run && \
     rm -rf /var/cache/apk/*
 

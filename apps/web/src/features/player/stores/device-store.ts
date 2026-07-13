@@ -7,6 +7,7 @@ import {
 } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { log } from '@/shared/utils/logger';
+import { toError } from '@/shared/utils/to-error';
 import { getEffectiveDeviceId } from '../device-identity';
 
 interface DeviceStoreState {
@@ -61,7 +62,7 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
       await service.sendCommand(sessionId, type, payload);
     } catch (error) {
       log.player.warn('Failed to send command', { error: String(error) });
-      throw error instanceof Error ? error : new Error(String(error));
+      throw toError(error);
     } finally {
       setTimeout(() => set({ commandPending: null }), 300);
     }
@@ -105,7 +106,7 @@ export const useDeviceStore = create<DeviceStore>()(set => ({
         throw error;
       }
       log.player.error('Transfer failed', error);
-      throw error instanceof Error ? error : new Error(String(error));
+      throw toError(error);
     }
   },
 

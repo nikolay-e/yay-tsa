@@ -7,9 +7,6 @@ import {
   AlignLeft,
   ThumbsUp,
   ThumbsDown,
-  Play,
-  Pause,
-  Loader2,
   Radio,
   MonitorSmartphone,
   Users,
@@ -60,7 +57,7 @@ import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
 import { SleepTimerModal } from './SleepTimerModal';
 import { VolumeControls } from './VolumeControls';
-import { PlaybackControls } from './PlaybackControls';
+import { PlaybackControls, PlayPauseIcon } from './PlaybackControls';
 import { DevicesPanel } from './DevicesPanel';
 import { GroupSyncPanel } from './GroupSyncPanel';
 
@@ -496,11 +493,7 @@ export function PlayerBar() {
             aria-label={isPlaying ? 'Pause' : 'Play'}
             aria-busy={isLoading}
           >
-            {(() => {
-              if (isLoading) return <Loader2 className="h-4 w-4 animate-spin" />;
-              if (isPlaying) return <Pause className="h-4 w-4" fill="currentColor" />;
-              return <Play className="ml-0.5 h-4 w-4" fill="currentColor" />;
-            })()}
+            <PlayPauseIcon isLoading={isLoading} isPlaying={isPlaying} className="h-4 w-4" />
           </button>
         </div>
       </div>

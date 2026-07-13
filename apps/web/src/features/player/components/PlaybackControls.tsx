@@ -28,7 +28,7 @@ type PlaybackControlsProps = Readonly<{
   onSkipForward?: () => void;
 }>;
 
-function PlayPauseIcon({
+export function PlayPauseIcon({
   isLoading,
   isPlaying,
   className,

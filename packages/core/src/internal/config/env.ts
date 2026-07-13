@@ -70,15 +70,15 @@ export function getOrCreateDeviceId(): string {
       return stored;
     }
 
-    const newId = generateDeviceId();
+    const newId = generateUuid();
     localStorage.setItem(STORAGE_KEYS.DEVICE_ID, newId);
     return newId;
   }
 
-  return generateDeviceId();
+  return generateUuid();
 }
 
-function generateDeviceId(): string {
+export function generateUuid(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
@@ -92,5 +92,5 @@ function generateDeviceId(): string {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
-  throw new Error('crypto API required for secure device ID generation');
+  throw new Error('crypto API required for secure ID generation');
 }

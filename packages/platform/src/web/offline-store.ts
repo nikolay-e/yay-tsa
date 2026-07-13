@@ -159,15 +159,6 @@ export class IndexedDbOfflineStore<M = unknown> {
     return result?.blob ?? null;
   }
 
-  async hasTrack(trackId: string): Promise<boolean> {
-    const db = await this.open();
-    const tx = db.transaction(STORE_TRACKS, 'readonly');
-    const key = await promisifyRequest<IDBValidKey | undefined>(
-      tx.objectStore(STORE_TRACKS).getKey(trackId)
-    );
-    return key !== undefined;
-  }
-
   async listTracks(): Promise<OfflineTrackRecord<M>[]> {
     const db = await this.open();
     const tx = db.transaction(STORE_TRACKS, 'readonly');
@@ -215,13 +206,6 @@ export class IndexedDbOfflineStore<M = unknown> {
     return result?.blob ?? null;
   }
 
-  async deleteCover(key: string): Promise<void> {
-    const db = await this.open();
-    const tx = db.transaction(STORE_COVERS, 'readwrite');
-    tx.objectStore(STORE_COVERS).delete(key);
-    await promisifyTransaction(tx);
-  }
-
   async enqueue(entry: Omit<OutboxEntry, 'id'>): Promise<void> {
     const db = await this.open();
     const tx = db.transaction(STORE_OUTBOX, 'readwrite');
@@ -243,24 +227,6 @@ export class IndexedDbOfflineStore<M = unknown> {
     const tx = db.transaction(STORE_OUTBOX, 'readwrite');
     tx.objectStore(STORE_OUTBOX).delete(id);
     await promisifyTransaction(tx);
-  }
-
-  async clearAll(): Promise<void> {
-    const db = await this.open();
-    const tx = db.transaction([STORE_TRACKS, STORE_BLOBS, STORE_OUTBOX, STORE_COVERS], 'readwrite');
-    tx.objectStore(STORE_TRACKS).clear();
-    tx.objectStore(STORE_BLOBS).clear();
-    tx.objectStore(STORE_OUTBOX).clear();
-    tx.objectStore(STORE_COVERS).clear();
-    await promisifyTransaction(tx);
-  }
-
-  close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
-    this.openPromise = null;
   }
 }
 

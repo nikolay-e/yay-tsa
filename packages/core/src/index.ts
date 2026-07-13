@@ -75,6 +75,7 @@ export {
   loadEnvironmentConfig,
   getRequiredConfig,
   getOrCreateDeviceId,
+  generateUuid,
   type EnvironmentConfig,
 } from './internal/config/env.js';
 
