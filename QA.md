@@ -4,21 +4,21 @@ Project-specific QA playbook for yay-tsa: a Kotlin/Spring Boot multi-protocol me
 
 ## Applicability Matrix
 
-| Capability                     | Applies | Notes                                                                                                                            |
-| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| CI                             | ✅      | `ci.yml` (PWA + post-deploy-qa), `v2-ci.yml` (Kotlin backend build)                                                              |
-| CD / ArgoCD                    | ✅      | Image Updater write-back; two namespaces (see Coordinates)                                                                       |
-| K8s logs                       | ✅      | Backend, frontend, audio-separator, feature-extractor CronJob                                                                    |
-| Browser QA (Playwright)        | ✅      | Most click-heavy UI in the fleet — see `walkthrough.safe_click`                                                                  |
-| Backend smoke                  | ✅      | Read + binary (Range/206) + write — never trust `/health` alone                                                                  |
-| Tests                          | ✅      | Gradle (Testcontainers), `packages/core` integration, Playwright E2E                                                             |
-| Diff-context review            | ✅      | `diffctx . --diff <from>..<to>`                                                                                                  |
-| autoqa full                    | ✅      | crawler + axe + schemathesis + ZAP                                                                                               |
-| Schemathesis                   | ✅      | OpenAPI at `/api/v3/api-docs`, base-url `https://yay-tsa.com/api`                                                                |
-| ZAP                            | ✅      | Enabled in `post-deploy-qa`                                                                                                      |
-| SonarCloud                     | ✅      | Automatic Analysis (see SonarCloud section)                                                                                      |
-| Chat-review (LLM-authored msg) | N/A     | No user-facing bot/agent messages; LLM-DJ output is queue edits, not user-facing text (wired to LiteLLM, gated on `LLM_ENABLED`) |
-| Walkthrough Delta Pass         | ✅      | Long lists must be scrolled ≥30 items before screenshot                                                                          |
+| Capability                     | Applies | Notes                                                                                                                              |
+| ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| CI                             | ✅      | `ci.yml` (PWA + post-deploy-qa), `v2-ci.yml` (Kotlin backend build)                                                                |
+| CD / ArgoCD                    | ✅      | Image Updater write-back; two namespaces (see Coordinates)                                                                         |
+| K8s logs                       | ✅      | Backend, frontend, audio-separator, feature-extractor CronJob                                                                      |
+| Browser QA (Playwright)        | ✅      | Most click-heavy UI in the fleet — see `walkthrough.safe_click`                                                                    |
+| Backend smoke                  | ✅      | Read + binary (Range/206) + write — never trust `/health` alone                                                                    |
+| Tests                          | ✅      | Gradle (Testcontainers), `packages/core` integration, Playwright E2E                                                               |
+| Diff-context review            | ✅      | `diffctx . --diff <from>..<to>`                                                                                                    |
+| autoqa full                    | ✅      | crawler + axe + schemathesis + ZAP                                                                                                 |
+| Schemathesis                   | ✅      | OpenAPI at `/api/v3/api-docs`, base-url `https://yay-tsa.com/api`                                                                  |
+| ZAP                            | ❌      | Off in the in-cluster autoqa (`zap-enabled: "false"` in gitops sensor): the autoqa image runs ZAP via Docker, no daemon in-cluster |
+| SonarCloud                     | ✅      | Automatic Analysis (see SonarCloud section)                                                                                        |
+| Chat-review (LLM-authored msg) | N/A     | No user-facing bot/agent messages; LLM-DJ output is queue edits, not user-facing text (wired to LiteLLM, gated on `LLM_ENABLED`)   |
+| Walkthrough Delta Pass         | ✅      | Long lists must be scrolled ≥30 items before screenshot                                                                            |
 
 ## Coordinates
 
@@ -594,3 +594,15 @@ The re-armed dependabot opened 9 PRs at once. Merged when green: minor/patch gro
 ## :app:test flake lottery — suspected FOURTH class: query-count guard under full-suite state (2026-07-14, tracking #284)
 
 `ItemsPaginationIntegrationTest` "no per-album artist N+1" failed once on CI (small=5, large=12 — systematic across all 5 MIN-samples, so NOT the additive background-scheduler noise its MIN-sampling defends against), on a commit that touched no /Items path; the same commit's rerun + isolated and full-suite local runs (with `--no-build-cache`!) are green. Tracked in #284 with the diagnosis playbook (SQL-log the class when it re-fires, diff isolated-vs-suite statements). **Gradle gotcha that cost a round: `:app:cleanTest :app:test` can still be served FROM-CACHE by the local build cache — a "full local rerun" proves nothing unless `--no-build-cache` (or `--rerun-tasks`) is passed; check the task line says `executed`, not `FROM-CACHE`/`UP-TO-DATE`.**
+
+## Album/artist favorite hearts were dead controls — favorites are per-track BY DESIGN (2026-07-14)
+
+Browser QA caught `POST /UserFavoriteItems/<albumId>` → 404 from the AlbumDetailPage heart: the preferences domain stores TRACK favorites only, album/artist "favorites" are DERIVED server-side (an album is favorite when it holds ≥1 favorited track — see `starredAlbums` and the Items favorites branch), and the Subsonic adapter explicitly `rejectAlbumOrArtistFavorites`. The PWA's 2026-06-05 "unify hearts" pass added album/artist FavoriteButtons anyway — permanently empty (album `toBaseItem` emits no `UserData`) and 404 on click. Fix: removed both page-level hearts; track hearts + derived tabs are the whole model. **Trap that hid it: the favorites e2e ran against MOCKED /api routes, so the optimistic patch + mock 200 kept it green while prod 404'd** — a mocked e2e proves UI mechanics, never endpoint support; the spec now toggles a real track heart (`track-favorite-button`). If a future feature wants first-class album/artist favorites, that's a domain change (preferences aggregate), not a UI patch.
+
+## Feature-extractor starvation: parked failures + the essentia WARN flood (2026-07-14)
+
+`processed=6 failed=19` nightly with `batchLimit: 25` = the 19 permanently-failing files (WMA rips, a hidden-data WAV, >30min full-album FLACs) sit at the head of `ORDER BY created_at` and eat the whole batch — the 2163-track embedding backlog effectively never drains (same OFFSET-0 starvation class as the MetadataEnricher §304). Fix: `core_v2_ml.extraction_failures` (V007) + `EXTRACT_MAX_ATTEMPTS=3` anti-join in `_pending_tracks`; success deletes the row. Diagnosis was blind because essentia's TF wrapper spams `[ WARNING ] No network created...` 30k+ lines/run, rotating the per-track failure lines out of `kubectl logs` — now silenced via `essentia.log.warningActive = False`. Check every pass: `SELECT count(*) FROM core_v2_ml.track_features` should GROW ~`batchLimit`/night until the backlog drains; `SELECT fail_count, last_error, count(*) FROM core_v2_ml.extraction_failures GROUP BY 1,2` explains what got parked and why. A radio seed picked from a NEW track often returns `degraded: no_embedding` until the backlog drains — that's the backlog, not the similarity path (verify with seeds from `track_features WHERE embedding_mert IS NOT NULL`).
+
+## Internal autoqa gate now reconciles CF-edge 5xx and clean RFC7807 4xx (autoqa e133303)
+
+The two permanent-red classes are gate-reconciled upstream (closes autoqa#29/#30): schemathesis FAILURES blocks whose statuses are all CF-edge (502/504/52x) with a Cloudflare page body (both shapes: `<center>cloudflare</center>` AND the branded `<host> | 502: Bad gateway` title — the report truncates the branded page before the word "cloudflare") → informational; positive_data_acceptance blocks answered by a structured `{"type":...}` problem+json 4xx → informational. Origin 5xx and non-problem bodies still block. Reconciliation total now parses the summary's `X found Y unique failures` (X = failing operations = FAILURES blocks); the per-phase `N failed` max both over- and under-counts merged blocks. App-side, the positive-acceptance offenders got real domain declarations instead of exclusions: maxLength from the DB varchar bounds (group name 200, playlist Name 500, toDeviceId 255, signal_type 30), `pattern: \S` on all NON_BLANK fields, an enum for `CommandRequest.command`, uuid items for `CreatePlaylistRequest.Ids`, and the `Map<String, Any?>` signals body replaced with a typed `SignalRequest` (untyped map bodies = unconstrained schema = fuzz junk that only fails at the DB — same rule as `Map<String, Any>` responses, §149).

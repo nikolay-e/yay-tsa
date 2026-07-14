@@ -77,7 +77,7 @@ class GlobalExceptionHandler {
         ex: IllegalArgumentException,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> {
-        if (ex.message?.startsWith("Invalid UUID string") == true) {
+        if (isMalformedUuid(ex.message)) {
             log.debug("Malformed resource id: {}", ex.message)
             return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Resource not found", request)
         }
@@ -158,11 +158,18 @@ class GlobalExceptionHandler {
         // resource id surfacing through a repository must map to 404 exactly like the unwrapped
         // case in handleBadRequest — a non-existent id and an unparsable id are the same thing
         // to the client.
-        if (message.startsWith("Invalid UUID string")) {
+        if (isMalformedUuid(message)) {
             return problemDetail(HttpStatus.NOT_FOUND, "Not Found", "Resource not found", request)
         }
         return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", message, request)
     }
+
+    // JDK UUID.fromString throws two different messages for unparsable input ("Invalid UUID
+    // string" and "UUID string too large") — both mean the same thing to the client: an id
+    // that can never name an existing resource, i.e. 404, never 400.
+    private fun isMalformedUuid(message: String?): Boolean =
+        message != null &&
+            (message.startsWith("Invalid UUID string") || message.startsWith("UUID string too large"))
 
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun handleTypeMismatch(
