@@ -1,6 +1,8 @@
 -r essentia-base.txt
-essentia-tensorflow==2.1b6.dev1438
-transformers>=5.13.1
+# Pinned: dev1438 has no wheel for this image's Python (pip resolves only dev1389);
+# transformers stays <5 until the MERT/CLAP extractor code is validated against v5.
+essentia-tensorflow==2.1b6.dev1389
+transformers>=4.38.0,<5
 --extra-index-url https://download.pytorch.org/whl/cu124
 torch>=2.13.0
 torchaudio>=2.11.0
