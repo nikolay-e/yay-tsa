@@ -118,6 +118,7 @@ class OpenApiConformanceConfig {
                 "PlaybackStartInfo" to PLAYBACK_REPORT_INT_FIELDS,
                 "PlaybackProgressInfo" to PLAYBACK_REPORT_INT_FIELDS,
                 "PlaybackStopInfo" to setOf("PositionTicks", "EventTime"),
+                "ScheduleRequest" to setOf("positionMs", "expected_epoch"),
             )
 
         // Id-array body fields the handlers treat as track ids: constraining the items to
