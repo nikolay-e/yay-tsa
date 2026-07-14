@@ -39,7 +39,29 @@ class OpenApiConformanceConfig {
             val schemas = openApi.components?.schemas ?: return@OpenApiCustomizer
             NON_BLANK_BODY_FIELDS.forEach { (schemaName, fields) ->
                 val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { field -> properties[field]?.minLength = 1 }
+                fields.forEach { field ->
+                    properties[field]?.let { schema ->
+                        schema.minLength = 1
+                        // minLength alone still admits a single whitespace char, which the
+                        // isNotBlank() handlers reject with 400 — require one non-whitespace char.
+                        if (schema.pattern == null) schema.pattern = "\\S"
+                    }
+                }
+            }
+            MAX_LENGTH_BODY_FIELDS.forEach { (schemaName, fields) ->
+                val properties = schemas[schemaName]?.properties ?: return@forEach
+                fields.forEach { (field, max) ->
+                    properties[field]?.let { schema -> if (schema.maxLength == null) schema.maxLength = max }
+                }
+            }
+            ENUM_BODY_FIELDS.forEach { (schemaName, fields) ->
+                val properties = schemas[schemaName]?.properties ?: return@forEach
+                fields.forEach { (field, values) ->
+                    @Suppress("UNCHECKED_CAST")
+                    (properties[field] as? io.swagger.v3.oas.models.media.Schema<Any>)?.let { schema ->
+                        if (schema.enum.isNullOrEmpty()) schema.enum = values
+                    }
+                }
             }
             UUID_BODY_FIELDS.forEach { (schemaName, fields) ->
                 val properties = schemas[schemaName]?.properties ?: return@forEach
@@ -103,11 +125,28 @@ class OpenApiConformanceConfig {
                 "CreatePlaylistRequest" to setOf("Name"),
             )
 
+        // DB column bounds the handlers surface as a clean 400 (DataAccessException on
+        // varchar overflow) — declare them so positive fuzzing stays inside the column.
+        private val MAX_LENGTH_BODY_FIELDS =
+            mapOf(
+                "CreateGroupRequest" to mapOf("name" to 200),
+                "CreatePlaylistRequest" to mapOf("Name" to 500),
+                "TransferRequest" to mapOf("toDeviceId" to 255),
+                "SignalRequest" to mapOf("signal_type" to 30, "signalType" to 30),
+            )
+
+        // Closed command vocabularies the handlers reject with 400 ("Unknown command").
+        private val ENUM_BODY_FIELDS =
+            mapOf(
+                "CommandRequest" to mapOf("command" to listOf<Any>("play", "pause", "skip_next", "skip_previous", "seek")),
+            )
+
         private val UUID_BODY_FIELDS =
             mapOf(
                 "PlaybackStartInfo" to setOf("ItemId"),
                 "PlaybackProgressInfo" to setOf("ItemId"),
                 "PlaybackStopInfo" to setOf("ItemId"),
+                "SignalRequest" to setOf("track_id", "trackId"),
             )
 
         private val PLAYBACK_REPORT_INT_FIELDS =
@@ -129,6 +168,7 @@ class OpenApiConformanceConfig {
         private val UUID_ARRAY_ITEM_FIELDS =
             mapOf(
                 "FavoriteOrderRequest" to setOf("ItemIds"),
+                "CreatePlaylistRequest" to setOf("Ids"),
             )
     }
 }

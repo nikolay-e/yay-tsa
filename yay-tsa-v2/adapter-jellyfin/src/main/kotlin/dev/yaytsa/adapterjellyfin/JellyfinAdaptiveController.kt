@@ -1,5 +1,7 @@
 package dev.yaytsa.adapterjellyfin
 
+import com.fasterxml.jackson.annotation.JsonAlias
+import com.fasterxml.jackson.annotation.JsonProperty
 import dev.yaytsa.adaptershared.AdapterCommandContextFactory
 import dev.yaytsa.adaptershared.HttpFailureTranslator
 import dev.yaytsa.adaptershared.TrackLookups
@@ -268,10 +270,19 @@ class JellyfinAdaptiveController(
             )
         }
 
+    // Typed body (not Map<String, Any?>): an untyped map makes springdoc emit an
+    // unconstrained object schema, so fuzzers legitimately send junk that only fails
+    // at the DB (signal_type is varchar(30)) — the spec must carry the real domain.
+    data class SignalRequest(
+        @JsonProperty("track_id") @JsonAlias("trackId") val trackId: String,
+        @JsonProperty("signal_type") @JsonAlias("signalType") val signalType: String? = null,
+        val context: Any? = null,
+    )
+
     @PostMapping("/sessions/{sessionId}/signals")
     fun recordSignal(
         @PathVariable sessionId: String,
-        @RequestBody body: Map<String, Any?>,
+        @RequestBody body: SignalRequest,
         principal: Principal,
     ): ResponseEntity<Void> {
         sessionAccessFailure<Void>(sessionId, principal)?.let { return it }
@@ -280,10 +291,10 @@ class JellyfinAdaptiveController(
             RecordPlaybackSignal(
                 ListeningSessionId(sessionId),
                 UUID.randomUUID().toString(),
-                TrackId(body["track_id"] as? String ?: return ResponseEntity.badRequest().build()),
+                TrackId(body.trackId),
                 null,
-                body["signal_type"] as? String ?: "UNKNOWN",
-                body["context"]?.toString(),
+                body.signalType ?: "UNKNOWN",
+                body.context?.toString(),
             )
         val ctx = ctxFactory.create(uid, currentSessionVersion(sessionId))
         return when (val result = adaptiveUseCases.execute(cmd, ctx)) {
