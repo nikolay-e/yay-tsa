@@ -31,6 +31,10 @@ EXTRACTOR_VERSION = os.getenv("EXTRACTOR_VERSION", "essentia-1.1+clap+mert")
 MUSIC_PATH = os.getenv("MUSIC_PATH", "/media")
 MODELS_DIR = os.getenv("ESSENTIA_MODELS_DIR", "/app/models")
 BATCH_LIMIT = int(os.getenv("EXTRACT_BATCH_LIMIT", "0"))  # 0 = no limit
+# Tracks that fail extraction this many times are parked (skipped by the pending query) so a
+# head-of-queue cluster of undecodable files can't permanently eat the whole nightly batch
+# and starve every track behind it. Same pattern as karaoke_fail_count.
+MAX_ATTEMPTS = int(os.getenv("EXTRACT_MAX_ATTEMPTS", "3"))
 
 
 def _pending_tracks(single_id):
@@ -57,11 +61,14 @@ def _pending_tracks(single_id):
                     "SELECT 1 FROM core_v2_library.entity_genres eg "
                     "JOIN core_v2_library.genres g ON g.id = eg.genre_id "
                     "WHERE eg.entity_id = e.id AND lower(g.name) IN ('audiobook', 'audiobooks')) "
+                    "AND NOT EXISTS ("
+                    "SELECT 1 FROM core_v2_ml.extraction_failures x "
+                    "WHERE x.track_id = e.id AND x.fail_count >= %(max_attempts)s) "
                     "ORDER BY e.created_at"
                 )
                 if BATCH_LIMIT > 0:
                     sql += f" LIMIT {BATCH_LIMIT}"
-                cur.execute(sql)
+                cur.execute(sql, {"max_attempts": MAX_ATTEMPTS})
             return cur.fetchall()
     finally:
         conn.close()
@@ -90,6 +97,27 @@ def _write_features(row):
     try:
         with conn.cursor() as cur:
             cur.execute(INSERT_SQL, row)
+            cur.execute(
+                "DELETE FROM core_v2_ml.extraction_failures WHERE track_id = %s",
+                (row["track_id"],),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _record_failure(track_id, error):
+    conn = db.connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO core_v2_ml.extraction_failures (track_id, last_error) "
+                "VALUES (%s, %s) "
+                "ON CONFLICT (track_id) DO UPDATE SET "
+                "fail_count = extraction_failures.fail_count + 1, "
+                "last_error = EXCLUDED.last_error, updated_at = now()",
+                (track_id, str(error)[:2000]),
+            )
         conn.commit()
     finally:
         conn.close()
@@ -99,13 +127,13 @@ def _extract_one(essentia, embedder, track_id, source_path):
     audio_path = os.path.join(MUSIC_PATH, source_path)
     if not os.path.isfile(audio_path):
         log.warning("track %s: file not found at %s", track_id, audio_path)
-        return False
+        return f"file not found: {audio_path}"
 
     essentia_result = essentia.extract(audio_path)
     features = essentia_result.get("features")
     if not features:
         log.warning("track %s: essentia returned no features", track_id)
-        return False
+        return "essentia returned no features"
     embeddings = embedder.extract(audio_path)
 
     row = {
@@ -132,7 +160,7 @@ def _extract_one(essentia, embedder, track_id, source_path):
         "extractor_version": EXTRACTOR_VERSION,
     }
     _write_features(row)
-    return True
+    return None
 
 
 def main():
@@ -162,13 +190,16 @@ def main():
     started = time.time()
     for track_id, source_path in pending:
         try:
-            if _extract_one(essentia, embedder, str(track_id), source_path):
+            error = _extract_one(essentia, embedder, str(track_id), source_path)
+            if error is None:
                 processed += 1
             else:
                 failed += 1
+                _record_failure(str(track_id), error)
         except Exception as exc:  # keep the batch going on per-track errors
             failed += 1
             log.warning("track %s failed: %s", track_id, exc)
+            _record_failure(str(track_id), exc)
     log.info(
         "done: processed=%d failed=%d in %.1fs",
         processed,

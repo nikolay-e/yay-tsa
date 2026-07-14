@@ -5,6 +5,7 @@ import threading
 import time
 from pathlib import Path
 
+import essentia
 import numpy as np
 from essentia.standard import (
     Danceability,
@@ -26,6 +27,10 @@ from essentia.standard import (
 )
 
 log = logging.getLogger(__name__)
+
+# The TF wrappers emit "No network created..." per predict call — 30k+ lines per batch run,
+# which rotates the useful per-track diagnostics out of `kubectl logs` entirely.
+essentia.log.warningActive = False
 
 AUDIO_SAMPLE_RATE = 44100
 TF_SAMPLE_RATE = 16000
