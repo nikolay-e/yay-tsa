@@ -1,11 +1,13 @@
 package dev.yaytsa.worker.karaoke
 
+import dev.yaytsa.application.karaoke.port.KaraokeOnDemandPort
 import dev.yaytsa.application.library.port.LibraryQueryPort
 import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.persistence.karaoke.entity.KaraokeAssetEntity
 import dev.yaytsa.persistence.karaoke.jpa.KaraokeAssetJpaRepository
 import dev.yaytsa.persistence.library.repository.LibraryEntityRepository
 import dev.yaytsa.shared.EntityId
+import dev.yaytsa.shared.TrackId
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -29,7 +31,7 @@ class KaraokeProcessor(
     @Value("\${yaytsa.karaoke.separator-url:#{null}}") private val separatorUrl: String?,
     @Value("\${yaytsa.karaoke.fail-threshold:3}") private val failThreshold: Int,
     meterRegistry: io.micrometer.core.instrument.MeterRegistry,
-) {
+) : KaraokeOnDemandPort {
     private val failureCounter =
         io.micrometer.core.instrument.Counter
             .builder("yaytsa.karaoke.failures")
@@ -50,6 +52,11 @@ class KaraokeProcessor(
     private val batchInFlight =
         java.util.concurrent.atomic
             .AtomicBoolean(false)
+
+    // User-requested tracks jump the scheduled backlog: the batch loop drains this queue
+    // between tracks, and an idle worker picks requests up immediately instead of waiting
+    // for the next 10-minute tick.
+    private val priorityRequests = java.util.concurrent.ConcurrentLinkedQueue<UUID>()
 
     companion object {
         private const val DEMUCS_TIMEOUT_MINUTES = 30L
@@ -73,19 +80,49 @@ class KaraokeProcessor(
         }
     }
 
+    override fun requestImmediate(trackId: TrackId) {
+        val id = runCatching { UUID.fromString(trackId.value) }.getOrNull() ?: return
+        priorityRequests.offer(id)
+        if (batchInFlight.compareAndSet(false, true)) {
+            separationExecutor.execute {
+                try {
+                    drainPriorityRequests()
+                } finally {
+                    batchInFlight.set(false)
+                }
+            }
+        }
+    }
+
+    private fun drainPriorityRequests() {
+        if (!separationBackendAvailable()) return
+        while (true) {
+            val id = priorityRequests.poll() ?: return
+            try {
+                processTrack(id)
+            } catch (e: Exception) {
+                log.error("Karaoke processing failed for requested track {}", id, e)
+            }
+        }
+    }
+
+    // Production delegates to the audio-separator HTTP sidecar (BS-Roformer on GPU)
+    // via separatorUrl; the in-process Demucs path is the local/dev fallback.
+    private fun separationBackendAvailable(): Boolean {
+        val localDemucsUnavailable = demucsCommand == "unsupported" || demucsCommand.isBlank()
+        return !(separatorUrl.isNullOrBlank() && localDemucsUnavailable)
+    }
+
     private fun runBatch() {
         // Independent of the separation backend: reclaim stems + rows for audiobooks that were
         // separated before the worker started excluding them (self-healing, no-op once drained).
         purgeAudiobookAssets()
 
-        // Production delegates to the audio-separator HTTP sidecar (BS-Roformer on GPU)
-        // via separatorUrl; the in-process Demucs path is the local/dev fallback. Bail
-        // only when neither separation backend is available.
-        val localDemucsUnavailable = demucsCommand == "unsupported" || demucsCommand.isBlank()
-        if (separatorUrl.isNullOrBlank() && localDemucsUnavailable) {
+        if (!separationBackendAvailable()) {
             log.debug("Karaoke processor has no separation backend (separatorUrl unset, demucsCommand={})", demucsCommand)
             return
         }
+        drainPriorityRequests()
         log.info("Karaoke processor checking for unprocessed tracks")
 
         // A track is terminal only when it succeeded (readyAt set) or exhausted its
@@ -101,6 +138,7 @@ class KaraokeProcessor(
 
         log.info("Found {} unprocessed tracks for karaoke (batch limit {})", unprocessed.size, BATCH_LIMIT)
         unprocessed.forEach { trackId ->
+            drainPriorityRequests()
             try {
                 processTrack(trackId)
             } catch (e: Exception) {

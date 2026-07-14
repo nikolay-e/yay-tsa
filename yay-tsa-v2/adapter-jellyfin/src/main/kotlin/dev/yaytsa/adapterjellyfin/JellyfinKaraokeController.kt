@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.application.karaoke.port.KaraokeOnDemandPort
 import dev.yaytsa.application.karaoke.port.KaraokeQueryPort
 import dev.yaytsa.shared.ByteRangeParser
 import dev.yaytsa.shared.ByteRangeResult
@@ -25,6 +26,8 @@ import java.nio.file.Path
 @RequestMapping("/Karaoke")
 class JellyfinKaraokeController(
     private val karaokeQueryPort: KaraokeQueryPort,
+    // Nullable: the processor bean exists only when yaytsa.karaoke.enabled=true.
+    private val karaokeOnDemand: KaraokeOnDemandPort?,
     @Value("\${yaytsa.karaoke.output-path:#{null}}") karaokeOutputPath: String?,
     @Value("\${yaytsa.karaoke.enabled:false}") private val karaokeEnabled: Boolean,
     @Value("\${yaytsa.karaoke.fail-threshold:3}") private val failThreshold: Int,
@@ -66,6 +69,8 @@ class JellyfinKaraokeController(
             return ResponseEntity.ok(mapOf("state" to KaraokeState.READY.name, "message" to null))
         }
         karaokeQueryPort.requeueFailed(TrackId(trackId))
+        // Jump the scheduled batch backlog: the user is waiting for this specific track.
+        karaokeOnDemand?.requestImmediate(TrackId(trackId))
         return ResponseEntity.ok(mapOf("state" to KaraokeState.PROCESSING.name, "message" to "Queued for processing"))
     }
 

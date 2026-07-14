@@ -228,4 +228,58 @@ class KaraokeAudiobookCleanupTest {
             server.stop(0)
         }
     }
+
+    // A user-requested track must be separated right away on the dedicated executor,
+    // not wait for the next scheduled batch tick behind a multi-hour backlog.
+    @Test
+    fun `requestImmediate processes a track without waiting for the scheduled batch`(
+        @TempDir root: Path,
+    ) {
+        val song = seedTrack("A Requested Song")
+        val instrumental = root.resolve("instrumental.wav")
+        val vocal = root.resolve("vocals.wav")
+        Files.write(instrumental, byteArrayOf(1))
+        Files.write(vocal, byteArrayOf(2))
+
+        val responseBody =
+            """{"instrumental_path":"$instrumental","vocal_path":"$vocal","processing_time_ms":7}"""
+                .toByteArray()
+        val server =
+            com.sun.net.httpserver.HttpServer
+                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/api/separate") { exchange ->
+            exchange.sendResponseHeaders(200, responseBody.size.toLong())
+            exchange.responseBody.use { it.write(responseBody) }
+        }
+        server.start()
+        try {
+            val libraryQuery = InMemoryLibraryQueryPort()
+            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+            val separatorProcessor =
+                KaraokeProcessor(
+                    libraryEntityRepo = libraryEntityRepo,
+                    libraryQuery = libraryQuery,
+                    karaokeRepo = karaokeRepo,
+                    clock = FixedClock(),
+                    separatorClient = SeparatorClient(),
+                    outputPath = null,
+                    demucsCommand = "unsupported",
+                    separatorUrl = "http://127.0.0.1:${server.address.port}",
+                    failThreshold = 3,
+                    meterRegistry = SimpleMeterRegistry(),
+                )
+
+            separatorProcessor.requestImmediate(dev.yaytsa.shared.TrackId(song.toString()))
+
+            val deadline = System.currentTimeMillis() + 10_000
+            var ready = false
+            while (System.currentTimeMillis() < deadline && !ready) {
+                ready = karaokeRepo.findById(song).map { it.readyAt != null }.orElse(false)
+                if (!ready) Thread.sleep(100)
+            }
+            assertTrue(ready, "requestImmediate must separate the track on the dedicated executor without a scheduler tick")
+        } finally {
+            server.stop(0)
+        }
+    }
 }
