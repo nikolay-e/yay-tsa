@@ -41,7 +41,7 @@ test.describe('Favorites', () => {
     const favoritesPage = libraryPage.page.getByTestId(FAVORITES_TEST_IDS.PAGE);
     await expect(favoritesPage).toBeVisible({ timeout: 10000 });
 
-    const tracksTab = libraryPage.page.getByRole('button', { name: 'Tracks' });
+    const tracksTab = libraryPage.page.getByRole('button', { name: 'Songs' });
     const albumsTab = libraryPage.page.getByRole('button', { name: 'Albums' });
     const artistsTab = libraryPage.page.getByRole('button', { name: 'Artists' });
 

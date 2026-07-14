@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test as base } from './console-guard.fixture';
 
 type AuthFixtures = {
