@@ -1,5 +1,6 @@
 package dev.yaytsa.app
 
+import io.swagger.v3.oas.models.media.Schema
 import io.swagger.v3.oas.models.responses.ApiResponse
 import io.swagger.v3.oas.models.responses.ApiResponses
 import org.springdoc.core.customizers.OpenApiCustomizer
@@ -37,55 +38,48 @@ class OpenApiConformanceConfig {
     fun requestBodyConstraintsCustomizer(): OpenApiCustomizer =
         OpenApiCustomizer { openApi ->
             val schemas = openApi.components?.schemas ?: return@OpenApiCustomizer
-            NON_BLANK_BODY_FIELDS.forEach { (schemaName, fields) ->
-                val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { field ->
-                    properties[field]?.let { schema ->
-                        schema.minLength = 1
-                        // minLength alone still admits a single whitespace char, which the
-                        // isNotBlank() handlers reject with 400 — require one non-whitespace char.
-                        if (schema.pattern == null) schema.pattern = "\\S"
-                    }
-                }
-            }
-            MAX_LENGTH_BODY_FIELDS.forEach { (schemaName, fields) ->
-                val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { (field, max) ->
-                    properties[field]?.let { schema -> if (schema.maxLength == null) schema.maxLength = max }
-                }
-            }
-            ENUM_BODY_FIELDS.forEach { (schemaName, fields) ->
-                val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { (field, values) ->
-                    @Suppress("UNCHECKED_CAST")
-                    (properties[field] as? io.swagger.v3.oas.models.media.Schema<Any>)?.let { schema ->
-                        if (schema.enum.isNullOrEmpty()) schema.enum = values
-                    }
-                }
-            }
-            UUID_BODY_FIELDS.forEach { (schemaName, fields) ->
-                val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { field -> properties[field]?.format = "uuid" }
-            }
-            NON_NEGATIVE_INT_BODY_FIELDS.forEach { (schemaName, fields) ->
-                val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { field ->
-                    properties[field]?.let { schema ->
-                        if (schema.minimum == null) schema.minimum = BigDecimal.ZERO
-                        if (schema.maximum == null) {
-                            // int64 (PositionTicks etc.) overflows Long on huge fuzz values and 400s;
-                            // cap at the format's real max so those land in the negative-test bucket.
-                            schema.maximum =
-                                if (schema.format == "int32") BigDecimal(Int.MAX_VALUE) else BigDecimal(Long.MAX_VALUE)
-                        }
-                    }
-                }
-            }
-            UUID_ARRAY_ITEM_FIELDS.forEach { (schemaName, fields) ->
-                val properties = schemas[schemaName]?.properties ?: return@forEach
-                fields.forEach { field -> properties[field]?.items?.format = "uuid" }
+            applyNonBlankConstraints(schemas)
+            applyMaxLengthConstraints(schemas)
+            applyEnumConstraints(schemas)
+            applyUuidConstraints(schemas)
+            applyIntBoundConstraints(schemas)
+            applyUuidArrayItemConstraints(schemas)
+        }
+
+    private fun applyNonBlankConstraints(schemas: Map<String, Schema<*>>) =
+        eachMappedField(schemas, NON_BLANK_BODY_FIELDS) { schema ->
+            schema.minLength = 1
+            // minLength alone still admits a single whitespace char, which the
+            // isNotBlank() handlers reject with 400 — require one non-whitespace char.
+            if (schema.pattern == null) schema.pattern = "\\S"
+        }
+
+    private fun applyMaxLengthConstraints(schemas: Map<String, Schema<*>>) =
+        eachMappedField(schemas, MAX_LENGTH_BODY_FIELDS) { schema, max ->
+            if (schema.maxLength == null) schema.maxLength = max
+        }
+
+    private fun applyEnumConstraints(schemas: Map<String, Schema<*>>) =
+        eachMappedField(schemas, ENUM_BODY_FIELDS) { schema, values ->
+            @Suppress("UNCHECKED_CAST")
+            (schema as? Schema<Any>)?.takeIf { it.enum.isNullOrEmpty() }?.enum = values
+        }
+
+    private fun applyUuidConstraints(schemas: Map<String, Schema<*>>) = eachMappedField(schemas, UUID_BODY_FIELDS) { schema -> schema.format = "uuid" }
+
+    private fun applyIntBoundConstraints(schemas: Map<String, Schema<*>>) =
+        eachMappedField(schemas, NON_NEGATIVE_INT_BODY_FIELDS) { schema ->
+            if (schema.minimum == null) schema.minimum = BigDecimal.ZERO
+            if (schema.maximum == null) {
+                // int64 (PositionTicks etc.) overflows Long on huge fuzz values and 400s;
+                // cap at the format's real max so those land in the negative-test bucket.
+                schema.maximum =
+                    if (schema.format == "int32") BigDecimal(Int.MAX_VALUE) else BigDecimal(Long.MAX_VALUE)
             }
         }
+
+    private fun applyUuidArrayItemConstraints(schemas: Map<String, Schema<*>>) =
+        eachMappedField(schemas, UUID_ARRAY_ITEM_FIELDS) { schema -> schema.items?.format = "uuid" }
 
     // Range-capable GET endpoints (audio stream, karaoke stems) answer a `Range` header with
     // 206 Partial Content — a valid success spring-doc never infers. Declaring 206 on GETs keeps
@@ -171,4 +165,22 @@ class OpenApiConformanceConfig {
                 "CreatePlaylistRequest" to setOf("Ids"),
             )
     }
+}
+
+private fun eachMappedField(
+    schemas: Map<String, Schema<*>>,
+    fieldsBySchema: Map<String, Set<String>>,
+    apply: (Schema<*>) -> Unit,
+) = fieldsBySchema.forEach { (schemaName, fields) ->
+    val properties = schemas[schemaName]?.properties ?: return@forEach
+    fields.forEach { field -> properties[field]?.let(apply) }
+}
+
+private fun <V> eachMappedField(
+    schemas: Map<String, Schema<*>>,
+    fieldsBySchema: Map<String, Map<String, V>>,
+    apply: (Schema<*>, V) -> Unit,
+) = fieldsBySchema.forEach { (schemaName, fields) ->
+    val properties = schemas[schemaName]?.properties ?: return@forEach
+    fields.forEach { (field, value) -> properties[field]?.also { apply(it, value) } }
 }
