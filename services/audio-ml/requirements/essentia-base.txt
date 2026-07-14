@@ -1,4 +1,7 @@
 -r base.txt
-numpy>=2.5.1
+# numba (via librosa) caps numpy<2.5; a floor at 2.5+ makes pip backtrack numba onto
+# ancient sdists with no Python-3.13 support and the image build dies. Keep the cap in
+# sync with numba's published numpy range when bumping.
+numpy>=1.24,<2.5
 psycopg2-binary>=2.9.12
 scikit-learn>=1.9.0
