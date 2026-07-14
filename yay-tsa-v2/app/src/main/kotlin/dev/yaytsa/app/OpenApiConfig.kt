@@ -84,6 +84,24 @@ class OpenApiConfig {
             operation
         }
 
+    // Comma-separated id-list QUERY params (Ids, ArtistIds, AlbumIds) are UUID lists; the
+    // handlers parse each token as a UUID and 400 on garbage ("UUID string too large"),
+    // which positive fuzzing then reports as "API rejected schema-compliant request" —
+    // the query-param twin of pathIdPatternCustomizer.
+    @Bean
+    fun idListQueryParamPatternCustomizer(): OperationCustomizer =
+        OperationCustomizer { operation, _ ->
+            operation.parameters
+                ?.filter { it.`in` == "query" && it.name in ID_LIST_QUERY_PARAMS }
+                ?.forEach { param ->
+                    val schema = param.schema
+                    if (schema?.type == "string" && schema.pattern == null && schema.format == null) {
+                        schema.pattern = ID_LIST_PATTERN
+                    }
+                }
+            operation
+        }
+
     // Paging params (StartIndex, Limit, limit, …) are non-negative int32s. Without declared
     // bounds, positive fuzzing legitimately sends values like -1.3e22 or 4.4e9; the resulting
     // 400 (type mismatch / negative index) is then reported as "API rejected schema-compliant
@@ -122,6 +140,9 @@ class OpenApiConfig {
 
     companion object {
         private const val PATH_ID_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._@:-]{0,127}$"
+
+        private val ID_LIST_QUERY_PARAMS = setOf("Ids", "ArtistIds", "AlbumIds")
+        private const val ID_LIST_PATTERN = "^[0-9a-fA-F-]{1,36}(,[0-9a-fA-F-]{1,36}){0,99}$"
 
         // Path params whose handlers reject non-UUID values with 400 (isValidUuid guards);
         // declaring format: uuid keeps positive fuzzing inside the servable id space.
