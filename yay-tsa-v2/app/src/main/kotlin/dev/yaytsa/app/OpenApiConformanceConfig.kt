@@ -65,7 +65,9 @@ class OpenApiConformanceConfig {
             (schema as? Schema<Any>)?.takeIf { it.enum.isNullOrEmpty() }?.enum = values
         }
 
-    private fun applyUuidConstraints(schemas: Map<String, Schema<*>>) = eachMappedField(schemas, UUID_BODY_FIELDS) { schema -> schema.format = "uuid" }
+    private fun applyUuidConstraints(schemas: Map<String, Schema<*>>) {
+        eachMappedField(schemas, UUID_BODY_FIELDS) { schema -> schema.format = "uuid" }
+    }
 
     private fun applyIntBoundConstraints(schemas: Map<String, Schema<*>>) =
         eachMappedField(schemas, NON_NEGATIVE_INT_BODY_FIELDS) { schema ->
