@@ -46,7 +46,7 @@ RUN apk add --no-cache brotli gzip && \
 FROM scratch AS sourcemaps
 COPY --from=builder /app/apps/web/dist-maps /
 
-FROM nginx:1.29-alpine AS production
+FROM nginx:1.31-alpine AS production
 
 COPY infra/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY infra/nginx/security-headers.conf /etc/nginx/security-headers.conf
