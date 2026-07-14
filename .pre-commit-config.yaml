@@ -203,6 +203,10 @@ repos:
         files: ^(packages|apps)/.*\.(js|ts|tsx)$
         exclude: (tests|\.test\.|\.spec\.|\.config\.)
         pass_filenames: true
+        # Typed lint: import resolution needs packages/core/dist, which only the
+        # pre-push tsc hooks build — on a cold CI runner the default stage has no
+        # dist and every @yay-tsa/core import reads as unresolved.
+        stages: [pre-push]
 
       - id: docker-compose-check
         name: 'Docker Compose config validation'
