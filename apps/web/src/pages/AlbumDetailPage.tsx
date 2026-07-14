@@ -1,8 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Pause, Play, Shuffle } from 'lucide-react';
-import { ItemsService, getIsFavorite, type MusicAlbum } from '@yay-tsa/core';
-import { FavoriteButton } from '@/features/library/components/FavoriteButton';
+import { ItemsService, type MusicAlbum } from '@yay-tsa/core';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useAlbumTracks } from '@/features/library/hooks';
 import { TrackList } from '@/features/library/components';
@@ -177,13 +176,6 @@ export function AlbumDetailPage() {
               <Shuffle className="h-5 w-5" />
               Shuffle
             </button>
-            <FavoriteButton
-              itemId={album.Id}
-              itemType="album"
-              isFavorite={getIsFavorite(album)}
-              size="md"
-              data-testid="album-favorite-button"
-            />
             <DownloadTracksButton tracks={tracks} label="Download album" reason="album" iconOnly />
           </div>
         </div>

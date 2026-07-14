@@ -16,7 +16,7 @@ export class AlbumPage {
     this.albumTitle = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_DETAIL_TITLE);
     this.playButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_PLAY_BUTTON);
     this.shuffleButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_SHUFFLE_BUTTON);
-    this.favoriteButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_FAVORITE_BUTTON);
+    this.favoriteButton = page.getByTestId(LIBRARY_TEST_IDS.TRACK_FAVORITE_BUTTON).first();
     this.trackRows = page.getByTestId(LIBRARY_TEST_IDS.TRACK_ROW);
     this.backButton = page.getByTestId(LIBRARY_TEST_IDS.ALBUM_BACK_BUTTON);
   }

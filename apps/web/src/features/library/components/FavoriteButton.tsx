@@ -6,7 +6,9 @@ import {
 } from '@/features/library/hooks/useFavorites';
 import { cn } from '@/shared/utils/cn';
 
-type FavoriteItemType = 'track' | 'album' | 'artist' | 'item';
+// Favorites are per-track by design (album/artist "favorites" are DERIVED from favorited
+// tracks server-side; the backend 404s any non-track id) — so only track-level hearts exist.
+type FavoriteItemType = 'track' | 'item';
 
 type FavoriteButtonProps = Readonly<{
   itemId: string;
@@ -20,8 +22,6 @@ type FavoriteButtonProps = Readonly<{
 
 const NOUN: Record<FavoriteItemType, string> = {
   track: 'track',
-  album: 'album',
-  artist: 'artist',
   item: 'item',
 };
 

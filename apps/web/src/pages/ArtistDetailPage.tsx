@@ -1,10 +1,8 @@
 import { useParams } from 'react-router-dom';
-import { getIsFavorite } from '@yay-tsa/core';
 import { useArtist, useArtistAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { useImageUrl, getImagePlaceholder } from '@/features/auth/hooks/useImageUrl';
 import { useImageErrorTracking } from '@/shared/hooks/useImageErrorTracking';
-import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { NotFound } from '@/shared/ui/NotFound';
 import { LoadErrorState } from '@/shared/ui/LoadErrorState';
@@ -97,12 +95,6 @@ export function ArtistDetailPage() {
               <h1 data-testid="artist-detail-name" className="text-text-primary text-3xl font-bold">
                 {artist.Name?.trim() || 'Unknown Artist'}
               </h1>
-              <FavoriteButton
-                itemId={artist.Id}
-                itemType="artist"
-                isFavorite={getIsFavorite(artist)}
-                size="md"
-              />
             </div>
             <p className="text-text-tertiary text-sm">
               {albumCount} {albumCount === 1 ? 'album' : 'albums'}

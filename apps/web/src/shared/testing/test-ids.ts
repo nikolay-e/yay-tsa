@@ -20,7 +20,7 @@ export const LIBRARY_TEST_IDS = {
   ALBUM_DETAIL_TITLE: 'album-detail-title',
   ALBUM_PLAY_BUTTON: 'album-play-button',
   ALBUM_SHUFFLE_BUTTON: 'album-shuffle-button',
-  ALBUM_FAVORITE_BUTTON: 'album-favorite-button',
+  TRACK_FAVORITE_BUTTON: 'track-favorite-button',
   ALBUM_BACK_BUTTON: 'album-back-button',
   TRACK_ROW: 'track-row',
   TRACK_TITLE: 'track-title',

@@ -37,10 +37,10 @@ describe('FavoriteButton', () => {
   });
 
   it('renders a pressed heart with a "Remove" label when favorite', () => {
-    renderButton({ itemId: 't1', itemType: 'album', isFavorite: true });
+    renderButton({ itemId: 't1', itemType: 'track', isFavorite: true });
     const btn = screen.getByRole('button');
     expect(btn.getAttribute('aria-pressed')).toBe('true');
-    expect(btn.getAttribute('aria-label')).toBe('Remove album from favorites');
+    expect(btn.getAttribute('aria-label')).toBe('Remove track from favorites');
   });
 
   it('marks favorite (POST) on click when empty', async () => {

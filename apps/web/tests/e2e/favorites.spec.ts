@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/library.fixture';
 import { LIBRARY_TEST_IDS, FAVORITES_TEST_IDS } from './helpers/test-ids';
 
 test.describe('Favorites', () => {
-  test('should toggle album favorite via button', async ({ libraryPage, albumPage }) => {
+  test('should toggle track favorite via button', async ({ libraryPage, albumPage }) => {
     await libraryPage.goto();
     const firstAlbum = libraryPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_CARD).first();
     await expect(firstAlbum).toBeVisible({ timeout: 10000 });
@@ -10,8 +10,8 @@ test.describe('Favorites', () => {
 
     await expect(albumPage.albumTitle).toBeVisible({ timeout: 10000 });
 
-    const favButton = albumPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_FAVORITE_BUTTON);
-    await expect(favButton).toBeVisible();
+    const favButton = albumPage.page.getByTestId(LIBRARY_TEST_IDS.TRACK_FAVORITE_BUTTON).first();
+    await expect(favButton).toBeAttached();
 
     const wasFavorite = await albumPage.isFavorite();
     await albumPage.toggleFavorite();
@@ -123,7 +123,7 @@ test.describe('Favorites', () => {
     await expect(albumPage.albumTitle).toBeVisible({ timeout: 10000 });
 
     const initialFavState = await albumPage.isFavorite();
-    const favButton = albumPage.page.getByTestId(LIBRARY_TEST_IDS.ALBUM_FAVORITE_BUTTON);
+    const favButton = albumPage.page.getByTestId(LIBRARY_TEST_IDS.TRACK_FAVORITE_BUTTON).first();
 
     await favButton.click();
     await favButton.click();

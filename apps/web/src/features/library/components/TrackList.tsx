@@ -247,6 +247,7 @@ function TrackListRowImpl({
             itemId={track.Id}
             itemType="track"
             isFavorite={getIsFavorite(track)}
+            data-testid="track-favorite-button"
             className={cn(
               'shrink-0',
               !getIsFavorite(track) &&
