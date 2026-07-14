@@ -3,9 +3,9 @@
 # bump is uninstallable here. transformers stays <5 until the MERT/CLAP extractor code
 # is validated against the v5 major. Bump this file only with an in-cluster
 # feature-extractor image build as the gate (CI's test suite never installs it).
-essentia-tensorflow==2.1b6.dev1389
-transformers>=4.38.0,<5
+essentia-tensorflow==2.1b6.dev1438
+transformers>=5.13.1,<6
 --extra-index-url https://download.pytorch.org/whl/cu124
-torch>=2.5.0
-torchaudio>=2.5.0
-librosa>=0.10.0
+torch>=2.13.0
+torchaudio>=2.11.0
+librosa>=0.11.0
