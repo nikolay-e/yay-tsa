@@ -122,6 +122,14 @@ export class HTML5AudioEngine implements AudioEngine {
   private readonly dispatchPlaying = () => {
     for (const cb of this.loadingCallbacks) cb(false);
   };
+  // Streamed formats (notably FLAC) expose a rough duration at canplay and correct it
+  // via durationchange once more of the stream is parsed. Adopt any finite, positive
+  // correction so stableDuration converges to the true length; garbage (Infinity/0/NaN
+  // during stalls) is ignored, preserving the anti-fluctuation guarantee.
+  private readonly dispatchDurationChange = () => {
+    const d = this.audio.duration;
+    if (Number.isFinite(d) && d > 0) this.stableDuration = d;
+  };
 
   // Promise chains for serializing operations (prevents race conditions)
   private playPromiseChain: Promise<void> = Promise.resolve();
@@ -181,6 +189,7 @@ export class HTML5AudioEngine implements AudioEngine {
     element.addEventListener('waiting', this.dispatchWaiting);
     element.addEventListener('canplay', this.dispatchCanPlay);
     element.addEventListener('playing', this.dispatchPlaying);
+    element.addEventListener('durationchange', this.dispatchDurationChange);
   }
 
   private detachDispatchHandlers(element: HTMLAudioElement): void {
@@ -192,6 +201,7 @@ export class HTML5AudioEngine implements AudioEngine {
     element.removeEventListener('waiting', this.dispatchWaiting);
     element.removeEventListener('canplay', this.dispatchCanPlay);
     element.removeEventListener('playing', this.dispatchPlaying);
+    element.removeEventListener('durationchange', this.dispatchDurationChange);
   }
 
   private ensureAudioContext(): AudioContext | null {
