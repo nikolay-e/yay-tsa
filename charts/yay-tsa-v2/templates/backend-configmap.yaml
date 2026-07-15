@@ -40,6 +40,7 @@ data:
   {{- end }}
   MPD_ENABLED: {{ default false .Values.backend.config.mpd.enabled | quote }}
   MPD_PORT: {{ .Values.backend.config.mpd.port | quote }}
+  MPD_BIND_ADDRESS: {{ default "127.0.0.1" .Values.backend.config.mpd.bindAddress | quote }}
   LISTENBRAINZ_ENABLED: {{ default false .Values.backend.config.scrobbling.listenbrainz.enabled | quote }}
   LISTENBRAINZ_USERNAME: {{ .Values.backend.config.scrobbling.listenbrainz.username | quote }}
 {{- end }}

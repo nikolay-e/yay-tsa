@@ -65,8 +65,6 @@ class SecurityConfig(
                 it
                     .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
                     .permitAll()
-                    .requestMatchers("/ws/**")
-                    .permitAll()
                     .requestMatchers("/Users/AuthenticateByName")
                     .permitAll()
                     .requestMatchers("/System/Info/Public", "/System/Ping")

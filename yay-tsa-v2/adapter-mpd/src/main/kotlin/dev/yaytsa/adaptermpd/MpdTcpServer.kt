@@ -8,6 +8,7 @@ import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
@@ -21,6 +22,7 @@ class MpdTcpServer(
     private val commandHandler: MpdCommandHandler,
     @Value("\${yaytsa.mpd.port:6600}") private val port: Int,
     @Value("\${yaytsa.mpd.enabled:false}") private val enabled: Boolean,
+    @Value("\${yaytsa.mpd.bind-address:127.0.0.1}") private val bindAddress: String,
 ) : SmartLifecycle {
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
@@ -30,6 +32,7 @@ class MpdTcpServer(
     companion object {
         private val IDLE_POLL_INTERVAL = 400.milliseconds
         private val IDLE_MAX_BLOCK = 5.minutes
+        private const val ACCEPT_BACKLOG = 50
     }
 
     override fun start() {
@@ -40,9 +43,9 @@ class MpdTcpServer(
         running.set(true)
         Thread({
             try {
-                val ss = ServerSocket(port)
+                val ss = ServerSocket(port, ACCEPT_BACKLOG, InetAddress.getByName(bindAddress))
                 serverSocket = ss
-                log.info("MPD server listening on port {}", port)
+                log.info("MPD server listening on {}:{}", bindAddress, port)
                 while (running.get()) {
                     val client = ss.accept()
                     executor.submit { handleClient(client) }

@@ -97,6 +97,7 @@ yaytsa:
   mpd:
     port: ${MPD_PORT:6600}
     enabled: ${MPD_ENABLED:false}
+    bind-address: ${MPD_BIND_ADDRESS:127.0.0.1}
   llm:
     enabled: ${LLM_ENABLED:false}
     model: ${LLM_MODEL:GPT-5.4 Mini}

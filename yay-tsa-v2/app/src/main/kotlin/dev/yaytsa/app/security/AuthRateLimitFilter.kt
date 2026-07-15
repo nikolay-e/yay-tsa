@@ -32,19 +32,25 @@ class AuthRateLimitFilter(
             .expireAfterAccess(Duration.ofMinutes(10))
             .build()
 
-    override fun shouldNotFilter(request: HttpServletRequest): Boolean = !isJellyfinLogin(request) && !isSubsonicRequest(request)
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
+        !isJellyfinLogin(request) && !isSubsonicRequest(request) && !isOAuthPasswordCheck(request)
 
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        val protocol = if (isJellyfinLogin(request)) "jellyfin" else "subsonic"
+        val protocol =
+            when {
+                isJellyfinLogin(request) -> "jellyfin"
+                isOAuthPasswordCheck(request) -> "oauth"
+                else -> "subsonic"
+            }
         val (effectiveRequest, username) =
-            if (protocol == "jellyfin") {
-                replayableRequestWithUsername(request)
-            } else {
-                request to request.getParameter("u")
+            when (protocol) {
+                "jellyfin" -> replayableRequestWithUsername(request)
+                "oauth" -> request to request.getParameter("username")
+                else -> request to request.getParameter("u")
             }
 
         val scopedKeys = failureBucketKeys(request, username)
@@ -66,6 +72,8 @@ class AuthRateLimitFilter(
 
     private fun isSubsonicRequest(request: HttpServletRequest): Boolean = request.requestURI.startsWith("/rest/")
 
+    private fun isOAuthPasswordCheck(request: HttpServletRequest): Boolean = request.method == "POST" && request.requestURI == "/oauth/authorize"
+
     private fun failureBucketKeys(
         request: HttpServletRequest,
         username: String?,
@@ -79,11 +87,11 @@ class AuthRateLimitFilter(
         protocol: String,
         response: HttpServletResponse,
     ): Boolean =
-        if (protocol == "jellyfin") {
-            response.status == HttpServletResponse.SC_UNAUTHORIZED
-        } else {
+        if (protocol == "subsonic") {
             val authentication = SecurityContextHolder.getContext().authentication
             authentication == null || authentication is AnonymousAuthenticationToken || !authentication.isAuthenticated
+        } else {
+            response.status == HttpServletResponse.SC_UNAUTHORIZED
         }
 
     private fun bucketFor(key: String): Bucket =

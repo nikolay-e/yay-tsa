@@ -177,6 +177,9 @@ backend:
     mpd:
       enabled: false
       port: 6600
+      # In-cluster clients reach MPD through the ClusterIP Service, so the daemon must
+      # bind all pod interfaces when enabled; NetworkPolicy + ClusterIP keep it cluster-only.
+      bindAddress: 0.0.0.0
     scrobbling:
       listenbrainz:
         enabled: false # submits completed plays to ListenBrainz; requires a user token

@@ -75,6 +75,44 @@ class AuthRateLimitIntegrationTest : HttpIntegrationTestBase() {
             ).andReturn()
             .response
 
+    private fun registerOAuthClient(): String {
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/oauth/register")
+                        .with(uniqueClientIp())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""{"redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"client_name":"RateLimit"}"""),
+                ).andReturn()
+        assertEquals(201, result.response.status, "body=${result.response.contentAsString}")
+        return objectMapper.readTree(result.response.contentAsString)["client_id"].asText()
+    }
+
+    private fun oauthAuthorize(
+        clientId: String,
+        username: String,
+        password: String,
+        ip: String,
+    ): MockHttpServletResponse =
+        mockMvc
+            .perform(
+                MockMvcRequestBuilders
+                    .post("/oauth/authorize")
+                    .with { req ->
+                        req.remoteAddr = ip
+                        req
+                    }.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .param("client_id", clientId)
+                    .param("redirect_uri", "https://claude.ai/api/mcp/auth_callback")
+                    .param("response_type", "code")
+                    .param("code_challenge", "c".repeat(43))
+                    .param("code_challenge_method", "S256")
+                    .param("username", username)
+                    .param("password", password),
+            ).andReturn()
+            .response
+
     private fun throttledCount(
         protocol: String,
         scope: String,
@@ -151,6 +189,55 @@ class AuthRateLimitIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(429, rejected.status)
         assertNotNull(rejected.getHeader("Retry-After"))
         assertTrue(throttledCount("subsonic", "ip") > 0.0, "yaytsa.auth.throttled{subsonic,ip} must increment")
+    }
+
+    @Test
+    fun `oauth password floods from one IP hit the limit with 429 and Retry-After`() {
+        val ip = "198.51.100.50"
+        val username = "brute-oauth-${UUID.randomUUID().toString().take(8)}"
+        seedUser(username, "correct-password")
+        val clientId = registerOAuthClient()
+
+        repeat(10) {
+            assertEquals(401, oauthAuthorize(clientId, username, "wrong-password-$it", ip).status)
+        }
+        val rejected = oauthAuthorize(clientId, username, "wrong-password-again", ip)
+
+        assertEquals(429, rejected.status)
+        assertNotNull(rejected.getHeader("Retry-After"))
+        assertTrue(
+            rejected.contentAsString.contains("Too Many Requests"),
+            "throttled response must be problem+json: ${rejected.contentAsString}",
+        )
+        assertTrue(throttledCount("oauth", "ip") > 0.0, "yaytsa.auth.throttled{oauth,ip} must increment")
+    }
+
+    @Test
+    fun `one username brute-forced over oauth across many IPs is throttled by the per-username bucket`() {
+        val username = "brute-oauth-user-${UUID.randomUUID().toString().take(8)}"
+        seedUser(username, "correct-password")
+        val clientId = registerOAuthClient()
+
+        repeat(10) {
+            assertEquals(401, oauthAuthorize(clientId, username, "wrong-password", "203.0.113.${it + 1}").status)
+        }
+        val rejected = oauthAuthorize(clientId, username, "wrong-password", "203.0.113.99")
+
+        assertEquals(429, rejected.status)
+        assertNotNull(rejected.getHeader("Retry-After"))
+        assertTrue(throttledCount("oauth", "username") > 0.0, "yaytsa.auth.throttled{oauth,username} must increment")
+    }
+
+    @Test
+    fun `successful oauth authorizations never consume the failure budget`() {
+        val ip = "198.51.100.60"
+        val username = "ok-oauth-${UUID.randomUUID().toString().take(8)}"
+        seedUser(username, "correct-password")
+        val clientId = registerOAuthClient()
+
+        repeat(12) {
+            assertEquals(302, oauthAuthorize(clientId, username, "correct-password", ip).status)
+        }
     }
 
     @Test
