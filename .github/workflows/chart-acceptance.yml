@@ -10,6 +10,15 @@ on:
       - 'charts/**'
       - '.github/workflows/chart-acceptance.yml'
   workflow_dispatch:
+    inputs:
+      backend_tag:
+        description: 'Backend image tag (ghcr fixture; e.g. main-<sha7>)'
+        required: false
+        default: 'latest'
+      frontend_tag:
+        description: 'Frontend image tag (ghcr fixture; e.g. main-<sha7>)'
+        required: false
+        default: 'latest'
 
 concurrency:
   group: chart-acceptance-${{ github.ref }}
@@ -38,5 +47,14 @@ jobs:
           sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
           kind version && kubectl version --client
 
-      - name: Run acceptance test (registry :latest images)
+      # KNOWN LIMITATION: images cannot be pinned to the commit under test. Since the
+      # 2026-07-11 migration, images build in-cluster and publish only to the WARP-only
+      # Forgejo registry, unreachable from public runners. The ghcr images used here are
+      # FROZEN pre-migration fixtures (:latest is immutable, not a moving target); this
+      # job proves CHART mechanics, not image freshness. Tags are overridable via
+      # workflow_dispatch inputs (or BACKEND_TAG/FRONTEND_TAG env for local runs).
+      - name: Run acceptance test (frozen ghcr fixture images)
+        env:
+          BACKEND_TAG: ${{ inputs.backend_tag || 'latest' }}
+          FRONTEND_TAG: ${{ inputs.frontend_tag || 'latest' }}
         run: bash charts/yay-tsa-stack/ci/kind-acceptance-test.sh

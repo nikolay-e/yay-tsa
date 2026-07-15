@@ -12,7 +12,16 @@ http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
 
-    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+    # Access logs must never contain query strings: /api/Audio/*/stream carries
+    # ?api_key=<bearer token> and /rest/ carries Subsonic ?u=&p=<password>&t=&s=.
+    # Log the path only (truncate $request_uri at '?') instead of $request.
+    map $request_uri $scrubbed_request_uri {
+        ~^(?<request_path>[^?]*)\? $request_path;
+        default $request_uri;
+    }
+
+    log_format main '$remote_addr - $remote_user [$time_local] '
+                    '"$request_method $scrubbed_request_uri $server_protocol" '
                     '$status $body_bytes_sent "$http_referer" '
                     '"$http_user_agent" "$http_x_forwarded_for" '
                     'rt=$request_time uct="$upstream_connect_time" '

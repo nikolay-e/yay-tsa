@@ -29,6 +29,16 @@ podSecurityContext:
   runAsGroup: 999
   fsGroup: 999
 
+# readOnlyRootFilesystem is intentionally omitted: the pgvector image writes to
+# /var/run/postgresql (unix socket) and initdb-time paths outside the data volume.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
 nodeSelector: {}
 tolerations: []
 affinity: {}

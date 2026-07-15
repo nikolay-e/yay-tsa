@@ -45,11 +45,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     apt-get update && apt-get install -y --no-install-recommends python3-dev gcc \
     && set -ex; \
     if [ "$VARIANT" = "gpu" ] && [ "$TARGETARCH" = "arm64" ]; then \
-      pip3 install --break-system-packages -r requirements/cpu.txt; \
+      pip3 install --break-system-packages -r requirements/cpu.lock.txt; \
     elif [ "$VARIANT" = "essentia" ] && [ "$TARGETARCH" = "arm64" ]; then \
-      pip3 install --break-system-packages -r requirements/essentia-base.txt; \
+      pip3 install --break-system-packages -r requirements/essentia-base.lock.txt; \
+    elif [ "$VARIANT" = "essentia" ]; then \
+      pip3 install --break-system-packages -r requirements/essentia-base.lock.txt -r requirements/essentia.txt; \
     else \
-      pip3 install --break-system-packages -r requirements/${VARIANT}.txt; \
+      pip3 install --break-system-packages -r requirements/${VARIANT}.lock.txt; \
     fi \
     && apt-get purge -y python3-dev gcc \
     && apt-get autoremove -y \
