@@ -39,6 +39,7 @@ class SubsonicAnnotationController(
 ) {
     private companion object {
         const val SOURCE_SUBSONIC = "subsonic"
+        const val MISSING_ID_MESSAGE = "Required parameter is missing: id"
     }
 
     @GetMapping("/star", "/star.view")
@@ -49,11 +50,7 @@ class SubsonicAnnotationController(
         @RequestParam(required = false) f: String?,
         principal: Principal,
     ): ResponseEntity<String> {
-        if (id.isNullOrEmpty() && albumId.isNullOrEmpty() && artistId.isNullOrEmpty()) {
-            throw SubsonicApiException(10, "Required parameter is missing: id")
-        }
-        rejectAlbumOrArtistFavorites(albumId, artistId)
-        val userId = UserId(principal.name)
+        val userId = validateFavoriteTargets(id, albumId, artistId, principal)
         val requested =
             id
                 .orEmpty()
@@ -78,13 +75,19 @@ class SubsonicAnnotationController(
             libraryQueries.getArtistsByIds(entityIds).isNotEmpty()
     }
 
-    private fun rejectAlbumOrArtistFavorites(
+    private fun validateFavoriteTargets(
+        id: List<String>?,
         albumId: List<String>?,
         artistId: List<String>?,
-    ) {
+        principal: Principal,
+    ): UserId {
+        if (id.isNullOrEmpty() && albumId.isNullOrEmpty() && artistId.isNullOrEmpty()) {
+            throw SubsonicApiException(10, MISSING_ID_MESSAGE)
+        }
         if (!albumId.isNullOrEmpty() || !artistId.isNullOrEmpty()) {
             throw SubsonicApiException(0, "Starring albums or artists is not supported; favorites are per-song")
         }
+        return UserId(principal.name)
     }
 
     private fun preferencesContext(userId: UserId): CommandContext {
@@ -100,11 +103,7 @@ class SubsonicAnnotationController(
         @RequestParam(required = false) f: String?,
         principal: Principal,
     ): ResponseEntity<String> {
-        if (id.isNullOrEmpty() && albumId.isNullOrEmpty() && artistId.isNullOrEmpty()) {
-            throw SubsonicApiException(10, "Required parameter is missing: id")
-        }
-        rejectAlbumOrArtistFavorites(albumId, artistId)
-        val userId = UserId(principal.name)
+        val userId = validateFavoriteTargets(id, albumId, artistId, principal)
         for (rawId in id.orEmpty()) {
             val entityId = support.safeEntityId(rawId) ?: continue
             val ctx = preferencesContext(userId)
@@ -150,7 +149,7 @@ class SubsonicAnnotationController(
         @RequestParam(required = false) f: String?,
         principal: Principal,
     ): ResponseEntity<String> {
-        if (id.isNullOrEmpty()) throw SubsonicApiException(10, "Required parameter is missing: id")
+        if (id.isNullOrEmpty()) throw SubsonicApiException(10, MISSING_ID_MESSAGE)
         if (!submission) return support.write(ok(), f)
         val userId = UserId(principal.name)
         id.forEachIndexed { index, rawId ->
