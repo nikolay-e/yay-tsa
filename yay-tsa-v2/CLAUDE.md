@@ -247,7 +247,7 @@ Domain classes live in `core-domain`. JPA entities live in `infra-persistence`. 
 
 ### Transactional Outbox
 
-Notifications (PlaybackStateChanged, PlaylistChanged, etc.) are written to an outbox table in the same database transaction as the aggregate state change. A separate poller reads the outbox after commit and delivers notifications through WebSocket or other channels.
+Notifications (PlaybackStateChanged, PlaylistChanged, etc.) are written to an outbox table in the same database transaction as the aggregate state change. A separate poller reads the outbox after commit and delivers notifications through SSE (SseEmitter via DeviceEventBroadcaster) or other channels.
 
 If the transaction commits, the notification is guaranteed to be delivered. If the transaction rolls back, the notification never leaves the system.
 
@@ -345,7 +345,7 @@ infra-karaoke-worker/     BS-Roformer/Demucs pipeline, stem storage
 infra-metadata-enricher/  MusicBrainz IDs, Cover Art Archive covers, artist images
 infra-llm/                LLM API client, signal processing, queue edit generation
 infra-media/              Audio transcoding, stream serving
-infra-notifications/      WebSocket fan-out, outbox poller
+infra-notifications/      SSE fan-out, outbox poller
 
 adapter-jellyfin/         Yaytsa protocol (Jellyfin standard + custom extensions)
 adapter-opensubsonic/     Subsonic/OpenSubsonic protocol translation

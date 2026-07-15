@@ -41,6 +41,10 @@ cd yay-tsa-v2 && ./gradlew test                 # Backend integration tests (Tes
 # Values + ArgoCD apps in the gitops repo (separate); ArgoCD Image Updater auto-bumps tags.
 ```
 
+## Testing Policy (project-level exception to the workspace rule)
+
+The workspace "NO unit tests" rule applies here with one deliberate, sanctioned exception: **pure-function tests of domain logic are allowed** — backend Kotest suites for pure command handlers driven through in-memory ports (`core-testkit`, no mocking frameworks ever), and frontend vitest suites for pure core modules (`packages/core/src/**/*.test.ts`: queue state machine, parsers). These test deterministic functions with real implementations, not mocked collaborators. Everything with I/O is covered by integration tests only: real Postgres via Testcontainers on the backend, live-server integration tests for `packages/core`, Playwright E2E for the PWA. Mocking frameworks (mockk/Mockito/@MockBean) remain banned; external services are stubbed with real in-process HTTP servers.
+
 ## Architecture: Three-Layer Portability Model (Frontend)
 
 The frontend is split into three npm packages with **strict unidirectional dependency flow**: Core → Platform → Web. This is not organizational convenience — it's a deliberate portability strategy.
