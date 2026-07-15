@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.MediaPathSafety
 import dev.yaytsa.application.library.LibraryQueries
 import dev.yaytsa.shared.ByteRangeParser
 import dev.yaytsa.shared.ByteRangeResult

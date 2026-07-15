@@ -1,5 +1,6 @@
 package dev.yaytsa.adapterjellyfin
 
+import dev.yaytsa.adaptershared.MediaPathSafety
 import dev.yaytsa.application.karaoke.port.KaraokeOnDemandPort
 import dev.yaytsa.application.karaoke.port.KaraokeQueryPort
 import dev.yaytsa.shared.ByteRangeParser

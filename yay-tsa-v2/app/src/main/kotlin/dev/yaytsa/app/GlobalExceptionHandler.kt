@@ -1,6 +1,5 @@
 package dev.yaytsa.app
 
-import dev.yaytsa.shared.Failure
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataAccessException
@@ -27,32 +26,9 @@ import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.NoHandlerFoundException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 
-class FailureException(
-    val failure: Failure,
-) : RuntimeException(failure.toString())
-
 @RestControllerAdvice
 class GlobalExceptionHandler {
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
-
-    @ExceptionHandler(FailureException::class)
-    fun handleFailure(
-        ex: FailureException,
-        request: HttpServletRequest,
-    ): ResponseEntity<Map<String, Any>> = handleDomainFailure(ex.failure, request)
-
-    fun handleDomainFailure(
-        failure: Failure,
-        request: HttpServletRequest,
-    ): ResponseEntity<Map<String, Any>> {
-        val (status, title, detail) = mapFailure(failure)
-        if (status.is5xxServerError) {
-            log.error("Domain failure mapped to {}: {}", status, failure)
-        } else {
-            log.debug("Domain failure mapped to {}: {}", status, failure)
-        }
-        return problemDetail(status, title, detail, request)
-    }
 
     @ExceptionHandler(NoHandlerFoundException::class)
     fun handleNotFound(
@@ -233,34 +209,6 @@ class GlobalExceptionHandler {
         log.error("Unhandled exception", ex)
         return problemDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "Internal server error", request)
     }
-
-    private fun mapFailure(failure: Failure): Triple<HttpStatus, String, String> =
-        when (failure) {
-            is Failure.NotFound ->
-                Triple(HttpStatus.NOT_FOUND, "Not Found", "${failure.entityType} '${failure.id}' not found")
-            is Failure.Unauthorized ->
-                Triple(HttpStatus.UNAUTHORIZED, "Unauthorized", failure.reason)
-            is Failure.Conflict ->
-                Triple(
-                    HttpStatus.CONFLICT,
-                    "Conflict",
-                    "Version conflict: expected ${failure.expected.value}, actual ${failure.actual.value}",
-                )
-            is Failure.StorageConflict ->
-                Triple(
-                    HttpStatus.CONFLICT,
-                    "Conflict",
-                    "Concurrent modification of ${failure.aggregateType} '${failure.id}'",
-                )
-            is Failure.InvariantViolation ->
-                Triple(HttpStatus.BAD_REQUEST, "Bad Request", failure.rule)
-            is Failure.UnsupportedByProtocol ->
-                Triple(
-                    HttpStatus.BAD_REQUEST,
-                    "Unsupported By Protocol",
-                    "Command '${failure.command}' not supported by protocol '${failure.protocol.value}'",
-                )
-        }
 
     private fun problemDetail(
         status: HttpStatus,

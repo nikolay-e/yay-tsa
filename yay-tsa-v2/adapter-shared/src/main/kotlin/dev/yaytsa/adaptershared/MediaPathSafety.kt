@@ -1,11 +1,11 @@
-package dev.yaytsa.adapterjellyfin
+package dev.yaytsa.adaptershared
 
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 
-internal object MediaPathSafety {
+object MediaPathSafety {
     private val STEM_AUDIO_EXTENSIONS = listOf("mp3", "opus", "m4a", "flac", "ogg", "wav")
 
     fun resolveRoot(configuredRoot: String?): Path? =

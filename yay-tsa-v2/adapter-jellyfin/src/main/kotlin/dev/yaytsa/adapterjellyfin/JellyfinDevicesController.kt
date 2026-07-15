@@ -37,6 +37,7 @@ class JellyfinDevicesController(
     private val nowPlayingResolver: DeviceNowPlayingResolver,
     private val remoteCommandPort: RemoteCommandPort,
     private val clock: Clock,
+    private val failureTranslator: HttpFailureTranslator,
     @Qualifier("jellyfinCommandContextFactory")
     private val commandContextFactory: AdapterCommandContextFactory,
 ) {
@@ -224,6 +225,5 @@ class JellyfinDevicesController(
 
     companion object {
         private val LEASE_DURATION: Duration = Duration.ofSeconds(60)
-        private val failureTranslator = HttpFailureTranslator()
     }
 }

@@ -322,22 +322,17 @@ class JellyfinSessionsController(
         state: dev.yaytsa.domain.playback.PlaybackState,
         deviceId: dev.yaytsa.shared.DeviceId,
         now: Instant,
-    ): Boolean {
-        if (current == null) return true
-        val currentTrackId =
-            current.currentEntryId?.let { entryId ->
-                current.queue
-                    .firstOrNull { it.id == entryId }
-                    ?.trackId
-                    ?.value
-            }
-        if (currentTrackId != itemId) return true
-        if (current.playbackState != state) return true
-        val lease = current.lease
-        if (lease == null || lease.owner != deviceId || Duration.between(now, lease.expiresAt) < REFLECT_LEASE_RENEW_THRESHOLD) return true
-        val driftMs = current.computePosition(now).toMillis() - positionMs
-        return driftMs > REFLECT_POSITION_TOLERANCE_MS || driftMs < -REFLECT_POSITION_TOLERANCE_MS
-    }
+    ): Boolean =
+        current == null ||
+            current.needsExternalReflection(
+                reportedTrackId = TrackId(itemId),
+                reportedPositionMs = positionMs,
+                reportedState = state,
+                reportingDeviceId = deviceId,
+                now = now,
+                leaseRenewThreshold = REFLECT_LEASE_RENEW_THRESHOLD,
+                positionToleranceMs = REFLECT_POSITION_TOLERANCE_MS,
+            )
 
     private fun recordResume(
         principal: Principal,
