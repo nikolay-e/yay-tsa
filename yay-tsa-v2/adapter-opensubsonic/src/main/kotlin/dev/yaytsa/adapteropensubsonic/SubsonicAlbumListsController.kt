@@ -8,8 +8,8 @@ import dev.yaytsa.shared.EntityId
 import dev.yaytsa.shared.UserId
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
 
@@ -21,18 +21,22 @@ class SubsonicAlbumListsController(
     private val playHistoryFunnel: PlayHistoryFunnelService,
     private val support: SubsonicEndpointSupport,
 ) {
+    data class AlbumListParams(
+        val type: String = "",
+        val size: Int = 10,
+        val offset: Int = 0,
+        val fromYear: Int? = null,
+        val toYear: Int? = null,
+        val genre: String? = null,
+        val f: String? = null,
+    )
+
     @GetMapping("/getAlbumList", "/getAlbumList.view")
     fun getAlbumList(
-        @RequestParam type: String,
-        @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(defaultValue = "0") offset: Int,
-        @RequestParam(required = false) fromYear: Int?,
-        @RequestParam(required = false) toYear: Int?,
-        @RequestParam(required = false) genre: String?,
-        @RequestParam(required = false) f: String?,
+        @ModelAttribute params: AlbumListParams,
         principal: Principal,
     ): ResponseEntity<String> {
-        val albums = albumsForListType(type, size, offset, fromYear, toYear, genre, UserId(principal.name))
+        val albums = albumsForListType(params, UserId(principal.name))
         val artistNames = libraryQueries.getEntityNamesByIds(albums.mapNotNull { it.artistId }.toSet())
         return support.write(
             ok {
@@ -41,53 +45,45 @@ class SubsonicAlbumListsController(
                         AlbumListV1Wrapper(albums.map { support.toDirectoryChild(it, it.artistId?.let { aid -> artistNames[aid] }) }),
                 )
             },
-            f,
+            params.f,
         )
     }
 
     @GetMapping("/getAlbumList2", "/getAlbumList2.view")
     fun getAlbumList2(
-        @RequestParam type: String,
-        @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(defaultValue = "0") offset: Int,
-        @RequestParam(required = false) fromYear: Int?,
-        @RequestParam(required = false) toYear: Int?,
-        @RequestParam(required = false) genre: String?,
-        @RequestParam(required = false) f: String?,
+        @ModelAttribute params: AlbumListParams,
         principal: Principal,
     ): ResponseEntity<String> {
-        val albums = albumsForListType(type, size, offset, fromYear, toYear, genre, UserId(principal.name))
-        return support.write(ok { copy(albumList2 = AlbumListWrapper(support.toAlbumElements(albums))) }, f)
+        val albums = albumsForListType(params, UserId(principal.name))
+        return support.write(ok { copy(albumList2 = AlbumListWrapper(support.toAlbumElements(albums))) }, params.f)
     }
 
     private fun albumsForListType(
-        type: String,
-        size: Int,
-        offset: Int,
-        fromYear: Int?,
-        toYear: Int?,
-        genre: String?,
+        params: AlbumListParams,
         userId: UserId,
-    ): List<Album> =
-        when (type.trim()) {
+    ): List<Album> {
+        val size = params.size
+        val offset = params.offset
+        return when (params.type.trim()) {
             "random" -> libraryQueries.browseAlbumsRandom(size)
             "newest" -> libraryQueries.browseAlbumsByCreatedDesc(size, offset)
             "recent" -> playHistoryFunnel.recentlyPlayedAlbums(userId, size, offset)
             "frequent" -> playHistoryFunnel.mostPlayedAlbums(userId, size, offset)
             "highest" -> mostFavoritedAlbums(userId, size, offset)
             "byYear" -> {
-                if (fromYear == null || toYear == null) {
+                if (params.fromYear == null || params.toYear == null) {
                     throw SubsonicApiException(10, "Required parameter is missing: fromYear/toYear")
                 }
-                libraryQueries.browseAlbumsByYearRange(fromYear, toYear, size, offset)
+                libraryQueries.browseAlbumsByYearRange(params.fromYear, params.toYear, size, offset)
             }
             "byGenre" -> {
-                if (genre.isNullOrBlank()) throw SubsonicApiException(10, "Required parameter is missing: genre")
-                libraryQueries.browseAlbumsByGenre(genre, size, offset)
+                if (params.genre.isNullOrBlank()) throw SubsonicApiException(10, "Required parameter is missing: genre")
+                libraryQueries.browseAlbumsByGenre(params.genre, size, offset)
             }
             "starred" -> starredAlbums(userId, size, offset)
             else -> libraryQueries.browseAlbums(size, offset)
         }
+    }
 
     private fun mostFavoritedAlbums(
         userId: UserId,
