@@ -35,8 +35,16 @@ object PlaylistHandler {
         }
 
         return when (cmd) {
-            is RenamePlaylist -> rename(snapshot, cmd, ctx)
-            is UpdatePlaylistDescription -> updateDescription(snapshot, cmd, ctx)
+            is RenamePlaylist ->
+                validateTextField(cmd.newName, "name", requireNonBlank = true) ?: run {
+                    val v = snapshot.version.next()
+                    snapshot.copy(name = cmd.newName, updatedAt = ctx.requestTime, version = v).asSuccess(v)
+                }
+            is UpdatePlaylistDescription ->
+                validateTextField(cmd.description, "description") ?: run {
+                    val v = snapshot.version.next()
+                    snapshot.copy(description = cmd.description, updatedAt = ctx.requestTime, version = v).asSuccess(v)
+                }
             is SetPlaylistVisibility -> setVisibility(snapshot, cmd, ctx)
             is DeletePlaylist -> {
                 // Return the snapshot with emptied tracks; the use case handles actual deletion.
@@ -58,9 +66,8 @@ object PlaylistHandler {
         if (existing != null) {
             return Failure.InvariantViolation("Playlist already exists: ${cmd.playlistId.value}").asCommandFailure()
         }
-        if (cmd.name.isBlank()) {
-            return Failure.InvariantViolation("Playlist name cannot be blank").asCommandFailure()
-        }
+        validateTextField(cmd.name, "name", requireNonBlank = true)?.let { return it }
+        validateTextField(cmd.description, "description")?.let { return it }
         val v = AggregateVersion.INITIAL.next()
         return PlaylistAggregate(
             id = cmd.playlistId,
@@ -75,26 +82,20 @@ object PlaylistHandler {
         ).asSuccess(v)
     }
 
-    private fun rename(
-        s: PlaylistAggregate,
-        cmd: RenamePlaylist,
-        ctx: CommandContext,
-    ): CommandResult<PlaylistAggregate> {
-        if (cmd.newName.isBlank()) {
-            return Failure.InvariantViolation("Playlist name cannot be blank").asCommandFailure()
+    private fun validateTextField(
+        value: String?,
+        field: String,
+        requireNonBlank: Boolean = false,
+    ): CommandResult<PlaylistAggregate>? =
+        when {
+            requireNonBlank && value.isNullOrBlank() ->
+                Failure.InvariantViolation("Playlist $field cannot be blank").asCommandFailure()
+            value != null && value.length > MAX_TEXT_FIELD_LENGTH ->
+                Failure.InvariantViolation("Playlist $field must not exceed $MAX_TEXT_FIELD_LENGTH characters").asCommandFailure()
+            else -> null
         }
-        val v = s.version.next()
-        return s.copy(name = cmd.newName, updatedAt = ctx.requestTime, version = v).asSuccess(v)
-    }
 
-    private fun updateDescription(
-        s: PlaylistAggregate,
-        cmd: UpdatePlaylistDescription,
-        ctx: CommandContext,
-    ): CommandResult<PlaylistAggregate> {
-        val v = s.version.next()
-        return s.copy(description = cmd.description, updatedAt = ctx.requestTime, version = v).asSuccess(v)
-    }
+    private const val MAX_TEXT_FIELD_LENGTH = 255
 
     private fun setVisibility(
         s: PlaylistAggregate,

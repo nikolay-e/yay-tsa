@@ -49,6 +49,7 @@ export function ArtistDetailPage() {
   if (artistError || albumsError) {
     return (
       <div className="space-y-6 p-6">
+        <h1 className="sr-only">Artist</h1>
         <BackLink to="/artists" label="Back to Artists" />
         <LoadErrorState
           message="Couldn't load artist"
@@ -62,7 +63,12 @@ export function ArtistDetailPage() {
   }
 
   if (!artist) {
-    return <NotFound message="Artist not found" />;
+    return (
+      <>
+        <h1 className="sr-only">Artist</h1>
+        <NotFound message="Artist not found" />
+      </>
+    );
   }
 
   const imageUrl = artist.ImageTags?.Primary

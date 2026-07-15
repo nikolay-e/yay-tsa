@@ -92,6 +92,17 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `a 300-char name is rejected 400 by the domain, never reaching the varchar(255) column`() {
+        val create = post("/Playlists", mapOf("Name" to "n".repeat(300), "UserId" to userId), token)
+        assertEquals(400, create.response.status)
+        assertTrue(
+            create.response.contentType!!.startsWith("application/problem+json"),
+            "expected problem+json, was ${create.response.contentType}",
+        )
+        assertTrue(create.response.contentAsString.contains("must not exceed 255"))
+    }
+
+    @Test
     fun `a NUL byte in a name is stripped at the edge, never sent to the DB`() {
         // A NUL passes the domain blank-check but Postgres rejects it (invalid UTF8 0x00), raising a
         // DataIntegrityViolationException whose raw-SQL message Hibernate logs at ERROR before any

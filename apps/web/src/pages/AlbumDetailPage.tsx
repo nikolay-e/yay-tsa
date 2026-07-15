@@ -76,6 +76,7 @@ export function AlbumDetailPage() {
   if (albumError || tracksError) {
     return (
       <div className="space-y-6 p-6">
+        <h1 className="sr-only">Album</h1>
         <BackLink to="/albums" label="Back to Albums" data-testid="album-back-button" />
         <LoadErrorState
           message="Couldn't load album"
@@ -89,7 +90,12 @@ export function AlbumDetailPage() {
   }
 
   if (!album) {
-    return <NotFound message="Album not found" />;
+    return (
+      <>
+        <h1 className="sr-only">Album</h1>
+        <NotFound message="Album not found" />
+      </>
+    );
   }
 
   const imageUrl = album.ImageTags?.Primary

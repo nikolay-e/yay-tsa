@@ -128,9 +128,10 @@ export function RootLayout() {
 
   if (authState === 'loading') {
     return (
-      <div className="bg-bg-primary flex h-full items-center justify-center">
+      <main className="bg-bg-primary flex h-full items-center justify-center">
+        <h1 className="sr-only">Loading</h1>
         <div className="border-accent h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
-      </div>
+      </main>
     );
   }
 

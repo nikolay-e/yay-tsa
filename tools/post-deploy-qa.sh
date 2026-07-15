@@ -77,7 +77,7 @@ fi
 log "Authenticated as ${QA_USERNAME}"
 
 # Download OpenAPI spec
-curl -sf "${PROD_URL}/api/api-docs" >"${REPORT_DIR}/openapi.json"
+curl -sf "${PROD_URL}/api/v3/api-docs" >"${REPORT_DIR}/openapi.json"
 python3 -c "
 import json
 with open('${REPORT_DIR}/openapi.json') as f:
