@@ -257,7 +257,7 @@ class ArchitectureTest {
 
     companion object {
         private val APPLICATION_CONTEXTS =
-            listOf("auth", "library", "playback", "adaptive", "preferences", "playlists", "ml", "karaoke")
+            listOf("auth", "library", "playback", "adaptive", "preferences", "playlists", "ml", "karaoke", "recommendation")
 
         private fun nonPortClassesInPeerContexts(self: String) =
             com.tngtech.archunit.base.DescribedPredicate.describe(
@@ -269,6 +269,20 @@ class ArchitectureTest {
                         !pkg.startsWith("dev.yaytsa.application.$peer.port")
                 }
             }
+
+        private val RECOMMENDATION_ALLOWED_PACKAGE_PREFIXES =
+            listOf(
+                "dev.yaytsa.shared",
+                "dev.yaytsa.domain.library",
+                "dev.yaytsa.domain.ml",
+                "dev.yaytsa.domain.preferences",
+                "dev.yaytsa.application.shared",
+                "dev.yaytsa.application.library",
+                "dev.yaytsa.application.preferences",
+                "dev.yaytsa.application.ml.port",
+                "dev.yaytsa.application.playback.port",
+                "dev.yaytsa.application.recommendation",
+            )
     }
 
     @ArchTest
@@ -342,6 +356,26 @@ class ArchitectureTest {
             .should()
             .dependOnClassesThat(nonPortClassesInPeerContexts("karaoke"))
             .allowEmptyShould(true)
+
+    @ArchTest
+    @Suppress("VariableNaming")
+    val `application-recommendation dependencies are frozen to its declared peer contexts`: ArchRule =
+        noClasses()
+            .that()
+            .resideInAPackage("dev.yaytsa.application.recommendation..")
+            .should()
+            .dependOnClassesThat(
+                com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "dev.yaytsa classes outside recommendation's frozen dependency set",
+                ) { clazz: com.tngtech.archunit.core.domain.JavaClass ->
+                    val pkg = clazz.packageName
+                    pkg.startsWith("dev.yaytsa") &&
+                        RECOMMENDATION_ALLOWED_PACKAGE_PREFIXES.none { pkg.startsWith(it) }
+                },
+            ).because(
+                "recommendation is a cross-context read-side composed over library, ml, playback and preferences; " +
+                    "it must never reach persistence, adapters or additional contexts without updating this frozen set",
+            )
 
     // ── Rule 8: adapters must not call domain handlers directly ──────────
 

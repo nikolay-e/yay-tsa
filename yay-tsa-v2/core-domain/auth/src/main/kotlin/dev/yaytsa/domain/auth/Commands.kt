@@ -9,29 +9,31 @@ sealed interface AuthCommand : Command {
     val userId: UserId
 }
 
+sealed interface ExistingUserCommand : AuthCommand
+
 data class UpdateProfile(
     override val userId: UserId,
     val displayName: String?,
     val email: String?,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class ChangePassword(
     override val userId: UserId,
     val newPasswordHash: String,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class DeactivateUser(
     override val userId: UserId,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class ActivateUser(
     override val userId: UserId,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class RecordLogin(
     override val userId: UserId,
     val loginTime: Instant,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class CreateApiToken(
     override val userId: UserId,
@@ -40,18 +42,18 @@ data class CreateApiToken(
     val deviceId: DeviceId,
     val deviceName: String?,
     val expiresAt: Instant?,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class RevokeApiToken(
     override val userId: UserId,
     val tokenId: ApiTokenId,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class RecordTokenUsage(
     override val userId: UserId,
     val tokenId: ApiTokenId,
     val usedAt: Instant,
-) : AuthCommand
+) : ExistingUserCommand
 
 data class CreateUser(
     override val userId: UserId,

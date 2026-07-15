@@ -14,9 +14,18 @@ object PlaylistHandler {
         cmd: PlaylistCommand,
         ctx: CommandContext,
         deps: PlaylistDeps,
-    ): CommandResult<PlaylistAggregate> {
-        if (cmd is CreatePlaylist) return handleCreate(snapshot, cmd, ctx)
+    ): CommandResult<PlaylistAggregate> =
+        when (cmd) {
+            is CreatePlaylist -> handleCreate(snapshot, cmd, ctx)
+            is ExistingPlaylistCommand -> handleExisting(snapshot, cmd, ctx, deps)
+        }
 
+    private fun handleExisting(
+        snapshot: PlaylistAggregate?,
+        cmd: ExistingPlaylistCommand,
+        ctx: CommandContext,
+        deps: PlaylistDeps,
+    ): CommandResult<PlaylistAggregate> {
         if (snapshot == null) {
             return Failure.NotFound("Playlist", cmd.playlistId.value).asCommandFailure()
         }
@@ -26,11 +35,14 @@ object PlaylistHandler {
         }
 
         return when (cmd) {
-            is CreatePlaylist -> error("unreachable")
             is RenamePlaylist -> rename(snapshot, cmd, ctx)
             is UpdatePlaylistDescription -> updateDescription(snapshot, cmd, ctx)
             is SetPlaylistVisibility -> setVisibility(snapshot, cmd, ctx)
-            is DeletePlaylist -> delete(snapshot, ctx)
+            is DeletePlaylist -> {
+                // Return the snapshot with emptied tracks; the use case handles actual deletion.
+                val v = snapshot.version.next()
+                snapshot.copy(tracks = emptyList(), updatedAt = ctx.requestTime, version = v).asSuccess(v)
+            }
             is AddTracksToPlaylist -> addTracks(snapshot, cmd, deps, ctx)
             is RemoveTracksFromPlaylist -> removeTracks(snapshot, cmd, ctx)
             is RemovePlaylistEntriesByPosition -> removeEntriesByPosition(snapshot, cmd, ctx)
@@ -91,15 +103,6 @@ object PlaylistHandler {
     ): CommandResult<PlaylistAggregate> {
         val v = s.version.next()
         return s.copy(isPublic = cmd.isPublic, updatedAt = ctx.requestTime, version = v).asSuccess(v)
-    }
-
-    private fun delete(
-        s: PlaylistAggregate,
-        ctx: CommandContext,
-    ): CommandResult<PlaylistAggregate> {
-        // Return snapshot with emptied tracks; use case handles actual deletion
-        val v = s.version.next()
-        return s.copy(tracks = emptyList(), updatedAt = ctx.requestTime, version = v).asSuccess(v)
     }
 
     private fun addTracks(

@@ -9,6 +9,8 @@ sealed interface PlaylistCommand : Command {
     val playlistId: PlaylistId
 }
 
+sealed interface ExistingPlaylistCommand : PlaylistCommand
+
 data class CreatePlaylist(
     override val playlistId: PlaylistId,
     val owner: UserId,
@@ -21,39 +23,39 @@ data class CreatePlaylist(
 data class RenamePlaylist(
     override val playlistId: PlaylistId,
     val newName: String,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class UpdatePlaylistDescription(
     override val playlistId: PlaylistId,
     val description: String?,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class SetPlaylistVisibility(
     override val playlistId: PlaylistId,
     val isPublic: Boolean,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class DeletePlaylist(
     override val playlistId: PlaylistId,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class AddTracksToPlaylist(
     override val playlistId: PlaylistId,
     val trackIds: List<TrackId>,
     val addedAt: Instant,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class RemoveTracksFromPlaylist(
     override val playlistId: PlaylistId,
     val trackIds: List<TrackId>,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class RemovePlaylistEntriesByPosition(
     override val playlistId: PlaylistId,
     val positions: List<Int>,
-) : PlaylistCommand
+) : ExistingPlaylistCommand
 
 data class ReorderPlaylistTracks(
     override val playlistId: PlaylistId,
     val newOrder: List<TrackId>,
-) : PlaylistCommand
+) : ExistingPlaylistCommand

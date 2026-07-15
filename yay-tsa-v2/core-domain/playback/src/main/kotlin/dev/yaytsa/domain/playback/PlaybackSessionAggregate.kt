@@ -49,6 +49,24 @@ data class PlaybackSessionAggregate(
             }
             else -> lastKnownPosition
         }
+
+    fun needsExternalReflection(
+        reportedTrackId: TrackId,
+        reportedPositionMs: Long,
+        reportedState: PlaybackState,
+        reportingDeviceId: DeviceId,
+        now: Instant,
+        leaseRenewThreshold: Duration,
+        positionToleranceMs: Long,
+    ): Boolean {
+        val currentTrackId = currentEntryId?.let { entryId -> queue.firstOrNull { it.id == entryId }?.trackId }
+        if (currentTrackId != reportedTrackId) return true
+        if (playbackState != reportedState) return true
+        val lease = lease
+        if (lease == null || lease.owner != reportingDeviceId || Duration.between(now, lease.expiresAt) < leaseRenewThreshold) return true
+        val driftMs = computePosition(now).toMillis() - reportedPositionMs
+        return driftMs > positionToleranceMs || driftMs < -positionToleranceMs
+    }
 }
 
 data class QueueEntry(

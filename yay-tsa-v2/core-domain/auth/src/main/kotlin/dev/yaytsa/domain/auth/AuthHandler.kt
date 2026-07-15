@@ -13,14 +13,22 @@ object AuthHandler {
         snapshot: UserAggregate?,
         cmd: AuthCommand,
         ctx: CommandContext,
-    ): CommandResult<UserAggregate> {
-        if (cmd is CreateUser) {
-            if (snapshot != null) {
-                return Failure.InvariantViolation("User already exists: ${cmd.userId.value}").asCommandFailure()
-            }
-            return createUser(cmd, ctx)
+    ): CommandResult<UserAggregate> =
+        when (cmd) {
+            is CreateUser ->
+                if (snapshot != null) {
+                    Failure.InvariantViolation("User already exists: ${cmd.userId.value}").asCommandFailure()
+                } else {
+                    createUser(cmd, ctx)
+                }
+            is ExistingUserCommand -> handleExistingUser(snapshot, cmd, ctx)
         }
 
+    private fun handleExistingUser(
+        snapshot: UserAggregate?,
+        cmd: ExistingUserCommand,
+        ctx: CommandContext,
+    ): CommandResult<UserAggregate> {
         if (snapshot == null) {
             return Failure.NotFound("User", cmd.userId.value).asCommandFailure()
         }
@@ -34,13 +42,12 @@ object AuthHandler {
         return when (cmd) {
             is UpdateProfile -> updateProfile(snapshot, cmd, ctx)
             is ChangePassword -> changePassword(snapshot, cmd, ctx)
-            is DeactivateUser -> deactivateUser(snapshot, ctx)
-            is ActivateUser -> activateUser(snapshot, ctx)
+            is DeactivateUser -> setActive(snapshot, isActive = false, ctx)
+            is ActivateUser -> setActive(snapshot, isActive = true, ctx)
             is RecordLogin -> recordLogin(snapshot, cmd, ctx)
             is CreateApiToken -> createApiToken(snapshot, cmd, ctx)
             is RevokeApiToken -> revokeApiToken(snapshot, cmd, ctx)
             is RecordTokenUsage -> recordTokenUsage(snapshot, cmd, ctx)
-            is CreateUser -> error("unreachable")
         }
     }
 
@@ -89,27 +96,15 @@ object AuthHandler {
             ).asSuccess(newVersion)
     }
 
-    private fun deactivateUser(
+    private fun setActive(
         snapshot: UserAggregate,
+        isActive: Boolean,
         ctx: CommandContext,
     ): CommandResult<UserAggregate> {
         val newVersion = snapshot.version.next()
         return snapshot
             .copy(
-                isActive = false,
-                updatedAt = ctx.requestTime,
-                version = newVersion,
-            ).asSuccess(newVersion)
-    }
-
-    private fun activateUser(
-        snapshot: UserAggregate,
-        ctx: CommandContext,
-    ): CommandResult<UserAggregate> {
-        val newVersion = snapshot.version.next()
-        return snapshot
-            .copy(
-                isActive = true,
+                isActive = isActive,
                 updatedAt = ctx.requestTime,
                 version = newVersion,
             ).asSuccess(newVersion)
