@@ -4,6 +4,11 @@ import {
   GroupSyncService,
   DeviceService,
   ItemsService,
+  DRIFT_DEAD_ZONE_MS,
+  DRIFT_HARD_SEEK_MS,
+  HARD_SEEK_COOLDOWN_MS,
+  computeExpectedPositionMs,
+  driftCorrectionRate,
   type PlaybackSchedule,
   type GroupMember,
   type GroupControlMode,
@@ -16,8 +21,6 @@ import { toError } from '@/shared/utils/to-error';
 import { usePlayerStore, getPlayerEngineForSync } from './player.store';
 
 const DRIFT_CHECK_MS = 500;
-const DRIFT_DEAD_ZONE_MS = 30;
-const DRIFT_HARD_SEEK_MS = 150;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
 interface GroupSyncState {
@@ -92,14 +95,7 @@ async function ensureClock(): Promise<ServerClock> {
   return serverClock;
 }
 
-function computeExpectedPosition(schedule: PlaybackSchedule, clock: ServerClock): number {
-  if (schedule.isPaused) return schedule.anchorPositionMs;
-  const elapsed = clock.serverNow() - schedule.anchorServerMs;
-  return schedule.anchorPositionMs + Math.max(0, elapsed);
-}
-
 let lastHardSeekAt = 0;
-const HARD_SEEK_COOLDOWN_MS = 2000;
 
 function startDriftCorrection(store: typeof useGroupSyncStore) {
   if (driftIntervalId) return;
@@ -111,7 +107,7 @@ function startDriftCorrection(store: typeof useGroupSyncStore) {
     const engine = getPlayerEngineForSync();
     if (!engine) return;
 
-    const expectedMs = computeExpectedPosition(schedule, serverClock);
+    const expectedMs = computeExpectedPositionMs(schedule, serverClock.serverNow());
     const actualMs = engine.getCurrentTime() * 1000;
     const drift = actualMs - expectedMs;
 
@@ -132,7 +128,7 @@ function startDriftCorrection(store: typeof useGroupSyncStore) {
     }
 
     // Soft correction: adjust playbackRate ±2%
-    engine.setPlaybackRate?.(Math.max(0.98, Math.min(1.02, 1 - drift / 5000)));
+    engine.setPlaybackRate?.(driftCorrectionRate(drift));
   }, DRIFT_CHECK_MS);
 }
 
@@ -347,7 +343,7 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
 
     set({ schedule, currentEpoch: schedule.scheduleEpoch });
 
-    const expectedMs = computeExpectedPosition(schedule, serverClock);
+    const expectedMs = computeExpectedPositionMs(schedule, serverClock.serverNow());
     const player = usePlayerStore.getState();
     const currentTrackId = player.currentTrack?.Id;
 
@@ -364,7 +360,10 @@ export const useGroupSyncStore = create<GroupSyncStore>()((set, get) => ({
                 .playTrack(track)
                 .then(() => {
                   if (!schedule.isPaused && serverClock) {
-                    const nowExpected = computeExpectedPosition(schedule, serverClock);
+                    const nowExpected = computeExpectedPositionMs(
+                      schedule,
+                      serverClock.serverNow()
+                    );
                     player.seek(nowExpected / 1000);
                   } else {
                     player.seek(schedule.anchorPositionMs / 1000);

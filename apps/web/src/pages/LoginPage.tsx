@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { NetworkError } from '@yay-tsa/core';
 import { useAuthStore, SESSION_EXPIRED_FLAG } from '@/features/auth/stores/auth.store';
 import { VersionInfo } from '@/shared/components/VersionInfo';
 import { cn } from '@/shared/utils/cn';
@@ -45,7 +46,11 @@ export function LoginPage() {
         : '/';
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      if (err instanceof NetworkError) {
+        setError('Cannot reach the server — check your connection and try again');
+      } else {
+        setError(err instanceof Error ? err.message : 'Login failed');
+      }
     }
   };
 

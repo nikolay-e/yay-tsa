@@ -5,8 +5,16 @@
 
 // Audio engine interface and implementations
 export type { AudioEngine, MediaPlaybackError } from './audio.interface.js';
-export { HTML5AudioEngine } from './web/html5-audio.js';
+export { HTML5AudioEngine, PreloadSupersededError } from './web/html5-audio.js';
 export type { HTML5AudioEngineOptions } from './web/html5-audio.js';
+
+// Browser implementations of core's runtime provider seams (storage, runtime
+// config, visibility) — wired at app composition via core's setRuntimeProviders.
+export {
+  browserKeyValueStorage,
+  browserRuntimeConfigSource,
+  browserVisibilitySignal,
+} from './web/browser-runtime-providers.js';
 
 // Client error telemetry transport (sanitized beacon to the backend)
 export { BeaconErrorTransport } from './web/beacon-error-transport.js';

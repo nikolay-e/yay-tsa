@@ -7,7 +7,8 @@ import {
   ItemsService,
   setItemFavorite,
   isAudiobook,
-  resumePositionSeconds,
+  audiobookResumeSeconds as mergeAudiobookResumeSeconds,
+  resolveNormalizationGainDb,
   getSmartRewindMs,
   type AudioItem,
   type MediaServerClient,
@@ -17,6 +18,7 @@ import {
   HTML5AudioEngine,
   MediaSessionManager,
   PinkNoiseGenerator,
+  PreloadSupersededError,
   WakeLockManager,
   type AudioEngine,
   type MediaPlaybackError,
@@ -34,51 +36,25 @@ import { toError } from '@/shared/utils/to-error';
 import { queryClient } from '@/shared/lib/query-client';
 import { currentTimeOfDay } from '@/shared/utils/time';
 import { useTimingStore } from './playback-timing.store';
-import { PlaybackController, withTimeout } from './playback-controller';
+import { PlaybackController, EngineTimeoutError, withTimeout } from './playback-controller';
 import { PreloadManager } from './preload-manager';
 import { navAvailability, previousAction, endedAction } from './playback-decisions';
+import {
+  clampRate,
+  resolveAudiobookSpeed,
+  persistAudiobookSpeed,
+  getSavedVolume,
+  saveVolume,
+  getSavedNormalizationEnabled,
+  saveNormalizationEnabled,
+  type SpeedScope,
+} from './player-persistence';
+import { recordPlaybackReportOutcome } from './playback-report-tracker';
+import { UnsupportedFormatError } from './player-errors';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 export type PlayerMode = 'music' | 'audiobook';
-export type SpeedScope = 'book' | 'all';
-
-const AUDIOBOOK_SPEED_KEY = 'yaytsa_audiobook_speed';
-const bookSpeedKey = (bookId: string) => `yaytsa_book_speed_${bookId}`;
-
-function clampRate(rate: number): number {
-  return Math.max(0.5, Math.min(3, rate));
-}
-
-function loadGlobalAudiobookSpeed(): number {
-  try {
-    const raw = localStorage.getItem(AUDIOBOOK_SPEED_KEY);
-    return raw ? clampRate(Number.parseFloat(raw)) : 1;
-  } catch {
-    return 1;
-  }
-}
-
-function resolveAudiobookSpeed(bookId: string): number {
-  try {
-    const perBook = localStorage.getItem(bookSpeedKey(bookId));
-    if (perBook) return clampRate(Number.parseFloat(perBook));
-  } catch {
-    // Ignore storage errors
-  }
-  return loadGlobalAudiobookSpeed();
-}
-
-function persistAudiobookSpeed(rate: number, scope: SpeedScope, bookId: string | null): void {
-  try {
-    if (scope === 'all') {
-      localStorage.setItem(AUDIOBOOK_SPEED_KEY, rate.toString());
-    } else if (bookId) {
-      localStorage.setItem(bookSpeedKey(bookId), rate.toString());
-    }
-  } catch {
-    // Ignore storage errors
-  }
-}
+export type { SpeedScope };
 
 interface PlayerState {
   queue: PlaybackQueue;
@@ -137,7 +113,6 @@ interface PlayerActions {
 
 type PlayerStore = PlayerState & PlayerActions;
 
-const VOLUME_STORAGE_KEY = 'yaytsa_volume';
 const PROGRESS_REPORT_INTERVAL_MS = 10000;
 // Audiobooks report to the server far more often than music: a lost minute of a 10-hour book is a
 // real regression, whereas a song restarts cheaply. Local-first write-through is the primary
@@ -151,11 +126,6 @@ const ENGINE_TIMEOUT_MS = 10000;
 const MEDIA_ERR_NETWORK = 2;
 const MEDIA_ERR_DECODE = 3;
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
-const NORMALIZATION_STORAGE_KEY = 'yaytsa_normalization_enabled';
-const NORMALIZATION_MIN_DB = -18;
-const NORMALIZATION_MAX_DB = 12;
-
-export const UNSUPPORTED_FORMAT_MESSAGE = 'This track format is not supported on this device';
 
 let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
@@ -188,19 +158,7 @@ async function isKaraokeStemAvailable(url: string, signal: AbortSignal): Promise
 }
 
 function isRetryableTimeout(error: unknown, retryCount: number): boolean {
-  return error instanceof Error && error.message.includes('Engine timeout') && retryCount < 1;
-}
-
-// ReplayGain rules: album gain when continuing an unshuffled same-album run (preserves
-// intentional loudness differences between an album's tracks), track gain otherwise;
-// whichever is missing falls back to the other. Values clamp to a safe window and
-// convert dB → linear inside the engine (10^(dB/20) on the shared input gain bus).
-function resolveNormalizationGainDb(track: AudioItem, isSameAlbumSequence: boolean): number | null {
-  const preferredGainDb = isSameAlbumSequence
-    ? (track.AlbumNormalizationGain ?? track.NormalizationGain)
-    : (track.NormalizationGain ?? track.AlbumNormalizationGain);
-  if (preferredGainDb == null || !Number.isFinite(preferredGainDb)) return null;
-  return Math.max(NORMALIZATION_MIN_DB, Math.min(NORMALIZATION_MAX_DB, preferredGainDb));
+  return error instanceof EngineTimeoutError && retryCount < 1;
 }
 
 // The gapless crossfade rides an approaching-end timer plus AudioContext/element-volume ramps, all
@@ -214,13 +172,8 @@ function isPlaybackForeground(): boolean {
   return document.visibilityState === 'visible' && document.hasFocus();
 }
 
-// The track item may carry stale UserData (React Query caches on album/search/queue surfaces),
-// so the device's own localStorage write-through competes with it — except for finished
-// chapters, whose ticks are deliberately zeroed so a re-listen starts clean.
 function audiobookResumeSeconds(track: AudioItem): number {
-  const local = readLocalResume(track.Id);
-  const localSeconds = local && !track.UserData?.Played ? local.positionMs / 1000 : 0;
-  return Math.max(resumePositionSeconds(track), localSeconds);
+  return mergeAudiobookResumeSeconds(track, readLocalResume(track.Id));
 }
 
 function getAudioEngine(): AudioEngine | null {
@@ -248,68 +201,8 @@ function getMediaSession(): MediaSessionManager | null {
   }
 }
 
-function getSavedVolume(): number {
-  try {
-    const saved = localStorage.getItem(VOLUME_STORAGE_KEY);
-    if (saved) {
-      const parsed = Number.parseFloat(saved);
-      if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 1) {
-        return parsed;
-      }
-    }
-  } catch {
-    // Ignore storage errors
-  }
-  return 1;
-}
-
-function saveVolume(volume: number): void {
-  try {
-    localStorage.setItem(VOLUME_STORAGE_KEY, volume.toString());
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-function getSavedNormalizationEnabled(): boolean {
-  try {
-    return localStorage.getItem(NORMALIZATION_STORAGE_KEY) !== 'false';
-  } catch {
-    return true;
-  }
-}
-
-function saveNormalizationEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(NORMALIZATION_STORAGE_KEY, String(enabled));
-  } catch {
-    // Ignore storage errors
-  }
-}
-
 let consecutiveLoadFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
-
-// Playback-position reporting (start/progress/stopped) is fire-and-forget best-effort: a single
-// failed report is a transient network blip, not a bug, so it logs at debug (never spams telemetry).
-// But a SUSTAINED run of failures across these calls means the report pipeline itself is down (bad
-// token, backend outage) and must surface — mirrors useDeviceHeartbeat's consecutive-failure escalator
-// so this failure class isn't a permanent blind spot in client-error telemetry. Shared across all
-// report call sites (start/progress/stopped) since they hit the same endpoint family and root cause.
-let consecutivePlaybackReportFailures = 0;
-function recordPlaybackReportOutcome(succeeded: boolean, context: string): void {
-  if (succeeded) {
-    consecutivePlaybackReportFailures = 0;
-    return;
-  }
-  consecutivePlaybackReportFailures++;
-  if (consecutivePlaybackReportFailures === MAX_CONSECUTIVE_FAILURES) {
-    log.player.warn('Playback reporting failing repeatedly', {
-      context,
-      consecutiveFailures: consecutivePlaybackReportFailures,
-    });
-  }
-}
 
 function startPlaybackReporter(trackId: string): void {
   if (!currentClient) return;
@@ -1012,11 +905,11 @@ export const usePlayerStore = create<PlayerStore>()(
       // An unsupported codec can never be recovered by reloading the same source, so don't stall:
       // surface a format-specific error and skip to the next track using the shared advance path.
       if (mediaErrorCode === MEDIA_ERR_SRC_NOT_SUPPORTED) {
-        const unsupportedError: MediaPlaybackError = Object.assign(
-          new Error(UNSUPPORTED_FORMAT_MESSAGE),
-          { mediaErrorCode }
-        );
-        set({ error: unsupportedError, isPlaying: false, isLoading: false });
+        set({
+          error: new UnsupportedFormatError(mediaErrorCode),
+          isPlaying: false,
+          isLoading: false,
+        });
         autoAdvanceOnError(get);
         return;
       }
@@ -1582,7 +1475,7 @@ export const usePlayerStore = create<PlayerStore>()(
             if (signal.aborted) return;
             const isAbort =
               (error instanceof DOMException && error.name === 'AbortError') ||
-              (error instanceof Error && error.message.includes('Preload superseded'));
+              error instanceof PreloadSupersededError;
             if (isAbort) {
               log.player.warn('Karaoke enable interrupted by track change');
             } else {

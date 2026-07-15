@@ -41,10 +41,17 @@ export class PlaybackController {
   }
 }
 
+export class EngineTimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Engine timeout after ${ms}ms`);
+    this.name = 'EngineTimeoutError';
+  }
+}
+
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Engine timeout after ${ms}ms`)), ms);
+    timer = setTimeout(() => reject(new EngineTimeoutError(ms)), ms);
   });
   try {
     return await Promise.race([promise, timeout]);

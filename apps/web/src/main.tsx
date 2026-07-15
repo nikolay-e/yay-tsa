@@ -1,7 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setLogSink } from '@yay-tsa/core';
+import { setLogSink, setRuntimeProviders } from '@yay-tsa/core';
+import {
+  browserKeyValueStorage,
+  browserRuntimeConfigSource,
+  browserVisibilitySignal,
+} from '@yay-tsa/platform';
 // eslint-disable-next-line import/no-unresolved -- vite-plugin-pwa virtual module, resolved at build time
 import { registerSW } from 'virtual:pwa-register';
 import {
@@ -19,6 +24,11 @@ import { installPerf, mark } from './shared/perf/perf';
 import './index.css';
 
 mark('app_start');
+setRuntimeProviders({
+  storage: browserKeyValueStorage,
+  runtimeConfig: browserRuntimeConfigSource,
+  visibility: browserVisibilitySignal,
+});
 installPerf();
 installChunkReloadRecovery();
 

@@ -1,4 +1,5 @@
 import { DEFAULT_CLIENT_NAME, DEFAULT_DEVICE_NAME, STORAGE_KEYS } from './constants.js';
+import { getKeyValueStorage, getRuntimeConfig } from './runtime-providers.js';
 
 export interface EnvironmentConfig {
   yaytsaServerUrl?: string;
@@ -10,7 +11,6 @@ export interface EnvironmentConfig {
 export function loadEnvironmentConfig(): EnvironmentConfig {
   const isNode = typeof process !== 'undefined' && process.env !== undefined;
   const hasImportMetaEnv = import.meta?.env !== undefined;
-  const hasRuntimeConfig = globalThis.window?.__YAYTSA_CONFIG__ !== undefined;
 
   let env: Record<string, string | undefined>;
 
@@ -22,7 +22,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
     env = {};
   }
 
-  const runtimeConfig = hasRuntimeConfig ? globalThis.window.__YAYTSA_CONFIG__ : undefined;
+  const runtimeConfig = getRuntimeConfig();
 
   return {
     yaytsaServerUrl:
@@ -64,14 +64,15 @@ export function getOrCreateDeviceId(): string {
     return config.yaytsaDeviceId;
   }
 
-  if (typeof localStorage !== 'undefined') {
-    const stored = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+  const storage = getKeyValueStorage();
+  if (storage) {
+    const stored = storage.getItem(STORAGE_KEYS.DEVICE_ID);
     if (stored) {
       return stored;
     }
 
     const newId = generateUuid();
-    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, newId);
+    storage.setItem(STORAGE_KEYS.DEVICE_ID, newId);
     return newId;
   }
 

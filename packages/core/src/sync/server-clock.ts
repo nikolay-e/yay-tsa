@@ -1,3 +1,5 @@
+import { onVisible } from '../internal/config/runtime-providers.js';
+
 const SAMPLE_COUNT = 8;
 const OUTLIER_TRIM = 0.25;
 const EMA_ALPHA = 0.3;
@@ -8,6 +10,7 @@ export class ServerClock {
   private medianRtt = 0;
   private initialized = false;
   private intervalId: ReturnType<typeof setInterval> | null = null;
+  private unsubscribeVisibility: (() => void) | null = null;
   private readonly timeUrl: string;
 
   constructor(timeUrl: string) {
@@ -20,9 +23,9 @@ export class ServerClock {
       this.sync().catch(() => {});
     }, RESYNC_INTERVAL_MS);
 
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', this.onVisibilityChange);
-    }
+    this.unsubscribeVisibility = onVisible(() => {
+      this.sync().catch(() => {});
+    });
   }
 
   stop(): void {
@@ -30,9 +33,8 @@ export class ServerClock {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', this.onVisibilityChange);
-    }
+    this.unsubscribeVisibility?.();
+    this.unsubscribeVisibility = null;
   }
 
   serverNow(): number {
@@ -93,10 +95,4 @@ export class ServerClock {
       this.initialized = true;
     }
   }
-
-  private readonly onVisibilityChange = (): void => {
-    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-      this.sync().catch(() => {});
-    }
-  };
 }

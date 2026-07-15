@@ -102,6 +102,16 @@ repos:
           - --skip-unknown-extensions
           - --metrics=off
         files: ^(packages|apps)/.*\.(js|ts|tsx)$
+      # Kotlin (yay-tsa-v2) is an accepted gap: semgrep's Kotlin coverage is
+      # experimental/weak; the backend relies on detekt + ktlint instead.
+      - id: semgrep
+        name: semgrep (Python security & best practices)
+        args:
+          - --config=p/python
+          - --error
+          - --skip-unknown-extensions
+          - --metrics=off
+        files: ^services/audio-ml/.*\.py$
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.2

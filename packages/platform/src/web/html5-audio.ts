@@ -14,6 +14,13 @@ export interface HTML5AudioEngineOptions {
 
 const DEFAULT_LOAD_TIMEOUT_MS = 30000;
 
+export class PreloadSupersededError extends Error {
+  constructor(reason: string) {
+    super(`Preload superseded - ${reason}`);
+    this.name = 'PreloadSupersededError';
+  }
+}
+
 export class HTML5AudioEngine implements AudioEngine {
   private audio: HTMLAudioElement;
   private audioSecondary: HTMLAudioElement;
@@ -661,7 +668,7 @@ export class HTML5AudioEngine implements AudioEngine {
 
     // Clear preload state
     if (this.preloadReject) {
-      this.preloadReject(new Error('Preload superseded - engine disposed'));
+      this.preloadReject(new PreloadSupersededError('engine disposed'));
       this.preloadReject = null;
     }
     if (this.preloadEventCleanup) {
@@ -958,7 +965,7 @@ export class HTML5AudioEngine implements AudioEngine {
       this.preloadEventCleanup = null;
     }
     if (this.preloadReject) {
-      this.preloadReject(new Error('Preload superseded - new preload requested'));
+      this.preloadReject(new PreloadSupersededError('new preload requested'));
       this.preloadReject = null;
     }
 

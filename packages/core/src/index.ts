@@ -59,8 +59,10 @@ export {
   isAudiobook,
   getSmartRewindMs,
   resumePositionSeconds,
+  audiobookResumeSeconds,
   AUDIOBOOK_GENRES,
 } from './player/audiobook.js';
+export { resolveNormalizationGainDb } from './player/normalization.js';
 
 // Lyrics modules
 export {
@@ -78,6 +80,15 @@ export {
   generateUuid,
   type EnvironmentConfig,
 } from './internal/config/env.js';
+
+export {
+  setRuntimeProviders,
+  type RuntimeProviders,
+  type KeyValueStorage,
+  type RuntimeConfig,
+  type RuntimeConfigSource,
+  type VisibilitySignal,
+} from './internal/config/runtime-providers.js';
 
 export {
   APP_VERSION,
@@ -105,6 +116,13 @@ export { redactSecrets } from './internal/utils/redact.js';
 // Sync
 export { ServerClock } from './sync/server-clock.js';
 export { GroupSyncService } from './sync/group-sync.service.js';
+export {
+  DRIFT_DEAD_ZONE_MS,
+  DRIFT_HARD_SEEK_MS,
+  HARD_SEEK_COOLDOWN_MS,
+  computeExpectedPositionMs,
+  driftCorrectionRate,
+} from './sync/drift-correction.js';
 export type {
   PlaybackSchedule,
   GroupMember,

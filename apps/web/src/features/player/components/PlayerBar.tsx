@@ -38,8 +38,8 @@ import {
   useKaraokeStatus,
   useVocalBlend,
   useSleepTimer,
-  UNSUPPORTED_FORMAT_MESSAGE,
 } from '../stores/player.store';
+import { UnsupportedFormatError } from '../stores/player-errors';
 import {
   useActiveSession,
   useSessionActions,
@@ -284,7 +284,7 @@ export function PlayerBar() {
 
   useEffect(() => {
     if (playerError) {
-      const unsupported = playerError.message === UNSUPPORTED_FORMAT_MESSAGE;
+      const unsupported = playerError instanceof UnsupportedFormatError;
       if (unsupported) {
         toast.add('error', 'Track format not supported — skipping', 8000);
       } else {

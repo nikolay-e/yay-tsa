@@ -1,3 +1,4 @@
+import { getRuntimeConfig } from '../config/runtime-providers.js';
 import { redactSecrets } from './redact.js';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -46,18 +47,6 @@ function forwardToSink(
   }
 }
 
-declare global {
-  interface Window {
-    __YAYTSA_CONFIG__?: {
-      serverUrl?: string;
-      clientName?: string;
-      deviceName?: string;
-      version?: string;
-      logLevel?: LogLevel;
-    };
-  }
-}
-
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -74,11 +63,9 @@ function isValidLogLevel(level: unknown): level is LogLevel {
 
 function detectEnvironment(): { isDev: boolean; logLevel: LogLevel } {
   // Priority 1: Runtime config (injected by Docker entrypoint in production)
-  if (globalThis.window?.__YAYTSA_CONFIG__?.logLevel) {
-    const runtimeLevel = globalThis.window.__YAYTSA_CONFIG__.logLevel;
-    if (isValidLogLevel(runtimeLevel)) {
-      return { isDev: runtimeLevel === 'debug', logLevel: runtimeLevel };
-    }
+  const runtimeLevel = getRuntimeConfig()?.logLevel;
+  if (isValidLogLevel(runtimeLevel)) {
+    return { isDev: runtimeLevel === 'debug', logLevel: runtimeLevel };
   }
 
   // Priority 2: Vite environment (browser or SSR)
