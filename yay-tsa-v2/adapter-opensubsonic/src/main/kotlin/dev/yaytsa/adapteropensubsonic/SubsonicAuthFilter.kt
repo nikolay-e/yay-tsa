@@ -3,6 +3,7 @@ package dev.yaytsa.adapteropensubsonic
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import dev.yaytsa.application.auth.AuthQueries
+import dev.yaytsa.application.shared.port.Clock
 import dev.yaytsa.shared.Hashing
 import dev.yaytsa.shared.UserId
 import jakarta.servlet.FilterChain
@@ -14,12 +15,12 @@ import org.springframework.security.crypto.bcrypt.BCrypt
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
-import java.time.Instant
 
 @Component
 class SubsonicAuthFilter(
     private val authQueries: AuthQueries,
     private val responseWriter: SubsonicResponseWriter,
+    private val clock: Clock,
 ) : OncePerRequestFilter() {
     private val verifiedCredentials: Cache<String, UserId> =
         Caffeine
@@ -79,7 +80,7 @@ class SubsonicAuthFilter(
         val hashedToken = Hashing.sha256Hex(apiKey)
         val apiToken = user.apiTokens.find { Hashing.constantTimeEquals(it.token, hashedToken) } ?: return null
         if (apiToken.revoked) return null
-        val expired = apiToken.expiresAt?.let { Instant.now().isAfter(it) } ?: false
+        val expired = apiToken.expiresAt?.let { clock.now().isAfter(it) } ?: false
         if (expired) return null
         return ApiKeyPrincipal(user.id, user.username)
     }
