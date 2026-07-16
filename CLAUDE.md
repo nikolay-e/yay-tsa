@@ -158,6 +158,8 @@ Mobile-specific: safe area insets for notch devices, 44px minimum touch targets,
 
 Dark mode only — intentional design choice for a music player typically used in low-light environments.
 
+**iOS Home Screen identity — DO NOT make the manifest generic.** iOS runs every installed Home Screen web app as a _scene of one shared WebKit host app_, and (since iOS 16.4) keys each app's identity on `manifest.id` concatenated with the icon filename. If two installed PWAs share the same identity key, reopening one launches the other. So `apps/web/public/manifest.webmanifest` MUST keep a **unique `id`** (`"/?app=yaytsa"`, never the template default `"/"`) and **app-prefixed icon filenames** (`/icons/yaytsa-*.png`, never generic `icon-192.png`), matched by the `apple-touch-icon` in `index.html`. When copying this template to another app in the fleet, change both the `id` and the icon filenames — never leave the generic values, or the two apps collide on iOS. Changing `id` on an already-installed app makes iOS treat it as new (user must remove + re-add the Home Screen icon).
+
 ## Deployment Topology
 
 **Production**: Self-hosted K3s cluster.
