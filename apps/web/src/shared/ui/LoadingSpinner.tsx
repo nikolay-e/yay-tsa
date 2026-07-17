@@ -6,12 +6,8 @@ type LoadingSpinnerProps = Readonly<{
 
 export function LoadingSpinner({ className = 'h-64' }: LoadingSpinnerProps) {
   return (
-    <div
-      role="status"
-      aria-label="Loading"
-      className={`flex items-center justify-center ${className}`}
-    >
+    <output aria-label="Loading" className={`flex items-center justify-center ${className}`}>
       <Loader2 aria-hidden="true" className="text-accent h-8 w-8 animate-spin" />
-    </div>
+    </output>
   );
 }

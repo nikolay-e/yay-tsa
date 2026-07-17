@@ -37,6 +37,7 @@ function PasswordReveal({ password, label }: Readonly<{ password: string; label:
           {password}
         </code>
         <button
+          type="button"
           onClick={() => void copy()}
           className="text-text-secondary hover:text-text-primary shrink-0 transition-colors"
           aria-label="Copy to clipboard"
@@ -242,6 +243,7 @@ function UserRow({
             {confirmReset ? (
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => resetMutation.mutate()}
                   disabled={resetMutation.isPending}
                   className="text-accent hover:bg-accent/10 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50"
@@ -249,6 +251,7 @@ function UserRow({
                   {resetMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reset'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setConfirmReset(false)}
                   className="text-text-secondary hover:text-text-primary rounded-lg px-2 py-1 text-xs transition-colors"
                 >
@@ -257,6 +260,7 @@ function UserRow({
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setConfirmReset(true)}
                 aria-label="Reset password"
                 className="text-text-secondary hover:text-text-primary rounded-lg p-2 transition-colors"
@@ -268,6 +272,7 @@ function UserRow({
             {confirmDelete ? (
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => deleteMutation.mutate()}
                   disabled={deleteMutation.isPending}
                   className="text-error hover:bg-error/10 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50"
@@ -279,6 +284,7 @@ function UserRow({
                   )}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setConfirmDelete(false)}
                   className="text-text-secondary hover:text-text-primary rounded-lg px-2 py-1 text-xs transition-colors"
                 >
@@ -287,6 +293,7 @@ function UserRow({
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setConfirmDelete(true)}
                 aria-label="Delete user"
                 className="text-text-secondary hover:text-error rounded-lg p-2 transition-colors"
@@ -352,6 +359,7 @@ export function UsersPanel() {
       <div className="mb-4 flex items-center justify-between">
         <span className="text-text-secondary text-sm">{userCountText}</span>
         <button
+          type="button"
           onClick={() => {
             setShownPassword(null);
             setShowAddModal(true);

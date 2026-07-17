@@ -137,6 +137,7 @@ export function AlbumDetailPage() {
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               data-testid="album-play-button"
               disabled={isEmptyAlbum}
               onClick={() => {
@@ -167,6 +168,7 @@ export function AlbumDetailPage() {
               )}
             </button>
             <button
+              type="button"
               data-testid="album-shuffle-button"
               disabled={isEmptyAlbum}
               onClick={() => {

@@ -163,6 +163,7 @@ export function SearchPage() {
           <fieldset className="border-border m-0 flex min-w-0 overflow-hidden rounded-md border p-0">
             <legend className="sr-only">Search mode</legend>
             <button
+              type="button"
               onClick={() => setSearchMode('text')}
               aria-pressed={searchMode === 'text'}
               className={cn(
@@ -175,6 +176,7 @@ export function SearchPage() {
               Text
             </button>
             <button
+              type="button"
               onClick={() => setSearchMode('semantic')}
               aria-pressed={searchMode === 'semantic'}
               title="Describe the vibe — semantic search"

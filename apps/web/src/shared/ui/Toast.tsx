@@ -84,18 +84,19 @@ function ToastItem({ item }: Readonly<{ item: ToastMessage }>) {
   const Icon = icons[item.type];
 
   return (
-    <div
+    <output
       className={cn(
         'flex items-start gap-2 rounded-md border p-2 shadow-lg',
         'animate-in slide-in-from-top-2 fade-in duration-200',
         styles[item.type]
       )}
-      role={item.type === 'error' ? 'alert' : 'status'}
+      role={item.type === 'error' ? 'alert' : undefined}
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <p className="flex-1 text-sm">{item.message}</p>
       {item.action && (
         <button
+          type="button"
           onClick={() => {
             item.action!.onClick();
             toast.remove(item.id);
@@ -106,13 +107,14 @@ function ToastItem({ item }: Readonly<{ item: ToastMessage }>) {
         </button>
       )}
       <button
+        type="button"
         onClick={() => toast.remove(item.id)}
         className="shrink-0 rounded p-1 opacity-70 transition-opacity hover:opacity-100"
         aria-label="Dismiss"
       >
         <X className="h-3 w-3" />
       </button>
-    </div>
+    </output>
   );
 }
 

@@ -292,6 +292,27 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(200, strangerRead.response.status, "a public playlist must remain readable by other users")
     }
 
+    // Regression (BOLA / OWASP API1:2023): addToPlaylist fed the request's UserId param straight
+    // into the command context, so a stranger could impersonate the owner (UserId=<owner>) and
+    // write tracks into a playlist they don't own — the handler's owner check compares ctx.userId.
+    @Test
+    fun `a different user cannot add tracks to someone else's playlist even by spoofing UserId`() {
+        val otherToken = seedSecondUser()
+        val trackId = seedTrack()
+        val create = post("/Playlists", mapOf("Name" to "No Spoofing", "UserId" to userId), token)
+        assertEquals(200, create.response.status)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val spoofed = post("/Playlists/$playlistId/Items?Ids=$trackId&UserId=$userId", emptyMap<String, Any>(), otherToken)
+        assertEquals(403, spoofed.response.status, "a UserId that is not the caller must be rejected")
+
+        val direct = post("/Playlists/$playlistId/Items?Ids=$trackId", emptyMap<String, Any>(), otherToken)
+        assertEquals(401, direct.response.status, "the owner check must reject a non-owner add")
+
+        val items = objectMapper.readTree(get("/Playlists/$playlistId/Items", token).response.contentAsString)
+        assertEquals(0, items.get("Items").size(), "no track may land in the playlist from either attempt")
+    }
+
     // Regression (BOLA / OWASP API1:2023): the /Items/{id} playlist fallback branch in
     // JellyfinItemsController.getItem returned name/childCount for ANY playlist id with no
     // owner/isPublic check — metadata-only leak (no track list), but still a genuine

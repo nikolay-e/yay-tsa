@@ -163,6 +163,7 @@ export function DjPreferencesPanel() {
   return (
     <div className="border-border border-t">
       <button
+        type="button"
         onClick={() => setExpanded(!isExpanded)}
         className="text-text-secondary hover:text-text-primary flex w-full items-center justify-between px-4 py-3 text-sm font-medium transition-colors"
       >
@@ -281,6 +282,7 @@ export function DjPreferencesPanel() {
                     className="bg-bg-tertiary border-border text-text-primary placeholder:text-text-tertiary flex-1 rounded-lg border px-3 py-2 text-sm"
                   />
                   <button
+                    type="button"
                     onClick={addRedLine}
                     disabled={!newRedLine.trim()}
                     className="bg-bg-tertiary text-text-secondary hover:bg-bg-hover border-border rounded-lg border px-2.5 transition-colors disabled:opacity-50"
@@ -298,6 +300,7 @@ export function DjPreferencesPanel() {
                       >
                         {line}
                         <button
+                          type="button"
                           onClick={() => removeRedLine(line)}
                           className="hover:text-error/80 p-0.5"
                           aria-label={`Remove ${line}`}
@@ -345,6 +348,7 @@ export function DjPreferencesPanel() {
                           </div>
                         </div>
                         <button
+                          type="button"
                           onClick={() => handleEnqueue(track.trackId)}
                           className="text-text-secondary hover:text-accent ml-2 shrink-0 p-1 transition-colors"
                           aria-label={`Add ${track.name} to queue`}
@@ -358,6 +362,7 @@ export function DjPreferencesPanel() {
               </div>
 
               <button
+                type="button"
                 onClick={() => {
                   handleSave();
                 }}

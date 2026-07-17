@@ -194,7 +194,13 @@ class JellyfinPlaylistsController(
         principal: Principal,
     ): ResponseEntity<Void> {
         if (!isValidUuid(playlistId)) return ResponseEntity.badRequest().build()
-        val uid = UserId(userId ?: principal.name)
+        // BOLA guard (OWASP API1:2023): the UserId param feeds the command context that
+        // PlaylistHandler's owner check runs against, so accepting an arbitrary value would
+        // let any authenticated user impersonate the owner and write into their playlist.
+        if (userId != null && userId != principal.name) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build()
+        }
+        val uid = UserId(principal.name)
         val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
         val trackIds = ids.split(",").map { TrackId(it.trim()) }
         val cmd = AddTracksToPlaylist(PlaylistId(playlistId), trackIds, clock.now())

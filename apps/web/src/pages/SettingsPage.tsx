@@ -187,6 +187,7 @@ export function SettingsPage() {
             </div>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => {
                   handleForceReload();
                 }}
@@ -197,6 +198,7 @@ export function SettingsPage() {
                 Clear and reload
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmReload(false)}
                 disabled={isReloading}
                 className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-md px-4 py-2 text-sm transition-colors disabled:opacity-50"
@@ -207,6 +209,7 @@ export function SettingsPage() {
           </div>
         ) : (
           <button
+            type="button"
             onClick={() => setConfirmReload(true)}
             className="bg-error/10 hover:bg-error/20 border-error/30 flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors disabled:opacity-50"
           >
@@ -402,6 +405,7 @@ export function SettingsPage() {
             </div>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => {
                   logout();
                 }}
@@ -411,6 +415,7 @@ export function SettingsPage() {
                 Sign out
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmLogout(false)}
                 className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-md px-4 py-2 text-sm transition-colors"
               >
@@ -420,6 +425,7 @@ export function SettingsPage() {
           </div>
         ) : (
           <button
+            type="button"
             onClick={() => setConfirmLogout(true)}
             className="bg-bg-secondary hover:bg-bg-hover border-border flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors"
           >

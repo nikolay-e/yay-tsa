@@ -31,6 +31,33 @@ export function OfflineLibraryPage() {
     playTracks(tracks, index);
   };
 
+  let body;
+  if (!initialized) {
+    body = <LoadingSpinner className="h-48" />;
+  } else if (tracks.length === 0) {
+    body = (
+      <div className="flex h-48 flex-col items-center justify-center gap-2 text-center">
+        <p className="text-text-secondary">No downloads yet.</p>
+        <p className="text-text-tertiary text-sm">
+          Tap the download icon on any track or album to make it available offline.
+        </p>
+      </div>
+    );
+  } else {
+    body = (
+      <TrackList
+        tracks={tracks}
+        virtualized
+        showArtist
+        showAlbum
+        currentTrackId={currentTrack?.Id}
+        isPlaying={isPlaying}
+        onPlayTrack={handlePlayTrack}
+        onPauseTrack={pause}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-3">
@@ -43,27 +70,7 @@ export function OfflineLibraryPage() {
         </div>
       </div>
 
-      {!initialized ? (
-        <LoadingSpinner className="h-48" />
-      ) : tracks.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center gap-2 text-center">
-          <p className="text-text-secondary">No downloads yet.</p>
-          <p className="text-text-tertiary text-sm">
-            Tap the download icon on any track or album to make it available offline.
-          </p>
-        </div>
-      ) : (
-        <TrackList
-          tracks={tracks}
-          virtualized
-          showArtist
-          showAlbum
-          currentTrackId={currentTrack?.Id}
-          isPlaying={isPlaying}
-          onPlayTrack={handlePlayTrack}
-          onPauseTrack={pause}
-        />
-      )}
+      {body}
     </div>
   );
 }

@@ -280,6 +280,7 @@ export function PlaylistDetailPage() {
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               data-testid="playlist-play-button"
               onClick={handlePlayAll}
               disabled={tracks.length === 0}
@@ -302,6 +303,7 @@ export function PlaylistDetailPage() {
               )}
             </button>
             <button
+              type="button"
               data-testid="playlist-shuffle-button"
               onClick={handleShuffle}
               disabled={tracks.length === 0}
@@ -317,6 +319,7 @@ export function PlaylistDetailPage() {
             {confirmDelete ? (
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   data-testid="playlist-delete-confirm"
                   onClick={handleDelete}
                   disabled={deletePlaylist.isPending}
@@ -325,6 +328,7 @@ export function PlaylistDetailPage() {
                   Delete
                 </button>
                 <button
+                  type="button"
                   onClick={() => setConfirmDelete(false)}
                   disabled={deletePlaylist.isPending}
                   className="bg-bg-secondary text-text-primary hover:bg-bg-tertiary rounded-full px-4 py-2 text-sm transition-colors disabled:opacity-50"
@@ -334,6 +338,7 @@ export function PlaylistDetailPage() {
               </div>
             ) : (
               <button
+                type="button"
                 data-testid="playlist-delete-button"
                 onClick={() => setConfirmDelete(true)}
                 aria-label="Delete playlist"

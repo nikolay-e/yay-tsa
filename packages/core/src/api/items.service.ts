@@ -197,7 +197,9 @@ export class ItemsService extends BaseService {
    */
   async getItemsByIds(ids: string[]): Promise<AudioItem[]> {
     if (ids.length === 0) return [];
-    const BATCH_SIZE = 200;
+    // 100 UUIDs ≈ 4KB of query string; 200 pushed the request line to ~8KB, the
+    // default nginx/Tomcat header limit, producing rare 400s on batch resolve.
+    const BATCH_SIZE = 100;
     if (ids.length <= BATCH_SIZE) {
       const result = await this.queryItems<AudioItem>({
         Ids: ids,

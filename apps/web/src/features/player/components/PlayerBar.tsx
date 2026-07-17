@@ -52,7 +52,6 @@ import { usePlaybackHotkeys } from '../hooks/usePlaybackHotkeys';
 import { useGroupSyncStore } from '../stores/group-sync-store';
 import { useTimingStore } from '../stores/playback-timing.store';
 import { nextAudiobookSpeed } from '../playback-speed';
-import { MobileFullPlayer } from './MobileFullPlayer';
 import { KaraokeBlendSlider } from './KaraokeBlendSlider';
 import { SeekBar, TimeDisplay } from './SeekBar';
 import { LyricsView } from './LyricsView';
@@ -63,6 +62,11 @@ import { DevicesPanel } from './DevicesPanel';
 import { GroupSyncPanel } from './GroupSyncPanel';
 
 const QueuePanel = lazy(() => import('./QueuePanel'));
+// The full player only exists after a tap on the mini-bar, so its code (incl. the inline
+// lyrics panel) stays out of the eager bundle — same pattern as QueuePanel.
+const MobileFullPlayer = lazy(async () =>
+  import('./MobileFullPlayer').then(m => ({ default: m.MobileFullPlayer }))
+);
 
 function MiniBarProgress() {
   const fillRef = useRef<HTMLDivElement>(null);
@@ -723,41 +727,43 @@ export function PlayerBar() {
       <LyricsView isOpen={showLyricsView} onClose={() => setShowLyricsView(false)} />
 
       {showFullPlayer && (
-        <MobileFullPlayer
-          track={currentTrack}
-          imageUrl={imageUrlLarge}
-          hasImageError={hasImageError}
-          isPlaying={isPlaying}
-          isLoading={isLoading}
-          isShuffle={isShuffle}
-          repeatMode={repeatMode}
-          isKaraokeMode={isKaraokeMode}
-          isKaraokeTransitioning={isKaraokeTransitioning}
-          karaokeStatus={karaokeStatus}
-          vocalBlend={vocalBlend}
-          hasSleepTimer={!!sleepTimer.endTime}
-          sleepMinutesLeft={sleepMinutesLeft}
-          showThumbs
-          onClose={closeFullPlayer}
-          onNavigate={dismissFullPlayerForNavigation}
-          onPlayPause={handlePlayPause}
-          onNext={handleNext}
-          onPrevious={handlePrevious}
-          onToggleShuffle={handleToggleShuffle}
-          onToggleRepeat={handleToggleRepeat}
-          onToggleKaraoke={handleToggleKaraoke}
-          onVocalBlendChange={setVocalBlend}
-          onOpenSleepTimer={() => setShowSleepModal(true)}
-          onOpenQueue={() => setShowQueue(true)}
-          onSeek={handleSeek}
-          onThumbsUp={handleThumbsUp}
-          onThumbsDown={handleThumbsDown}
-          isRadioMode={!!activeSession?.isRadioMode}
-          canStartRadio={isOnline && !isSessionStarting}
-          onStartRadio={() => {
-            if (currentTrack) void startSession(currentTrack.Id);
-          }}
-        />
+        <Suspense fallback={null}>
+          <MobileFullPlayer
+            track={currentTrack}
+            imageUrl={imageUrlLarge}
+            hasImageError={hasImageError}
+            isPlaying={isPlaying}
+            isLoading={isLoading}
+            isShuffle={isShuffle}
+            repeatMode={repeatMode}
+            isKaraokeMode={isKaraokeMode}
+            isKaraokeTransitioning={isKaraokeTransitioning}
+            karaokeStatus={karaokeStatus}
+            vocalBlend={vocalBlend}
+            hasSleepTimer={!!sleepTimer.endTime}
+            sleepMinutesLeft={sleepMinutesLeft}
+            showThumbs
+            onClose={closeFullPlayer}
+            onNavigate={dismissFullPlayerForNavigation}
+            onPlayPause={handlePlayPause}
+            onNext={handleNext}
+            onPrevious={handlePrevious}
+            onToggleShuffle={handleToggleShuffle}
+            onToggleRepeat={handleToggleRepeat}
+            onToggleKaraoke={handleToggleKaraoke}
+            onVocalBlendChange={setVocalBlend}
+            onOpenSleepTimer={() => setShowSleepModal(true)}
+            onOpenQueue={() => setShowQueue(true)}
+            onSeek={handleSeek}
+            onThumbsUp={handleThumbsUp}
+            onThumbsDown={handleThumbsDown}
+            isRadioMode={!!activeSession?.isRadioMode}
+            canStartRadio={isOnline && !isSessionStarting}
+            onStartRadio={() => {
+              if (currentTrack) void startSession(currentTrack.Id);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

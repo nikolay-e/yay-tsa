@@ -71,6 +71,7 @@ export function CreatePlaylistModal({
           New Playlist
         </h3>
         <button
+          type="button"
           onClick={handleClose}
           className="text-text-secondary hover:text-text-primary p-1"
           aria-label="Close"

@@ -51,6 +51,7 @@ export function SleepTimerModal({
           Sleep Timer
         </h3>
         <button
+          type="button"
           onClick={onClose}
           className="text-text-secondary hover:text-text-primary p-1"
           aria-label="Close"
@@ -62,6 +63,7 @@ export function SleepTimerModal({
       <div className="space-y-2">
         {TIMER_OPTIONS.map(mins => (
           <button
+            type="button"
             key={mins}
             onClick={() => handleSetTimer(mins)}
             className={cn(
@@ -79,12 +81,14 @@ export function SleepTimerModal({
           (confirmCancel ? (
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={handleClearTimer}
                 className="bg-error/10 text-error hover:bg-error/20 flex-1 rounded-md p-3 font-medium transition-colors"
               >
                 Cancel timer
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmCancel(false)}
                 className="bg-bg-tertiary text-text-primary hover:bg-bg-hover rounded-md px-4 transition-colors"
               >
@@ -93,6 +97,7 @@ export function SleepTimerModal({
             </div>
           ) : (
             <button
+              type="button"
               onClick={() => setConfirmCancel(true)}
               className="bg-error/10 text-error hover:bg-error/20 w-full rounded-md p-3 text-left transition-colors"
             >

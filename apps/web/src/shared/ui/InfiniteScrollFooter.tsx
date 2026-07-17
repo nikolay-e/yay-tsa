@@ -58,6 +58,7 @@ export function InfiniteScrollFooter({
       {hasNextPage && !isFetchNextPageError && (
         <div ref={ref} className="flex justify-center pt-4">
           <button
+            type="button"
             onClick={onLoadMore}
             disabled={isFetchingNextPage}
             className={cn(
