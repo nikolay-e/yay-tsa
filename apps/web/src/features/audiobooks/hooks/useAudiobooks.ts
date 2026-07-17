@@ -141,17 +141,17 @@ function buildBook(albumId: string, entries: AudiobookEntry[]): AudiobookBook {
   );
 
   const first = chapters[0]?.item;
-  // Chapter tracks carry no primary image of their own — the cover lives on the album entity.
-  // Request it by AlbumId (as album/track lists do) and, when no real image tag is available,
-  // fall back to the album id as a stable cache key so MediaCard still emits the request instead
-  // of degrading straight to the placeholder.
+  // Chapter tracks carry no primary image of their own — the cover lives on the album entity,
+  // requested by AlbumId (as album/track lists do). Only emit the request when a real image
+  // tag exists; fabricating one from the album id forced a guaranteed 404 for coverless
+  // audiobooks (MediaCard already shows the placeholder when the tag is absent).
   const coverItemId = first?.AlbumId ?? first?.Id ?? albumId;
   return {
     albumId,
     title: first?.Album ?? first?.Name ?? 'Unknown',
     author: (first?.Artists ?? []).join(', '),
     coverItemId,
-    coverImageTag: first?.AlbumPrimaryImageTag ?? first?.ImageTags?.Primary ?? coverItemId,
+    coverImageTag: first?.AlbumPrimaryImageTag ?? first?.ImageTags?.Primary,
     chapters,
     totalChapters: total,
     finishedChapters: finished,

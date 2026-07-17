@@ -61,7 +61,12 @@ export function Modal({
         aria-labelledby={ariaLabelledBy}
         className={className}
         onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
+        onKeyDown={e => {
+          // Focus is trapped inside the dialog, so a keydown here never bubbles to the
+          // document-level Escape listener — handle Escape locally before stopping it.
+          if (e.key === 'Escape' && !preventClose) onClose();
+          e.stopPropagation();
+        }}
       >
         {children}
       </div>
