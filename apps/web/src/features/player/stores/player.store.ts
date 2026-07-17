@@ -120,6 +120,10 @@ const PROGRESS_REPORT_INTERVAL_MS = 10000;
 const AUDIOBOOK_PROGRESS_REPORT_INTERVAL_MS = 2000;
 const LOCAL_RESUME_WRITE_INTERVAL_MS = 1000;
 const RADIO_LOW_WATERMARK = 5;
+// Listening-cache re-downloads the CURRENT track; deferring it past the preload
+// watermark keeps the three big downloads (live stream, next-track preload,
+// cache copy) out of each other's way — see preload-manager.ts.
+const LISTEN_CACHE_START_S = 45;
 const CROSSFADE_MS = 150;
 const APPROACHING_END_MS = CROSSFADE_MS + 350;
 const ENGINE_TIMEOUT_MS = 10000;
@@ -138,6 +142,7 @@ let lastLocalResumeWriteTime = 0;
 // stamped with this so a tab that sat hidden for hours reports its position as of when it was
 // true — letting the server merge and localStorage reject it against newer progress elsewhere.
 let lastPositionTruthAt = 0;
+let pendingListeningCache: AudioItem | null = null;
 
 const wakeLock = new WakeLockManager();
 
@@ -606,7 +611,7 @@ export const usePlayerStore = create<PlayerStore>()(
       startPlaybackReporter(track.Id);
       preloader.invalidate();
       schedulePreload();
-      void useOfflineStore.getState().cachePlayed(track);
+      pendingListeningCache = track;
 
       if (get().karaokeEnabled && !get().isKaraokeTransitioning) {
         void syncKaraokeForTrack(track, signal);
@@ -767,7 +772,7 @@ export const usePlayerStore = create<PlayerStore>()(
       updateSessionMetadata(track);
       syncMediaSessionPlayback('playing', 0);
       startPlaybackReporter(track.Id);
-      void useOfflineStore.getState().cachePlayed(track);
+      pendingListeningCache = track;
 
       if (get().isKaraokeMode || get().karaokeEnabled) {
         await syncKaraokeForTrack(track, signal);
@@ -793,6 +798,17 @@ export const usePlayerStore = create<PlayerStore>()(
       if (pendingSeek && pendingSeek.itemId === get().currentTrack?.Id) return;
       const duration = engine.getDuration();
       useTimingStore.getState().updateTiming(seconds, duration);
+
+      preloader.tick(seconds, duration);
+      if (
+        pendingListeningCache &&
+        duration > 0 &&
+        seconds >= Math.min(LISTEN_CACHE_START_S, duration * 0.75)
+      ) {
+        const cacheTarget = pendingListeningCache;
+        pendingListeningCache = null;
+        void useOfflineStore.getState().cachePlayed(cacheTarget);
+      }
 
       const now = Date.now();
       lastPositionTruthAt = now;
