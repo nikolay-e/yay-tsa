@@ -121,16 +121,28 @@ http {
         # Vite assets - content-hashed, no CDN caching to avoid stale 404s during deploys
         location /assets/ {
             include /var/cache/nginx/security-headers.conf;
+            try_files $uri @immutable_missing;
         }
 
         # Workbox runtime
         location ~ ^/workbox-[a-f0-9]+\.js$ {
             include /var/cache/nginx/security-headers.conf;
+            try_files $uri @immutable_missing;
         }
 
         # Static assets - images, fonts
         location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             include /var/cache/nginx/security-headers.conf;
+            try_files $uri @immutable_missing;
+        }
+
+        # A missing content-hashed / immutable asset is almost always a rolling-deploy
+        # race: the CDN asked an old pod for a chunk only the new pod has. Return a
+        # NON-cacheable 404 so Cloudflare re-fetches once the rollout finishes, instead
+        # of pinning that 404 for hours (which white-screens fresh loads).
+        location @immutable_missing {
+            add_header Cache-Control "no-store" always;
+            return 404;
         }
 
         # Runtime config - no cache
