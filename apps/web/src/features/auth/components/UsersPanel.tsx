@@ -3,6 +3,7 @@ import { UserPlus, Trash2, KeyRound, ShieldCheck, User, Loader2, Copy, Check } f
 import { AdminService, type UserSummary } from '@yay-tsa/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/shared/ui/Toast';
+import { Modal } from '@/shared/ui/Modal';
 import { useAuthStore } from '../stores/auth.store';
 
 function PasswordReveal({ password, label }: Readonly<{ password: string; label: string }>) {
@@ -68,9 +69,16 @@ function AddUserModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-bg-primary border-border w-full max-w-sm rounded-xl border p-6 shadow-xl">
-        <h3 className="mb-4 text-lg font-semibold">Add User</h3>
+    <Modal
+      isOpen
+      onClose={onClose}
+      ariaLabelledBy="add-user-title"
+      className="bg-bg-primary border-border w-full max-w-sm rounded-xl border p-6 shadow-xl"
+    >
+      <div>
+        <h3 id="add-user-title" className="mb-4 text-lg font-semibold">
+          Add User
+        </h3>
 
         <div className="space-y-3">
           <div>
@@ -130,7 +138,7 @@ function AddUserModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
