@@ -48,14 +48,14 @@ export function KaraokeBlendSlider({
           {percent}%
         </span>
       </div>
-      <div className="text-text-tertiary flex justify-between text-[10px] leading-none">
+      <div className="text-text-tertiary -mt-2 flex justify-between text-[10px] leading-none">
         {TICKS.map(tick => (
           <button
             key={tick.value}
             type="button"
             disabled={disabled}
             onClick={() => onChange(tick.value)}
-            className="hover:text-text-primary transition-colors disabled:cursor-not-allowed"
+            className="hover:text-text-primary inline-flex min-h-8 items-center px-1 transition-colors disabled:cursor-not-allowed"
           >
             {tick.label}
           </button>

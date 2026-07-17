@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +13,7 @@ import {
   Download,
 } from 'lucide-react';
 import { getIsFavorite, type AudioItem } from '@yay-tsa/core';
+import { useFocusReturn } from '@/shared/hooks/useFocusReturn';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
 import { AddToPlaylistModal } from '@/features/playlists/components/AddToPlaylistModal';
@@ -50,6 +51,14 @@ export function TrackRowMenu({
   const isFavorite = getIsFavorite(track);
   const artistId = track.ArtistItems?.[0]?.Id;
   const downloadStatus = offlineEntry?.status ?? 'idle';
+  useFocusReturn(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+    });
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -70,6 +79,26 @@ export function TrackRowMenu({
       document.removeEventListener('scroll', close, { capture: true });
     };
   }, [isOpen]);
+
+  const handleMenuKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      setMenuPosition(null);
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []
+    );
+    if (items.length === 0) return;
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown') {
+      items[(currentIndex + 1) % items.length]?.focus();
+    } else {
+      items[currentIndex <= 0 ? items.length - 1 : currentIndex - 1]?.focus();
+    }
+  };
 
   const toggleMenu = () => {
     if (isOpen) {
@@ -172,6 +201,8 @@ export function TrackRowMenu({
           <div
             ref={menuRef}
             role="menu"
+            tabIndex={-1}
+            onKeyDown={handleMenuKeyDown}
             style={menuPosition}
             className="border-border bg-bg-secondary z-modal fixed w-52 rounded-lg border py-1 shadow-xl"
           >
@@ -201,6 +232,7 @@ export function TrackRowMenu({
               data-testid="track-menu-add-playlist"
               onClick={handleAddToPlaylist}
               disabled={!isOnline}
+              title={isOnline ? undefined : 'Needs a connection'}
               className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ListMusic className="h-4 w-4" />
@@ -212,6 +244,7 @@ export function TrackRowMenu({
               data-testid="track-menu-start-radio"
               onClick={handleStartRadio}
               disabled={!isOnline}
+              title={isOnline ? undefined : 'Needs a connection'}
               className="text-text-primary hover:bg-bg-tertiary flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Radio className="h-4 w-4" />

@@ -219,9 +219,9 @@ test.describe('Offline audio (mocked backend)', () => {
     await mockApi(page);
     await login(page);
 
-    // Auto-download of liked songs is opt-in; enable it through the real Settings toggle.
+    // Auto-download of favorites is opt-in; enable it through the real Settings toggle.
     await page.goto('/settings');
-    const autoDownloadToggle = page.getByRole('switch', { name: 'Auto-download liked songs' });
+    const autoDownloadToggle = page.getByRole('switch', { name: 'Auto-download favorites' });
     await expect(autoDownloadToggle).toHaveAttribute('aria-checked', 'false');
     await autoDownloadToggle.click();
     await expect(autoDownloadToggle).toHaveAttribute('aria-checked', 'true');

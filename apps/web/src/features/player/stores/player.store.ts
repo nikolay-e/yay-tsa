@@ -24,6 +24,7 @@ import {
   type MediaPlaybackError,
 } from '@yay-tsa/platform';
 import { reportError } from '@/shared/utils/error-reporter';
+import { toast } from '@/shared/ui/Toast';
 import { useAuthStore } from '@/features/auth/stores/auth.store';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import {
@@ -233,6 +234,12 @@ function autoAdvanceOnError(get: () => PlayerStore): void {
   if (consecutiveLoadFailures >= MAX_CONSECUTIVE_FAILURES) {
     consecutiveLoadFailures = 0;
     log.player.error('Max consecutive load failures reached, stopping playback');
+    toast.add('error', "Couldn't play the next tracks — playback stopped", 8000, {
+      label: 'Retry',
+      onClick: () => {
+        void get().retryCurrentTrack();
+      },
+    });
     return;
   }
 
@@ -475,7 +482,7 @@ export const usePlayerStore = create<PlayerStore>()(
       session?.setPlaybackState(state);
       if (state === 'none') return;
       const position = positionOverride ?? engine.getCurrentTime();
-      session?.updatePositionState(engine.getDuration(), position);
+      session?.updatePositionState(engine.getDuration(), position, get().playbackRate);
     }
 
     function schedulePreload(): void {

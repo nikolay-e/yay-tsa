@@ -40,7 +40,7 @@ export const toast: ToastStore = {
     toasts = [...toasts, { id, type, message, duration, action }];
     notifyListeners();
 
-    if (duration > 0) {
+    if (duration > 0 && !action) {
       setTimeout(() => {
         toast.remove(id);
       }, duration);
@@ -90,7 +90,7 @@ function ToastItem({ item }: Readonly<{ item: ToastMessage }>) {
         'animate-in slide-in-from-top-2 fade-in duration-200',
         styles[item.type]
       )}
-      role="alert"
+      role={item.type === 'error' ? 'alert' : 'status'}
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <p className="flex-1 text-sm">{item.message}</p>
@@ -119,12 +119,11 @@ function ToastItem({ item }: Readonly<{ item: ToastMessage }>) {
 export function ToastContainer() {
   const items = useToasts();
 
-  if (items.length === 0) {
-    return null;
-  }
-
   return (
-    <div className="z-toast fixed top-[max(1rem,env(safe-area-inset-top,0px))] right-[max(1rem,env(safe-area-inset-right,0px))] flex max-w-sm flex-col gap-2">
+    <div
+      aria-live="polite"
+      className="z-toast pointer-events-none fixed top-[max(1rem,env(safe-area-inset-top,0px))] right-[max(1rem,env(safe-area-inset-right,0px))] flex max-w-sm flex-col gap-2 [&>*]:pointer-events-auto"
+    >
       {items.map(item => (
         <ToastItem key={item.id} item={item} />
       ))}

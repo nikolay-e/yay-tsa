@@ -56,6 +56,20 @@ export function useCreatePlaylist() {
   });
 }
 
+export function useRenamePlaylist() {
+  const getClient = useAuthenticatedClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ playlistId, name }: { playlistId: string; name: string }) =>
+      new PlaylistsService(getClient()).renamePlaylist(playlistId, name),
+    onSuccess: (_data, { playlistId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] });
+      void queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
+    },
+  });
+}
+
 export function useDeletePlaylist() {
   const getClient = useAuthenticatedClient();
   const queryClient = useQueryClient();
@@ -91,6 +105,41 @@ export function useRemoveFromPlaylist() {
     mutationFn: async ({ playlistId, entryIds }: { playlistId: string; entryIds: string[] }) =>
       new PlaylistsService(getClient()).removeItemsFromPlaylist(playlistId, entryIds),
     onSuccess: (_data, { playlistId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] });
+      void queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
+    },
+  });
+}
+
+export function useUndoRemoveFromPlaylist() {
+  const getClient = useAuthenticatedClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      trackId,
+      toIndex,
+    }: {
+      playlistId: string;
+      trackId: string;
+      toIndex: number;
+    }) => {
+      const service = new PlaylistsService(getClient());
+      await service.addItemsToPlaylist(playlistId, [trackId]);
+      const counted = await service.getPlaylistItems(playlistId, { startIndex: 0, limit: 1 });
+      const total = counted.TotalRecordCount;
+      const lastIndex = total - 1;
+      const tail = await service.getPlaylistItems(playlistId, { startIndex: lastIndex, limit: 1 });
+      if (tail.Items[0]?.Id !== trackId) {
+        throw new Error('Playlist changed while undoing');
+      }
+      const targetIndex = Math.min(toIndex, lastIndex);
+      if (targetIndex !== lastIndex) {
+        await service.movePlaylistItem(playlistId, String(lastIndex), targetIndex);
+      }
+    },
+    onSettled: (_data, _error, { playlistId }) => {
       void queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] });
       void queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
     },

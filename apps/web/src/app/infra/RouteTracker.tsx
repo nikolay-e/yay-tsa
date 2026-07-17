@@ -2,12 +2,27 @@ import { useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { setReporterRoute } from '@/shared/utils/error-reporter';
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/': 'Home',
+  '/search': 'Search',
+  '/favorites': 'Favorites',
+  '/artists': 'Artists',
+  '/albums': 'Albums',
+  '/playlists': 'Playlists',
+  '/audiobooks': 'Audiobooks',
+  '/offline': 'Downloads',
+  '/settings': 'Settings',
+};
+
 export function RouteTracker() {
   const location = useLocation();
   const params = useParams();
 
   useEffect(() => {
-    setReporterRoute(toRouteTemplate(location.pathname, params));
+    const routeTemplate = toRouteTemplate(location.pathname, params);
+    setReporterRoute(routeTemplate);
+    const pageName = ROUTE_TITLES[routeTemplate];
+    document.title = pageName ? `${pageName} — Yay-Tsa` : 'Yay-Tsa';
   }, [location.pathname, params]);
 
   return null;

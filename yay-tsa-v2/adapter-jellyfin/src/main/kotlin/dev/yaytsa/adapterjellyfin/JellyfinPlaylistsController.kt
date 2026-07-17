@@ -17,6 +17,7 @@ import dev.yaytsa.domain.playlists.CreatePlaylist
 import dev.yaytsa.domain.playlists.DeletePlaylist
 import dev.yaytsa.domain.playlists.PlaylistId
 import dev.yaytsa.domain.playlists.RemovePlaylistEntriesByPosition
+import dev.yaytsa.domain.playlists.RenamePlaylist
 import dev.yaytsa.domain.playlists.ReorderPlaylistTracks
 import dev.yaytsa.shared.AggregateVersion
 import dev.yaytsa.shared.CommandResult
@@ -109,6 +110,31 @@ class JellyfinPlaylistsController(
         }
 
         return ResponseEntity.ok(mapOf("Id" to pid.value))
+    }
+
+    data class UpdatePlaylistRequest(
+        @JsonProperty("Name") @JsonAlias("name") val name: String? = null,
+    )
+
+    @PostMapping("/Playlists/{playlistId}")
+    fun updatePlaylist(
+        @PathVariable playlistId: String,
+        @RequestBody request: UpdatePlaylistRequest,
+        principal: Principal,
+    ): ResponseEntity<Void> {
+        if (!isValidUuid(playlistId)) return ResponseEntity.badRequest().build()
+        val newName = request.name ?: return ResponseEntity.badRequest().build()
+        val uid = UserId(principal.name)
+        val playlist = playlistQueries.find(PlaylistId(playlistId)) ?: return ResponseEntity.notFound().build()
+        val cmd = RenamePlaylist(PlaylistId(playlistId), newName)
+        val ctx = ctxFactory.create(uid, playlist.version)
+        return when (val result = playlistUseCases.execute(cmd, ctx)) {
+            is CommandResult.Success -> ResponseEntity.noContent().build()
+            is CommandResult.Failed -> {
+                log.warn("RenamePlaylist failed for playlist={}: {}", playlistId, result.failure)
+                statusFromFailure(result.failure)
+            }
+        }
     }
 
     @GetMapping("/Playlists/{playlistId}/Items")

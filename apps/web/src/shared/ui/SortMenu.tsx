@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUpDown, Check } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+import { useFocusReturn } from '@/shared/hooks/useFocusReturn';
 
 export interface SortOption {
   id: string;
@@ -112,6 +113,7 @@ export function SortMenu({
   const [activeIndex, setActiveIndex] = useState(-1);
   const menuRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
+  useFocusReturn(isOpen);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -145,6 +147,17 @@ export function SortMenu({
       case 'ArrowUp':
         e.preventDefault();
         setActiveIndex(prev => (prev <= 0 ? options.length - 1 : prev - 1));
+        break;
+      case 'Home':
+        e.preventDefault();
+        setActiveIndex(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        setActiveIndex(options.length - 1);
+        break;
+      case 'Tab':
+        setIsOpen(false);
         break;
       case 'Enter':
       case ' ':

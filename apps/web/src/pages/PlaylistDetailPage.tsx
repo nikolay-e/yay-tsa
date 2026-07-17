@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ListMusic, Pause, Play, Shuffle, Trash2, X } from 'lucide-react';
+import { ListMusic, Pause, Pencil, Play, Shuffle, Trash2, X } from 'lucide-react';
 import type { AudioItem } from '@yay-tsa/core';
 import { TrackListRow } from '@/features/library/components';
 import {
@@ -9,6 +9,8 @@ import {
   useDeletePlaylist,
   useRemoveFromPlaylist,
   useMovePlaylistItem,
+  useRenamePlaylist,
+  useUndoRemoveFromPlaylist,
 } from '@/features/playlists/hooks/usePlaylists';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { LoadErrorState } from '@/shared/ui/LoadErrorState';
@@ -30,6 +32,9 @@ export function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const renameCancelledRef = useRef(false);
 
   const playTracks = usePlayerStore(state => state.playTracks);
   const pause = usePlayerStore(state => state.pause);
@@ -59,6 +64,8 @@ export function PlaylistDetailPage() {
   const deletePlaylist = useDeletePlaylist();
   const removeFromPlaylist = useRemoveFromPlaylist();
   const movePlaylistItem = useMovePlaylistItem(id);
+  const renamePlaylist = useRenamePlaylist();
+  const undoRemoveFromPlaylist = useUndoRemoveFromPlaylist();
 
   // Entry `Id` is a raw array position echoed back by the backend (see
   // JellyfinPlaylistsController), not a stable per-track identity. Any positional action
@@ -66,7 +73,10 @@ export function PlaylistDetailPage() {
   // such action stays blocked until both the mutation settles AND the refetch it triggers
   // has actually landed — not just the mutation's own in-flight window.
   const positionalActionsLocked =
-    removeFromPlaylist.isPending || movePlaylistItem.isPending || itemsFetching;
+    removeFromPlaylist.isPending ||
+    movePlaylistItem.isPending ||
+    undoRemoveFromPlaylist.isPending ||
+    itemsFetching;
 
   const tracks = useMemo(() => itemsData?.pages.flatMap(page => page.Items) ?? [], [itemsData]);
   const totalCount = itemsData?.pages[0]?.TotalRecordCount ?? 0;
@@ -133,12 +143,29 @@ export function PlaylistDetailPage() {
     });
   };
 
+  const handleUndoRemove = (entry: PlaylistEntry, index: number) => {
+    undoRemoveFromPlaylist.mutate(
+      { playlistId: playlist.Id, trackId: entry.track.Id, toIndex: index },
+      {
+        onSuccess: () => {
+          toast.add('success', `Restored "${entry.track.Name}"`);
+        },
+        onError: () => {
+          toast.add('error', "Couldn't undo — the playlist may have changed");
+        },
+      }
+    );
+  };
+
   const handleRemoveEntry = (entry: PlaylistEntry, index: number) => {
     removeFromPlaylist.mutate(
       { playlistId: playlist.Id, entryIds: [entry.track.PlaylistItemId ?? String(index)] },
       {
         onSuccess: () => {
-          toast.add('success', `Removed "${entry.track.Name}" from playlist`);
+          toast.add('success', `Removed "${entry.track.Name}" from playlist`, 10000, {
+            label: 'Undo',
+            onClick: () => handleUndoRemove(entry, index),
+          });
         },
         onError: () => {
           toast.add('error', 'Failed to remove track — please try again');
@@ -148,7 +175,54 @@ export function PlaylistDetailPage() {
   };
 
   const handleReorder = (_reordered: PlaylistEntry[], fromIndex: number, toIndex: number) => {
-    movePlaylistItem.mutate({ fromIndex, toIndex });
+    movePlaylistItem.mutate(
+      { fromIndex, toIndex },
+      {
+        onError: () => {
+          toast.add('error', "Couldn't reorder — try again");
+        },
+      }
+    );
+  };
+
+  const displayedName = playlist.Name?.trim() || 'Unknown Playlist';
+
+  const startRename = () => {
+    renameCancelledRef.current = false;
+    setNameDraft(displayedName);
+    setIsEditingName(true);
+  };
+
+  const commitRename = () => {
+    setIsEditingName(false);
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === displayedName) return;
+    renamePlaylist.mutate(
+      { playlistId: playlist.Id, name: trimmed },
+      {
+        onError: () => {
+          toast.add('error', "Couldn't rename playlist — try again");
+        },
+      }
+    );
+  };
+
+  const handleRenameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur();
+    } else if (event.key === 'Escape') {
+      renameCancelledRef.current = true;
+      setIsEditingName(false);
+    }
+  };
+
+  const handleRenameBlur = () => {
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false;
+      setIsEditingName(false);
+      return;
+    }
+    commitRename();
   };
 
   return (
@@ -162,12 +236,43 @@ export function PlaylistDetailPage() {
 
         <div className="flex flex-col justify-end space-y-4">
           <div>
-            <h1
-              data-testid="playlist-detail-title"
-              className="text-text-primary text-3xl font-bold"
-            >
-              {playlist.Name?.trim() || 'Unknown Playlist'}
-            </h1>
+            {isEditingName ? (
+              <input
+                data-testid="playlist-rename-input"
+                type="text"
+                value={nameDraft}
+                onChange={e => setNameDraft(e.target.value)}
+                onKeyDown={handleRenameKeyDown}
+                onBlur={handleRenameBlur}
+                maxLength={200}
+                aria-label="Playlist name"
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                className="bg-bg-tertiary border-border text-text-primary focus:border-accent w-full rounded-md border px-2 py-1 text-3xl font-bold focus:outline-none"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1
+                  data-testid="playlist-detail-title"
+                  className={cn(
+                    'text-text-primary text-3xl font-bold',
+                    renamePlaylist.isPending && 'opacity-60'
+                  )}
+                >
+                  {renamePlaylist.isPending ? nameDraft.trim() : displayedName}
+                </h1>
+                <button
+                  type="button"
+                  data-testid="playlist-rename-button"
+                  onClick={startRename}
+                  disabled={renamePlaylist.isPending}
+                  aria-label="Rename playlist"
+                  className="text-text-secondary hover:text-text-primary shrink-0 rounded-full p-2 transition-colors disabled:opacity-50"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <p className="text-text-tertiary text-sm">
               {totalCount} {totalCount === 1 ? 'track' : 'tracks'}
             </p>

@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import type { Playlist } from '@yay-tsa/core';
 import { Modal } from '@/shared/ui/Modal';
 import { toast } from '@/shared/ui/Toast';
-import { useCreatePlaylist } from '../hooks/usePlaylists';
+import { useCreatePlaylist, usePlaylists } from '../hooks/usePlaylists';
 
 type CreatePlaylistModalProps = Readonly<{
   isOpen: boolean;
@@ -20,6 +20,13 @@ export function CreatePlaylistModal({
 }: CreatePlaylistModalProps) {
   const [name, setName] = useState('');
   const createPlaylist = useCreatePlaylist();
+  const { data: existingPlaylists } = usePlaylists();
+  const normalizedName = name.trim().toLowerCase();
+  const isDuplicateName =
+    !!normalizedName &&
+    (existingPlaylists?.Items ?? []).some(
+      playlist => playlist.Name.trim().toLowerCase() === normalizedName
+    );
 
   const handleClose = () => {
     setName('');
@@ -92,6 +99,11 @@ export function CreatePlaylistModal({
             autoFocus
             className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
           />
+          {isDuplicateName && (
+            <p data-testid="playlist-duplicate-name-hint" className="text-warning mt-1 text-xs">
+              You already have a playlist with this name
+            </p>
+          )}
         </div>
         <button
           type="submit"

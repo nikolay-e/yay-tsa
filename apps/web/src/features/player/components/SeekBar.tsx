@@ -14,7 +14,7 @@ const KEYBOARD_SEEK_STEP_SECONDS = 5;
 
 // Draw the visible track as a thin 4px band centred in a taller (clickable) input so the touch
 // target meets accessibility sizing without thickening the visual bar.
-function trackBackground(progress: number): string {
+export function trackBackground(progress: number): string {
   return `linear-gradient(to right, var(--color-accent) ${progress}%, var(--color-bg-tertiary) ${progress}%) center / 100% 4px no-repeat`;
 }
 
@@ -129,7 +129,7 @@ export function SeekBar({ onSeek }: Readonly<SeekBarProps>) {
       aria-label="Seek"
       aria-valuetext="0:00 of 0:00"
       style={{ background: trackBackground(0) }}
-      className="accent-accent h-4 w-full cursor-pointer touch-none appearance-none bg-transparent"
+      className="range-slider h-4 w-full cursor-pointer touch-none appearance-none bg-transparent"
     />
   );
 }

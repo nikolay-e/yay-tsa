@@ -14,6 +14,7 @@ import { useOfflineStore, useOfflineSettings } from '../stores/offline.store';
 import { isEvictableCacheEntry } from '../stores/cache-eviction';
 
 const BYTES_PER_GB = 1024 * 1024 * 1024;
+const MAX_CACHE_GB = 1000;
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 MB';
@@ -82,14 +83,16 @@ export function OfflineManager() {
   const downloaded = Object.entries(entries)
     .filter(([, entry]) => entry.status === 'ready')
     .sort(([, a], [, b]) => b.size - a.size);
-  const cacheCount = downloaded.filter(([, entry]) => isEvictableCacheEntry(entry.reasons)).length;
+  const cacheEntries = downloaded.filter(([, entry]) => isEvictableCacheEntry(entry.reasons));
+  const cacheCount = cacheEntries.length;
+  const cacheBytes = cacheEntries.reduce((sum, [, entry]) => sum + entry.size, 0);
 
   return (
     <div className="p-4">
       <div className="mb-5 space-y-4">
         <ToggleRow
-          label="Auto-download liked songs"
-          description="Songs you like are saved for offline automatically."
+          label="Auto-download favorites"
+          description="Songs you favorite are saved for offline automatically."
           checked={settings.autoDownloadFavorites}
           onChange={value => setSetting({ autoDownloadFavorites: value })}
         />
@@ -100,26 +103,37 @@ export function OfflineManager() {
           onChange={value => setSetting({ autoCachePlayed: value })}
         />
         <div className="flex items-center justify-between gap-3">
-          <label htmlFor="max-cache-gb" className="text-sm">
-            Cache size limit <span className="text-text-secondary text-xs">GB (0 = unlimited)</span>
-          </label>
+          <div className="min-w-0">
+            <label htmlFor="max-cache-gb" className="text-sm">
+              Cache size limit{' '}
+              <span className="text-text-secondary text-xs">GB (0 = unlimited)</span>
+            </label>
+            <div className="text-text-secondary text-xs">
+              {settings.maxCacheBytes > 0
+                ? `${formatBytes(cacheBytes)} of ${formatBytes(settings.maxCacheBytes)} used`
+                : `${formatBytes(cacheBytes)} used`}
+            </div>
+          </div>
           <input
             id="max-cache-gb"
             type="number"
             min={0}
+            max={MAX_CACHE_GB}
             step={0.5}
             value={settings.maxCacheBytes / BYTES_PER_GB}
             onChange={event =>
               setSetting({
-                maxCacheBytes: Math.max(0, Number(event.target.value) || 0) * BYTES_PER_GB,
+                maxCacheBytes:
+                  Math.min(MAX_CACHE_GB, Math.max(0, Number(event.target.value) || 0)) *
+                  BYTES_PER_GB,
               })
             }
             className="bg-bg-tertiary border-border text-text-primary w-24 rounded-lg border px-3 py-2 text-sm"
           />
         </div>
         <ToggleRow
-          label="Remove downloads when unliked"
-          description="Delete a song's download when you unlike it, unless an album or manual download still keeps it."
+          label="Remove downloads when unfavorited"
+          description="Delete a song's download when you unfavorite it, unless an album or manual download still keeps it."
           checked={settings.removeUnlikedDownloads}
           onChange={value => setSetting({ removeUnlikedDownloads: value })}
         />
@@ -215,8 +229,8 @@ export function OfflineManager() {
 
       {downloaded.length === 0 ? (
         <p className="text-text-secondary text-sm">
-          No downloads yet. Like a song or play one and it will be saved here automatically — or tap
-          the download icon on any track.
+          No downloads yet. Favorite a song or play one and it will be saved here automatically — or
+          tap the download icon on any track.
         </p>
       ) : (
         <div>

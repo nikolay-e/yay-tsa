@@ -15,9 +15,14 @@ type AddToPlaylistModalProps = Readonly<{
 
 export function AddToPlaylistModal({ track, isOpen, onClose }: AddToPlaylistModalProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [filter, setFilter] = useState('');
   const { data, isLoading, isError } = usePlaylists();
   const addToPlaylist = useAddToPlaylist();
   const playlists = data?.Items ?? [];
+  const normalizedFilter = filter.trim().toLowerCase();
+  const filteredPlaylists = normalizedFilter
+    ? playlists.filter(playlist => playlist.Name.toLowerCase().includes(normalizedFilter))
+    : playlists;
 
   const handleSelect = (playlistId: string, playlistName: string) => {
     if (addToPlaylist.isPending) return;
@@ -66,24 +71,41 @@ export function AddToPlaylistModal({ track, isOpen, onClose }: AddToPlaylistModa
     );
   } else {
     content = (
-      <div className="max-h-64 space-y-1 overflow-y-auto">
-        {playlists.map(playlist => (
-          <button
-            key={playlist.Id}
-            type="button"
-            data-testid="add-to-playlist-option"
-            onClick={() => handleSelect(playlist.Id, playlist.Name)}
-            disabled={addToPlaylist.isPending}
-            className="bg-bg-tertiary text-text-primary hover:bg-bg-hover flex w-full items-center gap-3 rounded-md p-3 text-left text-sm transition-colors disabled:opacity-50"
-          >
-            <ListMusic className="text-text-secondary h-4 w-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{playlist.Name}</span>
-            <span className="text-text-tertiary shrink-0 text-xs">
-              {playlist.ChildCount ?? 0} tracks
-            </span>
-          </button>
-        ))}
-      </div>
+      <>
+        <input
+          type="text"
+          data-testid="add-to-playlist-filter"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          placeholder="Filter playlists"
+          aria-label="Filter playlists"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
+        />
+        {filteredPlaylists.length === 0 ? (
+          <p className="text-text-secondary py-4 text-center text-sm">No playlists match</p>
+        ) : (
+          <div className="max-h-64 space-y-1 overflow-y-auto">
+            {filteredPlaylists.map(playlist => (
+              <button
+                key={playlist.Id}
+                type="button"
+                data-testid="add-to-playlist-option"
+                onClick={() => handleSelect(playlist.Id, playlist.Name)}
+                disabled={addToPlaylist.isPending}
+                className="bg-bg-tertiary text-text-primary hover:bg-bg-hover flex w-full items-center gap-3 rounded-md p-3 text-left text-sm transition-colors disabled:opacity-50"
+              >
+                <ListMusic className="text-text-secondary h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{playlist.Name}</span>
+                <span className="text-text-tertiary shrink-0 text-xs">
+                  {playlist.ChildCount ?? 0} tracks
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </>
     );
   }
 

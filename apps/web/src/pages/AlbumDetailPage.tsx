@@ -62,9 +62,7 @@ export function AlbumDetailPage() {
     album?.ImageTags?.Primary
   );
 
-  const isLoading = albumLoading || tracksLoading;
-
-  if (isLoading) {
+  if (albumLoading) {
     return (
       <>
         <h1 className="sr-only">Album</h1>
@@ -73,7 +71,7 @@ export function AlbumDetailPage() {
     );
   }
 
-  if (albumError || tracksError) {
+  if (albumError) {
     return (
       <div className="space-y-6 p-6">
         <h1 className="sr-only">Album</h1>
@@ -81,8 +79,7 @@ export function AlbumDetailPage() {
         <LoadErrorState
           message="Couldn't load album"
           onRetry={() => {
-            if (albumError) void refetchAlbum();
-            if (tracksError) void refetchTracks();
+            void refetchAlbum();
           }}
         />
       </div>
@@ -109,6 +106,8 @@ export function AlbumDetailPage() {
   const artistName = album.Artists?.[0] ?? 'Unknown Artist';
   const year = album.ProductionYear;
   const trackCount = tracks.length;
+  const tracksLoaded = !tracksLoading && !tracksError;
+  const isEmptyAlbum = tracksLoaded && trackCount === 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -132,13 +131,14 @@ export function AlbumDetailPage() {
             <p className="text-text-secondary text-lg">{artistName}</p>
             <p className="text-text-tertiary text-sm">
               {year && `${year} • `}
-              {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
+              {tracksLoaded && `${trackCount} ${trackCount === 1 ? 'track' : 'tracks'}`}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               data-testid="album-play-button"
+              disabled={isEmptyAlbum}
               onClick={() => {
                 if (isPlaying && currentTrack?.AlbumId === id) {
                   pause();
@@ -150,7 +150,8 @@ export function AlbumDetailPage() {
               className={cn(
                 'flex min-w-[7.5rem] items-center justify-center gap-2 px-6 py-2',
                 'bg-accent text-text-on-accent rounded-full',
-                'hover:bg-accent-hover transition-colors'
+                'hover:bg-accent-hover transition-colors',
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               {isPlaying && currentTrack?.AlbumId === id ? (
@@ -167,6 +168,7 @@ export function AlbumDetailPage() {
             </button>
             <button
               data-testid="album-shuffle-button"
+              disabled={isEmptyAlbum}
               onClick={() => {
                 setShuffle(true);
                 if (id) {
@@ -176,7 +178,8 @@ export function AlbumDetailPage() {
               className={cn(
                 'flex items-center gap-2 px-6 py-2',
                 'bg-bg-secondary text-text-primary rounded-full',
-                'hover:bg-bg-tertiary transition-colors'
+                'hover:bg-bg-tertiary transition-colors',
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               <Shuffle className="h-5 w-5" />
@@ -184,18 +187,33 @@ export function AlbumDetailPage() {
             </button>
             <DownloadTracksButton tracks={tracks} label="Download album" reason="album" iconOnly />
           </div>
+
+          {isEmptyAlbum && (
+            <p className="text-text-tertiary text-sm">No tracks in this album yet.</p>
+          )}
         </div>
       </div>
 
-      <TrackList
-        tracks={tracks}
-        showArtist={false}
-        showImage={false}
-        currentTrackId={currentTrack?.Id}
-        isPlaying={isPlaying}
-        onPlayTrack={handlePlayTrack}
-        onPauseTrack={pause}
-      />
+      {tracksLoading && <LoadingSpinner />}
+      {tracksError && (
+        <LoadErrorState
+          message="Couldn't load tracks"
+          onRetry={() => {
+            void refetchTracks();
+          }}
+        />
+      )}
+      {tracksLoaded && trackCount > 0 && (
+        <TrackList
+          tracks={tracks}
+          showArtist={false}
+          showImage={false}
+          currentTrackId={currentTrack?.Id}
+          isPlaying={isPlaying}
+          onPlayTrack={handlePlayTrack}
+          onPauseTrack={pause}
+        />
+      )}
     </div>
   );
 }

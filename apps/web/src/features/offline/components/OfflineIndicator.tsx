@@ -14,7 +14,7 @@ export function OfflineIndicator() {
       className="bg-bg-tertiary text-text-secondary hover:text-text-primary pt-safe md:left-sidebar fixed top-0 right-0 left-0 z-50 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium transition-colors"
     >
       <WifiOff className="h-3.5 w-3.5" />
-      <span>Offline — tap to open your downloads</span>
+      <span>Offline — tap to open Downloads</span>
     </Link>
   );
 }

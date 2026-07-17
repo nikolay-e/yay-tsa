@@ -56,6 +56,7 @@ export function SearchPage() {
     isFetchingPreviousPage,
     isFetchNextPageError,
     error,
+    refetch,
     hasNextPage,
     hasPreviousPage,
     fetchNextPage,
@@ -138,6 +139,15 @@ export function SearchPage() {
   let trackContent;
   if (isSemanticActive && isSemanticError && tracks.length === 0) {
     trackContent = semanticErrorState;
+  } else if (!isSemanticActive && error && tracks.length === 0) {
+    trackContent = (
+      <LoadErrorState
+        message={error instanceof Error ? error.message : 'Failed to load songs'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
   } else if (tracks.length === 0) {
     trackContent = emptyState;
   } else {
@@ -182,7 +192,7 @@ export function SearchPage() {
         </div>
       </div>
 
-      {!isSemanticActive && error && (
+      {!isSemanticActive && error && tracks.length > 0 && (
         <div className="bg-error/10 border-error/20 text-error rounded-md border p-4">
           {error instanceof Error ? error.message : 'Failed to load songs'}
         </div>
@@ -217,7 +227,7 @@ function SearchSection({ title, children }: SearchSectionProps) {
 
 function SearchAlbums({ query }: Readonly<{ query: string }>) {
   const playAlbum = usePlayerStore(state => state.playAlbum);
-  const { data, isLoading } = useInfiniteAlbums({ searchTerm: query, limit: 12 });
+  const { data, isLoading, isError, refetch } = useInfiniteAlbums({ searchTerm: query, limit: 12 });
   const albums = useMemo(
     () => data?.pages.flatMap(page => page.Items).filter(item => item.Type === 'MusicAlbum') ?? [],
     [data]
@@ -227,6 +237,18 @@ function SearchAlbums({ query }: Readonly<{ query: string }>) {
     return (
       <SearchSection title="Albums">
         <LoadingSpinner />
+      </SearchSection>
+    );
+  }
+  if (isError) {
+    return (
+      <SearchSection title="Albums">
+        <LoadErrorState
+          message="Couldn't load albums"
+          onRetry={() => {
+            void refetch();
+          }}
+        />
       </SearchSection>
     );
   }
@@ -240,7 +262,10 @@ function SearchAlbums({ query }: Readonly<{ query: string }>) {
 }
 
 function SearchArtists({ query }: Readonly<{ query: string }>) {
-  const { data, isLoading } = useInfiniteArtists({ searchTerm: query, limit: 12 });
+  const { data, isLoading, isError, refetch } = useInfiniteArtists({
+    searchTerm: query,
+    limit: 12,
+  });
   const artists = useMemo(
     () => data?.pages.flatMap(page => page.Items).filter(item => item.Type === 'MusicArtist') ?? [],
     [data]
@@ -250,6 +275,18 @@ function SearchArtists({ query }: Readonly<{ query: string }>) {
     return (
       <SearchSection title="Artists">
         <LoadingSpinner />
+      </SearchSection>
+    );
+  }
+  if (isError) {
+    return (
+      <SearchSection title="Artists">
+        <LoadErrorState
+          message="Couldn't load artists"
+          onRetry={() => {
+            void refetch();
+          }}
+        />
       </SearchSection>
     );
   }

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   RefreshCw,
@@ -99,18 +99,35 @@ export function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [invalidPasswordField, setInvalidPasswordField] = useState<
+    'current' | 'new' | 'confirm' | null
+  >(null);
+  const currentPasswordRef = useRef<HTMLInputElement>(null);
+  const newPasswordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
 
   const handleChangePassword = async (event: FormEvent) => {
     event.preventDefault();
     setPasswordError(null);
     setPasswordSuccess(false);
+    setInvalidPasswordField(null);
 
     if (newPassword.length < 8) {
       setPasswordError('New password must be at least 8 characters');
+      setInvalidPasswordField('new');
+      newPasswordRef.current?.focus();
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setPasswordError('New password must be different from the current password');
+      setInvalidPasswordField('new');
+      newPasswordRef.current?.focus();
       return;
     }
     if (newPassword !== confirmPassword) {
       setPasswordError('New passwords do not match');
+      setInvalidPasswordField('confirm');
+      confirmPasswordRef.current?.focus();
       return;
     }
 
@@ -127,6 +144,8 @@ export function SettingsPage() {
         (error.statusCode === 401 || error.statusCode === 403)
       ) {
         setPasswordError('Current password is incorrect');
+        setInvalidPasswordField('current');
+        currentPasswordRef.current?.focus();
       } else {
         setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
       }
@@ -208,13 +227,13 @@ export function SettingsPage() {
         <h2 className="text-text-secondary mb-4 flex items-center justify-between gap-2 text-sm font-medium tracking-wide uppercase">
           <span className="flex items-center gap-2">
             <Download className="h-4 w-4" />
-            Offline Downloads
+            Downloads
           </span>
           <Link
             to="/offline"
             className="text-accent min-h-11 text-xs font-medium normal-case underline-offset-4 hover:underline focus-visible:underline"
           >
-            View downloaded library
+            Open Downloads
           </Link>
         </h2>
         <div className="bg-bg-secondary border-border rounded-lg border">
@@ -289,11 +308,16 @@ export function SettingsPage() {
             </label>
             <input
               id="current-password"
+              ref={currentPasswordRef}
               type="password"
               autoComplete="current-password"
               value={currentPassword}
               onChange={e => setCurrentPassword(e.target.value)}
               required
+              aria-invalid={invalidPasswordField === 'current' || undefined}
+              aria-describedby={
+                invalidPasswordField === 'current' && passwordError ? 'password-error' : undefined
+              }
               className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
             />
           </div>
@@ -306,12 +330,17 @@ export function SettingsPage() {
             </label>
             <input
               id="new-password"
+              ref={newPasswordRef}
               type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
               required
               minLength={8}
+              aria-invalid={invalidPasswordField === 'new' || undefined}
+              aria-describedby={
+                invalidPasswordField === 'new' && passwordError ? 'password-error' : undefined
+              }
               className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
             />
           </div>
@@ -324,17 +353,26 @@ export function SettingsPage() {
             </label>
             <input
               id="confirm-password"
+              ref={confirmPasswordRef}
               type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
               required
               minLength={8}
+              aria-invalid={invalidPasswordField === 'confirm' || undefined}
+              aria-describedby={
+                invalidPasswordField === 'confirm' && passwordError ? 'password-error' : undefined
+              }
               className="bg-bg-tertiary border-border text-text-primary focus:border-accent min-h-11 w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
             />
           </div>
 
-          {passwordError && <div className="text-error text-sm">{passwordError}</div>}
+          {passwordError && (
+            <div id="password-error" role="alert" className="text-error text-sm">
+              {passwordError}
+            </div>
+          )}
           {passwordSuccess && (
             <div className="text-accent text-sm">Password changed successfully.</div>
           )}

@@ -35,9 +35,7 @@ export function ArtistDetailPage() {
     playAlbum(album.Id);
   };
 
-  const isLoading = artistLoading || albumsLoading;
-
-  if (isLoading) {
+  if (artistLoading) {
     return (
       <>
         <h1 className="sr-only">Artist</h1>
@@ -46,7 +44,7 @@ export function ArtistDetailPage() {
     );
   }
 
-  if (artistError || albumsError) {
+  if (artistError) {
     return (
       <div className="space-y-6 p-6">
         <h1 className="sr-only">Artist</h1>
@@ -54,8 +52,7 @@ export function ArtistDetailPage() {
         <LoadErrorState
           message="Couldn't load artist"
           onRetry={() => {
-            if (artistError) void refetchArtist();
-            if (albumsError) void refetchAlbums();
+            void refetchArtist();
           }}
         />
       </div>
@@ -80,6 +77,7 @@ export function ArtistDetailPage() {
     : getImagePlaceholder();
 
   const albumCount = albums.length;
+  const albumsLoaded = !albumsLoading && !albumsError;
 
   return (
     <div className="space-y-6 p-6">
@@ -103,7 +101,7 @@ export function ArtistDetailPage() {
               </h1>
             </div>
             <p className="text-text-tertiary text-sm">
-              {albumCount} {albumCount === 1 ? 'album' : 'albums'}
+              {albumsLoaded && `${albumCount} ${albumCount === 1 ? 'album' : 'albums'}`}
             </p>
           </div>
 
@@ -115,11 +113,21 @@ export function ArtistDetailPage() {
 
       <section>
         <h2 className="mb-4 text-xl font-semibold">Albums</h2>
-        {albums.length > 0 ? (
-          <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
-        ) : (
-          <p className="text-text-tertiary text-sm">No albums for this artist yet.</p>
+        {albumsLoading && <LoadingSpinner />}
+        {albumsError && (
+          <LoadErrorState
+            message="Couldn't load albums"
+            onRetry={() => {
+              void refetchAlbums();
+            }}
+          />
         )}
+        {albumsLoaded &&
+          (albums.length > 0 ? (
+            <AlbumGrid albums={albums} onPlayAlbum={handlePlayAlbum} />
+          ) : (
+            <p className="text-text-tertiary text-sm">No albums for this artist yet.</p>
+          ))}
       </section>
     </div>
   );

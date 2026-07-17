@@ -7,6 +7,7 @@ import {
   ChevronUp,
   CircleDot,
   Circle,
+  Loader2,
 } from 'lucide-react';
 import { type AudiobookEntry } from '@yay-tsa/core';
 import { formatTicks } from '@/shared/utils/time';
@@ -124,6 +125,7 @@ function lastListened(updatedAt: string): string {
 function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
   const playTracks = usePlayerStore(state => state.playTracks);
   const { markFinished, restart } = useAudiobookActions();
+  const [confirmFinish, setConfirmFinish] = useState(false);
 
   const chapterIds = book.chapters.map(c => c.item.Id);
   const chapterItems = book.chapters.map(c => c.item);
@@ -198,21 +200,58 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
               type="button"
               data-testid="audiobook-restart"
               onClick={() => restart.mutate(chapterIds)}
-              className="bg-bg-tertiary text-text-primary hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm"
+              disabled={restart.isPending}
+              className="bg-bg-tertiary text-text-primary hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm disabled:opacity-50"
             >
-              <RotateCcw size={16} /> Restart
+              {restart.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <RotateCcw size={16} />
+              )}{' '}
+              Restart
             </button>
           )}
-          {inProgress && (
-            <button
-              type="button"
-              data-testid="audiobook-finish"
-              onClick={() => markFinished.mutate(chapterIds)}
-              className="bg-bg-tertiary text-text-primary hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm"
-            >
-              <CheckCircle2 size={16} /> Mark finished
-            </button>
-          )}
+          {inProgress &&
+            (confirmFinish ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid="audiobook-finish-confirm"
+                  onClick={() => {
+                    markFinished.mutate(chapterIds, {
+                      onSettled: () => setConfirmFinish(false),
+                    });
+                  }}
+                  disabled={markFinished.isPending}
+                  className="bg-bg-tertiary text-error hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-50"
+                >
+                  {markFinished.isPending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={16} />
+                  )}{' '}
+                  Finish &amp; discard position
+                </button>
+                <button
+                  type="button"
+                  data-testid="audiobook-finish-cancel"
+                  onClick={() => setConfirmFinish(false)}
+                  disabled={markFinished.isPending}
+                  className="text-text-secondary hover:text-text-primary rounded-full px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid="audiobook-finish"
+                onClick={() => setConfirmFinish(true)}
+                className="bg-bg-tertiary text-text-primary hover:bg-bg-hover inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm"
+              >
+                <CheckCircle2 size={16} /> Mark finished
+              </button>
+            ))}
           <DownloadTracksButton
             tracks={chapterItems}
             label="Download"
@@ -275,13 +314,15 @@ export function AudiobooksPage() {
         )}
       </>
     );
-  } else {
+  } else if (!error) {
     body = (
       <p data-testid="audiobooks-empty" className="text-text-secondary">
         No audiobooks in your library yet. Tag tracks with the genre &ldquo;Audiobook&rdquo; to see
         them here.
       </p>
     );
+  } else {
+    body = null;
   }
 
   return (

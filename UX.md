@@ -52,7 +52,7 @@ PWA and is visible over OpenSubsonic.
 Location: `SearchPage.tsx:88, 129-144, 185-189, 220-256`
 Evidence: `SearchAlbums`/`SearchArtists` destructure only `{data, isLoading}` and
 `return null` on empty → failed sections silently vanish; failed text search shows the
-error banner *and* "No matching tracks found" beneath it, with retry only for semantic
+error banner _and_ "No matching tracks found" beneath it, with retry only for semantic
 mode. Problem: user concludes the library lacks the content. Recommendation: read
 `isError` in all three queries; render `LoadErrorState` with retry; make error and empty
 mutually exclusive. Effort: Easy. Confidence: high (skeptic PARTIAL — banner exists for

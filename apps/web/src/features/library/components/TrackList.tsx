@@ -101,7 +101,7 @@ const TrackImage = memo(
             'absolute inset-0 flex items-center justify-center bg-black/50',
             isCurrentTrack
               ? 'opacity-100'
-              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
+              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-60'
           )}
         >
           {isCurrentTrack && isPlaying ? (
@@ -217,6 +217,7 @@ function TrackListRowImpl({
         <button
           type="button"
           data-testid="track-title"
+          title={track.Name}
           onClick={isCurrentTrack && isPlaying ? onPause : onPlay}
           className={cn(
             'block w-full cursor-pointer truncate text-left font-medium hover:underline',

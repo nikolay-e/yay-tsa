@@ -59,19 +59,9 @@
   --font-mono: 'SF Mono', Monaco, Inconsolata, 'Fira Mono', monospace;
 
   /* Animations */
-  --animate-skeleton: skeleton-pulse 1.5s ease-in-out infinite;
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-slide-up: slide-up 0.3s ease-out;
   --animate-slide-right: slide-right 0.3s ease-out;
-}
-
-@keyframes skeleton-pulse {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
 }
 
 @keyframes fade-in {
@@ -242,13 +232,35 @@
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    outline: none;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 
   @media (max-width: 768px) {
     * {
       -webkit-overflow-scrolling: touch;
     }
+  }
+}
+
+@layer components {
+  .range-slider::-webkit-slider-thumb {
+    appearance: none;
+    height: 14px;
+    width: 14px;
+    border: none;
+    border-radius: 9999px;
+    background: var(--color-accent);
+    cursor: pointer;
+  }
+
+  .range-slider::-moz-range-thumb {
+    height: 14px;
+    width: 14px;
+    border: none;
+    border-radius: 9999px;
+    background: var(--color-accent);
+    cursor: pointer;
   }
 }
 
@@ -320,16 +332,6 @@
   }
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-@utility skeleton-bg {
-  background: linear-gradient(
-    90deg,
-    var(--color-bg-tertiary) 25%,
-    var(--color-bg-hover) 50%,
-    var(--color-bg-tertiary) 75%
-  );
-  background-size: 200% 100%;
 }
 
 @utility min-h-touch {

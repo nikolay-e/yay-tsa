@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Download } from 'lucide-react';
 import { type AudioItem } from '@yay-tsa/core';
 import { TrackList } from '@/features/library/components';
+import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { useOfflineStore } from '@/features/offline/stores/offline.store';
 import {
   usePlayerStore,
@@ -10,6 +11,7 @@ import {
 } from '@/features/player/stores/player.store';
 
 export function OfflineLibraryPage() {
+  const initialized = useOfflineStore(state => state.initialized);
   const items = useOfflineStore(state => state.items);
   const entries = useOfflineStore(state => state.entries);
   const playTracks = usePlayerStore(state => state.playTracks);
@@ -41,7 +43,9 @@ export function OfflineLibraryPage() {
         </div>
       </div>
 
-      {tracks.length === 0 ? (
+      {!initialized ? (
+        <LoadingSpinner className="h-48" />
+      ) : tracks.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center gap-2 text-center">
           <p className="text-text-secondary">No downloads yet.</p>
           <p className="text-text-tertiary text-sm">

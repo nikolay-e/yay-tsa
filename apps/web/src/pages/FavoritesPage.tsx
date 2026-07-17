@@ -28,8 +28,33 @@ const TABS: { key: FavoriteTab; label: string }[] = [
   { key: 'artists', label: 'Artists' },
 ];
 
+const TAB_STORAGE_KEY = 'yaytsa_favorites_tab';
+
+function loadActiveTab(): FavoriteTab {
+  try {
+    const stored = localStorage.getItem(TAB_STORAGE_KEY);
+    if (stored === 'tracks' || stored === 'albums' || stored === 'artists') return stored;
+  } catch {
+    // ignore
+  }
+  return 'tracks';
+}
+
+function saveActiveTab(tab: FavoriteTab) {
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  } catch {
+    // ignore
+  }
+}
+
 export function FavoritesPage() {
-  const [activeTab, setActiveTab] = useState<FavoriteTab>('tracks');
+  const [activeTab, setActiveTab] = useState<FavoriteTab>(loadActiveTab);
+
+  const selectTab = (tab: FavoriteTab) => {
+    setActiveTab(tab);
+    saveActiveTab(tab);
+  };
 
   const trackSort = useSortPreference('songs', FAVORITES_SORT_OPTIONS, 'favorites');
   const albumSort = useSortPreference('albums', FAVORITES_SORT_OPTIONS, 'favorites');
@@ -53,7 +78,7 @@ export function FavoritesPage() {
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => selectTab(tab.key)}
               className={cn(
                 '-mb-px px-4 py-2 text-sm font-medium transition-colors',
                 activeTab === tab.key

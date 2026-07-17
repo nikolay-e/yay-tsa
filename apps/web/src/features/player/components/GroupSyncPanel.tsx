@@ -45,6 +45,7 @@ export function GroupSyncPanel({
     devices.find(d => d.deviceId === deviceId)?.deviceName ?? deviceId;
 
   const handleCreate = async () => {
+    if (isCreating || !currentTrack) return;
     setCreateError(null);
     setIsCreating(true);
     try {
@@ -59,7 +60,7 @@ export function GroupSyncPanel({
   };
 
   const handleJoin = async () => {
-    if (!joinCodeInput.trim()) return;
+    if (isJoining || joinCodeInput.trim().length < 6) return;
     setJoinError(null);
     setIsJoining(true);
     try {
@@ -222,7 +223,13 @@ export function GroupSyncPanel({
             >
               Create a group
             </label>
-            <div className="flex gap-2">
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                void handleCreate();
+              }}
+              className="flex gap-2"
+            >
               <input
                 id="group-create-name"
                 type="text"
@@ -232,15 +239,14 @@ export function GroupSyncPanel({
                 className="bg-bg-tertiary border-border text-text-primary placeholder:text-text-tertiary flex-1 rounded-lg border px-3 py-2 text-sm"
               />
               <button
-                type="button"
+                type="submit"
                 data-testid="group-create-button"
-                onClick={handleCreate}
                 disabled={isCreating || !currentTrack}
                 className="bg-accent text-text-on-accent hover:bg-accent-hover shrink-0 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
               </button>
-            </div>
+            </form>
             {!currentTrack && (
               <p className="text-text-tertiary mt-1 text-xs">
                 Start playing a track to create a group
@@ -260,7 +266,13 @@ export function GroupSyncPanel({
             >
               Join a group
             </label>
-            <div className="flex gap-2">
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                void handleJoin();
+              }}
+              className="flex gap-2"
+            >
               <input
                 id="group-join-code"
                 type="text"
@@ -273,15 +285,14 @@ export function GroupSyncPanel({
                 className="bg-bg-tertiary border-border text-text-primary placeholder:text-text-tertiary flex-1 rounded-lg border px-3 py-2 text-center font-mono text-lg tracking-widest"
               />
               <button
-                type="button"
+                type="submit"
                 data-testid="group-join-button"
-                onClick={handleJoin}
                 disabled={isJoining || joinCodeInput.length < 6}
                 className="bg-accent text-text-on-accent hover:bg-accent-hover shrink-0 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 {isJoining ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Join'}
               </button>
-            </div>
+            </form>
             {joinError && (
               <p data-testid="group-join-error" className="text-error mt-1 text-xs">
                 {joinError}

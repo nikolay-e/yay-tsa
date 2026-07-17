@@ -64,6 +64,12 @@ export class PlaylistsService extends BaseService {
     return result;
   }
 
+  async renamePlaylist(playlistId: string, name: string): Promise<void> {
+    this.requireAuth();
+
+    await this.client.post(`/Playlists/${playlistId}`, { Name: name });
+  }
+
   /**
    * Get items in a playlist
    */

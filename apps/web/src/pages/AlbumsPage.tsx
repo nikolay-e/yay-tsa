@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useInfiniteAlbums } from '@/features/library/hooks';
 import { AlbumGrid } from '@/features/library/components';
 import { usePlayerStore } from '@/features/player/stores/player.store';
@@ -43,8 +44,17 @@ export function AlbumsPage() {
   };
 
   const emptyState = (
-    <div className="flex h-64 items-center justify-center">
+    <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
       <p className="text-text-secondary">No albums found</p>
+      <p className="text-text-tertiary text-sm">
+        Add music to your server&rsquo;s library folder, then run a scan from Settings.
+      </p>
+      <Link
+        to="/settings"
+        className="text-accent text-sm font-medium underline-offset-4 hover:underline focus-visible:underline"
+      >
+        Open Settings
+      </Link>
     </div>
   );
 

@@ -18,7 +18,11 @@ function ArtistCardImpl({ artist }: ArtistCardProps) {
       href={`/artists/${artist.Id}`}
       testId="artist-card"
     >
-      <h2 data-testid="artist-name" className="text-text-primary truncate text-center font-medium">
+      <h2
+        data-testid="artist-name"
+        title={artist.Name}
+        className="text-text-primary truncate text-center font-medium"
+      >
         {artist.Name}
       </h2>
       <p className="text-text-secondary truncate text-center text-sm">

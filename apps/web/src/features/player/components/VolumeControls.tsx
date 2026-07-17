@@ -1,5 +1,6 @@
 import { useRef, type ChangeEvent } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
+import { trackBackground } from './SeekBar';
 
 interface VolumeControlsProps {
   volume: number;
@@ -46,7 +47,8 @@ export function VolumeControls({ volume, onVolumeChange }: Readonly<VolumeContro
         step="0.01"
         value={volume}
         onChange={handleVolumeChange}
-        className="bg-bg-tertiary accent-accent hidden h-1 w-24 cursor-pointer appearance-none rounded-full md:block"
+        style={{ background: trackBackground(volume * 100) }}
+        className="range-slider hidden h-4 w-24 cursor-pointer appearance-none bg-transparent md:block"
         aria-label="Volume"
       />
     </div>

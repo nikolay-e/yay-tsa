@@ -58,6 +58,7 @@ export function Modal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby={ariaLabelledBy}
         className={className}
         onClick={e => e.stopPropagation()}

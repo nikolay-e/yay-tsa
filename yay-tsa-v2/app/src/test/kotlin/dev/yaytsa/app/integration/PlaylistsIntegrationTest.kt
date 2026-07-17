@@ -183,6 +183,62 @@ class PlaylistsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `rename via POST Playlists id updates the name and is visible on read`() {
+        val create = post("/Playlists", mapOf("Name" to "Old Name", "UserId" to userId), token)
+        assertEquals(200, create.response.status)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val rename = post("/Playlists/$playlistId", mapOf("Name" to "New Name"), token)
+        assertEquals(204, rename.response.status)
+
+        val item = objectMapper.readTree(get("/Items/$playlistId", token).response.contentAsString)
+        assertEquals("New Name", item.get("Name").asText())
+    }
+
+    @Test
+    fun `rename accepts camelCase name alias`() {
+        val create = post("/Playlists", mapOf("Name" to "Alias Mix", "UserId" to userId), token)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val rename = post("/Playlists/$playlistId", mapOf("name" to "Aliased Name"), token)
+        assertEquals(204, rename.response.status)
+
+        val item = objectMapper.readTree(get("/Items/$playlistId", token).response.contentAsString)
+        assertEquals("Aliased Name", item.get("Name").asText())
+    }
+
+    @Test
+    fun `rename with blank name is rejected 400 and the old name survives`() {
+        val create = post("/Playlists", mapOf("Name" to "Keep Me", "UserId" to userId), token)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        assertEquals(400, post("/Playlists/$playlistId", mapOf("Name" to "   "), token).response.status)
+        assertEquals(400, post("/Playlists/$playlistId", emptyMap<String, Any>(), token).response.status)
+
+        val item = objectMapper.readTree(get("/Items/$playlistId", token).response.contentAsString)
+        assertEquals("Keep Me", item.get("Name").asText())
+    }
+
+    @Test
+    fun `rename of a missing playlist returns 404 and a malformed id 400`() {
+        assertEquals(404, post("/Playlists/${UUID.randomUUID()}", mapOf("Name" to "Ghost"), token).response.status)
+        assertEquals(400, post("/Playlists/not-a-uuid", mapOf("Name" to "Ghost"), token).response.status)
+    }
+
+    @Test
+    fun `a different user cannot rename someone else's playlist`() {
+        val otherToken = seedSecondUser()
+        val create = post("/Playlists", mapOf("Name" to "Owner Only", "UserId" to userId), token)
+        val playlistId = objectMapper.readTree(create.response.contentAsString).get("Id").asText()
+
+        val rename = post("/Playlists/$playlistId", mapOf("Name" to "Hijacked"), otherToken)
+        assertEquals(401, rename.response.status)
+
+        val item = objectMapper.readTree(get("/Items/$playlistId", token).response.contentAsString)
+        assertEquals("Owner Only", item.get("Name").asText())
+    }
+
+    @Test
     fun `playlist appears in the owner playlist listing`() {
         val name = "Listing ${UUID.randomUUID().toString().take(6)}"
         post("/Playlists", mapOf("Name" to name, "UserId" to userId), token)

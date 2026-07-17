@@ -7,7 +7,7 @@ import { cn } from '@/shared/utils/cn';
 type MediaCardProps = Readonly<{
   itemId: string;
   imageTag?: string;
-  imageAlt: string;
+  imageAlt?: string;
   imageShape: 'square' | 'circle';
   imageOverlay?: ReactNode;
   imageTestId?: string;
@@ -63,7 +63,7 @@ export function MediaCard({
         <img
           data-testid={imageTestId}
           src={hasError ? getImagePlaceholder() : imageUrl}
-          alt={imageAlt}
+          alt={imageAlt ?? ''}
           width={imageSize}
           height={imageSize}
           className="h-full w-full object-cover"

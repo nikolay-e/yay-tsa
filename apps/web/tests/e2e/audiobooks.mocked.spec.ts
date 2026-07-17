@@ -264,8 +264,10 @@ test.describe('Audiobooks tab (mocked backend)', () => {
     await page.goto('/audiobooks');
 
     // Mark the most-recently-listened book finished → it should leave In Progress and gain Restart.
+    // Marking finished discards the resume position, so it is gated behind an inline confirm.
     const recent = page.getByTestId('audiobook-card').filter({ hasText: 'The Name of the Wind' });
     await recent.getByTestId('audiobook-finish').click();
+    await recent.getByTestId('audiobook-finish-confirm').click();
 
     const finishedCard = page
       .getByTestId('audiobook-card')

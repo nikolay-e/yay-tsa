@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UserPlus, Trash2, KeyRound, ShieldCheck, User, Loader2, Copy, Check } from 'lucide-react';
 import { AdminService, type UserSummary } from '@yay-tsa/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,15 +8,29 @@ import { useAuthStore } from '../stores/auth.store';
 
 function PasswordReveal({ password, label }: Readonly<{ password: string; label: string }>) {
   const [copied, setCopied] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    containerRef.current?.scrollIntoView({ block: 'nearest' });
+    containerRef.current?.focus();
+  }, [password]);
 
   const copy = async () => {
-    await navigator.clipboard.writeText(password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.add('error', 'Could not copy — select the password and copy it manually');
+    }
   };
 
   return (
-    <div className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 p-3 outline-none"
+    >
       <div className="text-text-secondary mb-1 text-xs">{label}</div>
       <div className="flex items-center gap-2">
         <code className="flex-1 rounded bg-black/20 px-2 py-1 font-mono text-sm text-green-400">
@@ -75,7 +89,13 @@ function AddUserModal({
       ariaLabelledBy="add-user-title"
       className="bg-bg-primary border-border w-full max-w-sm rounded-xl border p-6 shadow-xl"
     >
-      <div>
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          if (!username.trim() || mutation.isPending) return;
+          mutation.mutate();
+        }}
+      >
         <h3 id="add-user-title" className="mb-4 text-lg font-semibold">
           Add User
         </h3>
@@ -92,8 +112,15 @@ function AddUserModal({
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="e.g. john"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'add-user-error' : undefined}
               className="bg-bg-secondary border-border focus:border-accent w-full rounded-lg border px-3 py-2 text-sm outline-none"
             />
+            {error && (
+              <div id="add-user-error" role="alert" className="text-error mt-1 text-sm">
+                {error}
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="new-display-name" className="text-text-secondary mb-1 block text-sm">
@@ -119,17 +146,16 @@ function AddUserModal({
           </label>
         </div>
 
-        {error && <div className="text-error mt-3 text-sm">{error}</div>}
-
         <div className="mt-5 flex justify-end gap-2">
           <button
+            type="button"
             onClick={onClose}
             className="text-text-secondary hover:text-text-primary rounded-lg px-4 py-2 text-sm transition-colors"
           >
             Cancel
           </button>
           <button
-            onClick={() => mutation.mutate()}
+            type="submit"
             disabled={!username.trim() || mutation.isPending}
             className="bg-accent hover:bg-accent/90 text-text-on-accent flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
@@ -137,7 +163,7 @@ function AddUserModal({
             Create
           </button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
@@ -155,6 +181,7 @@ function UserRow({
 }>) {
   const client = useAuthStore(state => state.client);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -175,7 +202,10 @@ function UserRow({
       if (!client) throw new Error('Not authenticated');
       return new AdminService(client).resetPassword(user.Id);
     },
-    onSuccess: onPasswordReset,
+    onSuccess: password => {
+      setConfirmReset(false);
+      onPasswordReset(password);
+    },
     onError: (err: Error) => {
       toast.add('error', `Could not reset password for ${user.Username}: ${err.message}`);
     },
@@ -184,67 +214,94 @@ function UserRow({
   const isSelf = currentUserId === user.Id;
 
   return (
-    <div className="bg-bg-secondary border-border flex items-center gap-3 rounded-lg border px-4 py-3">
-      <div className="text-text-secondary shrink-0">
-        {user.IsAdmin ? (
-          <ShieldCheck className="text-accent h-5 w-5" />
-        ) : (
-          <User className="h-5 w-5" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{user.Username}</span>
-          {user.IsAdmin && <span className="text-accent shrink-0 text-xs font-medium">Admin</span>}
-          {isSelf && <span className="text-text-muted shrink-0 text-xs">(you)</span>}
-        </div>
-        {user.DisplayName && (
-          <div className="text-text-secondary truncate text-sm">{user.DisplayName}</div>
-        )}
-      </div>
-
-      {!isSelf && (
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            onClick={() => resetMutation.mutate()}
-            disabled={resetMutation.isPending}
-            aria-label="Reset password"
-            className="text-text-secondary hover:text-text-primary rounded-lg p-2 transition-colors disabled:opacity-50"
-          >
-            {resetMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <KeyRound className="h-4 w-4" />
-            )}
-          </button>
-
-          {confirmDelete ? (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
-                className="text-error hover:bg-error/10 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50"
-              >
-                {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Delete'}
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="text-text-secondary hover:text-text-primary rounded-lg px-2 py-1 text-xs transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+    <div className="bg-bg-secondary border-border rounded-lg border px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="text-text-secondary shrink-0">
+          {user.IsAdmin ? (
+            <ShieldCheck className="text-accent h-5 w-5" />
           ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              aria-label="Delete user"
-              className="text-text-secondary hover:text-error rounded-lg p-2 transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <User className="h-5 w-5" />
           )}
         </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium">{user.Username}</span>
+            {user.IsAdmin && (
+              <span className="text-accent shrink-0 text-xs font-medium">Admin</span>
+            )}
+            {isSelf && <span className="text-text-muted shrink-0 text-xs">(you)</span>}
+          </div>
+          {user.DisplayName && (
+            <div className="text-text-secondary truncate text-sm">{user.DisplayName}</div>
+          )}
+        </div>
+
+        {!isSelf && (
+          <div className="flex shrink-0 items-center gap-1">
+            {confirmReset ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => resetMutation.mutate()}
+                  disabled={resetMutation.isPending}
+                  className="text-accent hover:bg-accent/10 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  {resetMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reset'}
+                </button>
+                <button
+                  onClick={() => setConfirmReset(false)}
+                  className="text-text-secondary hover:text-text-primary rounded-lg px-2 py-1 text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmReset(true)}
+                aria-label="Reset password"
+                className="text-text-secondary hover:text-text-primary rounded-lg p-2 transition-colors"
+              >
+                <KeyRound className="h-4 w-4" />
+              </button>
+            )}
+
+            {confirmDelete ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  className="text-error hover:bg-error/10 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    'Delete'
+                  )}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-text-secondary hover:text-text-primary rounded-lg px-2 py-1 text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                aria-label="Delete user"
+                className="text-text-secondary hover:text-error rounded-lg p-2 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {confirmReset && !isSelf && (
+        <p className="text-text-secondary mt-2 text-xs">
+          Reset password? Their current password stops working.
+        </p>
       )}
     </div>
   );

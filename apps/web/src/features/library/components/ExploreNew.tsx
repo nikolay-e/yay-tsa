@@ -32,6 +32,11 @@ export function ExploreNew() {
         void refetch();
       }}
       tracks={tracks}
+      emptyState={
+        <p className="text-text-tertiary py-8 text-center text-sm">
+          Nothing new to discover right now — new additions to your library will appear here.
+        </p>
+      }
       currentTrackId={currentTrack?.Id}
       isPlaying={isPlaying}
       onPlayTrack={index => playTracks(tracks, index)}

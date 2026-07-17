@@ -23,6 +23,7 @@ import { type AudioItem, type RepeatMode, getIsFavorite } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { formatSeconds } from '@/shared/utils/time';
 import { getImagePlaceholder } from '@/shared/utils/image-placeholder';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 import { FavoriteButton } from '@/features/library/components/FavoriteButton';
 import { useTimingStore } from '../stores/playback-timing.store';
 import { usePlayerStore } from '../stores/player.store';
@@ -101,6 +102,7 @@ function SecondaryPillControls({
   onOpenSleepTimer,
   onStartRadio,
 }: SecondaryPillControlsProps) {
+  const karaokeEnabled = usePlayerStore(s => s.karaokeEnabled);
   return (
     <div
       className="flex justify-center gap-3 px-8 pt-4"
@@ -133,7 +135,7 @@ function SecondaryPillControls({
           (isKaraokeTransitioning || karaokeStatus?.state === 'PROCESSING') && 'animate-pulse'
         )}
         aria-label={isKaraokeMode ? 'Disable karaoke' : 'Enable karaoke'}
-        aria-pressed={isKaraokeMode}
+        aria-pressed={isKaraokeMode || karaokeEnabled}
       >
         {isKaraokeMode ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
       </button>
@@ -273,8 +275,24 @@ export function MobileFullPlayer({
   const skipBy = usePlayerStore(s => s.skipBy);
   const isAudiobook = playerMode === 'audiobook';
 
+  const containerRef = useFocusTrap<HTMLDivElement>(true);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return createPortal(
-    <div className="bg-bg-primary fixed inset-0 z-[140] overflow-hidden md:hidden">
+    <div
+      ref={containerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Now playing"
+      className="bg-bg-primary fixed inset-0 z-[140] overflow-hidden md:hidden"
+    >
       {!hasImageError && (
         <img
           src={imageUrl}

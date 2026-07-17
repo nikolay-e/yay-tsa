@@ -21,6 +21,22 @@ import { selectCacheEvictions } from './cache-eviction';
 
 export type OfflineStatus = 'idle' | 'downloading' | 'ready' | 'error';
 
+export class OfflineStorageFullError extends Error {
+  constructor() {
+    super('Not enough storage space');
+    this.name = 'OfflineStorageFullError';
+  }
+}
+
+export interface DownloadManyResult {
+  failed: number;
+  storageFull: boolean;
+}
+
+function isQuotaExceeded(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'QuotaExceededError';
+}
+
 export interface OfflineEntry {
   status: OfflineStatus;
   progress: number; // 0..1 while downloading
@@ -61,7 +77,7 @@ interface OfflineState {
 interface OfflineActions {
   init: () => Promise<void>;
   download: (track: AudioItem, reason?: OfflineSource) => Promise<void>;
-  downloadMany: (tracks: AudioItem[], reason?: OfflineSource) => Promise<void>;
+  downloadMany: (tracks: AudioItem[], reason?: OfflineSource) => Promise<DownloadManyResult>;
   remove: (trackId: string) => Promise<void>;
   clearAll: () => Promise<void>;
   clearListeningCache: () => Promise<void>;
@@ -414,15 +430,27 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
             },
           },
         }));
+        if (!isBackgroundDownload) {
+          throw isQuotaExceeded(error) ? new OfflineStorageFullError() : error;
+        }
       }
     },
 
     downloadMany: async (tracks, reason = 'manual') => {
       // Sequential to bound bandwidth and memory — large albums won't fan out into
       // dozens of concurrent stream reads.
+      let failed = 0;
+      let storageFull = false;
       for (const track of tracks) {
-        await get().download(track, reason);
+        try {
+          await get().download(track, reason);
+          if (get().entries[track.Id]?.status === 'error') failed += 1;
+        } catch (error) {
+          failed += 1;
+          if (error instanceof OfflineStorageFullError) storageFull = true;
+        }
       }
+      return { failed, storageFull };
     },
 
     remove: async trackId => {
@@ -430,6 +458,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         await store.deleteTrack(trackId);
       } catch (error) {
         log.player.warn('Offline remove failed', { trackId, error: String(error) });
+        throw error;
       }
       set(state => {
         const entries = { ...state.entries };
@@ -447,6 +476,7 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         await store.clearTracks();
       } catch (error) {
         log.player.warn('Offline clearAll failed', { error: String(error) });
+        throw error;
       }
       set({ entries: {}, items: {} });
       await get().refreshUsage();
@@ -591,7 +621,9 @@ export const useOfflineStore = create<OfflineStore>()((set, get) => {
         }));
       const toEvict = selectCacheEvictions(infos, settings.maxCacheBytes);
       for (const trackId of toEvict) {
-        await get().remove(trackId);
+        await get()
+          .remove(trackId)
+          .catch(() => {});
       }
     },
 

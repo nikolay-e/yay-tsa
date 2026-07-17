@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NetworkError } from '@yay-tsa/core';
 import { useAuthStore, SESSION_EXPIRED_FLAG } from '@/features/auth/stores/auth.store';
@@ -12,6 +12,9 @@ export function LoginPage() {
   // installed PWA keep the user signed in. Unchecking opts into a tab-scoped session.
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
+  const [invalidFields, setInvalidFields] = useState({ username: false, password: false });
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [sessionExpired] = useState(() => {
     try {
       const expired = sessionStorage.getItem(SESSION_EXPIRED_FLAG) === '1';
@@ -30,9 +33,12 @@ export function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setInvalidFields({ username: false, password: false });
 
     if (!username || !password) {
       setError('Please fill in all fields');
+      setInvalidFields({ username: !username, password: !password });
+      (username ? passwordRef : usernameRef).current?.focus();
       return;
     }
 
@@ -50,6 +56,8 @@ export function LoginPage() {
         setError('Cannot reach the server — check your connection and try again');
       } else {
         setError(err instanceof Error ? err.message : 'Login failed');
+        setInvalidFields({ username: true, password: true });
+        usernameRef.current?.focus();
       }
     }
   };
@@ -72,7 +80,11 @@ export function LoginPage() {
             </div>
           )}
           {error && (
-            <div className="bg-error/10 border-error/20 text-error rounded-md border p-4 text-sm">
+            <div
+              id="login-error"
+              role="alert"
+              className="bg-error/10 border-error/20 text-error rounded-md border p-4 text-sm"
+            >
               {error}
             </div>
           )}
@@ -83,11 +95,14 @@ export function LoginPage() {
             </label>
             <input
               id="username"
+              ref={usernameRef}
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="Enter your username"
               autoComplete="username"
+              aria-invalid={invalidFields.username || undefined}
+              aria-describedby={invalidFields.username && error ? 'login-error' : undefined}
               className={cn(
                 'border-border bg-bg-secondary w-full rounded-sm border px-4 py-2',
                 'text-text-primary placeholder:text-text-tertiary',
@@ -103,11 +118,14 @@ export function LoginPage() {
             </label>
             <input
               id="password"
+              ref={passwordRef}
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Enter your password"
               autoComplete="current-password"
+              aria-invalid={invalidFields.password || undefined}
+              aria-describedby={invalidFields.password && error ? 'login-error' : undefined}
               className={cn(
                 'border-border bg-bg-secondary w-full rounded-sm border px-4 py-2',
                 'text-text-primary placeholder:text-text-tertiary',
@@ -117,18 +135,25 @@ export function LoginPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              id="rememberMe"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={e => setRememberMe(e.target.checked)}
-              className="accent-accent h-4 w-4"
-              disabled={isLoading}
-            />
-            <label htmlFor="rememberMe" className="text-text-secondary text-sm">
-              Remember me
-            </label>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="accent-accent h-4 w-4"
+                disabled={isLoading}
+              />
+              <label htmlFor="rememberMe" className="text-text-secondary text-sm">
+                Remember me
+              </label>
+            </div>
+            {!rememberMe && (
+              <p className="text-text-tertiary pl-6 text-xs">
+                You&apos;ll be signed out when you close the app.
+              </p>
+            )}
           </div>
 
           <button

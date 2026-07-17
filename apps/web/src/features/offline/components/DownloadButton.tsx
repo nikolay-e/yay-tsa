@@ -3,7 +3,7 @@ import { Download, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { type AudioItem } from '@yay-tsa/core';
 import { cn } from '@/shared/utils/cn';
 import { toast } from '@/shared/ui/Toast';
-import { useOfflineStore, useOfflineEntry } from '../stores/offline.store';
+import { useOfflineStore, useOfflineEntry, OfflineStorageFullError } from '../stores/offline.store';
 
 type DownloadButtonProps = Readonly<{
   track: AudioItem;
@@ -85,8 +85,13 @@ export function DownloadButton({ track, size = 'sm', className }: DownloadButton
         toast.add('error', `Could not remove the download for ${track.Name}. Try again.`);
       });
     } else if (status !== 'downloading') {
-      download(track).catch(() => {
-        toast.add('error', `Could not download ${track.Name}. Check your connection.`);
+      download(track).catch((error: unknown) => {
+        toast.add(
+          'error',
+          error instanceof OfflineStorageFullError
+            ? `Not enough storage space to download ${track.Name}.`
+            : `Could not download ${track.Name}. Check your connection.`
+        );
       });
     }
   };

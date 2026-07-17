@@ -17,7 +17,7 @@ import { usePlayerStore } from '@/features/player/stores/player.store';
 import { useDeviceHeartbeat } from '@/features/player/hooks/useDeviceHeartbeat';
 import { useDeviceEventsChannel } from '@/features/player/hooks/useDeviceEventsChannel';
 import { OfflineIndicator } from '@/features/offline';
-import { useOfflineStore } from '@/features/offline/stores/offline.store';
+import { useIsOnline, useOfflineStore } from '@/features/offline/stores/offline.store';
 import { GlobalSearchBar } from '@/shared/ui/GlobalSearchBar';
 import { cn } from '@/shared/utils/cn';
 import { mark, markOnce, measure } from '@/shared/perf/perf';
@@ -55,6 +55,7 @@ export function RootLayout() {
   const sessionRestored = useRef(false);
   const sessionRestoreComplete = useRef(false);
   const hasCurrentTrack = usePlayerStore(state => state.currentTrack !== null);
+  const isOnline = useIsOnline();
   const mainRef = useRef<HTMLElement>(null);
   const locationKeyRef = useRef(location.key);
 
@@ -144,9 +145,21 @@ export function RootLayout() {
 
   const showNavigation = authState === 'authenticated' && !isLoginPage;
   const showPlayer = authState === 'authenticated' && !isLoginPage && hasCurrentTrack;
+  const showOfflineBanner = showNavigation && !isOnline;
+  const offlineBannerPadding = isSearchRoute
+    ? 'pt-7'
+    : 'pt-[calc(env(safe-area-inset-top,0px)+1.75rem)]';
+  const defaultTopPadding = showNavigation && isSearchRoute ? '' : 'pt-safe';
+  const mainTopPadding = showOfflineBanner ? offlineBannerPadding : defaultTopPadding;
 
   return (
     <div className="flex h-full min-h-screen">
+      <a
+        href="#main-content"
+        className="focus:bg-bg-secondary focus:text-text-primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[400] focus:rounded-md focus:px-3 focus:py-2"
+      >
+        Skip to content
+      </a>
       <RouteTracker />
       {showNavigation && <OfflineIndicator />}
       {showNavigation && (
@@ -169,9 +182,11 @@ export function RootLayout() {
       )}
       <main
         ref={mainRef}
+        id="main-content"
+        tabIndex={-1}
         className={cn(
           'h-full min-h-screen flex-1 overflow-y-auto',
-          showNavigation && isSearchRoute ? '' : 'pt-safe',
+          mainTopPadding,
           showNavigation && 'md:ml-sidebar',
           showNavigation && (showPlayer ? 'pb-mobile-nav-player' : 'pb-mobile-nav'),
           showNavigation && (showPlayer ? 'md:pb-20' : 'md:pb-0')
@@ -222,30 +237,31 @@ function Sidebar({ hasPlayer }: SidebarProps) {
         </span>
       </div>
       <nav className="flex-1 px-2">
-        {NAV_ITEMS.map(item => (
-          <Link
-            key={item.href}
-            to={item.href}
-            data-testid={item.testId}
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 transition-colors',
-              'hover:bg-bg-hover',
-              (item.href === '/'
-                ? location.pathname === '/'
-                : location.pathname.startsWith(item.href)) && 'bg-bg-tertiary text-accent'
-            )}
-          >
-            <item.icon className="h-5 w-5 shrink-0" />
-            <span className="truncate">{item.label}</span>
-          </Link>
-        ))}
+        {NAV_ITEMS.map(item => {
+          const isActive =
+            item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              data-testid={item.testId}
+              aria-current={isActive ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 transition-colors',
+                'hover:bg-bg-hover',
+                isActive && 'bg-bg-tertiary text-accent'
+              )}
+            >
+              <item.icon className="h-5 w-5 shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );
 }
 
-// Icon-only tabs stay comfortably tappable even at 7 items on a 375-412px viewport (no labels to
-// wrap), so the bottom bar mirrors NAV_ITEMS in full — Playlists must be reachable on mobile too.
 const BOTTOM_TAB_ITEMS = NAV_ITEMS;
 
 function BottomTabBar() {
@@ -266,12 +282,16 @@ function BottomTabBar() {
               to={item.href}
               data-testid={item.testId}
               aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex min-h-11 flex-1 items-center justify-center py-2 transition-colors',
+                'flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors',
                 isActive ? 'text-accent' : 'text-text-secondary'
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-5 w-5 shrink-0" />
+              <span className="w-full truncate px-0.5 text-center text-[10px] leading-none">
+                {item.label}
+              </span>
             </Link>
           );
         })}

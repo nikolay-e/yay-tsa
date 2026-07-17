@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AudiobooksService, TICKS_PER_MS, type AudiobookEntry } from '@yay-tsa/core';
 import { useClient } from '@/features/auth/stores/auth.store';
+import { toast } from '@/shared/ui/Toast';
 import {
   clearLocalResume,
   readLocalResume,
@@ -225,14 +226,31 @@ export function useAudiobookActions() {
   // A book fans the action out over every chapter. allSettled (not all) means one failing
   // chapter can't abandon the rest, and onSettled always refetches so the shelf reflects whatever
   // actually persisted rather than silently doing nothing.
+  const applyToChapters = async (
+    itemIds: string[],
+    applyToChapter: (id: string) => Promise<unknown>
+  ) => {
+    const results = await Promise.allSettled(itemIds.map(async id => applyToChapter(id)));
+    // The user explicitly discarded their place; a stale local record must not
+    // out-timestamp the server's reset on the next merge. Chapters whose server
+    // write failed keep their local record so the position isn't lost.
+    itemIds.forEach((id, index) => {
+      if (results[index]?.status === 'fulfilled') clearLocalResume(id);
+    });
+    const failedCount = results.filter(result => result.status === 'rejected').length;
+    if (failedCount > 0) {
+      throw new Error(`Couldn't update ${failedCount} of ${itemIds.length} chapters`);
+    }
+  };
+
   const markFinished = useMutation({
     mutationFn: async (itemIds: string[]) => {
       if (!client) throw new Error('Not authenticated');
       const service = new AudiobooksService(client);
-      await Promise.allSettled(itemIds.map(async id => service.markFinished(id)));
-      // The user explicitly discarded their place; a stale local record must not
-      // out-timestamp the server's reset on the next merge.
-      itemIds.forEach(clearLocalResume);
+      await applyToChapters(itemIds, async id => service.markFinished(id));
+    },
+    onError: (err: Error) => {
+      toast.add('error', `Couldn't mark the book finished: ${err.message}`);
     },
     onSettled: invalidate,
   });
@@ -241,8 +259,10 @@ export function useAudiobookActions() {
     mutationFn: async (itemIds: string[]) => {
       if (!client) throw new Error('Not authenticated');
       const service = new AudiobooksService(client);
-      await Promise.allSettled(itemIds.map(async id => service.restart(id)));
-      itemIds.forEach(clearLocalResume);
+      await applyToChapters(itemIds, async id => service.restart(id));
+    },
+    onError: (err: Error) => {
+      toast.add('error', `Couldn't restart the book: ${err.message}`);
     },
     onSettled: invalidate,
   });

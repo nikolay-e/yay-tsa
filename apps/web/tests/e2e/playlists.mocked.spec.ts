@@ -110,10 +110,34 @@ function installPlaylistsMock(page: Page): { playlists: PlaylistState[] } {
       playlist.itemIds = playlist.itemIds.filter((_, index) => !removed.has(index));
       return fulfillJson(route, '{}');
     }
+    const allItems = playlist.itemIds.map((trackId, index) => buildTrack(trackId, index));
+    const startIndex = Number(url.searchParams.get('StartIndex') ?? 0);
+    const limit = Number(url.searchParams.get('Limit') ?? allItems.length);
     return fulfillJson(
       route,
-      itemsBody(playlist.itemIds.map((trackId, index) => buildTrack(trackId, index)))
+      JSON.stringify({
+        Items: allItems.slice(startIndex, startIndex + limit),
+        TotalRecordCount: allItems.length,
+        StartIndex: startIndex,
+      })
     );
+  });
+
+  void page.route(/\/Playlists\/[^/?]+(\?|$)/, (route: Route) => {
+    const request = route.request();
+    if (request.method() !== 'POST') return route.fallback();
+    const playlistId = new URL(request.url()).pathname.split('/Playlists/')[1]!;
+    const playlist = state.playlists.find(p => p.Id === playlistId);
+    if (!playlist) {
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ status: 404, title: 'Not Found' }),
+      });
+    }
+    const body = request.postDataJSON() as { Name: string };
+    playlist.Name = body.Name;
+    return route.fulfill({ status: 204 });
   });
 
   void page.route(/\/Playlists(\?|$)/, (route: Route) => {
@@ -179,6 +203,131 @@ test.describe('Playlists (mocked backend)', () => {
     await expect(page.getByTestId('track-row')).toHaveCount(1);
     await expect(trackRow(page, 'Borealis')).toHaveCount(0);
     await expect(page.getByText('1 track', { exact: true })).toBeVisible();
+  });
+
+  test('renames a playlist inline from the detail page', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.goto('/playlists/pl1');
+    await expect(page.getByTestId('playlist-detail-title')).toHaveText('Chill');
+
+    await page.getByTestId('playlist-rename-button').click();
+    await page.getByTestId('playlist-rename-input').fill('Chill Renamed');
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByTestId('playlist-detail-title')).toHaveText('Chill Renamed');
+
+    await page.goto('/playlists');
+    await expect(
+      page.getByTestId('playlist-card').filter({ hasText: 'Chill Renamed' })
+    ).toBeVisible();
+  });
+
+  test('Escape cancels an inline rename without saving', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.goto('/playlists/pl1');
+    await page.getByTestId('playlist-rename-button').click();
+    await page.getByTestId('playlist-rename-input').fill('Discarded Name');
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByTestId('playlist-rename-input')).toHaveCount(0);
+    await expect(page.getByTestId('playlist-detail-title')).toHaveText('Chill');
+  });
+
+  test('undo on the removal toast restores the track at its position', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.goto('/playlists/pl1');
+    await expect(page.getByTestId('track-title').first()).toHaveText('Borealis');
+
+    await page.getByRole('button', { name: 'Remove Borealis from playlist', exact: true }).click();
+    await expect(trackRow(page, 'Borealis')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+
+    await expect(page.getByTestId('track-row')).toHaveCount(2);
+    await expect(page.getByTestId('track-title').first()).toHaveText('Borealis');
+  });
+
+  test.describe('with a failing Move endpoint', () => {
+    test.use({
+      allowConsole: [
+        'Failed to load resource: the server responded with a status of 500',
+        '\\[API\\] POST /Playlists/.+/Move/\\d+ failed',
+      ],
+      allowResponses: ['/Playlists/.+/Items/.+/Move/'],
+    });
+
+    test('a failed reorder rolls back and shows an error toast', async ({ page }) => {
+      installPlaylistsMock(page);
+      await login(page);
+
+      await page.route(/\/Playlists\/[^/]+\/Items\/[^/]+\/Move\/\d+/, (route: Route) =>
+        route.fulfill({
+          status: 500,
+          contentType: 'application/problem+json',
+          body: JSON.stringify({ status: 500, title: 'Internal Server Error' }),
+        })
+      );
+
+      await page.goto('/playlists/pl1');
+      const firstHandle = page
+        .getByRole('button', { name: 'Drag to reorder', exact: true })
+        .first();
+      await firstHandle.focus();
+      await page.keyboard.press('Space');
+      await expect(page.locator('body')).toHaveClass(/dragging/);
+      await page.waitForTimeout(200);
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(200);
+      await page.keyboard.press('Space');
+
+      await expect(page.getByText("Couldn't reorder — try again")).toBeVisible();
+      await expect(page.getByTestId('track-title').first()).toHaveText('Borealis');
+    });
+  });
+
+  test('filters the add-to-playlist picker by name', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.goto('/search');
+    await trackRow(page, 'Aurora').getByTestId('track-menu-button').click();
+    await page.getByTestId('track-menu-add-playlist').click();
+    await expect(page.getByTestId('add-to-playlist-option')).toHaveCount(2);
+
+    await page.getByTestId('add-to-playlist-filter').fill('work');
+    await expect(page.getByTestId('add-to-playlist-option')).toHaveCount(1);
+    await expect(
+      page.getByTestId('add-to-playlist-option').filter({ hasText: 'Workout' })
+    ).toBeVisible();
+
+    await page.getByTestId('add-to-playlist-filter').fill('zzz');
+    await expect(page.getByTestId('add-to-playlist-option')).toHaveCount(0);
+    await expect(page.getByText('No playlists match')).toBeVisible();
+  });
+
+  test('warns about a duplicate playlist name without blocking submit', async ({ page }) => {
+    installPlaylistsMock(page);
+    await login(page);
+
+    await page.goto('/playlists');
+    await page.getByTestId('playlist-create-button').click();
+    await page.getByTestId('playlist-name-input').fill('chill');
+    await expect(page.getByTestId('playlist-duplicate-name-hint')).toBeVisible();
+    await expect(page.getByTestId('playlist-create-submit')).toBeEnabled();
+
+    await page.getByTestId('playlist-name-input').fill('Totally Unique');
+    await expect(page.getByTestId('playlist-duplicate-name-hint')).toHaveCount(0);
+
+    await page.getByTestId('playlist-create-submit').click();
+    await expect(
+      page.getByTestId('playlist-card').filter({ hasText: 'Totally Unique' })
+    ).toBeVisible();
   });
 
   test('deleting a playlist returns to the list without it', async ({ page }) => {
@@ -249,7 +398,7 @@ test.describe('Playlists (mocked backend)', () => {
     // "Created playlist" one, otherwise one user action reads as two confirmations.
     await expect(page.getByText('Added "Cascade" to the new playlist')).toBeVisible();
     await expect(page.getByText('Created playlist "Fresh Finds"')).toHaveCount(0);
-    await expect(page.getByRole('alert')).toHaveCount(1);
+    await expect(page.locator('[aria-live="polite"]').getByRole('status')).toHaveCount(1);
 
     await page.goto('/playlists');
     const newCard = page.getByTestId('playlist-card').filter({ hasText: 'Fresh Finds' });
@@ -266,7 +415,7 @@ test.describe('Playlists (mocked backend)', () => {
     await page.getByTestId('playlist-create-submit').click();
 
     await expect(page.getByText('Created playlist "Solo Create"')).toBeVisible();
-    await expect(page.getByRole('alert')).toHaveCount(1);
+    await expect(page.locator('[aria-live="polite"]').getByRole('status')).toHaveCount(1);
   });
 
   test('blocks a second remove click during the gap between mutation success and refetch', async ({

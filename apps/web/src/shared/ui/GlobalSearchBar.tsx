@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSearchPanelStore } from '@/shared/stores/search-panel.store';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 import { cn } from '@/shared/utils/cn';
 
 /**
@@ -24,6 +25,16 @@ export function GlobalSearchBar() {
 
   const [value, setValue] = useState(() => (onSearchRoute ? (searchParams.get('q') ?? '') : ''));
   const inputRef = useRef<HTMLInputElement>(null);
+  const overlayActive = storeOpen && !pinned;
+  const panelRef = useFocusTrap<HTMLDivElement>(overlayActive);
+
+  useEffect(() => {
+    if (!overlayActive) return;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [overlayActive]);
 
   useEffect(() => {
     if (onSearchRoute) setValue(searchParams.get('q') ?? '');
@@ -82,7 +93,14 @@ export function GlobalSearchBar() {
         />
       )}
       <div
+        ref={panelRef}
         data-testid="global-search-bar"
+        {...(!pinned && {
+          role: 'dialog',
+          'aria-modal': storeOpen,
+          'aria-label': 'Search',
+          'aria-hidden': !storeOpen,
+        })}
         className={cn(
           'px-safe pt-safe border-border/60 bg-bg-primary/95 border-b backdrop-blur-md',
           positionClass
@@ -107,7 +125,7 @@ export function GlobalSearchBar() {
               data-testid="global-search-input"
               maxLength={200}
               tabIndex={open ? 0 : -1}
-              className="text-text-primary placeholder:text-text-tertiary w-full bg-transparent text-base outline-none"
+              className="text-text-primary placeholder:text-text-tertiary w-full bg-transparent text-base"
             />
           </form>
           <button

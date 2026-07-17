@@ -78,7 +78,11 @@ function AlbumCardImpl({ album, isPlaying, onPlay, onPause, priority }: AlbumCar
       testId="album-card"
       priority={priority}
     >
-      <h2 data-testid="album-title" className="text-text-primary truncate font-medium">
+      <h2
+        data-testid="album-title"
+        title={album.Name}
+        className="text-text-primary truncate font-medium"
+      >
         <Link
           to={`/albums/${album.Id}`}
           className="focus-visible:after:ring-accent after:absolute after:inset-0 after:z-[1] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-offset-2"

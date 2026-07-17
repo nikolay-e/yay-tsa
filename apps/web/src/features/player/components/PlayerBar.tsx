@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { type AudioItem, getIsFavorite } from '@yay-tsa/core';
 import {
@@ -50,6 +50,7 @@ import { useAlbumColors } from '../hooks/useAlbumColors';
 import { useSignalEmitter } from '../hooks/useSignalEmitter';
 import { usePlaybackHotkeys } from '../hooks/usePlaybackHotkeys';
 import { useGroupSyncStore } from '../stores/group-sync-store';
+import { useTimingStore } from '../stores/playback-timing.store';
 import { nextAudiobookSpeed } from '../playback-speed';
 import { MobileFullPlayer } from './MobileFullPlayer';
 import { KaraokeBlendSlider } from './KaraokeBlendSlider';
@@ -62,6 +63,32 @@ import { DevicesPanel } from './DevicesPanel';
 import { GroupSyncPanel } from './GroupSyncPanel';
 
 const QueuePanel = lazy(() => import('./QueuePanel'));
+
+function MiniBarProgress() {
+  const fillRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const apply = (currentTime: number, duration: number) => {
+      if (!fillRef.current) return;
+      const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+      fillRef.current.style.width = `${progress}%`;
+    };
+
+    const { currentTime, duration } = useTimingStore.getState();
+    apply(currentTime, duration);
+
+    return useTimingStore.subscribe(state => apply(state.currentTime, state.duration));
+  }, []);
+
+  return (
+    <div
+      aria-hidden
+      className="bg-bg-tertiary pointer-events-none absolute top-0 left-0 h-0.5 w-full md:hidden"
+    >
+      <div ref={fillRef} className="bg-accent h-full" style={{ width: '0%' }} />
+    </div>
+  );
+}
 
 function TrackInfo({
   track,
@@ -221,7 +248,7 @@ export function PlayerBar() {
         timeOfDay: currentTimeOfDay(),
       },
     });
-    toast.add('success', 'Liked');
+    toast.add('success', 'Thanks — more like this');
   };
   const handleThumbsDown = async () => {
     if (!currentTrack) return;
@@ -452,6 +479,8 @@ export function PlayerBar() {
       <div className="hidden md:block">
         <SeekBar onSeek={handleSeek} />
       </div>
+
+      <MiniBarProgress />
 
       {/* Mobile mini-bar */}
       <div className="flex w-full items-center gap-3 p-2 px-3 md:hidden">
