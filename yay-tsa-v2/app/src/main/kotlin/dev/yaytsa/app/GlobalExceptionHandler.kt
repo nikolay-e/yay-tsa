@@ -1,6 +1,7 @@
 package dev.yaytsa.app
 
 import jakarta.servlet.http.HttpServletRequest
+import org.apache.catalina.connector.ClientAbortException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataAccessException
 import org.springframework.dao.InvalidDataAccessApiUsageException
@@ -192,9 +193,9 @@ class GlobalExceptionHandler {
         return problemDetail(HttpStatus.BAD_REQUEST, "Bad Request", "Multipart request required", request)
     }
 
-    @ExceptionHandler(AsyncRequestNotUsableException::class)
+    @ExceptionHandler(AsyncRequestNotUsableException::class, ClientAbortException::class)
     fun handleClientDisconnect(
-        ex: AsyncRequestNotUsableException,
+        ex: Exception,
         request: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>>? {
         log.debug("Client disconnected mid-stream: {}", ex.message)
@@ -205,9 +206,38 @@ class GlobalExceptionHandler {
     fun handleGeneric(
         ex: Exception,
         request: HttpServletRequest,
-    ): ResponseEntity<Map<String, Any>> {
+    ): ResponseEntity<Map<String, Any>>? {
+        // The binary streaming paths (/Audio, /Karaoke) write straight to the socket, so a client
+        // that walks away mid-download surfaces as a raw IOException during flush ("Broken pipe",
+        // "Connection reset by peer", "Host is unreachable") — not the ClientAbortException Tomcat
+        // wraps for buffered writes. It is not a server fault, and the response is already committed
+        // so no body can be written; log at debug and swallow instead of ERROR + a doomed 500.
+        if (isClientAbort(ex)) {
+            log.debug("Client disconnected mid-stream: {}", ex.message)
+            return null
+        }
         log.error("Unhandled exception", ex)
         return problemDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "Internal server error", request)
+    }
+
+    private fun isClientAbort(ex: Throwable): Boolean {
+        var cause: Throwable? = ex
+        while (cause != null) {
+            if (cause is ClientAbortException) return true
+            if (cause is java.io.IOException) {
+                val msg = cause.message?.lowercase() ?: ""
+                if (
+                    "broken pipe" in msg ||
+                    "connection reset" in msg ||
+                    "host is unreachable" in msg ||
+                    "connection timed out" in msg
+                ) {
+                    return true
+                }
+            }
+            cause = cause.cause
+        }
+        return false
     }
 
     private fun problemDetail(
