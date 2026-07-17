@@ -633,3 +633,30 @@ The two permanent-red classes are gate-reconciled upstream (closes autoqa#29/#30
 ## Back-to-back pushes: superseded autoqa zombies get the NEWEST run preempted (2026-07-14, gitops#1)
 
 autoqa pods run at `podPriorityClassName: development`; rapid pushes leave superseded runs alive (waiting for a rollout that will never serve their sha, or fuzzing the newer live version), and under node pressure the scheduler **preempts the newest pod** — the only one that matters (`Preempted by pod … on node my-server` event; workflow ends `Error: pod deleted`, hit dc4988b0 and 53bfd48f the same day). Triage rule: a `pod deleted` autoqa Error is NOT an app or autoqa-image failure — check `kubectl get events -A | grep -i preempt`. Recovery: `kubectl delete workflow` the superseded Running runs, resubmit the newest (`kubectl get workflow <dead> -o json` → strip to `{generateName, spec}` → `kubectl create`; the resubmit picks up the CURRENT workflowtemplate, including a just-bumped autoqa image). Durable newest-wins cancellation tracked in Forgejo `gitops#1`. Related: a crawl overlapping a frontend rollout records `landmark-one-main`/`page-has-heading-one` a11y findings on whatever routes rendered as the blank rollout-window page — verify the flagged routes serve `h1`+`main` live before treating as regressions; alarm-once baseline absorbs them next run.
+
+## Essentia CronJob pin staleness has a cheap DB detector (2026-07-18)
+
+`processed=N failed=19` night after night with `core_v2_ml.extraction_failures` EMPTY means the running image predates the parking fix (b484c3f1) — the fix would have written failure rows on the first run. The manual pins in gitops `values.images.yaml` (featureExtractor/embeddingServer/lyricsSync/tasteClusters) had silently stayed on `main-ff9282c` (one commit BEFORE the parking fix). **Check every pass: pin sha vs `git log main -1 -- services/audio-ml`.** Image tags are push-HEAD shas, so the newest tag containing any audio-ml commit is simply the newest `main-<sha7>` in the registry; list tags with the in-cluster pull secret: decode `secret/forgejo-registry` dockerconfigjson auth → `GET https://git.nikolay-eremeev.com/v2/token?scope=repository:nikolay-e/yay-tsa/feature-extractor:pull` with `Authorization: Basic <auth>` → `GET /v2/.../tags/list` with the bearer (anonymous token gets `reqPackageAccess`).
+
+## addToPlaylist accepted a spoofable UserId param (BOLA write, fixed 2026-07-18)
+
+`POST /Playlists/{id}/Items` fed the request's `UserId` query param straight into the command context (`UserId(userId ?: principal.name)`), and PlaylistHandler's owner check compares `ctx.userId` — so any authenticated user could impersonate the owner and write into a private playlist. The read-side BOLA (getPlaylistItems) had just been fixed; the write-side param slipped. **Detect: `grep -n "UserId(userId" adapter-\*/**/\*Controller.kt`— every endpoint accepting a UserId/userId request param must 403 on mismatch with principal (createPlaylist and getPlaylistItems are the reference pattern).** Regression test in`PlaylistsIntegrationTest` (spoofed → 403, direct non-owner → 401, playlist unchanged).
+
+## Client batch-resolve 400s were query-string length (BATCH_SIZE 200 → 100)
+
+Telemetry fp `Failed to batch-resolve audio items: Request failed with status 400`: `getItemsByIds` batched 200 UUIDs into one GET — ~8KB request line, right at the default nginx/Tomcat 8K header limit, so occasional real-user 400s. 100 ids ≈ 4KB. **Rule: any GET that joins N ids into a query string must keep the worst-case request line well under 8KB.**
+
+## Lone schemathesis read-timeout right after a backend rollout = JVM warm-up, replay it
+
+Two consecutive internal autoqa runs went red on a single Network Error (10s read-timeout) on DIFFERENT endpoints (`GET /Artists`, `POST /v1/groups/0/schedule`), both within ~60s of the single-replica backend pod coming up, both replaying 400/404 in ~0.1s ×3. That's cold JIT/Hikari, not an app bug. Gate-policy fix filed upstream (autoqa#35: retry errored cases once / reconcile inside the rollout window). Triage: replay the exact curl from the ERRORS block against the settled backend before touching app code.
+
+## Sonar 2026-07-18 pass notes
+
+- `typescript:S9011` (button without explicit type) had quietly accumulated to 39 across months — inside `<form>`s an untyped button submits. All fixed mechanically (`type="button"`); new buttons must carry an explicit type.
+- `role="status"` containers → native `<output>` (LoadingSpinner, ToastItem; error toasts keep `role="alert"` override). Playwright `getByRole('status')` still matches (implicit role).
+- Accepted with comments: S6819 on the full-player `role="dialog"` (custom Modal pattern, native `<dialog>` UA lifecycle conflicts), S2925 dnd-kit sleeps (documented load-bearing class), S6508 `ResponseEntity<Void>` (adapter-wide pattern, migrate deliberately, not per-endpoint).
+
+## Playwright MCP / e2e runner quirks (2026-07-18)
+
+- Mocked specs run in the `chromium-mocked` project — `npx playwright test playlists.mocked.spec.ts --project=chromium` reports "No tests found"; use `--project=chromium-mocked` (check `npx playwright test --list`).
+- Debugging a "spontaneous pause": monkey-patch `HTMLMediaElement.prototype.pause` with a stack capture via browser_evaluate — distinguishes an app-initiated pause (stack through player store) from a browser/media-session one (empty trap + `pause` event). One unreproduced phantom-pause observation this pass (2 pauses ~5-11s into playback, then stable; no console errors, no outbox commands, lease owned locally) — if it recurs, start with the trap.
