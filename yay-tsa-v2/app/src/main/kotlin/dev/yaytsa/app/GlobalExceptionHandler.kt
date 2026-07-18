@@ -31,6 +31,11 @@ import org.springframework.web.servlet.resource.NoResourceFoundException
 class GlobalExceptionHandler {
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
+    private companion object {
+        val CLIENT_ABORT_MESSAGES =
+            listOf("broken pipe", "connection reset", "host is unreachable", "connection timed out")
+    }
+
     @ExceptionHandler(NoHandlerFoundException::class)
     fun handleNotFound(
         ex: NoHandlerFoundException,
@@ -226,14 +231,7 @@ class GlobalExceptionHandler {
             if (cause is ClientAbortException) return true
             if (cause is java.io.IOException) {
                 val msg = cause.message?.lowercase() ?: ""
-                if (
-                    "broken pipe" in msg ||
-                    "connection reset" in msg ||
-                    "host is unreachable" in msg ||
-                    "connection timed out" in msg
-                ) {
-                    return true
-                }
+                if (CLIENT_ABORT_MESSAGES.any { it in msg }) return true
             }
             cause = cause.cause
         }
