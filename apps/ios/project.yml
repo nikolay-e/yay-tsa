@@ -1,0 +1,62 @@
+name: YayTsa
+options:
+  bundleIdPrefix: com.yaytsa
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  YayTsa:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources/Assets.xcassets
+    info:
+      path: Resources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: "YayTsa needs to connect to your yay-tsa music server on the local network."
+        UIBackgroundModes:
+          - audio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yaytsa.ios
+        TARGETED_DEVICE_FAMILY: 1
+        DEVELOPMENT_TEAM: NCPB8GY2XR
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  YayTsaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yaytsa.ios.uitests
+        DEVELOPMENT_TEAM: NCPB8GY2XR
+        CODE_SIGN_STYLE: Automatic
+        TEST_TARGET_NAME: YayTsa
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  YayTsa:
+    build:
+      targets:
+        YayTsa: all
+        YayTsaUITests: [test]
+    test:
+      targets:
+        - YayTsaUITests
