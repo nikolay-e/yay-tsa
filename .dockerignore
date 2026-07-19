@@ -101,10 +101,6 @@ tmp/
 .markdownlint.yaml
 .markdownlintignore
 .stylelintrc.json
-.treemapperignore
 commitlint.config.js
 
-# Tree mapper output
-tree.tmp
 test-output.log
-directory_tree.yaml
