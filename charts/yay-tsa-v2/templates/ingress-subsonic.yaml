@@ -6,9 +6,6 @@ metadata:
   labels:
     {{- include "yay-tsa-v2.labels" . | nindent 4 }}
   annotations:
-    {{- if .Values.ingress.className }}
-    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
-    {{- end }}
     traefik.ingress.kubernetes.io/router.priority: "20"
     {{- if .Values.ingress.secureHeaders.enabled }}
     {{- $namespace := .Release.Namespace }}

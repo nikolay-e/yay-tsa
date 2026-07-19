@@ -6,9 +6,6 @@ metadata:
   labels:
     {{- include "yay-tsa-v2.labels" . | nindent 4 }}
   annotations:
-    {{- if .Values.ingress.className }}
-    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
-    {{- end }}
     {{- if .Values.ingress.stripApiPrefix }}
     {{- $namespace := .Release.Namespace }}
     {{- $middlewares := list (printf "%s-%s-strip-api@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .)) }}
@@ -19,7 +16,7 @@ metadata:
     {{- $middlewares = append $middlewares . }}
     {{- end }}
     traefik.ingress.kubernetes.io/router.middlewares: {{ join "," $middlewares }}
-    # Higher priority than v1's catch-all "/" ingress so /api hits v2 first.
+    # Higher priority than the frontend catch-all "/" ingress so /api hits the backend first.
     traefik.ingress.kubernetes.io/router.priority: "10"
     {{- else }}
     {{- with .Values.ingress.annotations }}

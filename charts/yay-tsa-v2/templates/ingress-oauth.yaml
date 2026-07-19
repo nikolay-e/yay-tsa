@@ -15,9 +15,6 @@ metadata:
   labels:
     {{- include "yay-tsa-v2.labels" . | nindent 4 }}
   annotations:
-    {{- if .Values.ingress.className }}
-    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
-    {{- end }}
     traefik.ingress.kubernetes.io/router.priority: "100"
     traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-strip-api@kubernetescrd,%s-%s-secure-headers@kubernetescrd" $namespace (include "yay-tsa-v2.fullname" .) $namespace (include "yay-tsa-v2.fullname" .) }}
 spec:
