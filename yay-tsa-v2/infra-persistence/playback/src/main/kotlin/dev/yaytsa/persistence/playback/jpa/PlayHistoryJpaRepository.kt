@@ -62,10 +62,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
             SELECT * FROM core_v2_playback.play_history
             WHERE user_id = :userId AND started_at >= :since AND started_at < :until
               AND item_id ~ :uuidPattern
-              AND (:includeAudiobooks = true OR NOT EXISTS (
-                    SELECT 1 FROM core_v2_library.entity_genres eg
-                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})))
+              AND (:includeAudiobooks = true OR NOT ${AudiobookGenres.EXISTS_OPEN}eg.entity_id::text = item_id${AudiobookGenres.EXISTS_CLOSE})
             ORDER BY started_at
         """,
         nativeQuery = true,
@@ -87,10 +84,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (CAST(:until AS timestamptz) IS NULL OR started_at < CAST(:until AS timestamptz))
               AND (CAST(:source AS text) IS NULL OR source = CAST(:source AS text))
               AND item_id ~ :uuidPattern
-              AND (:includeAudiobooks = true OR NOT EXISTS (
-                    SELECT 1 FROM core_v2_library.entity_genres eg
-                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})))
+              AND (:includeAudiobooks = true OR NOT ${AudiobookGenres.EXISTS_OPEN}eg.entity_id::text = item_id${AudiobookGenres.EXISTS_CLOSE})
             ORDER BY started_at DESC, id
             LIMIT :limit OFFSET :offset
             """,
@@ -117,10 +111,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
               AND (CAST(:until AS timestamptz) IS NULL OR started_at < CAST(:until AS timestamptz))
               AND (CAST(:source AS text) IS NULL OR source = CAST(:source AS text))
               AND item_id ~ :uuidPattern
-              AND (:includeAudiobooks = true OR NOT EXISTS (
-                    SELECT 1 FROM core_v2_library.entity_genres eg
-                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id::text = item_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST})))
+              AND (:includeAudiobooks = true OR NOT ${AudiobookGenres.EXISTS_OPEN}eg.entity_id::text = item_id${AudiobookGenres.EXISTS_CLOSE})
             """,
         nativeQuery = true,
     )

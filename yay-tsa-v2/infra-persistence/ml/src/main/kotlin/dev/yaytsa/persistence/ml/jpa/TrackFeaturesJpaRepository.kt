@@ -18,10 +18,7 @@ interface TrackFeaturesJpaRepository : JpaRepository<TrackFeaturesEntity, UUID> 
         value =
             """
             DELETE FROM core_v2_ml.track_features tf
-            WHERE EXISTS (
-                SELECT 1 FROM core_v2_library.entity_genres eg
-                JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                WHERE eg.entity_id = tf.track_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST}))
+            WHERE ${AudiobookGenres.EXISTS_OPEN}eg.entity_id = tf.track_id${AudiobookGenres.EXISTS_CLOSE}
             """,
         nativeQuery = true,
     )

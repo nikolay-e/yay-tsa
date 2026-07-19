@@ -85,10 +85,7 @@ class AffinityAggregator(
                 FROM core_v2_adaptive.playback_signals ps
                 JOIN core_v2_adaptive.listening_sessions ls ON ls.id = ps.session_id
                 WHERE ps.created_at > ?
-                  AND NOT EXISTS (
-                    SELECT 1 FROM core_v2_library.entity_genres eg
-                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id = ps.track_id AND lower(g.name) IN (${AudiobookGenres.SQL_LIST}))
+                  AND NOT ${AudiobookGenres.EXISTS_OPEN}eg.entity_id = ps.track_id${AudiobookGenres.EXISTS_CLOSE}
             ),
             folded AS (
                 INSERT INTO core_v2_ml.user_track_affinity AS uta (
@@ -172,10 +169,7 @@ class AffinityAggregator(
                 SELECT v.user_id::uuid AS user_id, v.item_id::uuid AS track_id,
                        v.completed, v.skipped, v.played_ms, v.started_at
                 FROM valid v
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM core_v2_library.entity_genres eg
-                    JOIN core_v2_library.genres g ON g.id = eg.genre_id
-                    WHERE eg.entity_id = v.item_id::uuid AND lower(g.name) IN (${AudiobookGenres.SQL_LIST}))
+                WHERE NOT ${AudiobookGenres.EXISTS_OPEN}eg.entity_id = v.item_id::uuid${AudiobookGenres.EXISTS_CLOSE}
             ),
             folded AS (
                 INSERT INTO core_v2_ml.user_track_affinity AS uta (
