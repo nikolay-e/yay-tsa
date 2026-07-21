@@ -111,13 +111,17 @@ function defaultScrub(input: string): string {
 class ClientTelemetry implements ClientTelemetryHandle {
   private readonly sessionId = newSessionId();
   private readonly seen = new Set<string>();
+  private readonly options: ClientTelemetryOptions;
   private readonly denyList: ReadonlyArray<RegExp>;
   private readonly scrub: (input: string) => string;
   private route: string | undefined;
   private capturing = false;
   private listeners: Array<() => void> = [];
 
-  constructor(private readonly options: ClientTelemetryOptions) {
+  // No constructor parameter properties: some vendoring apps compile with
+  // `erasableSyntaxOnly`, which rejects them (TS1294).
+  constructor(options: ClientTelemetryOptions) {
+    this.options = options;
     this.denyList = [...DEFAULT_DENY_LIST, ...(options.denyList ?? [])];
     this.scrub = options.scrub ?? defaultScrub;
   }
