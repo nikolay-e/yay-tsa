@@ -2,14 +2,14 @@ name: YayTsa
 options:
   bundleIdPrefix: com.yaytsa
   deploymentTarget:
-    iOS: "17.0"
+    iOS: '17.0'
   createIntermediateGroups: true
 
 settings:
   base:
     SWIFT_VERSION: 5.0
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: '0.1.0'
+    CURRENT_PROJECT_VERSION: '1'
 
 targets:
   YayTsa:
@@ -26,7 +26,7 @@ targets:
           - UIInterfaceOrientationPortrait
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
-        NSLocalNetworkUsageDescription: "YayTsa needs to connect to your yay-tsa music server on the local network."
+        NSLocalNetworkUsageDescription: 'YayTsa needs to connect to your yay-tsa music server on the local network.'
         UIBackgroundModes:
           - audio
     settings:
