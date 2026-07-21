@@ -4,7 +4,7 @@ export default {
     'scope-enum': [
       2,
       'always',
-      ['core', 'platform', 'web', 'docker', 'ci', 'deps', 'config', 'helm'],
+      ['core', 'platform', 'web', 'ios', 'docker', 'ci', 'deps', 'config', 'helm'],
     ],
     'body-max-line-length': [2, 'always', 200],
     'subject-case': [2, 'always', 'sentence-case'],

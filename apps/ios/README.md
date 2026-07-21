@@ -3,15 +3,14 @@
 Native SwiftUI client for the [yay-tsa-v2](https://github.com/nikolay-e/yay-tsa) music server.
 Talks to the server's Jellyfin-compatible REST API (`adapter-jellyfin`) directly — no WebView, no wrapper.
 
-## MVP scope
+## Features
 
-- Sign in (server address + username/password) against `POST /Users/AuthenticateByName`
-- Browse albums, open an album to see its tracks
-- Play a track (direct-play stream, no transcoding), play/pause, seek, skip next/previous within the album
-
-Not yet implemented (see `yay-tsa-v2/CLAUDE.md` in the main repo for the full backend feature set):
-playback session reporting to the server (`/Sessions/Playing*`), cross-device sync via SSE, favorites,
-playlists, artists browsing, adaptive queue / LLM-DJ, search.
+- Sign in (server address + username/password), token kept in the Keychain
+- Browse albums, artists, playlists, favorites, audiobooks; text + semantic search
+- Playback with server session reporting, queue, shuffle/repeat, sleep timer, playback speed for audiobooks
+- Offline downloads, synced LRC lyrics, karaoke (stems + continuous vocal blend)
+- Adaptive DJ / Radio sessions, Group Listen (SSE-synced multi-device playback)
+- Device remote control/transfer; admin panel (users, library scan, ReplayGain, cache)
 
 ## Setup
 
@@ -20,7 +19,7 @@ the `.xcodeproj` itself is not checked in.
 
 ```bash
 brew install xcodegen
-cd yaytsa-ios
+cd apps/ios
 xcodegen generate
 open YayTsa.xcodeproj
 ```
