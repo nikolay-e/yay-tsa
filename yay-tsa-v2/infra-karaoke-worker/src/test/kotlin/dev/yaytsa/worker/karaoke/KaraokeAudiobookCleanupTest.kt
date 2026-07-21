@@ -229,6 +229,91 @@ class KaraokeAudiobookCleanupTest {
         }
     }
 
+    // An unreachable sidecar (connect refused / pod OOM-killed mid-request) is an infrastructure
+    // outage: it must abort with a typed exception and never write a failure row, or a few outages
+    // permanently park perfectly good tracks (221 tracks were burned this way in production).
+    @Test
+    fun `unreachable separator does not consume the retry budget`(
+        @TempDir root: Path,
+    ) {
+        val song = seedTrack("A Song")
+        val deadServer =
+            com.sun.net.httpserver.HttpServer
+                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        val deadPort = deadServer.address.port
+        deadServer.start()
+        deadServer.stop(0)
+
+        val libraryQuery = InMemoryLibraryQueryPort()
+        libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+        val separatorProcessor =
+            KaraokeProcessor(
+                libraryEntityRepo = libraryEntityRepo,
+                libraryQuery = libraryQuery,
+                karaokeRepo = karaokeRepo,
+                clock = FixedClock(),
+                separatorClient = SeparatorClient(),
+                outputPath = null,
+                demucsCommand = "unsupported",
+                separatorUrl = "http://127.0.0.1:$deadPort",
+                failThreshold = 3,
+                meterRegistry = SimpleMeterRegistry(),
+            )
+
+        var thrown: Throwable? = null
+        try {
+            separatorProcessor.processTrack(song)
+        } catch (e: SeparatorUnavailableException) {
+            thrown = e
+        }
+
+        assertTrue(thrown is SeparatorUnavailableException, "connection-level failure must surface as SeparatorUnavailableException")
+        assertFalse(karaokeRepo.existsById(song), "an infrastructure outage must not write a failure row for the track")
+    }
+
+    // A sidecar-reported per-file failure (HTTP 500 with a body) is a property of the file and
+    // must keep consuming the retry budget so genuinely broken files park after the threshold.
+    @Test
+    fun `separator HTTP 500 still consumes the retry budget`(
+        @TempDir root: Path,
+    ) {
+        val song = seedTrack("A Song")
+        val errorBody = """{"detail":"Internal processing error"}""".toByteArray()
+        val server =
+            com.sun.net.httpserver.HttpServer
+                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/api/separate") { exchange ->
+            exchange.sendResponseHeaders(500, errorBody.size.toLong())
+            exchange.responseBody.use { it.write(errorBody) }
+        }
+        server.start()
+        try {
+            val libraryQuery = InMemoryLibraryQueryPort()
+            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+            val separatorProcessor =
+                KaraokeProcessor(
+                    libraryEntityRepo = libraryEntityRepo,
+                    libraryQuery = libraryQuery,
+                    karaokeRepo = karaokeRepo,
+                    clock = FixedClock(),
+                    separatorClient = SeparatorClient(),
+                    outputPath = null,
+                    demucsCommand = "unsupported",
+                    separatorUrl = "http://127.0.0.1:${server.address.port}",
+                    failThreshold = 3,
+                    meterRegistry = SimpleMeterRegistry(),
+                )
+
+            separatorProcessor.processTrack(song)
+
+            val asset = karaokeRepo.findById(song).orElseThrow()
+            assertTrue(asset.readyAt == null, "an HTTP 500 must not mark the track ready")
+            assertTrue(asset.failCount == 1, "a sidecar-reported per-file failure must increment fail_count")
+        } finally {
+            server.stop(0)
+        }
+    }
+
     // A user-requested track must be separated right away on the dedicated executor,
     // not wait for the next scheduled batch tick behind a multi-hour backlog.
     @Test
