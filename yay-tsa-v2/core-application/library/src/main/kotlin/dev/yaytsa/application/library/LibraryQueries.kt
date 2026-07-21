@@ -16,6 +16,10 @@ class LibraryQueries(
 ) {
     companion object {
         const val MAX_PAGE_SIZE = 200
+
+        // CD filler / hidden-track padding (e.g. dozens of 10s silent "Blank"/"Silent" rips) is
+        // worthless as a suggestion; real interludes in the library start above this bound.
+        const val MIN_RANDOM_TRACK_DURATION_MS = 15_000L
     }
 
     fun getTrack(trackId: EntityId): Track? = libraryQuery.getTrack(trackId)
@@ -156,7 +160,11 @@ class LibraryQueries(
     fun countTracksExcludingGenres(excludedGenreNames: Collection<String>): Int =
         if (excludedGenreNames.isEmpty()) libraryQuery.countTracks() else libraryQuery.countTracksExcludingGenres(excludedGenreNames)
 
-    fun browseTracksRandom(limit: Int): List<Track> = libraryQuery.browseTracksRandom(limit)
+    fun browseTracksRandom(limit: Int): List<Track> =
+        libraryQuery
+            .browseTracksRandom(limit * 2)
+            .filter { (it.durationMs ?: Long.MAX_VALUE) >= MIN_RANDOM_TRACK_DURATION_MS }
+            .take(limit)
 
     fun browseTracksRandomFiltered(
         genre: String?,

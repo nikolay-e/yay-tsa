@@ -689,3 +689,30 @@ Two consecutive internal autoqa runs went red on a single Network Error (10s rea
 ## Client-abort IOException on the binary stream path logged as ERROR 500 (2026-07-18)
 
 The audio/karaoke streaming handlers write straight to the servlet OutputStream, so a client (autoqa monkey, CF, a user seeking away) that drops the connection mid-download raises a **raw `java.io.IOException` during flush** — `Host is unreachable` / `Broken pipe` / `Connection reset by peer` — NOT the `ClientAbortException`/`AsyncRequestNotUsableException` Tomcat wraps for buffered writes. It fell through to `GlobalExceptionHandler.handleGeneric` → `log.error("Unhandled exception")` + a doomed 500 on an already-committed response. Benign (client-side), but it spams ERROR and pollutes the "release healthy?" grep. Fix (shipped): `handleClientDisconnect` now also catches `ClientAbortException`, and `handleGeneric` calls `isClientAbort(ex)` (walks the cause chain for ClientAbortException or an IOException whose message matches broken-pipe/reset/unreachable/timed-out) → debug + swallow. **Detect every pass: `kubectl logs deploy/<backend> --since=<autoqa window> | grep -A3 "Unhandled exception" | grep -iE "Host is unreachable|Broken pipe|Connection reset"` should be 0.** Same doctrine as the documented `AsyncRequestNotUsableException` swallow — a client walking away is never a 5xx. `ClientAbortException` resolves from `tomcat-embed-core` (transitive via spring-boot-starter-web); no new dependency.
+
+## CD-filler silence tracks: legitimate per-file 500s + recommendation pollution (2026-07-21)
+
+The library carries real hidden-track padding rips: Korn "Follow The Leader" tracks 01–12 (`… - Silent.flac`, empty/invalid audio) and The 69 Eyes "Savage Garden" 14–50 (`… - Blank.flac`, 9–10s of silence; 55 rows). Two distinct QA signatures, neither an infra bug:
+
+- **A burst of instant `Separator failed … Separator returned 500 {"detail":"Internal processing error"}`** (12 in ~2s) with separator-side `Audio file … is empty or not valid` is the karaoke batch hitting these files — a genuine per-file failure that SHOULD burn `fail_count` and park them (separating silence is pointless). Distinguish from the §-documented connection-class regression by the `Separator returned 500` message shape and the separator log; `fail_count>=3` rows with connection-class `last_error` remain the regression signal.
+- **Random-fill recommendation surfaces (Explore new / daily-mix fill / radio widen) surfacing "Blank"** — fixed: `LibraryQueries.browseTracksRandom` overdraws 2× and drops tracks shorter than `MIN_RANDOM_TRACK_DURATION_MS` (15s; real interludes start above it, null duration passes). Test: `LibraryQueriesRandomTest`. Subsonic `getRandomSongs` (`browseTracksRandomFiltered`) deliberately unfiltered — protocol clients sample the library verbatim.
+
+## Monkey favorite-409 ≠ §-449 regression — distinguish with the double-POST probe
+
+A monkey/chaos console error `POST /UserFavoriteItems/... failed {status: 409}` under rapid heart-clicking is a legitimate OCC version race (two in-flight toggles; each real toggle bumps the version). The §449 bug signature is specifically an IDEMPOTENT re-favorite 409: `curl -X POST /api/UserFavoriteItems/<id>` twice sequentially — 200/200 = healthy (race), 200/409 = regression. Run the probe before filing.
+
+## SonarCloud supply-chain rule wave (S8541/S8543/S8544/S6505/S6506, 2026-07-21)
+
+Sonar rolled out docker/githubactions/shell supply-chain rules; any workflow/Dockerfile line touched by a routine commit resurfaces them as new-code VULNERABILITY and flips `new_security_rating`. Triage pattern used (all with API comments):
+
+- `npx <tool>` after `npm ci` where the tool is a lockfile-pinned devDependency (@lhci/cli, bundlewatch, @playwright/test) → **accept** (npx resolves the local binary; nothing installed on demand).
+- `npm ci` without `--ignore-scripts` (Dockerfiles, CI, post-deploy-qa.sh) → **accept** (lockfile integrity hashes; scripts needed by native-binary deps).
+- pip installs from pip-compile `.lock.txt` files (audio-ml Dockerfile) and the CI test-only `pip install -r requirements/test.txt` → **accept**.
+- Bare tool installs → **fix**: `pip install --only-binary ':all:' pre-commit==<ver>` (ci.yml), `curl --proto '=https' --tlsv1.2` on kind/kubectl downloads (chart-acceptance.yml).
+- `shell:S5332` on an `http://` string inside an echo'd error-message example → **false positive**.
+
+Accepting does not flip the gate until the next analysis (= next push) — same mechanics as the iOS S6288 case.
+
+## A real-user 404 on /artists/{id} can be a severed bookmark, not an app bug
+
+Telemetry fp `GET /Items/{id} … 404` + `MediaServerError 404` on route `/artists/:id` (real UA, outside QA windows) can be a browser-history/bookmark navigation to an artist deleted by a later scan (the rename-severs class). Confirm: the id appears in NO table (`entities`, `favorites`, `play_history`) and nginx shows the referer = the artist page itself (direct navigation). The app's graceful not-found branch + one telemetry beacon is correct behavior — don't chase without a live in-app link producing the id.

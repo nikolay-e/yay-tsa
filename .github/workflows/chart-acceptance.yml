@@ -41,9 +41,9 @@ jobs:
 
       - name: Install kind + kubectl
         run: |
-          curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
+          curl --proto '=https' --tlsv1.2 -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
           sudo install -m 0755 /tmp/kind /usr/local/bin/kind
-          curl -fsSLo /tmp/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          curl --proto '=https' --tlsv1.2 -fsSLo /tmp/kubectl "https://dl.k8s.io/release/$(curl --proto '=https' --tlsv1.2 -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
           kind version && kubectl version --client
 
