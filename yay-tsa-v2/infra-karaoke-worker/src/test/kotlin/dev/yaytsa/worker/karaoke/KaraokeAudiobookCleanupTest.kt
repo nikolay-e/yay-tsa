@@ -65,6 +65,9 @@ class KaraokeAudiobookCleanupTest {
     }
 
     companion object {
+        private const val SONG_NAME = "A Song"
+        private const val INSTRUMENTAL_FILE = "instrumental.wav"
+
         @JvmStatic
         private val postgres: PostgreSQLContainer<*> =
             PostgreSQLContainer("pgvector/pgvector:pg16")
@@ -132,7 +135,7 @@ class KaraokeAudiobookCleanupTest {
     ): Pair<Path, Path> {
         val dir = root.resolve(trackId.toString())
         Files.createDirectories(dir)
-        val instrumental = dir.resolve("instrumental.wav")
+        val instrumental = dir.resolve(INSTRUMENTAL_FILE)
         val vocal = dir.resolve("vocals.wav")
         Files.write(instrumental, byteArrayOf(1))
         Files.write(vocal, byteArrayOf(2))
@@ -149,7 +152,7 @@ class KaraokeAudiobookCleanupTest {
     fun `purge deletes audiobook stems and rows, leaves music untouched`(
         @TempDir root: Path,
     ) {
-        val song = seedTrack("A Song")
+        val song = seedTrack(SONG_NAME)
         val audiobook = seedTrack("A Chapter")
         tagGenre(audiobook, "Audiobook")
         val (songInstrumental, songVocal) = seedStems(root, song)
@@ -171,7 +174,7 @@ class KaraokeAudiobookCleanupTest {
     fun `purge is a no-op when there are no audiobook assets`(
         @TempDir root: Path,
     ) {
-        val song = seedTrack("A Song")
+        val song = seedTrack(SONG_NAME)
         seedStems(root, song)
 
         processor.purgeAudiobookAssets()
@@ -185,8 +188,8 @@ class KaraokeAudiobookCleanupTest {
     fun `separator instrumental-only result is stored as ready with null vocal path`(
         @TempDir root: Path,
     ) {
-        val song = seedTrack("A Song")
-        val instrumental = root.resolve("instrumental.wav")
+        val song = seedTrack(SONG_NAME)
+        val instrumental = root.resolve(INSTRUMENTAL_FILE)
         Files.write(instrumental, byteArrayOf(1))
 
         val responseBody =
@@ -236,7 +239,7 @@ class KaraokeAudiobookCleanupTest {
     fun `unreachable separator does not consume the retry budget`(
         @TempDir root: Path,
     ) {
-        val song = seedTrack("A Song")
+        val song = seedTrack(SONG_NAME)
         val deadServer =
             com.sun.net.httpserver.HttpServer
                 .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
@@ -277,7 +280,7 @@ class KaraokeAudiobookCleanupTest {
     fun `separator HTTP 500 still consumes the retry budget`(
         @TempDir root: Path,
     ) {
-        val song = seedTrack("A Song")
+        val song = seedTrack(SONG_NAME)
         val errorBody = """{"detail":"Internal processing error"}""".toByteArray()
         val server =
             com.sun.net.httpserver.HttpServer
@@ -321,7 +324,7 @@ class KaraokeAudiobookCleanupTest {
         @TempDir root: Path,
     ) {
         val song = seedTrack("A Requested Song")
-        val instrumental = root.resolve("instrumental.wav")
+        val instrumental = root.resolve(INSTRUMENTAL_FILE)
         val vocal = root.resolve("vocals.wav")
         Files.write(instrumental, byteArrayOf(1))
         Files.write(vocal, byteArrayOf(2))

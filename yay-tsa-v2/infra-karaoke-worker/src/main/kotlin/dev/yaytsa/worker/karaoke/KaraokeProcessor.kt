@@ -23,7 +23,9 @@ import java.util.concurrent.TimeUnit
 // is a property of the infrastructure, not of the track being processed — it must never consume
 // the track's retry budget, and the batch must stop instead of burning every remaining track's
 // budget against a dead backend.
-internal class SeparatorUnavailableException(cause: IOException) : RuntimeException(cause)
+internal class SeparatorUnavailableException(
+    cause: IOException,
+) : RuntimeException(cause)
 
 @Component
 @ConditionalOnProperty(name = ["yaytsa.karaoke.enabled"], havingValue = "true")
@@ -182,35 +184,7 @@ class KaraokeProcessor(
         val filePath = libraryQuery.resolveTrackFilePath(EntityId(trackId.toString())) ?: return
 
         if (!separatorUrl.isNullOrBlank()) {
-            try {
-                val result = separatorClient.separate(separatorUrl, filePath, trackId.toString())
-                // A null vocalPath is a legitimate instrumental-only result (the sidecar caches
-                // instrumental-only separations); only a reported-but-missing stem is a failure.
-                val instrumentalMissing = !Files.exists(Path.of(result.instrumentalPath))
-                val vocalMissing = result.vocalPath != null && !Files.exists(Path.of(result.vocalPath))
-                if (instrumentalMissing || vocalMissing) {
-                    log.warn("Separator reported success but stems missing on disk for track {}", trackId)
-                    recordFailure(trackId, existing, "separator stems missing on disk")
-                    return
-                }
-                karaokeRepo.save(
-                    KaraokeAssetEntity(
-                        trackId = trackId,
-                        instrumentalPath = result.instrumentalPath,
-                        vocalPath = result.vocalPath,
-                        readyAt = clock.now(),
-                    ),
-                )
-                log.info("Karaoke assets ready via separator for track {} in {} ms", trackId, result.processingTimeMs)
-            } catch (e: IOException) {
-                // Connection-level failure (connect refused, "header parser received no bytes"
-                // after the sidecar was OOM-killed mid-request): infrastructure outage, not a
-                // per-file defect. Burned as fail_count it would permanently park the track.
-                throw SeparatorUnavailableException(e)
-            } catch (e: Exception) {
-                log.warn("Separator failed for track {}: {}", trackId, e.message, e)
-                recordFailure(trackId, existing, e.message ?: e.javaClass.simpleName)
-            }
+            separateViaSidecar(separatorUrl, trackId, existing, filePath)
             return
         }
 
@@ -278,6 +252,43 @@ class KaraokeProcessor(
             ),
         )
         log.info("Karaoke assets ready for track {}", trackId)
+    }
+
+    private fun separateViaSidecar(
+        separatorUrl: String,
+        trackId: UUID,
+        existing: KaraokeAssetEntity?,
+        filePath: String,
+    ) {
+        try {
+            val result = separatorClient.separate(separatorUrl, filePath, trackId.toString())
+            // A null vocalPath is a legitimate instrumental-only result (the sidecar caches
+            // instrumental-only separations); only a reported-but-missing stem is a failure.
+            val instrumentalMissing = !Files.exists(Path.of(result.instrumentalPath))
+            val vocalMissing = result.vocalPath != null && !Files.exists(Path.of(result.vocalPath))
+            if (instrumentalMissing || vocalMissing) {
+                log.warn("Separator reported success but stems missing on disk for track {}", trackId)
+                recordFailure(trackId, existing, "separator stems missing on disk")
+                return
+            }
+            karaokeRepo.save(
+                KaraokeAssetEntity(
+                    trackId = trackId,
+                    instrumentalPath = result.instrumentalPath,
+                    vocalPath = result.vocalPath,
+                    readyAt = clock.now(),
+                ),
+            )
+            log.info("Karaoke assets ready via separator for track {} in {} ms", trackId, result.processingTimeMs)
+        } catch (e: IOException) {
+            // Connection-level failure (connect refused, "header parser received no bytes"
+            // after the sidecar was OOM-killed mid-request): infrastructure outage, not a
+            // per-file defect. Burned as fail_count it would permanently park the track.
+            throw SeparatorUnavailableException(e)
+        } catch (e: Exception) {
+            log.warn("Separator failed for track {}: {}", trackId, e.message, e)
+            recordFailure(trackId, existing, e.message ?: e.javaClass.simpleName)
+        }
     }
 
     // Persist the failure with an incremented counter instead of a terminal null-stem row,
