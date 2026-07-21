@@ -64,10 +64,13 @@ export default defineConfig(() => {
             // (IndexedDB-with-Range when downloaded, network otherwise).
           ],
           cleanupOutdatedCaches: true,
-          // Prompt-driven updates: the waiting SW takes over only when the user
-          // accepts the in-app update prompt, never mid-playback.
+          // App-driven silent updates: the new SW stays waiting (skipWaiting: false)
+          // until main.tsx applies it at a playback-idle moment. clientsClaim MUST be
+          // true — without it the activated SW never takes over the open page, the
+          // controllerchange reload never fires, and the update silently no-ops
+          // (the old "Restart does nothing" bug).
           skipWaiting: false,
-          clientsClaim: false,
+          clientsClaim: true,
         },
         manifest: false,
         devOptions: {

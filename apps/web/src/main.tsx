@@ -18,7 +18,6 @@ import { App } from './app/App';
 import { ErrorBoundary } from './app/infra/ErrorBoundary';
 import { installChunkReloadRecovery } from './app/infra/chunk-reload';
 import { ToastContainer } from './shared/ui/Toast';
-import { UpdatePrompt, useUpdatePromptStore } from './shared/components/UpdatePrompt';
 import { queryClient } from './shared/lib/query-client';
 import { installPerf, mark } from './shared/perf/perf';
 import './index.css';
@@ -77,17 +76,27 @@ setLogSink(entry => {
 });
 
 const SW_UPDATE_POLL_INTERVAL_MS = 15 * 60 * 1000;
+const SW_UPDATE_APPLY_RETRY_MS = 30 * 1000;
 
-// Prompt-driven updates: the new SW stays waiting until the user accepts the
-// in-app prompt, so playback is never interrupted by a silent reload. The
-// browser never surfaces an "update this app" affordance for a PWA — the app
-// must detect the waiting SW itself and show the prompt.
+const isPlaybackActive = () =>
+  Array.from(document.querySelectorAll('audio')).some(el => !el.paused && !el.ended);
+
+// Silent auto-update: no prompt, no button. A freshly shipped build is applied
+// the moment it cannot interrupt anyone — immediately when nothing is playing,
+// otherwise deferred (30s recheck) until playback pauses or ends. The reload is
+// the only way a PWA picks up the new bundle; the version IS the deployed git sha.
 const updateServiceWorker = registerSW({
   immediate: true,
   onNeedRefresh: () => {
-    useUpdatePromptStore.getState().offerUpdate(() => {
+    const applyIfIdle = () => {
+      if (isPlaybackActive()) return false;
       void updateServiceWorker(true);
-    });
+      return true;
+    };
+    if (applyIfIdle()) return;
+    const retry = setInterval(() => {
+      if (applyIfIdle()) clearInterval(retry);
+    }, SW_UPDATE_APPLY_RETRY_MS);
   },
   onRegisteredSW: (_swUrl, registration) => {
     if (!registration) return;
@@ -95,9 +104,8 @@ const updateServiceWorker = registerSW({
       registration.update().catch(() => {});
     };
     // Poll on a fixed cadence for a long-lived open tab, AND check immediately
-    // whenever the user returns to the tab — otherwise the "Update available"
-    // prompt only surfaces up to a full poll interval after a new build ships,
-    // which reads as "the update button never appears".
+    // whenever the user returns to the tab — otherwise a new build is picked up
+    // only up to a full poll interval after it ships.
     setInterval(checkForUpdate, SW_UPDATE_POLL_INTERVAL_MS);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') checkForUpdate();
@@ -111,7 +119,6 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <App />
         <ToastContainer />
-        <UpdatePrompt />
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>
