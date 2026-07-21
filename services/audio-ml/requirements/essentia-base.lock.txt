@@ -18,7 +18,7 @@ click==8.4.2
     # via uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
     # via click
-fastapi==0.139.0
+fastapi==0.139.2
     # via -r requirements/base.txt
 h11==0.16.0
     # via uvicorn
@@ -32,7 +32,7 @@ joblib==1.5.3
     # via scikit-learn
 narwhals==2.24.0
     # via scikit-learn
-numpy==2.4.6
+numpy==2.5.1
     # via
     #   -r requirements/essentia-base.txt
     #   scikit-learn
@@ -43,7 +43,7 @@ pydantic==2.13.4
     # via
     #   -r requirements/base.txt
     #   fastapi
-pydantic-core==2.46.4
+pydantic-core==2.47.0
     # via pydantic
 python-dotenv==1.2.2
     # via uvicorn
@@ -77,5 +77,5 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     # via uvicorn
 watchfiles==1.2.0
     # via uvicorn
-websockets==16.1
+websockets==16.1.1
     # via uvicorn
