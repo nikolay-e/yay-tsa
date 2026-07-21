@@ -173,7 +173,7 @@ class ScrobbleIntegrationTest : HttpIntegrationTestBase() {
         reportPlayThenStop(handPicked, positionMs = 60_000)
 
         assertEquals("adaptive", historyRow(fromRadio)["source"], "a track from the radio queue is adaptive")
-        assertEquals("jellyfin", historyRow(handPicked)["source"], "a hand-picked track during a session is not adaptive — it gets the protocol fallback")
+        assertEquals("jellyfin", historyRow(handPicked)["source"], "hand-picked during a session = protocol fallback, not adaptive")
     }
 
     private fun seedActiveSession(): UUID {
