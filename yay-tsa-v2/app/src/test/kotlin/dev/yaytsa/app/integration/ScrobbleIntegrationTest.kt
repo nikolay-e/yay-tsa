@@ -13,7 +13,6 @@ import dev.yaytsa.shared.ProtocolId
 import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -96,7 +95,9 @@ class ScrobbleIntegrationTest : HttpIntegrationTestBase() {
         assertEquals(true, row["completed"], "60% of the track is past the half-way completion bar")
         assertEquals(false, row["skipped"])
         assertEquals(deviceId, row["device_id"], "reporting device must be recorded")
-        assertNull(row["source"], "no adaptive session and no client-sent source means NULL, never a guess")
+        // Since the source-attribution fix, an unattributed Jellyfin scrobble carries the protocol
+        // fallback instead of NULL — "unknown" is no longer a representable outcome on this path.
+        assertEquals("jellyfin", row["source"], "no adaptive session and no client-sent source falls back to the protocol source")
     }
 
     @Test
@@ -172,7 +173,7 @@ class ScrobbleIntegrationTest : HttpIntegrationTestBase() {
         reportPlayThenStop(handPicked, positionMs = 60_000)
 
         assertEquals("adaptive", historyRow(fromRadio)["source"], "a track from the radio queue is adaptive")
-        assertNull(historyRow(handPicked)["source"], "a hand-picked track during a session is not adaptive")
+        assertEquals("jellyfin", historyRow(handPicked)["source"], "a hand-picked track during a session is not adaptive — it gets the protocol fallback")
     }
 
     private fun seedActiveSession(): UUID {
