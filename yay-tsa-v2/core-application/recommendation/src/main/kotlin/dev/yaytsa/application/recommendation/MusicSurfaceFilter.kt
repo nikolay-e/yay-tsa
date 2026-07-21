@@ -14,7 +14,7 @@ class MusicSurfaceFilter(
     fun filter(
         tracks: List<Track>,
         userId: UserId,
-    ): List<Track> = filterRedLines(tracks.filterNot { isAudiobookTrack(it) }, userId)
+    ): List<Track> = filterRedLines(tracks.filterNot { isAudiobookTrack(it) || isFillerTrack(it) }, userId)
 
     fun isAudiobookTrack(track: Track): Boolean = Companion.isAudiobookTrack(track)
 
@@ -35,7 +35,7 @@ class MusicSurfaceFilter(
     fun isBlocked(
         track: Track,
         redLineTerms: List<String>,
-    ): Boolean = isAudiobookTrack(track) || matchesRedLine(track, redLineTerms, entityNameLookups(listOf(track)))
+    ): Boolean = isAudiobookTrack(track) || isFillerTrack(track) || matchesRedLine(track, redLineTerms, entityNameLookups(listOf(track)))
 
     fun loadRedLineTerms(userId: UserId): List<String> =
         preferencesQueries
@@ -83,5 +83,10 @@ class MusicSurfaceFilter(
             val genre = track.genre?.trim()?.lowercase() ?: return false
             return genre in AudiobookGenres.names
         }
+
+        // Sub-15s entries are CD filler / hidden-track padding (silent "Blank"/"Silent" rips).
+        // They carry embeddings like any track, so the similarity leg surfaces them without
+        // this guard; real interludes in the library start above the bound.
+        fun isFillerTrack(track: Track): Boolean = (track.durationMs ?: Long.MAX_VALUE) < LibraryQueries.MIN_RANDOM_TRACK_DURATION_MS
     }
 }

@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":core-application:playback"))
     implementation(project(":core-application:preferences"))
 
+    testImplementation(project(":core-testkit"))
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.kotlin.test)
