@@ -80,7 +80,7 @@ export function SearchPage() {
   };
 
   const handlePlayTrack = (_track: unknown, index: number) => {
-    playTracks(tracks, index);
+    playTracks(tracks, index, 'search');
   };
 
   const emptyState = (

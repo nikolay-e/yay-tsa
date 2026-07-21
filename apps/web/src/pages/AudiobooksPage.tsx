@@ -81,7 +81,8 @@ function ChapterList({ book }: Readonly<{ book: AudiobookBook }>) {
   const playChapter = (index: number) =>
     void playTracks(
       book.chapters.map(c => c.item),
-      index
+      index,
+      'audiobook'
     );
 
   return (
@@ -132,7 +133,8 @@ function BookCard({ book }: Readonly<{ book: AudiobookBook }>) {
   const play = () =>
     void playTracks(
       book.chapters.map(c => c.item),
-      book.resumeChapterIndex
+      book.resumeChapterIndex,
+      'audiobook'
     );
 
   const isFinished = book.status === 'finished';

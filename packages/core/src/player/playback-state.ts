@@ -49,7 +49,8 @@ export class PlaybackReporter {
   async reportStopped(
     itemId: string,
     positionSeconds: number,
-    eventTimeMs?: number
+    eventTimeMs?: number,
+    playSource?: string
   ): Promise<void> {
     if (!this.client.isAuthenticated()) {
       throw new Error('Not authenticated');
@@ -59,6 +60,7 @@ export class PlaybackReporter {
       ItemId: itemId,
       PositionTicks: secondsToTicks(positionSeconds),
       EventTime: eventTimeMs ?? Date.now(),
+      ...(playSource ? { PlaySource: playSource } : {}),
     };
 
     await this.client.post('/Sessions/Playing/Stopped', info, undefined, true);

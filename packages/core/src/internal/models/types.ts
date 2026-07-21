@@ -222,6 +222,7 @@ export interface PlaybackStopInfo {
   PositionTicks: number;
   MediaSourceId?: string;
   EventTime?: number;
+  PlaySource?: string;
 }
 
 // ============================================================================

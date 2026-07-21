@@ -43,6 +43,7 @@ class McpTools(
     private val radioStationService: dev.yaytsa.application.recommendation.RadioStationService,
     @Qualifier("mcpCommandContextFactory")
     private val ctxFactory: AdapterCommandContextFactory,
+    private val clock: dev.yaytsa.application.shared.port.Clock,
 ) {
     fun listTools(): List<McpToolDefinition> =
         listOf(
@@ -57,6 +58,14 @@ class McpTools(
                             "query" to mapOf("type" to "string", "description" to "Search query"),
                             "semantic" to
                                 mapOf("type" to "boolean", "description" to "Use audio-embedding vibe search over tracks"),
+                            "limit" to
+                                mapOf(
+                                    "type" to "integer",
+                                    "default" to SEARCH_RESULT_LIMIT,
+                                    "minimum" to 1,
+                                    "maximum" to MAX_SEARCH_RESULT_LIMIT,
+                                    "description" to "Maximum results to return",
+                                ),
                         ),
                     "required" to listOf("query"),
                 ),
@@ -188,7 +197,13 @@ class McpTools(
                                     "items" to mapOf("type" to "string"),
                                     "description" to "Optional genres to seed the adaptive session",
                                 ),
-                            "attention_mode" to mapOf("type" to "string", "default" to "active"),
+                            "attention_mode" to
+                                mapOf(
+                                    "type" to "string",
+                                    "enum" to listOf("active", "background"),
+                                    "default" to "active",
+                                    "description" to "active = user is listening attentively; background = ambient listening",
+                                ),
                         ),
                 ),
             ),
@@ -207,6 +222,7 @@ class McpTools(
                     args["query"] as? String ?: "",
                     args["semantic"] as? Boolean ?: false,
                     UserId(authenticatedUserId),
+                    (args["limit"] as? Number)?.toInt()?.coerceIn(1, MAX_SEARCH_RESULT_LIMIT) ?: SEARCH_RESULT_LIMIT,
                 )
             "list_devices" -> listDevices(args)
             "get_playback_state" -> getPlaybackState(args)
@@ -227,9 +243,10 @@ class McpTools(
         query: String,
         semantic: Boolean,
         userId: UserId,
+        limit: Int,
     ): McpToolResult {
         if (semantic) {
-            val tracks = semanticTrackSearch.semanticSearch(userId, query, SEARCH_RESULT_LIMIT)
+            val tracks = semanticTrackSearch.semanticSearch(userId, query, limit)
             if (tracks.isNotEmpty()) {
                 return textResult(
                     buildString {
@@ -244,18 +261,19 @@ class McpTools(
                 // its (usually empty) result silently reads as "nothing in the library matches".
                 return textResult(
                     "Vibe/semantic search is currently unavailable (the audio-embedding service is not enabled). " +
-                        "Showing a name match instead:\n" + lexicalSearch(query, userId),
+                        "Showing a name match instead:\n" + lexicalSearch(query, userId, limit),
                 )
             }
         }
-        return textResult(lexicalSearch(query, userId))
+        return textResult(lexicalSearch(query, userId, limit))
     }
 
     private fun lexicalSearch(
         query: String,
         userId: UserId,
+        limit: Int,
     ): String {
-        val results = libraryQueries.searchText(query, SEARCH_RESULT_LIMIT, 0)
+        val results = libraryQueries.searchText(query, limit, 0)
         val tracks = musicSurfaceFilter.filter(results.tracks, userId)
         return buildString {
             if (results.artists.isNotEmpty()) {
@@ -326,13 +344,35 @@ class McpTools(
         // The server reflects only the current track (via ReflectExternalPlayback); the device owns
         // and advances its own local queue, which the server does not receive. Reporting a "Queue: N"
         // count here would be misleading (it is always the 1-entry reflection), so name the current
-        // track and say so.
-        val current = state.currentEntryId?.let { trackLabel(TrackId(it.value)) } ?: "nothing"
+        // track and say so. Shuffle/repeat are likewise device-local and unknown to the server.
+        val track = state.currentEntryId?.let { libraryQueries.getTrack(EntityId(it.value)) }
+        val currentLine =
+            if (track == null) {
+                "Current: nothing"
+            } else {
+                val artist =
+                    track.albumArtistId
+                        ?.let { libraryQueries.getEntityNamesByIds(setOf(it))[it] }
+                        ?.let { " — $it" }
+                        .orEmpty()
+                val position = state.computePosition(clock.now()).toMillis()
+                val duration = track.durationMs
+                val positionLine =
+                    "Position: ${msToClock(position)}" +
+                        (duration?.let { " / ${msToClock(it)}" } ?: "") +
+                        " (server-reflected; may lag the device by a few seconds)"
+                "Current: ${track.name}$artist (track_id: ${track.id.value})\n$positionLine"
+            }
         return textResult(
-            "State: ${state.playbackState}, Current: $current. " +
-                "(The player device manages its own queue locally; the server sees only the current track, not the full queue — " +
+            "State: ${state.playbackState}\n$currentLine\n" +
+                "(The player device manages its own queue, shuffle and repeat locally; the server sees only the current track — " +
                 "use skip_next/skip_previous to move through the device's queue, or play_track to jump to a specific track.)",
         )
+    }
+
+    private fun msToClock(ms: Long): String {
+        val totalSec = ms / 1000
+        return "%d:%02d".format(totalSec / 60, totalSec % 60)
     }
 
     private fun transportCommand(
@@ -485,10 +525,14 @@ class McpTools(
         val sessionId = ListeningSessionId(UUID.randomUUID().toString())
         val seedTrackId = args["seed_track_id"] as? String
         val seedGenres = (args["seed_genres"] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
+        val attentionMode = args["attention_mode"] as? String ?: "active"
+        if (attentionMode !in ATTENTION_MODES) {
+            return errorResult("Invalid attention_mode '$attentionMode' — use one of: ${ATTENTION_MODES.joinToString(", ")}")
+        }
         val cmd =
             StartListeningSession(
                 sessionId = sessionId,
-                attentionMode = args["attention_mode"] as? String ?: "active",
+                attentionMode = attentionMode,
                 seedTrackId = seedTrackId?.let { EntityId(it) },
                 seedGenres = seedGenres,
             )
@@ -573,6 +617,8 @@ class McpTools(
     private companion object {
         const val RADIO_QUEUE_SIZE = 20
         const val SEARCH_RESULT_LIMIT = 20
+        const val MAX_SEARCH_RESULT_LIMIT = 50
+        val ATTENTION_MODES = setOf("active", "background")
         val TRANSPORT_COMMANDS =
             mapOf(
                 "play" to RemoteCommandType.PLAY,

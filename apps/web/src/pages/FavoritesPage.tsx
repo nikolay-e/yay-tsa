@@ -279,7 +279,7 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
   };
 
   const handlePlayTrack = (_: unknown, index: number) => {
-    playTracks(tracks, index);
+    playTracks(tracks, index, 'favorites');
   };
 
   const handleLoadMore = () => {
@@ -323,7 +323,7 @@ function FavoriteTracks({ sortState }: Readonly<{ sortState: SortState }>) {
               isCurrentTrack={track.Id === currentTrack?.Id}
               isPlaying={isPlaying}
               onPlay={() => {
-                playTracks(tracks, index);
+                playTracks(tracks, index, 'favorites');
               }}
               onPause={pause}
               showAlbum

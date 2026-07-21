@@ -54,7 +54,7 @@ export function AlbumDetailPage() {
   } = useAlbumTracks(id);
 
   const handlePlayTrack = (_: unknown, index: number) => {
-    playTracks(tracks, index);
+    playTracks(tracks, index, 'album');
   };
 
   const { hasError: hasImageError, onError: onImageError } = useImageErrorTracking(

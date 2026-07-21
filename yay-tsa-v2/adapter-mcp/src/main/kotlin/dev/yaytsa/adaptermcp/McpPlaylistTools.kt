@@ -109,16 +109,25 @@ class McpPlaylistTools(
         if (playlist == null || (!playlist.isPublic && playlist.owner != uid)) {
             return errorResult("Playlist not found: $playlistId. Use list_playlists to see your playlists.")
         }
-        val trackNames =
-            libraryQueries
-                .getTracksByIds(playlist.tracks.map { EntityId(it.trackId.value) }.distinct())
-                .associate { it.id.value to it.name }
+        val tracks = libraryQueries.getTracksByIds(playlist.tracks.map { EntityId(it.trackId.value) }.distinct())
+        val artistNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumArtistId }.toSet())
+        // Bare titles are ambiguous (duplicate names across albums, "unknown track" rows) — render
+        // "Title — Artist" so a playlist listing is resolvable without per-track round-trips.
+        val trackLabels =
+            tracks.associate { t ->
+                val artist =
+                    t.albumArtistId
+                        ?.let { artistNames[it] }
+                        ?.let { " — $it" }
+                        .orEmpty()
+                t.id.value to "${t.name}$artist"
+            }
         return textResult(
             buildString {
                 append("Playlist '${playlist.name}' (id: ${playlist.id.value}, ${playlist.tracks.size} tracks)")
                 if (playlist.tracks.isEmpty()) append(" — empty")
                 playlist.tracks.take(MAX_PLAYLIST_LINES).forEachIndexed { index, entry ->
-                    append("\n${index + 1}. ${trackNames[entry.trackId.value] ?: "unknown track"} (id: ${entry.trackId.value})")
+                    append("\n${index + 1}. ${trackLabels[entry.trackId.value] ?: "unknown track"} (id: ${entry.trackId.value})")
                 }
                 val more = playlist.tracks.size - MAX_PLAYLIST_LINES
                 if (more > 0) append("\n…and $more more tracks")

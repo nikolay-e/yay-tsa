@@ -39,7 +39,7 @@ export function ExploreNew() {
       }
       currentTrackId={currentTrack?.Id}
       isPlaying={isPlaying}
-      onPlayTrack={index => playTracks(tracks, index)}
+      onPlayTrack={index => playTracks(tracks, index, 'discover')}
       onPause={pause}
       variant="grid"
     />

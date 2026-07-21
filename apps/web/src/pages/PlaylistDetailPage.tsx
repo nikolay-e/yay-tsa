@@ -121,14 +121,14 @@ export function PlaylistDetailPage() {
       pause();
     } else if (tracks.length > 0) {
       setShuffle(false);
-      playTracks(tracks, 0);
+      playTracks(tracks, 0, 'playlist');
     }
   };
 
   const handleShuffle = () => {
     if (tracks.length === 0) return;
     setShuffle(true);
-    playTracks(tracks, 0);
+    playTracks(tracks, 0, 'playlist');
   };
 
   const handleDelete = () => {
@@ -373,7 +373,7 @@ export function PlaylistDetailPage() {
                     isCurrentTrack={entry.track.Id === currentTrack?.Id}
                     isPlaying={isPlaying}
                     onPlay={() => {
-                      playTracks(tracks, index);
+                      playTracks(tracks, index, 'playlist');
                     }}
                     onPause={pause}
                     showAlbum={false}

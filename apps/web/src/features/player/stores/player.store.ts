@@ -82,7 +82,7 @@ interface PlayerState {
 
 interface PlayerActions {
   playTrack: (track: AudioItem) => Promise<void>;
-  playTracks: (tracks: AudioItem[], startIndex?: number) => Promise<void>;
+  playTracks: (tracks: AudioItem[], startIndex?: number, playContext?: string) => Promise<void>;
   playAlbum: (albumId: string, startIndex?: number) => Promise<void>;
   pause: () => void;
   resume: () => Promise<void>;
@@ -136,6 +136,9 @@ let audioEngine: AudioEngine | null = null;
 let mediaSession: MediaSessionManager | null = null;
 let playbackReporter: PlaybackReporter | null = null;
 let currentItemId: string | null = null;
+// Play surface the current queue was started from (album/playlist/search/…) — reported
+// with the stop scrobble so play_history.source attribution survives past "unknown".
+let currentPlayContext = 'queue';
 let currentClient: MediaServerClient | null = null;
 let lastProgressReportTime = 0;
 let lastLocalResumeWriteTime = 0;
@@ -417,7 +420,7 @@ export const usePlayerStore = create<PlayerStore>()(
             .catch(() => {});
         }
         playbackReporter
-          .reportStopped(prevId, prevPos)
+          .reportStopped(prevId, prevPos, undefined, currentPlayContext)
           .then(() => recordPlaybackReportOutcome(true, 'stopped'))
           .catch(err => {
             recordPlaybackReportOutcome(false, 'stopped');
@@ -878,7 +881,7 @@ export const usePlayerStore = create<PlayerStore>()(
           wakeLock.release();
           if (playbackReporter && currentItemId) {
             playbackReporter
-              .reportStopped(currentItemId, engine.getCurrentTime())
+              .reportStopped(currentItemId, engine.getCurrentTime(), undefined, currentPlayContext)
               .then(() => recordPlaybackReportOutcome(true, 'natural-end'))
               .catch(err => {
                 recordPlaybackReportOutcome(false, 'natural-end');
@@ -1139,6 +1142,7 @@ export const usePlayerStore = create<PlayerStore>()(
       ...initialState,
 
       playTrack: async track => {
+        currentPlayContext = 'queue';
         await controller.interrupt(async signal => {
           const { useSessionStore } = await import('./session-store');
           const sessionState = useSessionStore.getState();
@@ -1184,8 +1188,9 @@ export const usePlayerStore = create<PlayerStore>()(
         });
       },
 
-      playTracks: async (tracks, startIndex = 0) => {
+      playTracks: async (tracks, startIndex = 0, playContext = 'queue') => {
         if (tracks.length === 0) return;
+        currentPlayContext = playContext;
 
         await controller.interrupt(async signal => {
           const { useSessionStore } = await import('./session-store');
@@ -1208,6 +1213,7 @@ export const usePlayerStore = create<PlayerStore>()(
       },
 
       playAlbum: async (albumId, startIndex = 0) => {
+        currentPlayContext = 'album';
         await controller.interrupt(async signal => {
           if (!currentClient) throw new Error('Not authenticated');
 

@@ -99,4 +99,49 @@ class PlayHistoryDedupIntegrationTest : HttpIntegrationTestBase() {
 
         assertEquals(2, playHistoryCount(itemId), "a genuine re-listen outside the window must be counted separately")
     }
+
+    private fun recordedSource(itemId: String): String? =
+        jdbc.queryForObject(
+            "SELECT source FROM core_v2_playback.play_history WHERE user_id = ? AND item_id = ?",
+            String::class.java,
+            userId,
+            itemId,
+        )
+
+    private fun postStopped(body: String) {
+        val result =
+            mockMvc
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/Sessions/Playing/Stopped")
+                        .header("X-Emby-Token", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body),
+                ).andReturn()
+        assertEquals(204, result.response.status)
+    }
+
+    @Test
+    fun `client-declared PlaySource is recorded as the play_history source`() {
+        val itemId = UUID.randomUUID().toString()
+        postStopped("""{"ItemId":"$itemId","PositionTicks":2400000000,"PlaySource":"Album"}""")
+
+        assertEquals("album", recordedSource(itemId), "PlaySource must survive (normalized) into play_history.source")
+    }
+
+    @Test
+    fun `absent PlaySource falls back to the protocol source, never null`() {
+        val itemId = UUID.randomUUID().toString()
+        postStopped("""{"ItemId":"$itemId","PositionTicks":2400000000}""")
+
+        assertEquals("jellyfin", recordedSource(itemId), "an unattributed Jellyfin scrobble must carry the protocol source")
+    }
+
+    @Test
+    fun `garbage PlaySource is dropped in favor of the protocol source`() {
+        val itemId = UUID.randomUUID().toString()
+        postStopped("""{"ItemId":"$itemId","PositionTicks":2400000000,"PlaySource":"way-too-long-to-be-a-real-surface; DROP"}""")
+
+        assertEquals("jellyfin", recordedSource(itemId), "junk outside the slug alphabet must not reach the analytics column")
+    }
 }

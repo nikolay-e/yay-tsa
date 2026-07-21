@@ -39,7 +39,7 @@ export function DailyMix() {
       }
       currentTrackId={currentTrack?.Id}
       isPlaying={isPlaying}
-      onPlayTrack={index => playTracks(tracks, index)}
+      onPlayTrack={index => playTracks(tracks, index, 'daily-mix')}
       onPause={pause}
       variant="grid"
     />

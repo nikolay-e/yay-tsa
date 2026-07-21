@@ -21,7 +21,14 @@ class SemanticTrackSearchService(
         val vector = embeddingPort.encodeText(query) ?: return emptyList()
         // Over-pull so the red-line/audiobook filter has slack before we take(limit).
         val matches = libraryQueries.getTracksByIds(mlQuery.findTracksByClapVector(vector, limit * 2).map { EntityId(it.value) })
-        return musicSurfaceFilter.filter(matches, userId).take(limit)
+        return musicSurfaceFilter
+            .filter(matches, userId)
+            // Spoken-word interludes and intro snippets carry degenerate CLAP embeddings that rank
+            // absurdly high for mood queries ("dark atmospheric doom" returning narrated skits).
+            // No spoken/interlude metadata exists, so duration is the honest proxy: a vibe query
+            // wants songs, and real songs in this library start above a minute.
+            .filter { (it.durationMs ?: Long.MAX_VALUE) >= SEMANTIC_MIN_TRACK_DURATION_MS }
+            .take(limit)
     }
 
     // Degrade to lexical search when the embedding service is disabled/unreachable or
@@ -34,5 +41,9 @@ class SemanticTrackSearchService(
         val semantic = semanticSearch(userId, query, limit)
         if (semantic.isNotEmpty()) return semantic
         return musicSurfaceFilter.filter(libraryQueries.searchText(query, limit, 0).tracks, userId).take(limit)
+    }
+
+    companion object {
+        const val SEMANTIC_MIN_TRACK_DURATION_MS = 60_000L
     }
 }

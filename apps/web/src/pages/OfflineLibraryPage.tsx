@@ -28,7 +28,7 @@ export function OfflineLibraryPage() {
   }, [items, entries]);
 
   const handlePlayTrack = (_: unknown, index: number) => {
-    playTracks(tracks, index);
+    playTracks(tracks, index, 'offline');
   };
 
   let body;

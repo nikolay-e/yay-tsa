@@ -257,11 +257,13 @@ class McpListeningTools(
         val affinity = mlQuery.getUserTrackAffinity(uid, trackId)
         val affinityLine =
             affinity?.let {
-                "Affinity (all listening — DJ signals + play history): score=${rate(it.affinityScore)}, " +
+                "Affinity (THIS user, folded from DJ signals + play history — counts can exceed the " +
+                    "play_history line because radio/DJ signals record plays without a history row): " +
+                    "score=${rate(it.affinityScore)}, " +
                     "plays=${it.playCount}, completions=${it.completionCount}, skips=${it.skipCount}, " +
                     "thumbs +${it.thumbsUpCount}/-${it.thumbsDownCount}"
             } ?: "Affinity: none recorded yet for this track."
-        return "Play stats (play_history, all listeners): $plays plays\n$affinityLine"
+        return "Play stats (play_history rows, ALL listeners): $plays plays\n$affinityLine"
     }
 
     private companion object {

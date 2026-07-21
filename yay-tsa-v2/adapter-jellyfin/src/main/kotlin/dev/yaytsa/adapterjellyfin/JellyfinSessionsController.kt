@@ -52,6 +52,17 @@ class JellyfinSessionsController(
         private val REFLECT_LEASE_RENEW_THRESHOLD: Duration = Duration.ofMinutes(2)
         private const val REFLECT_POSITION_TOLERANCE_MS = 5_000L
         private const val SOURCE_ADAPTIVE = "adaptive"
+        private const val SOURCE_JELLYFIN = "jellyfin"
+        private const val SOURCE_MAX_LENGTH = 16
+        private val PLAY_SOURCE_PATTERN = Regex("[a-z0-9-]{1,$SOURCE_MAX_LENGTH}")
+
+        // Untrusted free-text from the wire feeds a low-cardinality analytics column:
+        // normalize and drop anything outside the slug alphabet instead of storing junk.
+        internal fun sanitizePlaySource(raw: String?): String? =
+            raw
+                ?.trim()
+                ?.lowercase()
+                ?.takeIf { it.matches(PLAY_SOURCE_PATTERN) }
     }
 
     private val playbackStarts: Cache<String, Instant> =
@@ -116,6 +127,10 @@ class JellyfinSessionsController(
         @JsonProperty("PositionTicks") val positionTicks: Long = 0,
         @JsonProperty("MediaSourceId") val mediaSourceId: String? = null,
         @JsonProperty("EventTime") val eventTime: Long? = null,
+        // Client-declared play surface (album/playlist/search/…) for play_history source
+        // attribution; adaptive provenance still wins, and absent/garbage falls back to
+        // the protocol-level "jellyfin".
+        @JsonProperty("PlaySource") val playSource: String? = null,
     )
 
     data class SessionNowPlayingItemDto(
@@ -241,7 +256,9 @@ class JellyfinSessionsController(
                 adaptiveQuery
                     .findActiveSession(uid)
                     ?.takeIf { session -> adaptiveQuery.getQueueEntries(session.id).any { it.trackId == trackId } }
-                    ?.let { SOURCE_ADAPTIVE },
+                    ?.let { SOURCE_ADAPTIVE }
+                    ?: sanitizePlaySource(info.playSource)
+                    ?: SOURCE_JELLYFIN,
             deviceId = authenticatedDeviceId(),
         )
 

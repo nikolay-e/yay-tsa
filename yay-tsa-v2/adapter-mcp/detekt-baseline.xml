@@ -1,9 +1,9 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
-  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>LongMethod:McpTools.kt$McpTools$fun listTools(): List&lt;McpToolDefinition&gt;</ID>
-    <ID>LongParameterList:McpTools.kt$McpTools$( private val libraryQueries: LibraryQueries, private val playbackQueries: PlaybackQueries, private val playbackRemoteControl: PlaybackRemoteControl, private val playlistQueries: PlaylistQueries, private val preferencesQueries: PreferencesQueries, private val preferencesUseCases: PreferencesUseCases, private val adaptiveUseCases: AdaptiveUseCases, private val deviceSessionProjection: DeviceSessionProjection, private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort, private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter, private val semanticTrackSearch: dev.yaytsa.application.recommendation.SemanticTrackSearchService, private val radioStationService: dev.yaytsa.application.recommendation.RadioStationService, @Qualifier("mcpCommandContextFactory") private val ctxFactory: AdapterCommandContextFactory, )</ID>
+    <ID>LongParameterList:McpTools.kt$McpTools$( private val libraryQueries: LibraryQueries, private val playbackQueries: PlaybackQueries, private val playbackRemoteControl: PlaybackRemoteControl, private val playlistQueries: PlaylistQueries, private val preferencesQueries: PreferencesQueries, private val preferencesUseCases: PreferencesUseCases, private val adaptiveUseCases: AdaptiveUseCases, private val deviceSessionProjection: DeviceSessionProjection, private val embeddingPort: dev.yaytsa.application.ml.port.EmbeddingPort, private val musicSurfaceFilter: dev.yaytsa.application.recommendation.MusicSurfaceFilter, private val semanticTrackSearch: dev.yaytsa.application.recommendation.SemanticTrackSearchService, private val radioStationService: dev.yaytsa.application.recommendation.RadioStationService, @Qualifier("mcpCommandContextFactory") private val ctxFactory: AdapterCommandContextFactory, private val clock: dev.yaytsa.application.shared.port.Clock, )</ID>
     <ID>TooManyFunctions:McpTools.kt$McpTools</ID>
   </CurrentIssues>
 </SmellBaseline>
