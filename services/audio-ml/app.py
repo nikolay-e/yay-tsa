@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import re
@@ -118,13 +119,31 @@ app = FastAPI(title="Audio Separator Service", version="2.0.0", lifespan=lifespa
 _separator_lock = threading.Lock()
 
 
+def _release_separation_memory() -> None:
+    # Long tracks allocate multi-GB CPU tensors and CUDA workspaces per separation;
+    # without an explicit release the peak accumulates across a sequential batch and
+    # the pod OOM-kills at the container limit (observed 3x at 6Gi over 4 days,
+    # burning the karaoke retry budget of every in-flight track).
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
+
+
 def _reconfigure_and_separate(output_dir: str, input_path: str) -> list[str]:
     sep = app.state.separator
     with _separator_lock:
         sep.output_dir = output_dir
         if sep.model_instance is not None:
             sep.model_instance.output_dir = output_dir
-        result: list[str] = sep.separate(input_path)
+        try:
+            result: list[str] = sep.separate(input_path)
+        finally:
+            _release_separation_memory()
         return result
 
 
