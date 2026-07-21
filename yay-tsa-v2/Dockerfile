@@ -1,5 +1,5 @@
 # Build stage
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:25-jdk-alpine AS builder
 WORKDIR /app
 
 # Shared root-level resource read by core-domain/shared build.gradle.kts
@@ -58,7 +58,7 @@ RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew :app:bootJar --no-daemon -x test
 
 # Runtime stage
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:25-jre-alpine AS runtime
 
 RUN addgroup -g 1000 yaytsa && adduser -u 1000 -G yaytsa -D yaytsa
 
