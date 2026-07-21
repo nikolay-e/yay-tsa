@@ -177,6 +177,10 @@ class ClientTelemetry implements ClientTelemetryHandle {
         // A failed image load is a content 404 or an evicted/revoked offline blob, never an
         // actionable client JS error — dropping all IMG resource errors keeps telemetry signal.
         if (target.tagName === 'IMG') return;
+        // Third-party resources (analytics beacons, CDN widgets) fail whenever an
+        // ad-blocker or privacy browser blocks them — not our bug, not actionable.
+        // Same-origin failures stay: our own bundle/asset 404ing is a deploy regression.
+        if (isThirdPartyUrl(url)) return;
         this.report(new Error(`Resource load failed: ${el.tagName} ${url}`), 'resource', {
           type: 'ResourceError',
         });
@@ -218,6 +222,10 @@ class ClientTelemetry implements ClientTelemetryHandle {
     if (message === 'Script error.' && !stack) return true;
     // Extension frames in the stack are the #1 noise source.
     if (stack && EXTENSION_FRAME.test(stack)) return true;
+    // Errors thrown entirely inside a third-party script (every stack frame is a
+    // foreign origin, e.g. an injected analytics beacon crashing in an old browser)
+    // are that vendor's bug. A single same-origin frame keeps the report.
+    if (stack && stackIsEntirelyThirdParty(stack)) return true;
     for (const pattern of this.denyList) {
       if (pattern.test(message)) return true;
     }
@@ -296,6 +304,23 @@ function errorStack(error: unknown): string | undefined {
 
 function truncate(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+function isThirdPartyUrl(url: string): boolean {
+  if (!url) return false;
+  const origin = globalThis.location?.origin;
+  if (!origin || origin === 'null') return false;
+  try {
+    return new URL(url, origin).origin !== origin;
+  } catch {
+    return false;
+  }
+}
+
+function stackIsEntirelyThirdParty(stack: string): boolean {
+  const frameUrls = stack.match(/https?:\/\/[^\s)]+/g);
+  if (!frameUrls || frameUrls.length === 0) return false;
+  return frameUrls.every(isThirdPartyUrl);
 }
 
 function isOpaqueScriptError(event: ErrorEvent): boolean {

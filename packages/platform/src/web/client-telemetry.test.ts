@@ -57,4 +57,49 @@ describe('client-telemetry send()', () => {
     const parsed = JSON.parse(body!);
     expect(parsed.message).not.toContain('abc123xyz');
   });
+
+  // Regression: Cloudflare Insights' beacon.min.js crashing in an old browser
+  // (`t.entries.at is not a function`, every stack frame on cloudflareinsights.com)
+  // was beaconed as OUR runtime error and paged ClientErrorReported in production.
+  it('drops runtime errors whose stack lives entirely in a foreign origin', () => {
+    const capture = captureSentBody();
+    withLocationOrigin('https://app.example.com', () => {
+      const handle = installClientTelemetry({ endpoint: '/v1/client-errors', appVersion: 'test' });
+      const error = new Error('t.entries.at is not a function');
+      error.stack =
+        'TypeError: t.entries.at is not a function\n' +
+        '    at https://static.cloudflareinsights.com/beacon.min.js:1:5773\n' +
+        '    at https://static.cloudflareinsights.com/beacon.min.js:1:6001';
+      handle.report(error, 'runtime');
+    });
+    expect(capture.get()).toBeUndefined();
+  });
+
+  it('keeps runtime errors with at least one same-origin stack frame', () => {
+    const capture = captureSentBody();
+    withLocationOrigin('https://app.example.com', () => {
+      const handle = installClientTelemetry({ endpoint: '/v1/client-errors', appVersion: 'test' });
+      const error = new Error('boom in our handler called from a vendor script');
+      error.stack =
+        'Error: boom\n' +
+        '    at https://app.example.com/static/index-abc123.js:1:100\n' +
+        '    at https://static.cloudflareinsights.com/beacon.min.js:1:200';
+      handle.report(error, 'runtime');
+    });
+    expect(capture.get()).toBeDefined();
+  });
+
+  function withLocationOrigin(origin: string, run: () => void): void {
+    const hadOwn = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    Object.defineProperty(globalThis, 'location', {
+      configurable: true,
+      value: { origin },
+    });
+    try {
+      run();
+    } finally {
+      if (hadOwn) Object.defineProperty(globalThis, 'location', hadOwn);
+      else delete (globalThis as { location?: unknown }).location;
+    }
+  }
 });
