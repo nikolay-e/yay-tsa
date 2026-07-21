@@ -163,10 +163,9 @@ final class GroupSyncViewModel: ObservableObject {
         applyingRemoteSchedule = true
         defer { applyingRemoteSchedule = false }
 
-        if let trackId = schedule.trackId, player.currentItem?.id != trackId {
-            if let resolved = try? await apiClient.fetchItems(ids: [trackId]).items.first {
-                player.play(queue: [resolved], startAt: 0)
-            }
+        if let trackId = schedule.trackId, player.currentItem?.id != trackId,
+           let resolved = try? await apiClient.fetchItems(ids: [trackId]).items.first {
+            player.play(queue: [resolved], startAt: 0)
         }
 
         let elapsedMs = schedule.isPaused ? 0 : max(0, serverNowMs - schedule.anchorServerMs)

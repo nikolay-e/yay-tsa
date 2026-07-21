@@ -15,6 +15,9 @@ enum KeychainStore {
 
         var attributes = query
         attributes[kSecValueData as String] = data
+        // Playback continues in the background (UIBackgroundModes audio), so the token must be
+        // readable after first unlock; ThisDeviceOnly keeps it out of iCloud Keychain sync.
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(attributes as CFDictionary, nil)
     }
 

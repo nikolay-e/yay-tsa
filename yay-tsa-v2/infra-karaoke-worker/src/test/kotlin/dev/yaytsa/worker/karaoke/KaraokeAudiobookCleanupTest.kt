@@ -67,6 +67,9 @@ class KaraokeAudiobookCleanupTest {
     companion object {
         private const val SONG_NAME = "A Song"
         private const val INSTRUMENTAL_FILE = "instrumental.wav"
+        private const val LOOPBACK = "127.0.0.1"
+        private const val SEPARATE_ROUTE = "/api/separate"
+        private const val SOURCE_FILE = "song.flac"
 
         @JvmStatic
         private val postgres: PostgreSQLContainer<*> =
@@ -197,15 +200,15 @@ class KaraokeAudiobookCleanupTest {
                 .toByteArray()
         val server =
             com.sun.net.httpserver.HttpServer
-                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/api/separate") { exchange ->
+                .create(java.net.InetSocketAddress(LOOPBACK, 0), 0)
+        server.createContext(SEPARATE_ROUTE) { exchange ->
             exchange.sendResponseHeaders(200, responseBody.size.toLong())
             exchange.responseBody.use { it.write(responseBody) }
         }
         server.start()
         try {
             val libraryQuery = InMemoryLibraryQueryPort()
-            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve(SOURCE_FILE).toString()
             val separatorProcessor =
                 KaraokeProcessor(
                     libraryEntityRepo = libraryEntityRepo,
@@ -215,7 +218,7 @@ class KaraokeAudiobookCleanupTest {
                     separatorClient = SeparatorClient(),
                     outputPath = null,
                     demucsCommand = "unsupported",
-                    separatorUrl = "http://127.0.0.1:${server.address.port}",
+                    separatorUrl = "http://$LOOPBACK:${server.address.port}",
                     failThreshold = 3,
                     meterRegistry = SimpleMeterRegistry(),
                 )
@@ -242,13 +245,13 @@ class KaraokeAudiobookCleanupTest {
         val song = seedTrack(SONG_NAME)
         val deadServer =
             com.sun.net.httpserver.HttpServer
-                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+                .create(java.net.InetSocketAddress(LOOPBACK, 0), 0)
         val deadPort = deadServer.address.port
         deadServer.start()
         deadServer.stop(0)
 
         val libraryQuery = InMemoryLibraryQueryPort()
-        libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+        libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve(SOURCE_FILE).toString()
         val separatorProcessor =
             KaraokeProcessor(
                 libraryEntityRepo = libraryEntityRepo,
@@ -258,7 +261,7 @@ class KaraokeAudiobookCleanupTest {
                 separatorClient = SeparatorClient(),
                 outputPath = null,
                 demucsCommand = "unsupported",
-                separatorUrl = "http://127.0.0.1:$deadPort",
+                separatorUrl = "http://$LOOPBACK:$deadPort",
                 failThreshold = 3,
                 meterRegistry = SimpleMeterRegistry(),
             )
@@ -284,15 +287,15 @@ class KaraokeAudiobookCleanupTest {
         val errorBody = """{"detail":"Internal processing error"}""".toByteArray()
         val server =
             com.sun.net.httpserver.HttpServer
-                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/api/separate") { exchange ->
+                .create(java.net.InetSocketAddress(LOOPBACK, 0), 0)
+        server.createContext(SEPARATE_ROUTE) { exchange ->
             exchange.sendResponseHeaders(500, errorBody.size.toLong())
             exchange.responseBody.use { it.write(errorBody) }
         }
         server.start()
         try {
             val libraryQuery = InMemoryLibraryQueryPort()
-            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve(SOURCE_FILE).toString()
             val separatorProcessor =
                 KaraokeProcessor(
                     libraryEntityRepo = libraryEntityRepo,
@@ -302,7 +305,7 @@ class KaraokeAudiobookCleanupTest {
                     separatorClient = SeparatorClient(),
                     outputPath = null,
                     demucsCommand = "unsupported",
-                    separatorUrl = "http://127.0.0.1:${server.address.port}",
+                    separatorUrl = "http://$LOOPBACK:${server.address.port}",
                     failThreshold = 3,
                     meterRegistry = SimpleMeterRegistry(),
                 )
@@ -334,15 +337,15 @@ class KaraokeAudiobookCleanupTest {
                 .toByteArray()
         val server =
             com.sun.net.httpserver.HttpServer
-                .create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/api/separate") { exchange ->
+                .create(java.net.InetSocketAddress(LOOPBACK, 0), 0)
+        server.createContext(SEPARATE_ROUTE) { exchange ->
             exchange.sendResponseHeaders(200, responseBody.size.toLong())
             exchange.responseBody.use { it.write(responseBody) }
         }
         server.start()
         try {
             val libraryQuery = InMemoryLibraryQueryPort()
-            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve("song.flac").toString()
+            libraryQuery.trackFilePaths[dev.yaytsa.shared.EntityId(song.toString())] = root.resolve(SOURCE_FILE).toString()
             val separatorProcessor =
                 KaraokeProcessor(
                     libraryEntityRepo = libraryEntityRepo,
@@ -352,7 +355,7 @@ class KaraokeAudiobookCleanupTest {
                     separatorClient = SeparatorClient(),
                     outputPath = null,
                     demucsCommand = "unsupported",
-                    separatorUrl = "http://127.0.0.1:${server.address.port}",
+                    separatorUrl = "http://$LOOPBACK:${server.address.port}",
                     failThreshold = 3,
                     meterRegistry = SimpleMeterRegistry(),
                 )

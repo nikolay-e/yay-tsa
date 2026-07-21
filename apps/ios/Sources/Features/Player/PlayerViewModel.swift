@@ -179,15 +179,16 @@ final class PlayerViewModel: ObservableObject {
         karaokeMode = .instrumental
         isBlendActive = true
 
-        primary.seek(to: seekTime) { [weak self] _ in
-            secondary.seek(to: seekTime) { _ in
-                MainActor.assumeIsolated {
-                    guard let self, wasPlaying else { return }
-                    primary.play()
-                    secondary.play()
-                    self.isPlaying = true
-                }
+        let resumeBothIfNeeded: @Sendable (Bool) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, wasPlaying else { return }
+                primary.play()
+                secondary.play()
+                self.isPlaying = true
             }
+        }
+        primary.seek(to: seekTime) { _ in
+            secondary.seek(to: seekTime, completionHandler: resumeBothIfNeeded)
         }
         startBlendDriftWatchdog()
     }

@@ -65,7 +65,7 @@ struct ChangePasswordView: View {
         .background(Theme.Colors.bgPrimary)
         .navigationTitle("Change Password")
         .alert("Password Changed", isPresented: $didSucceed) {
-            Button("OK") {}
+            Button("OK") { /* SwiftUI dismisses the alert itself; nothing else to do */ }
         }
     }
 

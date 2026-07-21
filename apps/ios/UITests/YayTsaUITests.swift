@@ -2,6 +2,7 @@ import XCTest
 
 final class YayTsaUITests: XCTestCase {
     private let screenshotDir = "/tmp/yaytsa_ui_test"
+    private let serverAddress = "http://localhost:8080"
     private var app: XCUIApplication!
 
     override func setUpWithError() throws {
@@ -91,7 +92,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -216,7 +217,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -276,7 +277,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -362,7 +363,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -449,7 +450,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -501,7 +502,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -539,7 +540,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)
@@ -625,7 +626,7 @@ final class YayTsaUITests: XCTestCase {
         if signInButton.waitForExistence(timeout: 3) {
             let serverField = app.textFields.firstMatch
             serverField.tap()
-            typeSlowly("http://localhost:8080", into: serverField)
+            typeSlowly(serverAddress, into: serverField)
             let usernameField = app.textFields["Username"]
             usernameField.tap()
             typeSlowly("admin", into: usernameField)

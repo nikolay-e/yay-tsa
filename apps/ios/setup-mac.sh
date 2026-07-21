@@ -16,7 +16,7 @@ xcodebuild -version
 echo "== Homebrew =="
 if ! command -v brew >/dev/null 2>&1; then
   echo "Homebrew not found. Installing (this needs sudo + a password prompt once)..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
 fi
 brew --version

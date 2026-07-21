@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-Yay-Tsa is a self-hosted music streaming system: a multi-protocol Kotlin server (`yay-tsa-v2/`, Spring Boot 3.4 / JDK 21, hexagonal architecture with eight bounded contexts) paired with a React PWA client (`apps/web/`). The old Java Spring Boot v1 backend was retired on 2026-05-16; its code, chart templates, and CI jobs have been removed. The v2 backend speaks four protocols simultaneously — Jellyfin (custom Yaytsa extensions), OpenSubsonic, MPD, and MCP — over a single authoritative state engine.
+Yay-Tsa is a self-hosted music streaming system: a multi-protocol Kotlin server (`yay-tsa-v2/`, Spring Boot 3.4 / JDK 21, hexagonal architecture with eight bounded contexts) paired with a React PWA client (`apps/web/`) and a native SwiftUI iOS client (`apps/ios/`, see its own CLAUDE.md; CI: `ios-ci.yml` compile gate on a macOS runner). The old Java Spring Boot v1 backend was retired on 2026-05-16; its code, chart templates, and CI jobs have been removed. The v2 backend speaks four protocols simultaneously — Jellyfin (custom Yaytsa extensions), OpenSubsonic, MPD, and MCP — over a single authoritative state engine.
 
 The system is designed around two hard problems: **a single, consistent music state visible across every protocol and device**, and **correct, efficient audio streaming with seek support**.
 

@@ -224,12 +224,13 @@ final class APIClient: ObservableObject {
     // MARK: - Adaptive DJ / Radio session
 
     struct StartSessionBody: Encodable {
-        let seed_track_id: String?
+        let seedTrackId: String?
+        enum CodingKeys: String, CodingKey { case seedTrackId = "seed_track_id" }
     }
 
     @discardableResult
     func startAdaptiveSession(seedTrackId: String? = nil) async throws -> AdaptiveSession {
-        let data = try await authenticatedPost(path: "v1/sessions", body: StartSessionBody(seed_track_id: seedTrackId))
+        let data = try await authenticatedPost(path: "v1/sessions", body: StartSessionBody(seedTrackId: seedTrackId))
         do {
             return try Self.decoder.decode(AdaptiveSession.self, from: data)
         } catch {
@@ -261,14 +262,18 @@ final class APIClient: ObservableObject {
     }
 
     struct SignalBody: Encodable {
-        let track_id: String
-        let signal_type: String
+        let trackId: String
+        let signalType: String
+        enum CodingKeys: String, CodingKey {
+            case trackId = "track_id"
+            case signalType = "signal_type"
+        }
     }
 
     func sendPlaybackSignal(sessionId: String, trackId: String, type: PlaybackSignalType) async throws {
         _ = try await authenticatedPost(
             path: "v1/sessions/\(sessionId)/signals",
-            body: SignalBody(track_id: trackId, signal_type: type.rawValue)
+            body: SignalBody(trackId: trackId, signalType: type.rawValue)
         )
     }
 
@@ -311,11 +316,18 @@ final class APIClient: ObservableObject {
     }
 
     struct ScheduleUpdateBody: Encodable {
-        let expected_epoch: Int64
+        let expectedEpoch: Int64
         let action: String
         let trackId: String?
         let positionMs: Int64?
         let paused: Bool?
+        enum CodingKeys: String, CodingKey {
+            case expectedEpoch = "expected_epoch"
+            case action
+            case trackId
+            case positionMs
+            case paused
+        }
     }
 
     @discardableResult
@@ -328,7 +340,7 @@ final class APIClient: ObservableObject {
         paused: Bool? = nil
     ) async throws -> ScheduleUpdateResponse {
         let body = ScheduleUpdateBody(
-            expected_epoch: expectedEpoch,
+            expectedEpoch: expectedEpoch,
             action: action.rawValue,
             trackId: trackId,
             positionMs: positionMs,

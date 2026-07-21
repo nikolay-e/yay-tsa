@@ -15,8 +15,8 @@ struct ParsedLyrics {
 /// packages/core/src/lyrics/lrc-parser.ts exactly so both clients treat the
 /// same file the same way.
 enum LrcParser {
-    private static let timestampRegex = try! NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{2})(?:\.(\d{2,3}))?\]"#)
-    private static let metadataRegex = try! NSRegularExpression(
+    private static let timestampRegex = try? NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{2})(?:\.(\d{2,3}))?\]"#)
+    private static let metadataRegex = try? NSRegularExpression(
         pattern: #"^\[[a-zA-Z]{2}:.+\]$"#
     )
 
@@ -28,11 +28,11 @@ enum LrcParser {
             let line = String(substring)
             let fullRange = NSRange(line.startIndex..<line.endIndex, in: line)
 
-            if metadataRegex.firstMatch(in: line, range: fullRange) != nil {
+            if metadataRegex?.firstMatch(in: line, range: fullRange) != nil {
                 continue
             }
 
-            let matches = timestampRegex.matches(in: line, range: fullRange)
+            let matches = timestampRegex?.matches(in: line, range: fullRange) ?? []
             guard !matches.isEmpty else {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 if !trimmed.isEmpty {
@@ -72,7 +72,9 @@ enum LrcParser {
     /// The last line whose timestamp is <= currentTime, or nil if before the first line.
     static func activeLineIndex(_ lines: [LyricsLine], currentTime: TimeInterval) -> Int? {
         guard !lines.isEmpty else { return nil }
-        var lo = 0, hi = lines.count - 1, result = -1
+        var lo = 0
+        var hi = lines.count - 1
+        var result = -1
         while lo <= hi {
             let mid = (lo + hi) / 2
             if lines[mid].time <= currentTime {

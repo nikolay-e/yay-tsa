@@ -1,0 +1,52 @@
+name: CI (iOS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/ios/**'
+      - '.github/workflows/ios-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/ios/**'
+      - '.github/workflows/ios-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: iOS build (simulator, unsigned)
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: apps/ios
+        run: xcodegen generate
+
+      # UI tests need a live backend at localhost:8080 and a booted simulator with the
+      # app installed — they stay a local/manual suite. The compile gate is the CI signal:
+      # every Swift file must build for the simulator without signing.
+      - name: Build for iOS Simulator
+        working-directory: apps/ios
+        run: |
+          xcodebuild build \
+            -project YayTsa.xcodeproj \
+            -scheme YayTsa \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            | tail -50
+          exit "${PIPESTATUS[0]}"
