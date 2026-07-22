@@ -125,6 +125,14 @@ class CoreBeansConfiguration {
                 }
                 ListeningStatsGroupBy.GENRE ->
                     tracks.mapNotNull { track -> track.genre?.let { TrackId(track.id.value) to it } }.toMap()
+                ListeningStatsGroupBy.TRACK -> {
+                    val artistNames = libraryQueries.getEntityNamesByIds(tracks.mapNotNull { it.albumArtistId }.toSet())
+                    tracks.associate { track ->
+                        val artist = track.albumArtistId?.let { artistNames[it] }
+                        val label = if (artist != null) "${track.name} — $artist" else track.name
+                        TrackId(track.id.value) to "$label (id: ${track.id.value})"
+                    }
+                }
                 else -> emptyMap()
             }
         }

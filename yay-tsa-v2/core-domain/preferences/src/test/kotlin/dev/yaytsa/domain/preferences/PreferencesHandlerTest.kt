@@ -10,6 +10,7 @@ import dev.yaytsa.shared.TrackId
 import dev.yaytsa.shared.UserId
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.time.Instant
 
@@ -107,6 +108,32 @@ class PreferencesHandlerTest :
             r.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
             r.value.preferenceContract!!.hardRules shouldBe "no metal"
             r.value.preferenceContract!!.djStyle shouldBe "chill"
+        }
+
+        test("UpdatePreferenceContract rejects an over-long dj_style naming the field and bound") {
+            val longStyle = "x".repeat(2001)
+            val r =
+                PreferencesHandler.handle(
+                    prefs(),
+                    UpdatePreferenceContract(userId, "no metal", "prefer jazz", longStyle, "no screaming", now),
+                    ctx(),
+                    deps(),
+                )
+            r.shouldBeInstanceOf<CommandResult.Failed>()
+            val failure = r.failure.shouldBeInstanceOf<Failure.InvariantViolation>()
+            failure.rule shouldContain "dj_style"
+            failure.rule shouldContain "2000"
+        }
+
+        test("UpdatePreferenceContract accepts a dj_style at the length bound") {
+            val r =
+                PreferencesHandler.handle(
+                    prefs(),
+                    UpdatePreferenceContract(userId, "", "", "y".repeat(2000), "", now),
+                    ctx(),
+                    deps(),
+                )
+            r.shouldBeInstanceOf<CommandResult.Success<UserPreferencesAggregate>>()
         }
 
         test("version mismatch returns Conflict") {

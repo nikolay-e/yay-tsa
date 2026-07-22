@@ -81,23 +81,35 @@ class PlayHistoryDedupIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
-    fun `genuine re-listen outside the dedup window writes a second play_history row`() {
+    fun `genuine re-listen with a started_at outside the dedup window writes a second play_history row`() {
         val itemId = UUID.randomUUID().toString()
         val uid = UserId(userId)
         val trackId = TrackId(itemId)
+        val firstStart = Instant.now()
 
-        playHistoryWriter.record(uid, trackId, Instant.now(), 240_000, 240_000, completed = true, skipped = false)
+        playHistoryWriter.record(uid, trackId, firstStart, 240_000, 240_000, completed = true, skipped = false)
         assertEquals(1, playHistoryCount(itemId))
 
-        jdbc.update(
-            "UPDATE core_v2_playback.play_history SET recorded_at = now() - interval '1 hour' WHERE user_id = ? AND item_id = ?",
-            userId,
-            itemId,
-        )
+        val outsideWindow = firstStart.plusSeconds(31 * 60)
+        playHistoryWriter.record(uid, trackId, outsideWindow, 240_000, 240_000, completed = true, skipped = false)
 
-        playHistoryWriter.record(uid, trackId, Instant.now(), 240_000, 240_000, completed = true, skipped = false)
+        assertEquals(2, playHistoryCount(itemId), "a genuine re-listen outside the started_at window must be counted separately")
+    }
 
-        assertEquals(2, playHistoryCount(itemId), "a genuine re-listen outside the window must be counted separately")
+    @Test
+    fun `phantom re-scrobble with a shifted started_at inside the window is suppressed`() {
+        val itemId = UUID.randomUUID().toString()
+        val uid = UserId(userId)
+        val trackId = TrackId(itemId)
+        val realStart = Instant.now()
+
+        playHistoryWriter.record(uid, trackId, realStart, 450_000, 450_000, completed = true, skipped = false)
+        assertEquals(1, playHistoryCount(itemId))
+
+        val backdatedStart = realStart.plusSeconds(20 * 60)
+        playHistoryWriter.record(uid, trackId, backdatedStart, 450_000, 450_000, completed = true, skipped = false)
+
+        assertEquals(1, playHistoryCount(itemId), "a phantom duplicate of the same play must not inflate the replay signal")
     }
 
     private fun recordedSource(itemId: String): String? =

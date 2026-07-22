@@ -70,6 +70,30 @@ class McpListeningToolsIntegrationTest : HttpIntegrationTestBase() {
     }
 
     @Test
+    fun `get_listening_stats group_by track buckets per track with replay counts`() {
+        val artistName = "ReplayArtist-${UUID.randomUUID().toString().take(6)}"
+        val artistId = seedArtist(artistName)
+        val replayedName = "ReplayedTrack-${UUID.randomUUID().toString().take(6)}"
+        val replayed = seedTrack(replayedName, artistId, durationMs = 210_000L)
+        val onceName = "OnceTrack-${UUID.randomUUID().toString().take(6)}"
+        val once = seedTrack(onceName, artistId, durationMs = 190_000L)
+        val start = Instant.now().minus(Duration.ofHours(6))
+        repeat(3) { i ->
+            seedPlay(replayed, start.plusSeconds(i * 3600L), 210_000L, 210_000L, completed = true, skipped = false, source = "queue")
+        }
+        seedPlay(once, start.plusSeconds(120), 190_000L, 190_000L, completed = true, skipped = false, source = "queue")
+
+        val result = mcpToolCall("get_listening_stats", mapOf("group_by" to "track", "window_days" to 7))
+        assertFalse(result.get("isError").asBoolean(), result.toString())
+        val text = toolText(result)
+        assertTrue(text.contains("$replayedName — $artistName"), text)
+        assertTrue(text.contains("(id: $replayed)"), text)
+        assertTrue(text.contains("plays=3"), text)
+        assertTrue(text.contains("$onceName — $artistName"), text)
+        assertTrue(text.indexOf(replayedName) < text.indexOf(onceName), "replayed track must rank above the single-play track: $text")
+    }
+
+    @Test
     fun `get_listening_history joins track and artist names with status and source`() {
         val artistName = "HistArtist-${UUID.randomUUID().toString().take(6)}"
         val artistId = seedArtist(artistName)

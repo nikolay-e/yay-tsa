@@ -36,7 +36,13 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
                 SELECT 1 FROM core_v2_playback.play_history existing
                 WHERE existing.user_id = :userId
                   AND existing.item_id = :itemId
-                  AND existing.recorded_at > CAST(:recordedAt AS timestamptz) - make_interval(secs => CAST(:dedupWindowSeconds AS double precision))
+                  AND existing.started_at > CAST(:startedAt AS timestamptz) - make_interval(secs => CAST(:dedupWindowSeconds AS double precision))
+                  AND existing.started_at < CAST(:startedAt AS timestamptz) + make_interval(secs => CAST(:dedupWindowSeconds AS double precision))
+                  AND (
+                        existing.duration_ms = 0
+                        OR CAST(:durationMs AS bigint) = 0
+                        OR abs(existing.duration_ms - CAST(:durationMs AS bigint)) <= CAST(:durationToleranceMs AS bigint)
+                  )
             )
             """,
         nativeQuery = true,
@@ -53,6 +59,7 @@ interface PlayHistoryJpaRepository : JpaRepository<PlayHistoryEntity, UUID> {
         @Param("skipped") skipped: Boolean,
         @Param("recordedAt") recordedAt: Instant,
         @Param("dedupWindowSeconds") dedupWindowSeconds: Long,
+        @Param("durationToleranceMs") durationToleranceMs: Long,
         @Param("source") source: String?,
         @Param("deviceId") deviceId: String?,
     ): Int

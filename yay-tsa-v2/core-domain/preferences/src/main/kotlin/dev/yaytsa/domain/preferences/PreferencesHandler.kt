@@ -99,6 +99,10 @@ object PreferencesHandler {
         snapshot: UserPreferencesAggregate,
         cmd: UpdatePreferenceContract,
     ): CommandResult<UserPreferencesAggregate> {
+        validateContractField(cmd.hardRules, "hard_rules")?.let { return it }
+        validateContractField(cmd.softPrefs, "soft_prefs")?.let { return it }
+        validateContractField(cmd.djStyle, "dj_style")?.let { return it }
+        validateContractField(cmd.redLines, "red_lines")?.let { return it }
         val contract =
             PreferenceContract(
                 hardRules = cmd.hardRules,
@@ -110,4 +114,18 @@ object PreferencesHandler {
         val v = snapshot.version.next()
         return snapshot.copy(preferenceContract = contract, version = v).asSuccess(v)
     }
+
+    private fun validateContractField(
+        value: String,
+        field: String,
+    ): CommandResult<UserPreferencesAggregate>? =
+        if (value.length > MAX_CONTRACT_FIELD_LENGTH) {
+            Failure
+                .InvariantViolation("$field must not exceed $MAX_CONTRACT_FIELD_LENGTH characters (was ${value.length})")
+                .asCommandFailure()
+        } else {
+            null
+        }
+
+    private const val MAX_CONTRACT_FIELD_LENGTH = 2000
 }

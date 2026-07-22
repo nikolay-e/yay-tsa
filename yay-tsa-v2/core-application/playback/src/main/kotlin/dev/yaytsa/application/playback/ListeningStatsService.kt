@@ -9,7 +9,7 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlin.math.sqrt
 
-enum class ListeningStatsGroupBy { ARTIST, GENRE, HOUR, WEEKDAY, SOURCE }
+enum class ListeningStatsGroupBy { ARTIST, GENRE, TRACK, HOUR, WEEKDAY, SOURCE }
 
 data class ListeningStatRow(
     val group: String,
@@ -46,7 +46,7 @@ class ListeningStatsService(
         val events = playHistoryQuery.eventsInWindow(userId, since, until, includeAudiobooks)
         val trackGroups =
             when (groupBy) {
-                ListeningStatsGroupBy.ARTIST, ListeningStatsGroupBy.GENRE ->
+                ListeningStatsGroupBy.ARTIST, ListeningStatsGroupBy.GENRE, ListeningStatsGroupBy.TRACK ->
                     trackGroupResolver(events.map { it.trackId }.distinct(), groupBy)
                 else -> emptyMap()
             }
@@ -72,7 +72,7 @@ class ListeningStatsService(
     ): String {
         val local = event.startedAt.atZone(zone)
         return when (groupBy) {
-            ListeningStatsGroupBy.ARTIST, ListeningStatsGroupBy.GENRE ->
+            ListeningStatsGroupBy.ARTIST, ListeningStatsGroupBy.GENRE, ListeningStatsGroupBy.TRACK ->
                 trackGroups[event.trackId] ?: UNKNOWN_GROUP
             ListeningStatsGroupBy.HOUR -> "%02d:00".format(local.hour)
             ListeningStatsGroupBy.WEEKDAY -> local.dayOfWeek.name

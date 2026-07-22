@@ -13,8 +13,10 @@ import java.util.UUID
 @Repository
 class JpaPlayHistoryWritePort(
     private val jpa: PlayHistoryJpaRepository,
-    @Value("\${yaytsa.playback.play-history-dedup-window-seconds:30}")
+    @Value("\${yaytsa.playback.play-history-dedup-window-seconds:1800}")
     private val dedupWindowSeconds: Long,
+    @Value("\${yaytsa.playback.play-history-dedup-duration-tolerance-ms:5000}")
+    private val dedupDurationToleranceMs: Long,
 ) : PlayHistoryWritePort {
     @Transactional
     @Suppress("LongParameterList")
@@ -40,6 +42,7 @@ class JpaPlayHistoryWritePort(
             skipped = skipped,
             recordedAt = Instant.now(),
             dedupWindowSeconds = dedupWindowSeconds,
+            durationToleranceMs = dedupDurationToleranceMs,
             source = source?.take(SOURCE_MAX_LENGTH),
             deviceId = deviceId?.take(DEVICE_ID_MAX_LENGTH),
         )

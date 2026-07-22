@@ -42,7 +42,11 @@ class McpListeningTools(
                             "window_days" to
                                 mapOf("type" to "integer", "default" to 30, "minimum" to 1, "maximum" to 180),
                             "group_by" to
-                                mapOf("type" to "string", "enum" to listOf("artist", "genre", "hour", "weekday", "source")),
+                                mapOf(
+                                    "type" to "string",
+                                    "enum" to listOf("artist", "genre", "track", "hour", "weekday", "source"),
+                                    "description" to "track buckets by individual track — plays is the per-track replay count",
+                                ),
                             "tz" to
                                 mapOf(
                                     "type" to "string",
@@ -118,10 +122,11 @@ class McpListeningTools(
         uid: UserId,
     ): McpToolResult {
         val windowDays = intArg(args, "window_days", DEFAULT_WINDOW_DAYS).coerceIn(1, MAX_WINDOW_DAYS)
-        val groupByRaw = args["group_by"] as? String ?: return errorResult("group_by is required: artist|genre|hour|weekday|source")
+        val groupByRaw =
+            args["group_by"] as? String ?: return errorResult("group_by is required: artist|genre|track|hour|weekday|source")
         val groupBy =
             runCatching { ListeningStatsGroupBy.valueOf(groupByRaw.uppercase(Locale.ROOT)) }.getOrNull()
-                ?: return errorResult("Invalid group_by '$groupByRaw' — use artist|genre|hour|weekday|source")
+                ?: return errorResult("Invalid group_by '$groupByRaw' — use artist|genre|track|hour|weekday|source")
         val tzRaw = args["tz"] as? String
         val zone =
             if (tzRaw == null) {

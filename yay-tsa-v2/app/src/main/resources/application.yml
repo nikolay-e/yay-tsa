@@ -83,7 +83,8 @@ yaytsa:
   upload:
     max-bytes: ${UPLOAD_MAX_BYTES:209715200}
   playback:
-    play-history-dedup-window-seconds: ${PLAY_HISTORY_DEDUP_WINDOW_SECONDS:30}
+    play-history-dedup-window-seconds: ${PLAY_HISTORY_DEDUP_WINDOW_SECONDS:1800}
+    play-history-dedup-duration-tolerance-ms: ${PLAY_HISTORY_DEDUP_DURATION_TOLERANCE_MS:5000}
   scrobbling:
     listenbrainz:
       enabled: ${LISTENBRAINZ_ENABLED:false}
