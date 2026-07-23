@@ -3,7 +3,7 @@ import org.yaml.snakeyaml.Yaml
 buildscript {
     repositories { mavenCentral() }
     dependencies {
-        classpath("org.yaml:snakeyaml:2.3")
+        classpath("org.yaml:snakeyaml:2.6")
     }
 }
 
