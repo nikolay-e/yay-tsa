@@ -21,7 +21,7 @@ dependencies {
 
     implementation(libs.testcontainers.postgresql)
     implementation(libs.testcontainers.junit.jupiter)
-    implementation(platform("org.springframework.boot:spring-boot-dependencies:3.4.4"))
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
     implementation("org.springframework:spring-test")
 
     testImplementation(libs.kotest.runner.junit5)
